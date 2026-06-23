@@ -207,10 +207,48 @@ button.ghost{background:#f7f8fa;color:#333}
 .version-observaciones{background:#f7f8fa;border:1px solid #e3e7eb;border-radius:12px;padding:10px;margin-top:10px;color:#555}
 @media(max-width:800px){.version-filter{grid-template-columns:1fr}.version-current-card strong{font-size:28px}}
 
+
+/* V30 - Órdenes como centro operativo + Ficha OC expediente digital */
+.ordenes-toolbar{display:grid;grid-template-columns:2fr repeat(6,1fr) auto;gap:10px;margin:0 0 14px}
+.ordenes-toolbar input,.ordenes-toolbar select{width:100%}
+.ordenes-resumen{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.ordenes-resumen .mini-kpi{background:#f7f8fa;border:1px solid #e3e7eb;border-radius:12px;padding:11px}
+.ordenes-resumen .mini-kpi b{display:block;font-size:20px;color:#2f6fa3}
+.ordenes-resumen .mini-kpi span{font-size:11px;text-transform:uppercase;color:#666;font-weight:800}
+.coi-table tr.row-clickable{cursor:pointer}
+.coi-table tr.row-clickable:hover{background:#eef5ff}
+.expediente-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.expediente-card{background:#fff;border:1px solid #e3e7eb;border-radius:14px;padding:14px;margin:12px 0}
+.expediente-card h3{margin:0 0 10px;font-size:15px;text-transform:uppercase;letter-spacing:.25px;color:#333;border-bottom:1px solid #e9edf1;padding-bottom:8px}
+.expediente-card.full{grid-column:1/-1}
+.exp-actions{display:flex;gap:8px;flex-wrap:wrap}
+.exp-actions button{font-size:12px;padding:8px 10px;border-radius:9px}
+.exp-observaciones{white-space:pre-wrap;background:#f7f8fa;border:1px solid #e3e7eb;border-radius:12px;padding:12px;min-height:70px}
+@media(max-width:1200px){.ordenes-toolbar{grid-template-columns:1fr 1fr}.ordenes-resumen{grid-template-columns:repeat(2,1fr)}.expediente-grid{grid-template-columns:1fr}}
+@media(max-width:700px){.ordenes-toolbar,.ordenes-resumen{grid-template-columns:1fr}}
+
+
+/* V31 - Buscador integrado en Órdenes */
+.quick-search-link{margin-left:auto}
+.quick-search-link button{border-radius:999px;background:#f7f8fa;color:#2f6fa3;border:1px solid #cfd6dd;font-weight:900}
+@media(max-width:900px){.quick-search-link{margin-left:0;width:100%}.quick-search-link button{width:100%}}
+
+
+/* V32 - Repositorio UM / Unidades de Mantenimiento */
+.um-toolbar{display:grid;grid-template-columns:1.6fr repeat(5,1fr) auto auto;gap:10px;margin-bottom:14px}
+.um-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
+.um-kpi{background:#f7f8fa;border:1px solid #e3e7eb;border-radius:14px;padding:12px}.um-kpi b{display:block;font-size:22px;color:#2f6fa3}.um-kpi span{font-size:11px;color:#666;text-transform:uppercase;font-weight:900}
+.um-form{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}.um-form label{font-size:12px;color:#555;font-weight:900;text-transform:uppercase}.um-form input,.um-form select,.um-form textarea{width:100%;margin-top:4px}.um-form textarea{min-height:90px;resize:vertical}.um-form .full{grid-column:1/-1}
+.um-ficha-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.um-ficha-card{background:#fff;border:1px solid #e3e7eb;border-radius:14px;padding:14px;margin:12px 0}.um-ficha-card h3{margin:0 0 10px;font-size:15px;text-transform:uppercase;border-bottom:1px solid #e9edf1;padding-bottom:8px}.um-ficha-card.full{grid-column:1/-1}
+.um-actions{display:flex;gap:8px;flex-wrap:wrap}.um-actions button,.btn-open-um{font-size:12px;padding:8px 10px;border-radius:9px}.btn-open-um{background:#f7f8fa;color:#2f6fa3;border:1px solid #cfd6dd;font-weight:900}
+.um-status{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:900;border:1px solid #ddd}.um-status.activo{background:#effaf3;color:#1f7a3d;border-color:#ccebd5}.um-status.mantenimiento{background:#fff8e6;color:#916600;border-color:#ffe3a3}.um-status.fuera{background:#fff1f1;color:#9b1c1c;border-color:#ffd0d0}.um-status.baja,.um-status.sindatos{background:#f1f3f5;color:#555;border-color:#d8dee4}
+.um-mini-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.um-mini-card{border:1px solid #e3e7eb;background:#fbfcfd;border-radius:12px;padding:11px;font-size:13px}.um-mini-card h4{margin:0 0 7px;color:#2f6fa3}
+@media(max-width:1200px){.um-toolbar{grid-template-columns:1fr 1fr}.um-kpis{grid-template-columns:repeat(2,1fr)}.um-form{grid-template-columns:1fr 1fr}.um-ficha-grid{grid-template-columns:1fr}}@media(max-width:700px){.um-toolbar,.um-kpis,.um-form{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
-<header><div class="brand"><small>TRENES ARGENTINOS</small>LÍNEA ROCA</div><div>Plano Interactivo de Obras y Servicios — <span id="appVersionHeader">V29</span></div></header>
+<header><div class="brand"><small>TRENES ARGENTINOS</small>LÍNEA ROCA</div><div id="appTitleHeader">Plano Interactivo de Obras y Servicios — <span id="appVersionHeader">V32</span></div></header>
 
 <section class="module-nav" aria-label="Menú de módulos COI">
   <span class="nav-title">Módulos</span>
@@ -220,8 +258,9 @@ button.ghost{background:#f7f8fa;color:#333}
   <button type="button" id="btnCalendarioCertificaciones">Calendario Certificaciones</button>
   <button type="button" id="btnOrdenes">Órdenes</button>
   <button type="button" id="btnCarga">Carga</button>
-  <button type="button" id="btnBuscador">Buscador</button>
+  <button type="button" id="btnUnidadesMantenimiento">Unidades de Mantenimiento</button>
   <button type="button" id="btnHistorialVersiones">Historial de versiones</button>
+  <span class="quick-search-link"><button type="button" id="btnAccesoBusquedaOrdenes">Buscar OC</button></span>
 </section>
 
 
@@ -339,10 +378,44 @@ button.ghost{background:#f7f8fa;color:#333}
 </section>
 
 
+
 <section id="vistaOrdenes" class="view">
   <section class="view-card">
-    <div class="view-head"><h2>Órdenes de Compra</h2><div class="muted">Listado consolidado de OC cargadas en el sistema.</div></div>
-    <div class="view-body"><div class="table-wrap"><table class="coi-table"><thead><tr><th>ID_OBRA</th><th>N° OC</th><th>Tipo</th><th>Estación</th><th>Proveedor</th><th>Especialidad</th><th>Estado COI</th><th>Estado registro</th><th>Vencimiento</th></tr></thead><tbody id="ordenesTbody"></tbody></table></div></div>
+    <div class="view-head">
+      <h2>Órdenes de Compra</h2>
+      <div class="muted">Centro operativo principal: búsqueda global, filtros combinables, tabla maestra y acceso a expediente digital OC.</div>
+    </div>
+    <div class="view-body">
+      <div class="ordenes-toolbar">
+        <input id="ordenesBusqueda" placeholder="Buscar por ID_OBRA, OC, proveedor, estación, tipo, trabajo, estado..." />
+        <select id="ordenesFiltroTipo"><option value="">Tipo</option><option>Obra</option><option>Servicio</option></select>
+        <select id="ordenesFiltroEstacion"><option value="">Estación</option></select>
+        <select id="ordenesFiltroProveedor"><option value="">Proveedor</option></select>
+        <select id="ordenesFiltroEstado"><option value="">Estado COI</option></select>
+        <select id="ordenesFiltroDoc"><option value="">Estado documental</option></select>
+        <select id="ordenesFiltroMesVenc"><option value="">Mes vencimiento</option></select>
+        <select id="ordenesFiltroMesCert"><option value="">Mes certificación</option></select>
+        <button type="button" id="btnOrdenesLimpiar">Limpiar</button>
+      </div>
+
+      <div class="ordenes-resumen">
+        <div class="mini-kpi"><b id="ordKTotal">0</b><span>Total OC</span></div>
+        <div class="mini-kpi"><b id="ordKObras">0</b><span>Obras</span></div>
+        <div class="mini-kpi"><b id="ordKServicios">0</b><span>Servicios</span></div>
+        <div class="mini-kpi"><b id="ordKProxCert">0</b><span>Certificaciones próximas</span></div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="coi-table">
+          <thead>
+            <tr>
+              <th>ID_OBRA</th><th>N° OC</th><th>Tipo</th><th>Estación</th><th>Proveedor</th><th>Tipo de trabajo</th><th>Estado COI</th><th>Próxima certificación</th><th>Vencimiento</th><th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="ordenesTbody"></tbody>
+        </table>
+      </div>
+    </div>
   </section>
 </section>
 
@@ -449,6 +522,20 @@ button.ghost{background:#f7f8fa;color:#333}
     <div class="view-body" id="historialVersionesBody"></div>
   </section>
 </section>
+
+
+<section id="vistaUnidadesMantenimiento" class="view">
+  <section class="view-card">
+    <div class="view-head"><h2>Repositorio de Unidades de Mantenimiento</h2><div class="muted">Inventario maestro de activos mantenibles de Línea Roca. Independiente de las OC.</div></div>
+    <div class="view-body">
+      <div class="um-kpis"><div class="um-kpi"><b id="umKTotal">0</b><span>Total UM</span></div><div class="um-kpi"><b id="umKAsc">0</b><span>Ascensores</span></div><div class="um-kpi"><b id="umKEsc">0</b><span>Escaleras mecánicas</span></div><div class="um-kpi"><b id="umKActivas">0</b><span>UM activas</span></div><div class="um-kpi"><b id="umKFuera">0</b><span>Fuera de servicio</span></div><div class="um-kpi"><b id="umKSinFoto">0</b><span>Sin foto</span></div></div>
+      <div class="um-toolbar"><input id="umBuscar" placeholder="Buscar UM, estación, ubicación, proveedor, OC u observaciones..." /><select id="umFiltroTipo"><option value="">Tipo UM</option></select><select id="umFiltroEstacion"><option value="">Estación</option></select><select id="umFiltroEstado"><option value="">Estado operativo</option></select><select id="umFiltroCriticidad"><option value="">Criticidad</option></select><select id="umFiltroProveedor"><option value="">Proveedor actual</option></select><button type="button" id="btnLimpiarUM">Limpiar</button><button type="button" id="btnExportUMCSV" class="primary">Exportar UM CSV</button></div>
+      <div class="table-wrap"><table class="coi-table"><thead><tr><th>ID UM</th><th>Tipo</th><th>Estación</th><th>Sector</th><th>Ubicación técnica</th><th>Estado</th><th>Criticidad</th><th>Proveedor</th><th>OC actual</th><th>Ficha</th></tr></thead><tbody id="umTbody"></tbody></table></div>
+      <section class="view-card" style="margin:18px 0 0"><div class="view-head"><h2>Carga manual de UM</h2><div class="muted">Crear o editar unidad de mantenimiento fija.</div></div><div class="view-body"><div class="um-actions"><button type="button" id="btnNuevaUM" class="primary">Nueva UM</button><button type="button" id="btnGuardarUM" class="primary">Guardar / Actualizar UM</button></div><div id="umFormMsg" class="notice">Complete los campos obligatorios: idUM, tipoUM, estación, ubicación técnica y estado operativo.</div><div class="um-form"><div><label>ID UM *</label><input id="um_idUM" placeholder="ASC-001"></div><div><label>Tipo UM *</label><select id="um_tipoUM"><option value="">Seleccionar</option><option>Ascensor</option><option>Escalera mecánica</option><option>Montacarga</option><option>Grupo electrógeno</option><option>Instalación contra incendio</option><option>Otro</option></select></div><div><label>Estación *</label><select id="um_estacion"><option value="">Estación</option></select></div><div><label>Estado operativo *</label><select id="um_estadoOperativo"><option value="">Seleccionar</option><option>Activo</option><option>Fuera de servicio</option><option>En mantenimiento</option><option>Sin datos</option><option>Baja</option></select></div><div><label>Sector</label><input id="um_sector"></div><div><label>Ubicación técnica *</label><input id="um_ubicacionTecnica"></div><div><label>Criticidad</label><select id="um_criticidad"><option>Media</option><option>Alta</option><option>Baja</option></select></div><div><label>Proveedor actual</label><input id="um_proveedorActual"></div><div><label>OC actual</label><input id="um_ocActual"></div><div class="full"><label>Descripción</label><textarea id="um_descripcion"></textarea></div><div class="full"><label>Rutas de fotos</label><textarea id="um_fotos" placeholder="img/um/ASC-001/01.jpg\nimg/um/ASC-001/02.jpg"></textarea></div><div class="full"><label>Observaciones</label><textarea id="um_observaciones"></textarea></div></div></div></section>
+    </div>
+  </section>
+</section>
+<section id="vistaFichaUM" class="view"><section class="view-card"><div class="view-head"><div class="oc-header"><div class="oc-title"><h2>Ficha Individual de UM</h2><div class="muted">Expediente técnico del activo mantenible.</div></div><div class="um-actions"><button type="button" id="btnVolverUM">Volver</button><button type="button" id="btnEditarUM">Editar UM</button><button type="button" id="btnCopiarUM">Copiar resumen UM</button><button type="button" id="btnIrEstacionUM">Ir a estación</button><button type="button" id="btnVincularOCUM">Vincular OC actual</button></div></div></div><div class="view-body" id="fichaUMBody"></div></section></section>
 
 <div class="tooltip" id="tip"></div>
 <script>
@@ -664,7 +751,9 @@ function selectStation(s){
 
     <h3 class="section-title">Servicios UM / activos mantenibles</h3>
     ${activosUM(s)}
-<h3 class="section-title">Galería futura de fotos de obra</h3>
+<h3 class="section-title">Unidades de Mantenimiento de la estación</h3>
+    ${renderUMEnPanelEstacion(s)}
+    <h3 class="section-title">Galería futura de fotos de obra</h3>
     <div class="gallery-placeholder">
       Espacio preparado para fotos por OC: antes / durante / después, relevamientos, actas escaneadas, informes técnicos y evidencia de certificación.
     </div>
@@ -1358,9 +1447,11 @@ function mostrarVista(idVista){
     vistaCalendarioCertificaciones:'btnCalendarioCertificaciones',
     vistaOrdenes:'btnOrdenes',
     vistaCarga:'btnCarga',
-    vistaBuscador:'btnBuscador',
+    vistaBuscador:null,
     vistaFichaOC:null,
-    vistaHistorialVersiones:'btnHistorialVersiones'
+    vistaHistorialVersiones:'btnHistorialVersiones',
+    vistaUnidadesMantenimiento:'btnUnidadesMantenimiento',
+    vistaFichaUM:null
   };
   if(mapa[idVista] && document.getElementById(mapa[idVista])) document.getElementById(mapa[idVista]).classList.add('active');
 }
@@ -1436,9 +1527,9 @@ function initVistasCOI(){
   document.getElementById('btnRed')?.addEventListener('click',()=>{mostrarVista('vistaRed'); ocultarPanelEstacion(); renderMap();});
   document.getElementById('btnCalendarioVencimientos')?.addEventListener('click',()=>{mostrarVista('vistaCalendarioVencimientos'); renderCalendarioVencimientos();});
   document.getElementById('btnCalendarioCertificaciones')?.addEventListener('click',()=>{mostrarVista('vistaCalendarioCertificaciones'); renderCalendarioCertificaciones();});
-  document.getElementById('btnOrdenes')?.addEventListener('click',()=>{mostrarVista('vistaOrdenes'); renderOrdenes();});
+  document.getElementById('btnOrdenes')?.addEventListener('click',()=>{abrirModuloOrdenes(false);});
   document.getElementById('btnCarga')?.addEventListener('click',()=>{mostrarVista('vistaCarga');});
-  document.getElementById('btnBuscador')?.addEventListener('click',()=>{mostrarVista('vistaBuscador'); renderBuscador();});
+  document.getElementById('btnBuscador')?.addEventListener('click',()=>{abrirModuloOrdenes(true);});
   document.getElementById('buscadorGlobal')?.addEventListener('input',renderBuscador);
   ['vencEstacion','vencProveedor','vencTipo','vencMes','vencEstado','vencOrden'].forEach(id=>$(id)?.addEventListener('change',renderCalendarioVencimientos));
   ['certEstacion','certProveedor','certTipo','certMes','certEstado'].forEach(id=>$(id)?.addEventListener('change',renderCalendarioCertificaciones));
@@ -1766,7 +1857,9 @@ function selectStation(s){
 
     <h3 class="section-title">Servicios UM / activos mantenibles</h3>
     ${servicios.length ? `<div class="asset-list">${servicios.map(i=>`<div class="asset-card"><h4>${tipoActivoDesdeEspecialidad(i)}</h4><div><b>Activo</b>${i.descripcion||tipoActivoDesdeEspecialidad(i)}</div><div><b>Proveedor</b>${i.proveedor||'—'}</div><div><b>OC</b>${i.oc||'—'}</div><div><b>Estado activo</b>${estadoActivo(i)}</div>${i.alcanceLinea==='TODO'?`<div><b>Alcance</b><span class="scope-tag">TODO / A demanda</span></div><div><b>UM</b>${i.unidadMantenimiento||i.especialidad||'—'}</div>`:''}<br>${botonFichaOC(i)}</div>`).join('')}</div>` : '<p class="empty">Sin servicios UM cargados.</p>'}
-<h3 class="section-title">Galería futura de fotos de obra</h3>
+<h3 class="section-title">Unidades de Mantenimiento de la estación</h3>
+    ${renderUMEnPanelEstacion(s)}
+    <h3 class="section-title">Galería futura de fotos de obra</h3>
     <div class="gallery-placeholder">Espacio preparado para fotos por OC: antes / durante / después, relevamientos, actas escaneadas, informes técnicos y evidencia de certificación.</div>
     <br><button class="primary" onclick="fakePdf()">Exportar ficha a PDF</button>
   `;
@@ -2970,8 +3063,9 @@ function renderFichaOC(idObra){
 /* ===============================
    V29 - Historial de versiones
    =============================== */
-const APP_VERSION = "V29";
+const APP_VERSION = "V32";
 const historialVersiones = [
+  {version:"V32",fecha:"2026-06-23",titulo:"Repositorio de Unidades de Mantenimiento",cambios:["Se incorporó el módulo Unidades de Mantenimiento.","Se agregó Ficha Individual de UM.","Se integraron UM al panel de estación y exportación CSV exclusiva."],modulosAfectados:["UM","Ficha UM","Panel estación","CSV"],estado:"Implementado",observaciones:"Versión actual del sistema. APP_VERSION controla el header dinámicamente."},
   {version:"V29",fecha:"2026-06-22",titulo:"Historial de versiones y estado documental limpio",cambios:["Se agregó módulo de trazabilidad técnica Historial de versiones.","Se incorporó versión actual visible en el header.","Se limpió la sección Estado documental de Ficha OC y se dejaron observaciones documentales editables."],modulosAfectados:["Header","Menú","Vistas","Ficha OC","Estado documental"],estado:"En desarrollo",observaciones:"Módulo hardcodeado dentro del HTML. No se mezcla con datos operativos de OC ni exportaciones CSV."},
   {version:"V28",fecha:"2026-06-22",titulo:"Checklist completo de Estado OC",cambios:["Se agregó checklist completo de procesos documentales COI.","Se incorporó Enviado a Planificación y Control (R. de Escalada).","Cada tilde guarda fecha y hora de confirmación."],modulosAfectados:["Ficha OC","Estado documental","localStorage"],estado:"Implementado",observaciones:"Checklist operativo para trazabilidad documental de cada OC."},
   {version:"V27",fecha:"2026-06-22",titulo:"Importador CSV robusto",cambios:["Se corrigió la carga CSV acumulativa de Obras y Servicios.","Se agregó estado visible de importación.","Se mejoró detección automática por nombre de archivo."],modulosAfectados:["Carga","CSV","localStorage","Buscador"],estado:"Implementado",observaciones:"Requiere CSV UTF-8 exportado desde Excel."},
@@ -3015,12 +3109,283 @@ function renderHistorialVersiones(){
   });
   $('btnLimpiarFiltroVersiones')?.addEventListener('click',()=>{ $('filtroVersiones').value=''; renderListadoVersiones(ordenadas); });
 }
+
+function renderAppVersionHeader(){
+  const h=document.getElementById('appVersionHeader');
+  if(h) h.textContent=APP_VERSION;
+  const t=document.getElementById('appTitleHeader');
+  if(t) t.innerHTML=`Plano Interactivo de Obras y Servicios — <span id="appVersionHeader">${APP_VERSION}</span>`;
+}
 function initHistorialVersiones(){
-  const h=$('appVersionHeader'); if(h) h.textContent=APP_VERSION;
+  renderAppVersionHeader();
   $('btnHistorialVersiones')?.addEventListener('click',()=>{ mostrarVista('vistaHistorialVersiones'); renderHistorialVersiones(); });
 }
 
-function init(){ loadImportedData(); ramalesDisponibles.forEach(r=>$('ramal').insertAdjacentHTML('beforeend',`<option value="${r}">${r}</option>`)); ['q','estado','tipo','especialidad','ramal','showRings'].forEach(id=>$(id).addEventListener(id==='q'?'input':'change',renderMap)); $('clear').onclick=()=>{['q','estado','tipo','especialidad','ramal'].forEach(id=>$(id).value=''); renderMap();}; $('btnImport').addEventListener('click',handleImport); $('btnTemplate').addEventListener('click',downloadTemplate); $('btnResetData').addEventListener('click',restoreDemo); renderMap(); initCalendarioCOI(); initVistasCOI(); initFichaOC(); initArquitecturaMaestra(); initFotosEstacion(); initFotoYChecksOC(); initImportacionAcumulativaV27(); initObservacionesDocumentalesV29(); initHistorialVersiones(); }
+
+/* ===============================
+   V30 - Órdenes centro operativo + Expediente Digital OC
+   =============================== */
+function valorMesOrdenes(d){ return mesKey(d); }
+function filasOrdenesBase(){
+  if(typeof migrarArquitecturaIdObra==='function') migrarArquitecturaIdObra();
+  return todasLasOC().map(r=>{
+    const c=calcularFichaOC(r.item);
+    return {...r, calc:c, idObra:r.item.idObra||r.item.idOC, numeroOC:r.item.numeroOC||r.item.oc||r.oc, tipoTrabajo:r.item.tipoTrabajo||r.item.descripcion||r.especialidad||'', estadoDocumental:r.item.estadoDocumental||'Pendiente'};
+  });
+}
+function cargarFiltrosOrdenes(){
+  const rows=filasOrdenesBase();
+  const setOptions=(id,vals,label)=>{
+    const el=$(id); if(!el) return;
+    const actual=el.value;
+    el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort().map(v=>`<option>${esc(v)}</option>`).join('');
+    if([...el.options].some(o=>o.value===actual)) el.value=actual;
+  };
+  setOptions('ordenesFiltroEstacion',rows.map(r=>r.estacion),'Estación');
+  setOptions('ordenesFiltroProveedor',rows.map(r=>r.proveedor),'Proveedor');
+  setOptions('ordenesFiltroEstado',rows.map(r=>r.estado),'Estado COI');
+  setOptions('ordenesFiltroDoc',rows.map(r=>r.estadoDocumental),'Estado documental');
+  setOptions('ordenesFiltroMesVenc',rows.map(r=>valorMesOrdenes(r.calc.venc)).filter(Boolean),'Mes vencimiento');
+  setOptions('ordenesFiltroMesCert',rows.map(r=>valorMesOrdenes(r.calc.prox)).filter(Boolean),'Mes certificación');
+}
+function filtrarOrdenes(rows){
+  const q=($('ordenesBusqueda')?.value||'').toLowerCase().trim();
+  const tipo=$('ordenesFiltroTipo')?.value||'';
+  const est=$('ordenesFiltroEstacion')?.value||'';
+  const prov=$('ordenesFiltroProveedor')?.value||'';
+  const estado=$('ordenesFiltroEstado')?.value||'';
+  const doc=$('ordenesFiltroDoc')?.value||'';
+  const mesV=$('ordenesFiltroMesVenc')?.value||'';
+  const mesC=$('ordenesFiltroMesCert')?.value||'';
+  return rows.filter(r=>{
+    const texto=[r.idObra,r.numeroOC,r.tipo,r.estacion,r.proveedor,r.tipoTrabajo,r.estado,r.estadoDocumental,r.item.sector,r.especialidad].join(' ').toLowerCase();
+    return (!q||texto.includes(q))
+      && (!tipo||r.tipo===tipo)
+      && (!est||r.estacion===est)
+      && (!prov||r.proveedor===prov)
+      && (!estado||r.estado===estado)
+      && (!doc||r.estadoDocumental===doc)
+      && (!mesV||valorMesOrdenes(r.calc.venc)===mesV)
+      && (!mesC||valorMesOrdenes(r.calc.prox)===mesC);
+  });
+}
+function renderOrdenes(){
+  cargarFiltrosOrdenes();
+  const rows=filtrarOrdenes(filasOrdenesBase()).sort((a,b)=>String(a.idObra).localeCompare(String(b.idObra)));
+  if($('ordKTotal')) $('ordKTotal').textContent=rows.length;
+  if($('ordKObras')) $('ordKObras').textContent=rows.filter(r=>r.tipo==='Obra').length;
+  if($('ordKServicios')) $('ordKServicios').textContent=rows.filter(r=>r.tipo==='Servicio').length;
+  if($('ordKProxCert')) $('ordKProxCert').textContent=rows.filter(r=>r.calc.prox && diffDias(r.calc.prox,COI_TODAY)<=30).length;
+
+  if($('ordenesTbody')){
+    $('ordenesTbody').innerHTML=rows.map(r=>`
+      <tr class="row-clickable" data-open-oc="${esc(r.idObra)}">
+        <td><b>${esc(r.idObra)}</b></td>
+        <td>${esc(r.numeroOC||'—')}</td>
+        <td>${esc(r.tipo)}</td>
+        <td>${esc(r.estacion)}</td>
+        <td>${esc(r.proveedor)}</td>
+        <td>${esc(r.tipoTrabajo||'—')}</td>
+        <td>${esc(r.estado)}</td>
+        <td>${fmtFecha(r.calc.prox)}</td>
+        <td>${fmtFecha(r.calc.venc)}</td>
+        <td>${botonFichaOC(r.item,'Ver ficha OC')}</td>
+      </tr>`).join('') || '<tr><td colspan="10">Sin resultados para los filtros seleccionados.</td></tr>';
+  }
+}
+function initOrdenesCentroOperativo(){
+  ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert'].forEach(id=>{
+    const el=$(id); if(el) el.addEventListener(id==='ordenesBusqueda'?'input':'change',renderOrdenes);
+  });
+  $('btnOrdenesLimpiar')?.addEventListener('click',()=>{
+    ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert'].forEach(id=>{if($(id)) $(id).value='';});
+    renderOrdenes();
+  });
+}
+function abrirModuloOrdenes(enfocar=false){
+  mostrarVista('vistaOrdenes');
+  renderOrdenes();
+  if(enfocar) setTimeout(()=>$('ordenesBusqueda')?.focus(),50);
+}
+function estadoSemaforoOC(item,calc){
+  if(esCerradaPyC(item) || item.estadoRegistro==='Archivado' || item.estadoRegistro==='Cerrado') return {clase:'closed',texto:'Cerrado / Archivado'};
+  if(calc.dias!==null && calc.dias<0) return {clase:'bad',texto:'Vencido'};
+  if(calc.dias!==null && calc.dias<=30) return {clase:'warn',texto:'Próximo'};
+  return {clase:'ok',texto:'En plazo'};
+}
+function renderFichaOC(idObra){
+  const found=obtenerOC(idObra);
+  const body=$('fichaOCBody');
+  if(!body) return;
+  if(!found){ body.innerHTML='<p class="empty">No se encontró la OC solicitada.</p>'; return; }
+  const {estacion,item}=found;
+  const calc=calcularFichaOC(item);
+  const sem=estadoSemaforoOC(item,calc);
+  const monto=item.monto || item.saldoOcTotal || item['SALDO $ OC TOTAL'] || '—';
+  const sector=item.sector || item.ubicacion || '—';
+  const tipoTrabajo=item.tipoTrabajo || item.descripcion || item.especialidad || '—';
+  const estadoDoc=item.estadoDocumental || 'Pendiente';
+  const expediente=item.expediente || item.expte || item['EXPTE.'] || '—';
+  const avanceEstado=estadoAvanceOC(item,calc);
+  const ultimaActa=calc.ultima?.numero || extraerNumeroActa(item.ultimaCertificacion) || '—';
+
+  body.innerHTML=`
+    <div class="oc-header">
+      <div class="oc-title">
+        <h2>Expediente digital OC — ${esc(item.numeroOC||item.oc||'SIN OC')}</h2>
+        <div class="oc-subtitle">
+          <span><b>ID_OBRA:</b> ${esc(item.idObra||item.idOC)}</span>
+          <span><b>Estación:</b> ${esc(estacion.nombre)}</span>
+          <span>${pill(sem)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="oc-kpis">
+      <div class="oc-kpi"><b>${esc(item.tipo||'—')}</b><span>Tipo</span></div>
+      <div class="oc-kpi"><b>${fmtFecha(calc.venc)}</b><span>Vencimiento</span></div>
+      <div class="oc-kpi"><b>${calc.dias===null?'—':calc.dias}</b><span>Días restantes</span></div>
+      <div class="oc-kpi"><b>${fmtFecha(calc.prox)}</b><span>Próx. certificación</span></div>
+      <div class="oc-kpi"><b>${esc(estadoDoc)}</b><span>Estado documental</span></div>
+    </div>
+
+    <div class="expediente-grid">
+      <section class="expediente-card">
+        <h3>1. Resumen general</h3>
+        <div class="grid">
+          <div><b>ID_OBRA</b>${esc(item.idObra||item.idOC)}</div>
+          <div><b>N° OC</b>${esc(item.numeroOC||item.oc||'—')}</div>
+          <div><b>Tipo</b>${esc(item.tipo||'—')}</div>
+          <div><b>Tipo de trabajo</b>${esc(tipoTrabajo)}</div>
+          <div><b>Estación</b>${esc(estacion.nombre)}</div>
+          <div><b>Sector</b>${esc(sector)}</div>
+          <div><b>Proveedor</b>${esc(item.proveedor||'—')}</div>
+          <div><b>Estado COI</b>${esc(item.estado||'—')}</div>
+          <div><b>Estado documental</b>${esc(estadoDoc)}</div>
+          <div><b>Semáforo</b>${pill(sem)}</div>
+        </div>
+      </section>
+
+      <section class="expediente-card">
+        <h3>2. Datos contractuales</h3>
+        <div class="grid">
+          <div><b>Expediente</b>${esc(expediente)}</div>
+          <div><b>Monto</b>${esc(monto)}</div>
+          <div><b>Fecha inicio</b>${fmtFecha(calc.inicio)}</div>
+          <div><b>Plazo</b>${esc(calc.plazo||'—')} días</div>
+          <div><b>Fecha vencimiento</b>${fmtFecha(calc.venc)}</div>
+          <div><b>Días restantes</b>${calc.dias===null?'—':calc.dias}</div>
+        </div>
+      </section>
+
+      <section class="expediente-card full">
+        <h3>3. Certificaciones</h3>
+        <div class="grid">
+          <div><b>Última acta</b>${esc(ultimaActa)}</div>
+          <div><b>Última certificación</b>${esc(item.ultimaCertificacion||'—')}</div>
+          <div><b>Próxima certificación</b>${fmtFecha(calc.prox)}</div>
+          <div><b>Próximo N° acta esperado</b>${esc(calc.proxNro||1)}</div>
+        </div>
+        <br>
+        ${calc.actas.length ? `<div class="table-wrap"><table class="coi-table"><thead><tr><th>Acta</th><th>Fecha</th><th>Avance</th><th>Observaciones</th></tr></thead><tbody>${calc.actas.map(a=>`<tr><td>${esc(a.numero||a.idActa||'—')}</td><td>${fmtFecha(a.fecha)}</td><td>${esc(a.avanceFisico??0)}%</td><td>${esc(a.observaciones||'—')}</td></tr>`).join('')}</tbody></table></div>` : '<div class="oc-empty">No hay actas de medición cargadas para esta OC.</div>'}
+      </section>
+
+      <section class="expediente-card">
+        <h3>4. Avance</h3>
+        ${item.tipo==='Obra' ? `
+          <div class="grid">
+            <div><b>% avance físico</b>${Number(item.avanceFisico||0)}%</div>
+            <div><b>% avance financiero</b>${Number(item.avanceFinanciero||0)}%</div>
+            <div><b>Estado de avance</b>${esc(avanceEstado)}</div>
+          </div>` : `
+          <div class="grid">
+            <div><b>Último período certificado</b>${esc(item.ultimaCertificacion||'—')}</div>
+            <div><b>Próximo período a certificar</b>${fmtFecha(calc.prox)}</div>
+            <div><b>Estado mensual</b>${esc(avanceEstado)}</div>
+          </div>`}
+      </section>
+
+      <section class="expediente-card">
+        <h3>5. Documentación</h3>
+        <div class="grid">
+          <div><b>Recepción documentación</b>${esc(item.fechaRecepcionDocumentacion||'—')}</div>
+          <div><b>Envío a Planificación y Control</b>${esc(item.fechaEnvioPyC||item.fechaEnvioPlanificacion||'—')}</div>
+          <div><b>Estado documental</b>${esc(estadoDoc)}</div>
+        </div>
+        ${renderBloqueEstadoDocumental(item)}
+      </section>
+
+      <section class="expediente-card full">
+        <h3>6. Fotos / Evidencia</h3>
+        ${fotoPrincipalOC(item)}
+        <br>
+        ${item.fotos && item.fotos.length ? `<div class="gallery-grid">${item.fotos.map(f=>`<div class="gallery-item">${f.url?`<img src="${esc(f.url)}" alt="${esc(f.descripcion||'Foto OC')}">`:''}<div><b>${esc(f.idFoto||'Foto')}</b><br>${fmtFecha(f.fecha)}<br>${esc(f.descripcion||'—')}</div></div>`).join('')}</div>` : '<div class="oc-empty">Sin fotos cargadas.</div>'}
+      </section>
+
+      <section class="expediente-card full">
+        <h3>7. Observaciones generales</h3>
+        <div class="exp-observaciones">${esc(item.observaciones||'Sin observaciones cargadas.')}</div>
+      </section>
+
+      <section class="expediente-card full">
+        <h3>8. Acciones</h3>
+        <div class="exp-actions">
+          <button type="button" id="btnFichaVolverInterno">Volver</button>
+          <button type="button" id="btnFichaIrEstacionInterno">Ir a estación</button>
+          <button type="button" id="btnFichaExportarInterno">Exportar ficha</button>
+          <button type="button" id="btnFichaCopiarInterno">Copiar resumen</button>
+        </div>
+      </section>
+    </div>
+  `;
+
+  $('btnFichaVolverInterno')?.addEventListener('click',volverVistaAnterior);
+  $('btnFichaIrEstacionInterno')?.addEventListener('click',irEstacionOC);
+  $('btnFichaExportarInterno')?.addEventListener('click',exportarFichaOCCSV);
+  $('btnFichaCopiarInterno')?.addEventListener('click',copiarResumenOC);
+}
+
+
+/* V31 - Buscador deja de ser módulo independiente: redirige a Órdenes */
+function abrirBuscadorIntegrado(){
+  abrirModuloOrdenes(true);
+}
+function initBuscadorIntegradoV31(){
+  document.getElementById('btnAccesoBusquedaOrdenes')?.addEventListener('click',abrirBuscadorIntegrado);
+}
+
+
+/* ===============================
+   V32 - Repositorio de Unidades de Mantenimiento
+   =============================== */
+const LS_UM="coi_roca_unidades_mantenimiento";let unidadesMantenimiento=[];let vistaAnteriorUM="vistaUnidadesMantenimiento";let umActualId=null;
+function crearUM(idUM,tipoUM,estacion,sector,ubicacionTecnica,descripcion,proveedorActual,ocActual){return{idUM,tipoUM,estacion,sector:sector||"",ubicacionTecnica,descripcion,estadoOperativo:"Activo",criticidad:"Media",proveedorActual:proveedorActual||"FEMYP S.R.L",ocActual:ocActual||"",observaciones:"",fotos:[],historialMantenimiento:[]};}
+const unidadesMantenimientoDemo=[
+...[["ASC-001","Ascensor","Monte Grande","","Ascensor N° 1"],["ASC-002","Ascensor","Monte Grande","","Ascensor N° 2"],["ASC-003","Ascensor","Monte Grande","","Ascensor N° 3"],["ASC-004","Ascensor","Ezeiza","","Ascensor N° 1"],["ASC-005","Ascensor","Ezeiza","","Ascensor N° 2"],["ASC-006","Ascensor","Ezeiza","","Ascensor N° 3"],["ASC-007","Ascensor","Ezeiza","","Ascensor N° 4"],["ASC-008","Ascensor","Sarandí","","Ascensor N° 1"],["ASC-009","Ascensor","City Bell","","Ascensor N° 1"],["ASC-010","Ascensor","City Bell","","Ascensor N° 2"],["ASC-011","Montacarga","Plaza Constitución","Hornos 97","Montacarga Hornos 97"],["ASC-012","Ascensor","Plaza Constitución","Estación Constitución","Ascensor panorámico Est. Constitución"],["ASC-013","Ascensor","Plaza Constitución","Hornos 11","Ascensor N° 1 Hornos 11"],["ASC-014","Ascensor","Plaza Constitución","Hornos 11","Ascensor N° 2 Hornos 11"],["ASC-015","Ascensor","Plaza Constitución","Hall Central Est. PC","Ascensor N° 3 Hall Central Est. PC"],["ASC-016","Ascensor","Plaza Constitución","Hall Central Est. PC","Ascensor N° 4 Hall Central Est. PC"],["ASC-017","Ascensor","Plaza Constitución","Hornos 41","Ascensor Hornos 41"],["ASC-018","Ascensor","Plaza Constitución","Hornos 57","Ascensor Hornos 57"],["ASC-019","Ascensor","Plaza Constitución","Edificio Paracas","Ascensor Lima 1940 / Edificio Paracas"],["ASC-020","Montacarga","Plaza Constitución","Lado andenes","Montacarga lado andenes"]].map(x=>crearUM(x[0],x[1],x[2],x[3],x[4],x[4]+" estación "+x[2],"FEMYP S.R.L","4530009623")),
+...[["ESC-001","SS al Hall, lado Hornos","Escalera mecánica N° 1"],["ESC-002","SS al Hall, lado Hornos","Escalera mecánica N° 2"],["ESC-003","SS al Hall, lado Lima","Escalera mecánica N° 3"],["ESC-004","SS al Hall, lado Lima","Escalera mecánica N° 4"],["ESC-005","PB Hall, sala de monitoreo","Escalera mecánica N° 5"],["ESC-006","PB Hall, sala de monitoreo","Escalera mecánica N° 6"],["ESC-007","PB Hall, lado Brasil","Escalera mecánica N° 7"],["ESC-008","PB Hall, lado Brasil","Escalera mecánica N° 8"]].map(x=>crearUM(x[0],"Escalera mecánica","Plaza Constitución",x[1],x[2],x[2]+" "+x[1],"FEMYP S.R.L","4530009304"))];
+function cargarUM(){try{const data=JSON.parse(localStorage.getItem(LS_UM)||"[]");unidadesMantenimiento=Array.isArray(data)&&data.length?data:unidadesMantenimientoDemo.map(x=>({...x}));}catch(e){unidadesMantenimiento=unidadesMantenimientoDemo.map(x=>({...x}));}guardarUM();}
+function guardarUM(){localStorage.setItem(LS_UM,JSON.stringify(unidadesMantenimiento));}
+function estadoClaseUM(estado){const e=norm(estado);if(e.includes('FUERA'))return'fuera';if(e.includes('MANTENIMIENTO'))return'mantenimiento';if(e.includes('BAJA'))return'baja';if(e.includes('SIN DATOS'))return'sindatos';return'activo';}
+function badgeUMEstado(estado){return`<span class="um-status ${estadoClaseUM(estado)}">${esc(estado||'Sin datos')}</span>`;}
+function umsPorEstacion(nombre){return unidadesMantenimiento.filter(u=>u.estacion===nombre);}
+function cargarFiltrosUM(){const setOptions=(id,vals,label)=>{const el=$(id);if(!el)return;const actual=el.value;el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort().map(v=>`<option>${esc(v)}</option>`).join('');if([...el.options].some(o=>o.value===actual))el.value=actual;};setOptions('umFiltroTipo',unidadesMantenimiento.map(u=>u.tipoUM),'Tipo UM');setOptions('umFiltroEstacion',unidadesMantenimiento.map(u=>u.estacion),'Estación');setOptions('umFiltroEstado',unidadesMantenimiento.map(u=>u.estadoOperativo),'Estado operativo');setOptions('umFiltroCriticidad',unidadesMantenimiento.map(u=>u.criticidad),'Criticidad');setOptions('umFiltroProveedor',unidadesMantenimiento.map(u=>u.proveedorActual),'Proveedor actual');const estSel=$('um_estacion');if(estSel&&estSel.options.length<=1)estaciones.map(e=>e.nombre).sort().forEach(n=>estSel.insertAdjacentHTML('beforeend',`<option>${esc(n)}</option>`));}
+function filtrarUM(){const q=($('umBuscar')?.value||'').toLowerCase().trim(),tipo=$('umFiltroTipo')?.value||'',est=$('umFiltroEstacion')?.value||'',estado=$('umFiltroEstado')?.value||'',crit=$('umFiltroCriticidad')?.value||'',prov=$('umFiltroProveedor')?.value||'';return unidadesMantenimiento.filter(u=>{const txt=[u.idUM,u.tipoUM,u.estacion,u.ubicacionTecnica,u.descripcion,u.proveedorActual,u.ocActual,u.observaciones,u.sector].join(' ').toLowerCase();return(!q||txt.includes(q))&&(!tipo||u.tipoUM===tipo)&&(!est||u.estacion===est)&&(!estado||u.estadoOperativo===estado)&&(!crit||u.criticidad===crit)&&(!prov||u.proveedorActual===prov);});}
+function renderUnidadesMantenimiento(){cargarFiltrosUM();const rows=filtrarUM();if($('umKTotal'))$('umKTotal').textContent=unidadesMantenimiento.length;if($('umKAsc'))$('umKAsc').textContent=unidadesMantenimiento.filter(u=>u.tipoUM==='Ascensor').length;if($('umKEsc'))$('umKEsc').textContent=unidadesMantenimiento.filter(u=>u.tipoUM==='Escalera mecánica').length;if($('umKActivas'))$('umKActivas').textContent=unidadesMantenimiento.filter(u=>u.estadoOperativo==='Activo').length;if($('umKFuera'))$('umKFuera').textContent=unidadesMantenimiento.filter(u=>u.estadoOperativo==='Fuera de servicio').length;if($('umKSinFoto'))$('umKSinFoto').textContent=unidadesMantenimiento.filter(u=>!u.fotos||!u.fotos.length).length;if($('umTbody'))$('umTbody').innerHTML=rows.map(u=>`<tr class="row-clickable" data-open-um="${esc(u.idUM)}"><td><b>${esc(u.idUM)}</b></td><td>${esc(u.tipoUM)}</td><td>${esc(u.estacion)}</td><td>${esc(u.sector||'—')}</td><td>${esc(u.ubicacionTecnica)}</td><td>${badgeUMEstado(u.estadoOperativo)}</td><td>${esc(u.criticidad||'—')}</td><td>${esc(u.proveedorActual||'—')}</td><td>${esc(u.ocActual||'—')}</td><td><button type="button" class="btn-open-um" data-open-um="${esc(u.idUM)}">Ver ficha UM</button></td></tr>`).join('')||'<tr><td colspan="10">Sin UM para los filtros seleccionados.</td></tr>';}
+function limpiarFormUM(){['um_idUM','um_sector','um_ubicacionTecnica','um_descripcion','um_proveedorActual','um_ocActual','um_observaciones','um_fotos'].forEach(id=>{if($(id))$(id).value='';});if($('um_tipoUM'))$('um_tipoUM').value='';if($('um_estacion'))$('um_estacion').value='';if($('um_estadoOperativo'))$('um_estadoOperativo').value='';if($('um_criticidad'))$('um_criticidad').value='Media';if($('umFormMsg'))$('umFormMsg').textContent='Formulario limpio. Complete los campos obligatorios.';}
+function leerFormUM(){const fotos=($('um_fotos')?.value||'').split(/[\n,]+/).map(x=>x.trim()).filter(Boolean);return{idUM:($('um_idUM')?.value||'').trim().toUpperCase(),tipoUM:$('um_tipoUM')?.value||'',estacion:$('um_estacion')?.value||'',sector:($('um_sector')?.value||'').trim(),ubicacionTecnica:($('um_ubicacionTecnica')?.value||'').trim(),descripcion:($('um_descripcion')?.value||'').trim(),estadoOperativo:$('um_estadoOperativo')?.value||'',criticidad:$('um_criticidad')?.value||'Media',proveedorActual:($('um_proveedorActual')?.value||'').trim(),ocActual:($('um_ocActual')?.value||'').trim(),observaciones:($('um_observaciones')?.value||'').trim(),fotos,historialMantenimiento:[]};}
+function guardarFormUM(){const u=leerFormUM(),faltan=[];if(!u.idUM)faltan.push('idUM');if(!u.tipoUM)faltan.push('tipoUM');if(!u.estacion)faltan.push('estación');if(!u.ubicacionTecnica)faltan.push('ubicación técnica');if(!u.estadoOperativo)faltan.push('estado operativo');if(faltan.length){if($('umFormMsg'))$('umFormMsg').textContent='Faltan campos obligatorios: '+faltan.join(', ');return;}const idx=unidadesMantenimiento.findIndex(x=>x.idUM===u.idUM);if(idx>=0){u.historialMantenimiento=unidadesMantenimiento[idx].historialMantenimiento||[];unidadesMantenimiento[idx]={...unidadesMantenimiento[idx],...u};if($('umFormMsg'))$('umFormMsg').textContent='UM actualizada: '+u.idUM;}else{unidadesMantenimiento.push(u);if($('umFormMsg'))$('umFormMsg').textContent='UM creada: '+u.idUM;}guardarUM();renderUnidadesMantenimiento();}
+function cargarFormUM(idUM){const u=unidadesMantenimiento.find(x=>x.idUM===idUM);if(!u)return;mostrarVista('vistaUnidadesMantenimiento');['idUM','tipoUM','estacion','sector','ubicacionTecnica','descripcion','estadoOperativo','criticidad','proveedorActual','ocActual','observaciones'].forEach(k=>{const el=$('um_'+k);if(el)el.value=u[k]||'';});if($('um_fotos'))$('um_fotos').value=(u.fotos||[]).join('\n');if($('umFormMsg'))$('umFormMsg').textContent='UM cargada para edición: '+u.idUM;}
+function abrirFichaUM(idUM){vistaAnteriorUM=document.querySelector('.view.active')?.id||'vistaUnidadesMantenimiento';umActualId=idUM;mostrarVista('vistaFichaUM');renderFichaUM(idUM);}
+function volverUM(){mostrarVista(vistaAnteriorUM||'vistaUnidadesMantenimiento');}
+function renderFichaUM(idUM){const u=unidadesMantenimiento.find(x=>x.idUM===idUM),body=$('fichaUMBody');if(!body)return;if(!u){body.innerHTML='<p class="empty">No se encontró la UM.</p>';return;}body.innerHTML=`<div class="oc-kpis"><div class="oc-kpi"><b>${esc(u.idUM)}</b><span>ID UM</span></div><div class="oc-kpi"><b>${esc(u.tipoUM)}</b><span>Tipo UM</span></div><div class="oc-kpi"><b>${esc(u.estacion)}</b><span>Estación</span></div><div class="oc-kpi"><b>${esc(u.criticidad||'—')}</b><span>Criticidad</span></div><div class="oc-kpi">${badgeUMEstado(u.estadoOperativo)}</div></div><div class="um-ficha-grid"><section class="um-ficha-card"><h3>A. Encabezado</h3><div class="grid"><div><b>ID UM</b>${esc(u.idUM)}</div><div><b>Tipo</b>${esc(u.tipoUM)}</div><div><b>Estación</b>${esc(u.estacion)}</div><div><b>Ubicación técnica</b>${esc(u.ubicacionTecnica)}</div><div><b>Estado operativo</b>${badgeUMEstado(u.estadoOperativo)}</div><div><b>Criticidad</b>${esc(u.criticidad||'—')}</div></div></section><section class="um-ficha-card"><h3>B. Datos técnicos</h3><div class="grid"><div><b>Sector</b>${esc(u.sector||'—')}</div><div><b>Descripción</b>${esc(u.descripcion||'—')}</div><div><b>Proveedor actual</b>${esc(u.proveedorActual||'—')}</div><div><b>OC actual</b>${esc(u.ocActual||'—')}</div></div></section><section class="um-ficha-card full"><h3>C. Historial de mantenimiento</h3>${(u.historialMantenimiento&&u.historialMantenimiento.length)?`<div class="table-wrap"><table class="coi-table"><thead><tr><th>Fecha</th><th>Tipo evento</th><th>OC</th><th>Proveedor</th><th>Observación</th></tr></thead><tbody>${u.historialMantenimiento.map(h=>`<tr><td>${esc(h.fecha||'—')}</td><td>${esc(h.tipoEvento||'—')}</td><td>${esc(h.oc||'—')}</td><td>${esc(h.proveedor||'—')}</td><td>${esc(h.observacion||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="oc-empty">No hay historial de mantenimiento cargado.</div>'}</section><section class="um-ficha-card full"><h3>D. Fotos / Evidencia</h3>${(u.fotos&&u.fotos.length)?`<div class="gallery-grid">${u.fotos.map((f,i)=>`<div class="gallery-item"><img src="${esc(f)}" alt="${esc(u.idUM)} foto ${i+1}" onerror="this.style.display='none'"><div><b>Foto ${i+1}</b><br>${esc(f)}</div></div>`).join('')}</div>`:'<div class="oc-empty">Sin fotos cargadas.</div>'}</section><section class="um-ficha-card full"><h3>E. Observaciones</h3><div class="exp-observaciones">${esc(u.observaciones||'Sin observaciones cargadas.')}</div></section></div>`;}
+function copiarResumenUM(){const u=unidadesMantenimiento.find(x=>x.idUM===umActualId);if(!u)return;const txt=`UM: ${u.idUM}\nTipo: ${u.tipoUM}\nEstación: ${u.estacion}\nUbicación: ${u.ubicacionTecnica}\nEstado: ${u.estadoOperativo}\nOC actual: ${u.ocActual||'—'}`;navigator.clipboard?.writeText(txt).then(()=>alert('Resumen UM copiado.')).catch(()=>prompt('Copiar resumen UM:',txt));}
+function irEstacionUM(){const u=unidadesMantenimiento.find(x=>x.idUM===umActualId),est=estaciones.find(e=>e.nombre===u?.estacion);if(est){mostrarVista('vistaRed');selectStation(est);}}
+function vincularOCUM(){const u=unidadesMantenimiento.find(x=>x.idUM===umActualId);if(!u)return;const oc=prompt('Ingresar OC actual vinculada a la UM:',u.ocActual||'');if(oc!==null){u.ocActual=oc.trim();guardarUM();renderFichaUM(u.idUM);}}
+function exportarUMCSV(){const campos=new Set(['idUM']);unidadesMantenimiento.forEach(u=>Object.keys(u).forEach(k=>campos.add(k)));const headers=['idUM',...[...campos].filter(k=>k!=='idUM')];const csv=[headers,...unidadesMantenimiento.map(u=>headers.map(h=>Array.isArray(u[h])||typeof u[h]==='object'?JSON.stringify(u[h]||''):u[h]||''))].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');descargarArchivo('unidades_mantenimiento_linea_roca.csv',csv,'text/csv;charset=utf-8');}
+function renderUMEnPanelEstacion(s){const ums=umsPorEstacion(s.nombre);if(!ums.length)return'<p class="empty">Sin Unidades de Mantenimiento cargadas para esta estación.</p>';return`<div class="um-mini-list">${ums.map(u=>`<div class="um-mini-card"><h4>${esc(u.idUM)} · ${esc(u.tipoUM)}</h4><div>${esc(u.ubicacionTecnica)}</div><div>${badgeUMEstado(u.estadoOperativo)}</div><br><button type="button" class="btn-open-um" data-open-um="${esc(u.idUM)}">Ver ficha UM</button></div>`).join('')}</div>`;}
+function initUnidadesMantenimiento(){cargarUM();cargarFiltrosUM();$('btnUnidadesMantenimiento')?.addEventListener('click',()=>{mostrarVista('vistaUnidadesMantenimiento');renderUnidadesMantenimiento();});['umBuscar','umFiltroTipo','umFiltroEstacion','umFiltroEstado','umFiltroCriticidad','umFiltroProveedor'].forEach(id=>{const el=$(id);if(el)el.addEventListener(id==='umBuscar'?'input':'change',renderUnidadesMantenimiento);});$('btnLimpiarUM')?.addEventListener('click',()=>{['umBuscar','umFiltroTipo','umFiltroEstacion','umFiltroEstado','umFiltroCriticidad','umFiltroProveedor'].forEach(id=>{if($(id))$(id).value='';});renderUnidadesMantenimiento();});$('btnExportUMCSV')?.addEventListener('click',exportarUMCSV);$('btnNuevaUM')?.addEventListener('click',limpiarFormUM);$('btnGuardarUM')?.addEventListener('click',guardarFormUM);$('btnVolverUM')?.addEventListener('click',volverUM);$('btnEditarUM')?.addEventListener('click',()=>cargarFormUM(umActualId));$('btnCopiarUM')?.addEventListener('click',copiarResumenUM);$('btnIrEstacionUM')?.addEventListener('click',irEstacionUM);$('btnVincularOCUM')?.addEventListener('click',vincularOCUM);document.addEventListener('click',ev=>{const btn=ev.target.closest('[data-open-um]');if(btn){ev.preventDefault();ev.stopPropagation();abrirFichaUM(btn.dataset.openUm);}});}
+
+function init(){ loadImportedData(); ramalesDisponibles.forEach(r=>$('ramal').insertAdjacentHTML('beforeend',`<option value="${r}">${r}</option>`)); ['q','estado','tipo','especialidad','ramal','showRings'].forEach(id=>$(id).addEventListener(id==='q'?'input':'change',renderMap)); $('clear').onclick=()=>{['q','estado','tipo','especialidad','ramal'].forEach(id=>$(id).value=''); renderMap();}; $('btnImport').addEventListener('click',handleImport); $('btnTemplate').addEventListener('click',downloadTemplate); $('btnResetData').addEventListener('click',restoreDemo); renderMap(); initCalendarioCOI(); initVistasCOI(); initFichaOC(); initArquitecturaMaestra(); initFotosEstacion(); initFotoYChecksOC(); initImportacionAcumulativaV27(); initObservacionesDocumentalesV29(); initHistorialVersiones(); initOrdenesCentroOperativo(); initBuscadorIntegradoV31(); initUnidadesMantenimiento(); renderAppVersionHeader(); }
 init();
 </script>
 </body></html>
