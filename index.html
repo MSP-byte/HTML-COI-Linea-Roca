@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8" />
@@ -173,6 +173,12 @@ button.ghost{background:#f7f8fa;color:#333}
 #importMsg{font-weight:800;color:#1f6fa8;margin-left:6px}
 #importDebug{margin-top:6px;color:#666;font-size:12px}
 .import-mode input{accent-color:#2f6fa3}
+.v33-import-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}.v33-import-grid input,.v33-import-grid select{width:100%}
+.v33-import-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.v33-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}.v33-summary .mini-kpi{background:#f7f8fa;border:1px solid #e3e7eb;border-radius:12px;padding:11px}.v33-summary b{display:block;font-size:22px;color:#2f6fa3}.v33-summary span{font-size:11px;color:#666;text-transform:uppercase;font-weight:900}
+.v33-badges{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.v33-badge{border-radius:999px;background:#eef3f8;border:1px solid #d8e4ef;color:#245f9f;font-size:12px;font-weight:800;padding:5px 9px}
+.v33-message{background:#f7f8fa;border:1px solid #e3e7eb;border-radius:12px;padding:10px;margin:8px 0;color:#555}.v33-message.warn{background:#fff8e6;border-color:#ffe3a3;color:#916600}.v33-message.bad{background:#fff1f1;border-color:#ffd0d0;color:#9b1c1c}
+@media(max-width:1100px){.v33-import-grid,.v33-summary{grid-template-columns:1fr 1fr}}@media(max-width:700px){.v33-import-grid,.v33-summary{grid-template-columns:1fr}}
 
 
 /* V28 - Checklist Estado COI completo en Ficha OC */
@@ -205,23 +211,141 @@ button.ghost{background:#f7f8fa;color:#333}
 .version-status.warn{background:#fff8e6;color:#916600;border-color:#ffe3a3}
 .version-status.dev{background:#eef5ff;color:#245f9f;border-color:#cfe2ff}
 .version-observaciones{background:#f7f8fa;border:1px solid #e3e7eb;border-radius:12px;padding:10px;margin-top:10px;color:#555}
+.about-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:14px 0}
+.about-card{background:#fff;border:1px solid #e3e7eb;border-radius:14px;padding:16px;box-shadow:0 4px 14px #00000008}
+.about-card.hero{grid-column:1/-1;background:linear-gradient(135deg,#1f4e79,#2f6fa3);color:#fff;display:grid;grid-template-columns:1.2fr 2fr;gap:16px}
+.about-card h3{margin:0 0 10px;color:#1f4e79}
+.about-card.hero h3{color:#fff;font-size:28px}
+.about-meta{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.about-meta div,.about-tech,.about-roadmap-item{background:#f7f8fa;border:1px solid #e3e7eb;border-radius:12px;padding:10px}
+.about-card.hero .about-meta div{background:#ffffff18;border-color:#ffffff33}
+.about-tech-grid,.about-roadmap{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+.about-tech{font-weight:900;text-align:center}
+.about-tech b{display:block;font-size:16px;margin-bottom:4px;color:#1f4e79}
+.about-tech small{display:block;color:#666;font-weight:800}
+.about-kpis{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
+.about-kpi{background:#f7f8fa;border:1px solid #e3e7eb;border-radius:12px;padding:12px}
+.about-kpi b{display:block;font-size:24px;color:#2f6fa3}
+.about-kpi span{font-size:11px;text-transform:uppercase;color:#666;font-weight:800}
+.about-objectives{columns:2;margin:0;padding-left:18px}
+.about-roadmap-item strong{display:block;color:#1f4e79;font-size:18px}
+.about-credits{text-align:center;font-size:15px;line-height:1.6}
+.about-architecture{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.about-architecture div,.about-module-badge{background:#f7f8fa;border:1px solid #e3e7eb;border-radius:12px;padding:10px}
+.about-architecture b{display:block;color:#1f4e79;margin-bottom:3px}
+.about-modules{display:flex;gap:8px;flex-wrap:wrap}
+.about-module-badge{font-weight:900;color:#245f9f}
 @media(max-width:800px){.version-filter{grid-template-columns:1fr}.version-current-card strong{font-size:28px}}
+@media(max-width:1000px){.about-grid,.about-card.hero{grid-template-columns:1fr}.about-tech-grid,.about-roadmap,.about-kpis,.about-architecture{grid-template-columns:repeat(2,1fr)}.about-objectives{columns:1}}
 
+
+/* V30 - Órdenes como centro operativo + Ficha OC expediente digital */
+/* V32 estabilizacion: el buscador integrado suma filtros sin cambiar identidad visual. */
+.ordenes-toolbar{display:grid;grid-template-columns:2fr repeat(8,1fr) auto;gap:10px;margin:0 0 14px}
+.ordenes-toolbar input,.ordenes-toolbar select{width:100%}
+.ordenes-toolbar,.um-toolbar{background:#f7f9fc;border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:0 8px 20px #0b122012}
+.op-calendar{margin:18px 0;border:1px solid var(--line);border-radius:16px;background:#fff;box-shadow:0 10px 24px #0b122012;overflow:hidden}
+.op-calendar-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;padding:16px 18px;border-bottom:1px solid var(--line);background:#f7f9fc}
+.op-calendar-head h3{margin:0 0 4px;font-size:18px}
+.op-calendar-tools{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.op-calendar-tools select,.op-calendar-tools button{height:36px}
+.op-calendar-filters{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.op-month-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:14px 18px;border-bottom:1px solid var(--line);background:#fbfcfd}
+.op-month-kpi{background:#fff;border:1px solid #e3e7eb;border-radius:12px;padding:10px}.op-month-kpi b{display:block;color:#2f6fa3;font-size:22px}.op-month-kpi span{font-size:10px;text-transform:uppercase;color:#666;font-weight:900}
+.op-calendar-legend{display:flex;gap:10px;flex-wrap:wrap;padding:0 18px 14px}
+.op-legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);background:#f7f8fa;border:1px solid #e3e7eb;border-radius:999px;padding:6px 9px}
+.op-dot{width:10px;height:10px;border-radius:99px;display:inline-block}
+.op-grid{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));border-top:1px solid var(--line)}
+.op-weekday{background:#0f172a;color:#fff;font-weight:700;font-size:12px;text-align:center;padding:8px}
+.op-day{min-height:128px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:8px;background:#fff;cursor:pointer}
+.op-day:nth-child(7n){border-right:0}
+.op-day.out{background:#f6f7f9;color:#9aa3af}
+.op-day.today{box-shadow:inset 0 0 0 3px #1f4e79;background:#eef5ff}
+.op-day-num{font-weight:800;margin-bottom:6px}
+.op-event{border:0;border-radius:9px;padding:5px 7px;margin:4px 0;width:100%;text-align:left;color:#0f172a;font-size:11px;line-height:1.25;cursor:pointer}
+.op-type-badge{display:inline-flex;border-radius:999px;padding:2px 7px;font-size:10px;font-weight:900;margin:0 0 3px}.op-type-badge.servicio{background:#dbeafe;color:#1d4ed8}.op-type-badge.obra{background:#ede9fe;color:#6d28d9}
+.op-event.acta{background:#dbeafe;border-left:4px solid #2563eb}
+.op-event.vencimiento{background:#fee2e2;border-left:4px solid #dc2626}
+.op-event.servicio{background:#dcfce7;border-left:4px solid #16a34a}
+.op-event.obra{background:#ede9fe;border-left:4px solid #7c3aed}
+.op-event.alerta{background:#fef3c7;border-left:4px solid #f59e0b}
+.op-event.cerrado{background:#e5e7eb;border-left:4px solid #6b7280}
+.op-more{font-size:11px;color:var(--muted);font-weight:700;margin-top:4px}
+.op-empty-month{margin:12px 18px 18px;padding:14px;border:1px dashed #cfd6dd;border-radius:12px;background:#f7f8fa;color:#555;font-weight:800;text-align:center}
+.op-incomplete{padding:12px 18px;background:#fff7ed;border-top:1px solid #fed7aa;color:#9a3412;font-size:13px}
+.op-modal{position:fixed;inset:0;background:#02061799;z-index:50;display:flex;align-items:center;justify-content:center;padding:20px}
+.op-modal-card{background:#fff;border-radius:16px;max-width:760px;width:min(760px,100%);max-height:80vh;overflow:auto;box-shadow:0 20px 60px #0005}
+.op-modal-head{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}
+.op-modal-body{padding:16px 18px}
+.op-detail{border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0;background:#f8fafc}
+.op-detail-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}.op-detail-actions{margin-top:10px}
+.coi-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.coi-tabs button{border-radius:999px}.coi-tabs button.active{background:#2f6fa3;color:#fff;border-color:#2f6fa3}
+.coi-tab-panel{display:none}.coi-tab-panel.active{display:block}
+.coi-global-filters{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin:14px 0}.coi-global-filters select{width:100%}
+@media(max-width:1100px){.op-calendar-filters,.op-month-kpis{grid-template-columns:1fr 1fr}.op-grid{grid-template-columns:repeat(7,minmax(92px,1fr))}.op-day{min-height:116px}}
+@media(max-width:1100px){.coi-global-filters{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.op-calendar-head{display:block}.op-calendar-tools{justify-content:flex-start;margin-top:10px}.op-calendar-filters{grid-template-columns:1fr}.op-grid{grid-template-columns:1fr}.op-weekday{display:none}.op-day{min-height:auto;border-right:0}}
+.ordenes-resumen{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.ordenes-resumen .mini-kpi{background:#f7f8fa;border:1px solid #e3e7eb;border-radius:12px;padding:11px}
+.ordenes-resumen .mini-kpi b{display:block;font-size:20px;color:#2f6fa3}
+.ordenes-resumen .mini-kpi span{font-size:11px;text-transform:uppercase;color:#666;font-weight:800}
+.coi-table tr.row-clickable{cursor:pointer}
+.coi-table tr.row-clickable:hover{background:#eef5ff}
+.expediente-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.expediente-card{background:#fff;border:1px solid #e3e7eb;border-radius:14px;padding:14px;margin:12px 0}
+.expediente-card h3{margin:0 0 10px;font-size:15px;text-transform:uppercase;letter-spacing:.25px;color:#333;border-bottom:1px solid #e9edf1;padding-bottom:8px}
+.expediente-card.full{grid-column:1/-1}
+.exp-actions{display:flex;gap:8px;flex-wrap:wrap}
+.exp-actions button{font-size:12px;padding:8px 10px;border-radius:9px}
+.exp-observaciones{white-space:pre-wrap;background:#f7f8fa;border:1px solid #e3e7eb;border-radius:12px;padding:12px;min-height:70px}
+@media(max-width:1200px){.ordenes-toolbar{grid-template-columns:1fr 1fr}.ordenes-resumen{grid-template-columns:repeat(2,1fr)}.expediente-grid{grid-template-columns:1fr}}
+@media(max-width:700px){.ordenes-toolbar,.ordenes-resumen{grid-template-columns:1fr}}
+
+
+/* V31 - Buscador integrado en Órdenes */
+.quick-search-link{margin-left:auto}
+.quick-search-link button{border-radius:999px;background:#f7f8fa;color:#2f6fa3;border:1px solid #cfd6dd;font-weight:900}
+@media(max-width:900px){.quick-search-link{margin-left:0;width:100%}.quick-search-link button{width:100%}}
+
+
+/* V32 - Repositorio UM / Unidades de Mantenimiento */
+.um-toolbar{display:grid;grid-template-columns:1.6fr repeat(5,1fr) auto auto;gap:10px;margin-bottom:14px}
+.um-kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}
+.um-kpi{background:#f7f8fa;border:1px solid #e3e7eb;border-radius:14px;padding:12px}.um-kpi b{display:block;font-size:22px;color:#2f6fa3}.um-kpi span{font-size:11px;color:#666;text-transform:uppercase;font-weight:900}
+.um-form{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:12px}.um-form label{font-size:12px;color:#555;font-weight:900;text-transform:uppercase}.um-form input,.um-form select,.um-form textarea{width:100%;margin-top:4px}.um-form textarea{min-height:90px;resize:vertical}.um-form .full{grid-column:1/-1}
+.um-ficha-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.um-ficha-card{background:#fff;border:1px solid #e3e7eb;border-radius:14px;padding:14px;margin:12px 0}.um-ficha-card h3{margin:0 0 10px;font-size:15px;text-transform:uppercase;border-bottom:1px solid #e9edf1;padding-bottom:8px}.um-ficha-card.full{grid-column:1/-1}
+.um-actions{display:flex;gap:8px;flex-wrap:wrap}.um-actions button,.btn-open-um{font-size:12px;padding:8px 10px;border-radius:9px}.btn-open-um{background:#f7f8fa;color:#2f6fa3;border:1px solid #cfd6dd;font-weight:900}
+.um-status{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 9px;font-size:12px;font-weight:900;border:1px solid #ddd}.um-status.activo{background:#effaf3;color:#1f7a3d;border-color:#ccebd5}.um-status.mantenimiento{background:#fff8e6;color:#916600;border-color:#ffe3a3}.um-status.fuera{background:#fff1f1;color:#9b1c1c;border-color:#ffd0d0}.um-status.baja,.um-status.sindatos{background:#f1f3f5;color:#555;border-color:#d8dee4}
+.um-mini-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.um-mini-card{border:1px solid #e3e7eb;background:#fbfcfd;border-radius:12px;padding:11px;font-size:13px}.um-mini-card h4{margin:0 0 7px;color:#2f6fa3}
+@media(max-width:1200px){.um-toolbar{grid-template-columns:1fr 1fr}.um-kpis{grid-template-columns:repeat(2,1fr)}.um-form{grid-template-columns:1fr 1fr}.um-ficha-grid{grid-template-columns:1fr}}@media(max-width:700px){.um-toolbar,.um-kpis,.um-form{grid-template-columns:1fr}}
+
+/* V45 CONSOLIDADA - Carga diferenciada y borrado selectivo */
+.quick-load-card{border:1px solid #e3e7eb;border-radius:14px;margin:0 0 16px;background:#fff;overflow:hidden}
+.quick-load-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:14px 16px;border-bottom:1px solid #e3e7eb;background:#f7f9fc;flex-wrap:wrap}
+.quick-load-head h3{margin:0 0 4px;font-size:17px}.quick-load-actions,.ordenes-bulk-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.quick-type-selector{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:14px 16px}.quick-type-card{border:1px solid #d8e4ef;border-radius:12px;background:#fbfcfd;padding:12px;cursor:pointer}.quick-type-card.active{border-color:#2f6fa3;background:#eef5ff;box-shadow:inset 0 0 0 1px #2f6fa3}.quick-type-card h3{margin:0 0 6px;font-size:15px;color:#1f4e79}.quick-type-card p{margin:0;color:#666;font-size:12px;line-height:1.35}
+.quick-load-badge{display:inline-flex;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:900;background:#eef3f8;color:#245f9f;border:1px solid #d8e4ef}.quick-load-panel{display:none}.quick-load-panel.active{display:block}.quick-load-wrap{overflow:auto;max-height:420px;border-top:1px solid #eef1f4}
+.quick-load-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:12px;background:#fff}.quick-load-table th{position:sticky;top:0;background:#f7f8fa;color:#555;text-align:left;text-transform:uppercase;font-size:10px;padding:8px;border-bottom:1px solid #e3e7eb;z-index:1}.quick-load-table th.excel-service-head{background:#eaf4ff;color:#245f9f}.quick-load-table td{border-bottom:1px solid #eef1f4;padding:6px;vertical-align:top}.quick-load-table input,.quick-load-table select,.quick-load-table textarea{width:150px;padding:7px 8px;border-radius:8px;font-size:12px}.quick-load-table textarea{height:34px;resize:vertical}.quick-load-table .w-desc{width:230px}.quick-load-table .w-obs{width:250px}.quick-load-table .w-id{width:130px}.quick-load-table input.auto-field,.quick-load-table input.prox-cert-auto{background:#f1f3f5;color:#4d5963;cursor:not-allowed;border-style:dashed;font-weight:800}
+.quick-load-row-num{font-weight:900;color:#666;background:#fbfcfd;text-align:center}.quick-load-msg{padding:10px 12px;margin:12px 16px;border-radius:12px;font-size:13px;background:#f7f8fa;border:1px solid #e3e7eb;color:#555}.quick-load-msg.ok{background:#effaf3;border-color:#ccebd5;color:#1f7a3d}.quick-load-msg.error{background:#fff1f1;border-color:#ffd0d0;color:#9b1c1c}
+.indicador-cell{display:flex;align-items:center;justify-content:center;min-width:70px;height:32px}.indicador-dot{width:14px;height:14px;border-radius:999px;display:inline-block;border:2px solid #fff;box-shadow:0 0 0 1px #cfd6dd,0 2px 5px #00000018}.indicador-dot.VERDE{background:#2eaf5d}.indicador-dot.AMARILLO{background:#f4c542}.indicador-dot.ROJO{background:#d64545}.indicador-dot.GRIS{background:#9aa3ad}.indicador-dot.SIN_DATOS{background:#cfd6dd}.indicador-hidden{display:none}
+.monto-moneda-wrap{display:flex;align-items:center;gap:6px;min-width:220px}.monto-moneda-wrap input{min-width:135px!important;flex:1}.monto-moneda-wrap select{width:70px!important;min-width:70px!important;padding-left:6px;padding-right:6px}
+.ordenes-bulk{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 12px;padding:10px 12px;border:1px solid #e3e7eb;border-radius:12px;background:#f7f9fc;flex-wrap:wrap}.btn-danger-soft{background:#fff1f1;color:#9b1c1c;border-color:#ffd0d0}.btn-danger-soft:disabled{opacity:.55;cursor:not-allowed}.orden-check-cell{width:44px;text-align:center}.orden-check-cell input{width:18px;height:18px}.badge-doc-incompleto{display:inline-flex;border-radius:999px;padding:4px 8px;background:#fff8e6;border:1px solid #ffe3a3;color:#916600;font-size:12px;font-weight:900}
+@media(max-width:760px){.quick-type-selector{grid-template-columns:1fr}.ordenes-bulk{align-items:flex-start}}
 </style>
 </head>
 <body>
-<header><div class="brand"><small>TRENES ARGENTINOS</small>LÍNEA ROCA</div><div>Plano Interactivo de Obras y Servicios — <span id="appVersionHeader">V29</span></div></header>
+<header><div class="brand"><small>TRENES ARGENTINOS</small>LÍNEA ROCA</div><div id="appTitleHeader">COI Línea Roca — <span id="appVersionHeader">V32.1</span></div></header>
 
 <section class="module-nav" aria-label="Menú de módulos COI">
   <span class="nav-title">Módulos</span>
   <button type="button" id="btnDashboard">Dashboard</button>
   <button type="button" id="btnRed" class="active">Red Línea Roca</button>
-  <button type="button" id="btnCalendarioVencimientos">Calendario Vencimientos</button>
-  <button type="button" id="btnCalendarioCertificaciones">Calendario Certificaciones</button>
+  <button type="button" id="btnCalendarioCOI">Calendario COI</button>
   <button type="button" id="btnOrdenes">Órdenes</button>
   <button type="button" id="btnCarga">Carga</button>
-  <button type="button" id="btnBuscador">Buscador</button>
-  <button type="button" id="btnHistorialVersiones">Historial de versiones</button>
+  <button type="button" id="btnUnidadesMantenimiento">Unidades de Mantenimiento</button>
+  <button type="button" id="btnAcercaSistema">Acerca del Sistema</button>
+  <span class="quick-search-link"><button type="button" id="btnAccesoBusquedaOrdenes">Buscar OC</button></span>
 </section>
 
 
@@ -229,7 +353,7 @@ button.ghost{background:#f7f8fa;color:#333}
   <section class="view-card">
     <div class="view-head"><h2>Dashboard COI</h2><div class="muted">Resumen general de Obras y Servicios Línea Roca.</div></div>
     <div class="view-body">
-<section class="kpis"><div class="kpi"><b id="kEst">0</b><span>Total estaciones</span></div><div class="kpi"><b id="kObras">0</b><span>Obras activas</span></div><div class="kpi"><b id="kServ">0</b><span>Servicios activos</span></div><div class="kpi"><b id="kVen">0</b><span>Próximas a vencer</span></div></section>
+<section class="kpis"><div class="kpi"><b data-kpi="est">0</b><span>Total estaciones</span></div><div class="kpi"><b data-kpi="obras">0</b><span>Obras activas</span></div><div class="kpi"><b data-kpi="serv">0</b><span>Servicios activos</span></div><div class="kpi"><b data-kpi="ven">0</b><span>Próximas a vencer</span></div></section>
       <div class="placeholder-grid">
         <div class="placeholder-box"><b>Vista operativa</b><br>Use Red Línea Roca para consultar estación por estación.</div>
         <div class="placeholder-box"><b>Calendario</b><br>Use Calendario Vencimientos o Calendario Certificaciones para seguimiento mensual.</div>
@@ -249,7 +373,7 @@ button.ghost{background:#f7f8fa;color:#333}
 <select id="ramal"><option value="">Ramal</option></select>
 <button id="clear">Limpiar filtros</button>
 </section>
-<section class="kpis"><div class="kpi"><b id="kEst">0</b><span>Total estaciones</span></div><div class="kpi"><b id="kObras">0</b><span>Obras activas</span></div><div class="kpi"><b id="kServ">0</b><span>Servicios activos</span></div><div class="kpi"><b id="kVen">0</b><span>Próximas a vencer</span></div></section>
+<section class="kpis"><div class="kpi"><b data-kpi="est">0</b><span>Total estaciones</span></div><div class="kpi"><b data-kpi="obras">0</b><span>Obras activas</span></div><div class="kpi"><b data-kpi="serv">0</b><span>Servicios activos</span></div><div class="kpi"><b data-kpi="ven">0</b><span>Próximas a vencer</span></div></section>
 <main class="layout">
 <section class="map-card"><div class="map-top"><b>MAPA - LINEA ROCA</b><label class="muted"><input type="checkbox" id="showRings" checked> Ver semáforos</label></div><div class="map-wrap">
 <svg id="svgMap" viewBox="0 0 2000 795" role="img" aria-label="Plano interactivo Línea Roca">
@@ -258,6 +382,53 @@ button.ghost{background:#f7f8fa;color:#333}
 </svg></div></section>
 <aside id="panelEstacion" class="panel station-panel"><div class="panel-head"><h2 id="pTitle">Seleccione una estación</h2><div id="pSub" class="muted">Click sobre cualquier punto del plano. La ficha técnica se despliega debajo del mapa.</div><div class="legend"><span><i class="dot ok"></i> En plazo</span><span><i class="dot warn"></i> Próximo</span><span><i class="dot bad"></i> Vencido/demorado</span><span><i class="dot done"></i> Finalizado</span></div></div><div class="panel-body" id="panel"><p class="empty">Seleccione una estación del plano para desplegar debajo su ficha técnica, foto principal, obras, servicios UM, historial documental y futura galería de obra.</p></div></aside>
 </main>
+</section>
+
+
+<section id="vistaCalendarioCOI" class="view">
+  <section class="calendar-module">
+    <div class="calendar-head">
+      <div><h2>Calendario COI</h2><div class="muted">Vista unificada de vencimientos, certificaciones, actas, documentación y eventos operativos.</div></div>
+      <div><button type="button" id="btnCoiCsv" class="primary">Exportar CSV</button><button type="button" id="btnCoiIcs">Exportar .ICS</button></div>
+    </div>
+    <div class="calendar-body">
+      <div class="coi-global-filters">
+        <select id="coiYear"><option value="">Año</option></select>
+        <select id="coiMonth"><option value="">Mes</option></select>
+        <select id="coiEstacion"><option value="">Estación</option></select>
+        <select id="coiProveedor"><option value="">Proveedor</option></select>
+        <select id="coiTipo"><option value="">Tipo</option><option>Obra</option><option>Servicio</option></select>
+        <select id="coiEvento"><option value="">Tipo de evento</option></select>
+        <select id="coiEstado"><option value="">Estado</option></select>
+      </div>
+      <div class="coi-tabs" role="tablist">
+        <button type="button" class="active" data-coi-tab="calendario">Vista Calendario</button>
+        <button type="button" data-coi-tab="vencimientos">Tabla Vencimientos</button>
+        <button type="button" data-coi-tab="certificaciones">Tabla Certificaciones</button>
+      </div>
+      <section id="coiTabCalendario" class="coi-tab-panel active">
+        <div id="opCoiCalendario" class="op-calendar" data-op-modo="coi"></div>
+      </section>
+      <section id="coiTabVencimientos" class="coi-tab-panel">
+        <h3 class="section-title">Tabla de vencimientos contractuales</h3>
+        <div class="table-wrap">
+          <table class="coi-table">
+            <thead><tr><th>Semáforo</th><th>Días restantes</th><th>N° OC</th><th>Tipo</th><th>Estación</th><th>Proveedor</th><th>Inicio</th><th>Plazo</th><th>Fin contractual</th><th>Estado</th><th>Ficha OC</th></tr></thead>
+            <tbody id="coiVencTbody"></tbody>
+          </table>
+        </div>
+      </section>
+      <section id="coiTabCertificaciones" class="coi-tab-panel">
+        <h3 class="section-title">Tabla de próximas certificaciones</h3>
+        <div class="table-wrap">
+          <table class="coi-table">
+            <thead><tr><th>Semáforo</th><th>N° OC</th><th>Tipo</th><th>Estación</th><th>Proveedor</th><th>Inicio</th><th>Última certificación</th><th>Última acta</th><th>Próxima certificación</th><th>Próx. acta</th><th>Avance / Estado doc.</th><th>Vencimiento</th><th>Estado cert.</th></tr></thead>
+            <tbody id="coiCertTbody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </section>
 </section>
 
 
@@ -291,6 +462,7 @@ button.ghost{background:#f7f8fa;color:#333}
         <div class="calendar-kpi"><b id="vencKAvPend">0</b><span>Obras con avance pendiente</span></div>
         <div class="calendar-kpi"><b id="vencKServPend">0</b><span>Servicios pendientes</span></div>
       </div>
+      <div id="opVencCalendario" class="op-calendar" data-op-modo="venc"></div>
       <h3 class="section-title">Tabla de vencimientos contractuales</h3>
       <div class="table-wrap">
         <table class="coi-table">
@@ -327,6 +499,7 @@ button.ghost{background:#f7f8fa;color:#333}
         <div class="calendar-kpi"><b id="certKAvPend">0</b><span>Obras con avance pendiente</span></div>
         <div class="calendar-kpi"><b id="certKServPend">0</b><span>Servicios pendientes</span></div>
       </div>
+      <div id="opCertCalendario" class="op-calendar" data-op-modo="cert"></div>
       <h3 class="section-title">Tabla de próximas certificaciones</h3>
       <div class="table-wrap">
         <table class="coi-table">
@@ -339,17 +512,59 @@ button.ghost{background:#f7f8fa;color:#333}
 </section>
 
 
+
 <section id="vistaOrdenes" class="view">
   <section class="view-card">
-    <div class="view-head"><h2>Órdenes de Compra</h2><div class="muted">Listado consolidado de OC cargadas en el sistema.</div></div>
-    <div class="view-body"><div class="table-wrap"><table class="coi-table"><thead><tr><th>ID_OBRA</th><th>N° OC</th><th>Tipo</th><th>Estación</th><th>Proveedor</th><th>Especialidad</th><th>Estado COI</th><th>Estado registro</th><th>Vencimiento</th></tr></thead><tbody id="ordenesTbody"></tbody></table></div></div>
+    <div class="view-head">
+      <h2>Órdenes de Compra</h2>
+      <div class="muted">Centro operativo principal: búsqueda global, filtros combinables, tabla maestra y acceso a expediente digital OC.</div>
+    </div>
+    <div class="view-body">
+      <div class="ordenes-toolbar">
+        <input id="ordenesBusqueda" placeholder="Buscar por ID_OBRA, OC, proveedor, estación, tipo, estado, sector o UM..." />
+        <select id="ordenesFiltroTipo"><option value="">Tipo</option><option>Obra</option><option>Servicio</option></select>
+        <select id="ordenesFiltroEstacion"><option value="">Estación</option></select>
+        <select id="ordenesFiltroProveedor"><option value="">Proveedor</option></select>
+        <select id="ordenesFiltroEstado"><option value="">Estado COI</option></select>
+        <select id="ordenesFiltroSector"><option value="">Sector</option></select>
+        <select id="ordenesFiltroUM"><option value="">UM vinculada</option></select>
+        <select id="ordenesFiltroDoc"><option value="">Estado documental</option></select>
+        <select id="ordenesFiltroMesVenc"><option value="">Mes vencimiento</option></select>
+        <select id="ordenesFiltroMesCert"><option value="">Mes certificación</option></select>
+        <button type="button" id="btnOrdenesLimpiar">Limpiar</button>
+      </div>
+
+      <div class="ordenes-resumen">
+        <div class="mini-kpi"><b id="ordKTotal">0</b><span>Total OC</span></div>
+        <div class="mini-kpi"><b id="ordKObras">0</b><span>Obras</span></div>
+        <div class="mini-kpi"><b id="ordKServicios">0</b><span>Servicios</span></div>
+        <div class="mini-kpi"><b id="ordKProxCert">0</b><span>Certificaciones próximas</span></div>
+      </div>
+      <div class="ordenes-bulk">
+        <label><input type="checkbox" id="chkOrdenesSeleccionarTodas"> Seleccionar todas</label>
+        <div class="ordenes-bulk-actions">
+          <strong id="ordenesSeleccionadasCount">0 seleccionadas</strong>
+          <button type="button" id="btnBorrarSeleccionadas" class="btn-danger-soft" disabled>Borrar seleccionadas</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="coi-table">
+          <thead>
+            <tr>
+              <th class="orden-check-cell">Sel.</th><th>ID_OBRA</th><th>N° OC</th><th>Tipo</th><th>Estación</th><th>Proveedor</th><th>Sector</th><th>UM vinculada</th><th>Tipo de trabajo</th><th>Estado COI</th><th>Próxima certificación</th><th>Vencimiento</th><th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="ordenesTbody"></tbody>
+        </table>
+      </div>
+    </div>
   </section>
 </section>
 
 
 <section id="vistaCarga" class="view">
 <section class="import-card">
-<input type="file" id="fileImport" accept=".csv,.txt,.xlsx" multiple />
+<input type="file" id="fileImport" accept=".csv,.txt" multiple />
 <select id="importTipo"><option value="auto">Detectar tipo automáticamente</option><option value="obra">Cargar como Obras</option><option value="servicio">Cargar como Servicios</option></select>
 <button id="btnImport" class="primary">Importar CSV acumulativo</button>
 <button id="btnTemplate" class="ghost">Descargar plantilla CSV</button>
@@ -360,7 +575,33 @@ button.ghost{background:#f7f8fa;color:#333}
   <label><input type="checkbox" id="importReemplazar"> Reemplazar toda la base antes de importar</label>
 </div>
 
-<div class="help"><b>Carga desde Excel:</b> exportá cada hoja de Excel como <b>CSV UTF-8</b> y cargá Obras + Servicios de forma acumulativa acá. El HTML mapea automáticamente columnas como OC/OC N°, TIPO UM, Descripción del Servicio, ESTACION, PROVEED., FECHA INICIO, FECHA FIN, PLAZO OC, ESTADO/ESTATUS, ULTIMA ACTA MEDICION N° y OBSERVACIONES. <span id="importMsg"></span><div id="importDebug" class="import-warning"></div></div>
+<div class="help"><b>Importador CSV:</b> si los datos vienen de Excel, exportá previamente cada hoja como <b>CSV UTF-8</b>. El HTML mapea automáticamente columnas como OC/OC N°, TIPO UM, Descripción del Servicio, ESTACION, PROVEED., FECHA INICIO, FECHA FIN, PLAZO OC, ESTADO/ESTATUS, ULTIMA ACTA MEDICION N° y OBSERVACIONES. <span id="importMsg"></span><div id="importDebug" class="import-warning"></div></div>
+</section>
+
+<section class="view-card">
+  <div class="view-head">
+    <h2>Importador CSV COI</h2>
+    <div class="muted">Carga normalizada V33 para Obras, Servicios, Certificaciones, Actas, Remitos, UM y documentación.</div>
+  </div>
+  <div class="view-body">
+    <div class="v33-message warn"><b>CSV UTF-8:</b> si el origen es Excel, exportá la hoja previamente a CSV y cargá ese archivo en este módulo.</div>
+    <div class="v33-import-grid">
+      <div><label>Tipo de importación</label><select id="v33ImportTipo"><option>Base Maestra OC</option><option>Obras</option><option>Servicios</option><option>Certificaciones</option><option>Actas de Inicio</option><option>Actas de Medición</option><option>Remitos</option><option>Unidades de Mantenimiento</option><option>Documentación OneDrive</option></select></div>
+      <div><label>Archivo CSV</label><input type="file" id="v33File" accept=".csv,.txt"></div>
+      <div><label>Duplicados</label><select id="v33Duplicados"><option value="omit">Omitir duplicados</option><option value="update">Actualizar existentes</option><option value="new">Importar como nuevos registros</option></select></div>
+    </div>
+    <div class="v33-import-actions">
+      <button type="button" id="btnV33Preview" class="primary">Previsualizar</button>
+      <button type="button" id="btnV33Confirm">Confirmar importación</button>
+      <button type="button" id="btnV33Limpiar">Limpiar</button>
+    </div>
+    <div id="v33Resultado" class="v33-message">Seleccione un archivo CSV para iniciar la previsualización.</div>
+    <div id="v33Resumen" class="v33-summary"></div>
+    <div id="v33Columnas" class="v33-badges"></div>
+    <div id="v33Errores" class="v33-message bad" style="display:none"></div>
+    <h3 class="section-title">Previsualización primeras 10 filas</h3>
+    <div class="table-wrap"><table class="coi-table"><thead id="v33PreviewHead"></thead><tbody id="v33PreviewBody"></tbody></table></div>
+  </div>
 </section>
 
 <section class="view-card">
@@ -369,7 +610,34 @@ button.ghost{background:#f7f8fa;color:#333}
     <div class="muted">Alta / actualización mediante ID_OBRA. No hay borrado físico: solo cierre o archivo.</div>
   </div>
   <div class="view-body">
-    <div class="form-actions">
+        <section class="quick-load-card" id="cargaRapidaOCSection">
+      <div class="quick-load-head">
+        <div>
+          <h3>Carga rápida de OCs</h3>
+          <div class="muted">Seleccione Servicio u Obra. La grilla de Servicios respeta el orden operativo solicitado y permite pegar filas desde Excel.</div>
+        </div>
+      </div>
+      <div class="quick-type-selector">
+        <div class="quick-type-card active" data-carga-tipo="Servicio"><h3>Servicio</h3><p>Servicios de mantenimiento, UM, períodos y certificaciones mensuales.</p></div>
+        <div class="quick-type-card" data-carga-tipo="Obra"><h3>Obra</h3><p>Obras con avance físico, sector, vencimiento contractual y seguimiento operativo.</p></div>
+      </div>
+      <div class="quick-load-head">
+        <span class="quick-load-badge" id="cargaRapidaTipoActivo">Carga activa: Servicio</span>
+        <div class="quick-load-actions">
+          <button type="button" id="btnAgregarFilasCargaRapida">Agregar 5 filas</button>
+          <button type="button" id="btnLimpiarCargaRapida">Limpiar grilla</button>
+          <button type="button" id="btnGuardarCargaRapida" class="primary">Guardar registros</button>
+        </div>
+      </div>
+      <div id="panelCargaServicio" class="quick-load-panel active">
+        <div class="quick-load-wrap"><table class="quick-load-table"><thead id="cargaRapidaServicioHead"></thead><tbody id="cargaRapidaServicioBody"></tbody></table></div>
+      </div>
+      <div id="panelCargaObra" class="quick-load-panel">
+        <div class="quick-load-wrap"><table class="quick-load-table"><thead id="cargaRapidaObraHead"></thead><tbody id="cargaRapidaObraBody"></tbody></table></div>
+      </div>
+      <div id="cargaRapidaMsg" class="quick-load-msg">Carga activa: Servicio. Complete filas o pegue desde Excel.</div>
+    </section>
+<div class="form-actions">
       <button type="button" id="btnNuevaOC" class="primary">Nueva OC</button>
       <button type="button" id="btnGuardarOC" class="primary">Guardar / Actualizar OC</button>
       <button type="button" id="btnCerrarOC">Cerrar OC</button>
@@ -440,15 +708,29 @@ button.ghost{background:#f7f8fa;color:#333}
 </section>
 
 
-<section id="vistaHistorialVersiones" class="view">
+<section id="vistaAcercaSistema" class="view">
   <section class="view-card">
     <div class="view-head">
-      <h2>Historial de versiones</h2>
-      <div class="muted">Trazabilidad técnica y funcional de la aplicación COI Obras y Servicios Línea Roca.</div>
+      <h2>Acerca del Sistema</h2>
+      <div class="muted">Información institucional, métricas, hoja de ruta e historial técnico de la aplicación.</div>
     </div>
-    <div class="view-body" id="historialVersionesBody"></div>
+    <div class="view-body" id="acercaSistemaBody"></div>
   </section>
 </section>
+
+
+<section id="vistaUnidadesMantenimiento" class="view">
+  <section class="view-card">
+    <div class="view-head"><h2>Repositorio de Unidades de Mantenimiento</h2><div class="muted">Inventario maestro de activos mantenibles de Línea Roca. Independiente de las OC.</div></div>
+    <div class="view-body">
+      <div class="um-kpis"><div class="um-kpi"><b id="umKTotal">0</b><span>Total UM</span></div><div class="um-kpi"><b id="umKAsc">0</b><span>Ascensores</span></div><div class="um-kpi"><b id="umKEsc">0</b><span>Escaleras mecánicas</span></div><div class="um-kpi"><b id="umKActivas">0</b><span>UM activas</span></div><div class="um-kpi"><b id="umKFuera">0</b><span>Fuera de servicio</span></div><div class="um-kpi"><b id="umKSinFoto">0</b><span>Sin foto</span></div></div>
+      <div class="um-toolbar"><input id="umBuscar" placeholder="Buscar UM, estación, ubicación, proveedor, OC u observaciones..." /><select id="umFiltroTipo"><option value="">Tipo UM</option></select><select id="umFiltroEstacion"><option value="">Estación</option></select><select id="umFiltroEstado"><option value="">Estado operativo</option></select><select id="umFiltroCriticidad"><option value="">Criticidad</option></select><select id="umFiltroProveedor"><option value="">Proveedor actual</option></select><button type="button" id="btnLimpiarUM">Limpiar</button><button type="button" id="btnExportUMCSV" class="primary">Exportar UM CSV</button></div>
+      <div class="table-wrap"><table class="coi-table"><thead><tr><th>ID UM</th><th>Tipo</th><th>Estación</th><th>Sector</th><th>Ubicación técnica</th><th>Estado</th><th>Criticidad</th><th>Proveedor</th><th>OC actual</th><th>Ficha</th></tr></thead><tbody id="umTbody"></tbody></table></div>
+      <section class="view-card" style="margin:18px 0 0"><div class="view-head"><h2>Carga manual de UM</h2><div class="muted">Crear o editar unidad de mantenimiento fija.</div></div><div class="view-body"><div class="um-actions"><button type="button" id="btnNuevaUM" class="primary">Nueva UM</button><button type="button" id="btnGuardarUM" class="primary">Guardar / Actualizar UM</button></div><div id="umFormMsg" class="notice">Complete los campos obligatorios: idUM, tipoUM, estación, ubicación técnica y estado operativo.</div><div class="um-form"><div><label>ID UM *</label><input id="um_idUM" placeholder="ASC-001"></div><div><label>Tipo UM *</label><select id="um_tipoUM"><option value="">Seleccionar</option><option>Ascensor</option><option>Escalera mecánica</option><option>Otro</option></select></div><div><label>Estación *</label><select id="um_estacion"><option value="">Estación</option></select></div><div><label>Estado operativo *</label><select id="um_estadoOperativo"><option value="">Seleccionar</option><option>Activo</option><option>Fuera de servicio</option><option>En mantenimiento</option><option>Sin datos</option><option>Baja</option></select></div><div><label>Sector</label><input id="um_sector"></div><div><label>Ubicación técnica *</label><input id="um_ubicacionTecnica"></div><div><label>Criticidad</label><select id="um_criticidad"><option>Media</option><option>Alta</option><option>Baja</option></select></div><div><label>Proveedor actual</label><input id="um_proveedorActual"></div><div><label>OC actual</label><input id="um_ocActual"></div><div class="full"><label>Descripción</label><textarea id="um_descripcion"></textarea></div><div class="full"><label>Fotos UM (base64 o rutas)</label><input id="um_fotoArchivo" type="file" accept="image/*"><textarea id="um_fotos" placeholder="img/um/ASC-001/01.jpg\nimg/um/ASC-001/02.jpg"></textarea></div><div class="full"><label>Observaciones</label><textarea id="um_observaciones"></textarea></div></div></div></section>
+    </div>
+  </section>
+</section>
+<section id="vistaFichaUM" class="view"><section class="view-card"><div class="view-head"><div class="oc-header"><div class="oc-title"><h2>Ficha Individual de UM</h2><div class="muted">Expediente técnico del activo mantenible.</div></div><div class="um-actions"><button type="button" id="btnVolverUM">Volver</button><button type="button" id="btnEditarUM">Editar UM</button><button type="button" id="btnCopiarUM">Copiar resumen UM</button><button type="button" id="btnIrEstacionUM">Ir a estación</button><button type="button" id="btnVincularOCUM">Vincular OC actual</button></div></div></div><div class="view-body" id="fichaUMBody"></div></section></section>
 
 <div class="tooltip" id="tip"></div>
 <script>
@@ -459,6 +741,53 @@ const ramalesEstacion = s => s.ramales || [s.ramal];
 const ramalTexto = s => ramalesEstacion(s).join(' / ');
 const $=id=>document.getElementById(id);
 const allItems=s=>[...(s.obras||[]),...(s.servicios||[])];
+function safeParseJSON(raw, fallback=null){
+  if(raw === null || raw === undefined || raw === '') return fallback;
+  try{
+    const parsed = JSON.parse(raw);
+    return parsed === undefined ? fallback : parsed;
+  }catch(e){
+    console.warn('JSON inválido en almacenamiento local', e);
+    return fallback;
+  }
+}
+function saveJSON(key, value){
+  try{
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  }catch(e){
+    console.warn('No se pudo guardar en localStorage:', key, e);
+    return false;
+  }
+}
+function getArrayStorage(key, fallback=[]){
+  const data = safeParseJSON(localStorage.getItem(key), fallback);
+  return Array.isArray(data) ? data : fallback;
+}
+function normalizarTexto(v){
+  return String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+}
+function normalizarFecha(v){
+  const d = parseFecha(v);
+  return d ? d.toISOString().slice(0,10) : '';
+}
+function diasEntre(a,b){
+  const da = parseFecha(a), db = parseFecha(b);
+  return da && db ? Math.ceil((da - db) / 864e5) : null;
+}
+function sumarDias(fecha,dias){
+  const n = Number(dias);
+  if(!Number.isFinite(n)) return null;
+  const d = parseFecha(fecha);
+  if(!d) return null;
+  const out = new Date(d);
+  out.setDate(out.getDate() + n);
+  return out;
+}
+function generarIdSeguro(prefix='ID'){
+  const base = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+  return `${normalizarTexto(prefix).replace(/[^A-Z0-9]+/g,'-').replace(/^-|-$/g,'') || 'ID'}-${base}`;
+}
 function estadoColor(s){ const items=allItems(s); if(!items.length) return 'ok'; if(items.some(i=>i.estado==='Demorada')) return 'bad'; if(items.some(i=>['Finalizada','Certificada'].includes(i.estado))) return 'done'; const today=new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()); if(items.some(i=>{const d=new Date(i.vencimiento); return (d-today)/(864e5) <= 30;})) return 'warn'; return 'ok'; }
 function matches(s){ const q=$('q').value.toLowerCase().trim(), est=$('estado').value, tipo=$('tipo').value, esp=$('especialidad').value, ram=$('ramal').value; const items=allItems(s); const text=(s.nombre+' '+ramalTexto(s)+' '+items.map(i=>Object.values(i).join(' ')).join(' ')).toLowerCase(); return (!q||text.includes(q)) && (!ram||ramalesEstacion(s).includes(ram)) && (!est||items.some(i=>i.estado===est)) && (!tipo||items.some(i=>i.tipo===tipo)) && (!esp||items.some(i=>i.especialidad===esp)); }
 function renderMap(){
@@ -506,7 +835,7 @@ function hideTip(){ $('tip').style.display='none'; }
 
 /* Helpers de estado COI - agregado para V13 operativa */
 function normalizarTextoEstado(v){
-  return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+  return normalizarTexto(v);
 }
 function esFinalizado(i){
   const e=normalizarTextoEstado(i && i.estado);
@@ -656,26 +985,41 @@ function selectStation(s){
           </div>
         </div>
         <div class="card-actions">
-          <button class="secondary" onclick="verFichaCompleta('${i.oc||''}')">Ver ficha completa</button>
-          <button class="secondary" onclick="verCertificaciones('${i.oc||''}')">Ver certificaciones</button>
-          <button class="secondary" onclick="verFotosObra('${i.oc||''}')">Ver fotos de obra</button>
+          <button type="button" class="secondary" data-legacy-action="ficha" data-oc="${esc(i.oc||'')}">Ver ficha completa</button>
+          <button type="button" class="secondary" data-legacy-action="certificaciones" data-oc="${esc(i.oc||'')}">Ver certificaciones</button>
+          <button type="button" class="secondary" data-legacy-action="fotos" data-oc="${esc(i.oc||'')}">Ver fotos de obra</button>
         </div>
       </article>`).join('') : '<p class="empty">Sin obras cargadas para esta estación.</p>'}
 
     <h3 class="section-title">Servicios UM / activos mantenibles</h3>
     ${activosUM(s)}
-<h3 class="section-title">Galería futura de fotos de obra</h3>
+<h3 class="section-title">Unidades de Mantenimiento de la estación</h3>
+    ${renderUMEnPanelEstacion(s)}
+    <h3 class="section-title">Galería futura de fotos de obra</h3>
     <div class="gallery-placeholder">
       Espacio preparado para fotos por OC: antes / durante / después, relevamientos, actas escaneadas, informes técnicos y evidencia de certificación.
     </div>
 
     <br>
-    <button class="primary" onclick="fakePdf()">Exportar ficha a PDF</button>
+    <button type="button" class="primary" data-legacy-action="pdf">Exportar ficha a PDF</button>
   `;
 
   document.querySelector('.panel').scrollIntoView({behavior:'smooth',block:'start'});
 }
 function fakePdf(){ alert('Exportación PDF simulada. Luego se puede conectar a window.print(), jsPDF o backend documental.'); }
+function initBotonesLegacySinInline(){
+  /* V32 estabilizacion: acciones antiguas pasan de onclick inline a delegacion con addEventListener. */
+  document.addEventListener('click',ev=>{
+    const btn=ev.target.closest('[data-legacy-action]');
+    if(!btn) return;
+    ev.preventDefault();
+    const oc=btn.dataset.oc||'';
+    if(btn.dataset.legacyAction==='ficha') verFichaCompleta(oc);
+    if(btn.dataset.legacyAction==='certificaciones') verCertificaciones(oc);
+    if(btn.dataset.legacyAction==='fotos') verFotosObra(oc);
+    if(btn.dataset.legacyAction==='pdf') fakePdf();
+  });
+}
 
 const STORAGE_KEY='roca_coi_intervenciones_v10';
 
@@ -988,7 +1332,7 @@ function importRows(rows, forcedTipo='auto', options={}){
     });
   });
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(estaciones.map(e=>({nombre:e.nombre,obras:e.obras,servicios:e.servicios}))));
+  saveJSON(STORAGE_KEY, estaciones.map(e=>({nombre:e.nombre,obras:e.obras,servicios:e.servicios})));
   if(typeof guardarBaseLocal === 'function') guardarBaseLocal();
 
   renderMap();
@@ -1002,16 +1346,13 @@ function importRows(rows, forcedTipo='auto', options={}){
   return {creadas,actualizadas,sinEstacion,todo};
 }
 function loadImportedData(){
-  const raw=localStorage.getItem(STORAGE_KEY);
-  if(!raw) return;
-  try{
-    const data=JSON.parse(raw);
-    clearInterventions();
-    data.forEach(d=>{
-      const e=estaciones.find(x=>x.nombre===d.nombre);
-      if(e){ e.obras=d.obras||[]; e.servicios=d.servicios||[]; }
-    });
-  }catch(e){ console.warn('No se pudo leer localStorage COI',e); }
+  const data=safeParseJSON(localStorage.getItem(STORAGE_KEY), null);
+  if(!Array.isArray(data)) return;
+  clearInterventions();
+  data.forEach(d=>{
+    const e=estaciones.find(x=>x.nombre===d.nombre);
+    if(e){ e.obras=Array.isArray(d.obras)?d.obras:[]; e.servicios=Array.isArray(d.servicios)?d.servicios:[]; }
+  });
 }
 function downloadTemplate(){
   const headers=['OC','TIPO UM','SALDO $ OC TOTAL','SALDO EJECUTADO $','% DE AVANCE','PLAZO  OC (DIAS)','EXPTE.','Descripción del Servicio','ESTACION','PROVEED.','FECHA INICIO','FECHA FIN','DIAS SERVICIO RESTANTE','ESTADO','ULTIMA ACTA MEDICION N°','OBSERVACIONES'];
@@ -1028,12 +1369,7 @@ function restoreDemo(){
 }
 function handleImport(){
   const files=[...($('fileImport').files||[])];
-  if(!files.length){ alert('Primero seleccioná uno o más archivos CSV exportados desde Excel.'); return; }
-
-  if(files.some(f=>f.name.toLowerCase().endsWith('.xlsx'))){
-    alert('Para mantener el HTML 100% offline y sin librerías externas, exportá cada hoja de Excel como CSV UTF-8 y cargala acá.');
-    return;
-  }
+  if(!files.length){ alert('Primero seleccioná uno o más archivos CSV.'); return; }
 
   const forcedTipo=$('importTipo').value;
   const reemplazar=$('importReemplazar')?.checked || false;
@@ -1056,7 +1392,7 @@ function handleImport(){
       pendientes--;
 
       if(pendientes===0){
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(estaciones.map(e=>({nombre:e.nombre,obras:e.obras,servicios:e.servicios}))));
+        saveJSON(STORAGE_KEY, estaciones.map(e=>({nombre:e.nombre,obras:e.obras,servicios:e.servicios})));
         if(typeof guardarBaseLocal === 'function') guardarBaseLocal();
         renderMap();
         if(typeof updateKpis==='function') updateKpis();
@@ -1072,14 +1408,16 @@ function handleImport(){
 function updateKpis(){
   const visible=estaciones.filter(matches);
   const items=visible.flatMap(allItems);
-  $('kEst').textContent=visible.length;
-  $('kObras').textContent=items.filter(i=>i.tipo==='Obra'&&!esFinalizado(i)&&!esCancelado(i)).length;
-  $('kServ').textContent=items.filter(i=>i.tipo==='Servicio'&&!esFinalizado(i)&&!esCancelado(i)).length;
+  const setKpi=(key,value)=>document.querySelectorAll(`[data-kpi="${key}"]`).forEach(el=>{el.textContent=value;});
+  /* V32 estabilizacion: Dashboard y Red comparten KPIs sin duplicar IDs HTML. */
+  setKpi('est',visible.length);
+  setKpi('obras',items.filter(i=>i.tipo==='Obra'&&!esFinalizado(i)&&!esCancelado(i)).length);
+  setKpi('serv',items.filter(i=>i.tipo==='Servicio'&&!esFinalizado(i)&&!esCancelado(i)).length);
   if($('kCert')){
     $('kCert').textContent=items.filter(i=>!esFinalizado(i)&&!esCancelado(i)).length;
   }
   const today=new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
-  $('kVen').textContent=items.filter(i=>!esFinalizado(i)&&!esCancelado(i)&&i.vencimiento&&((new Date(i.vencimiento)-today)/864e5)<=30).length;
+  setKpi('ven',items.filter(i=>!esFinalizado(i)&&!esCancelado(i)&&i.vencimiento&&((new Date(i.vencimiento)-today)/864e5)<=30).length);
 }
 
 /* ===============================
@@ -1354,13 +1692,16 @@ function mostrarVista(idVista){
   const mapa={
     vistaDashboard:'btnDashboard',
     vistaRed:'btnRed',
-    vistaCalendarioVencimientos:'btnCalendarioVencimientos',
-    vistaCalendarioCertificaciones:'btnCalendarioCertificaciones',
+    vistaCalendarioCOI:'btnCalendarioCOI',
+    vistaCalendarioVencimientos:null,
+    vistaCalendarioCertificaciones:null,
     vistaOrdenes:'btnOrdenes',
     vistaCarga:'btnCarga',
-    vistaBuscador:'btnBuscador',
+    vistaBuscador:null,
     vistaFichaOC:null,
-    vistaHistorialVersiones:'btnHistorialVersiones'
+    vistaAcercaSistema:'btnAcercaSistema',
+    vistaUnidadesMantenimiento:'btnUnidadesMantenimiento',
+    vistaFichaUM:null
   };
   if(mapa[idVista] && document.getElementById(mapa[idVista])) document.getElementById(mapa[idVista]).classList.add('active');
 }
@@ -1418,6 +1759,7 @@ function renderCalendarioCertificaciones(){
     return `<tr><td>${pill(sem)}</td><td>${esc(r.oc)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${fmtFecha(r.inicio)}</td><td>${fmtFecha(r.ultimaFechaCertificacion)}</td><td>${r.ultimaActa?.numero||'—'}</td><td>${fmtFecha(r.proximaCertificacion)}</td><td>${r.proximoNroActa||1}</td><td>${esc(avanceDoc)}</td><td>${fmtFecha(r.fin)}</td><td>${esc(sem.texto)}</td></tr>`;
   }).join('') || '<tr><td colspan="13">Sin certificaciones para los filtros seleccionados.</td></tr>';
   renderKpisV16('cert');
+  renderCalendarioOperativoCOI('cert');
 }
 function renderOrdenes(){
   const rows=todasLasOC().sort((a,b)=>String(a.oc).localeCompare(String(b.oc)));
@@ -1434,11 +1776,10 @@ function renderBuscador(){
 function initVistasCOI(){
   document.getElementById('btnDashboard')?.addEventListener('click',()=>{mostrarVista('vistaDashboard'); updateKpis();});
   document.getElementById('btnRed')?.addEventListener('click',()=>{mostrarVista('vistaRed'); ocultarPanelEstacion(); renderMap();});
-  document.getElementById('btnCalendarioVencimientos')?.addEventListener('click',()=>{mostrarVista('vistaCalendarioVencimientos'); renderCalendarioVencimientos();});
-  document.getElementById('btnCalendarioCertificaciones')?.addEventListener('click',()=>{mostrarVista('vistaCalendarioCertificaciones'); renderCalendarioCertificaciones();});
-  document.getElementById('btnOrdenes')?.addEventListener('click',()=>{mostrarVista('vistaOrdenes'); renderOrdenes();});
+  document.getElementById('btnCalendarioCOI')?.addEventListener('click',()=>{mostrarVista('vistaCalendarioCOI'); renderCalendarioCOIUnificado();});
+  document.getElementById('btnOrdenes')?.addEventListener('click',()=>{abrirModuloOrdenes(false);});
   document.getElementById('btnCarga')?.addEventListener('click',()=>{mostrarVista('vistaCarga');});
-  document.getElementById('btnBuscador')?.addEventListener('click',()=>{mostrarVista('vistaBuscador'); renderBuscador();});
+  /* V32 estabilizacion: el botón lateral Buscador queda desactivado; la búsqueda vive en Órdenes. */
   document.getElementById('buscadorGlobal')?.addEventListener('input',renderBuscador);
   ['vencEstacion','vencProveedor','vencTipo','vencMes','vencEstado','vencOrden'].forEach(id=>$(id)?.addEventListener('change',renderCalendarioVencimientos));
   ['certEstacion','certProveedor','certTipo','certMes','certEstado'].forEach(id=>$(id)?.addEventListener('change',renderCalendarioCertificaciones));
@@ -1766,9 +2107,11 @@ function selectStation(s){
 
     <h3 class="section-title">Servicios UM / activos mantenibles</h3>
     ${servicios.length ? `<div class="asset-list">${servicios.map(i=>`<div class="asset-card"><h4>${tipoActivoDesdeEspecialidad(i)}</h4><div><b>Activo</b>${i.descripcion||tipoActivoDesdeEspecialidad(i)}</div><div><b>Proveedor</b>${i.proveedor||'—'}</div><div><b>OC</b>${i.oc||'—'}</div><div><b>Estado activo</b>${estadoActivo(i)}</div>${i.alcanceLinea==='TODO'?`<div><b>Alcance</b><span class="scope-tag">TODO / A demanda</span></div><div><b>UM</b>${i.unidadMantenimiento||i.especialidad||'—'}</div>`:''}<br>${botonFichaOC(i)}</div>`).join('')}</div>` : '<p class="empty">Sin servicios UM cargados.</p>'}
-<h3 class="section-title">Galería futura de fotos de obra</h3>
+<h3 class="section-title">Unidades de Mantenimiento de la estación</h3>
+    ${renderUMEnPanelEstacion(s)}
+    <h3 class="section-title">Galería futura de fotos de obra</h3>
     <div class="gallery-placeholder">Espacio preparado para fotos por OC: antes / durante / después, relevamientos, actas escaneadas, informes técnicos y evidencia de certificación.</div>
-    <br><button class="primary" onclick="fakePdf()">Exportar ficha a PDF</button>
+    <br><button type="button" class="primary" data-legacy-action="pdf">Exportar ficha a PDF</button>
   `;
   document.querySelector('.panel').scrollIntoView({behavior:'smooth',block:'start'});
 }
@@ -1782,6 +2125,7 @@ function renderCalendarioVencimientos(){
     return `<tr><td>${pill(sem)}</td><td>${esc(r.oc)}<br>${botonFichaOC(r.item)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${fmtFecha(r.inicio)}</td><td>${esc(r.plazo||'—')}</td><td>${fmtFecha(r.fin)}</td><td>${r.diasRestantes===null?'—':r.diasRestantes}</td><td>${esc(r.estado)}</td></tr>`;
   }).join('') || '<tr><td colspan="10">Sin vencimientos para los filtros seleccionados.</td></tr>';
   renderKpisV16('venc');
+  renderCalendarioOperativoCOI('venc');
 }
 function renderCalendarioCertificaciones(){
   cargarFiltrosV16('cert');
@@ -1793,6 +2137,7 @@ function renderCalendarioCertificaciones(){
     return `<tr><td>${pill(sem)}</td><td>${esc(r.oc)}<br>${botonFichaOC(r.item)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${fmtFecha(r.inicio)}</td><td>${fmtFecha(r.ultimaFechaCertificacion)}</td><td>${r.ultimaActa?.numero||'—'}</td><td>${fmtFecha(r.proximaCertificacion)}</td><td>${r.proximoNroActa||1}</td><td>${esc(avanceDoc)}</td><td>${fmtFecha(r.fin)}</td><td>${esc(sem.texto)}</td></tr>`;
   }).join('') || '<tr><td colspan="13">Sin certificaciones para los filtros seleccionados.</td></tr>';
   renderKpisV16('cert');
+  renderCalendarioOperativoCOI('cert');
 }
 function renderOrdenes(){
   asegurarIdsOC();
@@ -1858,8 +2203,9 @@ function serializarIntervenciones(){
 }
 function guardarBaseLocal(){
   migrarArquitecturaIdObra();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(serializarIntervenciones()));
-  localStorage.setItem(STORAGE_KEY_MASTER, JSON.stringify(serializarIntervenciones()));
+  const data=serializarIntervenciones();
+  saveJSON(STORAGE_KEY, data);
+  saveJSON(STORAGE_KEY_MASTER, data);
 }
 function buscarPorIdObra(idObra){
   migrarArquitecturaIdObra();
@@ -2022,11 +2368,137 @@ function exportarBaseCompleta(){
   }))].map(row=>row.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');
   descargarArchivo('base_completa_coi_linea_roca.csv', csv, 'text/csv;charset=utf-8');
 }
-/* Función base preparada para futuras versiones Excel Maestro → CSV → HTML → Power BI */
+/* Función base preparada para futuras versiones CSV Maestro → HTML → Power BI */
 function importarCSV(csvTexto){
   // TODO futuro: parsear CSV maestro, validar ID_OBRA, actualizar existentes y crear nuevos sin duplicar.
   // La importación actual se mantiene con handleImport() para no romper compatibilidad.
   console.info('importarCSV() preparado para evolución futura.', csvTexto?.length || 0);
+}
+
+/* ===============================
+   V33 - Importador CSV COI normalizado
+   =============================== */
+const V33_LS_ORDENES='coiOrdenes',V33_LS_LOGS='coiImportLogs',V33_LS_INCOMPLETOS='coiRegistrosIncompletos',V33_LS_DOCS='coiDocumentos',V33_LS_UM='coiUM';
+let v33PreviewState=null;
+const v33HeaderAliases={
+  idObra:['ID_OBRA','ID OBRA','ID','Código Obra','Codigo Obra'],
+  nOC:['N° OC','N OC','OC','Orden de Compra','Pedido','numeroOC','Nro OC'],
+  tipo:['Tipo','Tipo OC','Obra Servicio'],
+  tipoTrabajo:['Tipo Trabajo','Tipo de trabajo','Especialidad','Descripción','Descripcion'],
+  proveedor:['Proveedor','Proveed.','Empresa','Contratista'],
+  estacion:['Estación','Estacion','Lugar'],
+  sector:['Sector','Ubicación','Ubicacion'],
+  monto:['Monto','Importe','Total'],
+  fechaActaInicio:['Fecha inicio','Acta Inicio','Fecha Acta Inicio','Fecha de acta de inicio'],
+  plazoDias:['Plazo','Plazo días','Plazo dias','Plazo OC','Días','Dias'],
+  fechaVencimiento:['Vencimiento','Fecha Vto','Fin contractual','Fecha Fin'],
+  fechaRecepcionDocumentacion:['Recepción documentación','Recepcion documentacion','Fecha recepción','Fecha recepcion','Factura recibida'],
+  fechaEnvioPlanificacion:['Envío PyC','Envio PyC','Fecha envío a Planificación y Control','Fecha envio planificacion','Enviado PyC'],
+  estadoCOI:['Estado','Estado COI','Situación','Situacion','Estatus'],
+  estadoDocumental:['Estado documental','Estado doc','Documental'],
+  avanceFisico:['Avance','% Avance','Avance físico','Avance fisico','AUX %'],
+  observaciones:['Observaciones','Obs','Comentario','Comentarios'],
+  linkOneDrive:['OneDrive','Link OneDrive','URL OneDrive','Repositorio documental','Documento']
+};
+function v33NormHeader(v){return norm(v).replace(/[^A-Z0-9]/g,'');}
+function v33CampoNormalizado(header){
+  const h=v33NormHeader(header);
+  for(const [campo,aliases] of Object.entries(v33HeaderAliases)){
+    if(aliases.some(a=>v33NormHeader(a)===h)) return campo;
+  }
+  return '';
+}
+function v33DetectarSeparadorCSV(text){
+  const first=(text.split(/\r?\n/).find(l=>l.trim())||'');
+  const count=sep=>{let q=false,n=0;for(let i=0;i<first.length;i++){const c=first[i],nx=first[i+1];if(c==='"'&&q&&nx==='"'){i++;continue;}if(c==='"')q=!q;else if(c===sep&&!q)n++;}return n;};
+  return [[';',count(';')],[',',count(',')],['\t',count('\t')]].sort((a,b)=>b[1]-a[1])[0][0];
+}
+function v33ParseCSV(text){
+  const sep=v33DetectarSeparadorCSV(text),rows=[];let row=[],cell='',q=false;
+  for(let i=0;i<text.length;i++){const c=text[i],n=text[i+1];if(c==='"'&&q&&n==='"'){cell+='"';i++;continue;}if(c==='"'){q=!q;continue;}if(c===sep&&!q){row.push(cell);cell='';continue;}if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&n==='\n')i++;row.push(cell);rows.push(row);row=[];cell='';continue;}cell+=c;}
+  row.push(cell);rows.push(row);
+  const headers=(rows.shift()||[]).map(h=>String(h).trim());
+  return {sep,headers,rows:rows.filter(r=>r.some(v=>String(v||'').trim())).map(r=>{const o={};headers.forEach((h,i)=>o[h]=r[i]??'');return o;})};
+}
+function v33Fecha(v){
+  const d=parseFecha(v);
+  return d?d.toISOString().slice(0,10):'';
+}
+function v33NormalizarFila(row){
+  const out={};
+  Object.keys(row).forEach(h=>{const campo=v33CampoNormalizado(h);if(campo)out[campo]=String(row[h]??'').trim();});
+  out.tipo=out.tipo||'';
+  out.tipo=norm(out.tipo).includes('SERV')?'Servicio':norm(out.tipo).includes('OBRA')?'Obra':out.tipo;
+  out.fechaActaInicio=v33Fecha(out.fechaActaInicio);
+  out.fechaVencimiento=v33Fecha(out.fechaVencimiento);
+  out.fechaRecepcionDocumentacion=v33Fecha(out.fechaRecepcionDocumentacion);
+  out.fechaEnvioPlanificacion=v33Fecha(out.fechaEnvioPlanificacion);
+  out.plazoDias=Number(String(out.plazoDias||'').replace(',','.'))||0;
+  out.avanceFisico=Number(String(out.avanceFisico||'').replace('%','').replace(',','.'))||0;
+  if(out.fechaActaInicio&&out.plazoDias&&!out.fechaVencimiento)out.fechaVencimiento=fmtFecha(addDias(out.fechaActaInicio,out.plazoDias));
+  out.idObra=out.idObra||['ROCA',slugOC(out.nOC||''),slugOC(out.tipo||''),slugOC(out.estacion||'')].filter(Boolean).join('-');
+  return out;
+}
+function v33ValidarRegistro(r){return ['nOC','tipo','proveedor','estacion'].filter(k=>!String(r[k]||'').trim());}
+function v33PreviewHTML(state){
+  const rows=state.normalizados.slice(0,10),headers=['idObra','nOC','tipo','tipoTrabajo','proveedor','estacion','sector','monto','fechaActaInicio','plazoDias','fechaVencimiento','estadoCOI','avanceFisico'];
+  if($('v33PreviewHead'))$('v33PreviewHead').innerHTML=`<tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr>`;
+  if($('v33PreviewBody'))$('v33PreviewBody').innerHTML=rows.map(r=>`<tr>${headers.map(h=>`<td>${esc(r[h]??'')}</td>`).join('')}</tr>`).join('')||'<tr><td colspan="13">Sin filas para previsualizar.</td></tr>';
+}
+function v33RenderState(state){
+  const errores=state.errores.length;
+  $('v33Resultado').className='v33-message';
+  $('v33Resultado').textContent=`Archivo: ${state.fileName}. Separador: ${state.sep==='\\t'?'tabulación':state.sep}. Registros detectados: ${state.total}.`;
+  $('v33Resumen').innerHTML=`<div class="mini-kpi"><b>${state.total}</b><span>Detectados</span></div><div class="mini-kpi"><b>${state.validos.length}</b><span>Válidos</span></div><div class="mini-kpi"><b>${state.incompletos.length}</b><span>Incompletos</span></div><div class="mini-kpi"><b>${errores}</b><span>Errores</span></div>`;
+  $('v33Columnas').innerHTML=state.headers.map(h=>`<span class="v33-badge">${esc(h)}${v33CampoNormalizado(h)?' → '+esc(v33CampoNormalizado(h)):''}</span>`).join('');
+  if($('v33Errores')){$('v33Errores').style.display=errores||state.incompletos.length?'block':'none';$('v33Errores').innerHTML=[...state.errores,...state.incompletos.slice(0,10).map(x=>`Fila ${x.index+1}: faltan ${x.faltan.join(', ')}`)].map(esc).join('<br>');}
+  v33PreviewHTML(state);
+}
+function v33PrevisualizarArchivo(){
+  const file=$('v33File')?.files?.[0]; if(!file){alert('Seleccione un archivo CSV.');return;}
+  const reader=new FileReader();
+  reader.onload=()=>{try{const parsed=v33ParseCSV(reader.result);const normalizados=parsed.rows.map(v33NormalizarFila);const incompletos=[],validos=[];normalizados.forEach((r,index)=>{const faltan=v33ValidarRegistro(r);if(faltan.length)incompletos.push({index,faltan,registro:r});else validos.push(r);});v33PreviewState={fileName:file.name,tipo:$('v33ImportTipo')?.value||'',sep:parsed.sep,headers:parsed.headers,total:normalizados.length,normalizados,validos,incompletos,errores:[]};v33RenderState(v33PreviewState);}catch(e){v33PreviewState={fileName:file.name,total:0,headers:[],normalizados:[],validos:[],incompletos:[],errores:[e.message],sep:''};v33RenderState(v33PreviewState);}};
+  reader.readAsText(file,'UTF-8');
+}
+function v33AItemOC(r,tipoImport){
+  const tipo=tipoImport==='Servicios'?'Servicio':tipoImport==='Obras'?'Obra':(r.tipo||'Obra');
+  return {idObra:r.idObra,idOC:r.idObra,numeroOC:r.nOC,oc:r.nOC,tipo,tipoTrabajo:r.tipoTrabajo||'',especialidad:r.tipoTrabajo||'',proveedor:r.proveedor,estacion:r.estacion,sector:r.sector||'',monto:r.monto||'',actaInicio:r.fechaActaInicio,fechaActaInicio:r.fechaActaInicio,plazoDias:r.plazoDias,vencimiento:r.fechaVencimiento,fechaVencimiento:r.fechaVencimiento,fechaRecepcionDocumentacion:r.fechaRecepcionDocumentacion,fechaEnvioPyC:r.fechaEnvioPlanificacion,fechaEnvioPlanificacion:r.fechaEnvioPlanificacion,estado:r.estadoCOI||'Sin datos',estadoDocumental:r.estadoDocumental||'Pendiente',avanceFisico:r.avanceFisico||0,observaciones:r.observaciones||'',linkOneDrive:r.linkOneDrive||'',fechaUltimaModificacion:new Date().toISOString(),estadoRegistro:'Activo'};
+}
+function v33GuardarOrdenes(registros,tipoImport,politica){
+  let importados=0,actualizados=0,omitidos=0,nuevos=0;
+  registros.forEach(r=>{const item=v33AItemOC(r,tipoImport),est=estaciones.find(e=>e.nombre===stationAlias(r.estacion))||estaciones.find(e=>norm(e.nombre)===norm(r.estacion));if(!est)return;const lista=item.tipo==='Servicio'?est.servicios:est.obras;const idx=lista.findIndex(x=>norm(x.numeroOC||x.oc)===norm(item.numeroOC)&&norm(x.tipo)===norm(item.tipo));if(idx>=0&&politica==='omit'){omitidos++;return;}if(idx>=0&&politica==='update'){lista[idx]={...lista[idx],...item};actualizados++;importados++;return;}if(idx>=0&&politica==='new'){item.idObra=`${item.idObra}-${Date.now()}-${nuevos++}`;item.idOC=item.idObra;}lista.push(item);importados++;});
+  saveJSON(V33_LS_ORDENES,registros);
+  saveJSON(STORAGE_KEY,estaciones.map(e=>({nombre:e.nombre,obras:e.obras,servicios:e.servicios})));
+  if(typeof guardarBaseLocal==='function')guardarBaseLocal();
+  return {importados,actualizados,omitidos};
+}
+function v33GuardarUM(registros){
+  if(typeof cargarUM==='function')cargarUM();
+  let importados=0,actualizados=0;
+  registros.forEach(r=>{const id=(r.idObra||r.nOC||'UM-'+(unidadesMantenimiento.length+1)).toUpperCase();const u={idUM:id,tipoUM:r.tipoTrabajo||r.tipo||'Otro',estacion:r.estacion,sector:r.sector||'',ubicacionTecnica:r.observaciones||r.tipoTrabajo||id,descripcion:r.observaciones||'',estadoOperativo:r.estadoCOI||'Activo',criticidad:'Media',proveedorActual:r.proveedor||'',ocActual:r.nOC||'',observaciones:r.observaciones||'',fotos:[],historialMantenimiento:[]};const idx=unidadesMantenimiento.findIndex(x=>x.idUM===id);if(idx>=0){unidadesMantenimiento[idx]={...unidadesMantenimiento[idx],...u};actualizados++;}else{unidadesMantenimiento.push(u);importados++;}});
+  guardarUM();
+  saveJSON(V33_LS_UM,registros);
+  return {importados,actualizados,omitidos:0};
+}
+function v33ConfirmarImportacion(){
+  if(!v33PreviewState){alert('Primero previsualice un archivo.');return;}
+  if(v33PreviewState.errores.length){alert('Hay errores pendientes antes de importar.');return;}
+  const tipo=$('v33ImportTipo')?.value||'',politica=$('v33Duplicados')?.value||'omit';
+  let res={importados:0,actualizados:0,omitidos:0};
+  if(tipo==='Unidades de Mantenimiento')res=v33GuardarUM(v33PreviewState.validos);
+  else if(tipo==='Documentación OneDrive'){saveJSON(V33_LS_DOCS,v33PreviewState.validos);res={importados:v33PreviewState.validos.length,actualizados:0,omitidos:0};}
+  else res=v33GuardarOrdenes(v33PreviewState.validos,tipo,politica);
+  saveJSON(V33_LS_INCOMPLETOS,v33PreviewState.incompletos);
+  const logs=getArrayStorage(V33_LS_LOGS,[]);
+  const log={fecha:new Date().toISOString(),tipoImportacion:tipo,archivo:v33PreviewState.fileName,registrosDetectados:v33PreviewState.total,registrosImportados:res.importados,registrosConError:v33PreviewState.incompletos.length+v33PreviewState.errores.length,usuario:typeof APP_AUTHOR!=='undefined'?APP_AUTHOR:'',duplicadosOmitidos:res.omitidos,actualizados:res.actualizados};
+  logs.unshift(log);saveJSON(V33_LS_LOGS,logs.slice(0,100));
+  if(typeof renderMap==='function')renderMap();if(typeof updateKpis==='function')updateKpis();if(typeof renderOrdenes==='function')renderOrdenes();if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();if(typeof renderAcercaSistema==='function'&&document.getElementById('vistaAcercaSistema')?.classList.contains('active'))renderAcercaSistema();
+  $('v33Resultado').className='v33-message';$('v33Resultado').textContent=`Importación confirmada. Importados: ${res.importados}. Actualizados: ${res.actualizados}. Omitidos: ${res.omitidos}. Registros con error: ${log.registrosConError}.`;
+}
+function initImportadorV33(){
+  $('btnV33Preview')?.addEventListener('click',v33PrevisualizarArchivo);
+  $('btnV33Confirm')?.addEventListener('click',v33ConfirmarImportacion);
+  $('btnV33Limpiar')?.addEventListener('click',()=>{v33PreviewState=null;if($('v33File'))$('v33File').value='';['v33Resumen','v33Columnas','v33PreviewHead','v33PreviewBody'].forEach(id=>{if($(id))$(id).innerHTML='';});if($('v33Errores')){$('v33Errores').style.display='none';$('v33Errores').innerHTML='';}if($('v33Resultado'))$('v33Resultado').textContent='Seleccione un archivo CSV para iniciar la previsualización.';});
 }
 function initArquitecturaMaestra(){
   migrarArquitecturaIdObra();
@@ -2090,15 +2562,11 @@ function storageFotosEstacionKey(){
   return 'coi_linea_roca_fotos_estacion_v19';
 }
 function cargarFotosEstacionStorage(){
-  try{
-    return JSON.parse(localStorage.getItem(storageFotosEstacionKey()) || '{}');
-  }catch(e){
-    console.warn('No se pudieron leer fotos de estación', e);
-    return {};
-  }
+  const data=safeParseJSON(localStorage.getItem(storageFotosEstacionKey()), {});
+  return data && typeof data==='object' && !Array.isArray(data) ? data : {};
 }
 function guardarFotosEstacionStorage(data){
-  localStorage.setItem(storageFotosEstacionKey(), JSON.stringify(data || {}));
+  saveJSON(storageFotosEstacionKey(), data || {});
 }
 function aplicarFotosEstacionDesdeStorage(){
   const data=cargarFotosEstacionStorage();
@@ -2188,11 +2656,11 @@ function storageFotosOCKey(){
   return 'coi_linea_roca_fotos_oc_v20';
 }
 function cargarFotosOCStorage(){
-  try{return JSON.parse(localStorage.getItem(storageFotosOCKey())||'{}');}
-  catch(e){console.warn('No se pudieron leer fotos OC',e);return {};}
+  const data=safeParseJSON(localStorage.getItem(storageFotosOCKey()), {});
+  return data && typeof data==='object' && !Array.isArray(data) ? data : {};
 }
 function guardarFotosOCStorage(data){
-  localStorage.setItem(storageFotosOCKey(), JSON.stringify(data||{}));
+  saveJSON(storageFotosOCKey(), data||{});
 }
 function aplicarFotosOCDesdeStorage(){
   const data=cargarFotosOCStorage();
@@ -2472,6 +2940,7 @@ function renderCalendarioVencimientos(){
     }).join('') || '<tr><td colspan="11">Sin vencimientos para los filtros seleccionados.</td></tr>';
   }
   renderKpisV16('venc');
+  renderCalendarioOperativoCOI('venc');
 }
 
 
@@ -2521,6 +2990,7 @@ function renderCalendarioVencimientos(){
     }).join('') || '<tr><td colspan="11">Sin vencimientos para los filtros seleccionados.</td></tr>';
   }
   renderKpisV16('venc');
+  renderCalendarioOperativoCOI('venc');
 }
 
 
@@ -2706,7 +3176,7 @@ function importRows(rows, forcedTipo='auto', options={}){
     });
   });
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(estaciones.map(e=>({nombre:e.nombre,obras:e.obras,servicios:e.servicios}))));
+  saveJSON(STORAGE_KEY, estaciones.map(e=>({nombre:e.nombre,obras:e.obras,servicios:e.servicios})));
   if(typeof guardarBaseLocal === 'function') guardarBaseLocal();
   renderMap();
   if(typeof cargarFiltrosCalendario==='function') cargarFiltrosCalendario();
@@ -2719,12 +3189,7 @@ function importRows(rows, forcedTipo='auto', options={}){
 function handleImport(){
   const files=[...($('fileImport').files||[])];
   if(!files.length){
-    alert('Primero seleccioná uno o más archivos CSV exportados desde Excel.');
-    return;
-  }
-
-  if(files.some(f=>f.name.toLowerCase().endsWith('.xlsx'))){
-    alert('Este prototipo trabaja offline sin librerías externas. Exportá cada hoja como CSV UTF-8 y cargala acá.');
+    alert('Primero seleccioná uno o más archivos CSV.');
     return;
   }
 
@@ -2762,7 +3227,7 @@ function handleImport(){
 
       pendientes--;
       if(pendientes===0){
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(estaciones.map(e=>({nombre:e.nombre,obras:e.obras,servicios:e.servicios}))));
+        saveJSON(STORAGE_KEY, estaciones.map(e=>({nombre:e.nombre,obras:e.obras,servicios:e.servicios})));
         if(typeof guardarBaseLocal === 'function') guardarBaseLocal();
         renderMap();
         if(typeof updateKpis==='function') updateKpis();
@@ -2968,10 +3433,16 @@ function renderFichaOC(idObra){
 
 
 /* ===============================
-   V29 - Historial de versiones
+   V32.1 - Acerca del Sistema + Historial de versiones
    =============================== */
-const APP_VERSION = "V29";
+const APP_NAME = "COI Línea Roca";
+const APP_VERSION = "V45 CONSOLIDADA";
+const APP_AUTHOR = "Mariano Special";
+const APP_START_YEAR = "2025";
 const historialVersiones = [
+  {version:"V45 CONSOLIDADA",fecha:"2026-06-24",titulo:"Consolidación V32 + mejoras V45",cambios:["Se conserva V32 como base principal y Calendario COI intacto.","Se incorpora Carga diferenciada Servicio/Obra con pegado desde Excel.","Se agrega moneda ARS/USD, PROX_CERTIFICACION automática, indicador visual y borrado selectivo en Órdenes."],modulosAfectados:["Carga","Órdenes","localStorage","Calendario COI","Dashboard","Red"],estado:"Implementado",observaciones:"Consolidación funcional sin reemplazar el HTML completo."},
+  {version:"V32.1",fecha:"2026-06-23",titulo:"Acerca del Sistema",cambios:["Se reemplazó Historial de versiones por Acerca del Sistema.","Se integró información institucional, tecnologías, objetivos, estadísticas y hoja de ruta.","Se mantuvo el historialVersiones existente dentro del nuevo módulo."],modulosAfectados:["Header","Menú","Acerca del Sistema","Historial de versiones"],estado:"En desarrollo activo",observaciones:"Versión institucional del sistema. APP_NAME, APP_VERSION y APP_AUTHOR alimentan el encabezado y la vista Acerca del Sistema."},
+  {version:"V32",fecha:"2026-06-23",titulo:"Repositorio de Unidades de Mantenimiento",cambios:["Se incorporó el módulo Unidades de Mantenimiento.","Se agregó Ficha Individual de UM.","Se integraron UM al panel de estación y exportación CSV exclusiva."],modulosAfectados:["UM","Ficha UM","Panel estación","CSV"],estado:"Implementado",observaciones:"Versión actual del sistema. APP_VERSION controla el header dinámicamente."},
   {version:"V29",fecha:"2026-06-22",titulo:"Historial de versiones y estado documental limpio",cambios:["Se agregó módulo de trazabilidad técnica Historial de versiones.","Se incorporó versión actual visible en el header.","Se limpió la sección Estado documental de Ficha OC y se dejaron observaciones documentales editables."],modulosAfectados:["Header","Menú","Vistas","Ficha OC","Estado documental"],estado:"En desarrollo",observaciones:"Módulo hardcodeado dentro del HTML. No se mezcla con datos operativos de OC ni exportaciones CSV."},
   {version:"V28",fecha:"2026-06-22",titulo:"Checklist completo de Estado OC",cambios:["Se agregó checklist completo de procesos documentales COI.","Se incorporó Enviado a Planificación y Control (R. de Escalada).","Cada tilde guarda fecha y hora de confirmación."],modulosAfectados:["Ficha OC","Estado documental","localStorage"],estado:"Implementado",observaciones:"Checklist operativo para trazabilidad documental de cada OC."},
   {version:"V27",fecha:"2026-06-22",titulo:"Importador CSV robusto",cambios:["Se corrigió la carga CSV acumulativa de Obras y Servicios.","Se agregó estado visible de importación.","Se mejoró detección automática por nombre de archivo."],modulosAfectados:["Carga","CSV","localStorage","Buscador"],estado:"Implementado",observaciones:"Requiere CSV UTF-8 exportado desde Excel."},
@@ -3000,14 +3471,74 @@ function renderListadoVersiones(datos){
       <div class="version-observaciones"><b>Observaciones:</b> ${esc(v.observaciones||'—')}</div>
     </article>`).join('') || '<p class="empty">No se encontraron versiones con ese filtro.</p>';
 }
-function renderHistorialVersiones(){
-  const cont=$('historialVersionesBody'); if(!cont) return;
-  const ordenadas=[...historialVersiones].sort((a,b)=>numeroVersion(b.version)-numeroVersion(a.version));
+function obtenerEstadisticasAcercaSistema(){
+  const rows=typeof todasLasOC==='function'?todasLasOC():[];
+  const docs=rows.reduce((acc,r)=>{
+    const i=r.item||{};
+    return acc+['estadoDocumental','fechaRecepcionDocumentacion','fechaEnvioPyC','fechaEnvioPlanificacion'].filter(k=>i[k]).length+(Array.isArray(i.fotos)?i.fotos.length:0)+(Array.isArray(i.actas)?i.actas.length:0);
+  },0);
+  let totalUM=0;
+  const dataUM=getArrayStorage(typeof LS_UM!=='undefined'?LS_UM:'coi_roca_unidades_mantenimiento', []);
+  totalUM=dataUM.length || (Array.isArray(unidadesMantenimiento)?unidadesMantenimiento.length:0);
+  const eventosCalendario=typeof generarEventosCalendarioCOI==='function'?generarEventosCalendarioCOI().length:0;
+  return {
+    estaciones:estaciones.length,
+    oc:rows.length,
+    obras:rows.filter(r=>r.tipo==='Obra').length,
+    servicios:rows.filter(r=>r.tipo==='Servicio').length,
+    um:totalUM,
+    certificaciones:rows.reduce((acc,r)=>acc+(r.actas?.length||0)+(r.proximaCertificacion?1:0),0),
+    documentos:docs,
+    eventosCalendario,
+    versiones:historialVersiones.length
+  };
+}
+function modulosImplementadosAcercaSistema(){
+  const botones=[...document.querySelectorAll('.module-nav button')].filter(b=>b.id!=='btnAccesoBusquedaOrdenes');
+  return botones.map(b=>b.textContent.trim()).filter(Boolean);
+}
+function renderHistorialVersionesIntegrado(ordenadas){
   const actual=ordenadas.find(v=>v.version===APP_VERSION) || ordenadas[0];
+  return `<div class="version-current-card"><div><h2>Versión actual</h2><strong>${esc(APP_VERSION)}</strong><div>${esc(actual?.titulo||APP_NAME)}</div></div>${badgeEstadoVersion(actual?.estado || 'En desarrollo')}</div><div class="version-filter"><input id="filtroVersiones" placeholder="Buscar versión, módulo, estado, cambio u observación..." /><button type="button" id="btnLimpiarFiltroVersiones">Limpiar filtro</button></div><div id="historialListado" class="version-list"></div>`;
+}
+function renderAcercaSistema(){
+  const cont=$('acercaSistemaBody'); if(!cont) return;
+  const ordenadas=[...historialVersiones].sort((a,b)=>numeroVersion(b.version)-numeroVersion(a.version));
+  const stats=obtenerEstadisticasAcercaSistema();
+  const modulos=modulosImplementadosAcercaSistema();
   cont.innerHTML=`
-    <div class="version-current-card"><div><h2>Versión actual</h2><strong>${esc(APP_VERSION)}</strong><div>${esc(actual?.titulo||'Aplicación COI')}</div></div>${badgeEstadoVersion(actual?.estado || 'En desarrollo')}</div>
-    <div class="version-filter"><input id="filtroVersiones" placeholder="Buscar versión, módulo, estado, cambio u observación..." /><button type="button" id="btnLimpiarFiltroVersiones">Limpiar filtro</button></div>
-    <div id="historialListado" class="version-list"></div>`;
+    <section class="about-card hero">
+      <div><h3>${esc(APP_NAME)}</h3><div>Sistema de Gestión de Obras y Servicios</div></div>
+      <div class="about-meta">
+        <div><b>Versión</b><br>${esc(APP_VERSION)}</div><div><b>Desarrollado por</b><br>${esc(APP_AUTHOR)}</div><div><b>Proyecto iniciado</b><br>${esc(APP_START_YEAR)}</div><div><b>Estado</b><br>En desarrollo activo</div><div><b>Código fuente</b><br>GitHub</div><div><b>Repositorio documental</b><br>OneDrive</div>
+      </div>
+    </section>
+    <section class="about-card">
+      <h3>Arquitectura del Sistema</h3>
+      <div class="about-architecture"><div><b>Código fuente</b>GitHub</div><div><b>Repositorio documental</b>OneDrive</div><div><b>Persistencia</b>LocalStorage</div><div><b>Backend</b>No posee</div><div><b>Formato</b>HTML único</div><div><b>Ejecución</b>Chrome / Edge</div><div><b>Datos operativos</b>CSV / carga manual</div></div>
+    </section>
+    <section class="about-card">
+      <h3>Módulos implementados</h3>
+      <div class="about-modules">${modulos.map(m=>`<span class="about-module-badge">${esc(m)}</span>`).join('')}</div>
+    </section>
+    <section class="about-card">
+      <h3>Tecnologías</h3>
+      <div class="about-tech-grid"><div class="about-tech"><b>HTML5</b><small>Markup</small></div><div class="about-tech"><b>CSS3</b><small>Diseño</small></div><div class="about-tech"><b>JavaScript</b><small>Lógica</small></div><div class="about-tech"><b>LocalStorage</b><small>Persistencia</small></div><div class="about-tech"><b>GitHub</b><small>Código</small></div><div class="about-tech"><b>OneDrive</b><small>Documentos</small></div></div>
+    </section>
+    <section class="about-card">
+      <h3>Objetivos del Sistema</h3>
+      <ul class="about-objectives"><li>Gestión integral de Obras.</li><li>Gestión integral de Servicios.</li><li>Seguimiento de Órdenes de Compra.</li><li>Certificaciones mensuales.</li><li>Calendario Operativo COI.</li><li>Gestión de Unidades de Mantenimiento.</li><li>Seguimiento documental.</li><li>Exportación CSV.</li><li>Exportación ICS.</li><li>Base para futura integración Power BI.</li><li>Centralizar información operativa de Obras y Servicios.</li><li>Reducir dispersión documental.</li><li>Facilitar seguimiento de vencimientos y certificaciones.</li><li>Preparar base de datos futura para Power BI.</li><li>Vincular OC, estaciones, UM y documentación.</li></ul>
+    </section>
+    <section class="about-card">
+      <h3>Estadísticas del Sistema</h3>
+      <div class="about-kpis"><div class="about-kpi"><b>${stats.oc}</b><span>Total OC</span></div><div class="about-kpi"><b>${stats.obras}</b><span>Total Obras</span></div><div class="about-kpi"><b>${stats.servicios}</b><span>Total Servicios</span></div><div class="about-kpi"><b>${stats.um}</b><span>Total UM</span></div><div class="about-kpi"><b>${stats.estaciones}</b><span>Total estaciones</span></div><div class="about-kpi"><b>${stats.eventosCalendario}</b><span>Eventos calendario</span></div><div class="about-kpi"><b>${stats.versiones}</b><span>Versiones registradas</span></div></div>
+    </section>
+    <section class="about-card">
+      <h3>Hoja de ruta</h3>
+      <div class="about-roadmap"><div class="about-roadmap-item"><strong>V33</strong>Importador CSV inteligente.</div><div class="about-roadmap-item"><strong>V34</strong>Vinculación documental OneDrive.</div><div class="about-roadmap-item"><strong>V35</strong>Galería fotográfica por estación y UM.</div><div class="about-roadmap-item"><strong>V36</strong>KPIs ejecutivos y financieros.</div><div class="about-roadmap-item"><strong>V37</strong>Preparación Power BI.</div></div>
+    </section>
+    <section class="about-card"><h3>Historial de versiones</h3>${renderHistorialVersionesIntegrado(ordenadas)}</section>
+    <section class="about-card about-credits"><b>${esc(APP_NAME)} © 2026</b><br>Diseño, arquitectura funcional y desarrollo:<br><b>${esc(APP_AUTHOR)}</b><br><br>Sistema desarrollado para la gestión operativa, documental y contractual de Obras, Servicios y Unidades de Mantenimiento de la Línea General Roca.</section>`;
   renderListadoVersiones(ordenadas);
   $('filtroVersiones')?.addEventListener('input',()=>{
     const texto=$('filtroVersiones').value.toLowerCase().trim();
@@ -3015,12 +3546,611 @@ function renderHistorialVersiones(){
   });
   $('btnLimpiarFiltroVersiones')?.addEventListener('click',()=>{ $('filtroVersiones').value=''; renderListadoVersiones(ordenadas); });
 }
-function initHistorialVersiones(){
-  const h=$('appVersionHeader'); if(h) h.textContent=APP_VERSION;
-  $('btnHistorialVersiones')?.addEventListener('click',()=>{ mostrarVista('vistaHistorialVersiones'); renderHistorialVersiones(); });
+function renderHistorialVersiones(){renderAcercaSistema();}
+
+function renderAppVersionHeader(){
+  const h=document.getElementById('appVersionHeader');
+  if(h) h.textContent=APP_VERSION;
+  const t=document.getElementById('appTitleHeader');
+  if(t) t.innerHTML=`${esc(APP_NAME)} — <span id="appVersionHeader">${esc(APP_VERSION)}</span>`;
+}
+function initAcercaSistema(){
+  renderAppVersionHeader();
+  $('btnAcercaSistema')?.addEventListener('click',()=>{ mostrarVista('vistaAcercaSistema'); renderAcercaSistema(); });
+}
+function initHistorialVersiones(){initAcercaSistema();}
+
+
+/* ===============================
+   V30 - Órdenes centro operativo + Expediente Digital OC
+   =============================== */
+function valorMesOrdenes(d){ return mesKey(d); }
+function filasOrdenesBase(){
+  if(typeof migrarArquitecturaIdObra==='function') migrarArquitecturaIdObra();
+  return todasLasOC().map(r=>{
+    const c=calcularFichaOC(r.item);
+    return {...r, calc:c, idObra:r.item.idObra||r.item.idOC, numeroOC:r.item.numeroOC||r.item.oc||r.oc, tipoTrabajo:r.item.tipoTrabajo||r.item.descripcion||r.especialidad||'', estadoDocumental:r.item.estadoDocumental||'Pendiente', sector:r.item.sector||r.item.ubicacion||'', umVinculada:r.item.umVinculada||r.item.unidadMantenimiento||r.item.umClave||r.item.especialidad||''};
+  });
+}
+function cargarFiltrosOrdenes(){
+  const rows=filasOrdenesBase();
+  const setOptions=(id,vals,label)=>{
+    const el=$(id); if(!el) return;
+    const actual=el.value;
+    el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort().map(v=>`<option>${esc(v)}</option>`).join('');
+    if([...el.options].some(o=>o.value===actual)) el.value=actual;
+  };
+  setOptions('ordenesFiltroEstacion',rows.map(r=>r.estacion),'Estación');
+  setOptions('ordenesFiltroProveedor',rows.map(r=>r.proveedor),'Proveedor');
+  setOptions('ordenesFiltroEstado',rows.map(r=>r.estado),'Estado COI');
+  setOptions('ordenesFiltroSector',rows.map(r=>r.sector),'Sector');
+  setOptions('ordenesFiltroUM',rows.map(r=>r.umVinculada),'UM vinculada');
+  setOptions('ordenesFiltroDoc',rows.map(r=>r.estadoDocumental),'Estado documental');
+  setOptions('ordenesFiltroMesVenc',rows.map(r=>valorMesOrdenes(r.calc.venc)).filter(Boolean),'Mes vencimiento');
+  setOptions('ordenesFiltroMesCert',rows.map(r=>valorMesOrdenes(r.calc.prox)).filter(Boolean),'Mes certificación');
+}
+function filtrarOrdenes(rows){
+  const q=($('ordenesBusqueda')?.value||'').toLowerCase().trim();
+  const tipo=$('ordenesFiltroTipo')?.value||'';
+  const est=$('ordenesFiltroEstacion')?.value||'';
+  const prov=$('ordenesFiltroProveedor')?.value||'';
+  const estado=$('ordenesFiltroEstado')?.value||'';
+  const sector=$('ordenesFiltroSector')?.value||'';
+  const um=$('ordenesFiltroUM')?.value||'';
+  const doc=$('ordenesFiltroDoc')?.value||'';
+  const mesV=$('ordenesFiltroMesVenc')?.value||'';
+  const mesC=$('ordenesFiltroMesCert')?.value||'';
+  return rows.filter(r=>{
+    const texto=[r.idObra,r.numeroOC,r.tipo,r.estacion,r.proveedor,r.tipoTrabajo,r.estado,r.estadoDocumental,r.sector,r.umVinculada,r.especialidad].join(' ').toLowerCase();
+    return (!q||texto.includes(q))
+      && (!tipo||r.tipo===tipo)
+      && (!est||r.estacion===est)
+      && (!prov||r.proveedor===prov)
+      && (!estado||r.estado===estado)
+      && (!sector||r.sector===sector)
+      && (!um||r.umVinculada===um)
+      && (!doc||r.estadoDocumental===doc)
+      && (!mesV||valorMesOrdenes(r.calc.venc)===mesV)
+      && (!mesC||valorMesOrdenes(r.calc.prox)===mesC);
+  });
+}
+function renderOrdenes(){
+  cargarFiltrosOrdenes();
+  const rows=filtrarOrdenes(filasOrdenesBase()).sort((a,b)=>String(a.idObra).localeCompare(String(b.idObra)));
+  if($('ordKTotal')) $('ordKTotal').textContent=rows.length;
+  if($('ordKObras')) $('ordKObras').textContent=rows.filter(r=>r.tipo==='Obra').length;
+  if($('ordKServicios')) $('ordKServicios').textContent=rows.filter(r=>r.tipo==='Servicio').length;
+  if($('ordKProxCert')) $('ordKProxCert').textContent=rows.filter(r=>r.calc.prox && diffDias(r.calc.prox,COI_TODAY)<=30).length;
+
+  if($('ordenesTbody')){
+    $('ordenesTbody').innerHTML=rows.map(r=>`
+      <tr class="row-clickable" data-open-oc="${esc(r.idObra)}">
+        <td><b>${esc(r.idObra)}</b></td>
+        <td>${esc(r.numeroOC||'—')}</td>
+        <td>${esc(r.tipo)}</td>
+        <td>${esc(r.estacion)}</td>
+        <td>${esc(r.proveedor)}</td>
+        <td>${esc(r.sector||'—')}</td>
+        <td>${esc(r.umVinculada||'—')}</td>
+        <td>${esc(r.tipoTrabajo||'—')}</td>
+        <td>${esc(r.estado)}</td>
+        <td>${fmtFecha(r.calc.prox)}</td>
+        <td>${fmtFecha(r.calc.venc)}</td>
+        <td>${botonFichaOC(r.item,'Ver ficha OC')}</td>
+      </tr>`).join('') || '<tr><td colspan="12">Sin resultados para los filtros seleccionados.</td></tr>';
+  }
+}
+function initOrdenesCentroOperativo(){
+  ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert'].forEach(id=>{
+    const el=$(id); if(el) el.addEventListener(id==='ordenesBusqueda'?'input':'change',renderOrdenes);
+  });
+  $('btnOrdenesLimpiar')?.addEventListener('click',()=>{
+    ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert'].forEach(id=>{if($(id)) $(id).value='';});
+    renderOrdenes();
+  });
+}
+function abrirModuloOrdenes(enfocar=false){
+  mostrarVista('vistaOrdenes');
+  renderOrdenes();
+  if(enfocar) setTimeout(()=>$('ordenesBusqueda')?.focus(),50);
+}
+function estadoSemaforoOC(item,calc){
+  if(esCerradaPyC(item) || item.estadoRegistro==='Archivado' || item.estadoRegistro==='Cerrado') return {clase:'closed',texto:'Cerrado / Archivado'};
+  if(calc.dias!==null && calc.dias<0) return {clase:'bad',texto:'Vencido'};
+  if(calc.dias!==null && calc.dias<=30) return {clase:'warn',texto:'Próximo'};
+  return {clase:'ok',texto:'En plazo'};
+}
+function renderFichaOC(idObra){
+  const found=obtenerOC(idObra);
+  const body=$('fichaOCBody');
+  if(!body) return;
+  if(!found){ body.innerHTML='<p class="empty">No se encontró la OC solicitada.</p>'; return; }
+  const {estacion,item}=found;
+  const calc=calcularFichaOC(item);
+  const sem=estadoSemaforoOC(item,calc);
+  const monto=item.monto || item.saldoOcTotal || item['SALDO $ OC TOTAL'] || '—';
+  const sector=item.sector || item.ubicacion || '—';
+  const tipoTrabajo=item.tipoTrabajo || item.descripcion || item.especialidad || '—';
+  const estadoDoc=item.estadoDocumental || 'Pendiente';
+  const expediente=item.expediente || item.expte || item['EXPTE.'] || '—';
+  const avanceEstado=estadoAvanceOC(item,calc);
+  const ultimaActa=calc.ultima?.numero || extraerNumeroActa(item.ultimaCertificacion) || '—';
+
+  body.innerHTML=`
+    <div class="oc-header">
+      <div class="oc-title">
+        <h2>Expediente digital OC — ${esc(item.numeroOC||item.oc||'SIN OC')}</h2>
+        <div class="oc-subtitle">
+          <span><b>ID_OBRA:</b> ${esc(item.idObra||item.idOC)}</span>
+          <span><b>Estación:</b> ${esc(estacion.nombre)}</span>
+          <span>${pill(sem)}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="oc-kpis">
+      <div class="oc-kpi"><b>${esc(item.tipo||'—')}</b><span>Tipo</span></div>
+      <div class="oc-kpi"><b>${fmtFecha(calc.venc)}</b><span>Vencimiento</span></div>
+      <div class="oc-kpi"><b>${calc.dias===null?'—':calc.dias}</b><span>Días restantes</span></div>
+      <div class="oc-kpi"><b>${fmtFecha(calc.prox)}</b><span>Próx. certificación</span></div>
+      <div class="oc-kpi"><b>${esc(estadoDoc)}</b><span>Estado documental</span></div>
+    </div>
+
+    <div class="expediente-grid">
+      <section class="expediente-card">
+        <h3>1. Resumen general</h3>
+        <div class="grid">
+          <div><b>ID_OBRA</b>${esc(item.idObra||item.idOC)}</div>
+          <div><b>N° OC</b>${esc(item.numeroOC||item.oc||'—')}</div>
+          <div><b>Tipo</b>${esc(item.tipo||'—')}</div>
+          <div><b>Tipo de trabajo</b>${esc(tipoTrabajo)}</div>
+          <div><b>Estación</b>${esc(estacion.nombre)}</div>
+          <div><b>Sector</b>${esc(sector)}</div>
+          <div><b>Proveedor</b>${esc(item.proveedor||'—')}</div>
+          <div><b>Estado COI</b>${esc(item.estado||'—')}</div>
+          <div><b>Estado documental</b>${esc(estadoDoc)}</div>
+          <div><b>Semáforo</b>${pill(sem)}</div>
+        </div>
+      </section>
+
+      <section class="expediente-card">
+        <h3>2. Datos contractuales</h3>
+        <div class="grid">
+          <div><b>Expediente</b>${esc(expediente)}</div>
+          <div><b>Monto</b>${esc(monto)}</div>
+          <div><b>Fecha inicio</b>${fmtFecha(calc.inicio)}</div>
+          <div><b>Plazo</b>${esc(calc.plazo||'—')} días</div>
+          <div><b>Fecha vencimiento</b>${fmtFecha(calc.venc)}</div>
+          <div><b>Días restantes</b>${calc.dias===null?'—':calc.dias}</div>
+        </div>
+      </section>
+
+      <section class="expediente-card full">
+        <h3>3. Certificaciones</h3>
+        <div class="grid">
+          <div><b>Última acta</b>${esc(ultimaActa)}</div>
+          <div><b>Última certificación</b>${esc(item.ultimaCertificacion||'—')}</div>
+          <div><b>Próxima certificación</b>${fmtFecha(calc.prox)}</div>
+          <div><b>Próximo N° acta esperado</b>${esc(calc.proxNro||1)}</div>
+        </div>
+        <br>
+        ${calc.actas.length ? `<div class="table-wrap"><table class="coi-table"><thead><tr><th>Acta</th><th>Fecha</th><th>Avance</th><th>Observaciones</th></tr></thead><tbody>${calc.actas.map(a=>`<tr><td>${esc(a.numero||a.idActa||'—')}</td><td>${fmtFecha(a.fecha)}</td><td>${esc(a.avanceFisico??0)}%</td><td>${esc(a.observaciones||'—')}</td></tr>`).join('')}</tbody></table></div>` : '<div class="oc-empty">No hay actas de medición cargadas para esta OC.</div>'}
+      </section>
+
+      <section class="expediente-card">
+        <h3>4. Avance</h3>
+        ${item.tipo==='Obra' ? `
+          <div class="grid">
+            <div><b>% avance físico</b>${Number(item.avanceFisico||0)}%</div>
+            <div><b>% avance financiero</b>${Number(item.avanceFinanciero||0)}%</div>
+            <div><b>Estado de avance</b>${esc(avanceEstado)}</div>
+          </div>` : `
+          <div class="grid">
+            <div><b>Último período certificado</b>${esc(item.ultimaCertificacion||'—')}</div>
+            <div><b>Próximo período a certificar</b>${fmtFecha(calc.prox)}</div>
+            <div><b>Estado mensual</b>${esc(avanceEstado)}</div>
+          </div>`}
+      </section>
+
+      <section class="expediente-card">
+        <h3>5. Documentación</h3>
+        <div class="grid">
+          <div><b>Recepción documentación</b>${esc(item.fechaRecepcionDocumentacion||'—')}</div>
+          <div><b>Envío a Planificación y Control</b>${esc(item.fechaEnvioPyC||item.fechaEnvioPlanificacion||'—')}</div>
+          <div><b>Estado documental</b>${esc(estadoDoc)}</div>
+        </div>
+        ${renderBloqueEstadoDocumental(item)}
+      </section>
+
+      <section class="expediente-card full">
+        <h3>6. Fotos / Evidencia</h3>
+        ${fotoPrincipalOC(item)}
+        <br>
+        ${item.fotos && item.fotos.length ? `<div class="gallery-grid">${item.fotos.map(f=>`<div class="gallery-item">${f.url?`<img src="${esc(f.url)}" alt="${esc(f.descripcion||'Foto OC')}">`:''}<div><b>${esc(f.idFoto||'Foto')}</b><br>${fmtFecha(f.fecha)}<br>${esc(f.descripcion||'—')}</div></div>`).join('')}</div>` : '<div class="oc-empty">Sin fotos cargadas.</div>'}
+      </section>
+
+      <section class="expediente-card full">
+        <h3>7. Observaciones generales</h3>
+        <div class="exp-observaciones">${esc(item.observaciones||'Sin observaciones cargadas.')}</div>
+      </section>
+
+      <section class="expediente-card full">
+        <h3>8. Acciones</h3>
+        <div class="exp-actions">
+          <button type="button" id="btnFichaVolverInterno">Volver</button>
+          <button type="button" id="btnFichaIrEstacionInterno">Ir a estación</button>
+          <button type="button" id="btnFichaExportarInterno">Exportar ficha</button>
+          <button type="button" id="btnFichaCopiarInterno">Copiar resumen</button>
+        </div>
+      </section>
+    </div>
+  `;
+
+  $('btnFichaVolverInterno')?.addEventListener('click',volverVistaAnterior);
+  $('btnFichaIrEstacionInterno')?.addEventListener('click',irEstacionOC);
+  $('btnFichaExportarInterno')?.addEventListener('click',exportarFichaOCCSV);
+  $('btnFichaCopiarInterno')?.addEventListener('click',copiarResumenOC);
 }
 
-function init(){ loadImportedData(); ramalesDisponibles.forEach(r=>$('ramal').insertAdjacentHTML('beforeend',`<option value="${r}">${r}</option>`)); ['q','estado','tipo','especialidad','ramal','showRings'].forEach(id=>$(id).addEventListener(id==='q'?'input':'change',renderMap)); $('clear').onclick=()=>{['q','estado','tipo','especialidad','ramal'].forEach(id=>$(id).value=''); renderMap();}; $('btnImport').addEventListener('click',handleImport); $('btnTemplate').addEventListener('click',downloadTemplate); $('btnResetData').addEventListener('click',restoreDemo); renderMap(); initCalendarioCOI(); initVistasCOI(); initFichaOC(); initArquitecturaMaestra(); initFotosEstacion(); initFotoYChecksOC(); initImportacionAcumulativaV27(); initObservacionesDocumentalesV29(); initHistorialVersiones(); }
+
+/* V31 - Buscador deja de ser módulo independiente: redirige a Órdenes */
+function abrirBuscadorIntegrado(){
+  abrirModuloOrdenes(true);
+}
+function initBuscadorIntegradoV31(){
+  document.getElementById('btnAccesoBusquedaOrdenes')?.addEventListener('click',abrirBuscadorIntegrado);
+}
+
+/* ===============================
+   V32 - Calendario Operativo COI
+   Eventos derivados: no modifica localStorage ni datos base.
+   =============================== */
+const calendarioOperativoEstado={venc:{year:COI_TODAY.getFullYear(),month:COI_TODAY.getMonth()},cert:{year:COI_TODAY.getFullYear(),month:COI_TODAY.getMonth()},coi:{year:COI_TODAY.getFullYear(),month:COI_TODAY.getMonth()}};
+let calendarioOperativoEventos=[];
+const calendarioOperativoTipos=['Vencimiento OC','Acta de inicio','Certificación servicio','Certificación obra','Envío a Planificación y Control','Alerta factura anticipada'];
+function isoFechaCOI(d){d=parseFecha(d);return d?d.toISOString().slice(0,10):'';}
+function valorFechaOC(item,claves){for(const k of claves){const d=parseFecha(item?.[k]);if(d)return d;}return null;}
+function esEstadoEjecucionCOI(v){const s=norm(v);return s.includes('EJECUCION')||s.includes('EJECUCIÓN')||s.includes('EN CURSO');}
+function baseEventoCalendario(row,tipoEvento,fecha,extra={}){
+  const item=row.item||{};
+  return {id:'',tipoEvento,fecha:isoFechaCOI(fecha),ocId:item.idObra||item.idOC||row.oc,oc:row.oc||item.numeroOC||item.oc||'SIN OC',tipo:row.tipo||item.tipo||'—',proveedor:row.proveedor||item.proveedor||'—',estacion:row.estacion||'—',sector:item.sector||item.ubicacion||'—',monto:item.monto||item.montoOC||item.importe||'',estado:row.estado||item.estado||'—',estadoDocumental:row.estadoDocumental||item.estadoDocumental||'Pendiente',observaciones:item.observaciones||'',avanceFisico:row.avanceFisico??item.avanceFisico??'',cerrada:row.cerrada||esCerradaPyC(item),item,...extra};
+}
+function pushEventoUnico(eventos,usados,evento){
+  if(!evento.fecha)return;
+  const key=[evento.tipoEvento,evento.ocId,evento.fecha,evento.periodo||'',evento.estacion].join('|');
+  if(usados.has(key))return;
+  usados.add(key);
+  evento.id='op-'+usados.size+'-'+slugOC(key);
+  eventos.push(evento);
+}
+function colorEventoCalendario(e){
+  if(e.cerrada||e.tipoEvento==='Envío a Planificación y Control')return'cerrado';
+  if(e.tipoEvento==='Acta de inicio')return'acta';
+  if(e.tipoEvento==='Alerta factura anticipada')return'alerta';
+  if(e.tipoEvento==='Certificación servicio')return'servicio';
+  if(e.tipoEvento==='Certificación obra'||e.tipoEvento==='Revisión avance de obra')return'obra';
+  return'vencimiento';
+}
+function generarEventosVencimientosOC(rows=todasLasOC(),eventos=[],usados=new Set()){
+  rows.forEach(row=>{
+    const item=row.item||{};
+    const inicio=valorFechaOC(item,['fechaActaInicio','actaInicio','fechaInicio','inicio'])||row.inicio;
+    const plazo=Number(item.plazoDias||item.plazo||row.plazo||0);
+    const fin=valorFechaOC(item,['fechaFin','fechaVencimiento','vencimiento','fin'])||row.fin||(inicio&&plazo?addDias(inicio,plazo):null);
+    if(!fin)return;
+    const dias=diffDias(fin,COI_TODAY);
+    const sem=row.cerrada?'gris':dias<0?'rojo':dias<=30?'amarillo':'verde';
+    pushEventoUnico(eventos,usados,baseEventoCalendario(row,'Vencimiento OC',fin,{detalle:`Vencimiento contractual. Días restantes: ${dias===null?'—':dias}`,semaforo:sem}));
+  });
+  return eventos;
+}
+function generarEventosActasInicio(rows=todasLasOC(),eventos=[],usados=new Set()){
+  rows.forEach(row=>{
+    const inicio=valorFechaOC(row.item,['fechaActaInicio','actaInicio','fechaInicio','inicio'])||row.inicio;
+    if(inicio)pushEventoUnico(eventos,usados,baseEventoCalendario(row,'Acta de inicio',inicio,{detalle:'Inicio contractual registrado.'}));
+  });
+  return eventos;
+}
+function detectarFacturaAnticipada(row,periodoInicio,periodoFin,eventos,usados){
+  const item=row.item||{};
+  const fechaDoc=valorFechaOC(item,['fechaRecepcionDocumentacion','fechaRecepcionFactura','fechaFactura','recepcionDocumentacion','recepcionFactura']);
+  if(fechaDoc&&periodoFin&&fechaDoc<parseFecha(periodoFin)){
+    pushEventoUnico(eventos,usados,baseEventoCalendario(row,'Alerta factura anticipada',fechaDoc,{periodo:`${fmtFecha(periodoInicio)} al ${fmtFecha(periodoFin)}`,detalle:'Factura anticipada: período aún no cerrado.'}));
+  }
+}
+function generarEventosCertificacionesServicios(rows=todasLasOC(),eventos=[],usados=new Set()){
+  rows.filter(r=>r.tipo==='Servicio').forEach(row=>{
+    const inicio=valorFechaOC(row.item,['fechaActaInicio','actaInicio','fechaInicio','inicio'])||row.inicio;
+    const fin=valorFechaOC(row.item,['fechaFin','fechaVencimiento','vencimiento','fin'])||row.fin;
+    if(!inicio||!fin)return;
+    let periodoInicio=parseFecha(inicio);
+    let guard=0;
+    while(periodoInicio<=parseFecha(fin)&&guard<72){
+      const siguiente=addMeses(periodoInicio,1);
+      const periodoFin=siguiente&&siguiente<=parseFecha(fin)?addDias(siguiente,-1):parseFecha(fin);
+      const fechaCert=siguiente&&siguiente<=parseFecha(fin)?siguiente:parseFecha(fin);
+      const periodo=`${fmtFecha(periodoInicio)} al ${fmtFecha(periodoFin)}`;
+      pushEventoUnico(eventos,usados,baseEventoCalendario(row,'Certificación servicio',fechaCert,{periodo,detalle:`Período certificado: ${periodo}. Estado documental: ${row.estadoDocumental}`}));
+      detectarFacturaAnticipada(row,periodoInicio,periodoFin,eventos,usados);
+      periodoInicio=siguiente;
+      guard++;
+    }
+  });
+  return eventos;
+}
+function generarEventosCertificacionesObras(rows=todasLasOC(),eventos=[],usados=new Set()){
+  rows.filter(r=>r.tipo==='Obra').forEach(row=>{
+    const item=row.item||{};
+    const fechaObra=valorFechaOC(item,['fechaProximaCertificacion','proximaCertificacion','fechaActaMedicion','fechaMedicion'])||row.proximaCertificacion;
+    if(fechaObra)pushEventoUnico(eventos,usados,baseEventoCalendario(row,'Certificación obra',fechaObra,{detalle:`Certificación / avance de obra. Avance físico: ${row.avanceFisico||0}%`}));
+    if((Number(row.avanceFisico||0)<100||esEstadoEjecucionCOI(row.estado))&&!row.cerrada){
+      const fechaRevision=fechaObra||row.inicio||COI_TODAY;
+      pushEventoUnico(eventos,usados,baseEventoCalendario(row,'Certificación obra',fechaRevision,{detalle:`Revisión avance de obra. Avance físico: ${row.avanceFisico||0}%`}));
+    }
+  });
+  return eventos;
+}
+function generarEventosEnvioPyC(rows=todasLasOC(),eventos=[],usados=new Set()){
+  rows.forEach(row=>{
+    const fecha=valorFechaOC(row.item,['fechaEnvioPyC','fechaEnvioPlanificacion','fechaEnvioPlanificacionControl']);
+    if(fecha)pushEventoUnico(eventos,usados,baseEventoCalendario(row,'Envío a Planificación y Control',fecha,{detalle:'Registro enviado a Planificación y Control.',cerrada:true}));
+  });
+  return eventos;
+}
+function generarEventosCalendarioCOI(){
+  const rows=todasLasOC();
+  const eventos=[],usados=new Set();
+  generarEventosVencimientosOC(rows,eventos,usados);
+  generarEventosActasInicio(rows,eventos,usados);
+  generarEventosCertificacionesServicios(rows,eventos,usados);
+  generarEventosCertificacionesObras(rows,eventos,usados);
+  generarEventosEnvioPyC(rows,eventos,usados);
+  calendarioOperativoEventos=eventos.map(e=>({...e,clase:colorEventoCalendario(e)}));
+  return calendarioOperativoEventos;
+}
+function registrosIncompletosCalendarioCOI(){
+  return todasLasOC().filter(r=>!r.inicio&&!r.fin&&!r.proximaCertificacion).map(r=>`${r.oc} · ${r.estacion} · ${r.proveedor}`);
+}
+function filtrarEventosCalendarioCOI(modo,eventos=generarEventosCalendarioCOI()){
+  const cap=modo==='cert'?'opCert':modo==='coi'?'coi':'opVenc';
+  const estado=calendarioOperativoEstado[modo];
+  const est=$(cap+'Estacion')?.value||'',prov=$(cap+'Proveedor')?.value||'',tipo=$(cap+'Tipo')?.value||'',tipoEvento=$(cap+'Evento')?.value||'',estadoFiltro=$(cap+'Estado')?.value||'';
+  const foco=modo==='coi'?null:(modo==='venc'?['Vencimiento OC','Acta de inicio','Envío a Planificación y Control','Alerta factura anticipada']:['Certificación servicio','Certificación obra','Alerta factura anticipada','Acta de inicio']);
+  return eventos.filter(e=>{
+    const d=parseFecha(e.fecha);
+    return d&&d.getFullYear()===estado.year&&d.getMonth()===estado.month&&(!foco||foco.includes(e.tipoEvento))&&(!est||e.estacion===est)&&(!prov||e.proveedor===prov)&&(!tipo||e.tipo===tipo)&&(!tipoEvento||e.tipoEvento===tipoEvento)&&(!estadoFiltro||e.estado===estadoFiltro);
+  });
+}
+function opcionesCalendarioOperativo(modo,eventos){
+  if(modo==='coi') return '';
+  const cap=modo==='cert'?'opCert':'opVenc',estado=calendarioOperativoEstado[modo];
+  const years=[...new Set(eventos.map(e=>parseFecha(e.fecha)?.getFullYear()).filter(Boolean).concat([COI_TODAY.getFullYear()]))].sort((a,b)=>a-b);
+  const opts=(vals,label,actual)=>`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort().map(v=>`<option ${v===actual?'selected':''}>${esc(v)}</option>`).join('');
+  const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  return `<div class="op-calendar-head"><div><h3>Calendario Operativo COI</h3><div class="muted">Vencimientos, inicios y períodos de certificación.</div></div><div class="op-calendar-tools"><button type="button" data-op-nav="${modo}" data-dir="-1">Mes anterior</button><select id="${cap}Month" data-op-control="${modo}" data-field="month">${meses.map((m,i)=>`<option value="${i}" ${i===estado.month?'selected':''}>${m}</option>`).join('')}</select><select id="${cap}Year" data-op-control="${modo}" data-field="year">${years.map(y=>`<option value="${y}" ${y===estado.year?'selected':''}>${y}</option>`).join('')}</select><button type="button" data-op-nav="${modo}" data-dir="1">Mes siguiente</button><button type="button" data-op-hoy="${modo}">Hoy</button><button type="button" class="primary" data-op-export="${modo}" data-format="csv">CSV</button><button type="button" data-op-export="${modo}" data-format="ics">ICS</button></div></div><div class="op-calendar-filters"><select id="${cap}Estacion" data-op-control="${modo}">${opts(eventos.map(e=>e.estacion),'Estación',$(`${cap}Estacion`)?.value||'')}</select><select id="${cap}Proveedor" data-op-control="${modo}">${opts(eventos.map(e=>e.proveedor),'Proveedor',$(`${cap}Proveedor`)?.value||'')}</select><select id="${cap}Tipo" data-op-control="${modo}">${opts(['Obra','Servicio'],'Tipo',$(`${cap}Tipo`)?.value||'')}</select><select id="${cap}Evento" data-op-control="${modo}">${opts(calendarioOperativoTipos,'Tipo de evento',$(`${cap}Evento`)?.value||'')}</select></div>`;
+}
+function badgeTipoEventoCOI(e){const tipo=String(e.tipo||'').toLowerCase()==='servicio'?'servicio':'obra';return `<span class="op-type-badge ${tipo}">${tipo==='servicio'?'Servicio':'Obra'}</span>`;}
+function tooltipEventoCalendarioCOI(e){return `OC: ${e.oc}\nProveedor: ${e.proveedor}\nEstación: ${e.estacion}\nFecha: ${e.fecha}\nTipo: ${e.tipo}\nEstado: ${e.estado}`;}
+function resumenOperativoCalendarioCOI(eventos){
+  return {
+    total:eventos.length,
+    vencimientos:eventos.filter(e=>e.tipoEvento==='Vencimiento OC').length,
+    certificaciones:eventos.filter(e=>e.tipoEvento==='Certificación servicio'||e.tipoEvento==='Certificación obra').length,
+    actas:eventos.filter(e=>e.tipoEvento==='Acta de inicio').length,
+    alertas:eventos.filter(e=>e.tipoEvento==='Alerta factura anticipada').length,
+    cerrados:eventos.filter(e=>e.cerrada||e.tipoEvento==='Envío a Planificación y Control'||e.clase==='cerrado').length
+  };
+}
+function renderResumenOperativoCalendarioCOI(eventos){
+  const r=resumenOperativoCalendarioCOI(eventos);
+  return `<div class="op-month-kpis"><div class="op-month-kpi"><b>${r.total}</b><span>Total eventos del mes</span></div><div class="op-month-kpi"><b>${r.vencimientos}</b><span>Vencimientos OC</span></div><div class="op-month-kpi"><b>${r.certificaciones}</b><span>Certificaciones</span></div><div class="op-month-kpi"><b>${r.actas}</b><span>Actas de inicio</span></div><div class="op-month-kpi"><b>${r.alertas}</b><span>Alertas documentales</span></div><div class="op-month-kpi"><b>${r.cerrados}</b><span>Eventos cerrados</span></div></div>`;
+}
+function renderLeyendaCalendarioCOI(eventos){
+  const count=tipo=>eventos.filter(e=>e.tipoEvento===tipo).length;
+  const certObra=count('Certificación obra');
+  return `<div class="op-calendar-legend"><span class="op-legend-item"><i class="op-dot" style="background:#2563eb"></i>Acta inicio (${count('Acta de inicio')})</span><span class="op-legend-item"><i class="op-dot" style="background:#dc2626"></i>Vencimiento OC (${count('Vencimiento OC')})</span><span class="op-legend-item"><i class="op-dot" style="background:#16a34a"></i>Certificación servicio (${count('Certificación servicio')})</span><span class="op-legend-item"><i class="op-dot" style="background:#7c3aed"></i>Certificación obra (${certObra})</span><span class="op-legend-item"><i class="op-dot" style="background:#f59e0b"></i>Alerta documental (${count('Alerta factura anticipada')})</span><span class="op-legend-item"><i class="op-dot" style="background:#6b7280"></i>Cerrado / P&C (${eventos.filter(e=>e.cerrada||e.tipoEvento==='Envío a Planificación y Control'||e.clase==='cerrado').length})</span></div>`;
+}
+function renderCalendarioOperativoCOI(modo='venc'){
+  const cont=$(modo==='cert'?'opCertCalendario':modo==='coi'?'opCoiCalendario':'opVencCalendario');if(!cont)return;
+  const eventos=generarEventosCalendarioCOI();
+  const filtrados=filtrarEventosCalendarioCOI(modo,eventos);
+  const estado=calendarioOperativoEstado[modo],primer=new Date(estado.year,estado.month,1),inicioGrid=new Date(primer),offset=(primer.getDay()+6)%7;inicioGrid.setDate(primer.getDate()-offset);
+  const porDia=filtrados.reduce((acc,e)=>{(acc[e.fecha]||(acc[e.fecha]=[])).push(e);return acc;},{});
+  const dias=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+  let grid=dias.map(d=>`<div class="op-weekday">${d}</div>`).join('');
+  for(let i=0;i<42;i++){
+    const d=addDias(inicioGrid,i),key=isoFechaCOI(d),evs=porDia[key]||[],out=d.getMonth()!==estado.month,today=key===isoFechaCOI(COI_TODAY);
+    grid+=`<div class="op-day ${out?'out':''} ${today?'today':''}" data-op-day="${modo}" data-fecha="${key}"><div class="op-day-num">${d.getDate()}</div>${evs.slice(0,3).map(e=>`<button type="button" class="op-event ${e.clase}" data-op-event="${esc(e.id)}" title="${esc(tooltipEventoCalendarioCOI(e))}">${badgeTipoEventoCOI(e)}<b>${esc(e.tipoEvento)}</b><br>${esc(e.oc)} · ${esc(e.proveedor)}</button>`).join('')}${evs.length>3?`<div class="op-more">+ ${evs.length-3} más</div>`:''}</div>`;
+  }
+  const incompletos=registrosIncompletosCalendarioCOI();
+  cont.innerHTML=opcionesCalendarioOperativo(modo,eventos)+renderResumenOperativoCalendarioCOI(filtrados)+renderLeyendaCalendarioCOI(filtrados)+(filtrados.length?'':`<div class="op-empty-month">Sin eventos registrados para el período seleccionado.</div>`)+`<div class="op-grid">${grid}</div>`+(incompletos.length?`<div class="op-incomplete"><b>Registros incompletos:</b> ${esc(incompletos.slice(0,6).join(' | '))}${incompletos.length>6?` · +${incompletos.length-6} más`:''}</div>`:'');
+}
+function cambiarMesCalendarioCOI(modo,delta){
+  const st=calendarioOperativoEstado[modo];const d=new Date(st.year,st.month+Number(delta||0),1);st.year=d.getFullYear();st.month=d.getMonth();renderCalendarioOperativoCOI(modo);
+}
+function abrirDetalleEventoCalendario(id){
+  const esDia=String(id).startsWith('dia:');
+  const partes=String(id).split(':');
+  const eventos=esDia?filtrarEventosCalendarioCOI(partes[1]).filter(e=>e.fecha===partes[2]):calendarioOperativoEventos.filter(e=>e.id===id);
+  if(!esDia&&eventos[0]&&typeof abrirFichaOC==='function'){abrirFichaOC(eventos[0].ocId);return;}
+  const modal=document.createElement('div');modal.className='op-modal';modal.innerHTML=`<div class="op-modal-card"><div class="op-modal-head"><h3>${esDia?'Eventos del día':'Detalle evento'}</h3><button type="button" data-op-close> Cerrar </button></div><div class="op-modal-body">${eventos.length?eventos.map(e=>`<div class="op-detail"><div class="op-detail-head"><div>${badgeTipoEventoCOI(e)}<b>${esc(e.tipoEvento)}</b></div><b>${esc(e.fecha)}</b></div><br>N° OC: ${esc(e.oc)}<br>Proveedor: ${esc(e.proveedor)}<br>Estación: ${esc(e.estacion)}<br>Tipo: ${esc(e.tipo)}<br>Estado: ${esc(e.estado)}<br>${e.periodo?`Período: ${esc(e.periodo)}<br>`:''}Observaciones: ${esc(e.observaciones||'—')}<br>${e.detalle?esc(e.detalle):''}<div class="op-detail-actions"><button type="button" class="primary" data-open-oc="${esc(e.ocId)}">Abrir ficha OC</button></div></div>`).join(''):'<p class="empty">Sin eventos para este día.</p>'}</div></div>`;
+  document.body.appendChild(modal);
+}
+function exportarEventosCalendarioOperativo(modo,formato){
+  const eventos=filtrarEventosCalendarioCOI(modo);
+  if(formato==='csv'){
+    const headers=['Fecha','Tipo evento','OC','Tipo','Estacion','Proveedor','Sector','Monto','Periodo','Estado','Estado documental','Observaciones'];
+    const body=eventos.map(e=>[e.fecha,e.tipoEvento,e.oc,e.tipo,e.estacion,e.proveedor,e.sector,e.monto,e.periodo||'',e.estado,e.estadoDocumental,e.observaciones]);
+    descargarArchivo(`calendario_operativo_${modo}.csv`,[headers,...body].map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n'),'text/csv;charset=utf-8');
+    return;
+  }
+  const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//COI Linea Roca//Calendario Operativo COI//ES','CALSCALE:GREGORIAN'];
+  eventos.forEach((e,idx)=>{ics.push('BEGIN:VEVENT',`UID:op-${modo}-${idx}-${slugOC(e.oc)}@coi-roca`,`DTSTAMP:${fechaICS(new Date())}`,`DTSTART:${fechaICS(e.fecha)}`,`SUMMARY:${(e.tipoEvento+' '+e.oc+' '+e.proveedor).replace(/\n/g,' ')}`,`DESCRIPTION:${['Estación: '+e.estacion,e.periodo?'Período: '+e.periodo:'','Estado: '+e.estado,'Estado documental: '+e.estadoDocumental,e.observaciones?'Observaciones: '+e.observaciones:''].filter(Boolean).join(' | ').replace(/\n/g,' ')}`,'END:VEVENT');});
+  ics.push('END:VCALENDAR');
+  descargarArchivo(`calendario_operativo_${modo}.ics`,ics.join('\r\n'),'text/calendar;charset=utf-8');
+}
+function cargarFiltrosCalendarioCOIUnificado(){
+  const eventos=generarEventosCalendarioCOI(),rows=todasLasOC();
+  const setOptions=(id,vals,label,current='')=>{
+    const el=$(id); if(!el) return;
+    const actual=current!==''?String(current):String(el.value||'');
+    el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(v=>v!==''&&v!==null&&v!==undefined))].sort().map(v=>`<option value="${esc(v)}" ${String(v)===actual?'selected':''}>${esc(v)}</option>`).join('');
+    if([...el.options].some(o=>o.value===actual)) el.value=actual;
+  };
+  const years=[...new Set(eventos.map(e=>parseFecha(e.fecha)?.getFullYear()).filter(Boolean).concat([COI_TODAY.getFullYear()]))];
+  setOptions('coiYear',years,'Año',calendarioOperativoEstado.coi.year);
+  const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const m=$('coiMonth'); if(m){m.innerHTML=meses.map((label,i)=>`<option value="${i}" ${i===calendarioOperativoEstado.coi.month?'selected':''}>${label}</option>`).join('');}
+  setOptions('coiEstacion',eventos.map(e=>e.estacion),'Estación');
+  setOptions('coiProveedor',eventos.map(e=>e.proveedor),'Proveedor');
+  setOptions('coiEvento',calendarioOperativoTipos,'Tipo de evento');
+  setOptions('coiEstado',rows.map(r=>r.estado),'Estado');
+}
+function aplicarFiltrosGlobalesCalendarioCOI(){
+  if($('coiYear')) calendarioOperativoEstado.coi.year=Number($('coiYear').value||COI_TODAY.getFullYear());
+  if($('coiMonth')) calendarioOperativoEstado.coi.month=Number($('coiMonth').value||0);
+}
+function filasTablaCalendarioCOI(tipoTabla){
+  aplicarFiltrosGlobalesCalendarioCOI();
+  const cap='coi',estado=calendarioOperativoEstado.coi,est=$('coiEstacion')?.value||'',prov=$('coiProveedor')?.value||'',tipo=$('coiTipo')?.value||'',tipoEvento=$('coiEvento')?.value||'',estadoFiltro=$('coiEstado')?.value||'';
+  if(tipoTabla==='venc'&&tipoEvento&&tipoEvento!=='Vencimiento OC') return [];
+  if(tipoTabla==='cert'&&tipoEvento&&!['Certificación servicio','Certificación obra'].includes(tipoEvento)) return [];
+  return todasLasOC().filter(r=>{
+    const fecha=tipoTabla==='venc'?r.fin:r.proximaCertificacion;
+    const d=parseFecha(fecha);
+    return d&&d.getFullYear()===estado.year&&d.getMonth()===estado.month&&(!est||r.estacion===est)&&(!prov||r.proveedor===prov)&&(!tipo||r.tipo===tipo)&&(!estadoFiltro||r.estado===estadoFiltro);
+  });
+}
+function renderTablasCalendarioCOI(){
+  const venc=ordenarVencimientos(filasTablaCalendarioCOI('venc'));
+  if($('coiVencTbody')) $('coiVencTbody').innerHTML=venc.map(r=>{const sem=semaforoVencimiento(r);return `<tr><td>${pill(sem)}</td><td><b>${r.diasRestantes===null?'—':r.diasRestantes}</b></td><td>${esc(r.oc)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${fmtFecha(r.inicio)}</td><td>${esc(r.plazo||'—')}</td><td>${fmtFecha(r.fin)}</td><td>${esc(r.estado)}</td><td>${botonFichaOC(r.item,'Ficha OC')}</td></tr>`;}).join('')||'<tr><td colspan="11">Sin vencimientos para los filtros seleccionados.</td></tr>';
+  const cert=filasTablaCalendarioCOI('cert').sort((a,b)=>(parseFecha(a.proximaCertificacion)||Infinity)-(parseFecha(b.proximaCertificacion)||Infinity));
+  if($('coiCertTbody')) $('coiCertTbody').innerHTML=cert.map(r=>{const sem=semaforoCert(r);const avanceDoc=r.tipo==='Obra'?`${r.avanceFisico}% avance físico`:r.estadoDocumental;return `<tr><td>${pill(sem)}</td><td>${esc(r.oc)}<br>${botonFichaOC(r.item)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${fmtFecha(r.inicio)}</td><td>${fmtFecha(r.ultimaFechaCertificacion)}</td><td>${r.ultimaActa?.numero||'—'}</td><td>${fmtFecha(r.proximaCertificacion)}</td><td>${r.proximoNroActa||1}</td><td>${esc(avanceDoc)}</td><td>${fmtFecha(r.fin)}</td><td>${esc(sem.texto)}</td></tr>`;}).join('')||'<tr><td colspan="13">Sin certificaciones para los filtros seleccionados.</td></tr>';
+}
+function renderCalendarioCOIUnificado(){
+  cargarFiltrosCalendarioCOIUnificado();
+  aplicarFiltrosGlobalesCalendarioCOI();
+  renderCalendarioOperativoCOI('coi');
+  renderTablasCalendarioCOI();
+}
+function initCalendarioCOIUnificado(){
+  ['coiYear','coiMonth','coiEstacion','coiProveedor','coiTipo','coiEvento','coiEstado'].forEach(id=>$(id)?.addEventListener('change',renderCalendarioCOIUnificado));
+  $('btnCoiCsv')?.addEventListener('click',()=>exportarEventosCalendarioOperativo('coi','csv'));
+  $('btnCoiIcs')?.addEventListener('click',()=>exportarEventosCalendarioOperativo('coi','ics'));
+  document.addEventListener('click',ev=>{
+    const tab=ev.target.closest('[data-coi-tab]'); if(!tab) return;
+    document.querySelectorAll('[data-coi-tab]').forEach(b=>b.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('#vistaCalendarioCOI .coi-tab-panel').forEach(p=>p.classList.remove('active'));
+    const panel=$('coiTab'+tab.dataset.coiTab.charAt(0).toUpperCase()+tab.dataset.coiTab.slice(1));
+    if(panel) panel.classList.add('active');
+  });
+}
+function initCalendarioOperativoCOI(){
+  document.addEventListener('change',ev=>{const el=ev.target.closest('[data-op-control]');if(!el)return;const modo=el.dataset.opControl,field=el.dataset.field;if(field==='month')calendarioOperativoEstado[modo].month=Number(el.value);if(field==='year')calendarioOperativoEstado[modo].year=Number(el.value);renderCalendarioOperativoCOI(modo);});
+  document.addEventListener('click',ev=>{const eventBtn=ev.target.closest('[data-op-event]');if(eventBtn){ev.preventDefault();ev.stopPropagation();abrirDetalleEventoCalendario(eventBtn.dataset.opEvent);return;}const day=ev.target.closest('[data-op-day]');if(day){abrirDetalleEventoCalendario(`dia:${day.dataset.opDay}:${day.dataset.fecha}`);return;}const nav=ev.target.closest('[data-op-nav]');if(nav){cambiarMesCalendarioCOI(nav.dataset.opNav,Number(nav.dataset.dir));return;}const hoy=ev.target.closest('[data-op-hoy]');if(hoy){const st=calendarioOperativoEstado[hoy.dataset.opHoy];st.year=COI_TODAY.getFullYear();st.month=COI_TODAY.getMonth();renderCalendarioOperativoCOI(hoy.dataset.opHoy);return;}const exp=ev.target.closest('[data-op-export]');if(exp){exportarEventosCalendarioOperativo(exp.dataset.opExport,exp.dataset.format);return;}if(ev.target.closest('[data-op-close]')||ev.target.classList.contains('op-modal'))ev.target.closest('.op-modal')?.remove();});
+}
+
+
+/* ===============================
+   V32 - Repositorio de Unidades de Mantenimiento
+   =============================== */
+const LS_UM="coi_roca_unidades_mantenimiento";let unidadesMantenimiento=[];let vistaAnteriorUM="vistaUnidadesMantenimiento";let umActualId=null;
+function crearUM(idUM,tipoUM,estacion,sector,ubicacionTecnica,descripcion,proveedorActual,ocActual){return{idUM,tipoUM,estacion,sector:sector||"",ubicacionTecnica,descripcion,estadoOperativo:"Activo",criticidad:"Media",proveedorActual:proveedorActual||"FEMYP S.R.L",ocActual:ocActual||"",observaciones:"",fotos:[],historialMantenimiento:[]};}
+const unidadesMantenimientoDemo=[
+...[["ASC-001","Ascensor","Monte Grande","","Ascensor N° 1"],["ASC-002","Ascensor","Monte Grande","","Ascensor N° 2"],["ASC-003","Ascensor","Monte Grande","","Ascensor N° 3"],["ASC-004","Ascensor","Ezeiza","","Ascensor N° 1"],["ASC-005","Ascensor","Ezeiza","","Ascensor N° 2"],["ASC-006","Ascensor","Ezeiza","","Ascensor N° 3"],["ASC-007","Ascensor","Ezeiza","","Ascensor N° 4"],["ASC-008","Ascensor","Sarandí","","Ascensor N° 1"],["ASC-009","Ascensor","City Bell","","Ascensor N° 1"],["ASC-010","Ascensor","City Bell","","Ascensor N° 2"],["ASC-011","Montacarga","Plaza Constitución","Hornos 97","Montacarga Hornos 97"],["ASC-012","Ascensor","Plaza Constitución","Estación Constitución","Ascensor panorámico Est. Constitución"],["ASC-013","Ascensor","Plaza Constitución","Hornos 11","Ascensor N° 1 Hornos 11"],["ASC-014","Ascensor","Plaza Constitución","Hornos 11","Ascensor N° 2 Hornos 11"],["ASC-015","Ascensor","Plaza Constitución","Hall Central Est. PC","Ascensor N° 3 Hall Central Est. PC"],["ASC-016","Ascensor","Plaza Constitución","Hall Central Est. PC","Ascensor N° 4 Hall Central Est. PC"],["ASC-017","Ascensor","Plaza Constitución","Hornos 41","Ascensor Hornos 41"],["ASC-018","Ascensor","Plaza Constitución","Hornos 57","Ascensor Hornos 57"],["ASC-019","Ascensor","Plaza Constitución","Edificio Paracas","Ascensor Lima 1940 / Edificio Paracas"],["ASC-020","Montacarga","Plaza Constitución","Lado andenes","Montacarga lado andenes"]].map(x=>crearUM(x[0],x[1],x[2],x[3],x[4],x[4]+" estación "+x[2],"FEMYP S.R.L","4530009623")),
+...[["ESC-001","SS al Hall, lado Hornos","Escalera mecánica N° 1"],["ESC-002","SS al Hall, lado Hornos","Escalera mecánica N° 2"],["ESC-003","SS al Hall, lado Lima","Escalera mecánica N° 3"],["ESC-004","SS al Hall, lado Lima","Escalera mecánica N° 4"],["ESC-005","PB Hall, sala de monitoreo","Escalera mecánica N° 5"],["ESC-006","PB Hall, sala de monitoreo","Escalera mecánica N° 6"],["ESC-007","PB Hall, lado Brasil","Escalera mecánica N° 7"],["ESC-008","PB Hall, lado Brasil","Escalera mecánica N° 8"]].map(x=>crearUM(x[0],"Escalera mecánica","Plaza Constitución",x[1],x[2],x[2]+" "+x[1],"FEMYP S.R.L","4530009304"))];
+function cargarUM(){const raw=localStorage.getItem(LS_UM);const data=getArrayStorage(LS_UM,[]);unidadesMantenimiento=data.length?data:unidadesMantenimientoDemo.map(x=>({...x}));if(!raw)guardarUM();}
+function guardarUM(){saveJSON(LS_UM,unidadesMantenimiento);}
+function estadoClaseUM(estado){const e=norm(estado);if(e.includes('FUERA'))return'fuera';if(e.includes('MANTENIMIENTO'))return'mantenimiento';if(e.includes('BAJA'))return'baja';if(e.includes('SIN DATOS'))return'sindatos';return'activo';}
+function badgeUMEstado(estado){return`<span class="um-status ${estadoClaseUM(estado)}">${esc(estado||'Sin datos')}</span>`;}
+function umsPorEstacion(nombre){return unidadesMantenimiento.filter(u=>u.estacion===nombre);}
+function cargarFiltrosUM(){const setOptions=(id,vals,label)=>{const el=$(id);if(!el)return;const actual=el.value;el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort().map(v=>`<option>${esc(v)}</option>`).join('');if([...el.options].some(o=>o.value===actual))el.value=actual;};setOptions('umFiltroTipo',unidadesMantenimiento.map(u=>u.tipoUM),'Tipo UM');setOptions('umFiltroEstacion',unidadesMantenimiento.map(u=>u.estacion),'Estación');setOptions('umFiltroEstado',unidadesMantenimiento.map(u=>u.estadoOperativo),'Estado operativo');setOptions('umFiltroCriticidad',unidadesMantenimiento.map(u=>u.criticidad),'Criticidad');setOptions('umFiltroProveedor',unidadesMantenimiento.map(u=>u.proveedorActual),'Proveedor actual');const estSel=$('um_estacion');if(estSel&&estSel.options.length<=1)estaciones.map(e=>e.nombre).sort().forEach(n=>estSel.insertAdjacentHTML('beforeend',`<option>${esc(n)}</option>`));}
+function filtrarUM(){const q=($('umBuscar')?.value||'').toLowerCase().trim(),tipo=$('umFiltroTipo')?.value||'',est=$('umFiltroEstacion')?.value||'',estado=$('umFiltroEstado')?.value||'',crit=$('umFiltroCriticidad')?.value||'',prov=$('umFiltroProveedor')?.value||'';return unidadesMantenimiento.filter(u=>{const txt=[u.idUM,u.tipoUM,u.estacion,u.ubicacionTecnica,u.descripcion,u.proveedorActual,u.ocActual,u.observaciones,u.sector].join(' ').toLowerCase();return(!q||txt.includes(q))&&(!tipo||u.tipoUM===tipo)&&(!est||u.estacion===est)&&(!estado||u.estadoOperativo===estado)&&(!crit||u.criticidad===crit)&&(!prov||u.proveedorActual===prov);});}
+function renderUnidadesMantenimiento(){cargarFiltrosUM();const rows=filtrarUM();if($('umKTotal'))$('umKTotal').textContent=unidadesMantenimiento.length;if($('umKAsc'))$('umKAsc').textContent=unidadesMantenimiento.filter(u=>u.tipoUM==='Ascensor').length;if($('umKEsc'))$('umKEsc').textContent=unidadesMantenimiento.filter(u=>u.tipoUM==='Escalera mecánica').length;if($('umKActivas'))$('umKActivas').textContent=unidadesMantenimiento.filter(u=>u.estadoOperativo==='Activo').length;if($('umKFuera'))$('umKFuera').textContent=unidadesMantenimiento.filter(u=>u.estadoOperativo==='Fuera de servicio').length;if($('umKSinFoto'))$('umKSinFoto').textContent=unidadesMantenimiento.filter(u=>!u.fotos||!u.fotos.length).length;if($('umTbody'))$('umTbody').innerHTML=rows.map(u=>`<tr class="row-clickable" data-open-um="${esc(u.idUM)}"><td><b>${esc(u.idUM)}</b></td><td>${esc(u.tipoUM)}</td><td>${esc(u.estacion)}</td><td>${esc(u.sector||'—')}</td><td>${esc(u.ubicacionTecnica)}</td><td>${badgeUMEstado(u.estadoOperativo)}</td><td>${esc(u.criticidad||'—')}</td><td>${esc(u.proveedorActual||'—')}</td><td>${esc(u.ocActual||'—')}</td><td><button type="button" class="btn-open-um" data-open-um="${esc(u.idUM)}">Ver ficha UM</button></td></tr>`).join('')||'<tr><td colspan="10">Sin UM para los filtros seleccionados.</td></tr>';}
+function limpiarFormUM(){['um_idUM','um_sector','um_ubicacionTecnica','um_descripcion','um_proveedorActual','um_ocActual','um_observaciones','um_fotos','um_fotoArchivo'].forEach(id=>{if($(id))$(id).value='';});if($('um_tipoUM'))$('um_tipoUM').value='';if($('um_estacion'))$('um_estacion').value='';if($('um_estadoOperativo'))$('um_estadoOperativo').value='';if($('um_criticidad'))$('um_criticidad').value='Media';if($('umFormMsg'))$('umFormMsg').textContent='Formulario limpio. Complete los campos obligatorios.';}
+function leerFormUM(){const fotos=($('um_fotos')?.value||'').split(/[\n,]+/).map(x=>x.trim()).filter(Boolean);return{idUM:($('um_idUM')?.value||'').trim().toUpperCase(),tipoUM:$('um_tipoUM')?.value||'',estacion:$('um_estacion')?.value||'',sector:($('um_sector')?.value||'').trim(),ubicacionTecnica:($('um_ubicacionTecnica')?.value||'').trim(),descripcion:($('um_descripcion')?.value||'').trim(),estadoOperativo:$('um_estadoOperativo')?.value||'',criticidad:$('um_criticidad')?.value||'Media',proveedorActual:($('um_proveedorActual')?.value||'').trim(),ocActual:($('um_ocActual')?.value||'').trim(),observaciones:($('um_observaciones')?.value||'').trim(),fotos,historialMantenimiento:[]};}
+function leerArchivoUMBase64(file){return new Promise((resolve,reject)=>{if(!file){resolve('');return;}const reader=new FileReader();reader.onload=()=>resolve(reader.result||'');reader.onerror=()=>reject(reader.error||new Error('No se pudo leer la foto UM.'));reader.readAsDataURL(file);});}
+async function guardarFormUM(){const u=leerFormUM(),faltan=[];if(!u.idUM)faltan.push('idUM');if(!u.tipoUM)faltan.push('tipoUM');if(!u.estacion)faltan.push('estación');if(!u.ubicacionTecnica)faltan.push('ubicación técnica');if(!u.estadoOperativo)faltan.push('estado operativo');if(faltan.length){if($('umFormMsg'))$('umFormMsg').textContent='Faltan campos obligatorios: '+faltan.join(', ');return;}const idx=unidadesMantenimiento.findIndex(x=>x.idUM===u.idUM);const anterior=idx>=0?unidadesMantenimiento[idx]:null;try{/* V32 estabilizacion: foto individual UM opcional se guarda como base64 dentro del arreglo fotos existente. */const fotoBase64=await leerArchivoUMBase64($('um_fotoArchivo')?.files?.[0]);if(fotoBase64)u.fotos.push(fotoBase64);}catch(e){if($('umFormMsg'))$('umFormMsg').textContent='No se pudo leer la foto seleccionada.';return;}if(anterior&&!u.fotos.length)u.fotos=anterior.fotos||[];if(idx>=0){u.historialMantenimiento=anterior.historialMantenimiento||[];unidadesMantenimiento[idx]={...anterior,...u};if($('umFormMsg'))$('umFormMsg').textContent='UM actualizada: '+u.idUM;}else{unidadesMantenimiento.push(u);if($('umFormMsg'))$('umFormMsg').textContent='UM creada: '+u.idUM;}if($('um_fotoArchivo'))$('um_fotoArchivo').value='';guardarUM();renderUnidadesMantenimiento();}
+function cargarFormUM(idUM){const u=unidadesMantenimiento.find(x=>x.idUM===idUM);if(!u)return;mostrarVista('vistaUnidadesMantenimiento');['idUM','tipoUM','estacion','sector','ubicacionTecnica','descripcion','estadoOperativo','criticidad','proveedorActual','ocActual','observaciones'].forEach(k=>{const el=$('um_'+k);if(el)el.value=u[k]||'';});if($('um_fotos'))$('um_fotos').value=(u.fotos||[]).join('\n');if($('um_fotoArchivo'))$('um_fotoArchivo').value='';if($('umFormMsg'))$('umFormMsg').textContent='UM cargada para edición: '+u.idUM;}
+function abrirFichaUM(idUM){vistaAnteriorUM=document.querySelector('.view.active')?.id||'vistaUnidadesMantenimiento';umActualId=idUM;mostrarVista('vistaFichaUM');renderFichaUM(idUM);}
+function volverUM(){mostrarVista(vistaAnteriorUM||'vistaUnidadesMantenimiento');}
+function renderFichaUM(idUM){const u=unidadesMantenimiento.find(x=>x.idUM===idUM),body=$('fichaUMBody');if(!body)return;if(!u){body.innerHTML='<p class="empty">No se encontró la UM.</p>';return;}body.innerHTML=`<div class="oc-kpis"><div class="oc-kpi"><b>${esc(u.idUM)}</b><span>ID UM</span></div><div class="oc-kpi"><b>${esc(u.tipoUM)}</b><span>Tipo UM</span></div><div class="oc-kpi"><b>${esc(u.estacion)}</b><span>Estación</span></div><div class="oc-kpi"><b>${esc(u.criticidad||'—')}</b><span>Criticidad</span></div><div class="oc-kpi">${badgeUMEstado(u.estadoOperativo)}</div></div><div class="um-ficha-grid"><section class="um-ficha-card"><h3>A. Encabezado</h3><div class="grid"><div><b>ID UM</b>${esc(u.idUM)}</div><div><b>Tipo</b>${esc(u.tipoUM)}</div><div><b>Estación</b>${esc(u.estacion)}</div><div><b>Ubicación técnica</b>${esc(u.ubicacionTecnica)}</div><div><b>Estado operativo</b>${badgeUMEstado(u.estadoOperativo)}</div><div><b>Criticidad</b>${esc(u.criticidad||'—')}</div></div></section><section class="um-ficha-card"><h3>B. Datos técnicos</h3><div class="grid"><div><b>Sector</b>${esc(u.sector||'—')}</div><div><b>Descripción</b>${esc(u.descripcion||'—')}</div><div><b>Proveedor actual</b>${esc(u.proveedorActual||'—')}</div><div><b>OC actual</b>${esc(u.ocActual||'—')}</div></div></section><section class="um-ficha-card full"><h3>C. Historial de mantenimiento</h3>${(u.historialMantenimiento&&u.historialMantenimiento.length)?`<div class="table-wrap"><table class="coi-table"><thead><tr><th>Fecha</th><th>Tipo evento</th><th>OC</th><th>Proveedor</th><th>Observación</th></tr></thead><tbody>${u.historialMantenimiento.map(h=>`<tr><td>${esc(h.fecha||'—')}</td><td>${esc(h.tipoEvento||'—')}</td><td>${esc(h.oc||'—')}</td><td>${esc(h.proveedor||'—')}</td><td>${esc(h.observacion||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="oc-empty">No hay historial de mantenimiento cargado.</div>'}</section><section class="um-ficha-card full"><h3>D. Fotos / Evidencia</h3>${(u.fotos&&u.fotos.length)?`<div class="gallery-grid">${u.fotos.map((f,i)=>`<div class="gallery-item"><img src="${esc(f)}" alt="${esc(u.idUM)} foto ${i+1}" data-um-foto-img><div><b>Foto ${i+1}</b><br>${esc(f)}</div></div>`).join('')}</div>`:'<div class="oc-empty">Sin fotos cargadas.</div>'}</section><section class="um-ficha-card full"><h3>E. Observaciones</h3><div class="exp-observaciones">${esc(u.observaciones||'Sin observaciones cargadas.')}</div></section></div>`;}
+function copiarResumenUM(){const u=unidadesMantenimiento.find(x=>x.idUM===umActualId);if(!u)return;const txt=`UM: ${u.idUM}\nTipo: ${u.tipoUM}\nEstación: ${u.estacion}\nUbicación: ${u.ubicacionTecnica}\nEstado: ${u.estadoOperativo}\nOC actual: ${u.ocActual||'—'}`;navigator.clipboard?.writeText(txt).then(()=>alert('Resumen UM copiado.')).catch(()=>prompt('Copiar resumen UM:',txt));}
+function irEstacionUM(){const u=unidadesMantenimiento.find(x=>x.idUM===umActualId),est=estaciones.find(e=>e.nombre===u?.estacion);if(est){mostrarVista('vistaRed');selectStation(est);}}
+function vincularOCUM(){const u=unidadesMantenimiento.find(x=>x.idUM===umActualId);if(!u)return;const oc=prompt('Ingresar OC actual vinculada a la UM:',u.ocActual||'');if(oc!==null){u.ocActual=oc.trim();guardarUM();renderFichaUM(u.idUM);}}
+function exportarUMCSV(){const campos=new Set(['idUM']);unidadesMantenimiento.forEach(u=>Object.keys(u).forEach(k=>campos.add(k)));const headers=['idUM',...[...campos].filter(k=>k!=='idUM')];const csv=[headers,...unidadesMantenimiento.map(u=>headers.map(h=>Array.isArray(u[h])||typeof u[h]==='object'?JSON.stringify(u[h]||''):u[h]||''))].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')).join('\n');descargarArchivo('unidades_mantenimiento_linea_roca.csv',csv,'text/csv;charset=utf-8');}
+function renderUMEnPanelEstacion(s){const ums=umsPorEstacion(s.nombre);if(!ums.length)return'<p class="empty">Sin Unidades de Mantenimiento cargadas para esta estación.</p>';return`<div class="um-mini-list">${ums.map(u=>`<div class="um-mini-card"><h4>${esc(u.idUM)} · ${esc(u.tipoUM)}</h4><div>${esc(u.ubicacionTecnica)}</div><div>${badgeUMEstado(u.estadoOperativo)}</div><br><button type="button" class="btn-open-um" data-open-um="${esc(u.idUM)}">Ver ficha UM</button></div>`).join('')}</div>`;}
+function initUnidadesMantenimiento(){cargarUM();cargarFiltrosUM();$('btnUnidadesMantenimiento')?.addEventListener('click',()=>{mostrarVista('vistaUnidadesMantenimiento');renderUnidadesMantenimiento();});['umBuscar','umFiltroTipo','umFiltroEstacion','umFiltroEstado','umFiltroCriticidad','umFiltroProveedor'].forEach(id=>{const el=$(id);if(el)el.addEventListener(id==='umBuscar'?'input':'change',renderUnidadesMantenimiento);});$('btnLimpiarUM')?.addEventListener('click',()=>{['umBuscar','umFiltroTipo','umFiltroEstacion','umFiltroEstado','umFiltroCriticidad','umFiltroProveedor'].forEach(id=>{if($(id))$(id).value='';});renderUnidadesMantenimiento();});$('btnExportUMCSV')?.addEventListener('click',exportarUMCSV);$('btnNuevaUM')?.addEventListener('click',limpiarFormUM);$('btnGuardarUM')?.addEventListener('click',guardarFormUM);$('btnVolverUM')?.addEventListener('click',volverUM);$('btnEditarUM')?.addEventListener('click',()=>cargarFormUM(umActualId));$('btnCopiarUM')?.addEventListener('click',copiarResumenUM);$('btnIrEstacionUM')?.addEventListener('click',irEstacionUM);$('btnVincularOCUM')?.addEventListener('click',vincularOCUM);document.addEventListener('click',ev=>{const btn=ev.target.closest('[data-open-um]');if(btn){ev.preventDefault();ev.stopPropagation();abrirFichaUM(btn.dataset.openUm);}});document.addEventListener('error',ev=>{const img=ev.target;if(img?.matches?.('[data-um-foto-img]'))img.style.display='none';},true);}
+
+
+/* ===============================
+   V45 CONSOLIDADA - Carga Servicio/Obra + selección/borrado Órdenes
+   =============================== */
+const V45_SERVICIO_COLUMNS = ["ID_SERVICIO","OC_NRO","MONTO_OC","PLAZO_DIAS","EXPEDIENTE","ULTIMA_ACTA","PERIODO_MES","PERIODO_INICIO","PERIODO_FIN","DESCRIPCION","ESTACION","PROVEEDOR","FECHA_INICIO","FECHA_FIN","TIPO_UM","DIAS_RESTANTES","INDICADOR","ESTADO","PROX_CERTIFICACION","OBSERVACIONES"];
+const V45_OBRA_COLUMNS = ["ID_OBRA","OC_NRO","MONTO_OC","MONEDA_OC","PLAZO_DIAS","EXPEDIENTE","ULTIMA_ACTA","DESCRIPCION","ESTACION","SECTOR","PROVEEDOR","FECHA_INICIO","FECHA_FIN","DIAS_RESTANTES","INDICADOR","ESTADO","AVANCE_PORC","PROX_CERTIFICACION","OBSERVACIONES"];
+let v45TipoCarga = "Servicio";
+let v45SeleccionOrdenes = new Set();
+const V45_SERVICIO_FECHA_TEXTO = ["PERIODO_INICIO","PERIODO_FIN","FECHA_INICIO","FECHA_FIN","PROX_CERTIFICACION"];
+function v45FechaISO(d){return d && !isNaN(d) ? d.toISOString().slice(0,10) : "";}
+function parseFechaFlexible(valor){if(!valor)return null;if(valor instanceof Date)return isNaN(valor)?null:valor;const s=String(valor).trim();if(!s)return null;const mk=(y,m,d)=>{const out=new Date(Number(y),Number(m)-1,Number(d));return out.getFullYear()===Number(y)&&out.getMonth()===Number(m)-1&&out.getDate()===Number(d)?out:null;};let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);if(m)return mk(m[1],m[2],m[3]);m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);if(m)return mk(m[3],m[2],m[1]);const d=parseFecha(s);return d&&!isNaN(d)?d:null;}
+function v45ParseFecha(v){return parseFechaFlexible(v);}
+function v45FechaISOFlexible(v){return v45FechaISO(parseFechaFlexible(v));}
+function v45FechaDisplay(v){const d=parseFechaFlexible(v);return d?`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`:"";}
+function v45EsFechaTextoServicio(c,tipo){return tipo==="Servicio"&&V45_SERVICIO_FECHA_TEXTO.includes(c);}
+function v45AddMes(fecha){const d=v45ParseFecha(fecha);return d?v45FechaISO(addMeses(d,1)):"";}
+function v45AddDia(fecha){const d=v45ParseFecha(fecha);return d?v45FechaISO(addDias(d,1)):"";}
+function v45NormalizarOC(v){return String(v||"").trim().replace(/^OC[-\s]*/i,"");}
+function v45TextoCerrado(v){const e=normalizarTexto(v);return e.includes("CERRADO")||e.includes("FINALIZADO")||e.includes("ENVIADO")||e.includes("CERTIFICADO")||e.includes("ARCHIVADO")||e.includes("DEFINITIVA");}
+function v45IndicadorLogico(dias,estado){if(v45TextoCerrado(estado))return "GRIS";const n=Number(dias);if(!Number.isFinite(n))return "SIN_DATOS";if(n<0)return "ROJO";if(n<=30)return "AMARILLO";return "VERDE";}
+function v45IndicadorTitulo(ind){return {VERDE:"En plazo",AMARILLO:"Próximo a vencer",ROJO:"Vencido",GRIS:"Cerrado / finalizado",SIN_DATOS:"Sin datos"}[ind]||"Sin datos";}
+function v45IndicadorHTML(valor){const ind=String(valor||"SIN_DATOS").toUpperCase();return `<div class="indicador-cell" title="${esc(v45IndicadorTitulo(ind))}"><span class="indicador-dot ${esc(ind)}" aria-label="${esc(ind)}"></span><input type="hidden" class="indicador-hidden" data-campo="INDICADOR" value="${esc(ind)}"></div>`;}
+function v45SetIndicador(tr,ind){const val=String(ind||"SIN_DATOS").toUpperCase();const dot=tr.querySelector('.indicador-dot');const hidden=tr.querySelector('[data-campo="INDICADOR"]');const cell=tr.querySelector('.indicador-cell');if(dot){dot.className='indicador-dot '+val;dot.setAttribute('aria-label',val);}if(hidden)hidden.value=val;if(cell)cell.title=v45IndicadorTitulo(val);}
+function v45DetectarMoneda(texto){const s=String(texto||"").toUpperCase();return (s.includes("USD")||s.includes("US$")||s.includes("U$S")||s.includes("DOLAR"))?"USD":"ARS";}
+function v45LimpiarMonto(valor){if(valor===null||valor===undefined)return "";let s=String(valor).toUpperCase().replace(/ARS/g,"").replace(/USD/g,"").replace(/U\$S/g,"").replace(/\$/g,"").replace(/[^\d,.\-]/g,"").trim();if(!s)return "";const c=s.lastIndexOf(','),p=s.lastIndexOf('.');if(c>-1&&p>-1){s=c>p?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');}else if(c>-1){s=s.replace(/\./g,'').replace(',','.');}else if((s.match(/\./g)||[]).length>1){s=s.replace(/\./g,'');}const n=Number(s);return Number.isFinite(n)?String(n):"";}
+function v45FormatoMonto(valor,moneda="ARS"){const n=Number(v45LimpiarMonto(valor));if(!Number.isFinite(n))return "";const fmt=n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});return moneda==="USD"?`USD ${fmt}`:`$ ${fmt}`;}
+function v45ControlMonto(valor="",moneda="ARS"){const clean=v45LimpiarMonto(valor);const visual=clean?v45FormatoMonto(clean,moneda):"";return `<input type="text" data-campo="MONTO_OC" value="${esc(visual)}" data-monto-raw="${esc(clean)}" placeholder="$ 0,00">`;}
+function v45NormalizarMontoInput(input){if(!input)return;const parsed={monto:v45LimpiarMonto(input.value),moneda:v45DetectarMoneda(input.value)};const upper=String(input.value||"").toUpperCase();const moneda=(upper.includes("USD")||upper.includes("US$")||upper.includes("U$S"))?"USD":(input.dataset.moneda||parsed.moneda||"ARS");input.dataset.montoRaw=parsed.monto;input.dataset.moneda=moneda;input.value=parsed.monto?v45FormatoMonto(parsed.monto,moneda):"";}
+function v45MontoFila(tr){return v45LimpiarMonto(tr.querySelector('[data-campo="MONTO_OC"]')?.dataset.montoRaw||tr.querySelector('[data-campo="MONTO_OC"]')?.value||"");}
+function v45MonedaFila(tr){const inp=tr.querySelector('[data-campo="MONTO_OC"]');return tr.querySelector('[data-campo="MONEDA_OC"]')?.value||inp?.dataset.moneda||v45DetectarMoneda(inp?.value||'')||"ARS";}
+function v45ProximaCert(row){if(row.PERIODO_FIN)return v45AddDia(row.PERIODO_FIN);if(row.PERIODO_INICIO)return v45AddMes(row.PERIODO_INICIO);if(row.FECHA_INICIO)return v45AddMes(row.FECHA_INICIO);return "";}
+function v45FechaFin(row){if(row.FECHA_FIN){const fin=v45FechaISOFlexible(row.FECHA_FIN);if(fin)return fin;}const ini=v45ParseFecha(row.FECHA_INICIO);const plazo=Number(row.PLAZO_DIAS||0);return ini&&plazo?v45FechaISO(addDias(ini,plazo)):"";}
+function v45DiasRestantes(row,fin,forzar=false){if(forzar&&fin)return diffDias(fin,COI_TODAY);if(row.DIAS_RESTANTES!==""&&row.DIAS_RESTANTES!==undefined){const n=Number(String(row.DIAS_RESTANTES).replace(',','.'));return Number.isFinite(n)?n:"";}return fin?diffDias(fin,COI_TODAY):"";}
+function v45CamposActivos(){return v45TipoCarga==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;}
+function v45BodyActivo(){return v45TipoCarga==="Obra"?$('cargaRapidaObraBody'):$('cargaRapidaServicioBody');}
+function v45OpcionesEstado(){return [...document.querySelectorAll('#estado option')].map(o=>o.value||o.textContent).filter(Boolean);}
+function v45Control(c,v="",tipo=v45TipoCarga){if(c==="MONTO_OC")return v45ControlMonto(v,"ARS");if(c==="MONEDA_OC")return `<select data-campo="${c}"><option value="ARS">ARS</option><option value="USD">USD</option></select>`;if(c==="INDICADOR")return v45IndicadorHTML(v||"SIN_DATOS");if(c==="ESTADO")return `<select data-campo="${c}"><option value="">Seleccionar</option>${v45OpcionesEstado().map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;if(["FECHA_INICIO","FECHA_FIN","PERIODO_INICIO","PERIODO_FIN","PROX_CERTIFICACION"].includes(c)){const auto=c==='PROX_CERTIFICACION'?'prox-cert-auto auto-field':'';if(v45EsFechaTextoServicio(c,tipo))return `<input type="text" data-campo="${c}" class="${auto}" value="${esc(v45FechaDisplay(v)||v)}" placeholder="DD/MM/AAAA" ${c==='PROX_CERTIFICACION'?'readonly tabindex="-1"':''}>`;return `<input type="date" data-campo="${c}" class="${auto}" value="${esc(v)}" ${c==='PROX_CERTIFICACION'?'readonly tabindex="-1"':''}>`;}if(["PLAZO_DIAS","DIAS_RESTANTES","AVANCE_PORC"].includes(c))return `<input type="number" step="1" data-campo="${c}" class="${c==='DIAS_RESTANTES'?'auto-field':''}" value="${esc(v)}" ${c==='DIAS_RESTANTES'?'readonly tabindex="-1"':''}>`;if(c==="DESCRIPCION"||c==="OBSERVACIONES")return `<textarea data-campo="${c}" class="${c==='DESCRIPCION'?'w-desc':'w-obs'}">${esc(v)}</textarea>`;return `<input type="text" data-campo="${c}" class="${c==='ID_SERVICIO'||c==='ID_OBRA'?'w-id':''}" value="${esc(v)}">`;}
+function v45AgregarFilas(tipo=v45TipoCarga,cantidad=5){const body=tipo==="Obra"?$('cargaRapidaObraBody'):$('cargaRapidaServicioBody');const campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;if(!body)return;const start=body.querySelectorAll('tr').length+1;let html='';for(let i=0;i<cantidad;i++){html+=`<tr data-tipo-carga="${tipo}"><td class="quick-load-row-num">${start+i}</td>${campos.map(c=>`<td>${v45Control(c,"",tipo)}</td>`).join('')}</tr>`;}body.insertAdjacentHTML('beforeend',html);}
+function v45RenderTabla(tipo){const head=tipo==="Obra"?$('cargaRapidaObraHead'):$('cargaRapidaServicioHead');const body=tipo==="Obra"?$('cargaRapidaObraBody'):$('cargaRapidaServicioBody');const campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;if(!head||!body)return;head.innerHTML=`<tr><th>#</th>${campos.map(c=>`<th class="${tipo==='Servicio'?'excel-service-head':''}">${esc(c)}</th>`).join('')}</tr>`;body.innerHTML='';v45AgregarFilas(tipo,5);}
+function v45SetTipoCarga(tipo){v45TipoCarga=tipo;document.querySelectorAll('.quick-type-card').forEach(c=>c.classList.toggle('active',c.dataset.cargaTipo===tipo));$('panelCargaServicio')?.classList.toggle('active',tipo==='Servicio');$('panelCargaObra')?.classList.toggle('active',tipo==='Obra');if($('cargaRapidaTipoActivo'))$('cargaRapidaTipoActivo').textContent='Carga activa: '+tipo;if($('cargaRapidaMsg'))$('cargaRapidaMsg').textContent='Carga activa: '+tipo+'. Complete filas o pegue desde Excel.';}
+function v45LeerFila(tr){const tipo=tr.dataset.tipoCarga||v45TipoCarga;const campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;const row={};campos.forEach(c=>{if(c==="MONTO_OC")row[c]=v45MontoFila(tr);else if(c==="MONEDA_OC")row[c]=v45MonedaFila(tr);else{const raw=(tr.querySelector(`[data-campo="${c}"]`)?.value||"").trim();row[c]=v45EsFechaTextoServicio(c,tipo)?(v45FechaISOFlexible(raw)||raw):raw;}});if(!row.MONEDA_OC)row.MONEDA_OC=v45MonedaFila(tr);return row;}
+function v45FilaVacia(row,tipo){const campos=(tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS).filter(c=>!["MONEDA_OC","FECHA_FIN","DIAS_RESTANTES","INDICADOR","PROX_CERTIFICACION"].includes(c));return campos.every(c=>!String(row[c]||"").trim());}
+function v45ActualizarFila(tr){const tipo=tr.dataset.tipoCarga||v45TipoCarga;const row=v45LeerFila(tr);const fin=v45FechaFin(row);const dias=v45DiasRestantes(row,fin,tipo==="Servicio");const indicador=v45IndicadorLogico(dias,row.ESTADO);const set=(c,v)=>{const el=tr.querySelector(`[data-campo="${c}"]`);if(el)el.value=v45EsFechaTextoServicio(c,tipo)?v45FechaDisplay(v):v;};if(tipo==="Servicio"){["PERIODO_INICIO","PERIODO_FIN","FECHA_INICIO"].forEach(c=>{const el=tr.querySelector(`[data-campo="${c}"]`),iso=v45FechaISOFlexible(el?.value||"");if(el&&iso)el.value=v45FechaDisplay(iso);});}set('FECHA_FIN',fin);set('DIAS_RESTANTES',dias);set('PROX_CERTIFICACION',v45ProximaCert({...row,FECHA_FIN:fin,DIAS_RESTANTES:dias}));v45SetIndicador(tr,indicador);}
+function v45PegarExcel(ev){const target=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!target)return;const text=(ev.clipboardData||window.clipboardData)?.getData('text');if(!text||(!text.includes('\t')&&!text.includes('\n')))return;ev.preventDefault();const tr=target.closest('tr'),body=tr.parentElement,tipo=tr.dataset.tipoCarga||v45TipoCarga,campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS,startRow=[...body.children].indexOf(tr),startCol=campos.indexOf(target.dataset.campo);const rows=text.replace(/\r/g,'').split('\n').filter(r=>r.length).map(r=>r.split('\t'));while(body.children.length<startRow+rows.length)v45AgregarFilas(tipo,5);rows.forEach((cols,rIdx)=>cols.forEach((val,cIdx)=>{const campo=campos[startCol+cIdx];if(!campo||campo==='PROX_CERTIFICACION'||campo==='INDICADOR')return;const rowEl=body.children[startRow+rIdx];if(campo==='MONTO_OC'){const inp=rowEl?.querySelector('[data-campo="MONTO_OC"]');const sel=rowEl?.querySelector('[data-campo="MONEDA_OC"]');const monto=v45LimpiarMonto(val);const mon=v45DetectarMoneda(val);if(inp){inp.dataset.montoRaw=monto;inp.dataset.moneda=mon;inp.value=monto?v45FormatoMonto(monto,mon):'';}if(sel)sel.value=mon;return;}const el=rowEl?.querySelector(`[data-campo="${campo}"]`);if(el)el.value=val.trim();}));[...body.children].forEach(v45ActualizarFila);}
+function v45RegistroKey(item){return normalizarTexto([item?.idObra,item?.idOC,item?.idServicio,item?.ID_SERVICIO,item?.numeroOC,item?.oc,item?.ocNro,item?.OC_NRO,item?.tipo,item?.estacion].filter(Boolean).join('|'));}
+function v45CrearEstacionSinDefinir(){let est=estaciones.find(e=>e.nombre==='Sin definir');if(!est){est={nombre:'Sin definir',ramal:'Sin definir',x:-999,y:-999,obras:[],servicios:[],ramales:['Sin definir']};estaciones.push(est);}return est;}
+function v45EstacionDestino(nombre){if(!String(nombre||'').trim())return v45CrearEstacionSinDefinir();const alias=stationAlias(nombre);return estaciones.find(e=>e.nombre===alias)||estaciones.find(e=>normalizarTexto(e.nombre)===normalizarTexto(nombre))||v45CrearEstacionSinDefinir();}
+function v45MigrarCampos(){estaciones.forEach(est=>allItems(est).forEach(item=>{item.monedaOc=item.monedaOc||item.MONEDA_OC||'ARS';item.MONEDA_OC=item.MONEDA_OC||item.monedaOc||'ARS';item.periodoMes=item.periodoMes||item.PERIODO_MES||'';item.periodoInicio=item.periodoInicio||item.PERIODO_INICIO||'';item.periodoFin=item.periodoFin||item.PERIODO_FIN||'';item.estadoDocumental=item.estadoDocumental||item.ESTADO_DOCUMENTAL||'';item.idServicio=item.idServicio||item.ID_SERVICIO||'';item.ID_SERVICIO=item.ID_SERVICIO||item.idServicio||'';}));}
+function v45CamposIncompletosServicio(row){return ['ID_SERVICIO','OC_NRO','MONTO_OC','PLAZO_DIAS','EXPEDIENTE','ULTIMA_ACTA','PERIODO_MES','PERIODO_INICIO','PERIODO_FIN','DESCRIPCION','ESTACION','PROVEEDOR','FECHA_INICIO','FECHA_FIN','TIPO_UM','DIAS_RESTANTES','ESTADO'].filter(c=>!String(row[c]||'').trim());}
+function v45ItemDesdeServicio(row){const incompleto=v45CamposIncompletosServicio(row).length>0;row.ESTADO=row.ESTADO||'Pendiente de completar';row.ESTACION=row.ESTACION||'Sin definir';row.PROVEEDOR=row.PROVEEDOR||'Sin definir';row.TIPO_UM=row.TIPO_UM||'Sin definir';row.MONEDA_OC=row.MONEDA_OC||v45DetectarMoneda(row.MONTO_OC)||'ARS';const fin=v45FechaFin(row);const dias=v45DiasRestantes(row,fin,true);const indicador=v45IndicadorLogico(dias,row.ESTADO);const prox=v45ProximaCert(row);const id=row.ID_SERVICIO||generarIdSeguro('SRV');const oc=v45NormalizarOC(row.OC_NRO);return {idServicio:id,ID_SERVICIO:id,idObra:id,idOC:id,tipo:'Servicio',numeroOC:oc,oc,ocNro:oc,OC_NRO:oc,monto:row.MONTO_OC,montoOc:row.MONTO_OC,montoOC:row.MONTO_OC,MONTO_OC:row.MONTO_OC,monedaOc:row.MONEDA_OC,MONEDA_OC:row.MONEDA_OC,plazoDias:Number(row.PLAZO_DIAS||0),plazo:Number(row.PLAZO_DIAS||0),expediente:row.EXPEDIENTE,expte:row.EXPEDIENTE,ultimaCertificacion:row.ULTIMA_ACTA,ultimaActa:row.ULTIMA_ACTA,periodoMes:row.PERIODO_MES||'',PERIODO_MES:row.PERIODO_MES||'',periodoInicio:row.PERIODO_INICIO||'',PERIODO_INICIO:row.PERIODO_INICIO||'',periodoFin:row.PERIODO_FIN||'',PERIODO_FIN:row.PERIODO_FIN||'',descripcion:row.DESCRIPCION,tipoTrabajo:row.DESCRIPCION||row.TIPO_UM,tipoUM:row.TIPO_UM,tipoUm:row.TIPO_UM,unidadMantenimiento:row.TIPO_UM,estacion:row.ESTACION,proveedor:row.PROVEEDOR,actaInicio:row.FECHA_INICIO,fechaInicio:row.FECHA_INICIO,vencimiento:fin,fechaFin:fin,diasRestantes:dias,diasRestantesCSV:dias,indicador,INDICADOR:indicador,estado:row.ESTADO,proximaCertificacion:prox,proxCertificacion:prox,PROX_CERTIFICACION:prox,observaciones:row.OBSERVACIONES,estadoDocumental:incompleto?'Datos incompletos':'',ESTADO_DOCUMENTAL:incompleto?'Datos incompletos':'',fechaCarga:new Date().toISOString(),fechaCreacion:new Date().toISOString(),fechaUltimaModificacion:new Date().toISOString(),estadoRegistro:'Activo',semaforo:indicador==='GRIS'?'gris':indicador==='ROJO'?'rojo':indicador==='AMARILLO'?'amarillo':'verde'};}
+function v45ItemDesdeObra(row){row.MONEDA_OC=row.MONEDA_OC||v45DetectarMoneda(row.MONTO_OC)||'ARS';const fin=v45FechaFin(row);const dias=v45DiasRestantes(row,fin);const indicador=v45IndicadorLogico(dias,row.ESTADO);const id=row.ID_OBRA||generarIdSeguro('OBR');const oc=v45NormalizarOC(row.OC_NRO);return {idObra:id,idOC:id,tipo:'Obra',numeroOC:oc,oc,ocNro:oc,monto:row.MONTO_OC,montoOC:row.MONTO_OC,MONTO_OC:row.MONTO_OC,monedaOc:row.MONEDA_OC,MONEDA_OC:row.MONEDA_OC,plazoDias:Number(row.PLAZO_DIAS||0),plazo:Number(row.PLAZO_DIAS||0),expediente:row.EXPEDIENTE,ultimaCertificacion:row.ULTIMA_ACTA,descripcion:row.DESCRIPCION,tipoTrabajo:row.DESCRIPCION,sector:row.SECTOR||'',estacion:row.ESTACION||'Sin definir',proveedor:row.PROVEEDOR||'Sin definir',actaInicio:row.FECHA_INICIO,fechaInicio:row.FECHA_INICIO,vencimiento:fin,fechaFin:fin,diasRestantes:dias,diasRestantesCSV:dias,indicador,estado:row.ESTADO||'Pendiente de completar',avanceFisico:Number(row.AVANCE_PORC||0),avanceFinanciero:Number(row.AVANCE_PORC||0),proximaCertificacion:row.PROX_CERTIFICACION||v45AddMes(row.FECHA_INICIO),observaciones:row.OBSERVACIONES,estadoDocumental:'',fechaCarga:new Date().toISOString(),fechaCreacion:new Date().toISOString(),fechaUltimaModificacion:new Date().toISOString(),estadoRegistro:'Activo'};}
+function v45RefreshAfterDataChange(){if(typeof renderMap==='function')renderMap();if(typeof updateKpis==='function')updateKpis();if(typeof cargarFiltrosCalendario==='function')cargarFiltrosCalendario();if(typeof renderCalendarioCOI==='function')renderCalendarioCOI();if(typeof cargarFiltrosV16==='function'){cargarFiltrosV16('venc');cargarFiltrosV16('cert');}if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();if(typeof renderOrdenes==='function')renderOrdenes();if(typeof renderAcercaSistema==='function'&&$('vistaAcercaSistema')?.classList.contains('active'))renderAcercaSistema();}
+function v45GuardarCarga(){document.querySelectorAll('#panelCargaServicio tbody tr,#panelCargaObra tbody tr').forEach(v45ActualizarFila);const body=v45BodyActivo();if(!body)return;let guardados=0,vacios=0,duplicados=0;[...body.querySelectorAll('tr')].forEach(tr=>{const tipo=tr.dataset.tipoCarga||v45TipoCarga,row=v45LeerFila(tr);if(v45FilaVacia(row,tipo)){vacios++;return;}const item=tipo==='Servicio'?v45ItemDesdeServicio(row):v45ItemDesdeObra(row);const key=v45RegistroKey(item);if(todasLasOC().some(r=>v45RegistroKey(r.item)===key)){duplicados++;return;}const est=v45EstacionDestino(item.estacion);item.estacion=est.nombre;item.idEstacion=est.idEstacion||('EST-'+slugOC(est.nombre));(tipo==='Servicio'?est.servicios:est.obras).push(item);guardados++;});v45MigrarCampos();guardarBaseLocal();v45RefreshAfterDataChange();const msg=`Se guardaron ${guardados} registros. Filas vacías: ${vacios}. Duplicados omitidos: ${duplicados}.`;if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent=msg;$('cargaRapidaMsg').className='quick-load-msg ok';}alert(msg);}
+function v45ActualizarSeleccionOrdenes(){const total=v45SeleccionOrdenes.size;if($('ordenesSeleccionadasCount'))$('ordenesSeleccionadasCount').textContent=`${total} seleccionada${total===1?'':'s'}`;if($('btnBorrarSeleccionadas'))$('btnBorrarSeleccionadas').disabled=!total;const checks=[...document.querySelectorAll('.chk-orden-row')];if($('chkOrdenesSeleccionarTodas'))$('chkOrdenesSeleccionarTodas').checked=checks.length>0&&checks.every(c=>c.checked);}
+function v45BorrarSeleccionadas(){const ids=[...v45SeleccionOrdenes];if(!ids.length)return;if(!confirm(`¿Borrar ${ids.length} OC seleccionada(s)? Esta acción actualiza localStorage.`))return;const set=new Set(ids);estaciones.forEach(est=>{est.obras=(est.obras||[]).filter(i=>!set.has(v45RegistroKey(i)));est.servicios=(est.servicios||[]).filter(i=>!set.has(v45RegistroKey(i)));});v45SeleccionOrdenes.clear();guardarBaseLocal();v45RefreshAfterDataChange();}
+const _loadImportedDataV45Base = typeof loadImportedData==='function' ? loadImportedData : null;
+loadImportedData = function(){const data=safeParseJSON(localStorage.getItem(STORAGE_KEY),null);if(!Array.isArray(data)){if(_loadImportedDataV45Base)_loadImportedDataV45Base();return;}clearInterventions();data.forEach(d=>{let e=estaciones.find(x=>x.nombre===d.nombre);if(!e){e={nombre:d.nombre||'Sin definir',ramal:d.ramal||d.nombre||'Sin definir',x:-999,y:-999,obras:[],servicios:[],ramales:[d.ramal||d.nombre||'Sin definir']};estaciones.push(e);}e.idEstacion=d.idEstacion||e.idEstacion;e.obras=Array.isArray(d.obras)?d.obras:[];e.servicios=Array.isArray(d.servicios)?d.servicios:[];});v45MigrarCampos();};
+const _filasOrdenesBaseV45 = filasOrdenesBase;
+filasOrdenesBase = function(){v45MigrarCampos();return _filasOrdenesBaseV45().map(r=>({...r,idSeleccion:v45RegistroKey(r.item),estadoDocumental:r.item.estadoDocumental||'',umVinculada:r.item.umVinculada||r.item.unidadMantenimiento||r.item.tipoUM||r.item.tipoUm||r.item.especialidad||''}));};
+renderOrdenes = function(){cargarFiltrosOrdenes();const rows=filtrarOrdenes(filasOrdenesBase()).sort((a,b)=>String(a.idObra).localeCompare(String(b.idObra)));if($('ordKTotal'))$('ordKTotal').textContent=rows.length;if($('ordKObras'))$('ordKObras').textContent=rows.filter(r=>r.tipo==='Obra').length;if($('ordKServicios'))$('ordKServicios').textContent=rows.filter(r=>r.tipo==='Servicio').length;if($('ordKProxCert'))$('ordKProxCert').textContent=rows.filter(r=>r.calc.prox&&diffDias(r.calc.prox,COI_TODAY)<=30).length;if($('ordenesTbody')){$('ordenesTbody').innerHTML=rows.map(r=>`<tr class="row-clickable" data-open-oc="${esc(r.idObra)}"><td class="orden-check-cell"><input type="checkbox" class="chk-orden-row" data-orden-key="${esc(r.idSeleccion)}" ${v45SeleccionOrdenes.has(r.idSeleccion)?'checked':''}></td><td><b>${esc(r.idObra)}</b></td><td>${esc(r.numeroOC||'—')}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.sector||'—')}</td><td>${esc(r.umVinculada||'—')}</td><td>${esc(r.tipoTrabajo||'—')}</td><td>${esc(r.estado)}</td><td>${fmtFecha(r.calc.prox)}</td><td>${fmtFecha(r.calc.venc)}</td><td>${botonFichaOC(r.item,'Ver ficha OC')}</td></tr>`).join('')||'<tr><td colspan="13">Sin resultados para los filtros seleccionados.</td></tr>';}v45ActualizarSeleccionOrdenes();};
+const _initOrdenesCentroOperativoV45 = initOrdenesCentroOperativo;
+initOrdenesCentroOperativo = function(){_initOrdenesCentroOperativoV45();$('chkOrdenesSeleccionarTodas')?.addEventListener('change',ev=>{document.querySelectorAll('.chk-orden-row').forEach(chk=>{chk.checked=ev.target.checked;if(chk.checked)v45SeleccionOrdenes.add(chk.dataset.ordenKey);else v45SeleccionOrdenes.delete(chk.dataset.ordenKey);});v45ActualizarSeleccionOrdenes();});$('btnBorrarSeleccionadas')?.addEventListener('click',v45BorrarSeleccionadas);document.addEventListener('change',ev=>{const chk=ev.target.closest('.chk-orden-row');if(!chk)return;if(chk.checked)v45SeleccionOrdenes.add(chk.dataset.ordenKey);else v45SeleccionOrdenes.delete(chk.dataset.ordenKey);v45ActualizarSeleccionOrdenes();});document.addEventListener('click',ev=>{const del=ev.target.closest('#btnBorrarSeleccionadas');if(del){ev.preventDefault();ev.stopPropagation();v45BorrarSeleccionadas();return;}if(ev.target.closest('.chk-orden-row')||ev.target.closest('#chkOrdenesSeleccionarTodas'))ev.stopPropagation();},true);};
+function initCargaRapidaConsolidadaV45(){v45RenderTabla('Servicio');v45RenderTabla('Obra');v45SetTipoCarga('Servicio');document.querySelectorAll('.quick-type-card').forEach(card=>card.addEventListener('click',()=>v45SetTipoCarga(card.dataset.cargaTipo)));$('btnAgregarFilasCargaRapida')?.addEventListener('click',()=>v45AgregarFilas(v45TipoCarga,5));$('btnLimpiarCargaRapida')?.addEventListener('click',()=>{v45RenderTabla(v45TipoCarga);if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent='Grilla limpia. Complete filas o pegue desde Excel.';$('cargaRapidaMsg').className='quick-load-msg';}});$('btnGuardarCargaRapida')?.addEventListener('click',v45GuardarCarga);document.addEventListener('paste',v45PegarExcel);document.addEventListener('input',ev=>{const el=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!el)return;const tr=el.closest('tr');if(el.dataset.campo==='MONTO_OC')el.dataset.montoRaw=v45LimpiarMonto(el.value);if(tr)v45ActualizarFila(tr);});document.addEventListener('change',ev=>{const el=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!el)return;if(el.dataset.campo==='MONTO_OC')v45NormalizarMontoInput(el);const tr=el.closest('tr');if(tr)v45ActualizarFila(tr);});}
+function initV45Consolidada(){v45CrearEstacionSinDefinir();v45MigrarCampos();initCargaRapidaConsolidadaV45();}
+function init(){ loadImportedData(); ramalesDisponibles.forEach(r=>$('ramal').insertAdjacentHTML('beforeend',`<option value="${r}">${r}</option>`)); ['q','estado','tipo','especialidad','ramal','showRings'].forEach(id=>$(id).addEventListener(id==='q'?'input':'change',renderMap)); $('clear').addEventListener('click',()=>{['q','estado','tipo','especialidad','ramal'].forEach(id=>$(id).value=''); renderMap();}); $('btnImport').addEventListener('click',handleImport); $('btnTemplate').addEventListener('click',downloadTemplate); $('btnResetData').addEventListener('click',restoreDemo); renderMap(); initCalendarioCOI(); initCalendarioOperativoCOI(); initCalendarioCOIUnificado(); initVistasCOI(); initFichaOC(); initBotonesLegacySinInline(); initArquitecturaMaestra(); initV45Consolidada(); initFotosEstacion(); initFotoYChecksOC(); initImportacionAcumulativaV27(); initImportadorV33(); initObservacionesDocumentalesV29(); initAcercaSistema(); initOrdenesCentroOperativo(); initBuscadorIntegradoV31(); initUnidadesMantenimiento(); renderAppVersionHeader(); }
 init();
 </script>
 </body></html>
+
+
+
