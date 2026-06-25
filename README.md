@@ -1,3 +1,17 @@
+# HTML COI Línea Roca - Acceso al sistema
+
+[🚀 Abrir Sistema COI Línea Roca](https://MSP-byte.github.io/HTML-COI-Linea-Roca/)
+
+## Versión actual
+
+**V45 CONSOLIDADA**
+
+## Estado
+
+✅ Operativo  
+🛠️ En desarrollo evolutivo
+
+
 # HTML COI Línea Roca
 
 Plano Interactivo para la Gestión Integral de Obras y Servicios de la Línea General Roca.
