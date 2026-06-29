@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8" />
@@ -608,63 +608,22 @@ button.ghost{background:#f7f8fa;color:#333}
 
 
 <section id="vistaCarga" class="view">
-<section class="import-card">
-<input type="file" id="fileImport" accept=".csv,.txt" multiple />
-<select id="importTipo"><option value="auto">Detectar tipo automáticamente</option><option value="obra">Cargar como Obras</option><option value="servicio">Cargar como Servicios</option></select>
-<button id="btnImport" class="primary">Importar CSV acumulativo</button>
-<button id="btnTemplate" class="ghost">Descargar plantilla CSV</button>
-<button id="btnResetData" class="ghost">Restaurar demo</button>
-
-<div class="import-mode">
-  <label><input type="checkbox" id="importAcumular" checked> Acumular con datos existentes</label>
-  <label><input type="checkbox" id="importReemplazar"> Reemplazar toda la base antes de importar</label>
-</div>
-
-<div class="help"><b>Importador CSV:</b> si los datos vienen de Excel, exportá previamente cada hoja como <b>CSV UTF-8</b>. El HTML mapea automáticamente columnas como OC/OC N°, TIPO UM, Descripción del Servicio, ESTACION, PROVEED., FECHA INICIO, FECHA FIN, PLAZO OC, ESTADO/ESTATUS, ULTIMA ACTA MEDICION N° y OBSERVACIONES. <span id="importMsg"></span><div id="importDebug" class="import-warning"></div></div>
-</section>
-
 <section class="view-card">
   <div class="view-head">
-    <h2>Importador CSV COI</h2>
-    <div class="muted">Carga normalizada V33 para Obras, Servicios, Certificaciones, Actas, Remitos, UM y documentación.</div>
+    <h2>Carga rápida desde Excel</h2>
+    <div class="muted">Seleccione Servicio u Obra. La grilla activa respeta el orden de columnas para copiar y pegar desde Excel.</div>
   </div>
   <div class="view-body">
-    <div class="v33-message warn"><b>CSV UTF-8:</b> si el origen es Excel, exportá la hoja previamente a CSV y cargá ese archivo en este módulo.</div>
-    <div class="v33-import-grid">
-      <div><label>Tipo de importación</label><select id="v33ImportTipo"><option>Base Maestra OC</option><option>Obras</option><option>Servicios</option><option>Certificaciones</option><option>Actas de Inicio</option><option>Actas de Medición</option><option>Remitos</option><option>Unidades de Mantenimiento</option><option>Documentación OneDrive</option></select></div>
-      <div><label>Archivo CSV</label><input type="file" id="v33File" accept=".csv,.txt"></div>
-      <div><label>Duplicados</label><select id="v33Duplicados"><option value="omit">Omitir duplicados</option><option value="update">Actualizar existentes</option><option value="new">Importar como nuevos registros</option></select></div>
-    </div>
-    <div class="v33-import-actions">
-      <button type="button" id="btnV33Preview" class="primary">Previsualizar</button>
-      <button type="button" id="btnV33Confirm">Confirmar importación</button>
-      <button type="button" id="btnV33Limpiar">Limpiar</button>
-    </div>
-    <div id="v33Resultado" class="v33-message">Seleccione un archivo CSV para iniciar la previsualización.</div>
-    <div id="v33Resumen" class="v33-summary"></div>
-    <div id="v33Columnas" class="v33-badges"></div>
-    <div id="v33Errores" class="v33-message bad" style="display:none"></div>
-    <h3 class="section-title">Previsualización primeras 10 filas</h3>
-    <div class="table-wrap"><table class="coi-table"><thead id="v33PreviewHead"></thead><tbody id="v33PreviewBody"></tbody></table></div>
-  </div>
-</section>
-
-<section class="view-card">
-  <div class="view-head">
-    <h2>Gestión Manual de OC</h2>
-    <div class="muted">Alta / actualización mediante ID_OBRA. No hay borrado físico: solo cierre o archivo.</div>
-  </div>
-  <div class="view-body">
-        <section class="quick-load-card" id="cargaRapidaOCSection">
+    <section class="quick-load-card" id="cargaRapidaOCSection">
       <div class="quick-load-head">
         <div>
           <h3>Carga rápida de OCs</h3>
-          <div class="muted">Seleccione Servicio u Obra. La grilla de Servicios respeta el orden operativo solicitado y permite pegar filas desde Excel.</div>
+          <div class="muted">El módulo Carga queda dedicado exclusivamente a grillas editables tipo Excel.</div>
         </div>
       </div>
       <div class="quick-type-selector">
-        <div class="quick-type-card active" data-carga-tipo="Servicio"><h3>Servicio</h3><p>Servicios de mantenimiento, UM, períodos y certificaciones mensuales.</p></div>
-        <div class="quick-type-card" data-carga-tipo="Obra"><h3>Obra</h3><p>Obras con avance físico, sector, vencimiento contractual y seguimiento operativo.</p></div>
+        <div class="quick-type-card active" data-carga-tipo="Servicio"><h3>Servicio</h3><p>Servicios con campos ya definidos para carga rápida desde Excel.</p></div>
+        <div class="quick-type-card" data-carga-tipo="Obra"><h3>Obra</h3><p>Obras con encabezados oficiales y orden fijo para pegado desde Excel.</p></div>
       </div>
       <div class="quick-load-head">
         <span class="quick-load-badge" id="cargaRapidaTipoActivo">Carga activa: Servicio</span>
@@ -682,39 +641,8 @@ button.ghost{background:#f7f8fa;color:#333}
       </div>
       <div id="cargaRapidaMsg" class="quick-load-msg">Carga activa: Servicio. Complete filas o pegue desde Excel.</div>
     </section>
-<div class="form-actions">
-      <button type="button" id="btnNuevaOC" class="primary">Nueva OC</button>
-      <button type="button" id="btnGuardarOC" class="primary">Guardar / Actualizar OC</button>
-      <button type="button" id="btnCerrarOC">Cerrar OC</button>
-      <button type="button" id="btnArchivarOC">Archivar OC</button>
-      <button type="button" id="btnExportBaseCompleta">Exportar Base Completa</button>
-    </div>
-    <div id="formMsg" class="notice">Complete los campos obligatorios para crear o actualizar una OC.</div>
-
-    <div class="manual-form">
-      <div><label>ID_OBRA *</label><input id="f_idObra" placeholder="ROCA-2026-001"></div>
-      <div><label>N° OC *</label><input id="f_numeroOC" placeholder="4500098778"></div>
-      <div><label>Tipo *</label><select id="f_tipo"><option value="">Seleccionar</option><option>Obra</option><option>Servicio</option></select></div>
-      <div><label>Estación *</label><select id="f_estacion"><option value="">Estación</option></select></div>
-      <div><label>Tipo de trabajo</label><input id="f_tipoTrabajo" placeholder="Civil / Ascensores / Señalamiento"></div>
-      <div><label>Especialidad</label><input id="f_especialidad" placeholder="Civil"></div>
-      <div><label>Sector</label><input id="f_sector" placeholder="Andén / Hall / Acceso"></div>
-      <div><label>Proveedor *</label><input id="f_proveedor" placeholder="Proveedor"></div>
-      <div><label>Monto</label><input id="f_monto" type="number" step="0.01"></div>
-      <div><label>Fecha inicio *</label><input id="f_actaInicio" type="date"></div>
-      <div><label>Plazo días *</label><input id="f_plazoDias" type="number" min="0"></div>
-      <div><label>Estado COI *</label><select id="f_estado"></select></div>
-      <div><label>Avance físico %</label><input id="f_avanceFisico" type="number" min="0" max="100"></div>
-      <div><label>Avance financiero %</label><input id="f_avanceFinanciero" type="number" min="0" max="100"></div>
-      <div><label>Recepción documentación</label><input id="f_fechaRecepcionDocumentacion" type="date"></div>
-      <div><label>Envío PyC</label><input id="f_fechaEnvioPyC" type="date"></div>
-      <div><label>Estado documental</label><select id="f_estadoDocumental"><option>Pendiente</option><option>Recibida</option><option>Enviada a Planificación y Control</option><option>Observada</option><option>Cerrada</option></select></div>
-      <div><label>Ruta foto principal</label><input id="f_fotoUrl" placeholder="img/obras/ROCA-2026-001_01.jpg"></div>
-      <div class="form-full"><label>Observaciones</label><textarea id="f_observaciones"></textarea></div>
-    </div>
   </div>
 </section>
-
 </section>
 
 
@@ -2242,24 +2170,14 @@ function migrarArquitecturaIdObra(){
   estaciones.forEach(est=>{
     est.idEstacion = est.idEstacion || ('EST-' + slugOC(est.nombre));
     allItems(est).forEach((item,idx)=>{
-      item.numeroOC = item.numeroOC || item.numeroOc || item.N_OC || item.oc || item.ocNro || item.OC_NRO || '';
+      item.numeroOC = item.numeroOC || item.numeroOc || item.N_OC || item.oc || '';
       item.oc = item.oc || item.numeroOC;
-      if(item.tipo==='Servicio'){
-        item.idServicio = normalizarIdObra(item.idServicio || item.ID_SERVICIO || item.idOC || generarIdSeguro('SRV'));
-        item.ID_SERVICIO = item.ID_SERVICIO || item.idServicio;
-        item.idObra = '';
-        item.ID_OBRA = '';
-        if(vistos.has(item.idServicio)) item.idServicio = item.idServicio + '-' + slugOC(est.nombre);
-        vistos.add(item.idServicio);
-        item.idOC = item.idServicio; // compatibilidad: la ficha abre por ID_SERVICIO en servicios
-      }else{
-        item.idObra = normalizarIdObra(item.idObra || item.ID_OBRA || generarIdObraDesdeOC(item,est.nombre));
-        if(vistos.has(item.idObra)){
-          item.idObra = item.idObra + '-' + slugOC(est.nombre);
-        }
-        vistos.add(item.idObra);
-        item.idOC = item.idObra; // compatibilidad con V17 sin usar N_OC como PK
+      item.idObra = normalizarIdObra(item.idObra || item.ID_OBRA || generarIdObraDesdeOC(item,est.nombre));
+      if(vistos.has(item.idObra)){
+        item.idObra = item.idObra + '-' + slugOC(est.nombre);
       }
+      vistos.add(item.idObra);
+      item.idOC = item.idObra; // compatibilidad con V17 sin usar N_OC como PK
       item.idEstacion = item.idEstacion || est.idEstacion;
       item.estacion = item.estacion || est.nombre;
       item.tipoTrabajo = item.tipoTrabajo || item.descripcion || item.especialidad || '';
@@ -2291,7 +2209,7 @@ function buscarPorIdObra(idObra){
   migrarArquitecturaIdObra();
   const id=normalizarIdObra(idObra);
   for(const est of estaciones){
-    const item=allItems(est).find(i=>normalizarIdObra(i.idObra)===id || normalizarIdObra(i.ID_OBRA)===id || normalizarIdObra(i.idServicio)===id || normalizarIdObra(i.ID_SERVICIO)===id || normalizarIdObra(i.idOC)===id || normalizarIdObra(i.idRegistro)===id);
+    const item=allItems(est).find(i=>normalizarIdObra(i.idObra)===id || normalizarIdObra(i.idOC)===id);
     if(item) return {estacion:est,item};
   }
   return null;
@@ -2612,8 +2530,7 @@ function abrirFichaOC(idObra){
 }
 function botonFichaOC(item,label='Ver ficha OC'){
   migrarArquitecturaIdObra();
-  const id=(item.tipo==='Servicio'?(item.idServicio||item.ID_SERVICIO||item.idOC):(item.idObra||item.ID_OBRA||item.idOC))||'';
-  return `<button type="button" class="btn-open-oc" data-open-oc="${esc(id)}">${esc(label)}</button>`;
+  return `<button type="button" class="btn-open-oc" data-open-oc="${esc(item.idObra)}">${esc(label)}</button>`;
 }
 function renderBuscador(){
   migrarArquitecturaIdObra();
@@ -3665,7 +3582,7 @@ let adminTabActiva='estado';
 function adminConfig(){return safeParseJSON(localStorage.getItem(LS_ADMIN_CONFIG),{})||{};}function adminPinActual(){return adminConfig().adminPin||ADMIN_PIN;}function adminRolActivo(){return localStorage.getItem(LS_ADMIN_ROLE)||USER_ROLES.JEFE;}function adminIsEnabled(){return adminRolActivo()===USER_ROLES.ADMIN;}function adminSetRole(r){localStorage.setItem(LS_ADMIN_ROLE,r||USER_ROLES.JEFE);}function adminSetMsg(m,c='ok'){const e=$('adminMsg');if(e){e.textContent=m;e.className=`admin-msg ${c}`;}}
 function adminNowStamp(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`;}function adminBackupFileName(){return `backup_coi_roca_${adminNowStamp()}.json`;}function adminSnapshotLocalStorage(){const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);d[k]=localStorage.getItem(k);}return d;}function adminBackupPayload(){return {tipo:'COI_LINEA_ROCA_BACKUP',appName:APP_NAME,version:APP_VERSION,fechaExportacion:new Date().toISOString(),autor:APP_AUTHOR,rolActivo:adminRolActivo(),localStorage:adminSnapshotLocalStorage()};}
 function registrarLogSistema(tipo,mensaje,detalle=''){const logs=safeParseJSON(localStorage.getItem(LS_ADMIN_LOGS),[])||[];logs.unshift({fechaHora:new Date().toISOString(),tipo,mensaje,detalle,usuario:APP_AUTHOR,rol:adminRolActivo()});saveJSON(LS_ADMIN_LOGS,logs.slice(0,300));}function adminSetLastBackup(t,a=''){saveJSON(LS_ADMIN_LAST_BACKUP,{tipo:t,archivo:a,fecha:new Date().toISOString(),version:APP_VERSION});}function adminLastBackupText(){const b=safeParseJSON(localStorage.getItem(LS_ADMIN_LAST_BACKUP),null);return b?`${b.tipo} ${b.archivo||''} · ${fmtFecha(b.fecha)||b.fecha}`:'Sin registros';}function adminStorageSizeText(){let n=0;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i),v=localStorage.getItem(k)||'';n+=k.length+v.length;}return n>1024?`${(n/1024).toFixed(1)} KB`:`${n} bytes`;}
-function adminRefreshAll(){cargarDatos();actualizarTodo({forceAdmin:true});}
+function adminRefreshAll(){loadImportedData();if(typeof renderMap==='function')renderMap();if(typeof updateKpis==='function')updateKpis();if(typeof renderOrdenes==='function')renderOrdenes();if(typeof cargarFiltrosCalendario==='function')cargarFiltrosCalendario();if(typeof renderCalendarioCOI==='function')renderCalendarioCOI();if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();if(typeof renderCentroAlertas==='function'&&$('vistaCentroAlertas')?.classList.contains('active'))renderCentroAlertas();if(typeof renderDashboardAlertSummary==='function')renderDashboardAlertSummary();if(typeof renderAcercaSistema==='function'&&$('vistaAcercaSistema')?.classList.contains('active'))renderAcercaSistema();renderAdministracionSistema();}
 function adminEstadoDatos(){const r=typeof todasLasOC==='function'?todasLasOC():[],a=typeof generarAlertasCOI==='function'?generarAlertasCOI():[],c=adminConfig();return {oc:r.length,obras:r.filter(x=>x.tipo==='Obra').length,servicios:r.filter(x=>x.tipo==='Servicio').length,alertas:a.length,modo:c.modoSistema||'Producción',fuente:c.fuenteDatos||'LocalStorage'};}function adminCard(l,v){return `<div class="admin-status-card"><b>${esc(v)}</b><span>${esc(l)}</span></div>`;}
 function renderAdministracionSistema(){const e=adminEstadoDatos(),r=adminRolActivo(),c=adminConfig();if($('adminRolActivo'))$('adminRolActivo').textContent=r;if($('adminModoBadge')){$('adminModoBadge').textContent=e.modo==='Demo'?'MODO DEMO':'PRODUCCIÓN';$('adminModoBadge').className=`version-status ${e.modo==='Demo'?'warn':'ok'}`;}if($('btnAdminMode'))$('btnAdminMode').textContent=adminIsEnabled()?'Salir de modo Administrador':'Ingresar como Administrador';document.querySelectorAll('[data-admin-only]').forEach(x=>x.classList.toggle('admin-hidden',!adminIsEnabled()));const cards=[['Versión actual',c.versionVisible||APP_VERSION],['Fecha versión',c.fechaVersion||APP_RELEASE_DATE],['Rol activo',r],['Total OCs',e.oc],['Obras',e.obras],['Servicios',e.servicios],['Alertas',e.alertas],['Último backup',adminLastBackupText()],['LocalStorage',adminStorageSizeText()],['Estado de datos',`${e.fuente} / ${e.modo}`]];if($('adminStatus'))$('adminStatus').innerHTML=cards.map(x=>adminCard(x[0],x[1])).join('');renderAdminEstado();renderAdminDatos();renderAdminUsuarios();renderAdminCatalogos();renderAdminDiagnostico();renderAdminConfig();renderAdminLogs();document.querySelectorAll('[data-admin-only]').forEach(x=>x.classList.toggle('admin-hidden',!adminIsEnabled()));adminMostrarTab(adminTabActiva);}
 function adminMostrarTab(t){adminTabActiva=t||'estado';document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b.dataset.adminTab===adminTabActiva));document.querySelectorAll('.admin-tab-panel').forEach(p=>p.classList.remove('active'));const p=$(`adminTab${adminTabActiva[0].toUpperCase()+adminTabActiva.slice(1)}`);if(p)p.classList.add('active');}
@@ -3677,7 +3594,7 @@ function catalogosDefault(){const r=typeof todasLasOC==='function'?todasLasOC():
 function getCatalogosSistema(){return {...catalogosDefault(),...(safeParseJSON(localStorage.getItem(LS_ADMIN_CATALOGOS),{})||{})};}function getCatalogo(n){return getCatalogosSistema()[n]||[];}function setCatalogo(n,d){const c=getCatalogosSistema();c[n]=Array.isArray(d)?d:[];saveJSON(LS_ADMIN_CATALOGOS,c);registrarLogSistema('catalogos',`Catálogo actualizado: ${n}`,`${c[n].length} ítems`);}function renderSelectDesdeCatalogo(sel,n){const e=typeof sel==='string'?$(sel):sel;if(e)e.innerHTML=getCatalogo(n).map(v=>`<option>${esc(v)}</option>`).join('');}
 function renderAdminCatalogos(){if(!$('adminTabCatalogos'))return;const c=getCatalogosSistema(),n=Object.keys(c);$('adminTabCatalogos').innerHTML=`<div class="admin-panel"><h3>Catálogos del Sistema</h3><div class="admin-form-grid"><select id="adminCatalogoNombre">${n.map(x=>`<option>${esc(x)}</option>`).join('')}</select><input id="adminCatalogoValor" placeholder="Valor de catálogo"><button type="button" id="btnAgregarCatalogo" class="primary">Agregar</button><button type="button" id="btnEliminarCatalogo">Eliminar valor</button><input id="adminCatalogoBuscar" placeholder="Buscar catálogo"></div><div class="about-modules">${n.map(x=>`<span class="about-module-badge">${esc(x)} (${(c[x]||[]).length})</span>`).join('')}</div></div>`;}
 function ejecutarDiagnosticoSistema(){const r=typeof todasLasOC==='function'?todasLasOC():[],oc={},id={};r.forEach(x=>{const i=x.item?.idObra||x.item?.idOC||x.item?.idServicio||'';if(x.oc)oc[x.oc]=(oc[x.oc]||0)+1;if(i)id[i]=(id[i]||0)+1;});const res={total:r.length,duplicadosOC:Object.values(oc).filter(n=>n>1).length,duplicadosID:Object.values(id).filter(n=>n>1).length,sinOC:r.filter(x=>!x.oc||x.oc==='SIN OC').length,sinID:r.filter(x=>!(x.item?.idObra||x.item?.idOC||x.item?.idServicio)).length,sinEstacion:r.filter(x=>!x.estacion||x.estacion==='Sin definir').length,sinProveedor:r.filter(x=>!x.proveedor||x.proveedor==='—'||x.proveedor==='Sin definir').length,sinFechaInicio:r.filter(x=>!x.inicio).length,sinFechaFin:r.filter(x=>!x.fin).length,fechasInvalidas:r.filter(x=>(x.inicio&&!parseFecha(x.inicio))||(x.fin&&!parseFecha(x.fin))).length,estadosVacios:r.filter(x=>!x.estado||x.estado==='—').length,registrosIncompletos:r.filter(x=>String(x.item?.estadoDocumental||'').toLowerCase().includes('incompleto')).length,alertasCriticas:(typeof generarAlertasCOI==='function'?generarAlertasCOI().filter(a=>a.severidad==='ROJA').length:0)};registrarLogSistema('diagnostico','Diagnóstico ejecutado',JSON.stringify(res));return res;}
-function renderAdminDiagnostico(res=null){if(!$('adminTabDiagnostico'))return;const rows=res?Object.entries(res):[];$('adminTabDiagnostico').innerHTML=`<div class="admin-panel"><h3>Diagnóstico</h3><div class="admin-actions"><button type="button" id="btnEjecutarDiagnostico" class="primary">Ejecutar diagnóstico</button><button type="button" id="btnOptimizarBase">Optimizar base</button><button type="button" id="btnRepararMapeoServicios" class="primary">Reparar mapeo Servicios</button></div>${rows.length?`<div class="admin-status-grid">${rows.map(x=>adminCard(x[0],x[1])).join('')}</div>`:'<p class="muted">Ejecute el diagnóstico para verificar duplicados, fechas inválidas y registros incompletos. Use Reparar mapeo Servicios para corregir registros corridos desde Carga Servicio.</p>'}</div>`;}
+function renderAdminDiagnostico(res=null){if(!$('adminTabDiagnostico'))return;const rows=res?Object.entries(res):[];$('adminTabDiagnostico').innerHTML=`<div class="admin-panel"><h3>Diagnóstico</h3><div class="admin-actions"><button type="button" id="btnEjecutarDiagnostico" class="primary">Ejecutar diagnóstico</button><button type="button" id="btnOptimizarBase">Optimizar base</button></div>${rows.length?`<div class="admin-status-grid">${rows.map(x=>adminCard(x[0],x[1])).join('')}</div>`:'<p class="muted">Ejecute el diagnóstico para verificar duplicados, fechas inválidas y registros incompletos.</p>'}</div>`;}
 function optimizarBaseSistema(){if(!confirm('Antes de optimizar se creará un backup interno automático. ¿Continuar?'))return;adminCrearBackupInterno();let n=0;estaciones.forEach(est=>allItems(est).forEach(i=>{i.oc=i.oc||i.numeroOC||i.OC_NRO||'SIN OC';i.numeroOC=i.numeroOC||i.oc;i.tipo=i.tipo||'Servicio';i.estacion=i.estacion||est.nombre;i.proveedor=i.proveedor||'Sin definir';i.estado=i.estado||'Pendiente de completar';i.estadoDocumental=i.estadoDocumental||'';if(!i.vencimiento&&i.actaInicio&&i.plazoDias){const f=addDias(parseFecha(i.actaInicio),Number(i.plazoDias));if(f)i.vencimiento=f.toISOString().slice(0,10);}if(!i.proximaCertificacion&&i.actaInicio)i.proximaCertificacion=addMeses(i.actaInicio,1)?.toISOString().slice(0,10)||'';n++;}));guardarBaseLocal();registrarLogSistema('optimizacion','Optimización ejecutada',`${n} registros normalizados`);adminRefreshAll();adminSetMsg(`Base optimizada. Registros revisados: ${n}.`,'ok');}
 function renderAdminConfig(){if(!$('adminTabConfiguracion'))return;const c=adminConfig();$('adminTabConfiguracion').innerHTML=`<div class="admin-panel"><h3>Configuración y versión del sistema</h3><div class="admin-form-grid"><input id="adminCfgNombre" value="${esc(c.nombreSistema||APP_NAME)}" placeholder="Nombre"><input id="adminCfgVersion" value="${esc(c.versionVisible||APP_VERSION)}" placeholder="Versión"><input id="adminCfgBuild" value="${esc(c.build||adminNowStamp())}" placeholder="Build"><input id="adminCfgFecha" value="${esc(c.fechaVersion||APP_RELEASE_DATE)}" placeholder="Fecha"><select id="adminCfgModo"><option ${c.modoSistema==='Demo'?'selected':''}>Demo</option><option ${c.modoSistema!=='Demo'?'selected':''}>Producción</option></select><select id="adminCfgFuente"><option ${c.fuenteDatos!=='base.json futuro'?'selected':''}>LocalStorage</option><option ${c.fuenteDatos==='base.json futuro'?'selected':''}>base.json futuro</option></select><input id="adminCfgEstado" value="${esc(c.estadoVersion||APP_STATUS)}" placeholder="Estado"><input id="adminCfgObs" value="${esc(c.observacionesVersion||'')}" placeholder="Observaciones"><button type="button" id="btnGuardarAdminConfig" class="primary">Guardar configuración</button></div></div>`;}
 function renderAdminLogs(){if(!$('adminTabLogs'))return;const l=safeParseJSON(localStorage.getItem(LS_ADMIN_LOGS),[])||[];$('adminTabLogs').innerHTML=`<div class="admin-panel"><h3>Logs del sistema</h3><div class="admin-actions"><button type="button" id="btnLimpiarLogs" class="btn-danger-soft">Limpiar logs</button></div><div class="table-wrap"><table class="coi-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Mensaje</th><th>Detalle</th><th>Rol</th></tr></thead><tbody>${l.map(x=>`<tr><td>${esc(fmtFecha(x.fechaHora)||x.fechaHora)}</td><td>${esc(x.tipo)}</td><td>${esc(x.mensaje)}</td><td>${esc(x.detalle||'')}</td><td>${esc(x.rol||'')}</td></tr>`).join('')||'<tr><td colspan="5">Sin logs registrados.</td></tr>'}</tbody></table></div></div>`;}
@@ -3686,7 +3603,7 @@ function adminImportJSONFile(file){if(!file)return;const reader=new FileReader()
 function adminExportBaseCSV(){const h=['OC','Tipo','Estación','Proveedor','Especialidad','Estado','Fecha inicio','Fecha fin','Días restantes','Próxima certificación','Estado documental'],r=todasLasOC().map(x=>[x.oc,x.tipo,x.estacion,x.proveedor,x.especialidad,x.estado,fmtFecha(x.inicio),fmtFecha(x.fin),x.diasRestantes??'',fmtFecha(x.proximaCertificacion),x.estadoDocumental||x.item?.estadoDocumental||'']);const csv=[h,...r].map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n');descargarArchivo(`base_coi_roca_${adminNowStamp()}.csv`,csv,'text/csv;charset=utf-8');registrarLogSistema('exportacion_csv','Base CSV exportada','Vista operativa');adminSetMsg('Base CSV exportada correctamente.','ok');}
 function adminCrearBackupInterno(){saveJSON(LS_ADMIN_INTERNAL_BACKUP,adminBackupPayload());adminSetLastBackup('backup interno creado','localStorage');registrarLogSistema('backup_creado','Backup interno creado','localStorage');renderAdministracionSistema();adminSetMsg('Backup interno creado en localStorage.','ok');}function adminRestaurarBackupInterno(){const p=safeParseJSON(localStorage.getItem(LS_ADMIN_INTERNAL_BACKUP),null),s=adminValidateBackup(p);if(!s){adminSetMsg('No existe backup interno válido para restaurar.','warn');return;}if(!confirm('Esta acción restaurará el backup interno y reemplazará la base actual. ¿Desea continuar?'))return;adminApplyLocalStorageSnapshot(s,{tipo:'backup interno restaurado',archivo:'localStorage'});adminSetMsg('Backup interno restaurado correctamente.','ok');}
 function adminCargarDemoOperativa(){if(!confirm('La demo operativa reemplazará la base actual. ¿Desea continuar?'))return;adminCrearBackupInterno();if(typeof restoreDemo==='function')restoreDemo();const c=adminConfig();c.modoSistema='Demo';saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('demo','Demo operativa cargada','restoreDemo');adminRefreshAll();adminSetMsg('Demo operativa cargada correctamente.','ok');}function adminLimpiarBase(){if(!confirm('Primera confirmación: se vaciará la base operativa local. ¿Continuar?'))return;if(!confirm('Segunda confirmación: esta acción no puede deshacerse salvo que tenga un backup JSON. ¿Limpiar base?'))return;adminCrearBackupInterno();clearInterventions();guardarBaseLocal();[typeof V33_LS_ORDENES!=='undefined'?V33_LS_ORDENES:'coiOrdenes',typeof V33_LS_INCOMPLETOS!=='undefined'?V33_LS_INCOMPLETOS:'coiRegistrosIncompletos',typeof V33_LS_DOCS!=='undefined'?V33_LS_DOCS:'coiDocumentos',typeof V33_LS_UM!=='undefined'?V33_LS_UM:'coiUM',typeof LS_UM!=='undefined'?LS_UM:'coi_roca_unidades_mantenimiento'].forEach(k=>localStorage.removeItem(k));adminSetLastBackup('base limpiada','localStorage');registrarLogSistema('limpieza','Base local limpiada','Sistema vacío funcional');adminRefreshAll();adminSetMsg('Base local limpiada. El sistema quedó vacío y funcional.','ok');}
-function initAdministracionSistema(){const file=$('adminImportFile');if(!localStorage.getItem(LS_ADMIN_ROLE))adminSetRole(USER_ROLES.JEFE);$('btnAdministracionSistema')?.addEventListener('click',()=>{mostrarVista('vistaAdministracionSistema');renderAdministracionSistema();});$('btnAdminMode')?.addEventListener('click',()=>{if(adminIsEnabled()){adminSetRole(USER_ROLES.JEFE);registrarLogSistema('sesion','Salida de modo Administrador','Vuelve a Jefatura');adminSetMsg('Modo Jefatura activado.','warn');renderAdministracionSistema();return;}const pin=prompt('Ingrese PIN de Administrador');if(pin===adminPinActual()){adminSetRole(USER_ROLES.ADMIN);registrarLogSistema('sesion','Modo administrador activado','PIN correcto');adminSetMsg('Modo administrador activado','ok');}else if(pin!==null){adminSetMsg('PIN incorrecto','err');registrarLogSistema('error','PIN incorrecto','Intento de acceso administrador');}renderAdministracionSistema();});document.addEventListener('click',ev=>{const tab=ev.target.closest('[data-admin-tab]');if(tab){adminMostrarTab(tab.dataset.adminTab);return;}if(ev.target.closest('#btnImportBackupViewer,#btnImportBackupViewerPanel,#btnImportBaseJson'))file?.click();if(ev.target.closest('#btnExportBaseJson'))adminExportBaseJSON();if(ev.target.closest('#btnExportBaseCsv'))adminExportBaseCSV();if(ev.target.closest('#btnCrearBackupInterno'))adminCrearBackupInterno();if(ev.target.closest('#btnRestaurarBackupInterno'))adminRestaurarBackupInterno();if(ev.target.closest('#btnCargarDemoOperativa'))adminCargarDemoOperativa();if(ev.target.closest('#btnLimpiarBase'))adminLimpiarBase();if(ev.target.closest('#btnIrCargaCSV'))mostrarVista('vistaCarga');if(ev.target.closest('#btnImportExcelPreparado'))adminSetMsg('Excel directo queda preparado para futura etapa. Por ahora exportar la hoja como CSV UTF-8.','warn');if(ev.target.closest('#btnEjecutarDiagnostico')){const res=ejecutarDiagnosticoSistema();renderAdminDiagnostico(res);adminMostrarTab('diagnostico');adminSetMsg('Diagnóstico ejecutado.','ok');}if(ev.target.closest('#btnOptimizarBase'))optimizarBaseSistema();if(ev.target.closest('#btnRepararMapeoServicios'))ejecutarReparacionMapeoServicios();if(ev.target.closest('#btnCrearUsuarioLocal')){const u=usuariosSistema();u.push({idUsuario:'USR-'+Date.now(),nombre:$('adminUserNombre')?.value||'Usuario local',rol:$('adminUserRol')?.value||USER_ROLES.JEFE,estado:'Activo',observaciones:$('adminUserObs')?.value||''});guardarUsuariosSistema(u);renderAdministracionSistema();}const del=ev.target.closest('[data-del-user]');if(del){guardarUsuariosSistema(usuariosSistema().filter(u=>u.idUsuario!==del.dataset.delUser));renderAdministracionSistema();}if(ev.target.closest('#btnCambiarPinAdmin')){const pin=prompt('Nuevo PIN administrador');if(pin){const c=adminConfig();c.adminPin=pin;saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('configuracion','PIN administrador actualizado','PIN local');adminSetMsg('PIN administrador actualizado.','ok');}}if(ev.target.closest('#btnAgregarCatalogo')){const n=$('adminCatalogoNombre')?.value,v=($('adminCatalogoValor')?.value||'').trim();if(n&&v){setCatalogo(n,[...new Set([...getCatalogo(n),v])].sort());renderAdministracionSistema();}}if(ev.target.closest('#btnEliminarCatalogo')){const n=$('adminCatalogoNombre')?.value,v=($('adminCatalogoValor')?.value||'').trim();if(n&&v){setCatalogo(n,getCatalogo(n).filter(x=>x!==v));renderAdministracionSistema();}}if(ev.target.closest('#btnGuardarAdminConfig')){const c=adminConfig();c.nombreSistema=$('adminCfgNombre')?.value||APP_NAME;c.versionVisible=$('adminCfgVersion')?.value||APP_VERSION;c.build=$('adminCfgBuild')?.value||adminNowStamp();c.fechaVersion=$('adminCfgFecha')?.value||APP_RELEASE_DATE;c.modoSistema=$('adminCfgModo')?.value||'Producción';c.fuenteDatos=$('adminCfgFuente')?.value||'LocalStorage';c.estadoVersion=$('adminCfgEstado')?.value||APP_STATUS;c.observacionesVersion=$('adminCfgObs')?.value||'';saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('configuracion','Configuración del sistema actualizada',c.versionVisible);renderAdministracionSistema();adminSetMsg('Configuración guardada.','ok');}if(ev.target.closest('#btnLimpiarLogs')){if(confirm('¿Limpiar logs del sistema?')){saveJSON(LS_ADMIN_LOGS,[]);renderAdminLogs();adminSetMsg('Logs limpiados.','ok');}}});file?.addEventListener('change',()=>{adminImportJSONFile(file.files?.[0]);file.value='';});renderAdministracionSistema();}/* ===============================
+function initAdministracionSistema(){const file=$('adminImportFile');if(!localStorage.getItem(LS_ADMIN_ROLE))adminSetRole(USER_ROLES.JEFE);$('btnAdministracionSistema')?.addEventListener('click',()=>{mostrarVista('vistaAdministracionSistema');renderAdministracionSistema();});$('btnAdminMode')?.addEventListener('click',()=>{if(adminIsEnabled()){adminSetRole(USER_ROLES.JEFE);registrarLogSistema('sesion','Salida de modo Administrador','Vuelve a Jefatura');adminSetMsg('Modo Jefatura activado.','warn');renderAdministracionSistema();return;}const pin=prompt('Ingrese PIN de Administrador');if(pin===adminPinActual()){adminSetRole(USER_ROLES.ADMIN);registrarLogSistema('sesion','Modo administrador activado','PIN correcto');adminSetMsg('Modo administrador activado','ok');}else if(pin!==null){adminSetMsg('PIN incorrecto','err');registrarLogSistema('error','PIN incorrecto','Intento de acceso administrador');}renderAdministracionSistema();});document.addEventListener('click',ev=>{const tab=ev.target.closest('[data-admin-tab]');if(tab){adminMostrarTab(tab.dataset.adminTab);return;}if(ev.target.closest('#btnImportBackupViewer,#btnImportBackupViewerPanel,#btnImportBaseJson'))file?.click();if(ev.target.closest('#btnExportBaseJson'))adminExportBaseJSON();if(ev.target.closest('#btnExportBaseCsv'))adminExportBaseCSV();if(ev.target.closest('#btnCrearBackupInterno'))adminCrearBackupInterno();if(ev.target.closest('#btnRestaurarBackupInterno'))adminRestaurarBackupInterno();if(ev.target.closest('#btnCargarDemoOperativa'))adminCargarDemoOperativa();if(ev.target.closest('#btnLimpiarBase'))adminLimpiarBase();if(ev.target.closest('#btnIrCargaCSV'))mostrarVista('vistaCarga');if(ev.target.closest('#btnImportExcelPreparado'))adminSetMsg('Excel directo queda preparado para futura etapa. Por ahora exportar la hoja como CSV UTF-8.','warn');if(ev.target.closest('#btnEjecutarDiagnostico')){const res=ejecutarDiagnosticoSistema();renderAdminDiagnostico(res);adminMostrarTab('diagnostico');adminSetMsg('Diagnóstico ejecutado.','ok');}if(ev.target.closest('#btnOptimizarBase'))optimizarBaseSistema();if(ev.target.closest('#btnCrearUsuarioLocal')){const u=usuariosSistema();u.push({idUsuario:'USR-'+Date.now(),nombre:$('adminUserNombre')?.value||'Usuario local',rol:$('adminUserRol')?.value||USER_ROLES.JEFE,estado:'Activo',observaciones:$('adminUserObs')?.value||''});guardarUsuariosSistema(u);renderAdministracionSistema();}const del=ev.target.closest('[data-del-user]');if(del){guardarUsuariosSistema(usuariosSistema().filter(u=>u.idUsuario!==del.dataset.delUser));renderAdministracionSistema();}if(ev.target.closest('#btnCambiarPinAdmin')){const pin=prompt('Nuevo PIN administrador');if(pin){const c=adminConfig();c.adminPin=pin;saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('configuracion','PIN administrador actualizado','PIN local');adminSetMsg('PIN administrador actualizado.','ok');}}if(ev.target.closest('#btnAgregarCatalogo')){const n=$('adminCatalogoNombre')?.value,v=($('adminCatalogoValor')?.value||'').trim();if(n&&v){setCatalogo(n,[...new Set([...getCatalogo(n),v])].sort());renderAdministracionSistema();}}if(ev.target.closest('#btnEliminarCatalogo')){const n=$('adminCatalogoNombre')?.value,v=($('adminCatalogoValor')?.value||'').trim();if(n&&v){setCatalogo(n,getCatalogo(n).filter(x=>x!==v));renderAdministracionSistema();}}if(ev.target.closest('#btnGuardarAdminConfig')){const c=adminConfig();c.nombreSistema=$('adminCfgNombre')?.value||APP_NAME;c.versionVisible=$('adminCfgVersion')?.value||APP_VERSION;c.build=$('adminCfgBuild')?.value||adminNowStamp();c.fechaVersion=$('adminCfgFecha')?.value||APP_RELEASE_DATE;c.modoSistema=$('adminCfgModo')?.value||'Producción';c.fuenteDatos=$('adminCfgFuente')?.value||'LocalStorage';c.estadoVersion=$('adminCfgEstado')?.value||APP_STATUS;c.observacionesVersion=$('adminCfgObs')?.value||'';saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('configuracion','Configuración del sistema actualizada',c.versionVisible);renderAdministracionSistema();adminSetMsg('Configuración guardada.','ok');}if(ev.target.closest('#btnLimpiarLogs')){if(confirm('¿Limpiar logs del sistema?')){saveJSON(LS_ADMIN_LOGS,[]);renderAdminLogs();adminSetMsg('Logs limpiados.','ok');}}});file?.addEventListener('change',()=>{adminImportJSONFile(file.files?.[0]);file.value='';});renderAdministracionSistema();}/* ===============================
    V30 - Órdenes centro operativo + Expediente Digital OC
    =============================== */
 function valorMesOrdenes(d){ return mesKey(d); }
@@ -3694,7 +3611,7 @@ function filasOrdenesBase(){
   if(typeof migrarArquitecturaIdObra==='function') migrarArquitecturaIdObra();
   return todasLasOC().map(r=>{
     const c=calcularFichaOC(r.item);
-    const esServicio=(r.item.tipo||r.tipo)==='Servicio';const idPrincipal=esServicio?(r.item.idServicio||r.item.ID_SERVICIO||r.item.idOC):(r.item.idObra||r.item.ID_OBRA||r.item.idOC);return {...r, calc:c, idObra:idPrincipal, idPrincipal, numeroOC:r.item.ocNro||r.item.OC_NRO||r.item.numeroOC||r.item.oc||r.oc, proveedor:r.item.proveedor||r.proveedor||'Sin definir', estacion:r.item.estacion||r.estacion||'Sin definir', tipoTrabajo:r.item.descripcion||r.item.tipoTrabajo||r.especialidad||'', estadoDocumental:r.item.estadoDocumental||'Pendiente', sector:r.item.sector||r.item.ubicacion||'', umVinculada:r.item.umVinculada||r.item.unidadMantenimiento||r.item.tipoUM||r.item.tipoUm||r.item.umClave||r.item.especialidad||''};
+    return {...r, calc:c, idObra:r.item.idObra||r.item.idOC, numeroOC:r.item.numeroOC||r.item.oc||r.oc, tipoTrabajo:r.item.tipoTrabajo||r.item.descripcion||r.especialidad||'', estadoDocumental:r.item.estadoDocumental||'Pendiente', sector:r.item.sector||r.item.ubicacion||'', umVinculada:r.item.umVinculada||r.item.unidadMantenimiento||r.item.umClave||r.item.especialidad||''};
   });
 }
 function cargarFiltrosOrdenes(){
@@ -4252,8 +4169,8 @@ function generarAlertasCOI(){
   return alertas.map(a=>({...a,revisada:!!revisadas[a.id]})).sort((a,b)=>(orden[a.severidad]-orden[b.severidad])||String(a.oc).localeCompare(String(b.oc)));
 }
 function getAlertasRevisadas(){return safeParseJSON(localStorage.getItem(LS_ALERTAS_REVISADAS),{})||{};}
-function setAlertaRevisada(id){const data=getAlertasRevisadas();data[id]={fecha:new Date().toISOString(),usuario:typeof APP_AUTHOR!=='undefined'?APP_AUTHOR:''};saveJSON(LS_ALERTAS_REVISADAS,data);}
-function filtrarAlertasCOI(alertas=generarAlertasCOI()){const filtros={sev:$('alertFiltroSeveridad')?.value||'',tipo:$('alertFiltroTipo')?.value||'',est:$('alertFiltroEstacion')?.value||'',prov:$('alertFiltroProveedor')?.value||'',cat:$('alertFiltroCategoria')?.value||'',q:($('alertFiltroTexto')?.value||'').toLowerCase().trim()};saveJSON(LS_ALERTAS_FILTROS,filtros);return alertas.filter(a=>(!filtros.sev||a.severidad===filtros.sev)&&(!filtros.tipo||a.tipoRegistro===filtros.tipo)&&(!filtros.est||a.estacion===filtros.est)&&(!filtros.prov||a.proveedor===filtros.prov)&&(!filtros.cat||a.categoria===filtros.cat)&&(!filtros.q||[a.tipoAlerta,a.oc,a.idRegistro,a.tipoRegistro,a.estacion,a.proveedor,a.descripcion,a.mensaje,a.accionSugerida].join(' ').toLowerCase().includes(filtros.q)));}
+function setAlertaRevisada(id){const data=getAlertasRevisadas();data[id]={fecha:new Date().toISOString(),usuario:typeof APP_AUTHOR!=='undefined'?APP_AUTHOR:''};localStorage.setItem(LS_ALERTAS_REVISADAS,JSON.stringify(data));}
+function filtrarAlertasCOI(alertas=generarAlertasCOI()){const filtros={sev:$('alertFiltroSeveridad')?.value||'',tipo:$('alertFiltroTipo')?.value||'',est:$('alertFiltroEstacion')?.value||'',prov:$('alertFiltroProveedor')?.value||'',cat:$('alertFiltroCategoria')?.value||'',q:($('alertFiltroTexto')?.value||'').toLowerCase().trim()};localStorage.setItem(LS_ALERTAS_FILTROS,JSON.stringify(filtros));return alertas.filter(a=>(!filtros.sev||a.severidad===filtros.sev)&&(!filtros.tipo||a.tipoRegistro===filtros.tipo)&&(!filtros.est||a.estacion===filtros.est)&&(!filtros.prov||a.proveedor===filtros.prov)&&(!filtros.cat||a.categoria===filtros.cat)&&(!filtros.q||[a.tipoAlerta,a.oc,a.idRegistro,a.tipoRegistro,a.estacion,a.proveedor,a.descripcion,a.mensaje,a.accionSugerida].join(' ').toLowerCase().includes(filtros.q)));}
 function resumenAlertasCOI(alertas=generarAlertasCOI()){return {total:alertas.length,criticas:alertas.filter(a=>a.categoria==='Crítica').length,proximas:alertas.filter(a=>a.categoria==='Próxima').length,documentales:alertas.filter(a=>a.categoria==='Documental').length,vencidas:alertas.filter(a=>a.tipoAlerta==='OC vencida').length,certProx:alertas.filter(a=>a.tipoAlerta==='Certificación próxima').length,incompletos:alertas.filter(a=>a.tipoAlerta==='Datos incompletos').length,sinEstProv:alertas.filter(a=>a.tipoAlerta==='OC sin estación'||a.tipoAlerta==='OC sin proveedor').length};}
 function cargarFiltrosCentroAlertas(alertas){const set=(id,vals,label)=>{const el=$(id);if(!el)return;const cur=el.value;el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort().map(v=>`<option>${esc(v)}</option>`).join('');if([...el.options].some(o=>o.value===cur))el.value=cur;};set('alertFiltroEstacion',alertas.map(a=>a.estacion),'Estación');set('alertFiltroProveedor',alertas.map(a=>a.proveedor),'Proveedor');}
 function renderCentroAlertas(){const alertas=generarAlertasCOI();cargarFiltrosCentroAlertas(alertas);const filtradas=filtrarAlertasCOI(alertas),r=resumenAlertasCOI(alertas);if($('alertasKpis'))$('alertasKpis').innerHTML=[['Total alertas',r.total],['Críticas',r.criticas],['Próximas',r.proximas],['Documentales',r.documentales],['OCs vencidas',r.vencidas],['Certificaciones próximas',r.certProx],['Datos incompletos',r.incompletos],['Sin estación / proveedor',r.sinEstProv]].map(x=>`<div class="alert-kpi"><b>${x[1]}</b><span>${esc(x[0])}</span></div>`).join('');if($('alertasTbody'))$('alertasTbody').innerHTML=filtradas.map(a=>`<tr class="${a.revisada?'alert-row-reviewed':''}"><td><span class="alert-badge ${a.severidad}">${a.severidad}</span>${a.revisada?'<span class="alert-reviewed-pill">revisada</span>':''}</td><td>${esc(a.tipoAlerta)}<br><span class="muted">${esc(a.categoria)}</span></td><td>${esc(a.oc)}</td><td>${esc(a.idRegistro)}</td><td>${esc(a.tipoRegistro)}</td><td>${esc(a.estacion)}</td><td>${esc(a.proveedor)}</td><td>${esc(a.descripcion)}</td><td>${fmtFecha(a.fechaRelacionada)}</td><td>${esc(a.dias)}</td><td>${esc(a.mensaje)}</td><td>${esc(a.accionSugerida)}</td><td><div class="alert-actions"><button type="button" class="primary" data-open-oc="${esc(a.ocId)}">Ver ficha OC</button><button type="button" data-alert-station="${esc(a.estacion)}">Ir a estación</button><button type="button" data-alert-reviewed="${esc(a.id)}">Marcar revisada</button></div></td></tr>`).join('')||'<tr><td colspan="13">Sin alertas para los filtros seleccionados.</td></tr>';}
@@ -4299,16 +4216,18 @@ function initUnidadesMantenimiento(){cargarUM();cargarFiltrosUM();$('btnUnidades
    V45 CONSOLIDADA - Carga Servicio/Obra + selección/borrado Órdenes
    =============================== */
 const V45_SERVICIO_COLUMNS = ["ID_SERVICIO","OC_NRO","MONTO_OC","PLAZO_DIAS","EXPEDIENTE","ULTIMA_ACTA","PERIODO_MES","PERIODO_INICIO","PERIODO_FIN","DESCRIPCION","ESTACION","PROVEEDOR","FECHA_INICIO","FECHA_FIN","TIPO_UM","DIAS_RESTANTES","INDICADOR","ESTADO","PROX_CERTIFICACION","OBSERVACIONES"];
-const V45_OBRA_COLUMNS = ["ID_OBRA","OC_NRO","MONTO_OC","MONEDA_OC","PLAZO_DIAS","EXPEDIENTE","ULTIMA_ACTA","DESCRIPCION","ESTACION","SECTOR","PROVEEDOR","FECHA_INICIO","FECHA_FIN","DIAS_RESTANTES","INDICADOR","ESTADO","AVANCE_PORC","PROX_CERTIFICACION","OBSERVACIONES"];
+const V45_OBRA_HEADERS = ["ID OBRA","% AVANCE","OC","TIPO UM","SALDO $ OC TOTAL","SALDO EJECUTADO $","ESTATUS","PLAZO OC (DIAS)","EXPTE.","Descripción del Servicio","ESTACION","PROVEED.","FECHA INICIO","FECHA FIN","CANT. DIAS SERVICIO RESTANTE","INDICADOR","FECHA ULT ACTA MED N°","PROX CERT. FECHA","PROX ACTA MED N°","OBSERVACIONES"];
+const V45_OBRA_COLUMNS = ["ID_OBRA","AVANCE_PORC","OC_NRO","TIPO_UM","MONTO_OC","SALDO_EJECUTADO","ESTADO","PLAZO_DIAS","EXPEDIENTE","DESCRIPCION","ESTACION","PROVEEDOR","FECHA_INICIO","FECHA_FIN","DIAS_RESTANTES","INDICADOR","FECHA_ULT_ACTA_MED","PROX_CERTIFICACION","PROX_ACTA_MED","OBSERVACIONES"];
 let v45TipoCarga = "Servicio";
 let v45SeleccionOrdenes = new Set();
 const V45_SERVICIO_FECHA_TEXTO = ["PERIODO_INICIO","PERIODO_FIN","FECHA_INICIO","FECHA_FIN","PROX_CERTIFICACION"];
+const V45_OBRA_FECHA_TEXTO = ["FECHA_INICIO","FECHA_FIN","FECHA_ULT_ACTA_MED","PROX_CERTIFICACION"];
 function v45FechaISO(d){return d && !isNaN(d) ? d.toISOString().slice(0,10) : "";}
 function parseFechaFlexible(valor){if(!valor)return null;if(valor instanceof Date)return isNaN(valor)?null:valor;const s=String(valor).trim();if(!s)return null;const mk=(y,m,d)=>{const out=new Date(Number(y),Number(m)-1,Number(d));return out.getFullYear()===Number(y)&&out.getMonth()===Number(m)-1&&out.getDate()===Number(d)?out:null;};let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);if(m)return mk(m[1],m[2],m[3]);m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);if(m)return mk(m[3],m[2],m[1]);const d=parseFecha(s);return d&&!isNaN(d)?d:null;}
 function v45ParseFecha(v){return parseFechaFlexible(v);}
 function v45FechaISOFlexible(v){return v45FechaISO(parseFechaFlexible(v));}
 function v45FechaDisplay(v){const d=parseFechaFlexible(v);return d?`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`:"";}
-function v45EsFechaTextoServicio(c,tipo){return tipo==="Servicio"&&V45_SERVICIO_FECHA_TEXTO.includes(c);}
+function v45EsFechaTextoServicio(c,tipo){return (tipo==="Servicio"&&V45_SERVICIO_FECHA_TEXTO.includes(c))||(tipo==="Obra"&&V45_OBRA_FECHA_TEXTO.includes(c));}
 function v45AddMes(fecha){const d=v45ParseFecha(fecha);return d?v45FechaISO(addMeses(d,1)):"";}
 function v45AddDia(fecha){const d=v45ParseFecha(fecha);return d?v45FechaISO(addDias(d,1)):"";}
 function v45NormalizarOC(v){return String(v||"").trim().replace(/^OC[-\s]*/i,"");}
@@ -4319,8 +4238,10 @@ function v45IndicadorHTML(valor){const ind=String(valor||"SIN_DATOS").toUpperCas
 function v45SetIndicador(tr,ind){const val=String(ind||"SIN_DATOS").toUpperCase();const dot=tr.querySelector('.indicador-dot');const hidden=tr.querySelector('[data-campo="INDICADOR"]');const cell=tr.querySelector('.indicador-cell');if(dot){dot.className='indicador-dot '+val;dot.setAttribute('aria-label',val);}if(hidden)hidden.value=val;if(cell)cell.title=v45IndicadorTitulo(val);}
 function v45DetectarMoneda(texto){const s=String(texto||"").toUpperCase();return (s.includes("USD")||s.includes("US$")||s.includes("U$S")||s.includes("DOLAR"))?"USD":"ARS";}
 function v45LimpiarMonto(valor){if(valor===null||valor===undefined)return "";let s=String(valor).toUpperCase().replace(/ARS/g,"").replace(/USD/g,"").replace(/U\$S/g,"").replace(/\$/g,"").replace(/[^\d,.\-]/g,"").trim();if(!s)return "";const c=s.lastIndexOf(','),p=s.lastIndexOf('.');if(c>-1&&p>-1){s=c>p?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');}else if(c>-1){s=s.replace(/\./g,'').replace(',','.');}else if((s.match(/\./g)||[]).length>1){s=s.replace(/\./g,'');}const n=Number(s);return Number.isFinite(n)?String(n):"";}
+function v45NormalizarAvance(valor){let s=String(valor??'').trim().replace('%','').replace(',','.');if(!s)return '';const n=Number(s);if(!Number.isFinite(n))return '';return n>0&&n<=1?String(Math.round(n*10000)/100):String(n);}
+function v45GenerarIdObra(){const nums=todasLasOC().map(r=>String(r.item?.idObra||r.item?.idOC||'')).map(x=>{const m=x.match(/^ROCA-OBR-(\d+)$/i);return m?Number(m[1]):0;});const n=(Math.max(0,...nums)+1);return `ROCA-OBR-${String(n).padStart(3,'0')}`;}
 function v45FormatoMonto(valor,moneda="ARS"){const n=Number(v45LimpiarMonto(valor));if(!Number.isFinite(n))return "";const fmt=n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});return moneda==="USD"?`USD ${fmt}`:`$ ${fmt}`;}
-function v45ControlMonto(valor="",moneda="ARS"){const clean=v45LimpiarMonto(valor);const mon=moneda||v45DetectarMoneda(valor)||"ARS";const visual=clean?v45FormatoMonto(clean,mon):"";return `<input type="text" data-campo="MONTO_OC" value="${esc(visual)}" data-monto-raw="${esc(clean)}" data-moneda="${esc(mon)}" placeholder="$ 0,00">`;}
+function v45ControlMonto(valor="",moneda="ARS",campo="MONTO_OC"){const clean=v45LimpiarMonto(valor);const visual=clean?v45FormatoMonto(clean,moneda):"";return `<input type="text" data-campo="${esc(campo)}" value="${esc(visual)}" data-monto-raw="${esc(clean)}" placeholder="$ 0,00">`;}
 function v45NormalizarMontoInput(input){if(!input)return;const parsed={monto:v45LimpiarMonto(input.value),moneda:v45DetectarMoneda(input.value)};const upper=String(input.value||"").toUpperCase();const moneda=(upper.includes("USD")||upper.includes("US$")||upper.includes("U$S"))?"USD":(input.dataset.moneda||parsed.moneda||"ARS");input.dataset.montoRaw=parsed.monto;input.dataset.moneda=moneda;input.value=parsed.monto?v45FormatoMonto(parsed.monto,moneda):"";}
 function v45MontoFila(tr){return v45LimpiarMonto(tr.querySelector('[data-campo="MONTO_OC"]')?.dataset.montoRaw||tr.querySelector('[data-campo="MONTO_OC"]')?.value||"");}
 function v45MonedaFila(tr){const inp=tr.querySelector('[data-campo="MONTO_OC"]');return tr.querySelector('[data-campo="MONEDA_OC"]')?.value||inp?.dataset.moneda||v45DetectarMoneda(inp?.value||'')||"ARS";}
@@ -4330,78 +4251,50 @@ function v45DiasRestantes(row,fin,forzar=false){if(forzar&&fin)return diffDias(f
 function v45CamposActivos(){return v45TipoCarga==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;}
 function v45BodyActivo(){return v45TipoCarga==="Obra"?$('cargaRapidaObraBody'):$('cargaRapidaServicioBody');}
 function v45OpcionesEstado(){return [...document.querySelectorAll('#estado option')].map(o=>o.value||o.textContent).filter(Boolean);}
-function v45Control(c,v="",tipo=v45TipoCarga){if(c==="MONTO_OC")return v45ControlMonto(v,"ARS");if(c==="MONEDA_OC")return `<select data-campo="${c}"><option value="ARS">ARS</option><option value="USD">USD</option></select>`;if(c==="INDICADOR")return v45IndicadorHTML(v||"SIN_DATOS");if(c==="ESTADO")return `<select data-campo="${c}"><option value="">Seleccionar</option>${v45OpcionesEstado().map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;if(["FECHA_INICIO","FECHA_FIN","PERIODO_INICIO","PERIODO_FIN","PROX_CERTIFICACION"].includes(c)){const auto=c==='PROX_CERTIFICACION'?'prox-cert-auto auto-field':'';if(v45EsFechaTextoServicio(c,tipo))return `<input type="text" data-campo="${c}" class="${auto}" value="${esc(v45FechaDisplay(v)||v)}" placeholder="DD/MM/AAAA" ${c==='PROX_CERTIFICACION'?'readonly tabindex="-1"':''}>`;return `<input type="date" data-campo="${c}" class="${auto}" value="${esc(v)}" ${c==='PROX_CERTIFICACION'?'readonly tabindex="-1"':''}>`;}if(["PLAZO_DIAS","DIAS_RESTANTES","AVANCE_PORC"].includes(c))return `<input type="number" step="1" data-campo="${c}" class="${c==='DIAS_RESTANTES'?'auto-field':''}" value="${esc(v)}" ${c==='DIAS_RESTANTES'?'readonly tabindex="-1"':''}>`;if(c==="DESCRIPCION"||c==="OBSERVACIONES")return `<textarea data-campo="${c}" class="${c==='DESCRIPCION'?'w-desc':'w-obs'}">${esc(v)}</textarea>`;return `<input type="text" data-campo="${c}" class="${c==='ID_SERVICIO'||c==='ID_OBRA'?'w-id':''}" value="${esc(v)}">`;}
+function v45Control(c,v="",tipo=v45TipoCarga){
+  if(c==="MONTO_OC"||c==="SALDO_EJECUTADO")return v45ControlMonto(v,"ARS",c);
+  if(c==="MONEDA_OC")return `<select data-campo="${c}"><option value="ARS">ARS</option><option value="USD">USD</option></select>`;
+  if(c==="INDICADOR"&&tipo!=="Obra")return v45IndicadorHTML(v||"SIN_DATOS");
+  if(c==="ESTADO")return `<input type="text" data-campo="${c}" value="${esc(v)}" placeholder="Pendiente de completar">`;
+  if(["FECHA_INICIO","FECHA_FIN","PERIODO_INICIO","PERIODO_FIN","PROX_CERTIFICACION","FECHA_ULT_ACTA_MED"].includes(c)){
+    const auto=c==='PROX_CERTIFICACION'&&tipo!=="Obra"?'prox-cert-auto auto-field':'';
+    if(v45EsFechaTextoServicio(c,tipo))return `<input type="text" data-campo="${c}" class="${auto}" value="${esc(v45FechaDisplay(v)||v)}" placeholder="DD/MM/AAAA" ${c==='PROX_CERTIFICACION'&&tipo!=="Obra"?'readonly tabindex="-1"':''}>`;
+    return `<input type="date" data-campo="${c}" class="${auto}" value="${esc(v)}" ${c==='PROX_CERTIFICACION'?'readonly tabindex="-1"':''}>`;
+  }
+  if(["PLAZO_DIAS","DIAS_RESTANTES","AVANCE_PORC","PROX_ACTA_MED"].includes(c))return `<input type="text" data-campo="${c}" class="${c==='DIAS_RESTANTES'?'auto-field':''}" value="${esc(v)}" ${c==='DIAS_RESTANTES'?'readonly tabindex="-1"':''}>`;
+  if(c==="DESCRIPCION"||c==="OBSERVACIONES")return `<textarea data-campo="${c}" class="${c==='DESCRIPCION'?'w-desc':'w-obs'}">${esc(v)}</textarea>`;
+  return `<input type="text" data-campo="${c}" class="${c==='ID_SERVICIO'||c==='ID_OBRA'?'w-id':''}" value="${esc(v)}">`;
+}
 function v45AgregarFilas(tipo=v45TipoCarga,cantidad=5){const body=tipo==="Obra"?$('cargaRapidaObraBody'):$('cargaRapidaServicioBody');const campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;if(!body)return;const start=body.querySelectorAll('tr').length+1;let html='';for(let i=0;i<cantidad;i++){html+=`<tr data-tipo-carga="${tipo}"><td class="quick-load-row-num">${start+i}</td>${campos.map(c=>`<td>${v45Control(c,"",tipo)}</td>`).join('')}</tr>`;}body.insertAdjacentHTML('beforeend',html);}
-function v45RenderTabla(tipo){const head=tipo==="Obra"?$('cargaRapidaObraHead'):$('cargaRapidaServicioHead');const body=tipo==="Obra"?$('cargaRapidaObraBody'):$('cargaRapidaServicioBody');const campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;if(!head||!body)return;head.innerHTML=`<tr><th>#</th>${campos.map(c=>`<th class="${tipo==='Servicio'?'excel-service-head':''}">${esc(c)}</th>`).join('')}</tr>`;body.innerHTML='';v45AgregarFilas(tipo,5);}
+function v45RenderTabla(tipo){const head=tipo==="Obra"?$('cargaRapidaObraHead'):$('cargaRapidaServicioHead');const body=tipo==="Obra"?$('cargaRapidaObraBody'):$('cargaRapidaServicioBody');const campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;const headers=tipo==="Obra"?V45_OBRA_HEADERS:campos;if(!head||!body)return;head.innerHTML=`<tr><th>#</th>${headers.map(c=>`<th class="${tipo==='Servicio'?'excel-service-head':''}">${esc(c)}</th>`).join('')}</tr>`;body.innerHTML='';v45AgregarFilas(tipo,5);}
 function v45SetTipoCarga(tipo){v45TipoCarga=tipo;document.querySelectorAll('.quick-type-card').forEach(c=>c.classList.toggle('active',c.dataset.cargaTipo===tipo));$('panelCargaServicio')?.classList.toggle('active',tipo==='Servicio');$('panelCargaObra')?.classList.toggle('active',tipo==='Obra');if($('cargaRapidaTipoActivo'))$('cargaRapidaTipoActivo').textContent='Carga activa: '+tipo;if($('cargaRapidaMsg'))$('cargaRapidaMsg').textContent='Carga activa: '+tipo+'. Complete filas o pegue desde Excel.';}
-function v45LeerFila(tr){const tipo=tr.dataset.tipoCarga||v45TipoCarga;const campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;const row={};campos.forEach(c=>{if(c==="MONTO_OC")row[c]=v45MontoFila(tr);else if(c==="MONEDA_OC")row[c]=v45MonedaFila(tr);else{const raw=(tr.querySelector(`[data-campo="${c}"]`)?.value||"").trim();row[c]=v45EsFechaTextoServicio(c,tipo)?(v45FechaISOFlexible(raw)||raw):raw;}});if(!row.MONEDA_OC)row.MONEDA_OC=v45MonedaFila(tr);return row;}
+function v45LeerFila(tr){const tipo=tr.dataset.tipoCarga||v45TipoCarga;const campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;const row={};campos.forEach(c=>{if(c==="MONTO_OC"||c==="SALDO_EJECUTADO"){const el=tr.querySelector(`[data-campo="${c}"]`);row[c]=v45LimpiarMonto(el?.dataset.montoRaw||el?.value||"");}else if(c==="AVANCE_PORC")row[c]=v45NormalizarAvance(tr.querySelector(`[data-campo="${c}"]`)?.value||"");else if(c==="MONEDA_OC")row[c]=v45MonedaFila(tr);else{const raw=(tr.querySelector(`[data-campo="${c}"]`)?.value||"").trim();row[c]=v45EsFechaTextoServicio(c,tipo)?(v45FechaISOFlexible(raw)||raw):raw;}});if(!row.MONEDA_OC)row.MONEDA_OC=v45MonedaFila(tr);return row;}
 function v45FilaVacia(row,tipo){const campos=(tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS).filter(c=>!["MONEDA_OC","FECHA_FIN","DIAS_RESTANTES","INDICADOR","PROX_CERTIFICACION"].includes(c));return campos.every(c=>!String(row[c]||"").trim());}
-function v45ActualizarFila(tr){const tipo=tr.dataset.tipoCarga||v45TipoCarga;const row=v45LeerFila(tr);const fin=v45FechaFin(row);const dias=v45DiasRestantes(row,fin,tipo==="Servicio");const indicador=v45IndicadorLogico(dias,row.ESTADO);const set=(c,v)=>{const el=tr.querySelector(`[data-campo="${c}"]`);if(el)el.value=v45EsFechaTextoServicio(c,tipo)?v45FechaDisplay(v):v;};if(tipo==="Servicio"){["PERIODO_INICIO","PERIODO_FIN","FECHA_INICIO"].forEach(c=>{const el=tr.querySelector(`[data-campo="${c}"]`),iso=v45FechaISOFlexible(el?.value||"");if(el&&iso)el.value=v45FechaDisplay(iso);});}set('FECHA_FIN',fin);set('DIAS_RESTANTES',dias);set('PROX_CERTIFICACION',v45ProximaCert({...row,FECHA_FIN:fin,DIAS_RESTANTES:dias}));v45SetIndicador(tr,indicador);}
-function v45PegarExcel(ev){const target=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!target)return;const text=(ev.clipboardData||window.clipboardData)?.getData('text');if(!text||(!text.includes('\t')&&!text.includes('\n')))return;ev.preventDefault();const tr=target.closest('tr'),body=tr.parentElement,tipo=tr.dataset.tipoCarga||v45TipoCarga,campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS,startRow=[...body.children].indexOf(tr),startCol=campos.indexOf(target.dataset.campo);const rows=text.replace(/\r/g,'').split('\n').filter(r=>r.length).map(r=>r.split('\t'));while(body.children.length<startRow+rows.length)v45AgregarFilas(tipo,5);rows.forEach((cols,rIdx)=>cols.forEach((val,cIdx)=>{const campo=campos[startCol+cIdx];if(!campo||campo==='PROX_CERTIFICACION'||campo==='INDICADOR')return;const rowEl=body.children[startRow+rIdx];if(campo==='MONTO_OC'){const inp=rowEl?.querySelector('[data-campo="MONTO_OC"]');const sel=rowEl?.querySelector('[data-campo="MONEDA_OC"]');const monto=v45LimpiarMonto(val);const mon=v45DetectarMoneda(val);if(inp){inp.dataset.montoRaw=monto;inp.dataset.moneda=mon;inp.value=monto?v45FormatoMonto(monto,mon):'';}if(sel)sel.value=mon;return;}const el=rowEl?.querySelector(`[data-campo="${campo}"]`);if(el)el.value=val.trim();}));[...body.children].forEach(v45ActualizarFila);}
+function v45ActualizarFila(tr){
+  const tipo=tr.dataset.tipoCarga||v45TipoCarga,row=v45LeerFila(tr),fin=v45FechaFin(row),dias=v45DiasRestantes(row,fin,tipo==="Servicio"),calculado=v45IndicadorLogico(dias,row.ESTADO);
+  const set=(c,v,force=true)=>{const el=tr.querySelector(`[data-campo="${c}"]`);if(el&&(force||!String(el.value||'').trim()))el.value=v45EsFechaTextoServicio(c,tipo)?(v45FechaDisplay(v)||v):v;};
+  if(tipo==="Servicio"){
+    ["PERIODO_INICIO","PERIODO_FIN","FECHA_INICIO"].forEach(c=>{const el=tr.querySelector(`[data-campo="${c}"]`),iso=v45FechaISOFlexible(el?.value||"");if(el&&iso)el.value=v45FechaDisplay(iso);});
+    set('FECHA_FIN',fin);set('DIAS_RESTANTES',dias);set('PROX_CERTIFICACION',v45ProximaCert({...row,FECHA_FIN:fin,DIAS_RESTANTES:dias}));v45SetIndicador(tr,calculado);return;
+  }
+  ["FECHA_INICIO","FECHA_FIN","FECHA_ULT_ACTA_MED","PROX_CERTIFICACION"].forEach(c=>{const el=tr.querySelector(`[data-campo="${c}"]`),iso=v45FechaISOFlexible(el?.value||"");if(el&&iso)el.value=v45FechaDisplay(iso);});
+  set('FECHA_FIN',fin,false);set('DIAS_RESTANTES',dias,true);set('PROX_CERTIFICACION',row.PROX_CERTIFICACION||v45ProximaCert({...row,FECHA_FIN:fin,DIAS_RESTANTES:dias}),false);set('INDICADOR',row.INDICADOR||calculado,false);
+}
+function v45PegarExcel(ev){const target=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!target)return;const text=(ev.clipboardData||window.clipboardData)?.getData('text');if(!text||(!text.includes('\t')&&!text.includes('\n')))return;ev.preventDefault();const tr=target.closest('tr'),body=tr.parentElement,tipo=tr.dataset.tipoCarga||v45TipoCarga,campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS,startRow=[...body.children].indexOf(tr),startCol=campos.indexOf(target.dataset.campo);const rows=text.replace(/\r/g,'').split('\n').filter(r=>r.length).map(r=>r.split('\t'));while(body.children.length<startRow+rows.length)v45AgregarFilas(tipo,5);rows.forEach((cols,rIdx)=>cols.forEach((val,cIdx)=>{const campo=campos[startCol+cIdx];if(!campo||(tipo==='Servicio'&&(campo==='PROX_CERTIFICACION'||campo==='INDICADOR')))return;const rowEl=body.children[startRow+rIdx];if(campo==='MONTO_OC'||campo==='SALDO_EJECUTADO'){const inp=rowEl?.querySelector(`[data-campo="${campo}"]`);const sel=rowEl?.querySelector('[data-campo="MONEDA_OC"]');const monto=v45LimpiarMonto(val);const mon=v45DetectarMoneda(val);if(inp){inp.dataset.montoRaw=monto;inp.dataset.moneda=mon;inp.value=monto?v45FormatoMonto(monto,mon):'';}if(sel)sel.value=mon;return;}const el=rowEl?.querySelector(`[data-campo="${campo}"]`);if(el)el.value=val.trim();}));[...body.children].forEach(v45ActualizarFila);}
 function v45RegistroKey(item){return normalizarTexto([item?.idObra,item?.idOC,item?.idServicio,item?.ID_SERVICIO,item?.numeroOC,item?.oc,item?.ocNro,item?.OC_NRO,item?.tipo,item?.estacion].filter(Boolean).join('|'));}
 function v45CrearEstacionSinDefinir(){let est=estaciones.find(e=>e.nombre==='Sin definir');if(!est){est={nombre:'Sin definir',ramal:'Sin definir',x:-999,y:-999,obras:[],servicios:[],ramales:['Sin definir']};estaciones.push(est);}return est;}
 function v45EstacionDestino(nombre){if(!String(nombre||'').trim())return v45CrearEstacionSinDefinir();const alias=stationAlias(nombre);return estaciones.find(e=>e.nombre===alias)||estaciones.find(e=>normalizarTexto(e.nombre)===normalizarTexto(nombre))||v45CrearEstacionSinDefinir();}
 function v45MigrarCampos(){estaciones.forEach(est=>allItems(est).forEach(item=>{item.monedaOc=item.monedaOc||item.MONEDA_OC||'ARS';item.MONEDA_OC=item.MONEDA_OC||item.monedaOc||'ARS';item.periodoMes=item.periodoMes||item.PERIODO_MES||'';item.periodoInicio=item.periodoInicio||item.PERIODO_INICIO||'';item.periodoFin=item.periodoFin||item.PERIODO_FIN||'';item.estadoDocumental=item.estadoDocumental||item.ESTADO_DOCUMENTAL||'';item.idServicio=item.idServicio||item.ID_SERVICIO||'';item.ID_SERVICIO=item.ID_SERVICIO||item.idServicio||'';}));}
 function v45CamposIncompletosServicio(row){return ['ID_SERVICIO','OC_NRO','MONTO_OC','PLAZO_DIAS','EXPEDIENTE','ULTIMA_ACTA','PERIODO_MES','PERIODO_INICIO','PERIODO_FIN','DESCRIPCION','ESTACION','PROVEEDOR','FECHA_INICIO','FECHA_FIN','TIPO_UM','DIAS_RESTANTES','ESTADO'].filter(c=>!String(row[c]||'').trim());}
-function v45ItemDesdeServicio(row){return normalizarRegistroCargaServicio(row);}
-
-/* V47 FIX - Mapeo definitivo Carga Servicio -> Órdenes */
-function normalizarRegistroCargaServicio(row){
-  if(row?.nodeType===1) row=v45LeerFila(row);
-  row=row||{};
-  const r={};
-  V45_SERVICIO_COLUMNS.forEach(c=>{r[c]=String(row[c]??'').trim();});
-  r.MONTO_OC=v45LimpiarMonto(r.MONTO_OC)||r.MONTO_OC;
-  r.MONEDA_OC=row.MONEDA_OC||v45DetectarMoneda(row.MONTO_OC||r.MONTO_OC)||'ARS';
-  r.ESTADO=r.ESTADO||'Pendiente de completar';
-  r.ESTACION=r.ESTACION||'Sin definir';
-  r.PROVEEDOR=r.PROVEEDOR||'Sin definir';
-  r.TIPO_UM=r.TIPO_UM||'Sin definir';
-  const incompleto=v45CamposIncompletosServicio(r).length>0;
-  const fin=v45FechaFin(r);
-  const dias=v45DiasRestantes(r,fin,true);
-  const indicador=v45IndicadorLogico(dias,r.ESTADO);
-  const prox=r.PROX_CERTIFICACION||v45ProximaCert({...r,FECHA_FIN:fin,DIAS_RESTANTES:dias});
-  const id=r.ID_SERVICIO||generarIdSeguro('SRV');
-  const oc=v45NormalizarOC(r.OC_NRO);
-  return {
-    cargaServicioOriginal:{...r},idServicio:id,ID_SERVICIO:id,idObra:'',ID_OBRA:'',idOC:id,idRegistro:id,tipo:'Servicio',
-    numeroOC:oc,oc,ocNro:oc,OC_NRO:oc,monto:r.MONTO_OC,montoOc:r.MONTO_OC,montoOC:r.MONTO_OC,MONTO_OC:r.MONTO_OC,
-    monedaOc:r.MONEDA_OC,MONEDA_OC:r.MONEDA_OC,plazoDias:Number(r.PLAZO_DIAS||0),plazo:Number(r.PLAZO_DIAS||0),
-    expediente:r.EXPEDIENTE,expte:r.EXPEDIENTE,ultimaCertificacion:r.ULTIMA_ACTA,ultimaActa:r.ULTIMA_ACTA,
-    periodoMes:r.PERIODO_MES,PERIODO_MES:r.PERIODO_MES,periodoInicio:r.PERIODO_INICIO,PERIODO_INICIO:r.PERIODO_INICIO,periodoFin:r.PERIODO_FIN,PERIODO_FIN:r.PERIODO_FIN,
-    descripcion:r.DESCRIPCION,tipoTrabajo:r.DESCRIPCION||r.TIPO_UM,tipoUM:r.TIPO_UM,tipoUm:r.TIPO_UM,unidadMantenimiento:r.TIPO_UM,
-    estacion:r.ESTACION,proveedor:r.PROVEEDOR,actaInicio:r.FECHA_INICIO,fechaInicio:r.FECHA_INICIO,vencimiento:fin,fechaFin:fin,
-    diasRestantes:dias,diasRestantesCSV:dias,indicador,INDICADOR:indicador,estado:r.ESTADO,estadoCOI:r.ESTADO,
-    proximaCertificacion:prox,proxCertificacion:prox,PROX_CERTIFICACION:prox,observaciones:r.OBSERVACIONES,
-    estadoDocumental:incompleto?'Datos incompletos':'',ESTADO_DOCUMENTAL:incompleto?'Datos incompletos':'',
-    fechaCarga:new Date().toISOString(),fechaCreacion:new Date().toISOString(),fechaUltimaModificacion:new Date().toISOString(),estadoRegistro:'Activo',
-    semaforo:indicador==='GRIS'?'gris':indicador==='ROJO'?'rojo':indicador==='AMARILLO'?'amarillo':'verde'
-  };
+function v45ItemDesdeServicio(row){const incompleto=v45CamposIncompletosServicio(row).length>0;row.ESTADO=row.ESTADO||'Pendiente de completar';row.ESTACION=row.ESTACION||'Sin definir';row.PROVEEDOR=row.PROVEEDOR||'Sin definir';row.TIPO_UM=row.TIPO_UM||'Sin definir';row.MONEDA_OC=row.MONEDA_OC||v45DetectarMoneda(row.MONTO_OC)||'ARS';const fin=v45FechaFin(row);const dias=v45DiasRestantes(row,fin,true);const indicador=v45IndicadorLogico(dias,row.ESTADO);const prox=v45ProximaCert(row);const id=row.ID_SERVICIO||generarIdSeguro('SRV');const oc=v45NormalizarOC(row.OC_NRO);return {idServicio:id,ID_SERVICIO:id,idObra:id,idOC:id,tipo:'Servicio',numeroOC:oc,oc,ocNro:oc,OC_NRO:oc,monto:row.MONTO_OC,montoOc:row.MONTO_OC,montoOC:row.MONTO_OC,MONTO_OC:row.MONTO_OC,monedaOc:row.MONEDA_OC,MONEDA_OC:row.MONEDA_OC,plazoDias:Number(row.PLAZO_DIAS||0),plazo:Number(row.PLAZO_DIAS||0),expediente:row.EXPEDIENTE,expte:row.EXPEDIENTE,ultimaCertificacion:row.ULTIMA_ACTA,ultimaActa:row.ULTIMA_ACTA,periodoMes:row.PERIODO_MES||'',PERIODO_MES:row.PERIODO_MES||'',periodoInicio:row.PERIODO_INICIO||'',PERIODO_INICIO:row.PERIODO_INICIO||'',periodoFin:row.PERIODO_FIN||'',PERIODO_FIN:row.PERIODO_FIN||'',descripcion:row.DESCRIPCION,tipoTrabajo:row.DESCRIPCION||row.TIPO_UM,tipoUM:row.TIPO_UM,tipoUm:row.TIPO_UM,unidadMantenimiento:row.TIPO_UM,estacion:row.ESTACION,proveedor:row.PROVEEDOR,actaInicio:row.FECHA_INICIO,fechaInicio:row.FECHA_INICIO,vencimiento:fin,fechaFin:fin,diasRestantes:dias,diasRestantesCSV:dias,indicador,INDICADOR:indicador,estado:row.ESTADO,proximaCertificacion:prox,proxCertificacion:prox,PROX_CERTIFICACION:prox,observaciones:row.OBSERVACIONES,estadoDocumental:incompleto?'Datos incompletos':'',ESTADO_DOCUMENTAL:incompleto?'Datos incompletos':'',fechaCarga:new Date().toISOString(),fechaCreacion:new Date().toISOString(),fechaUltimaModificacion:new Date().toISOString(),estadoRegistro:'Activo',semaforo:indicador==='GRIS'?'gris':indicador==='ROJO'?'rojo':indicador==='AMARILLO'?'amarillo':'verde'};}
+function normalizarRegistroCargaObra(row){
+  if(Array.isArray(row)){const arr=row;row={};V45_OBRA_COLUMNS.forEach((c,i)=>row[c]=arr[i]??'');}
+  row=row||{};V45_OBRA_HEADERS.forEach((h,i)=>{if(row[h]!==undefined&&row[V45_OBRA_COLUMNS[i]]===undefined)row[V45_OBRA_COLUMNS[i]]=row[h];});row.ESTADO=row.ESTADO||'Pendiente de completar';row.ESTACION=row.ESTACION||'Sin definir';row.PROVEEDOR=row.PROVEEDOR||'Sin definir';row.MONEDA_OC=row.MONEDA_OC||v45DetectarMoneda(row.MONTO_OC)||'ARS';
+  const fin=v45FechaISOFlexible(row.FECHA_FIN)||v45FechaFin(row),dias=v45DiasRestantes(row,fin),indicador=row.INDICADOR||v45IndicadorLogico(dias,row.ESTADO),id=row.ID_OBRA||v45GenerarIdObra(),oc=v45NormalizarOC(row.OC_NRO),prox=v45FechaISOFlexible(row.PROX_CERTIFICACION)||row.PROX_CERTIFICACION||'';
+  return {idObra:id,idOC:id,idServicio:'',ID_SERVICIO:'',tipo:'Obra',numeroOC:oc,oc,ocNro:oc,OC_NRO:oc,tipoUM:row.TIPO_UM||'',tipoUm:row.TIPO_UM||'',unidadMantenimiento:row.TIPO_UM||'',monto:row.MONTO_OC,montoOc:row.MONTO_OC,montoOC:row.MONTO_OC,MONTO_OC:row.MONTO_OC,saldoEjecutado:row.SALDO_EJECUTADO,SALDO_EJECUTADO:row.SALDO_EJECUTADO,monedaOc:row.MONEDA_OC,MONEDA_OC:row.MONEDA_OC,plazoDias:Number(row.PLAZO_DIAS||0),plazo:Number(row.PLAZO_DIAS||0),expediente:row.EXPEDIENTE,expte:row.EXPEDIENTE,ultimaCertificacion:row.FECHA_ULT_ACTA_MED,ultimaActa:row.FECHA_ULT_ACTA_MED,fechaUltActaMed:row.FECHA_ULT_ACTA_MED,FECHA_ULT_ACTA_MED:row.FECHA_ULT_ACTA_MED,proxActaMed:row.PROX_ACTA_MED,PROX_ACTA_MED:row.PROX_ACTA_MED,descripcion:row.DESCRIPCION,tipoTrabajo:row.DESCRIPCION,especialidad:row.TIPO_UM||row.DESCRIPCION||'',estacion:row.ESTACION||'Sin definir',proveedor:row.PROVEEDOR||'Sin definir',actaInicio:v45FechaISOFlexible(row.FECHA_INICIO)||row.FECHA_INICIO,fechaInicio:v45FechaISOFlexible(row.FECHA_INICIO)||row.FECHA_INICIO,vencimiento:fin,fechaFin:fin,diasRestantes:dias,diasRestantesCSV:dias,indicador,INDICADOR:indicador,estado:row.ESTADO,estadoCOI:row.ESTADO,avanceFisico:Number(v45NormalizarAvance(row.AVANCE_PORC)||0),avancePorc:v45NormalizarAvance(row.AVANCE_PORC),AVANCE_PORC:v45NormalizarAvance(row.AVANCE_PORC),avanceFinanciero:0,proximaCertificacion:prox,proxCertificacion:prox,PROX_CERTIFICACION:prox,observaciones:row.OBSERVACIONES,estadoDocumental:row.estadoDocumental||'Pendiente',ESTADO_DOCUMENTAL:row.estadoDocumental||'Pendiente',fechaCarga:new Date().toISOString(),fechaCreacion:new Date().toISOString(),fechaUltimaModificacion:new Date().toISOString(),estadoRegistro:'Activo'};
 }
-function v47EsOCNumerica(v){return /^\d{6,}$/.test(String(v||'').trim())||/^OC[-\s]*\d+/i.test(String(v||'').trim());}
-function v47EsMonto(v){return v45LimpiarMonto(v)!==''&&/[,$.]|ARS|USD|\$|^\d{4,}$/.test(String(v||''));}
-function v47EsFecha(v){return !!v45FechaISOFlexible(v);}
-function v47EsEstacion(v){const n=normalizarTexto(v);return !!n&&estaciones.some(e=>normalizarTexto(e.nombre)===n||normalizarTexto(stationAlias(v))===normalizarTexto(e.nombre));}
-function v47ServicioMalMapeado(i){return (String(i?.tipo||'')==='Servicio')&&(v47EsOCNumerica(i.idObra)&&v47EsMonto(i.ocNro||i.numeroOC||i.oc)&&v47EsFecha(i.proveedor)&&v47EsEstacion(i.descripcion||i.tipoTrabajo));}
-function v47AplicarNormalizadoServicio(item,n){Object.assign(item,n,{fechaCreacion:item.fechaCreacion||n.fechaCreacion,fechaCarga:item.fechaCarga||n.fechaCarga,fechaUltimaModificacion:new Date().toISOString()});}
-function repararServiciosMalMapeados(){
-  const res={revisados:0,reparados:0,pendientesRevision:0};
-  estaciones.forEach(est=>(est.servicios||[]).forEach(item=>{
-    res.revisados++;
-    if(!v47ServicioMalMapeado(item)){if(item.tipo==='Servicio'){item.idObra='';item.ID_OBRA='';}return;}
-    const original=item.cargaServicioOriginal||item._cargaServicioOriginal||item.rawServicio||null;
-    if(original&&original.ID_SERVICIO&&original.OC_NRO){v47AplicarNormalizadoServicio(item,normalizarRegistroCargaServicio(original));res.reparados++;return;}
-    const posible={ID_SERVICIO:item.idServicio||item.ID_SERVICIO||item.idOC||generarIdSeguro('SRV'),OC_NRO:item.idObra,MONTO_OC:item.ocNro||item.numeroOC||item.oc,PLAZO_DIAS:item.montoOc||item.monto||item.MONTO_OC,EXPEDIENTE:item.plazoDias||item.plazo||'',ULTIMA_ACTA:item.expediente||'',PERIODO_MES:item.ultimaActa||item.ultimaCertificacion||'',PERIODO_INICIO:item.periodoMes||'',PERIODO_FIN:item.periodoInicio||'',DESCRIPCION:item.tipoUM||item.tipoTrabajo||item.descripcion||'',ESTACION:item.descripcion||item.tipoTrabajo||est.nombre,PROVEEDOR:item.fechaFin||item.vencimiento||item.PROVEEDOR||'',FECHA_INICIO:item.proveedor||'',FECHA_FIN:item.actaInicio||item.fechaInicio||'',TIPO_UM:item.estacion||'',DIAS_RESTANTES:item.diasRestantes||'',INDICADOR:item.indicador||'',ESTADO:item.estado||item.estadoCOI||'',PROX_CERTIFICACION:item.proxCertificacion||item.proximaCertificacion||'',OBSERVACIONES:item.observaciones||''};
-    if(v47EsOCNumerica(posible.OC_NRO)&&v47EsMonto(posible.MONTO_OC)&&v47EsFecha(posible.FECHA_INICIO)&&v47EsEstacion(posible.ESTACION)){v47AplicarNormalizadoServicio(item,normalizarRegistroCargaServicio(posible));res.reparados++;}
-    else{item.estadoDocumental='Revisar mapeo';item.ESTADO_DOCUMENTAL='Revisar mapeo';item.observaciones='Registro detectado con posible mapeo incorrecto';item.idObra='';item.ID_OBRA='';res.pendientesRevision++;}
-  }));
-  return res;
-}
-function ejecutarReparacionMapeoServicios(){adminCrearBackupInterno();const res=repararServiciosMalMapeados();guardarDatos();registrarLogSistema('reparacion_mapeo','Reparación mapeo Servicios',JSON.stringify(res));actualizarTodo({forceAdmin:true});adminSetMsg(`Reparación finalizada. Revisados: ${res.revisados}. Reparados: ${res.reparados}. Pendientes de revisión: ${res.pendientesRevision}.`,'ok');alert(`Reparación mapeo Servicios\nRevisados: ${res.revisados}\nReparados: ${res.reparados}\nPendientes de revisión: ${res.pendientesRevision}`);return res;}
-
-function v45ItemDesdeObra(row){row.MONEDA_OC=row.MONEDA_OC||v45DetectarMoneda(row.MONTO_OC)||'ARS';const fin=v45FechaFin(row);const dias=v45DiasRestantes(row,fin);const indicador=v45IndicadorLogico(dias,row.ESTADO);const id=row.ID_OBRA||generarIdSeguro('OBR');const oc=v45NormalizarOC(row.OC_NRO);return {idObra:id,idOC:id,tipo:'Obra',numeroOC:oc,oc,ocNro:oc,monto:row.MONTO_OC,montoOC:row.MONTO_OC,MONTO_OC:row.MONTO_OC,monedaOc:row.MONEDA_OC,MONEDA_OC:row.MONEDA_OC,plazoDias:Number(row.PLAZO_DIAS||0),plazo:Number(row.PLAZO_DIAS||0),expediente:row.EXPEDIENTE,ultimaCertificacion:row.ULTIMA_ACTA,descripcion:row.DESCRIPCION,tipoTrabajo:row.DESCRIPCION,sector:row.SECTOR||'',estacion:row.ESTACION||'Sin definir',proveedor:row.PROVEEDOR||'Sin definir',actaInicio:row.FECHA_INICIO,fechaInicio:row.FECHA_INICIO,vencimiento:fin,fechaFin:fin,diasRestantes:dias,diasRestantesCSV:dias,indicador,estado:row.ESTADO||'Pendiente de completar',avanceFisico:Number(row.AVANCE_PORC||0),avanceFinanciero:Number(row.AVANCE_PORC||0),proximaCertificacion:row.PROX_CERTIFICACION||v45AddMes(row.FECHA_INICIO),observaciones:row.OBSERVACIONES,estadoDocumental:'',fechaCarga:new Date().toISOString(),fechaCreacion:new Date().toISOString(),fechaUltimaModificacion:new Date().toISOString(),estadoRegistro:'Activo'};}
-function v45RefreshAfterDataChange(){actualizarTodo();}
+function v45ItemDesdeObra(row){return normalizarRegistroCargaObra(row);}
+function v45RefreshAfterDataChange(){if(typeof renderMap==='function')renderMap();if(typeof updateKpis==='function')updateKpis();if(typeof cargarFiltrosCalendario==='function')cargarFiltrosCalendario();if(typeof renderCalendarioCOI==='function')renderCalendarioCOI();if(typeof cargarFiltrosV16==='function'){cargarFiltrosV16('venc');cargarFiltrosV16('cert');}if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();if(typeof renderOrdenes==='function')renderOrdenes();if(typeof renderCentroAlertas==='function'&&$('vistaCentroAlertas')?.classList.contains('active'))renderCentroAlertas();if(typeof renderDashboardAlertSummary==='function')renderDashboardAlertSummary();if(typeof renderAcercaSistema==='function'&&$('vistaAcercaSistema')?.classList.contains('active'))renderAcercaSistema();if(typeof renderAdministracionSistema==='function'&&$('vistaAdministracionSistema')?.classList.contains('active'))renderAdministracionSistema();}
 function v45GuardarCarga(){document.querySelectorAll('#panelCargaServicio tbody tr,#panelCargaObra tbody tr').forEach(v45ActualizarFila);const body=v45BodyActivo();if(!body)return;let guardados=0,vacios=0,duplicados=0;[...body.querySelectorAll('tr')].forEach(tr=>{const tipo=tr.dataset.tipoCarga||v45TipoCarga,row=v45LeerFila(tr);if(v45FilaVacia(row,tipo)){vacios++;return;}const item=tipo==='Servicio'?v45ItemDesdeServicio(row):v45ItemDesdeObra(row);const key=v45RegistroKey(item);if(todasLasOC().some(r=>v45RegistroKey(r.item)===key)){duplicados++;return;}const est=v45EstacionDestino(item.estacion);item.estacion=est.nombre;item.idEstacion=est.idEstacion||('EST-'+slugOC(est.nombre));(tipo==='Servicio'?est.servicios:est.obras).push(item);guardados++;});v45MigrarCampos();guardarBaseLocal();v45RefreshAfterDataChange();const msg=`Se guardaron ${guardados} registros. Filas vacías: ${vacios}. Duplicados omitidos: ${duplicados}.`;if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent=msg;$('cargaRapidaMsg').className='quick-load-msg ok';}alert(msg);}
 function v45ActualizarSeleccionOrdenes(){const total=v45SeleccionOrdenes.size;if($('ordenesSeleccionadasCount'))$('ordenesSeleccionadasCount').textContent=`${total} seleccionada${total===1?'':'s'}`;if($('btnBorrarSeleccionadas'))$('btnBorrarSeleccionadas').disabled=!total;const checks=[...document.querySelectorAll('.chk-orden-row')];if($('chkOrdenesSeleccionarTodas'))$('chkOrdenesSeleccionarTodas').checked=checks.length>0&&checks.every(c=>c.checked);}
 function v45BorrarSeleccionadas(){const ids=[...v45SeleccionOrdenes];if(!ids.length)return;if(!confirm(`¿Borrar ${ids.length} OC seleccionada(s)? Esta acción actualiza localStorage.`))return;const set=new Set(ids);estaciones.forEach(est=>{est.obras=(est.obras||[]).filter(i=>!set.has(v45RegistroKey(i)));est.servicios=(est.servicios||[]).filter(i=>!set.has(v45RegistroKey(i)));});v45SeleccionOrdenes.clear();guardarBaseLocal();v45RefreshAfterDataChange();}
@@ -4412,68 +4305,58 @@ filasOrdenesBase = function(){v45MigrarCampos();return _filasOrdenesBaseV45().ma
 renderOrdenes = function(){cargarFiltrosOrdenes();const rows=filtrarOrdenes(filasOrdenesBase()).sort((a,b)=>String(a.idObra).localeCompare(String(b.idObra)));if($('ordKTotal'))$('ordKTotal').textContent=rows.length;if($('ordKObras'))$('ordKObras').textContent=rows.filter(r=>r.tipo==='Obra').length;if($('ordKServicios'))$('ordKServicios').textContent=rows.filter(r=>r.tipo==='Servicio').length;if($('ordKProxCert'))$('ordKProxCert').textContent=rows.filter(r=>r.calc.prox&&diffDias(r.calc.prox,COI_TODAY)<=30).length;if($('ordenesTbody')){$('ordenesTbody').innerHTML=rows.map(r=>`<tr class="row-clickable" data-open-oc="${esc(r.idObra)}"><td class="orden-check-cell"><input type="checkbox" class="chk-orden-row" data-orden-key="${esc(r.idSeleccion)}" ${v45SeleccionOrdenes.has(r.idSeleccion)?'checked':''}></td><td><b>${esc(r.idObra)}</b></td><td>${esc(r.numeroOC||'—')}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.sector||'—')}</td><td>${esc(r.umVinculada||'—')}</td><td>${esc(r.tipoTrabajo||'—')}</td><td>${esc(r.estado)}</td><td>${fmtFecha(r.calc.prox)}</td><td>${fmtFecha(r.calc.venc)}</td><td>${botonFichaOC(r.item,'Ver ficha OC')}</td></tr>`).join('')||'<tr><td colspan="13">Sin resultados para los filtros seleccionados.</td></tr>';}v45ActualizarSeleccionOrdenes();};
 const _initOrdenesCentroOperativoV45 = initOrdenesCentroOperativo;
 initOrdenesCentroOperativo = function(){_initOrdenesCentroOperativoV45();$('chkOrdenesSeleccionarTodas')?.addEventListener('change',ev=>{document.querySelectorAll('.chk-orden-row').forEach(chk=>{chk.checked=ev.target.checked;if(chk.checked)v45SeleccionOrdenes.add(chk.dataset.ordenKey);else v45SeleccionOrdenes.delete(chk.dataset.ordenKey);});v45ActualizarSeleccionOrdenes();});$('btnBorrarSeleccionadas')?.addEventListener('click',v45BorrarSeleccionadas);document.addEventListener('change',ev=>{const chk=ev.target.closest('.chk-orden-row');if(!chk)return;if(chk.checked)v45SeleccionOrdenes.add(chk.dataset.ordenKey);else v45SeleccionOrdenes.delete(chk.dataset.ordenKey);v45ActualizarSeleccionOrdenes();});document.addEventListener('click',ev=>{const del=ev.target.closest('#btnBorrarSeleccionadas');if(del){ev.preventDefault();ev.stopPropagation();v45BorrarSeleccionadas();return;}if(ev.target.closest('.chk-orden-row')||ev.target.closest('#chkOrdenesSeleccionarTodas'))ev.stopPropagation();},true);};
-function initCargaRapidaConsolidadaV45(){v45RenderTabla('Servicio');v45RenderTabla('Obra');v45SetTipoCarga('Servicio');document.querySelectorAll('.quick-type-card').forEach(card=>card.addEventListener('click',()=>v45SetTipoCarga(card.dataset.cargaTipo)));$('btnAgregarFilasCargaRapida')?.addEventListener('click',()=>v45AgregarFilas(v45TipoCarga,5));$('btnLimpiarCargaRapida')?.addEventListener('click',()=>{v45RenderTabla(v45TipoCarga);if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent='Grilla limpia. Complete filas o pegue desde Excel.';$('cargaRapidaMsg').className='quick-load-msg';}});$('btnGuardarCargaRapida')?.addEventListener('click',v45GuardarCarga);document.addEventListener('paste',v45PegarExcel);document.addEventListener('input',ev=>{const el=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!el)return;const tr=el.closest('tr');if(el.dataset.campo==='MONTO_OC')el.dataset.montoRaw=v45LimpiarMonto(el.value);if(tr)v45ActualizarFila(tr);});document.addEventListener('change',ev=>{const el=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!el)return;if(el.dataset.campo==='MONTO_OC')v45NormalizarMontoInput(el);const tr=el.closest('tr');if(tr)v45ActualizarFila(tr);});}
+function renderCarga(){v45RenderTabla('Servicio');v45RenderTabla('Obra');v45SetTipoCarga(v45TipoCarga||'Servicio');}
+function renderCargaObra(){v45RenderTabla('Obra');v45SetTipoCarga('Obra');}
+function renderCargaServicio(){v45RenderTabla('Servicio');v45SetTipoCarga('Servicio');}
+function guardarRegistrosCarga(){return v45GuardarCarga();}
+function pegarDesdeExcelCarga(event){return v45PegarExcel(event);}
+function limpiarGrillaCarga(){v45RenderTabla(v45TipoCarga);if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent='Grilla limpia. Complete filas o pegue desde Excel.';$('cargaRapidaMsg').className='quick-load-msg';}}
+function agregarFilasCarga(cantidad=5){return v45AgregarFilas(v45TipoCarga,Number(cantidad)||5);}
+function initCargaRapidaConsolidadaV45(){v45RenderTabla('Servicio');v45RenderTabla('Obra');v45SetTipoCarga('Servicio');document.querySelectorAll('.quick-type-card').forEach(card=>card.addEventListener('click',()=>v45SetTipoCarga(card.dataset.cargaTipo)));$('btnAgregarFilasCargaRapida')?.addEventListener('click',()=>v45AgregarFilas(v45TipoCarga,5));$('btnLimpiarCargaRapida')?.addEventListener('click',()=>{v45RenderTabla(v45TipoCarga);if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent='Grilla limpia. Complete filas o pegue desde Excel.';$('cargaRapidaMsg').className='quick-load-msg';}});$('btnGuardarCargaRapida')?.addEventListener('click',v45GuardarCarga);document.addEventListener('paste',v45PegarExcel);document.addEventListener('input',ev=>{const el=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!el)return;const tr=el.closest('tr');if(el.dataset.campo==='MONTO_OC'||el.dataset.campo==='SALDO_EJECUTADO')el.dataset.montoRaw=v45LimpiarMonto(el.value);if(tr)v45ActualizarFila(tr);});document.addEventListener('change',ev=>{const el=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!el)return;if(el.dataset.campo==='MONTO_OC'||el.dataset.campo==='SALDO_EJECUTADO')v45NormalizarMontoInput(el);const tr=el.closest('tr');if(tr)v45ActualizarFila(tr);});}
 function initV45Consolidada(){v45CrearEstacionSinDefinir();v45MigrarCampos();initCargaRapidaConsolidadaV45();}
-
-/* ===============================
-   AUDITORIA TECNICA V47 - HELPERS CENTRALES
-   =============================== */
-function valorNormalizadoRegistro(item,row,keys){
-  const fuentes=[item||{},row||{}];
-  for(const src of fuentes){
-    for(const k of keys){
-      if(src && src[k]!==undefined && src[k]!==null && String(src[k]).trim()!=='') return src[k];
-    }
+function init(){
+  loadImportedData();
+  const ramalEl=$('ramal');
+  if(ramalEl && !ramalEl.dataset.inicializado){
+    ramalesDisponibles.forEach(r=>ramalEl.insertAdjacentHTML('beforeend',`<option value="${r}">${r}</option>`));
+    ramalEl.dataset.inicializado='1';
   }
-  return '';
+  ['q','estado','tipo','especialidad','ramal','showRings'].forEach(id=>{
+    const el=$(id);
+    if(el) el.addEventListener(id==='q'?'input':'change',renderMap);
+  });
+  $('clear')?.addEventListener('click',()=>{
+    ['q','estado','tipo','especialidad','ramal'].forEach(id=>{if($(id)) $(id).value='';});
+    renderMap();
+  });
+  $('btnImport')?.addEventListener('click',handleImport);
+  $('btnTemplate')?.addEventListener('click',downloadTemplate);
+  $('btnResetData')?.addEventListener('click',restoreDemo);
+  renderMap();
+  initCalendarioCOI();
+  initCalendarioOperativoCOI();
+  initCalendarioCOIUnificado();
+  initVistasCOI();
+  initFichaOC();
+  initBotonesLegacySinInline();
+  initArquitecturaMaestra();
+  initV45Consolidada();
+  initCentroAlertasV46();
+  initAdministracionSistema();
+  initFotosEstacion();
+  initFotoYChecksOC();
+  initImportacionAcumulativaV27();
+  initImportadorV33();
+  initObservacionesDocumentalesV29();
+  initAcercaSistema();
+  initOrdenesCentroOperativo();
+  initBuscadorIntegradoV31();
+  initUnidadesMantenimiento();
+  renderAppVersionHeader();
 }
-function obtenerIdRegistro(item,row){const tipo=valorNormalizadoRegistro(item,row,['tipo','TIPO','tipoRegistro']);if(tipo==='Servicio')return valorNormalizadoRegistro(item,row,['idServicio','ID_SERVICIO','idOC','idRegistro','id'])||generarIdSeguro('SRV');return valorNormalizadoRegistro(item,row,['idObra','ID_OBRA','idOC','id','idRegistro'])||generarIdSeguro('REG');}
-function obtenerOc(item,row){return valorNormalizadoRegistro(item,row,['ocNro','OC_NRO','numeroOC','oc','OC']);}
-function obtenerTipo(item,row){return valorNormalizadoRegistro(item,row,['tipo','TIPO','tipoRegistro'])||'Servicio';}
-function obtenerEstacion(item,row){return valorNormalizadoRegistro(item,row,['estacion','ESTACION','nombreEstacion'])||'Sin definir';}
-function obtenerProveedor(item,row){return valorNormalizadoRegistro(item,row,['proveedor','PROVEEDOR'])||'Sin definir';}
-function obtenerDescripcion(item,row){return valorNormalizadoRegistro(item,row,['descripcion','DESCRIPCION','tipoTrabajo','especialidad','unidadMantenimiento','tipoUM','tipoUm','TIPO_UM']);}
-function obtenerFechaInicio(item,row){return valorNormalizadoRegistro(item,row,['fechaInicio','FECHA_INICIO','fechaActaInicio','actaInicio','inicio']);}
-function obtenerFechaFin(item,row){return valorNormalizadoRegistro(item,row,['fechaFin','FECHA_FIN','fechaVencimiento','vencimiento','fin']);}
-function obtenerProxCertificacion(item,row){return valorNormalizadoRegistro(item,row,['proxCertificacion','PROX_CERTIFICACION','proximaCertificacion','fechaProximaCertificacion'])||v45ProximaCert({PERIODO_FIN:valorNormalizadoRegistro(item,row,['periodoFin','PERIODO_FIN']),PERIODO_INICIO:valorNormalizadoRegistro(item,row,['periodoInicio','PERIODO_INICIO']),FECHA_INICIO:obtenerFechaInicio(item,row)});}
-function guardarDatos(){if(typeof guardarBaseLocal==='function'){guardarBaseLocal();return true;}return saveJSON(STORAGE_KEY,estaciones.map(e=>({nombre:e.nombre,obras:e.obras||[],servicios:e.servicios||[]})));}
-function cargarDatos(){if(typeof loadImportedData==='function')loadImportedData();if(typeof v45MigrarCampos==='function')v45MigrarCampos();return estaciones;}
-function ejecutarRenderSeguro(nombre,fn){try{if(typeof fn==='function')fn();}catch(e){console.warn('No se pudo actualizar '+nombre,e);}}
-function actualizarTodo(opts={}){
-  if(typeof v45MigrarCampos==='function')v45MigrarCampos();
-  ejecutarRenderSeguro('Dashboard / Red',()=>{if(typeof renderMap==='function')renderMap();if(typeof updateKpis==='function')updateKpis();});
-  ejecutarRenderSeguro('Ordenes',()=>{if(typeof renderOrdenes==='function')renderOrdenes();});
-  ejecutarRenderSeguro('Calendario',()=>{if(typeof cargarFiltrosCalendario==='function')cargarFiltrosCalendario();if(typeof renderCalendarioCOI==='function')renderCalendarioCOI();if(typeof cargarFiltrosV16==='function'){cargarFiltrosV16('venc');cargarFiltrosV16('cert');}if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();if(typeof renderCalendarioOperativoCOI==='function'){renderCalendarioOperativoCOI('venc');renderCalendarioOperativoCOI('cert');renderCalendarioOperativoCOI('coi');}if(typeof renderCalendarioInteligenteCOI==='function')renderCalendarioInteligenteCOI();});
-  ejecutarRenderSeguro('Buscador',()=>{if(typeof renderBuscador==='function'&&($('vistaBuscador')?.classList.contains('active')||opts.forceBuscador))renderBuscador();});
-  ejecutarRenderSeguro('Centro de Alertas',()=>{if(typeof renderDashboardAlertSummary==='function')renderDashboardAlertSummary();if(typeof renderCentroAlertas==='function'&&($('vistaCentroAlertas')?.classList.contains('active')||opts.forceAlertas))renderCentroAlertas();});
-  ejecutarRenderSeguro('Unidades de Mantenimiento',()=>{if(typeof renderUnidadesMantenimiento==='function'&&($('vistaUnidadesMantenimiento')?.classList.contains('active')||opts.forceUM))renderUnidadesMantenimiento();});
-  ejecutarRenderSeguro('Administracion',()=>{if(typeof renderAdministracionSistema==='function'&&($('vistaAdministracionSistema')?.classList.contains('active')||opts.forceAdmin))renderAdministracionSistema();});
-  ejecutarRenderSeguro('Acerca del Sistema',()=>{if(typeof renderAcercaSistema==='function'&&($('vistaAcercaSistema')?.classList.contains('active')||opts.forceAcerca))renderAcercaSistema();});
-}
-function init(){ loadImportedData(); ramalesDisponibles.forEach(r=>$('ramal').insertAdjacentHTML('beforeend',`<option value="${r}">${r}</option>`)); ['q','estado','tipo','especialidad','ramal','showRings'].forEach(id=>$(id).addEventListener(id==='q'?'input':'change',renderMap)); $('clear').addEventListener('click',()=>{['q','estado','tipo','especialidad','ramal'].forEach(id=>$(id).value=''); renderMap();}); $('btnImport').addEventListener('click',handleImport); $('btnTemplate').addEventListener('click',downloadTemplate); $('btnResetData').addEventListener('click',restoreDemo); renderMap(); initCalendarioCOI(); initCalendarioOperativoCOI(); initCalendarioCOIUnificado(); initVistasCOI(); initFichaOC(); initBotonesLegacySinInline(); initArquitecturaMaestra(); initV45Consolidada(); initCentroAlertasV46(); initAdministracionSistema(); initFotosEstacion(); initFotoYChecksOC(); initImportacionAcumulativaV27(); initImportadorV33(); initObservacionesDocumentalesV29(); initAcercaSistema(); initOrdenesCentroOperativo(); initBuscadorIntegradoV31(); initUnidadesMantenimiento(); renderAppVersionHeader(); }
 init();
-/*
-AUDITORIA V47
-Fecha: 2026-06-25
-Cambios:
-- Se agregaron helpers centrales de lectura compatible para registros camelCase y MAYUSCULAS.
-- Se centralizo actualizarTodo() para refrescar Dashboard, KPIs, Ordenes, Buscador, Calendario, Alertas, Red, Administracion, UM y Acerca sin cambiar vistas .view/.active.
-- Se conectaron refrescos operativos de Carga V45 y Administracion al actualizador central.
-- Se reemplazaron guardados JSON directos del Centro de Alertas por saveJSON().
-- Se preservo MONEDA_OC interna en Servicios sin columna visible y se reforzo data-moneda en MONTO_OC.
-Verificaciones:
-- APP_VERSION se mantiene en V47.
-- Servicios conserva columnas operativas sin MONEDA_OC visible; Obras conserva su estructura.
-- localStorage mantiene STORAGE_KEY, STORAGE_KEY_MASTER, claves V33, Administracion, Alertas y UM.
-Pendientes:
-- Consolidar fisicamente definiciones historicas duplicadas de renderOrdenes/renderFichaOC/renderCalendario solo en una etapa mayor de limpieza controlada.
-- Ejecutar prueba manual completa en navegador con datos reales antes de declarar version productiva final.
-*/
 </script>
 </body></html>
-
-
-
 
 
 
