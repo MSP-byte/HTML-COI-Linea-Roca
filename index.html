@@ -608,63 +608,16 @@ button.ghost{background:#f7f8fa;color:#333}
 
 
 <section id="vistaCarga" class="view">
-<section class="import-card">
-<input type="file" id="fileImport" accept=".csv,.txt" multiple />
-<select id="importTipo"><option value="auto">Detectar tipo automáticamente</option><option value="obra">Cargar como Obras</option><option value="servicio">Cargar como Servicios</option></select>
-<button id="btnImport" class="primary">Importar CSV acumulativo</button>
-<button id="btnTemplate" class="ghost">Descargar plantilla CSV</button>
-<button id="btnResetData" class="ghost">Restaurar demo</button>
-
-<div class="import-mode">
-  <label><input type="checkbox" id="importAcumular" checked> Acumular con datos existentes</label>
-  <label><input type="checkbox" id="importReemplazar"> Reemplazar toda la base antes de importar</label>
-</div>
-
-<div class="help"><b>Importador CSV:</b> si los datos vienen de Excel, exportá previamente cada hoja como <b>CSV UTF-8</b>. El HTML mapea automáticamente columnas como OC/OC N°, TIPO UM, Descripción del Servicio, ESTACION, PROVEED., FECHA INICIO, FECHA FIN, PLAZO OC, ESTADO/ESTATUS, ULTIMA ACTA MEDICION N° y OBSERVACIONES. <span id="importMsg"></span><div id="importDebug" class="import-warning"></div></div>
-</section>
-
 <section class="view-card">
   <div class="view-head">
-    <h2>Importador CSV COI</h2>
-    <div class="muted">Carga normalizada V33 para Obras, Servicios, Certificaciones, Actas, Remitos, UM y documentación.</div>
+    <h2>Carga rápida desde Excel</h2>
+    <div class="muted">Seleccione Servicio u Obra, pegue filas desde Excel y guarde los registros en la base local.</div>
   </div>
   <div class="view-body">
-    <div class="v33-message warn"><b>CSV UTF-8:</b> si el origen es Excel, exportá la hoja previamente a CSV y cargá ese archivo en este módulo.</div>
-    <div class="v33-import-grid">
-      <div><label>Tipo de importación</label><select id="v33ImportTipo"><option>Base Maestra OC</option><option>Obras</option><option>Servicios</option><option>Certificaciones</option><option>Actas de Inicio</option><option>Actas de Medición</option><option>Remitos</option><option>Unidades de Mantenimiento</option><option>Documentación OneDrive</option></select></div>
-      <div><label>Archivo CSV</label><input type="file" id="v33File" accept=".csv,.txt"></div>
-      <div><label>Duplicados</label><select id="v33Duplicados"><option value="omit">Omitir duplicados</option><option value="update">Actualizar existentes</option><option value="new">Importar como nuevos registros</option></select></div>
-    </div>
-    <div class="v33-import-actions">
-      <button type="button" id="btnV33Preview" class="primary">Previsualizar</button>
-      <button type="button" id="btnV33Confirm">Confirmar importación</button>
-      <button type="button" id="btnV33Limpiar">Limpiar</button>
-    </div>
-    <div id="v33Resultado" class="v33-message">Seleccione un archivo CSV para iniciar la previsualización.</div>
-    <div id="v33Resumen" class="v33-summary"></div>
-    <div id="v33Columnas" class="v33-badges"></div>
-    <div id="v33Errores" class="v33-message bad" style="display:none"></div>
-    <h3 class="section-title">Previsualización primeras 10 filas</h3>
-    <div class="table-wrap"><table class="coi-table"><thead id="v33PreviewHead"></thead><tbody id="v33PreviewBody"></tbody></table></div>
-  </div>
-</section>
-
-<section class="view-card">
-  <div class="view-head">
-    <h2>Gestión Manual de OC</h2>
-    <div class="muted">Alta / actualización mediante ID_OBRA. No hay borrado físico: solo cierre o archivo.</div>
-  </div>
-  <div class="view-body">
-        <section class="quick-load-card" id="cargaRapidaOCSection">
-      <div class="quick-load-head">
-        <div>
-          <h3>Carga rápida de OCs</h3>
-          <div class="muted">Seleccione Servicio u Obra. La grilla de Servicios respeta el orden operativo solicitado y permite pegar filas desde Excel.</div>
-        </div>
-      </div>
+    <section class="quick-load-card" id="cargaRapidaOCSection">
       <div class="quick-type-selector">
-        <div class="quick-type-card active" data-carga-tipo="Servicio"><h3>Servicio</h3><p>Servicios de mantenimiento, UM, períodos y certificaciones mensuales.</p></div>
-        <div class="quick-type-card" data-carga-tipo="Obra"><h3>Obra</h3><p>Obras con avance físico, sector, vencimiento contractual y seguimiento operativo.</p></div>
+        <div class="quick-type-card active" data-carga-tipo="Servicio"><h3>Servicio</h3><p>Carga rápida de servicios desde Excel.</p></div>
+        <div class="quick-type-card" data-carga-tipo="Obra"><h3>Obra</h3><p>Carga rápida de obras desde Excel con el orden obligatorio de columnas.</p></div>
       </div>
       <div class="quick-load-head">
         <span class="quick-load-badge" id="cargaRapidaTipoActivo">Carga activa: Servicio</span>
@@ -682,36 +635,6 @@ button.ghost{background:#f7f8fa;color:#333}
       </div>
       <div id="cargaRapidaMsg" class="quick-load-msg">Carga activa: Servicio. Complete filas o pegue desde Excel.</div>
     </section>
-<div class="form-actions">
-      <button type="button" id="btnNuevaOC" class="primary">Nueva OC</button>
-      <button type="button" id="btnGuardarOC" class="primary">Guardar / Actualizar OC</button>
-      <button type="button" id="btnCerrarOC">Cerrar OC</button>
-      <button type="button" id="btnArchivarOC">Archivar OC</button>
-      <button type="button" id="btnExportBaseCompleta">Exportar Base Completa</button>
-    </div>
-    <div id="formMsg" class="notice">Complete los campos obligatorios para crear o actualizar una OC.</div>
-
-    <div class="manual-form">
-      <div><label>ID_OBRA *</label><input id="f_idObra" placeholder="ROCA-2026-001"></div>
-      <div><label>N° OC *</label><input id="f_numeroOC" placeholder="4500098778"></div>
-      <div><label>Tipo *</label><select id="f_tipo"><option value="">Seleccionar</option><option>Obra</option><option>Servicio</option></select></div>
-      <div><label>Estación *</label><select id="f_estacion"><option value="">Estación</option></select></div>
-      <div><label>Tipo de trabajo</label><input id="f_tipoTrabajo" placeholder="Civil / Ascensores / Señalamiento"></div>
-      <div><label>Especialidad</label><input id="f_especialidad" placeholder="Civil"></div>
-      <div><label>Sector</label><input id="f_sector" placeholder="Andén / Hall / Acceso"></div>
-      <div><label>Proveedor *</label><input id="f_proveedor" placeholder="Proveedor"></div>
-      <div><label>Monto</label><input id="f_monto" type="number" step="0.01"></div>
-      <div><label>Fecha inicio *</label><input id="f_actaInicio" type="date"></div>
-      <div><label>Plazo días *</label><input id="f_plazoDias" type="number" min="0"></div>
-      <div><label>Estado COI *</label><select id="f_estado"></select></div>
-      <div><label>Avance físico %</label><input id="f_avanceFisico" type="number" min="0" max="100"></div>
-      <div><label>Avance financiero %</label><input id="f_avanceFinanciero" type="number" min="0" max="100"></div>
-      <div><label>Recepción documentación</label><input id="f_fechaRecepcionDocumentacion" type="date"></div>
-      <div><label>Envío PyC</label><input id="f_fechaEnvioPyC" type="date"></div>
-      <div><label>Estado documental</label><select id="f_estadoDocumental"><option>Pendiente</option><option>Recibida</option><option>Enviada a Planificación y Control</option><option>Observada</option><option>Cerrada</option></select></div>
-      <div><label>Ruta foto principal</label><input id="f_fotoUrl" placeholder="img/obras/ROCA-2026-001_01.jpg"></div>
-      <div class="form-full"><label>Observaciones</label><textarea id="f_observaciones"></textarea></div>
-    </div>
   </div>
 </section>
 
@@ -4288,7 +4211,29 @@ function initUnidadesMantenimiento(){cargarUM();cargarFiltrosUM();$('btnUnidades
    V45 CONSOLIDADA - Carga Servicio/Obra + selección/borrado Órdenes
    =============================== */
 const V45_SERVICIO_COLUMNS = ["ID_SERVICIO","OC_NRO","MONTO_OC","PLAZO_DIAS","EXPEDIENTE","ULTIMA_ACTA","PERIODO_MES","PERIODO_INICIO","PERIODO_FIN","DESCRIPCION","ESTACION","PROVEEDOR","FECHA_INICIO","FECHA_FIN","TIPO_UM","DIAS_RESTANTES","INDICADOR","ESTADO","PROX_CERTIFICACION","OBSERVACIONES"];
-const V45_OBRA_COLUMNS = ["ID_OBRA","OC_NRO","MONTO_OC","MONEDA_OC","PLAZO_DIAS","EXPEDIENTE","ULTIMA_ACTA","DESCRIPCION","ESTACION","SECTOR","PROVEEDOR","FECHA_INICIO","FECHA_FIN","DIAS_RESTANTES","INDICADOR","ESTADO","AVANCE_PORC","PROX_CERTIFICACION","OBSERVACIONES"];
+const V45_OBRA_COLUMN_DEFS = [
+  ["ID_OBRA","ID OBRA"],
+  ["AVANCE_PORC","% AVANCE"],
+  ["OC_NRO","OC"],
+  ["TIPO_UM","TIPO UM"],
+  ["MONTO_OC","SALDO $ OC TOTAL"],
+  ["SALDO_EJECUTADO","SALDO EJECUTADO $"],
+  ["ESTADO","ESTATUS"],
+  ["PLAZO_DIAS","PLAZO OC (DIAS)"],
+  ["EXPEDIENTE","EXPTE."],
+  ["DESCRIPCION","Descripción del Servicio"],
+  ["ESTACION","ESTACION"],
+  ["PROVEEDOR","PROVEED."],
+  ["FECHA_INICIO","FECHA INICIO"],
+  ["FECHA_FIN","FECHA FIN"],
+  ["DIAS_RESTANTES","CANT. DIAS SERVICIO RESTANTE"],
+  ["INDICADOR","INDICADOR"],
+  ["FECHA_ULT_ACTA_MED","FECHA ULT ACTA MED N°"],
+  ["PROX_CERTIFICACION","PROX CERT. FECHA"],
+  ["PROX_ACTA_MED","PROX ACTA MED N°"],
+  ["OBSERVACIONES","OBSERVACIONES"]
+];
+const V45_OBRA_COLUMNS = V45_OBRA_COLUMN_DEFS.map(c=>c[0]);
 let v45TipoCarga = "Servicio";
 let v45SeleccionOrdenes = new Set();
 const V45_SERVICIO_FECHA_TEXTO = ["PERIODO_INICIO","PERIODO_FIN","FECHA_INICIO","FECHA_FIN","PROX_CERTIFICACION"];
@@ -4308,8 +4253,10 @@ function v45IndicadorHTML(valor){const ind=String(valor||"SIN_DATOS").toUpperCas
 function v45SetIndicador(tr,ind){const val=String(ind||"SIN_DATOS").toUpperCase();const dot=tr.querySelector('.indicador-dot');const hidden=tr.querySelector('[data-campo="INDICADOR"]');const cell=tr.querySelector('.indicador-cell');if(dot){dot.className='indicador-dot '+val;dot.setAttribute('aria-label',val);}if(hidden)hidden.value=val;if(cell)cell.title=v45IndicadorTitulo(val);}
 function v45DetectarMoneda(texto){const s=String(texto||"").toUpperCase();return (s.includes("USD")||s.includes("US$")||s.includes("U$S")||s.includes("DOLAR"))?"USD":"ARS";}
 function v45LimpiarMonto(valor){if(valor===null||valor===undefined)return "";let s=String(valor).toUpperCase().replace(/ARS/g,"").replace(/USD/g,"").replace(/U\$S/g,"").replace(/\$/g,"").replace(/[^\d,.\-]/g,"").trim();if(!s)return "";const c=s.lastIndexOf(','),p=s.lastIndexOf('.');if(c>-1&&p>-1){s=c>p?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');}else if(c>-1){s=s.replace(/\./g,'').replace(',','.');}else if((s.match(/\./g)||[]).length>1){s=s.replace(/\./g,'');}const n=Number(s);return Number.isFinite(n)?String(n):"";}
+function v45NormalizarPorcentaje(valor){if(valor===null||valor===undefined)return "";let s=String(valor).trim().replace(/%/g,"").replace(",",".");if(!s)return "";let n=Number(s);if(!Number.isFinite(n))return "";if(n>0&&n<=1)n=n*100;return String(Math.round(n*100)/100);}
+function v45SiguienteIdObraCarga(){const nums=todasLasOC().map(r=>String(r.item?.idObra||r.idObra||"").match(/^ROCA-OBR-(\d+)$/i)).filter(Boolean).map(m=>Number(m[1]));const next=(nums.length?Math.max(...nums):0)+1;return `ROCA-OBR-${String(next).padStart(3,"0")}`;}
 function v45FormatoMonto(valor,moneda="ARS"){const n=Number(v45LimpiarMonto(valor));if(!Number.isFinite(n))return "";const fmt=n.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});return moneda==="USD"?`USD ${fmt}`:`$ ${fmt}`;}
-function v45ControlMonto(valor="",moneda="ARS"){const clean=v45LimpiarMonto(valor);const mon=moneda||v45DetectarMoneda(valor)||"ARS";const visual=clean?v45FormatoMonto(clean,mon):"";return `<input type="text" data-campo="MONTO_OC" value="${esc(visual)}" data-monto-raw="${esc(clean)}" data-moneda="${esc(mon)}" placeholder="$ 0,00">`;}
+function v45ControlMonto(valor="",moneda="ARS",campo="MONTO_OC"){const clean=v45LimpiarMonto(valor);const mon=moneda||v45DetectarMoneda(valor)||"ARS";const visual=clean?v45FormatoMonto(clean,mon):"";return `<input type="text" data-campo="${esc(campo)}" value="${esc(visual)}" data-monto-raw="${esc(clean)}" data-moneda="${esc(mon)}" placeholder="$ 0,00">`;}
 function v45NormalizarMontoInput(input){if(!input)return;const parsed={monto:v45LimpiarMonto(input.value),moneda:v45DetectarMoneda(input.value)};const upper=String(input.value||"").toUpperCase();const moneda=(upper.includes("USD")||upper.includes("US$")||upper.includes("U$S"))?"USD":(input.dataset.moneda||parsed.moneda||"ARS");input.dataset.montoRaw=parsed.monto;input.dataset.moneda=moneda;input.value=parsed.monto?v45FormatoMonto(parsed.monto,moneda):"";}
 function v45MontoFila(tr){return v45LimpiarMonto(tr.querySelector('[data-campo="MONTO_OC"]')?.dataset.montoRaw||tr.querySelector('[data-campo="MONTO_OC"]')?.value||"");}
 function v45MonedaFila(tr){const inp=tr.querySelector('[data-campo="MONTO_OC"]');return tr.querySelector('[data-campo="MONEDA_OC"]')?.value||inp?.dataset.moneda||v45DetectarMoneda(inp?.value||'')||"ARS";}
@@ -4319,21 +4266,22 @@ function v45DiasRestantes(row,fin,forzar=false){if(forzar&&fin)return diffDias(f
 function v45CamposActivos(){return v45TipoCarga==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;}
 function v45BodyActivo(){return v45TipoCarga==="Obra"?$('cargaRapidaObraBody'):$('cargaRapidaServicioBody');}
 function v45OpcionesEstado(){return [...document.querySelectorAll('#estado option')].map(o=>o.value||o.textContent).filter(Boolean);}
-function v45Control(c,v="",tipo=v45TipoCarga){if(c==="MONTO_OC")return v45ControlMonto(v,"ARS");if(c==="MONEDA_OC")return `<select data-campo="${c}"><option value="ARS">ARS</option><option value="USD">USD</option></select>`;if(c==="INDICADOR")return v45IndicadorHTML(v||"SIN_DATOS");if(c==="ESTADO")return `<select data-campo="${c}"><option value="">Seleccionar</option>${v45OpcionesEstado().map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;if(["FECHA_INICIO","FECHA_FIN","PERIODO_INICIO","PERIODO_FIN","PROX_CERTIFICACION"].includes(c)){const auto=c==='PROX_CERTIFICACION'?'prox-cert-auto auto-field':'';if(v45EsFechaTextoServicio(c,tipo))return `<input type="text" data-campo="${c}" class="${auto}" value="${esc(v45FechaDisplay(v)||v)}" placeholder="DD/MM/AAAA" ${c==='PROX_CERTIFICACION'?'readonly tabindex="-1"':''}>`;return `<input type="date" data-campo="${c}" class="${auto}" value="${esc(v)}" ${c==='PROX_CERTIFICACION'?'readonly tabindex="-1"':''}>`;}if(["PLAZO_DIAS","DIAS_RESTANTES","AVANCE_PORC"].includes(c))return `<input type="number" step="1" data-campo="${c}" class="${c==='DIAS_RESTANTES'?'auto-field':''}" value="${esc(v)}" ${c==='DIAS_RESTANTES'?'readonly tabindex="-1"':''}>`;if(c==="DESCRIPCION"||c==="OBSERVACIONES")return `<textarea data-campo="${c}" class="${c==='DESCRIPCION'?'w-desc':'w-obs'}">${esc(v)}</textarea>`;return `<input type="text" data-campo="${c}" class="${c==='ID_SERVICIO'||c==='ID_OBRA'?'w-id':''}" value="${esc(v)}">`;}
+function v45Control(c,v="",tipo=v45TipoCarga){if(c==="MONTO_OC"||c==="SALDO_EJECUTADO")return v45ControlMonto(v,"ARS",c);if(c==="MONEDA_OC")return `<select data-campo="${c}"><option value="ARS">ARS</option><option value="USD">USD</option></select>`;if(c==="INDICADOR")return v45IndicadorHTML(v||"SIN_DATOS");if(c==="ESTADO")return `<select data-campo="${c}"><option value="">Seleccionar</option>${v45OpcionesEstado().map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`;if(["FECHA_INICIO","FECHA_FIN","PERIODO_INICIO","PERIODO_FIN","PROX_CERTIFICACION","FECHA_ULT_ACTA_MED"].includes(c)){const auto=c==='PROX_CERTIFICACION'&&tipo==='Servicio'?'prox-cert-auto auto-field':'';const ro=c==='PROX_CERTIFICACION'&&tipo==='Servicio'?'readonly tabindex="-1"':'';return `<input type="text" data-campo="${c}" class="${auto}" value="${esc(v45FechaDisplay(v)||v)}" placeholder="DD/MM/AAAA" ${ro}>`;}if(["PLAZO_DIAS","DIAS_RESTANTES"].includes(c))return `<input type="number" step="1" data-campo="${c}" class="${c==='DIAS_RESTANTES'?'auto-field':''}" value="${esc(v)}" ${c==='DIAS_RESTANTES'?'readonly tabindex="-1"':''}>`;if(c==="AVANCE_PORC")return `<input type="text" data-campo="${c}" value="${esc(v)}" placeholder="27%">`;if(c==="DESCRIPCION"||c==="OBSERVACIONES")return `<textarea data-campo="${c}" class="${c==='DESCRIPCION'?'w-desc':'w-obs'}">${esc(v)}</textarea>`;return `<input type="text" data-campo="${c}" class="${c==='ID_SERVICIO'||c==='ID_OBRA'?'w-id':''}" value="${esc(v)}">`;}
 function v45AgregarFilas(tipo=v45TipoCarga,cantidad=5){const body=tipo==="Obra"?$('cargaRapidaObraBody'):$('cargaRapidaServicioBody');const campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;if(!body)return;const start=body.querySelectorAll('tr').length+1;let html='';for(let i=0;i<cantidad;i++){html+=`<tr data-tipo-carga="${tipo}"><td class="quick-load-row-num">${start+i}</td>${campos.map(c=>`<td>${v45Control(c,"",tipo)}</td>`).join('')}</tr>`;}body.insertAdjacentHTML('beforeend',html);}
-function v45RenderTabla(tipo){const head=tipo==="Obra"?$('cargaRapidaObraHead'):$('cargaRapidaServicioHead');const body=tipo==="Obra"?$('cargaRapidaObraBody'):$('cargaRapidaServicioBody');const campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;if(!head||!body)return;head.innerHTML=`<tr><th>#</th>${campos.map(c=>`<th class="${tipo==='Servicio'?'excel-service-head':''}">${esc(c)}</th>`).join('')}</tr>`;body.innerHTML='';v45AgregarFilas(tipo,5);}
+function v45RenderTabla(tipo){const head=tipo==="Obra"?$('cargaRapidaObraHead'):$('cargaRapidaServicioHead');const body=tipo==="Obra"?$('cargaRapidaObraBody'):$('cargaRapidaServicioBody');const campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;if(!head||!body)return;const labels=tipo==='Obra'?V45_OBRA_COLUMN_DEFS.map(c=>c[1]):campos;head.innerHTML=`<tr><th>#</th>${labels.map(c=>`<th class="${tipo==='Servicio'?'excel-service-head':''}">${esc(c)}</th>`).join('')}</tr>`;body.innerHTML='';v45AgregarFilas(tipo,5);}
 function v45SetTipoCarga(tipo){v45TipoCarga=tipo;document.querySelectorAll('.quick-type-card').forEach(c=>c.classList.toggle('active',c.dataset.cargaTipo===tipo));$('panelCargaServicio')?.classList.toggle('active',tipo==='Servicio');$('panelCargaObra')?.classList.toggle('active',tipo==='Obra');if($('cargaRapidaTipoActivo'))$('cargaRapidaTipoActivo').textContent='Carga activa: '+tipo;if($('cargaRapidaMsg'))$('cargaRapidaMsg').textContent='Carga activa: '+tipo+'. Complete filas o pegue desde Excel.';}
-function v45LeerFila(tr){const tipo=tr.dataset.tipoCarga||v45TipoCarga;const campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;const row={};campos.forEach(c=>{if(c==="MONTO_OC")row[c]=v45MontoFila(tr);else if(c==="MONEDA_OC")row[c]=v45MonedaFila(tr);else{const raw=(tr.querySelector(`[data-campo="${c}"]`)?.value||"").trim();row[c]=v45EsFechaTextoServicio(c,tipo)?(v45FechaISOFlexible(raw)||raw):raw;}});if(!row.MONEDA_OC)row.MONEDA_OC=v45MonedaFila(tr);return row;}
+function v45LeerFila(tr){const tipo=tr.dataset.tipoCarga||v45TipoCarga;const campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS;const row={};campos.forEach(c=>{if(c==="MONTO_OC")row[c]=v45MontoFila(tr);else if(c==="SALDO_EJECUTADO")row[c]=v45LimpiarMonto(tr.querySelector(`[data-campo="${c}"]`)?.dataset.montoRaw||tr.querySelector(`[data-campo="${c}"]`)?.value||"");else if(c==="AVANCE_PORC")row[c]=v45NormalizarPorcentaje(tr.querySelector(`[data-campo="${c}"]`)?.value||"");else if(c==="MONEDA_OC")row[c]=v45MonedaFila(tr);else{const raw=(tr.querySelector(`[data-campo="${c}"]`)?.value||"").trim();row[c]=v45EsFechaTextoServicio(c,tipo)?(v45FechaISOFlexible(raw)||raw):raw;}});if(!row.MONEDA_OC)row.MONEDA_OC=v45MonedaFila(tr);return row;}
 function v45FilaVacia(row,tipo){const campos=(tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS).filter(c=>!["MONEDA_OC","FECHA_FIN","DIAS_RESTANTES","INDICADOR","PROX_CERTIFICACION"].includes(c));return campos.every(c=>!String(row[c]||"").trim());}
 function v45ActualizarFila(tr){const tipo=tr.dataset.tipoCarga||v45TipoCarga;const row=v45LeerFila(tr);const fin=v45FechaFin(row);const dias=v45DiasRestantes(row,fin,tipo==="Servicio");const indicador=v45IndicadorLogico(dias,row.ESTADO);const set=(c,v)=>{const el=tr.querySelector(`[data-campo="${c}"]`);if(el)el.value=v45EsFechaTextoServicio(c,tipo)?v45FechaDisplay(v):v;};if(tipo==="Servicio"){["PERIODO_INICIO","PERIODO_FIN","FECHA_INICIO"].forEach(c=>{const el=tr.querySelector(`[data-campo="${c}"]`),iso=v45FechaISOFlexible(el?.value||"");if(el&&iso)el.value=v45FechaDisplay(iso);});}set('FECHA_FIN',fin);set('DIAS_RESTANTES',dias);set('PROX_CERTIFICACION',v45ProximaCert({...row,FECHA_FIN:fin,DIAS_RESTANTES:dias}));v45SetIndicador(tr,indicador);}
-function v45PegarExcel(ev){const target=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!target)return;const text=(ev.clipboardData||window.clipboardData)?.getData('text');if(!text||(!text.includes('\t')&&!text.includes('\n')))return;ev.preventDefault();const tr=target.closest('tr'),body=tr.parentElement,tipo=tr.dataset.tipoCarga||v45TipoCarga,campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS,startRow=[...body.children].indexOf(tr),startCol=campos.indexOf(target.dataset.campo);const rows=text.replace(/\r/g,'').split('\n').filter(r=>r.length).map(r=>r.split('\t'));while(body.children.length<startRow+rows.length)v45AgregarFilas(tipo,5);rows.forEach((cols,rIdx)=>cols.forEach((val,cIdx)=>{const campo=campos[startCol+cIdx];if(!campo||campo==='PROX_CERTIFICACION'||campo==='INDICADOR')return;const rowEl=body.children[startRow+rIdx];if(campo==='MONTO_OC'){const inp=rowEl?.querySelector('[data-campo="MONTO_OC"]');const sel=rowEl?.querySelector('[data-campo="MONEDA_OC"]');const monto=v45LimpiarMonto(val);const mon=v45DetectarMoneda(val);if(inp){inp.dataset.montoRaw=monto;inp.dataset.moneda=mon;inp.value=monto?v45FormatoMonto(monto,mon):'';}if(sel)sel.value=mon;return;}const el=rowEl?.querySelector(`[data-campo="${campo}"]`);if(el)el.value=val.trim();}));[...body.children].forEach(v45ActualizarFila);}
+function v45PegarExcel(ev){const target=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!target)return;const text=(ev.clipboardData||window.clipboardData)?.getData('text');if(!text||(!text.includes('\t')&&!text.includes('\n')))return;ev.preventDefault();const tr=target.closest('tr'),body=tr.parentElement,tipo=tr.dataset.tipoCarga||v45TipoCarga,campos=tipo==="Obra"?V45_OBRA_COLUMNS:V45_SERVICIO_COLUMNS,startRow=[...body.children].indexOf(tr),startCol=campos.indexOf(target.dataset.campo);const rows=text.replace(/\r/g,'').split('\n').filter(r=>r.length).map(r=>r.split('\t'));while(body.children.length<startRow+rows.length)v45AgregarFilas(tipo,5);rows.forEach((cols,rIdx)=>cols.forEach((val,cIdx)=>{const campo=campos[startCol+cIdx];if(!campo||campo==='PROX_CERTIFICACION'||campo==='INDICADOR')return;const rowEl=body.children[startRow+rIdx];if(campo==='MONTO_OC'||campo==='SALDO_EJECUTADO'){const inp=rowEl?.querySelector(`[data-campo="${campo}"]`);const sel=rowEl?.querySelector('[data-campo="MONEDA_OC"]');const monto=v45LimpiarMonto(val);const mon=v45DetectarMoneda(val);if(inp){inp.dataset.montoRaw=monto;inp.dataset.moneda=mon;inp.value=monto?v45FormatoMonto(monto,mon):'';}if(sel&&campo==='MONTO_OC')sel.value=mon;return;}const el=rowEl?.querySelector(`[data-campo="${campo}"]`);if(el)el.value=val.trim();}));[...body.children].forEach(v45ActualizarFila);}
 function v45RegistroKey(item){return normalizarTexto([item?.idObra,item?.idOC,item?.idServicio,item?.ID_SERVICIO,item?.numeroOC,item?.oc,item?.ocNro,item?.OC_NRO,item?.tipo,item?.estacion].filter(Boolean).join('|'));}
 function v45CrearEstacionSinDefinir(){let est=estaciones.find(e=>e.nombre==='Sin definir');if(!est){est={nombre:'Sin definir',ramal:'Sin definir',x:-999,y:-999,obras:[],servicios:[],ramales:['Sin definir']};estaciones.push(est);}return est;}
 function v45EstacionDestino(nombre){if(!String(nombre||'').trim())return v45CrearEstacionSinDefinir();const alias=stationAlias(nombre);return estaciones.find(e=>e.nombre===alias)||estaciones.find(e=>normalizarTexto(e.nombre)===normalizarTexto(nombre))||v45CrearEstacionSinDefinir();}
 function v45MigrarCampos(){estaciones.forEach(est=>allItems(est).forEach(item=>{item.monedaOc=item.monedaOc||item.MONEDA_OC||'ARS';item.MONEDA_OC=item.MONEDA_OC||item.monedaOc||'ARS';item.periodoMes=item.periodoMes||item.PERIODO_MES||'';item.periodoInicio=item.periodoInicio||item.PERIODO_INICIO||'';item.periodoFin=item.periodoFin||item.PERIODO_FIN||'';item.estadoDocumental=item.estadoDocumental||item.ESTADO_DOCUMENTAL||'';item.idServicio=item.idServicio||item.ID_SERVICIO||'';item.ID_SERVICIO=item.ID_SERVICIO||item.idServicio||'';}));}
 function v45CamposIncompletosServicio(row){return ['ID_SERVICIO','OC_NRO','MONTO_OC','PLAZO_DIAS','EXPEDIENTE','ULTIMA_ACTA','PERIODO_MES','PERIODO_INICIO','PERIODO_FIN','DESCRIPCION','ESTACION','PROVEEDOR','FECHA_INICIO','FECHA_FIN','TIPO_UM','DIAS_RESTANTES','ESTADO'].filter(c=>!String(row[c]||'').trim());}
 function v45ItemDesdeServicio(row){const incompleto=v45CamposIncompletosServicio(row).length>0;row.ESTADO=row.ESTADO||'Pendiente de completar';row.ESTACION=row.ESTACION||'Sin definir';row.PROVEEDOR=row.PROVEEDOR||'Sin definir';row.TIPO_UM=row.TIPO_UM||'Sin definir';row.MONEDA_OC=row.MONEDA_OC||v45DetectarMoneda(row.MONTO_OC)||'ARS';const fin=v45FechaFin(row);const dias=v45DiasRestantes(row,fin,true);const indicador=v45IndicadorLogico(dias,row.ESTADO);const prox=v45ProximaCert(row);const id=row.ID_SERVICIO||generarIdSeguro('SRV');const oc=v45NormalizarOC(row.OC_NRO);return {idServicio:id,ID_SERVICIO:id,idObra:id,idOC:id,tipo:'Servicio',numeroOC:oc,oc,ocNro:oc,OC_NRO:oc,monto:row.MONTO_OC,montoOc:row.MONTO_OC,montoOC:row.MONTO_OC,MONTO_OC:row.MONTO_OC,monedaOc:row.MONEDA_OC,MONEDA_OC:row.MONEDA_OC,plazoDias:Number(row.PLAZO_DIAS||0),plazo:Number(row.PLAZO_DIAS||0),expediente:row.EXPEDIENTE,expte:row.EXPEDIENTE,ultimaCertificacion:row.ULTIMA_ACTA,ultimaActa:row.ULTIMA_ACTA,periodoMes:row.PERIODO_MES||'',PERIODO_MES:row.PERIODO_MES||'',periodoInicio:row.PERIODO_INICIO||'',PERIODO_INICIO:row.PERIODO_INICIO||'',periodoFin:row.PERIODO_FIN||'',PERIODO_FIN:row.PERIODO_FIN||'',descripcion:row.DESCRIPCION,tipoTrabajo:row.DESCRIPCION||row.TIPO_UM,tipoUM:row.TIPO_UM,tipoUm:row.TIPO_UM,unidadMantenimiento:row.TIPO_UM,estacion:row.ESTACION,proveedor:row.PROVEEDOR,actaInicio:row.FECHA_INICIO,fechaInicio:row.FECHA_INICIO,vencimiento:fin,fechaFin:fin,diasRestantes:dias,diasRestantesCSV:dias,indicador,INDICADOR:indicador,estado:row.ESTADO,proximaCertificacion:prox,proxCertificacion:prox,PROX_CERTIFICACION:prox,observaciones:row.OBSERVACIONES,estadoDocumental:incompleto?'Datos incompletos':'',ESTADO_DOCUMENTAL:incompleto?'Datos incompletos':'',fechaCarga:new Date().toISOString(),fechaCreacion:new Date().toISOString(),fechaUltimaModificacion:new Date().toISOString(),estadoRegistro:'Activo',semaforo:indicador==='GRIS'?'gris':indicador==='ROJO'?'rojo':indicador==='AMARILLO'?'amarillo':'verde'};}
-function v45ItemDesdeObra(row){row.MONEDA_OC=row.MONEDA_OC||v45DetectarMoneda(row.MONTO_OC)||'ARS';const fin=v45FechaFin(row);const dias=v45DiasRestantes(row,fin);const indicador=v45IndicadorLogico(dias,row.ESTADO);const id=row.ID_OBRA||generarIdSeguro('OBR');const oc=v45NormalizarOC(row.OC_NRO);return {idObra:id,idOC:id,tipo:'Obra',numeroOC:oc,oc,ocNro:oc,monto:row.MONTO_OC,montoOC:row.MONTO_OC,MONTO_OC:row.MONTO_OC,monedaOc:row.MONEDA_OC,MONEDA_OC:row.MONEDA_OC,plazoDias:Number(row.PLAZO_DIAS||0),plazo:Number(row.PLAZO_DIAS||0),expediente:row.EXPEDIENTE,ultimaCertificacion:row.ULTIMA_ACTA,descripcion:row.DESCRIPCION,tipoTrabajo:row.DESCRIPCION,sector:row.SECTOR||'',estacion:row.ESTACION||'Sin definir',proveedor:row.PROVEEDOR||'Sin definir',actaInicio:row.FECHA_INICIO,fechaInicio:row.FECHA_INICIO,vencimiento:fin,fechaFin:fin,diasRestantes:dias,diasRestantesCSV:dias,indicador,estado:row.ESTADO||'Pendiente de completar',avanceFisico:Number(row.AVANCE_PORC||0),avanceFinanciero:Number(row.AVANCE_PORC||0),proximaCertificacion:row.PROX_CERTIFICACION||v45AddMes(row.FECHA_INICIO),observaciones:row.OBSERVACIONES,estadoDocumental:'',fechaCarga:new Date().toISOString(),fechaCreacion:new Date().toISOString(),fechaUltimaModificacion:new Date().toISOString(),estadoRegistro:'Activo'};}
+function v45ItemDesdeObra(row){return normalizarRegistroCargaObra(row);}
+function normalizarRegistroCargaObra(row){row=row||{};const fin=row.FECHA_FIN||v45FechaFin(row);const dias=v45DiasRestantes(row,fin);const estado=row.ESTADO||'Pendiente de completar';const indicador=row.INDICADOR||v45IndicadorLogico(dias,estado);const id=row.ID_OBRA||v45SiguienteIdObraCarga();const oc=v45NormalizarOC(row.OC_NRO);const monto=v45LimpiarMonto(row.MONTO_OC);const saldo=v45LimpiarMonto(row.SALDO_EJECUTADO);const avance=v45NormalizarPorcentaje(row.AVANCE_PORC);return {idObra:id,idServicio:'',idOC:id,tipo:'Obra',numeroOC:oc,oc,ocNro:oc,OC_NRO:oc,tipoUM:row.TIPO_UM||'',tipoUm:row.TIPO_UM||'',unidadMantenimiento:row.TIPO_UM||'',monto:monto,montoOc:monto,montoOC:monto,MONTO_OC:monto,saldoEjecutado:saldo,SALDO_EJECUTADO:saldo,plazoDias:Number(row.PLAZO_DIAS||0),plazo:Number(row.PLAZO_DIAS||0),expediente:row.EXPEDIENTE||'',expte:row.EXPEDIENTE||'',descripcion:row.DESCRIPCION||'',tipoTrabajo:row.DESCRIPCION||'',estacion:row.ESTACION||'Sin definir',proveedor:row.PROVEEDOR||'Sin definir',actaInicio:row.FECHA_INICIO||'',fechaInicio:row.FECHA_INICIO||'',vencimiento:fin||row.FECHA_FIN||'',fechaFin:fin||row.FECHA_FIN||'',diasRestantes:dias,diasRestantesCSV:dias,indicador,INDICADOR:indicador,estado:estado,estadoCOI:estado,avanceFisico:Number(avance||0),avanceFinanciero:Number(avance||0),avancePorc:avance,fechaUltActaMed:row.FECHA_ULT_ACTA_MED||'',proximaCertificacion:row.PROX_CERTIFICACION||'',proxCertificacion:row.PROX_CERTIFICACION||'',PROX_CERTIFICACION:row.PROX_CERTIFICACION||'',proxActaMed:row.PROX_ACTA_MED||'',observaciones:row.OBSERVACIONES||'',estadoDocumental:row.estadoDocumental||row.ESTADO_DOCUMENTAL||'Pendiente',fechaCarga:new Date().toISOString(),fechaCreacion:new Date().toISOString(),fechaUltimaModificacion:new Date().toISOString(),estadoRegistro:'Activo'};}
 function v45RefreshAfterDataChange(){actualizarTodo();}
 function v45GuardarCarga(){document.querySelectorAll('#panelCargaServicio tbody tr,#panelCargaObra tbody tr').forEach(v45ActualizarFila);const body=v45BodyActivo();if(!body)return;let guardados=0,vacios=0,duplicados=0;[...body.querySelectorAll('tr')].forEach(tr=>{const tipo=tr.dataset.tipoCarga||v45TipoCarga,row=v45LeerFila(tr);if(v45FilaVacia(row,tipo)){vacios++;return;}const item=tipo==='Servicio'?v45ItemDesdeServicio(row):v45ItemDesdeObra(row);const key=v45RegistroKey(item);if(todasLasOC().some(r=>v45RegistroKey(r.item)===key)){duplicados++;return;}const est=v45EstacionDestino(item.estacion);item.estacion=est.nombre;item.idEstacion=est.idEstacion||('EST-'+slugOC(est.nombre));(tipo==='Servicio'?est.servicios:est.obras).push(item);guardados++;});v45MigrarCampos();guardarBaseLocal();v45RefreshAfterDataChange();const msg=`Se guardaron ${guardados} registros. Filas vacías: ${vacios}. Duplicados omitidos: ${duplicados}.`;if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent=msg;$('cargaRapidaMsg').className='quick-load-msg ok';}alert(msg);}
 function v45ActualizarSeleccionOrdenes(){const total=v45SeleccionOrdenes.size;if($('ordenesSeleccionadasCount'))$('ordenesSeleccionadasCount').textContent=`${total} seleccionada${total===1?'':'s'}`;if($('btnBorrarSeleccionadas'))$('btnBorrarSeleccionadas').disabled=!total;const checks=[...document.querySelectorAll('.chk-orden-row')];if($('chkOrdenesSeleccionarTodas'))$('chkOrdenesSeleccionarTodas').checked=checks.length>0&&checks.every(c=>c.checked);}
@@ -4345,7 +4293,14 @@ filasOrdenesBase = function(){v45MigrarCampos();return _filasOrdenesBaseV45().ma
 renderOrdenes = function(){cargarFiltrosOrdenes();const rows=filtrarOrdenes(filasOrdenesBase()).sort((a,b)=>String(a.idObra).localeCompare(String(b.idObra)));if($('ordKTotal'))$('ordKTotal').textContent=rows.length;if($('ordKObras'))$('ordKObras').textContent=rows.filter(r=>r.tipo==='Obra').length;if($('ordKServicios'))$('ordKServicios').textContent=rows.filter(r=>r.tipo==='Servicio').length;if($('ordKProxCert'))$('ordKProxCert').textContent=rows.filter(r=>r.calc.prox&&diffDias(r.calc.prox,COI_TODAY)<=30).length;if($('ordenesTbody')){$('ordenesTbody').innerHTML=rows.map(r=>`<tr class="row-clickable" data-open-oc="${esc(r.idObra)}"><td class="orden-check-cell"><input type="checkbox" class="chk-orden-row" data-orden-key="${esc(r.idSeleccion)}" ${v45SeleccionOrdenes.has(r.idSeleccion)?'checked':''}></td><td><b>${esc(r.idObra)}</b></td><td>${esc(r.numeroOC||'—')}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.sector||'—')}</td><td>${esc(r.umVinculada||'—')}</td><td>${esc(r.tipoTrabajo||'—')}</td><td>${esc(r.estado)}</td><td>${fmtFecha(r.calc.prox)}</td><td>${fmtFecha(r.calc.venc)}</td><td>${botonFichaOC(r.item,'Ver ficha OC')}</td></tr>`).join('')||'<tr><td colspan="13">Sin resultados para los filtros seleccionados.</td></tr>';}v45ActualizarSeleccionOrdenes();};
 const _initOrdenesCentroOperativoV45 = initOrdenesCentroOperativo;
 initOrdenesCentroOperativo = function(){_initOrdenesCentroOperativoV45();$('chkOrdenesSeleccionarTodas')?.addEventListener('change',ev=>{document.querySelectorAll('.chk-orden-row').forEach(chk=>{chk.checked=ev.target.checked;if(chk.checked)v45SeleccionOrdenes.add(chk.dataset.ordenKey);else v45SeleccionOrdenes.delete(chk.dataset.ordenKey);});v45ActualizarSeleccionOrdenes();});$('btnBorrarSeleccionadas')?.addEventListener('click',v45BorrarSeleccionadas);document.addEventListener('change',ev=>{const chk=ev.target.closest('.chk-orden-row');if(!chk)return;if(chk.checked)v45SeleccionOrdenes.add(chk.dataset.ordenKey);else v45SeleccionOrdenes.delete(chk.dataset.ordenKey);v45ActualizarSeleccionOrdenes();});document.addEventListener('click',ev=>{const del=ev.target.closest('#btnBorrarSeleccionadas');if(del){ev.preventDefault();ev.stopPropagation();v45BorrarSeleccionadas();return;}if(ev.target.closest('.chk-orden-row')||ev.target.closest('#chkOrdenesSeleccionarTodas'))ev.stopPropagation();},true);};
-function initCargaRapidaConsolidadaV45(){v45RenderTabla('Servicio');v45RenderTabla('Obra');v45SetTipoCarga('Servicio');document.querySelectorAll('.quick-type-card').forEach(card=>card.addEventListener('click',()=>v45SetTipoCarga(card.dataset.cargaTipo)));$('btnAgregarFilasCargaRapida')?.addEventListener('click',()=>v45AgregarFilas(v45TipoCarga,5));$('btnLimpiarCargaRapida')?.addEventListener('click',()=>{v45RenderTabla(v45TipoCarga);if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent='Grilla limpia. Complete filas o pegue desde Excel.';$('cargaRapidaMsg').className='quick-load-msg';}});$('btnGuardarCargaRapida')?.addEventListener('click',v45GuardarCarga);document.addEventListener('paste',v45PegarExcel);document.addEventListener('input',ev=>{const el=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!el)return;const tr=el.closest('tr');if(el.dataset.campo==='MONTO_OC')el.dataset.montoRaw=v45LimpiarMonto(el.value);if(tr)v45ActualizarFila(tr);});document.addEventListener('change',ev=>{const el=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!el)return;if(el.dataset.campo==='MONTO_OC')v45NormalizarMontoInput(el);const tr=el.closest('tr');if(tr)v45ActualizarFila(tr);});}
+function renderCarga(){renderCargaServicio();renderCargaObra();v45SetTipoCarga(v45TipoCarga||'Servicio');}
+function renderCargaObra(){v45RenderTabla('Obra');}
+function renderCargaServicio(){v45RenderTabla('Servicio');}
+function guardarRegistrosCarga(){v45GuardarCarga();}
+function pegarDesdeExcelCarga(event){v45PegarExcel(event);}
+function limpiarGrillaCarga(){v45RenderTabla(v45TipoCarga);}
+function agregarFilasCarga(cantidad){v45AgregarFilas(v45TipoCarga,cantidad||5);}
+function initCargaRapidaConsolidadaV45(){v45RenderTabla('Servicio');v45RenderTabla('Obra');v45SetTipoCarga('Servicio');document.querySelectorAll('.quick-type-card').forEach(card=>card.addEventListener('click',()=>v45SetTipoCarga(card.dataset.cargaTipo)));$('btnAgregarFilasCargaRapida')?.addEventListener('click',()=>v45AgregarFilas(v45TipoCarga,5));$('btnLimpiarCargaRapida')?.addEventListener('click',()=>{v45RenderTabla(v45TipoCarga);if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent='Grilla limpia. Complete filas o pegue desde Excel.';$('cargaRapidaMsg').className='quick-load-msg';}});$('btnGuardarCargaRapida')?.addEventListener('click',v45GuardarCarga);document.addEventListener('paste',v45PegarExcel);document.addEventListener('input',ev=>{const el=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!el)return;const tr=el.closest('tr');if(el.dataset.campo==='MONTO_OC'||el.dataset.campo==='SALDO_EJECUTADO')el.dataset.montoRaw=v45LimpiarMonto(el.value);if(tr)v45ActualizarFila(tr);});document.addEventListener('change',ev=>{const el=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!el)return;if(el.dataset.campo==='MONTO_OC'||el.dataset.campo==='SALDO_EJECUTADO')v45NormalizarMontoInput(el);const tr=el.closest('tr');if(tr)v45ActualizarFila(tr);});}
 function initV45Consolidada(){v45CrearEstacionSinDefinir();v45MigrarCampos();initCargaRapidaConsolidadaV45();}
 
 /* ===============================
@@ -4383,7 +4338,7 @@ function actualizarTodo(opts={}){
   ejecutarRenderSeguro('Administracion',()=>{if(typeof renderAdministracionSistema==='function'&&($('vistaAdministracionSistema')?.classList.contains('active')||opts.forceAdmin))renderAdministracionSistema();});
   ejecutarRenderSeguro('Acerca del Sistema',()=>{if(typeof renderAcercaSistema==='function'&&($('vistaAcercaSistema')?.classList.contains('active')||opts.forceAcerca))renderAcercaSistema();});
 }
-function init(){ loadImportedData(); ramalesDisponibles.forEach(r=>$('ramal').insertAdjacentHTML('beforeend',`<option value="${r}">${r}</option>`)); ['q','estado','tipo','especialidad','ramal','showRings'].forEach(id=>$(id).addEventListener(id==='q'?'input':'change',renderMap)); $('clear').addEventListener('click',()=>{['q','estado','tipo','especialidad','ramal'].forEach(id=>$(id).value=''); renderMap();}); $('btnImport').addEventListener('click',handleImport); $('btnTemplate').addEventListener('click',downloadTemplate); $('btnResetData').addEventListener('click',restoreDemo); renderMap(); initCalendarioCOI(); initCalendarioOperativoCOI(); initCalendarioCOIUnificado(); initVistasCOI(); initFichaOC(); initBotonesLegacySinInline(); initArquitecturaMaestra(); initV45Consolidada(); initCentroAlertasV46(); initAdministracionSistema(); initFotosEstacion(); initFotoYChecksOC(); initImportacionAcumulativaV27(); initImportadorV33(); initObservacionesDocumentalesV29(); initAcercaSistema(); initOrdenesCentroOperativo(); initBuscadorIntegradoV31(); initUnidadesMantenimiento(); renderAppVersionHeader(); }
+function init(){ loadImportedData(); ramalesDisponibles.forEach(r=>$('ramal').insertAdjacentHTML('beforeend',`<option value="${r}">${r}</option>`)); ['q','estado','tipo','especialidad','ramal','showRings'].forEach(id=>$(id).addEventListener(id==='q'?'input':'change',renderMap)); $('clear').addEventListener('click',()=>{['q','estado','tipo','especialidad','ramal'].forEach(id=>$(id).value=''); renderMap();}); $('btnImport')?.addEventListener('click',handleImport); $('btnTemplate')?.addEventListener('click',downloadTemplate); $('btnResetData')?.addEventListener('click',restoreDemo); renderMap(); initCalendarioCOI(); initCalendarioOperativoCOI(); initCalendarioCOIUnificado(); initVistasCOI(); initFichaOC(); initBotonesLegacySinInline(); initArquitecturaMaestra(); initV45Consolidada(); initCentroAlertasV46(); initAdministracionSistema(); initFotosEstacion(); initFotoYChecksOC(); initImportacionAcumulativaV27(); initImportadorV33(); initObservacionesDocumentalesV29(); initAcercaSistema(); initOrdenesCentroOperativo(); initBuscadorIntegradoV31(); initUnidadesMantenimiento(); renderAppVersionHeader(); }
 init();
 /*
 AUDITORIA V47
