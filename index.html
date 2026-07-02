@@ -362,15 +362,86 @@ body.auth-locked .module-nav{display:none}
 .station-hotspot.estacion-con-servicio,.estacion-hotspot.estacion-con-servicio{stroke:#1d8fd1!important;stroke-width:4!important}
 .station-hotspot.estacion-vencida,.estacion-hotspot.estacion-vencida{fill:rgba(218,54,51,.22)!important;stroke:#da3633!important;stroke-width:4!important}
 @media(max-width:1000px){.dashboard-v52,.mini-station-summary{grid-template-columns:1fr}.dashboard-v52-grid,.finance-summary,.mini-station-grid{grid-template-columns:1fr 1fr}}
+
+/* V54 - Estado Financiero avanzado y edición completa Ficha OC */
+.finance-advanced-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;margin:0 0 10px}
+.finance-semaforo{display:inline-flex;align-items:center;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:900;border:1px solid}
+.finance-semaforo.verde{background:#e9f7ef;color:#237a3b;border-color:#cdebd8}.finance-semaforo.amarillo{background:#fff8e6;color:#916600;border-color:#ffe3a3}.finance-semaforo.rojo{background:#fff1f1;color:#9b1c1c;border-color:#ffd0d0}.finance-semaforo.gris{background:#f1f3f5;color:#5b6470;border-color:#d8dde3}
+.finance-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.finance-tabs button.active{background:#2f6fa3;color:#fff;border-color:#2f6fa3}.finance-tab-panel{display:none}.finance-tab-panel.active{display:block}
+.finance-table.v54{min-width:1180px}.finance-table.v54 th{white-space:nowrap}.finance-table.v54 td{white-space:normal}
+.finance-diff-ok b{color:#237a3b}.finance-diff-warn b{color:#916600}.finance-diff-bad b{color:#9b1c1c}.finance-diff-empty b{color:#5b6470}
+.fin-load-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid #e3e7eb;background:#fbfcfd}.fin-load-toolbar label{font-weight:900;color:#1f4e79}.fin-load-toolbar select{min-width:260px}
+.oc-edit-banner{border:1px solid #d8e4ef;background:#f7fbff;border-radius:12px;padding:12px;margin:0 0 12px;color:#245f9f;font-weight:800}.oc-edit-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.oc-edit-form label{font-size:11px;text-transform:uppercase;font-weight:900;color:#5b6470}.oc-edit-form input,.oc-edit-form select,.oc-edit-form textarea{width:100%;box-sizing:border-box}.oc-edit-form textarea{min-height:76px;resize:vertical}.oc-edit-form .full{grid-column:1/-1}.oc-edit-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.oc-edit-warnings{margin-top:12px;border-radius:12px;padding:10px 12px;background:#fff8e6;border:1px solid #ffe3a3;color:#735500;font-weight:700}
+@media(max-width:1000px){.oc-edit-form{grid-template-columns:1fr 1fr}.finance-summary{grid-template-columns:1fr 1fr}}@media(max-width:650px){.oc-edit-form{grid-template-columns:1fr}.finance-summary{grid-template-columns:1fr}}
+
+/* V56 - Consumo financiero de posiciones OC */
+.finance-consume-bar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:12px 0;padding:12px;border:1px solid #d8e4ef;background:#f7fbff;border-radius:12px}
+.finance-consume-bar label{display:grid;gap:4px;font-size:11px;text-transform:uppercase;font-weight:900;color:#5b6470}
+.finance-consume-bar input{min-width:160px}.finance-consume-count{font-weight:900;color:#1f4e79}
+.finance-row-actions{display:flex;gap:6px;flex-wrap:wrap}.finance-row-actions button{padding:6px 8px;font-size:11px}
+.finance-edit-input{width:130px;min-width:110px;padding:6px 7px;border-radius:7px;font-size:12px}.finance-edit-textarea{width:220px;min-height:34px;resize:vertical}
+.finance-dot{display:inline-flex;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:900;border:1px solid;white-space:nowrap}
+.finance-dot.verde{background:#e9f7ef;color:#237a3b;border-color:#cdebd8}.finance-dot.amarillo{background:#fff8e6;color:#916600;border-color:#ffe3a3}.finance-dot.rojo{background:#fff1f1;color:#9b1c1c;border-color:#ffd0d0}.finance-dot.gris{background:#f1f3f5;color:#5b6470;border-color:#d8dde3}
+.finance-check{width:18px;height:18px}.finance-table.v56{min-width:1280px}.finance-table.v56 th{white-space:nowrap}.finance-table.v56 td{vertical-align:top}
+
+/* V57 - Certificaciones OC e imagen UM */
+.um-image-card{border:1px solid #d8e4ef;background:#f7fbff;border-radius:12px;padding:14px;margin:12px 0;display:grid;grid-template-columns:minmax(220px,320px) 1fr;gap:14px;align-items:start}
+.um-image-card h3{margin:0 0 8px;color:#1f4e79;text-transform:uppercase;font-size:15px}
+.um-image-preview{width:100%;max-width:320px;height:220px;border-radius:12px;border:1px solid #d8e4ef;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.um-image-preview img{width:100%;height:100%;object-fit:cover;display:block}
+.um-image-placeholder{color:#5b6470;font-weight:800;text-align:center;padding:18px}
+.um-image-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.um-image-actions input[type=file]{display:none}
+@media(max-width:760px){.um-image-card{grid-template-columns:1fr}.um-image-preview{max-width:none}}
+
+/* V58 - UI documentos Ficha OC */
+.expediente-grid{gap:14px}
+.expediente-card{box-sizing:border-box}
+.expediente-card h3{margin-bottom:12px}
+.expediente-card .grid{gap:10px;align-items:stretch}
+.expediente-card .grid>div{box-sizing:border-box;min-width:0}
+.document-status-grid,
+.doc-check-grid.estado-coi-checklist{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;align-items:stretch;margin-top:12px}
+.document-status-card,
+.doc-check.estado-coi-proceso{min-height:78px;height:100%;display:flex;align-items:flex-start;gap:12px;padding:14px;border:1px solid #dde5ef;border-radius:12px;background:#f8fafc;box-sizing:border-box;cursor:pointer;transition:background .15s ease,border-color .15s ease,box-shadow .15s ease,transform .15s ease}
+.document-status-card:hover,
+.doc-check.estado-coi-proceso:hover{background:#f1f5f9;border-color:#cbd5e1}
+.document-status-card.is-checked,
+.document-status-card.checked,
+.document-status-card.activo,
+.doc-check.estado-coi-proceso.ok{background:#eef6ff;border-color:#5b9bd5;box-shadow:0 0 0 1px rgba(91,155,213,.15)}
+.document-status-card input[type="checkbox"],
+.doc-check.estado-coi-proceso input[type="checkbox"]{flex:0 0 auto;width:18px;height:18px;margin:2px 0 0 0;accent-color:#1f4e79}
+.document-status-content,
+.doc-check.estado-coi-proceso>span{min-width:0;flex:1}
+.document-status-title,
+.doc-check.estado-coi-proceso b{display:block;font-size:12px;font-weight:800;line-height:1.25;color:#0f172a;text-transform:uppercase;overflow-wrap:anywhere;word-break:normal}
+.document-status-subtitle,
+.doc-check.estado-coi-proceso small{display:block;margin-top:5px;font-size:12px;line-height:1.25;color:#64748b}
+.finance-table-wrap{max-width:100%;overflow:auto}
+.finance-table th,
+.finance-table td{padding:10px 9px;line-height:1.35;vertical-align:top}
+.finance-table th{white-space:nowrap;letter-spacing:.02em}
+.finance-summary{align-items:stretch}
+.finance-kpi{box-sizing:border-box;height:100%;min-height:74px}
+@media (max-width:900px){
+  .document-status-grid,
+  .doc-check-grid.estado-coi-checklist{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+}
+@media (max-width:600px){
+  .document-status-grid,
+  .doc-check-grid.estado-coi-checklist{grid-template-columns:1fr}
+  .document-status-card,
+  .doc-check.estado-coi-proceso{min-height:72px}
+}
 </style>
 </head>
 <body>
 <header>
   <div class="brand"><small>TRENES ARGENTINOS</small>LÍNEA ROCA</div>
   <div class="app-identity" title="Sistema Integrado de Gestión de Obras y Servicios">
-    <div class="app-title-line" id="appTitleHeader">COI Línea Roca — <span id="appVersionHeader" class="app-version-badge">V53.1</span></div>
+    <div class="app-title-line" id="appTitleHeader">COI Línea Roca — <span id="appVersionHeader" class="app-version-badge">V55.0</span></div>
     <div class="app-subtitle" id="appSubtitleHeader">Sistema Integrado de Gestión de Obras y Servicios</div>
-    <div class="app-tagline" id="appTaglineHeader">Sistema operativo COI Línea Roca — Gestión de Obras, Servicios, Certificaciones y Vencimientos</div><div class="header-operativo"><span class="header-pill">Versión: <b id="headerVersionOperativa">V53.1</b></span><span class="header-pill">Última actualización: <b id="headerUltimaActualizacion">Sin datos</b></span><span class="header-pill">OCs cargadas: <b id="headerTotalOC">0</b></span><span class="header-pill" id="headerModoSistema">Modo Jefatura</span></div>
+    <div class="app-tagline" id="appTaglineHeader">Sistema operativo COI Línea Roca — Gestión de Obras, Servicios, Certificaciones y Vencimientos</div><div class="header-operativo"><span class="header-pill">Versión: <b id="headerVersionOperativa">V55.0</b></span><span class="header-pill">Última actualización: <b id="headerUltimaActualizacion">Sin datos</b></span><span class="header-pill">OCs cargadas: <b id="headerTotalOC">0</b></span><span class="header-pill" id="headerModoSistema">Modo Jefatura</span></div>
   </div>
 </header>
 
@@ -4145,7 +4216,7 @@ function activarHoverEstaciones(){
    V32.1 - Acerca del Sistema + Historial de versiones
    =============================== */
 const APP_NAME = "COI Línea Roca";
-const APP_VERSION = "V53.1";
+const APP_VERSION = "V55.0";
 const APP_STATUS = "Versión operativa en desarrollo";
 const APP_RELEASE_DATE = "2026-07-01";
 const APP_AUTHOR = "Mariano Special";
@@ -4155,6 +4226,8 @@ const APP_OPERATIVE_TEXT = "Sistema operativo COI Línea Roca — Gestión de Ob
 const ADMIN_PIN = "1234";
 const USER_ROLES = { ADMIN: "Administrador", JEFE: "Jefatura" };
 const historialVersiones = [
+  {version:"V55.0",fecha:"2026-07-02",titulo:"Armonizacion visual Ficha OC",cambios:["Se normalizaron las tarjetas de estados documentales en Ficha OC.","Se agrego estado visual activo uniforme para checkboxes documentales.","Se ajustaron espaciados, padding y tablas financieras sin modificar calculos ni persistencia."],modulosAfectados:["Ficha OC","Documentos","Estado Financiero"],estado:"Implementado",observaciones:"Correccion visual sobre HTML/CSS/JS puro. Mantiene localStorage y eventos addEventListener."},
+  {version:"V54.0",fecha:"2026-07-02",titulo:"Certificaciones OC e imagen UM",cambios:["Se corrigió el resumen de certificaciones en Ficha OC.","Se agregó imagen local Base64 en Ficha UM."],modulosAfectados:["Ficha OC","Ficha UM","localStorage"],estado:"Implementado",observaciones:"Actualización incremental sin backend ni librerías externas."},
   {version:"V53.1",fecha:"2026-07-01",titulo:"Corrección visual de fotos de estaciones",cambios:["Se corrigió la ficha estación para evitar render simultáneo de imagen y placeholder.","Se unificó la resolución de fotos con prioridad localStorage > assets > placeholder.","Se agregó fallback visual cuando una imagen de assets no carga."],modulosAfectados:["Red Línea Roca","Ficha Estación","Catálogo Maestro de Estaciones"],estado:"Versión operativa en desarrollo",observaciones:"Se corrigió la ficha estación para evitar render simultáneo de imagen y placeholder, manteniendo prioridad localStorage > assets > placeholder."},
   {version:"V53",fecha:"2026-07-01",titulo:"Catálogo Maestro de Estaciones",cambios:["Se consolidó el Catálogo Maestro de Estaciones como fuente oficial de datos fijos de la red.","Se preparó la carga de fotos por carpeta assets/estaciones compatible con GitHub Pages.","Se incorporaron funciones de resolución por idEstacion, nombre y aliases.","Se agregó migración suave de registros operativos hacia idEstacion.","Se añadió auditoría de estaciones, hotspots, fotos y registros sin asociación."],modulosAfectados:["Red Línea Roca","Ficha Estación","Órdenes","UM","Administración","Acerca del Sistema"],estado:"Versión operativa en desarrollo",observaciones:"La versión mantiene compatibilidad con la estructura anterior y no rompe localStorage."},  {version:'V52',titulo:'Gestión Financiera, Acceso y Red Interactiva',fecha:'30/06/2026',estado:'Operativa',cambios:['Estado financiero por posiciones en Ficha OC','Servicios Técnicos asociados en Ficha UM','Login local con roles','Dashboard financiero e interactivo','Red con filtros visuales y mini resumen de estación']},
   {version:"V50",fecha:"2026-06-30",titulo:"Arquitectura Maestra del Sistema",cambios:["Se implementó el Modelo Maestro de Datos Ferroviarios.","Se incorporaron Catálogos Maestros de líneas, ramales, distritos, estaciones, tipos de UM, especialidades y nodos.","El SVG deja de ser la fuente oficial de información y queda como representación gráfica.","El sistema comienza a trabajar con IDs permanentes compatibles con nombres y aliases.","Se preparó la aplicación para futuras integraciones con CSV, Excel, Power BI, backend, IA y QR."],modulosAfectados:["Arquitectura","Catálogos Maestros","Red","Hotspots","Validadores"],estado:"Versión operativa en desarrollo",observaciones:"La nueva capa convive con la estructura actual sin modificar el comportamiento visual ni romper localStorage."},
@@ -5170,6 +5243,789 @@ const _adminBackupPayloadV53Base=adminBackupPayload;
 adminBackupPayload=function(){const p=_adminBackupPayloadV53Base();p.version=APP_VERSION;p.catalogoMaestroEstaciones=CATALOGO_MAESTRO_ESTACIONES;p.catalogoEstaciones=CAT_ESTACIONES;return p;};
 const _ejecutarDiagnosticoSistemaBase=ejecutarDiagnosticoSistema;ejecutarDiagnosticoSistema=function(){const r=_ejecutarDiagnosticoSistemaBase(),fin=posicionesFinancieras;return {...r,posFinSinOC:fin.filter(p=>!p.ocNro).length,posFinSinPosicion:fin.filter(p=>!p.posicion).length,posFinSinMonto:fin.filter(p=>!p.montoPosicion).length,posFinSaldoNegativo:fin.filter(p=>Number(p.saldoMonto)<0).length,posFinCantidadExcedida:fin.filter(p=>Number(p.cantidadCertificada)>Number(p.cantidadTotal)).length,posFinSinActa:fin.filter(p=>!p.actaMedicionNro).length};};
 function initV45Consolidada(){v45CrearEstacionSinDefinir();v45MigrarCampos();initCargaRapidaConsolidadaV45();}
+
+/* ===============================
+   V54 - Estado Financiero avanzado y edición completa Ficha OC
+   =============================== */
+const FIN_V54_BLOQUES={
+  POSICION_OC:{
+    label:'Posiciones OC',
+    columns:['OC_NRO','REMITO','POSICION','DESCRIPCION','CANTIDAD','PRECIO_UNITARIO','PRECIO_TOTAL','PERIODO','SALDO','OBSERVACIONES'],
+    headers:['OC','REMITO','POSICIÓN','DESCRIPCIÓN','CANTIDAD','PRECIO UNITARIO','PRECIO TOTAL','PERÍODO','SALDO','OBSERVACIONES']
+  },
+  CERTIFICADA:{
+    label:'Posiciones certificadas',
+    columns:['OC_NRO','REMITO','POSICION','DESCRIPCION','CANTIDAD','PRECIO_UNITARIO','PRECIO_TOTAL','MES','PERIODO','SALDO_TOTAL','CERTIFICADO','ACTA_NRO','ANIO','OBSERVACIONES'],
+    headers:['OC','REMITO','POSICIÓN','DESCRIPCIÓN','CANTIDAD','PRECIO UNITARIO','PRECIO TOTAL','MES','PERÍODO','SALDO TOTAL','CERTIFICADO','ACTA N°','AÑO','OBSERVACIONES']
+  },
+  LIBRE:{
+    label:'Posiciones libres',
+    columns:['OC_NRO','REMITO','POSICION','DESCRIPCION','CANTIDAD','PRECIO_UNITARIO','PRECIO_TOTAL','PERIODO','SALDO','OBSERVACIONES'],
+    headers:['OC','REMITO','POSICIÓN','DESCRIPCIÓN','CANTIDAD','PRECIO UNITARIO','PRECIO TOTAL','PERÍODO','SALDO','OBSERVACIONES']
+  }
+};
+let finV54BloqueActivo='POSICION_OC';
+function finV54Config(){return FIN_V54_BLOQUES[finV54BloqueActivo]||FIN_V54_BLOQUES.POSICION_OC;}
+function finV54Val(row,...keys){for(const k of keys){if(row&&row[k]!==undefined&&row[k]!==null&&String(row[k]).trim()!=='')return row[k];}return '';}
+function finV54Num(v){return typeof finNumero==='function'?finNumero(v):montoNumero(v);}
+function finV54Fecha(){return new Date().toISOString();}
+function finV54OCNro(oc){return oc?.numeroOC||oc?.oc||oc?.OC_NRO||oc?.ocNro||obtenerIdOCV52?.(oc)||'';}
+function finV54MontoOC(oc){return typeof obtenerMontoOCV52==='function'?obtenerMontoOCV52(oc):montoNumero(oc?.montoOC||oc?.monto||0);}
+function finV54NormalizarBloque(v){
+  const s=normalizarTexto(String(v||''));
+  if(['CERTIFICADA','CERTIFICADO','POSICIONES_CERTIFICADAS'].includes(s))return'CERTIFICADA';
+  if(['LIBRE','LIBRES','POSICIONES_LIBRES','SALDO'].includes(s))return'LIBRE';
+  return'POSICION_OC';
+}
+function finV54InferirBloque(row,bloque=''){
+  if(row?.tipoBloqueFinanciero||row?.TIPO_BLOQUE_FINANCIERO)return finV54NormalizarBloque(row.tipoBloqueFinanciero||row.TIPO_BLOQUE_FINANCIERO);
+  if(bloque)return finV54NormalizarBloque(bloque);
+  const tieneActa=String(row?.actaNro||row?.ACTA_NRO||row?.actaMedicionNro||row?.ACTA_MEDICION_NRO||'').trim();
+  const tieneCert=finV54Num(row?.certificado||row?.CERTIFICADO||row?.montoCertificado||row?.MONTO_CERTIFICADO)>0;
+  if(tieneActa||tieneCert)return 'CERTIFICADA';
+  return 'POSICION_OC';
+}
+function finV54NormalizarRegistro(row,bloque=''){
+  row=row||{};
+  const tipoBloqueFinanciero=finV54InferirBloque(row,bloque);
+  const ocNro=finNormalizarOC(finV54Val(row,'ocNro','OC_NRO','OC','oc','numeroOC'));
+  const match=typeof finBuscarOC==='function'?finBuscarOC(ocNro):null,item=match?.item||{};
+  const cantidad=finV54Num(finV54Val(row,'cantidad','CANTIDAD','cantidadTotal','CANTIDAD_TOTAL'));
+  const precioTotal=finV54Num(finV54Val(row,'precioTotal','PRECIO_TOTAL','montoPosicion','MONTO_POSICION'));
+  const precioUnitario=finV54Num(finV54Val(row,'precioUnitario','PRECIO_UNITARIO'))||(cantidad?precioTotal/cantidad:0);
+  const certificado=finV54Num(finV54Val(row,'certificado','CERTIFICADO','montoCertificado','MONTO_CERTIFICADO'));
+  const saldo=finV54Num(finV54Val(row,'saldo','SALDO','saldoMonto','SALDO_MONTO'));
+  const saldoTotal=finV54Num(finV54Val(row,'saldoTotal','SALDO_TOTAL'))||saldo;
+  const posicion=String(finV54Val(row,'posicion','POSICION','numeroPosicion')||'').trim();
+  const descripcion=String(finV54Val(row,'descripcion','DESCRIPCION','descripcionPosicion','DESCRIPCION_POSICION')||'').trim();
+  return {
+    ...row,
+    idPosicionFinanciera:row.idPosicionFinanciera||`FIN-${Date.now()}-${Math.random().toString(16).slice(2,8)}`,
+    ocNro,
+    idObra:row.idObra||item.idObra||item.idOC||'',
+    idServicio:row.idServicio||item.idServicio||item.ID_SERVICIO||'',
+    tipoRegistro:row.tipoRegistro||item.tipo||match?.tipo||'',
+    tipoBloqueFinanciero,
+    remito:String(finV54Val(row,'remito','REMITO')||'').trim(),
+    posicion,
+    descripcion,
+    descripcionPosicion:descripcion,
+    cantidad,
+    cantidadTotal:cantidad,
+    unidad:String(finV54Val(row,'unidad','UNIDAD')||'').trim(),
+    precioUnitario,
+    precioTotal,
+    montoPosicion:precioTotal,
+    mes:String(finV54Val(row,'mes','MES','periodoMes','PERIODO_MES')||'').trim(),
+    periodo:String(finV54Val(row,'periodo','PERIODO')||'').trim(),
+    periodoDesde:v45FechaISOFlexible(finV54Val(row,'periodoDesde','PERIODO_DESDE'))||finV54Val(row,'periodoDesde','PERIODO_DESDE')||'',
+    periodoHasta:v45FechaISOFlexible(finV54Val(row,'periodoHasta','PERIODO_HASTA'))||finV54Val(row,'periodoHasta','PERIODO_HASTA')||'',
+    saldo,
+    saldoMonto:saldo,
+    saldoTotal,
+    certificado,
+    montoCertificado:certificado,
+    actaNro:String(finV54Val(row,'actaNro','ACTA_NRO','actaMedicionNro','ACTA_MEDICION_NRO')||'').trim(),
+    actaMedicionNro:String(finV54Val(row,'actaNro','ACTA_NRO','actaMedicionNro','ACTA_MEDICION_NRO')||'').trim(),
+    anio:String(finV54Val(row,'anio','ANIO','AÑO')||'').trim(),
+    observaciones:String(finV54Val(row,'observaciones','OBSERVACIONES')||'').trim(),
+    fechaCarga:row.fechaCarga||finV54Fecha(),
+    fechaUltimaModificacion:finV54Fecha()
+  };
+}
+function finV54MigrarMemoria(){
+  posicionesFinancieras=(Array.isArray(posicionesFinancieras)?posicionesFinancieras:[]).map(p=>finV54NormalizarRegistro(p));
+}
+const _guardarPosicionesFinancierasV54Base=guardarPosicionesFinancieras;
+guardarPosicionesFinancieras=function(){finV54MigrarMemoria();_guardarPosicionesFinancierasV54Base();};
+function finV54Control(c,v=''){
+  const textArea=['DESCRIPCION','OBSERVACIONES'].includes(c);
+  const money=['PRECIO_UNITARIO','PRECIO_TOTAL','SALDO','SALDO_TOTAL','CERTIFICADO'].includes(c);
+  if(textArea)return `<textarea data-campo="${c}" class="${c==='DESCRIPCION'?'w-desc':'w-obs'}">${esc(v)}</textarea>`;
+  return `<input type="text" data-campo="${c}" value="${esc(v)}" ${money?'placeholder="$ 0,00"':''}>`;
+}
+function renderCargaFinanciera(){
+  const panel=$('panelCargaFinanciera'); if(!panel)return;
+  const cfg=finV54Config();
+  panel.innerHTML=`<div class="fin-load-toolbar"><label for="finTipoBloqueCarga">Tipo de carga financiera:</label><select id="finTipoBloqueCarga">${Object.entries(FIN_V54_BLOQUES).map(([k,v])=>`<option value="${k}" ${k===finV54BloqueActivo?'selected':''}>${esc(v.label)}</option>`).join('')}</select><span class="muted">La grilla cambia columnas según el bloque seleccionado.</span></div><div class="quick-load-wrap"><table class="quick-load-table"><thead id="cargaRapidaFinancieraHead"></thead><tbody id="cargaRapidaFinancieraBody"></tbody></table></div>`;
+  $('finTipoBloqueCarga')?.addEventListener('change',ev=>{finV54BloqueActivo=ev.target.value;renderCargaFinanciera();if($('cargaRapidaMsg'))$('cargaRapidaMsg').textContent='Carga financiera: '+finV54Config().label+'. Pegue desde Excel con estas columnas.';});
+  const head=$('cargaRapidaFinancieraHead'),body=$('cargaRapidaFinancieraBody');
+  head.innerHTML=`<tr><th>#</th>${cfg.headers.map(h=>`<th class="excel-service-head">${esc(h)}</th>`).join('')}</tr>`;
+  body.innerHTML='';
+  agregarFilasCargaFinanciera(5);
+}
+function agregarFilasCargaFinanciera(cantidad=5){
+  const body=$('cargaRapidaFinancieraBody');if(!body)return;
+  const cfg=finV54Config(),start=body.querySelectorAll('tr').length+1;let html='';
+  for(let i=0;i<cantidad;i++)html+=`<tr data-tipo-carga="Financiera" data-bloque-financiero="${finV54BloqueActivo}"><td class="quick-load-row-num">${start+i}</td>${cfg.columns.map(c=>`<td>${finV54Control(c)}</td>`).join('')}</tr>`;
+  body.insertAdjacentHTML('beforeend',html);
+}
+function leerFilaFinanciera(tr){const row={};(FIN_V54_BLOQUES[tr.dataset.bloqueFinanciero]||finV54Config()).columns.forEach(c=>row[c]=(tr.querySelector(`[data-campo="${c}"]`)?.value||'').trim());return row;}
+function filaFinancieraVacia(row){return Object.values(row||{}).every(v=>!String(v||'').trim());}
+function actualizarFilaFinanciera(tr){
+  const reg=finV54NormalizarRegistro(leerFilaFinanciera(tr),tr.dataset.bloqueFinanciero||finV54BloqueActivo);
+  const set=(c,v)=>{const el=tr.querySelector(`[data-campo="${c}"]`);if(el)el.value=v;};
+  if(tr.querySelector('[data-campo="PRECIO_TOTAL"]')&&!tr.querySelector('[data-campo="PRECIO_TOTAL"]').value&&reg.precioUnitario&&reg.cantidad)set('PRECIO_TOTAL',reg.precioTotal||reg.precioUnitario*reg.cantidad);
+  if(tr.querySelector('[data-campo="SALDO"]')&&!tr.querySelector('[data-campo="SALDO"]').value&&reg.tipoBloqueFinanciero!=='CERTIFICADA')set('SALDO',reg.saldo||reg.precioTotal);
+  if(tr.querySelector('[data-campo="SALDO_TOTAL"]')&&!tr.querySelector('[data-campo="SALDO_TOTAL"]').value)set('SALDO_TOTAL',reg.saldoTotal||Math.max(reg.precioTotal-reg.certificado,0));
+}
+function finClaveRegistro(p){return [p.tipoBloqueFinanciero,p.ocNro,p.remito,p.posicion,p.actaNro,p.mes,p.periodo,p.periodoDesde,p.periodoHasta].map(x=>normalizarTexto(String(x||''))).join('|');}
+function guardarCargaFinanciera(){
+  document.querySelectorAll('#panelCargaFinanciera tbody tr').forEach(actualizarFilaFinanciera);
+  let guardados=0,actualizados=0,vacios=0;
+  document.querySelectorAll('#panelCargaFinanciera tbody tr').forEach(tr=>{
+    const row=leerFilaFinanciera(tr);if(filaFinancieraVacia(row)){vacios++;return;}
+    const reg=finV54NormalizarRegistro(row,tr.dataset.bloqueFinanciero||finV54BloqueActivo),key=finClaveRegistro(reg),idx=posicionesFinancieras.findIndex(p=>finClaveRegistro(finV54NormalizarRegistro(p,p.tipoBloqueFinanciero))===key);
+    if(idx>=0){posicionesFinancieras[idx]={...posicionesFinancieras[idx],...reg,idPosicionFinanciera:posicionesFinancieras[idx].idPosicionFinanciera,fechaCarga:posicionesFinancieras[idx].fechaCarga||reg.fechaCarga};actualizados++;}else{posicionesFinancieras.push(reg);guardados++;}
+  });
+  guardarPosicionesFinancieras();v45RefreshAfterDataChange();
+  if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent=`${finV54Config().label} guardadas. Nuevas: ${guardados}. Actualizadas: ${actualizados}. Filas vacías: ${vacios}.`;$('cargaRapidaMsg').className='quick-load-msg ok';}
+  alert(`Carga financiera guardada. Nuevas: ${guardados}. Actualizadas: ${actualizados}.`);
+}
+function limpiarGrillaCargaFinanciera(){renderCargaFinanciera();if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent='Grilla financiera limpia. Seleccione un bloque y pegue desde Excel.';$('cargaRapidaMsg').className='quick-load-msg';}}
+function obtenerPosicionesPorOC(ocNro){finV54MigrarMemoria();const n=normalizarTexto(finNormalizarOC(ocNro));return posicionesFinancieras.filter(p=>normalizarTexto(finNormalizarOC(p.ocNro))===n);}
+function finV54ListaPorBloque(oc,bloque){
+  const pos=obtenerPosicionesPorOC(finV54OCNro(oc));
+  if(bloque==='LIBRE'){
+    return pos.filter(p=>p.tipoBloqueFinanciero==='LIBRE'||(p.tipoBloqueFinanciero==='POSICION_OC'&&Number(p.saldo||p.saldoMonto||0)>0));
+  }
+  return pos.filter(p=>p.tipoBloqueFinanciero===bloque);
+}
+function finV54ResumenOC(oc){
+  const ocNro=finV54OCNro(oc),montoOc=finV54MontoOC(oc),posOC=finV54ListaPorBloque(oc,'POSICION_OC'),cert=finV54ListaPorBloque(oc,'CERTIFICADA'),libres=finV54ListaPorBloque(oc,'LIBRE');
+  const montoTotalPosiciones=posOC.reduce((a,p)=>a+Number(p.precioTotal||p.montoPosicion||0),0);
+  const montoCertificado=cert.reduce((a,p)=>a+Number(p.precioTotal||p.certificado||p.montoCertificado||0),0);
+  const saldoDisponible=montoTotalPosiciones-montoCertificado;
+  const diferencia=montoOc-montoTotalPosiciones;
+  let sem='verde',txt='Sin diferencias';
+  if(!posOC.length){sem='gris';txt='Sin posiciones cargadas';}
+  else if(montoCertificado>montoTotalPosiciones){sem='rojo';txt='Certificado mayor al total';}
+  else if(saldoDisponible>0||Math.abs(diferencia)>1){sem='amarillo';txt='Saldo pendiente o diferencia';}
+  return {ocNro,montoOc,posOC,cert,libres,montoTotalPosiciones,montoCertificado,saldoDisponible,diferencia,semaforo:sem,semaforoTexto:txt};
+}
+function finV54Td(v){return `<td>${esc(v??'—')}</td>`;}
+function finV54Tabla(lista,bloque){
+  const cfg=FIN_V54_BLOQUES[bloque],rows=lista.map(p=>{
+    if(bloque==='CERTIFICADA')return `<tr>${[p.ocNro,p.remito,p.posicion,p.descripcion,p.cantidad,finFormatoMonto(p.precioUnitario,'ARS'),finFormatoMonto(p.precioTotal,'ARS'),p.mes,p.periodo,finFormatoMonto(p.saldoTotal,'ARS'),finFormatoMonto(p.certificado,'ARS'),p.actaNro,p.anio,p.observaciones].map(finV54Td).join('')}</tr>`;
+    return `<tr>${[p.ocNro,p.remito,p.posicion,p.descripcion,p.cantidad,finFormatoMonto(p.precioUnitario,'ARS'),finFormatoMonto(p.precioTotal,'ARS'),p.periodo,finFormatoMonto(p.saldo||p.saldoMonto,'ARS'),p.observaciones].map(finV54Td).join('')}</tr>`;
+  }).join('');
+  return `<div class="finance-table-wrap"><table class="finance-table v54"><thead><tr>${cfg.headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows||`<tr><td colspan="${cfg.headers.length}">Sin registros para este bloque.</td></tr>`}</tbody></table></div>`;
+}
+function renderEstadoFinancieroOC(oc){
+  if(!oc)return'';const r=finV54ResumenOC(oc),diffClass=!r.posOC.length?'finance-diff-empty':r.montoCertificado>r.montoTotalPosiciones?'finance-diff-bad':Math.abs(r.diferencia)>1?'finance-diff-warn':'finance-diff-ok';
+  const kpis=[
+    ['Monto total OC',formatoMoneda(r.montoOc),''],['Monto total posiciones',finFormatoMonto(r.montoTotalPosiciones,'ARS'),''],['Monto certificado',finFormatoMonto(r.montoCertificado,'ARS'),''],['Saldo disponible',finFormatoMonto(r.saldoDisponible,'ARS'),''],
+    ['Cantidad total de posiciones',r.posOC.length,''],['Posiciones certificadas',r.cert.length,''],['Posiciones libres',r.libres.length,''],['Diferencia OC vs posiciones',finFormatoMonto(r.diferencia,'ARS'),diffClass]
+  ].map(x=>`<div class="finance-kpi ${x[2]}"><b>${esc(x[1])}</b><span>${esc(x[0])}</span></div>`).join('');
+  const safeId=slugOC(r.ocNro||obtenerIdOCV52(oc)||'OC');
+  return `<section class="expediente-card full" data-fin-oc="${esc(safeId)}"><div class="finance-advanced-head"><div><h3>4. Estado Financiero</h3><p class="muted">Detalle avanzado por posiciones, certificaciones y saldos de la OC.</p></div><span class="finance-semaforo ${r.semaforo}">${esc(r.semaforoTexto)}</span></div><div class="finance-summary">${kpis}</div><div class="finance-tabs" role="tablist"><button type="button" class="active" data-fin-tab="pos-${esc(safeId)}">A. Posiciones OC</button><button type="button" data-fin-tab="cert-${esc(safeId)}">B. Posiciones certificadas</button><button type="button" data-fin-tab="lib-${esc(safeId)}">C. Posiciones libres / saldo</button></div><div id="pos-${esc(safeId)}" class="finance-tab-panel active">${finV54Tabla(r.posOC,'POSICION_OC')}</div><div id="cert-${esc(safeId)}" class="finance-tab-panel">${finV54Tabla(r.cert,'CERTIFICADA')}</div><div id="lib-${esc(safeId)}" class="finance-tab-panel">${finV54Tabla(r.libres,'LIBRE')}</div></section>`;
+}
+function fichaV54EsAdmin(){return (typeof adminIsEnabled==='function'&&adminIsEnabled())||(typeof sesionActual==='function'&&sesionActual()?.rol==='Administrador');}
+function fichaV54Key(item){return item?.idObra||item?.idOC||item?.idServicio||item?.ID_SERVICIO||item?.oc||item?.numeroOC||'';}
+function fichaV54Encontrar(id){return typeof obtenerOC==='function'?obtenerOC(id):null;}
+function fichaV54Campo(item,keys){for(const k of keys){if(item[k]!==undefined&&item[k]!==null)return item[k];}return'';}
+const FICHA_V54_FIELDS=[
+  ['idObra','ID_OBRA',['idObra','idOC']],['idServicio','ID_SERVICIO',['idServicio','ID_SERVICIO']],['numeroOC','OC_NRO',['numeroOC','oc','OC_NRO','ocNro']],['tipo','Tipo',['tipo']],['tipoUM','Tipo UM',['tipoUM','tipoUm','unidadMantenimiento','especialidad']],['descripcion','Descripción',['descripcion','tipoTrabajo']],['estacion','Estación',['estacion']],['proveedor','Proveedor',['proveedor']],['expediente','Expediente',['expediente','expte']],['montoOC','Monto OC',['montoOC','montoOc','monto','MONTO_OC']],['plazoDias','Plazo días',['plazoDias','plazo']],['fechaInicio','Fecha inicio',['fechaInicio','actaInicio']],['fechaFin','Fecha fin',['fechaFin','vencimiento']],['diasRestantes','Días restantes',['diasRestantes']],['estado','Estado COI',['estado','estadoCOI']],['estadoDocumental','Estado documental',['estadoDocumental','ESTADO_DOCUMENTAL']],['ultimaActa','Última acta',['ultimaActa','ultimaCertificacion']],['periodoMes','Período mes',['periodoMes','PERIODO_MES']],['periodoInicio','Período inicio',['periodoInicio','PERIODO_INICIO']],['periodoFin','Período fin',['periodoFin','PERIODO_FIN']],['proximaCertificacion','Próxima certificación',['proximaCertificacion','proxCertificacion','PROX_CERTIFICACION']],['observaciones','Observaciones',['observaciones']],['carpetaDocumental','Carpeta documental',['carpetaDocumental']],['rutaDocumental','Ruta documental',['rutaDocumental']],['linkOneDrive','Link OneDrive',['linkOneDrive']]
+];
+function fichaV54InsertarBoton(found,id){
+  if(!fichaV54EsAdmin())return;
+  const head=document.querySelector('#fichaOCBody .oc-header');if(!head||$('btnEditarFichaOC'))return;
+  head.insertAdjacentHTML('beforeend',`<div class="exp-actions"><button type="button" id="btnEditarFichaOC" class="primary" data-admin-only>Editar Ficha OC</button></div>`);
+  $('btnEditarFichaOC')?.addEventListener('click',()=>renderFichaOCEdicion(id));
+}
+const _renderFichaOCV54Base=renderFichaOC;
+renderFichaOC=function(idObra){_renderFichaOCV54Base(idObra);fichaV54InsertarBoton(fichaV54Encontrar(idObra),idObra);};
+function renderFichaOCEdicion(idObra){
+  if(!fichaV54EsAdmin()){alert('Solo Administrador puede editar la Ficha OC.');return;}
+  const found=fichaV54Encontrar(idObra),body=$('fichaOCBody');if(!found||!body)return;
+  const item=found.item,originalKey=fichaV54Key(item);
+  const controls=FICHA_V54_FIELDS.map(([name,label,keys])=>{
+    const val=fichaV54Campo(item,keys),large=['observaciones','linkOneDrive','rutaDocumental'].includes(name);
+    return `<div class="${large?'full':''}"><label for="edit_${name}">${esc(label)}</label>${large?`<textarea id="edit_${name}" data-edit-campo="${name}">${esc(val)}</textarea>`:`<input id="edit_${name}" data-edit-campo="${name}" value="${esc(val)}">`}</div>`;
+  }).join('');
+  body.innerHTML=`<div class="oc-edit-banner">Modo edición de Ficha OC. Los cambios se guardan sobre el mismo registro, sin crear una OC nueva.</div><section class="expediente-card full"><h3>Editar Ficha OC</h3><div class="oc-edit-form">${controls}</div><div id="fichaEditWarnings" class="oc-edit-warnings" style="display:none"></div><div class="oc-edit-actions"><button type="button" id="btnGuardarFichaOCEdit" class="primary">Guardar cambios</button><button type="button" id="btnCancelarFichaOCEdit">Cancelar edición</button><button type="button" id="btnRecalcularFechasFicha">Recalcular fechas</button><button type="button" id="btnRecalcularCertFicha">Recalcular certificación</button></div></section>`;
+  $('btnCancelarFichaOCEdit')?.addEventListener('click',()=>renderFichaOC(originalKey));
+  $('btnRecalcularFechasFicha')?.addEventListener('click',fichaV54RecalcularFechas);
+  $('btnRecalcularCertFicha')?.addEventListener('click',fichaV54RecalcularCertificacion);
+  $('btnGuardarFichaOCEdit')?.addEventListener('click',()=>fichaV54GuardarEdicion(found,originalKey));
+  fichaV54MostrarAdvertencias(found,originalKey);
+  document.querySelectorAll('[data-edit-campo]').forEach(el=>el.addEventListener('input',()=>fichaV54MostrarAdvertencias(found,originalKey)));
+}
+function fichaV54Valor(name){return $(`edit_${name}`)?.value?.trim()||'';}
+function fichaV54RecalcularFechas(){
+  const inicio=v45FechaISOFlexible(fichaV54Valor('fechaInicio'))||fichaV54Valor('fechaInicio'),plazo=Number(fichaV54Valor('plazoDias')||0);
+  const d=parseFecha(inicio);if(d&&plazo){const fin=addDias(d,plazo);if($('edit_fechaFin'))$('edit_fechaFin').value=fin.toISOString().slice(0,10);if($('edit_diasRestantes'))$('edit_diasRestantes').value=diffDias(fin,COI_TODAY);}
+}
+function fichaV54RecalcularCertificacion(){
+  const base=fichaV54Valor('periodoFin')||fichaV54Valor('fechaInicio'),d=parseFecha(v45FechaISOFlexible(base)||base);if(!d)return;
+  const prox=addMeses(d,1);if($('edit_proximaCertificacion'))$('edit_proximaCertificacion').value=prox.toISOString().slice(0,10);
+}
+function fichaV54Advertencias(item,originalKey){
+  const w=[],inicio=parseFecha(v45FechaISOFlexible(fichaV54Valor('fechaInicio'))||fichaV54Valor('fechaInicio')),fin=parseFecha(v45FechaISOFlexible(fichaV54Valor('fechaFin'))||fichaV54Valor('fechaFin'));
+  if(inicio&&fin&&fin<inicio)w.push('Fecha fin menor a fecha inicio.');
+  if(finV54Num(fichaV54Valor('montoOC'))<0)w.push('Monto OC negativo.');
+  const nuevoOC=finNormalizarOC(fichaV54Valor('numeroOC'));if(nuevoOC&&todasLasOC().some(r=>r.item!==item&&normalizarTexto(finNormalizarOC(r.oc||r.item?.numeroOC||r.item?.oc))===normalizarTexto(nuevoOC)))w.push('OC duplicada: ya existe otro registro con ese número.');
+  if(!fichaV54Valor('proveedor'))w.push('Proveedor vacío.');if(!fichaV54Valor('estacion'))w.push('Estación vacía.');if(!fichaV54Valor('estado'))w.push('Estado vacío.');
+  const prox=fichaV54Valor('proximaCertificacion');if(prox&&!parseFecha(v45FechaISOFlexible(prox)||prox))w.push('Próxima certificación inválida.');
+  return w;
+}
+function fichaV54MostrarAdvertencias(found,originalKey){
+  const box=$('fichaEditWarnings');if(!box)return;const w=fichaV54Advertencias(found.item,originalKey);box.style.display=w.length?'block':'none';box.innerHTML=w.length?`Advertencias:<br>${w.map(esc).join('<br>')}`:'';
+}
+function fichaV54GuardarEdicion(found,originalKey){
+  const item=found.item,w=fichaV54Advertencias(item,originalKey),duplicada=w.some(x=>x.includes('duplicada'));
+  if(duplicada){fichaV54MostrarAdvertencias(found,originalKey);alert('No se guardó: la OC indicada ya existe en otro registro.');return;}
+  const values=Object.fromEntries(FICHA_V54_FIELDS.map(([name])=>[name,fichaV54Valor(name)]));
+  Object.assign(item,{
+    idObra:values.idObra||item.idObra,idOC:values.idObra||item.idOC,idServicio:values.idServicio,ID_SERVICIO:values.idServicio,
+    numeroOC:finNormalizarOC(values.numeroOC),oc:finNormalizarOC(values.numeroOC),OC_NRO:finNormalizarOC(values.numeroOC),ocNro:finNormalizarOC(values.numeroOC),
+    tipo:values.tipo,tipoUM:values.tipoUM,tipoUm:values.tipoUM,unidadMantenimiento:values.tipoUM,descripcion:values.descripcion,tipoTrabajo:values.descripcion,
+    estacion:values.estacion,proveedor:values.proveedor,expediente:values.expediente,expte:values.expediente,montoOC:values.montoOC,montoOc:values.montoOC,monto:values.montoOC,MONTO_OC:values.montoOC,
+    plazoDias:Number(values.plazoDias||0),plazo:Number(values.plazoDias||0),fechaInicio:v45FechaISOFlexible(values.fechaInicio)||values.fechaInicio,actaInicio:v45FechaISOFlexible(values.fechaInicio)||values.fechaInicio,
+    fechaFin:v45FechaISOFlexible(values.fechaFin)||values.fechaFin,vencimiento:v45FechaISOFlexible(values.fechaFin)||values.fechaFin,diasRestantes:values.diasRestantes,
+    estado:values.estado,estadoCOI:values.estado,estadoDocumental:values.estadoDocumental,ESTADO_DOCUMENTAL:values.estadoDocumental,ultimaActa:values.ultimaActa,ultimaCertificacion:values.ultimaActa,
+    periodoMes:values.periodoMes,PERIODO_MES:values.periodoMes,periodoInicio:values.periodoInicio,PERIODO_INICIO:values.periodoInicio,periodoFin:values.periodoFin,PERIODO_FIN:values.periodoFin,
+    proximaCertificacion:v45FechaISOFlexible(values.proximaCertificacion)||values.proximaCertificacion,proxCertificacion:v45FechaISOFlexible(values.proximaCertificacion)||values.proximaCertificacion,PROX_CERTIFICACION:v45FechaISOFlexible(values.proximaCertificacion)||values.proximaCertificacion,
+    observaciones:values.observaciones,carpetaDocumental:values.carpetaDocumental,rutaDocumental:values.rutaDocumental,linkOneDrive:values.linkOneDrive,fechaUltimaModificacion:finV54Fecha()
+  });
+  const est=fichaV54Valor('estacion');if(found.estacion&&est)found.estacion.nombre=est;
+  guardarBaseLocal();v45RefreshAfterDataChange();if(typeof registrarLogSistema==='function')registrarLogSistema('EDICION_OC','Ficha OC editada',JSON.stringify({id:originalKey,oc:item.numeroOC,advertencias:w}));
+  alert(w.length?`Ficha OC guardada con advertencias:\n- ${w.join('\n- ')}`:'Ficha OC guardada correctamente.');
+  renderFichaOC(fichaV54Key(item));
+}
+document.addEventListener('click',ev=>{
+  const tab=ev.target.closest('[data-fin-tab]');if(tab){const card=tab.closest('[data-fin-oc]');if(!card)return;card.querySelectorAll('[data-fin-tab]').forEach(b=>b.classList.toggle('active',b===tab));card.querySelectorAll('.finance-tab-panel').forEach(p=>p.classList.toggle('active',p.id===tab.dataset.finTab));}
+});
+const _v45PegarExcelV54Base=v45PegarExcel;
+v45PegarExcel=function(ev){
+  const target=ev.target.closest('#panelCargaFinanciera [data-campo]');if(!target)return _v45PegarExcelV54Base(ev);
+  const text=(ev.clipboardData||window.clipboardData)?.getData('text');if(!text||(!text.includes('\t')&&!text.includes('\n')))return;
+  ev.preventDefault();const tr=target.closest('tr'),body=tr.parentElement,cfg=FIN_V54_BLOQUES[tr.dataset.bloqueFinanciero]||finV54Config(),startRow=[...body.children].indexOf(tr),startCol=cfg.columns.indexOf(target.dataset.campo),rows=text.replace(/\r/g,'').split('\n').filter(r=>r.length).map(r=>r.split('\t'));
+  while(body.children.length<startRow+rows.length)agregarFilasCargaFinanciera(5);
+  rows.forEach((cols,rIdx)=>cols.forEach((val,cIdx)=>{const campo=cfg.columns[startCol+cIdx],rowEl=body.children[startRow+rIdx],el=rowEl?.querySelector(`[data-campo="${campo}"]`);if(el)el.value=val.trim();}));
+  [...body.children].forEach(actualizarFilaFinanciera);
+};
+
+/* ===============================
+   V55 - Ramal Chascomus-MDP y Financiera exacta
+   =============================== */
+const RAMAL_CHASCOMUS_MDP_V55='Chascomús - Mar del Plata';
+function asegurarRamalChascomusMDPV55(){
+  if(Array.isArray(ramalesDisponibles)&&!ramalesDisponibles.includes(RAMAL_CHASCOMUS_MDP_V55))ramalesDisponibles.push(RAMAL_CHASCOMUS_MDP_V55);
+  const estacionesMDP=[['CHASCOMUS','Chascomús'],['GANDARA','Gándara'],['LEZAMA','Lezama'],['CASTELLI','Castelli'],['SEVIGNE','Sevigné'],['DOLORES','Dolores'],['GRAL_GUIDO','Gral. Guido'],['MAIPU','Maipú'],['LAS_ARMAS','Las Armas'],['GRAL_PIRAN','Gral. Pirán'],['CNEL_VIDAL','Cnel. Vidal'],['VIVORATA','Vivoratá'],['MAR_DEL_PLATA','Mar del Plata']];
+  estacionesMDP.forEach(([id,nombre],idx)=>{
+    let est=(estaciones||[]).find(e=>normalizarNombreEstacion(e.nombre)===normalizarNombreEstacion(nombre));
+    if(!est){est={nombre,ramal:RAMAL_CHASCOMUS_MDP_V55,x:-999,y:-999,obras:[],servicios:[],ramales:[RAMAL_CHASCOMUS_MDP_V55]};estaciones.push(est);}
+    est.ramal=est.ramal||RAMAL_CHASCOMUS_MDP_V55;
+    est.ramales=[...new Set([...(est.ramales||[]),RAMAL_CHASCOMUS_MDP_V55])];
+    est.idEstacion=est.idEstacion||id;
+    est.nombreCorto=est.nombreCorto||nombre;
+    if(typeof CAT_ESTACIONES!=='undefined'&&!CAT_ESTACIONES.some(e=>normalizarNombreEstacion(e.nombre)===normalizarNombreEstacion(nombre))){
+      CAT_ESTACIONES.push({idEstacion:id,nombre,nombreCorto:nombre,ramal:RAMAL_CHASCOMUS_MDP_V55,ramales:[RAMAL_CHASCOMUS_MDP_V55],tipo:nombre==='Mar del Plata'?'Terminal':'Estación',orden:900+idx,activa:true,tieneHotspot:false});
+    }
+  });
+}
+asegurarRamalChascomusMDPV55();
+if(typeof reconstruirCatalogoMaestroEstaciones==='function'&&!window.__v55CatalogoMDPWrap){
+  window.__v55CatalogoMDPWrap=true;
+  const _reconstruirCatalogoMaestroEstacionesV55=reconstruirCatalogoMaestroEstaciones;
+  reconstruirCatalogoMaestroEstaciones=function(){const r=_reconstruirCatalogoMaestroEstacionesV55();asegurarRamalChascomusMDPV55();return r;};
+}
+/* fix V55 inferencia catalogo aplicado */
+
+const FIN_V55_BLOQUES={
+  POSICION_OC:{label:'Posiciones OC',columns:['OC','REMITO','POS','DESCRIPCION','CANTIDAD','PRECIO_UNITARIO','PRECIO_TOTAL','PERIODO','SALDO'],headers:['OC','REMITO','POS','DESCRIPCIÓN','CANTIDAD','PRECIO UNITARIO','PRECIO TOTAL','PERIODO','SALDO']},
+  CERTIFICADA:{label:'Posiciones Certificadas',columns:['OC','REMITO','POS','DESCRIPCION','CANTIDAD','PRECIO_UNITARIO','PRECIO_TOTAL','MES','PERIODO','ACTA_NRO','FECHA_ACTA'],headers:['OC','REMITO','POS','DESCRIPCIÓN','CANTIDAD','PRECIO UNITARIO','PRECIO TOTAL','MES','PERIODO','ACTA Nº','FECHA ACTA']},
+  LIBRE:{label:'Posiciones Libres',columns:['OC','REMITO','POS','DESCRIPCION','CANTIDAD','PRECIO_UNITARIO','PRECIO_TOTAL','PERIODO'],headers:['OC','REMITO','POS','DESCRIPCIÓN','CANTIDAD','PRECIO UNITARIO','PRECIO TOTAL','PERIODO']}
+};
+let finV55BloqueActivo='POSICION_OC';
+function finV55Bloque(tipo){return FIN_V55_BLOQUES[tipo]||FIN_V55_BLOQUES.POSICION_OC;}
+function normalizarCantidadFinanciera(valor){
+  if(typeof valor==='number')return Number.isFinite(valor)?valor:0;
+  const s=String(valor??'').trim().replace(/\s/g,'');
+  if(!s)return 0;
+  const normalized=s.includes(',')?s.replace(/\./g,'').replace(',','.'):s;
+  const n=Number(normalized.replace(/[^\d.-]/g,''));
+  return Number.isFinite(n)?n:0;
+}
+function normalizarMontoFinanciero(valor){
+  if(typeof valor==='number')return Number.isFinite(valor)?valor:0;
+  let s=String(valor??'').trim();
+  if(!s)return 0;
+  s=s.replace(/\s/g,'').replace(/ARS|USD|\$/gi,'');
+  if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+  else if(s.includes(','))s=s.replace(',','.');
+  const n=Number(s.replace(/[^\d.-]/g,''));
+  return Number.isFinite(n)?n:0;
+}
+function normalizarFechaFinanciera(valor){
+  const raw=String(valor??'').trim();
+  if(!raw)return '';
+  const iso=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(iso)return `${iso[1]}-${String(iso[2]).padStart(2,'0')}-${String(iso[3]).padStart(2,'0')}`;
+  const dmy=raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if(dmy)return `${dmy[3]}-${String(dmy[2]).padStart(2,'0')}-${String(dmy[1]).padStart(2,'0')}`;
+  const parsed=typeof v45FechaISOFlexible==='function'?v45FechaISOFlexible(raw):'';
+  return parsed||raw;
+}
+function finV55Texto(row,...keys){for(const k of keys){if(row&&row[k]!==undefined&&row[k]!==null&&String(row[k]).trim()!=='')return String(row[k]).trim();}return '';}
+function finV55InferirTipo(row,tipoBloque=''){
+  if(tipoBloque||row?.tipoBloqueFinanciero)return finV54NormalizarBloque(tipoBloque||row.tipoBloqueFinanciero);
+  const tieneActa=finV55Texto(row,'ACTA_NRO','ACTA Nº','ACTA N°','actaNro','actaMedicionNro');
+  const tieneFechaActa=finV55Texto(row,'FECHA_ACTA','FECHA ACTA','fechaActa');
+  const tieneCert=normalizarMontoFinanciero(finV55Texto(row,'montoCertificado','MONTO_CERTIFICADO','certificado','CERTIFICADO'))>0;
+  if(tieneActa||tieneFechaActa||tieneCert)return 'CERTIFICADA';
+  return 'POSICION_OC';
+}
+function normalizarRegistroFinanciero(row,tipoBloque=''){
+  row=row||{};
+  const tipo=finV55InferirTipo(row,tipoBloque);
+  const ocNro=String(finV55Texto(row,'OC','OC_NRO','ocNro','oc','numeroOC'));
+  const match=typeof finBuscarOC==='function'?finBuscarOC(ocNro):null,item=match?.item||{};
+  const cantidad=normalizarCantidadFinanciera(finV55Texto(row,'CANTIDAD','cantidad','cantidadTotal'));
+  const precioUnitario=normalizarMontoFinanciero(finV55Texto(row,'PRECIO_UNITARIO','precioUnitario'));
+  const precioTotalRaw=normalizarMontoFinanciero(finV55Texto(row,'PRECIO_TOTAL','precioTotal','montoPosicion'));
+  const precioTotal=precioTotalRaw||(cantidad&&precioUnitario?cantidad*precioUnitario:0);
+  const reg={
+    idPosicionFinanciera:row.idPosicionFinanciera||`FIN-${Date.now()}-${Math.random().toString(16).slice(2,8)}`,
+    ocNro,
+    idObra:row.idObra||item.idObra||item.idOC||'',
+    idServicio:row.idServicio||item.idServicio||item.ID_SERVICIO||'',
+    tipoRegistro:row.tipoRegistro||item.tipo||match?.tipo||'',
+    tipoBloqueFinanciero:tipo,
+    remito:finV55Texto(row,'REMITO','remito'),
+    posicion:finV55Texto(row,'POS','POSICION','posicion'),
+    descripcion:finV55Texto(row,'DESCRIPCION','DESCRIPCIÓN','descripcion','descripcionPosicion'),
+    cantidad,
+    precioUnitario,
+    precioTotal,
+    periodo:finV55Texto(row,'PERIODO','periodo'),
+    saldo:normalizarMontoFinanciero(finV55Texto(row,'SALDO','saldo','saldoMonto')),
+    mes:finV55Texto(row,'MES','mes'),
+    actaNro:finV55Texto(row,'ACTA_NRO','ACTA Nº','ACTA N°','actaNro','actaMedicionNro'),
+    fechaActa:normalizarFechaFinanciera(finV55Texto(row,'FECHA_ACTA','FECHA ACTA','fechaActa')),
+    fechaCarga:row.fechaCarga||new Date().toISOString(),
+    fechaUltimaModificacion:new Date().toISOString()
+  };
+  reg.descripcionPosicion=reg.descripcion;
+  reg.cantidadTotal=reg.cantidad;
+  reg.montoPosicion=reg.precioTotal;
+  reg.saldoMonto=reg.saldo;
+  reg.periodoMes=reg.mes;
+  reg.actaMedicionNro=reg.actaNro;
+  reg.montoCertificado=tipo==='CERTIFICADA'?reg.precioTotal:0;
+  return reg;
+}
+function finV55MigrarMemoria(){
+  posicionesFinancieras=(Array.isArray(posicionesFinancieras)?posicionesFinancieras:[]).map(p=>normalizarRegistroFinanciero(p,p.tipoBloqueFinanciero||''));
+}
+function finV55Control(c){
+  const money=['PRECIO_UNITARIO','PRECIO_TOTAL','SALDO'].includes(c);
+  if(c==='DESCRIPCION')return `<textarea data-campo="${c}" class="w-desc"></textarea>`;
+  return `<input type="text" data-campo="${c}" ${money?'placeholder="$ 0,00"':''}>`;
+}
+function renderGrillaFinanciera(tipoBloque){
+  finV55BloqueActivo=finV54NormalizarBloque(tipoBloque||finV55BloqueActivo);
+  const cfg=finV55Bloque(finV55BloqueActivo),head=$('cargaRapidaFinancieraHead'),body=$('cargaRapidaFinancieraBody');
+  if(!head||!body)return;
+  head.innerHTML=`<tr><th>#</th>${cfg.headers.map(h=>`<th class="excel-service-head">${esc(h)}</th>`).join('')}</tr>`;
+  body.innerHTML='';
+  agregarFilasCargaFinanciera(5);
+}
+function renderCargaFinanciera(){
+  const panel=$('panelCargaFinanciera');if(!panel)return;
+  panel.innerHTML=`<div class="fin-load-toolbar"><label for="finTipoBloqueCarga">Tipo de carga financiera:</label><select id="finTipoBloqueCarga">${Object.entries(FIN_V55_BLOQUES).map(([k,v])=>`<option value="${k}" ${k===finV55BloqueActivo?'selected':''}>${esc(v.label)}</option>`).join('')}</select><span class="muted">Cada subtipo usa columnas propias para pegar desde Excel.</span></div><div class="quick-load-wrap"><table class="quick-load-table"><thead id="cargaRapidaFinancieraHead"></thead><tbody id="cargaRapidaFinancieraBody"></tbody></table></div>`;
+  $('finTipoBloqueCarga')?.addEventListener('change',ev=>{renderGrillaFinanciera(ev.target.value);if($('cargaRapidaMsg'))$('cargaRapidaMsg').textContent='Carga financiera: '+finV55Bloque(finV55BloqueActivo).label+'.';});
+  renderGrillaFinanciera(finV55BloqueActivo);
+}
+function agregarFilasCargaFinanciera(cantidad=5){
+  const body=$('cargaRapidaFinancieraBody');if(!body)return;
+  const cfg=finV55Bloque(finV55BloqueActivo),start=body.querySelectorAll('tr').length+1;let html='';
+  for(let i=0;i<cantidad;i++)html+=`<tr data-tipo-carga="Financiera" data-bloque-financiero="${finV55BloqueActivo}"><td class="quick-load-row-num">${start+i}</td>${cfg.columns.map(c=>`<td>${finV55Control(c)}</td>`).join('')}</tr>`;
+  body.insertAdjacentHTML('beforeend',html);
+}
+function leerFilaFinanciera(tr){const row={};(finV55Bloque(tr.dataset.bloqueFinanciero)).columns.forEach(c=>row[c]=(tr.querySelector(`[data-campo="${c}"]`)?.value||'').trim());return row;}
+function filaFinancieraVacia(row){return Object.values(row||{}).every(v=>!String(v||'').trim());}
+function actualizarFilaFinanciera(tr){}
+function finClaveRegistro(p){return [p.ocNro,p.posicion,p.remito,p.actaNro,p.tipoBloqueFinanciero].map(x=>normalizarTexto(String(x||''))).join('|');}
+function guardarCargaFinanciera(){
+  let guardados=0,actualizados=0,vacios=0;
+  document.querySelectorAll('#panelCargaFinanciera tbody tr').forEach(tr=>{
+    const row=leerFilaFinanciera(tr);if(filaFinancieraVacia(row)){vacios++;return;}
+    const reg=normalizarRegistroFinanciero(row,tr.dataset.bloqueFinanciero||finV55BloqueActivo),key=finClaveRegistro(reg),idx=posicionesFinancieras.findIndex(p=>finClaveRegistro(normalizarRegistroFinanciero(p,p.tipoBloqueFinanciero))===key);
+    if(idx>=0){posicionesFinancieras[idx]={...posicionesFinancieras[idx],...reg,idPosicionFinanciera:posicionesFinancieras[idx].idPosicionFinanciera,fechaCarga:posicionesFinancieras[idx].fechaCarga||reg.fechaCarga};actualizados++;}else{posicionesFinancieras.push(reg);guardados++;}
+  });
+  guardarPosicionesFinancieras();v45RefreshAfterDataChange();
+  if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent=`${finV55Bloque(finV55BloqueActivo).label} guardadas. Nuevas: ${guardados}. Actualizadas: ${actualizados}. Filas vacías: ${vacios}.`;$('cargaRapidaMsg').className='quick-load-msg ok';}
+  alert(`Carga financiera guardada. Nuevas: ${guardados}. Actualizadas: ${actualizados}.`);
+}
+function limpiarGrillaCargaFinanciera(){renderCargaFinanciera();if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent='Grilla financiera limpia. Seleccione un tipo y pegue desde Excel.';$('cargaRapidaMsg').className='quick-load-msg';}}
+function obtenerPosicionesFinancierasPorOC(ocNro){finV55MigrarMemoria();const n=normalizarTexto(String(ocNro||''));return posicionesFinancieras.filter(p=>normalizarTexto(String(p.ocNro||''))===n);}
+function obtenerPosicionesPorOC(ocNro){return obtenerPosicionesFinancierasPorOC(ocNro);}
+function calcularResumenFinancieroOC(ocNro){
+  const lista=obtenerPosicionesFinancierasPorOC(ocNro),posOC=lista.filter(p=>p.tipoBloqueFinanciero==='POSICION_OC'),cert=lista.filter(p=>p.tipoBloqueFinanciero==='CERTIFICADA'),libres=lista.filter(p=>p.tipoBloqueFinanciero==='LIBRE');
+  const sum=arr=>arr.reduce((a,p)=>a+Number(p.precioTotal||0),0);
+  const totalPosiciones=sum(posOC),totalCertificado=sum(cert),totalLibre=sum(libres),saldo=totalPosiciones-totalCertificado;
+  return {lista,posOC,cert,libres,totalPosiciones,totalCertificado,totalLibre,saldo,cantidadPosicionesOC:posOC.length,cantidadCertificadas:cert.length,cantidadLibres:libres.length};
+}
+function calcularTotalesFinancieros(lista=posicionesFinancieras){
+  finV55MigrarMemoria();
+  const l=lista.map(p=>normalizarRegistroFinanciero(p,p.tipoBloqueFinanciero));
+  return l.reduce((a,p)=>{a.monto+=p.tipoBloqueFinanciero==='POSICION_OC'?Number(p.precioTotal||0):0;a.cert+=p.tipoBloqueFinanciero==='CERTIFICADA'?Number(p.precioTotal||0):0;a.libre+=p.tipoBloqueFinanciero==='LIBRE'?Number(p.precioTotal||0):0;a.saldo=a.monto-a.cert;a.posiciones++;if(!p.ocNro)a.sinOC++;if(!p.posicion)a.sinPos++;if(!p.precioTotal)a.sinPrecio++;if(p.tipoBloqueFinanciero==='CERTIFICADA'&&!p.actaNro)a.certSinActa++;if(p.tipoBloqueFinanciero==='CERTIFICADA'&&!p.fechaActa)a.certSinFechaActa++;return a;},{monto:0,cert:0,libre:0,saldo:0,posiciones:0,sinOC:0,sinPos:0,sinPrecio:0,certSinActa:0,certSinFechaActa:0});
+}
+function finV55Tabla(lista,tipo){
+  const cfg=finV55Bloque(tipo),rows=lista.map(p=>{
+    const values=tipo==='CERTIFICADA'?[p.ocNro,p.remito,p.posicion,p.descripcion,p.cantidad,finFormatoMonto(p.precioUnitario,'ARS'),finFormatoMonto(p.precioTotal,'ARS'),p.mes,p.periodo,p.actaNro,p.fechaActa]:tipo==='LIBRE'?[p.ocNro,p.remito,p.posicion,p.descripcion,p.cantidad,finFormatoMonto(p.precioUnitario,'ARS'),finFormatoMonto(p.precioTotal,'ARS'),p.periodo]:[p.ocNro,p.remito,p.posicion,p.descripcion,p.cantidad,finFormatoMonto(p.precioUnitario,'ARS'),finFormatoMonto(p.precioTotal,'ARS'),p.periodo,finFormatoMonto(p.saldo,'ARS')];
+    return `<tr>${values.map(v=>`<td>${esc(v??'—')}</td>`).join('')}</tr>`;
+  }).join('');
+  return `<div class="finance-table-wrap"><table class="finance-table v54"><thead><tr>${cfg.headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows||`<tr><td colspan="${cfg.headers.length}">Sin registros para este tipo.</td></tr>`}</tbody></table></div>`;
+}
+function renderEstadoFinancieroOC(oc){
+  if(!oc)return'';const ocNro=finV54OCNro(oc),r=calcularResumenFinancieroOC(ocNro),safeId=slugOC(ocNro||obtenerIdOCV52(oc)||'OC');
+  const kpis=[['Total Posiciones OC',finFormatoMonto(r.totalPosiciones,'ARS')],['Total Certificado',finFormatoMonto(r.totalCertificado,'ARS')],['Total Libre',finFormatoMonto(r.totalLibre,'ARS')],['Saldo',finFormatoMonto(r.saldo,'ARS')],['Cantidad posiciones OC',r.cantidadPosicionesOC],['Cantidad posiciones certificadas',r.cantidadCertificadas],['Cantidad posiciones libres',r.cantidadLibres]].map(x=>`<div class="finance-kpi"><b>${esc(x[1])}</b><span>${esc(x[0])}</span></div>`).join('');
+  return `<section class="expediente-card full" data-fin-oc="${esc(safeId)}"><div class="finance-advanced-head"><div><h3>4. Estado Financiero</h3><p class="muted">Carga financiera por Posiciones OC, Certificadas y Libres.</p></div></div><div class="finance-summary">${kpis}</div><div class="finance-tabs" role="tablist"><button type="button" class="active" data-fin-tab="pos-${esc(safeId)}">Posiciones OC</button><button type="button" data-fin-tab="cert-${esc(safeId)}">Posiciones Certificadas</button><button type="button" data-fin-tab="lib-${esc(safeId)}">Posiciones Libres</button></div><div id="pos-${esc(safeId)}" class="finance-tab-panel active">${finV55Tabla(r.posOC,'POSICION_OC')}</div><div id="cert-${esc(safeId)}" class="finance-tab-panel">${finV55Tabla(r.cert,'CERTIFICADA')}</div><div id="lib-${esc(safeId)}" class="finance-tab-panel">${finV55Tabla(r.libres,'LIBRE')}</div></section>`;
+}
+function exportarPosicionesFinancierasCSV(){
+  finV55MigrarMemoria();
+  const h=['idPosicionFinanciera','ocNro','idObra','idServicio','tipoRegistro','tipoBloqueFinanciero','remito','posicion','descripcion','cantidad','precioUnitario','precioTotal','periodo','saldo','mes','actaNro','fechaActa','fechaCarga','fechaUltimaModificacion'];
+  const csv=[h.join(';'),...posicionesFinancieras.map(p=>h.map(k=>`"${String(p[k]??'').replace(/"/g,'""')}"`).join(';'))].join('\n');
+  descargarArchivo(`posiciones_financieras_${typeof adminNowStamp==='function'?adminNowStamp():Date.now()}.csv`,csv,'text/csv;charset=utf-8');
+}
+const _guardarPosicionesFinancierasV55Base=guardarPosicionesFinancieras;
+guardarPosicionesFinancieras=function(){finV55MigrarMemoria();saveJSON(LS_POSICIONES_FINANCIERAS,posicionesFinancieras);};
+const _adminBackupPayloadV55Base=adminBackupPayload;
+adminBackupPayload=function(){const p=_adminBackupPayloadV55Base();finV55MigrarMemoria();p.posicionesFinancieras=posicionesFinancieras;p.localStorage=p.localStorage||adminSnapshotLocalStorage();p.localStorage[LS_POSICIONES_FINANCIERAS]=JSON.stringify(posicionesFinancieras);return p;};
+const _adminValidateBackupV55Base=adminValidateBackup;
+adminValidateBackup=function(d){
+  const s=_adminValidateBackupV55Base(d);
+  if(s&&Array.isArray(d?.posicionesFinancieras))s[LS_POSICIONES_FINANCIERAS]=JSON.stringify(d.posicionesFinancieras);
+  return s;
+};
+const _adminApplyLocalStorageSnapshotV55Base=adminApplyLocalStorageSnapshot;
+adminApplyLocalStorageSnapshot=function(s,m){_adminApplyLocalStorageSnapshotV55Base(s,m);posicionesFinancieras=safeParseJSON(localStorage.getItem(LS_POSICIONES_FINANCIERAS),[])||[];finV55MigrarMemoria();guardarPosicionesFinancieras();};
+const _ejecutarDiagnosticoSistemaV55Base=ejecutarDiagnosticoSistema;
+ejecutarDiagnosticoSistema=function(){
+  const r=_ejecutarDiagnosticoSistemaV55Base(),fin=(Array.isArray(posicionesFinancieras)?posicionesFinancieras:[]).map(p=>normalizarRegistroFinanciero(p,p.tipoBloqueFinanciero)),keys={};
+  fin.forEach(p=>{const k=[p.ocNro,p.posicion,p.remito,p.actaNro].map(x=>normalizarTexto(String(x||''))).join('|');keys[k]=(keys[k]||0)+1;});
+  const porOC={};fin.forEach(p=>{const k=p.ocNro||'SIN_OC';porOC[k]=porOC[k]||{pos:0,cert:0};if(p.tipoBloqueFinanciero==='POSICION_OC')porOC[k].pos+=Number(p.precioTotal||0);if(p.tipoBloqueFinanciero==='CERTIFICADA')porOC[k].cert+=Number(p.precioTotal||0);});
+  const diferencias=Object.values(porOC).filter(x=>Math.abs(x.pos-x.cert)>0.01).length;
+  return {...r,posFinSinOC:fin.filter(p=>!p.ocNro).length,posFinSinPOS:fin.filter(p=>!p.posicion).length,posFinSinPrecioTotal:fin.filter(p=>!p.precioTotal).length,posFinCertificadasSinActa:fin.filter(p=>p.tipoBloqueFinanciero==='CERTIFICADA'&&!p.actaNro).length,posFinCertificadasSinFechaActa:fin.filter(p=>p.tipoBloqueFinanciero==='CERTIFICADA'&&!p.fechaActa).length,posFinDiferenciasOCvsCertificado:diferencias,posFinDuplicados:Object.values(keys).filter(n=>n>1).length};
+};
+const _v45PegarExcelV55Base=v45PegarExcel;
+v45PegarExcel=function(ev){
+  const target=ev.target.closest('#panelCargaFinanciera [data-campo]');if(!target)return _v45PegarExcelV55Base(ev);
+  const text=(ev.clipboardData||window.clipboardData)?.getData('text');if(!text||(!text.includes('\t')&&!text.includes('\n')))return;
+  ev.preventDefault();const tr=target.closest('tr'),body=tr.parentElement,cfg=finV55Bloque(tr.dataset.bloqueFinanciero||finV55BloqueActivo),startRow=[...body.children].indexOf(tr),startCol=cfg.columns.indexOf(target.dataset.campo),rows=text.replace(/\r/g,'').split('\n').filter(r=>r.length).map(r=>r.split('\t'));
+  while(body.children.length<startRow+rows.length)agregarFilasCargaFinanciera(5);
+  rows.forEach((cols,rIdx)=>cols.forEach((val,cIdx)=>{const campo=cfg.columns[startCol+cIdx],rowEl=body.children[startRow+rIdx],el=rowEl?.querySelector(`[data-campo="${campo}"]`);if(el)el.value=val.trim();}));
+};
+
+/* ===============================
+   V56 - Consumo financiero de posiciones OC
+   =============================== */
+let finV56EditandoCertificacion='';
+function finV56Usuario(){try{const s=typeof sesionActual==='function'?sesionActual():null;return s?`${s.nombre||s.usuario||'Usuario'} / ${s.rol||''}`:(typeof adminRolActivo==='function'?adminRolActivo():'');}catch(e){return '';}}
+function finV56Rol(){try{const s=typeof sesionActual==='function'?sesionActual():null;return s?.rol||((typeof adminRolActivo==='function')?adminRolActivo():'');}catch(e){return '';}}
+function finV56Texto(row,...keys){for(const k of keys){if(row&&row[k]!==undefined&&row[k]!==null&&String(row[k]).trim()!=='')return String(row[k]).trim();}return '';}
+function finV56Tipo(row,tipoBloque=''){
+  if(tipoBloque||row?.tipoBloqueFinanciero)return finV54NormalizarBloque(tipoBloque||row.tipoBloqueFinanciero);
+  const tieneOrigen=finV56Texto(row,'idPosicionOrigen');
+  const tieneActa=finV56Texto(row,'ACTA_NRO','ACTA Nº','ACTA N°','actaNro','actaMedicionNro');
+  const tieneFechaActa=finV56Texto(row,'FECHA_ACTA','FECHA ACTA','fechaActa');
+  const tieneCertificado=finV56Texto(row,'certificado','CERTIFICADO')||normalizarMontoFinanciero(finV56Texto(row,'montoCertificado','MONTO_CERTIFICADO'))>0;
+  if(tieneOrigen||tieneActa||tieneFechaActa||tieneCertificado)return 'CERTIFICADA';
+  return 'POSICION_OC';
+}
+function normalizarRegistroFinanciero(row,tipoBloque=''){
+  row=row||{};
+  const tipo=finV56Tipo(row,tipoBloque);
+  const ocNro=String(finV56Texto(row,'OC','OC_NRO','ocNro','oc','numeroOC'));
+  const match=typeof finBuscarOC==='function'?finBuscarOC(ocNro):null,item=match?.item||{};
+  const cantidad=normalizarCantidadFinanciera(finV56Texto(row,'CANTIDAD','cantidad','cantidadTotal'));
+  const precioUnitario=normalizarMontoFinanciero(finV56Texto(row,'PRECIO_UNITARIO','precioUnitario'));
+  const precioTotalRaw=normalizarMontoFinanciero(finV56Texto(row,'PRECIO_TOTAL','precioTotal','montoPosicion','montoCertificado'));
+  const precioTotal=precioTotalRaw||(cantidad&&precioUnitario?cantidad*precioUnitario:0);
+  const reg={
+    ...row,
+    idPosicionFinanciera:row.idPosicionFinanciera||`FIN-${Date.now()}-${Math.random().toString(16).slice(2,8)}`,
+    idPosicionOrigen:finV56Texto(row,'idPosicionOrigen'),
+    ocNro,
+    idObra:row.idObra||item.idObra||item.idOC||'',
+    idServicio:row.idServicio||item.idServicio||item.ID_SERVICIO||'',
+    tipoRegistro:row.tipoRegistro||item.tipo||match?.tipo||'',
+    tipoBloqueFinanciero:tipo,
+    remito:finV56Texto(row,'REMITO','remito'),
+    posicion:finV56Texto(row,'POS','POSICION','posicion'),
+    descripcion:finV56Texto(row,'DESCRIPCION','DESCRIPCIÓN','descripcion','descripcionPosicion'),
+    cantidad,
+    precioUnitario,
+    precioTotal,
+    periodo:finV56Texto(row,'PERIODO','periodo'),
+    saldo:normalizarMontoFinanciero(finV56Texto(row,'SALDO','saldo','saldoMonto')),
+    mes:finV56Texto(row,'MES','mes','periodoMes'),
+    actaNro:finV56Texto(row,'ACTA_NRO','ACTA Nº','ACTA N°','actaNro','actaMedicionNro'),
+    fechaActa:normalizarFechaFinanciera(finV56Texto(row,'FECHA_ACTA','FECHA ACTA','fechaActa')),
+    periodoDesde:normalizarFechaFinanciera(finV56Texto(row,'periodoDesde','PERIODO_DESDE')),
+    periodoHasta:normalizarFechaFinanciera(finV56Texto(row,'periodoHasta','PERIODO_HASTA')),
+    certificado:tipo==='CERTIFICADA'?(row.certificado||'SI'):(row.certificado||''),
+    estadoPosicion:row.estadoPosicion||row.estado||'',
+    observaciones:finV56Texto(row,'OBSERVACIONES','observaciones'),
+    origen:row.origen||'',
+    usuario:row.usuario||'',
+    rol:row.rol||'',
+    fechaCarga:row.fechaCarga||new Date().toISOString(),
+    fechaUltimaModificacion:row.fechaUltimaModificacion||new Date().toISOString()
+  };
+  reg.descripcionPosicion=reg.descripcion;
+  reg.cantidadTotal=reg.cantidad;
+  reg.montoPosicion=reg.precioTotal;
+  reg.saldoMonto=reg.saldo;
+  reg.periodoMes=reg.mes;
+  reg.actaMedicionNro=reg.actaNro;
+  reg.montoCertificado=tipo==='CERTIFICADA'?reg.precioTotal:0;
+  return reg;
+}
+function finV56MigrarMemoria(){
+  posicionesFinancieras=(Array.isArray(posicionesFinancieras)?posicionesFinancieras:[]).map(p=>normalizarRegistroFinanciero(p,p.tipoBloqueFinanciero||''));
+  posicionesFinancieras.forEach(p=>{if(p.tipoBloqueFinanciero==='POSICION_OC'&&!p.idPosicionFinanciera)p.idPosicionFinanciera=`FIN-${Date.now()}-${Math.random().toString(16).slice(2,8)}`;});
+}
+guardarPosicionesFinancieras=function(){finV56MigrarMemoria();saveJSON(LS_POSICIONES_FINANCIERAS,posicionesFinancieras);};
+function finV56OrigenKey(p){return p.idPosicionOrigen||p.idPosicionFinanciera||[p.ocNro,p.remito,p.posicion].map(x=>normalizarTexto(String(x||''))).join('|');}
+function finV56CertsParaOrigen(origen,certs){const key=finV56OrigenKey(origen);return certs.filter(c=>c.idPosicionOrigen===origen.idPosicionFinanciera||(!c.idPosicionOrigen&&[c.ocNro,c.remito,c.posicion].map(x=>normalizarTexto(String(x||''))).join('|')===key));}
+function finV56SaldoPosicion(pos,certs){
+  const rel=finV56CertsParaOrigen(pos,certs);
+  const cantidadConsumida=rel.reduce((a,p)=>a+Number(p.cantidad||0),0);
+  const montoConsumido=rel.reduce((a,p)=>a+Number(p.precioTotal||0),0);
+  const cantidadOriginal=Number(pos.cantidad||0),montoOriginal=Number(pos.precioTotal||0);
+  return {rel,cantidadConsumida,montoConsumido,cantidadOriginal,montoOriginal,saldoCantidad:cantidadOriginal-cantidadConsumida,saldoMonto:montoOriginal-montoConsumido};
+}
+function obtenerPosicionesFinancierasPorOC(ocNro){finV56MigrarMemoria();const n=normalizarTexto(String(ocNro||''));return posicionesFinancieras.filter(p=>normalizarTexto(String(p.ocNro||''))===n);}
+function obtenerPosicionesPorOC(ocNro){return obtenerPosicionesFinancierasPorOC(ocNro);}
+function calcularResumenFinancieroOC(ocNro){
+  const lista=obtenerPosicionesFinancierasPorOC(ocNro),posOC=lista.filter(p=>p.tipoBloqueFinanciero==='POSICION_OC'),cert=lista.filter(p=>p.tipoBloqueFinanciero==='CERTIFICADA');
+  const libres=posOC.map(p=>{const s=finV56SaldoPosicion(p,cert);return {...p,cantidadOriginal:s.cantidadOriginal,montoOriginal:s.montoOriginal,cantidadConsumida:s.cantidadConsumida,montoConsumido:s.montoConsumido,saldoCantidad:s.saldoCantidad,saldoMonto:s.saldoMonto,precioTotal:s.saldoMonto,cantidad:s.saldoCantidad,saldo:s.saldoMonto,idPosicionOrigen:p.idPosicionFinanciera};}).filter(p=>p.saldoMonto>0.0001||p.saldoCantidad>0.0001);
+  const totalPosiciones=posOC.reduce((a,p)=>a+Number(p.precioTotal||0),0),totalCertificado=cert.reduce((a,p)=>a+Number(p.precioTotal||0),0),totalLibre=libres.reduce((a,p)=>a+Number(p.saldoMonto||0),0),saldo=totalPosiciones-totalCertificado;
+  return {lista,posOC,cert,libres,totalPosiciones,totalCertificado,totalLibre,saldo,cantidadPosicionesOC:posOC.length,cantidadCertificadas:cert.length,cantidadLibres:libres.length,porcentajeConsumido:totalPosiciones?totalCertificado/totalPosiciones*100:0};
+}
+function finV56MontoOC(oc){return typeof obtenerMontoOCV52==='function'?obtenerMontoOCV52(oc):normalizarMontoFinanciero(oc?.montoOC||oc?.monto||0);}
+function finV56SemOC(pos,certs){const s=finV56SaldoPosicion(pos,certs);if(s.saldoMonto<-0.01||s.saldoCantidad<-0.0001)return ['rojo','Excedida'];if((s.montoConsumido>=s.montoOriginal&&s.montoOriginal>0)||(s.cantidadConsumida>=s.cantidadOriginal&&s.cantidadOriginal>0))return ['verde','Completa'];if(s.montoConsumido>0||s.cantidadConsumida>0)return ['amarillo','Parcial'];return ['gris','Sin consumo'];}
+function finV56SemCert(p){if(Number(p.precioTotal||0)<0||Number(p.cantidad||0)<0)return ['rojo','Inválida'];if(p.actaNro&&p.fechaActa)return ['verde','Completa'];if(p.actaNro||p.fechaActa)return ['amarillo','Incompleta'];return ['gris','Pendiente'];}
+function finV56SemLibre(p){if(Number(p.saldoMonto)<-0.01||Number(p.saldoCantidad)<-0.0001)return ['rojo','Negativo'];if(Number(p.saldoMonto)>0||Number(p.saldoCantidad)>0)return ['verde','Disponible'];if(Number(p.montoConsumido)>0)return ['amarillo','Consumida'];return ['gris','Sin saldo'];}
+function finV56Badge(pair){return `<span class="finance-dot ${pair[0]}">${esc(pair[1])}</span>`;}
+function finV56Money(v){return finFormatoMonto(Number(v||0),'ARS');}
+function finV56Input(name,val,type='text'){return `<input class="finance-edit-input" data-cert-field="${name}" value="${esc(val??'')}" type="${type}">`;}
+function finV56Textarea(name,val){return `<textarea class="finance-edit-input finance-edit-textarea" data-cert-field="${name}">${esc(val??'')}</textarea>`;}
+function finV56TablaOC(r,safeId){
+  const rows=r.posOC.map(p=>{const sem=finV56SemOC(p,r.cert),s=finV56SaldoPosicion(p,r.cert);return `<tr><td><input type="checkbox" class="finance-check chk-fin-pos-oc" data-oc-safe="${esc(safeId)}" data-pos-id="${esc(p.idPosicionFinanciera)}"></td><td>${finV56Badge(sem)}</td><td>${esc(p.ocNro)}</td><td>${esc(p.remito)}</td><td>${esc(p.posicion)}</td><td>${esc(p.descripcion)}</td><td>${esc(p.cantidad)}</td><td>${finV56Money(p.precioUnitario)}</td><td>${finV56Money(p.precioTotal)}</td><td>${esc(p.periodo)}</td><td>${finV56Money(s.saldoMonto)}</td><td>${esc(p.observaciones||'')}</td></tr>`;}).join('');
+  return `<div class="finance-consume-bar"><span class="finance-consume-count" id="finSelCount_${esc(safeId)}">0 seleccionadas</span><label>Cantidad a consumir<input id="finCantidadConsumir_${esc(safeId)}" type="text" placeholder="Opcional"></label><label>Monto a consumir<input id="finMontoConsumir_${esc(safeId)}" type="text" placeholder="Opcional"></label><button type="button" class="primary" data-fin-consumir="${esc(safeId)}" data-oc-nro="${esc(r.ocNro)}">Consumir seleccionadas</button></div><div class="finance-table-wrap"><table class="finance-table v56"><thead><tr><th>Sel.</th><th>Semáforo</th><th>OC</th><th>REMITO</th><th>POS</th><th>DESCRIPCIÓN</th><th>CANTIDAD</th><th>PRECIO UNITARIO</th><th>PRECIO TOTAL</th><th>PERIODO</th><th>SALDO</th><th>OBSERVACIONES</th></tr></thead><tbody>${rows||'<tr><td colspan="12">Sin posiciones OC cargadas.</td></tr>'}</tbody></table></div>`;
+}
+function finV56TablaCert(r){
+  const rows=r.cert.map(p=>{const editing=finV56EditandoCertificacion===p.idPosicionFinanciera,sem=finV56SemCert(p);const c=(field,val)=>editing?finV56Input(field,val):esc(val||'');return `<tr data-cert-id="${esc(p.idPosicionFinanciera)}"><td>${finV56Badge(sem)}</td><td>${esc(p.ocNro)}</td><td>${editing?finV56Input('remito',p.remito):esc(p.remito)}</td><td>${esc(p.posicion)}</td><td>${editing?finV56Textarea('descripcion',p.descripcion):esc(p.descripcion)}</td><td>${c('cantidad',p.cantidad)}</td><td>${editing?finV56Input('precioUnitario',p.precioUnitario):finV56Money(p.precioUnitario)}</td><td>${editing?finV56Input('precioTotal',p.precioTotal):finV56Money(p.precioTotal)}</td><td>${c('mes',p.mes)}</td><td>${c('periodo',p.periodo)}</td><td>${c('actaNro',p.actaNro)}</td><td>${c('fechaActa',p.fechaActa)}</td><td>${editing?finV56Textarea('observaciones',p.observaciones):esc(p.observaciones||'')}</td><td class="finance-row-actions">${editing?`<button type="button" class="primary" data-fin-cert-save="${esc(p.idPosicionFinanciera)}">Guardar</button><button type="button" data-fin-cert-cancel="${esc(p.idPosicionFinanciera)}">Cancelar</button>`:`<button type="button" data-fin-cert-edit="${esc(p.idPosicionFinanciera)}">Editar</button><button type="button" class="btn-danger-soft" data-fin-cert-delete="${esc(p.idPosicionFinanciera)}">Eliminar certificación</button>`}</td></tr>`;}).join('');
+  return `<div class="finance-table-wrap"><table class="finance-table v56"><thead><tr><th>Semáforo</th><th>OC</th><th>REMITO</th><th>POS</th><th>DESCRIPCIÓN</th><th>CANTIDAD</th><th>PRECIO UNITARIO</th><th>PRECIO TOTAL</th><th>MES</th><th>PERIODO</th><th>ACTA Nº</th><th>FECHA ACTA</th><th>OBSERVACIONES</th><th>ACCIONES</th></tr></thead><tbody>${rows||'<tr><td colspan="14">Sin posiciones certificadas.</td></tr>'}</tbody></table></div>`;
+}
+function finV56TablaLibre(r){
+  const rows=r.libres.map(p=>`<tr><td>${finV56Badge(finV56SemLibre(p))}</td><td>${esc(p.ocNro)}</td><td>${esc(p.remito)}</td><td>${esc(p.posicion)}</td><td>${esc(p.descripcion)}</td><td>${esc(p.cantidadOriginal)}</td><td>${esc(p.cantidadConsumida)}</td><td>${esc(p.saldoCantidad)}</td><td>${finV56Money(p.montoOriginal)}</td><td>${finV56Money(p.montoConsumido)}</td><td>${finV56Money(p.saldoMonto)}</td><td>${esc(p.periodo)}</td></tr>`).join('');
+  return `<div class="finance-table-wrap"><table class="finance-table v56"><thead><tr><th>Semáforo</th><th>OC</th><th>REMITO</th><th>POS</th><th>DESCRIPCIÓN</th><th>CANT. ORIGINAL</th><th>CANT. CONSUMIDA</th><th>SALDO CANT.</th><th>MONTO ORIGINAL</th><th>MONTO CONSUMIDO</th><th>SALDO MONTO</th><th>PERIODO</th></tr></thead><tbody>${rows||'<tr><td colspan="12">Sin saldo libre pendiente.</td></tr>'}</tbody></table></div>`;
+}
+function renderEstadoFinancieroOC(oc){
+  if(!oc)return'';const ocNro=finV54OCNro(oc),r=calcularResumenFinancieroOC(ocNro),safeId=slugOC(ocNro||obtenerIdOCV52(oc)||'OC'),montoOc=finV56MontoOC(oc),diff=montoOc-r.totalPosiciones;
+  r.ocNro=ocNro;
+  const kpis=[['Monto total OC',finV56Money(montoOc)],['Monto total posiciones OC',finV56Money(r.totalPosiciones)],['Monto certificado acumulado',finV56Money(r.totalCertificado)],['Saldo libre',finV56Money(r.saldo)],['Cantidad posiciones OC',r.cantidadPosicionesOC],['Cantidad posiciones certificadas',r.cantidadCertificadas],['Cantidad posiciones libres',r.cantidadLibres],['Porcentaje consumido',`${r.porcentajeConsumido.toFixed(1)}%`],['Diferencia OC vs posiciones',finV56Money(diff)]].map(x=>`<div class="finance-kpi"><b>${esc(x[1])}</b><span>${esc(x[0])}</span></div>`).join('');
+  return `<section class="expediente-card full" data-fin-oc="${esc(safeId)}" data-fin-oc-nro="${esc(ocNro)}"><div class="finance-advanced-head"><div><h3>4. Estado Financiero</h3><p class="muted">Consumo financiero por posiciones: el listado OC queda como maestro y las certificaciones se generan como copias trazables.</p></div></div><div class="finance-summary">${kpis}</div><div class="finance-tabs" role="tablist"><button type="button" class="active" data-fin-tab="pos-${esc(safeId)}">Posiciones OC</button><button type="button" data-fin-tab="cert-${esc(safeId)}">Posiciones Certificadas</button><button type="button" data-fin-tab="lib-${esc(safeId)}">Posiciones Libres</button></div><div id="pos-${esc(safeId)}" class="finance-tab-panel active">${finV56TablaOC(r,safeId)}</div><div id="cert-${esc(safeId)}" class="finance-tab-panel">${finV56TablaCert(r)}</div><div id="lib-${esc(safeId)}" class="finance-tab-panel">${finV56TablaLibre(r)}</div></section>`;
+}
+function consumirPosicionesOC(ocNro){
+  finV56MigrarMemoria();
+  const safeId=slugOC(ocNro||'OC'),section=document.querySelector(`[data-fin-oc="${CSS.escape(safeId)}"]`),seleccion=[...(section?.querySelectorAll('.chk-fin-pos-oc:checked')||[])].map(x=>x.dataset.posId);
+  if(!seleccion.length){alert('Seleccione una o más posiciones OC para consumir.');return;}
+  const cantidadInput=normalizarCantidadFinanciera($(`finCantidadConsumir_${safeId}`)?.value||''),montoInput=normalizarMontoFinanciero($(`finMontoConsumir_${safeId}`)?.value||'');
+  if(cantidadInput<0||montoInput<0){alert('La cantidad o monto a consumir no puede ser negativo.');return;}
+  const certs=obtenerPosicionesFinancierasPorOC(ocNro).filter(p=>p.tipoBloqueFinanciero==='CERTIFICADA');
+  let creadas=0,errores=[];
+  seleccion.forEach(id=>{
+    const origen=posicionesFinancieras.find(p=>p.idPosicionFinanciera===id&&p.tipoBloqueFinanciero==='POSICION_OC');
+    if(!origen){errores.push(`No se encontró posición origen ${id}.`);return;}
+    const saldo=finV56SaldoPosicion(origen,certs);
+    const cantidad= cantidadInput>0 ? cantidadInput : Number(origen.cantidad||0);
+    let precioTotal = montoInput>0 ? montoInput : (cantidadInput>0 ? cantidad*Number(origen.precioUnitario||0) : Number(origen.precioTotal||0));
+    if(cantidad<0||precioTotal<0){errores.push(`POS ${origen.posicion}: valores negativos.`);return;}
+    if(cantidad>saldo.saldoCantidad+0.0001&&saldo.cantidadOriginal>0){errores.push(`POS ${origen.posicion}: cantidad mayor que la disponible.`);return;}
+    if(precioTotal>saldo.saldoMonto+0.01){errores.push(`POS ${origen.posicion}: monto mayor que el saldo disponible.`);return;}
+    const nueva={...origen,idPosicionFinanciera:`FIN-CERT-${Date.now()}-${Math.random().toString(16).slice(2,8)}`,idPosicionOrigen:origen.idPosicionFinanciera,tipoBloqueFinanciero:'CERTIFICADA',cantidad,precioTotal,montoPosicion:precioTotal,montoCertificado:precioTotal,saldo:0,saldoMonto:0,mes:'',actaNro:'',actaMedicionNro:'',fechaActa:'',periodoDesde:'',periodoHasta:'',certificado:'SI',fechaCarga:new Date().toISOString(),fechaUltimaModificacion:new Date().toISOString(),usuario:finV56Usuario(),rol:finV56Rol(),origen:'Consumo desde Posiciones OC',estadoPosicion:'Certificada pendiente de completar'};
+    posicionesFinancieras.push(nueva);certs.push(nueva);creadas++;
+    if(typeof registrarLogSistema==='function')registrarLogSistema('CONSUMO_POSICION_FINANCIERA','Posición OC consumida hacia certificación',JSON.stringify({ocNro,posicion:origen.posicion,idPosicionOrigen:origen.idPosicionFinanciera,idCertificada:nueva.idPosicionFinanciera,cantidad,precioTotal}));
+  });
+  if(creadas)guardarPosicionesFinancieras();
+  if(errores.length)alert(`Consumo finalizado con advertencias:\n${errores.join('\n')}`);
+  else alert(`Se generaron ${creadas} certificación(es).`);
+  renderFichaOC((typeof fichaV54Key==='function'&&finBuscarOC(ocNro)?.item)?fichaV54Key(finBuscarOC(ocNro).item):ocNro);
+}
+function finV56GuardarCertificacion(id){
+  const tr=document.querySelector(`[data-cert-id="${CSS.escape(id)}"]`),reg=posicionesFinancieras.find(p=>p.idPosicionFinanciera===id);if(!tr||!reg)return;
+  tr.querySelectorAll('[data-cert-field]').forEach(el=>{const f=el.dataset.certField;reg[f]=el.value.trim();});
+  const normalized=normalizarRegistroFinanciero(reg,'CERTIFICADA');Object.assign(reg,normalized,{idPosicionFinanciera:id,fechaCarga:reg.fechaCarga,fechaUltimaModificacion:new Date().toISOString()});
+  finV56EditandoCertificacion='';guardarPosicionesFinancieras();renderFichaOC((finBuscarOC(reg.ocNro)?.item&&typeof fichaV54Key==='function')?fichaV54Key(finBuscarOC(reg.ocNro).item):reg.ocNro);
+}
+function finV56EliminarCertificacion(id){
+  const reg=posicionesFinancieras.find(p=>p.idPosicionFinanciera===id);if(!reg)return;
+  if(!confirm('¿Eliminar esta certificación? La posición OC original no se borra.'))return;
+  posicionesFinancieras=posicionesFinancieras.filter(p=>p.idPosicionFinanciera!==id);guardarPosicionesFinancieras();
+  if(typeof registrarLogSistema==='function')registrarLogSistema('ELIMINACION_CERTIFICACION_FINANCIERA','Certificación financiera eliminada',JSON.stringify({id,ocNro:reg.ocNro,idPosicionOrigen:reg.idPosicionOrigen}));
+  renderFichaOC((finBuscarOC(reg.ocNro)?.item&&typeof fichaV54Key==='function')?fichaV54Key(finBuscarOC(reg.ocNro).item):reg.ocNro);
+}
+function finV56ActualizarSeleccion(section){const safe=section?.dataset.finOc;if(!safe)return;const n=section.querySelectorAll('.chk-fin-pos-oc:checked').length;const el=$(`finSelCount_${safe}`);if(el)el.textContent=`${n} seleccionada${n===1?'':'s'}`;}
+const _exportarPosicionesFinancierasCSVV56Base=exportarPosicionesFinancierasCSV;
+exportarPosicionesFinancierasCSV=function(){finV56MigrarMemoria();const h=['idPosicionFinanciera','idPosicionOrigen','tipoBloqueFinanciero','ocNro','remito','posicion','descripcion','cantidad','precioUnitario','precioTotal','mes','periodo','actaNro','fechaActa','saldo','estadoPosicion','observaciones','fechaCarga','fechaUltimaModificacion'];const csv=[h.join(';'),...posicionesFinancieras.map(p=>h.map(k=>`"${String(p[k]??'').replace(/"/g,'""')}"`).join(';'))].join('\n');descargarArchivo(`posiciones_financieras_${typeof adminNowStamp==='function'?adminNowStamp():Date.now()}.csv`,csv,'text/csv;charset=utf-8');};
+const _ejecutarDiagnosticoSistemaV56Base=ejecutarDiagnosticoSistema;
+ejecutarDiagnosticoSistema=function(){const r=_ejecutarDiagnosticoSistemaV56Base(),fin=(Array.isArray(posicionesFinancieras)?posicionesFinancieras:[]).map(p=>normalizarRegistroFinanciero(p,p.tipoBloqueFinanciero)),pos=fin.filter(p=>p.tipoBloqueFinanciero==='POSICION_OC'),cert=fin.filter(p=>p.tipoBloqueFinanciero==='CERTIFICADA'),keys={};cert.forEach(p=>{const k=[p.idPosicionOrigen,p.ocNro,p.remito,p.posicion,p.precioTotal,p.cantidad,p.actaNro,p.fechaActa].map(x=>normalizarTexto(String(x||''))).join('|');keys[k]=(keys[k]||0)+1;});let certMontoExcedido=0,certCantidadExcedida=0,ocSaldoNegativo=0;pos.forEach(p=>{const s=finV56SaldoPosicion(p,cert);if(s.saldoMonto<-0.01)ocSaldoNegativo++;});cert.forEach(c=>{const origen=pos.find(p=>p.idPosicionFinanciera===c.idPosicionOrigen);if(origen){const otros=cert.filter(x=>x.idPosicionOrigen===c.idPosicionOrigen&&x.idPosicionFinanciera!==c.idPosicionFinanciera);const saldoSinEsta=finV56SaldoPosicion(origen,otros);if(Number(c.precioTotal||0)>saldoSinEsta.saldoMonto+0.01)certMontoExcedido++;if(Number(c.cantidad||0)>saldoSinEsta.saldoCantidad+0.0001&&saldoSinEsta.cantidadOriginal>0)certCantidadExcedida++;}});return {...r,posFinCertSinOrigen:cert.filter(p=>!p.idPosicionOrigen).length,posFinCertMontoMayorSaldo:certMontoExcedido,posFinCertCantidadMayorSaldo:certCantidadExcedida,posFinOCSaldoNegativo:ocSaldoNegativo,posFinCertSinActa:cert.filter(p=>!p.actaNro).length,posFinCertSinFechaActa:cert.filter(p=>!p.fechaActa).length,posFinDuplicadosConsumo:Object.values(keys).filter(n=>n>1).length};};
+document.addEventListener('change',ev=>{const chk=ev.target.closest('.chk-fin-pos-oc');if(chk)finV56ActualizarSeleccion(chk.closest('[data-fin-oc]'));});
+document.addEventListener('click',ev=>{
+  const consume=ev.target.closest('[data-fin-consumir]');if(consume){consumirPosicionesOC(consume.dataset.ocNro);return;}
+  const edit=ev.target.closest('[data-fin-cert-edit]');if(edit){finV56EditandoCertificacion=edit.dataset.finCertEdit;const oc=edit.closest('[data-fin-oc]')?.dataset.finOcNro;renderFichaOC((finBuscarOC(oc)?.item&&typeof fichaV54Key==='function')?fichaV54Key(finBuscarOC(oc).item):oc);return;}
+  const cancel=ev.target.closest('[data-fin-cert-cancel]');if(cancel){finV56EditandoCertificacion='';const oc=cancel.closest('[data-fin-oc]')?.dataset.finOcNro;renderFichaOC((finBuscarOC(oc)?.item&&typeof fichaV54Key==='function')?fichaV54Key(finBuscarOC(oc).item):oc);return;}
+  const save=ev.target.closest('[data-fin-cert-save]');if(save){finV56GuardarCertificacion(save.dataset.finCertSave);return;}
+  const del=ev.target.closest('[data-fin-cert-delete]');if(del){finV56EliminarCertificacion(del.dataset.finCertDelete);return;}
+});
+
+/* ===============================
+   V57 - Certificaciones OC e imagen UM
+   =============================== */
+function v57NumeroActa(valor){
+  if(valor===null||valor===undefined)return 0;
+  if(typeof valor==='number')return Number.isFinite(valor)?valor:0;
+  const s=String(valor||'');
+  const matches=[...s.matchAll(/\d+/g)].map(m=>Number(m[0])).filter(n=>Number.isFinite(n));
+  return matches.length?matches[matches.length-1]:0;
+}
+function v57FechaISO(valor){
+  if(!valor)return '';
+  const d=(typeof parseFechaFlexible==='function'?parseFechaFlexible:parseFecha)(valor);
+  return d?d.toISOString().slice(0,10):'';
+}
+function v57ActaDesdeRegistro(a,idx,item){
+  const numero=v57NumeroActa(a?.numero??a?.nro??a?.acta??a?.actaNro??a?.idActa??a?.nroActa??a?.certificacion??a?.descripcion) || (idx>=0?idx+1:0);
+  const fecha=v57FechaISO(a?.fecha??a?.fechaActa??a?.fechaCertificacion??a?.certificacion??a?.fechaMedicion??a?.periodoFin);
+  return {numero,fecha,avanceFisico:a?.avanceFisico??a?.avance??item?.avanceFisico,observaciones:a?.observaciones??a?.descripcion??''};
+}
+function obtenerResumenCertificacionesOC(oc){
+  const item=oc||{},actas=[];
+  ['actas','actasMedicion','certificaciones','certificacionesMensuales','certificacionesGeneradas'].forEach(k=>{
+    if(Array.isArray(item[k]))item[k].forEach((a,idx)=>actas.push(v57ActaDesdeRegistro(a,idx,item)));
+  });
+  const sueltas=[
+    {numero:item.ultimaActa||item.ULTIMA_ACTA||item.ultimaCertificacion,fecha:item.fechaUltimaActa||item.fechaUltActa||item.fechaUltActaMed||item.FECHA_ULT_ACTA_MED||item.fechaUltimaCertificacion},
+    {numero:item.actaNro||item.ACTA_NRO,fecha:item.fechaActa||item.FECHA_ACTA}
+  ];
+  sueltas.forEach((a,idx)=>{const n=v57NumeroActa(a.numero),f=v57FechaISO(a.fecha);if(n||f)actas.push({numero:n||idx+1,fecha:f,avanceFisico:item.avanceFisico,observaciones:''});});
+  if(!actas.length&&item.ultimaCertificacion){
+    const n=extraerNumeroActa(item.ultimaCertificacion);
+    if(n)actas.push({numero:n,fecha:'',avanceFisico:item.avanceFisico,observaciones:String(item.ultimaCertificacion||'')});
+  }
+  const validas=actas.filter(a=>a.numero||a.fecha).sort((a,b)=>(parseFecha(a.fecha)||0)-(parseFecha(b.fecha)||0)||Number(a.numero||0)-Number(b.numero||0));
+  const ultima=validas.length?validas[validas.length-1]:null;
+  const inicio=v57FechaISO(item.actaInicio||item.fechaInicio||item.inicio||item.fechaActaInicio);
+  const fechaBase=ultima?.fecha||inicio;
+  const proxFecha=fechaBase&&typeof addMeses==='function'?addMeses(fechaBase,1):null;
+  return {
+    actas:validas,
+    ultimaActa:ultima?.numero||'—',
+    fechaUltimaActa:ultima?.fecha||'',
+    proximaActa:ultima?.numero?Number(ultima.numero)+1:1,
+    fechaProximaActa:proxFecha?proxFecha.toISOString().slice(0,10):''
+  };
+}
+function obtenerUltimaActaOC(oc){return obtenerResumenCertificacionesOC(oc).ultimaActa;}
+function calcularProximaActaOC(oc){return obtenerResumenCertificacionesOC(oc).proximaActa;}
+function calcularFechaProximaActaOC(oc){return obtenerResumenCertificacionesOC(oc).fechaProximaActa;}
+function renderResumenCertificacionesOC(oc){
+  const r=obtenerResumenCertificacionesOC(oc);
+  return `<h3>3. Certificaciones</h3><div class="grid"><div><b>ULTIMA ACTA</b>${esc(r.ultimaActa||'—')}</div><div><b>FECHA ULTIMA ACTA</b>${r.fechaUltimaActa?fmtFecha(r.fechaUltimaActa):'—'}</div><div><b>PROXIMA ACTA</b>${esc(r.proximaActa||1)}</div><div><b>FECHA PROXIMA ACTA</b>${r.fechaProximaActa?fmtFecha(r.fechaProximaActa):'—'}</div></div><br>${r.actas.length?`<div class="table-wrap"><table class="coi-table"><thead><tr><th>Acta</th><th>Fecha</th><th>Avance</th><th>Observaciones</th></tr></thead><tbody>${r.actas.map(a=>`<tr><td>${esc(a.numero||a.idActa||'—')}</td><td>${a.fecha?fmtFecha(a.fecha):'—'}</td><td>${esc(a.avanceFisico??0)}%</td><td>${esc(a.observaciones||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="oc-empty">No hay actas de medición cargadas para esta OC.</div>'}`;
+}
+function v57ActualizarBloqueCertificaciones(idOC){
+  const found=typeof obtenerOC==='function'?obtenerOC(idOC):null;
+  if(!found)return;
+  const cards=[...document.querySelectorAll('#fichaOCBody .expediente-card')];
+  const certCard=cards.find(s=>/3\.\s*Certificaciones/i.test(s.querySelector('h3')?.textContent||''));
+  if(certCard)certCard.innerHTML=renderResumenCertificacionesOC(found.item);
+}
+const _renderFichaOCV57Base=renderFichaOC;
+renderFichaOC=function(idOC){_renderFichaOCV57Base(idOC);v57ActualizarBloqueCertificaciones(idOC);};
+
+function migrarImagenUMV57(){
+  if(!Array.isArray(unidadesMantenimiento))return;
+  unidadesMantenimiento.forEach(u=>{if(u.imagenUM===undefined)u.imagenUM=u.fotoUM||u.imagen||'';});
+}
+const _cargarUMV57Base=cargarUM;
+cargarUM=function(){_cargarUMV57Base();migrarImagenUMV57();guardarUM();};
+const _guardarUMV57Base=guardarUM;
+guardarUM=function(){migrarImagenUMV57();_guardarUMV57Base();};
+function renderBloqueImagenUM(um){
+  const img=um?.imagenUM||um?.fotoUM||um?.imagen||'';
+  return `<section class="um-image-card" id="umImageCard"><div class="um-image-preview">${img?`<img src="${esc(img)}" alt="Imagen de la UM ${esc(um.idUM)}">`:'<div class="um-image-placeholder">Sin imagen cargada para esta UM</div>'}</div><div><h3>IMAGEN DE LA UM</h3><p class="muted">Imagen local guardada en el navegador mediante localStorage.</p><div class="um-image-actions"><input type="file" id="inputImagenUM" accept="image/*"><button type="button" id="btnCargarImagenUM">Cargar imagen</button><button type="button" id="btnQuitarImagenUM" class="btn-danger-soft">Quitar imagen</button></div></div></section>`;
+}
+function cargarImagenUM(idUM,file){
+  if(!file)return;
+  const u=unidadesMantenimiento.find(x=>x.idUM===idUM);if(!u)return;
+  const reader=new FileReader();
+  reader.onload=()=>{u.imagenUM=String(reader.result||'');guardarUM();renderFichaUM(idUM);};
+  reader.onerror=()=>alert('No se pudo leer la imagen seleccionada.');
+  reader.readAsDataURL(file);
+}
+function quitarImagenUM(idUM){
+  const u=unidadesMantenimiento.find(x=>x.idUM===idUM);if(!u)return;
+  u.imagenUM='';guardarUM();renderFichaUM(idUM);
+}
+function v57ConectarEventosImagenUM(idUM){
+  const input=$('inputImagenUM'),btnCargar=$('btnCargarImagenUM'),btnQuitar=$('btnQuitarImagenUM');
+  btnCargar?.addEventListener('click',()=>input?.click());
+  input?.addEventListener('change',()=>cargarImagenUM(idUM,input.files?.[0]));
+  btnQuitar?.addEventListener('click',()=>quitarImagenUM(idUM));
+}
+const _renderFichaUMV57Base=renderFichaUM;
+renderFichaUM=function(idUM){
+  _renderFichaUMV57Base(idUM);
+  const u=unidadesMantenimiento.find(x=>x.idUM===idUM),body=$('fichaUMBody');if(!u||!body)return;
+  const kpis=body.querySelector('.oc-kpis');
+  if(kpis&&!body.querySelector('#umImageCard'))kpis.insertAdjacentHTML('afterend',renderBloqueImagenUM(u));
+  v57ConectarEventosImagenUM(idUM);
+};
+
+/* V58 - UI documentos Ficha OC */
+const _renderChecksDocumentalesV58Base = typeof renderChecksDocumentales === 'function' ? renderChecksDocumentales : null;
+renderChecksDocumentales = function(item){
+  const conf = item.confirmacionesDocumentales || {};
+  return `<div class="doc-check-grid estado-coi-checklist document-status-grid">${opcionesDocOC().map(([campo,label])=>{
+    const c = conf[campo] || {};
+    const activo = !!c.ok;
+    return `<label class="doc-check estado-coi-proceso document-status-card ${activo?'ok is-checked checked':''}">
+      <input type="checkbox" class="document-status-check" data-doc-check="${esc(campo)}" data-id-obra="${esc(item.idObra)}" ${activo?'checked':''}>
+      <span class="document-status-content"><b class="document-status-title">${esc(label)}</b><small class="document-status-subtitle">${activo?'OK confirmado: '+esc(c.fechaHora):'Pendiente de confirmación'}</small></span>
+    </label>`;
+  }).join('')}</div>`;
+};
+
+function v58ActualizarEstadoVisualDocumental(root=document){
+  root.querySelectorAll('.document-status-card,.doc-check.estado-coi-proceso').forEach(card=>{
+    const chk = card.querySelector('[data-doc-check]');
+    const activo = !!(chk && chk.checked);
+    card.classList.toggle('is-checked', activo);
+    card.classList.toggle('checked', activo);
+  });
+}
+
+const _renderFichaOCV58Base = typeof renderFichaOC === 'function' ? renderFichaOC : null;
+if (_renderFichaOCV58Base) {
+  renderFichaOC = function(id){
+    _renderFichaOCV58Base(id);
+    v58ActualizarEstadoVisualDocumental(document.getElementById('fichaOCBody') || document);
+  };
+}
+
+document.addEventListener('change', ev=>{
+  const chk = ev.target.closest('[data-doc-check]');
+  if(!chk) return;
+  const root = chk.closest('.document-status-grid,.doc-check-grid') || document;
+  v58ActualizarEstadoVisualDocumental(root);
+});
 function init(){
   loadImportedData();
   if(typeof sincronizarListasOCGlobales==='function') sincronizarListasOCGlobales();
