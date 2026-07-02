@@ -141,8 +141,8 @@ button.ghost{background:#f7f8fa;color:#333}
 
 /* V19 - Foto de estación cargable */
 .station-photo-box{display:flex;flex-direction:column;gap:10px;height:100%;width:100%}
-.station-photo-preview{flex:1;border:1px solid #e3e7eb;border-radius:14px;background:linear-gradient(135deg,#eef3f7,#dbe5ec);min-height:240px;display:flex;align-items:center;justify-content:center;color:#5d6b77;font-weight:800;text-align:center;padding:18px;overflow:hidden}
-.station-photo-preview img{width:100%;height:100%;object-fit:cover;display:block;border-radius:10px}.station-photo-placeholder{display:flex;align-items:center;justify-content:center;min-height:220px;width:100%;padding:18px;text-align:center;color:#5d6b77;font-weight:900;line-height:1.35}.station-photo-placeholder small{display:block;margin-top:6px;color:#7a8792;font-weight:700}.catalog-diagnostic-note{margin-top:8px;color:#667;font-size:12px}
+.station-photo-preview{position:relative;width:100%;min-height:260px;border:1px solid #e3e7eb;border-radius:14px;background:linear-gradient(135deg,#eef3f7,#dbe5ec);overflow:hidden;display:flex;align-items:center;justify-content:center;color:#5d6b77;font-weight:800;text-align:center}
+.station-photo-preview.has-photo{padding:0}.station-photo-preview.has-photo img{width:100%;height:100%;min-height:260px;object-fit:cover;display:block;border-radius:14px}.station-photo-preview.photo-placeholder{padding:18px;text-align:center;color:#5d6b77}.photo-placeholder-content{display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center}.photo-placeholder-content strong{font-size:18px;color:#1f4e79}.photo-placeholder-content span{font-size:13px;color:#667}.catalog-diagnostic-note{margin-top:8px;color:#667;font-size:12px}
 .station-photo-actions{display:flex;gap:8px;flex-wrap:wrap}
 .station-photo-actions button{font-size:12px;padding:8px 10px;border-radius:9px}
 
@@ -368,9 +368,9 @@ body.auth-locked .module-nav{display:none}
 <header>
   <div class="brand"><small>TRENES ARGENTINOS</small>LÍNEA ROCA</div>
   <div class="app-identity" title="Sistema Integrado de Gestión de Obras y Servicios">
-    <div class="app-title-line" id="appTitleHeader">COI Línea Roca — <span id="appVersionHeader" class="app-version-badge">V53</span></div>
+    <div class="app-title-line" id="appTitleHeader">COI Línea Roca — <span id="appVersionHeader" class="app-version-badge">V53.1</span></div>
     <div class="app-subtitle" id="appSubtitleHeader">Sistema Integrado de Gestión de Obras y Servicios</div>
-    <div class="app-tagline" id="appTaglineHeader">Sistema operativo COI Línea Roca — Gestión de Obras, Servicios, Certificaciones y Vencimientos</div><div class="header-operativo"><span class="header-pill">Versión: <b id="headerVersionOperativa">V53</b></span><span class="header-pill">Última actualización: <b id="headerUltimaActualizacion">Sin datos</b></span><span class="header-pill">OCs cargadas: <b id="headerTotalOC">0</b></span><span class="header-pill" id="headerModoSistema">Modo Jefatura</span></div>
+    <div class="app-tagline" id="appTaglineHeader">Sistema operativo COI Línea Roca — Gestión de Obras, Servicios, Certificaciones y Vencimientos</div><div class="header-operativo"><span class="header-pill">Versión: <b id="headerVersionOperativa">V53.1</b></span><span class="header-pill">Última actualización: <b id="headerUltimaActualizacion">Sin datos</b></span><span class="header-pill">OCs cargadas: <b id="headerTotalOC">0</b></span><span class="header-pill" id="headerModoSistema">Modo Jefatura</span></div>
   </div>
 </header>
 
@@ -1012,25 +1012,41 @@ function resolverEstacionMaestra(valor){
 }
 function getNombreEstacionMaestra(idEstacion){const e=resolverEstacionMaestra(idEstacion);return e?e.nombre:String(idEstacion||'');}
 function getRamalesEstacionMaestra(idEstacion){const e=resolverEstacionMaestra(idEstacion);return e?[...(e.ramales||[])]:[];}
-function getFotoEstacionMaestraInfo(idEstacion){
-  const e=resolverEstacionMaestra(idEstacion);if(!e)return {src:'',tipo:'placeholder',estacion:null};
+function resolverFotoEstacion(estacion){
+  const e=resolverEstacionMaestra(estacion)||resolverEstacionMaestra(estacion?.idEstacion||estacion?.nombre||estacion)||estacion||{};
+  const nombre=e.nombre||estacion?.nombre||String(estacion||'Estación');
+  const id=e.idEstacion||normalizarIdEstacion(nombre);
+  if(estacion?.foto)return {src:estacion.foto,origen:'localStorage',existe:true,estacion:e,nombre,id};
+  if(e.foto)return {src:e.foto,origen:'localStorage',existe:true,estacion:e,nombre,id};
   const data=typeof cargarFotosEstacionStorage==='function'?cargarFotosEstacionStorage():{};
-  const keys=[e.idEstacion,e.idEstacionAnterior,e.nombre,...(e.aliases||[])].filter(Boolean);
-  for(const k of keys){if(data[k])return {src:data[k],tipo:'local',estacion:e};}
-  return {src:e.fotoPrincipal||'',tipo:e.fotoPrincipal?'asset':'placeholder',estacion:e};
+  const keys=[id,e.idEstacionAnterior,e.nombre,nombre,...(e.aliases||[])].filter(Boolean);
+  for(const k of keys){if(data[k])return {src:data[k],origen:'localStorage',existe:true,estacion:e,nombre,id};}
+  const asset=e.fotoPrincipal||`assets/estaciones/${id}.jpg`;
+  if(asset)return {src:asset,origen:'assets',existe:true,estacion:e,nombre,id};
+  return {src:'',origen:'placeholder',existe:false,estacion:e,nombre,id};
 }
-function getFotoEstacionMaestra(idEstacion){return getFotoEstacionMaestraInfo(idEstacion).src||'';}
-function renderPlaceholderFotoEstacionMaestra(nombre){return `<div class="station-photo-placeholder">Foto pendiente — ${esc(nombre||'Estación')}<small>assets/estaciones/${esc(normalizarIdEstacion(nombre||''))}.jpg</small></div>`;}
-function renderFotoEstacionMaestra(valor,conAcciones=true){
-  const e=resolverEstacionMaestra(valor)||{nombre:typeof valor==='object'?valor.nombre:String(valor||'Estación'),idEstacion:normalizarIdEstacion(typeof valor==='object'?valor.nombre:valor)};
-  const info=getFotoEstacionMaestraInfo(e.idEstacion||e.nombre);
-  const nombre=info.estacion?.nombre||e.nombre;
-  const preview=info.src?`<img src="${esc(info.src)}" alt="Foto de estación ${esc(nombre)}" data-estacion-foto-asset="${esc(nombre)}"><div class="station-photo-placeholder" hidden>Foto pendiente — ${esc(nombre)}<small>${esc(info.src)}</small></div>`:renderPlaceholderFotoEstacionMaestra(nombre);
-  return `<div class="station-photo-box" data-estacion-foto="${esc(nombre)}" data-id-estacion="${esc(info.estacion?.idEstacion||e.idEstacion||'')}"><div class="station-photo-preview">${preview}</div>${conAcciones?`<input type="file" class="station-photo-input" accept="image/*" hidden><div class="station-photo-actions"><button type="button" class="btn-cargar-foto-estacion">Cargar foto</button><button type="button" class="btn-eliminar-foto-estacion">Eliminar foto</button></div>`:''}</div>`;
+function getFotoEstacionMaestraInfo(idEstacion){const f=resolverFotoEstacion(idEstacion);return {src:f.src,tipo:f.origen,estacion:f.estacion};}
+function getFotoEstacionMaestra(idEstacion){return resolverFotoEstacion(idEstacion).src||'';}
+function renderPlaceholderFotoEstacion(nombre){return `<div class="station-photo-preview photo-placeholder"><div class="photo-placeholder-content"><strong>Foto pendiente</strong><span>${esc(nombre||'Estación')}</span></div></div>`;}
+function renderFotoEstacion(estacion,conAcciones=true){
+  const foto=resolverFotoEstacion(estacion);
+  const nombre=foto.nombre||foto.estacion?.nombre||estacion?.nombre||'Estación';
+  const id=foto.id||foto.estacion?.idEstacion||normalizarIdEstacion(nombre);
+  const acciones=foto.src?`<div class="station-photo-actions"><button type="button" class="btn-cargar-foto-estacion">Cargar foto</button><button type="button" class="btn-eliminar-foto-estacion">Eliminar foto</button></div>`:`<div class="station-photo-actions"><button type="button" class="btn-cargar-foto-estacion">Cargar foto</button></div>`;
+  if(foto.src){
+    return `<div class="station-photo-box" data-estacion-foto="${esc(nombre)}" data-id-estacion="${esc(id)}"><div class="station-photo-preview has-photo"><img src="${esc(foto.src)}" alt="Foto de estación ${esc(nombre)}" data-foto-estacion-img="true" data-foto-origen="${esc(foto.origen)}"></div>${conAcciones?acciones:""}<input type="file" class="station-photo-input" accept="image/*" hidden></div>`;
+  }
+  return `<div class="station-photo-box" data-estacion-foto="${esc(nombre)}" data-id-estacion="${esc(id)}">${renderPlaceholderFotoEstacion(nombre)}${conAcciones?acciones:""}<input type="file" class="station-photo-input" accept="image/*" hidden></div>`;
 }
+function renderFotoEstacionMaestra(valor,conAcciones=true){return renderFotoEstacion(valor,conAcciones);}
 function fallbackFotoEstacionMaestra(img){
-  const ph=img?.parentElement?.querySelector('.station-photo-placeholder');
-  if(ph){img.hidden=true;ph.hidden=false;}
+  const preview=img?.closest?.('.station-photo-preview');
+  if(!preview)return;
+  const box=img.closest('.station-photo-box');
+  const nombre=box?.dataset?.estacionFoto||'Estación';
+  preview.classList.remove('has-photo');
+  preview.classList.add('photo-placeholder');
+  preview.innerHTML=`<div class="photo-placeholder-content"><strong>Foto pendiente</strong><span>${esc(nombre)}</span></div>`;
 }
 const _resolverEstacionCatalogoV53Base=typeof resolverEstacionCatalogo==='function'?resolverEstacionCatalogo:null;
 resolverEstacionCatalogo=function(valor){return resolverEstacionMaestra(valor)||(_resolverEstacionCatalogoV53Base?_resolverEstacionCatalogoV53Base(valor):null);};
@@ -1086,8 +1102,8 @@ function registrosOperativosPorEstacionMaestra(valor){
   return out;
 }
 umsPorEstacion=function(nombre){const cat=resolverEstacionMaestra(nombre);if(!cat)return unidadesMantenimiento.filter(u=>u.estacion===nombre);return unidadesMantenimiento.filter(u=>{const res=resolverEstacionMaestra(u.idEstacion||u.estacion);return res?.idEstacion===cat.idEstacion||normalizarNombreEstacion(u.estacion)===normalizarNombreEstacion(cat.nombre);});};
-fotoEstacion=function(s){return renderFotoEstacionMaestra(s,true);};
-fotoFichaEstacionCOI=function(estacion){return renderFotoEstacionMaestra(estacion,true);};
+fotoEstacion=function(s){return renderFotoEstacion(s,true);};
+fotoFichaEstacionCOI=function(estacion){return renderFotoEstacion(estacion,true);};
 descripcionEstacionCOI=function(estacion){const cat=resolverEstacionMaestra(estacion);return cat?.observaciones||estacion?.descripcionBreve||estacion?.observaciones||`Estación operativa de la Línea General Roca. Ficha preparada para seguimiento de obras, servicios, vencimientos, certificaciones y unidades de mantenimiento asociadas.`;};
 selectStationFichaOperativaCOI=function(s){
   mostrarVista('vistaRed');
@@ -1108,7 +1124,7 @@ selectStationFichaOperativaCOI=function(s){
   const proxVenc=vigentes.map(i=>i.vencimiento||i.fechaFin||i.fechaVencimiento).filter(Boolean).sort()[0]||'—';
   panel.innerHTML=`
     <div class="station-summary">
-      <div class="station-photo">${renderFotoEstacionMaestra(cat||s,true)}</div>
+      <div class="station-photo">${renderFotoEstacion(cat||s,true)}</div>
       <div class="station-info">
         <div>${vigentes.length?vigentes.slice(0,8).map(i=>`<span class="badge"><i class="dot ${claseEstado(i)}"></i>${esc(i.tipo)} · ${esc(i.estado||'En seguimiento')}</span>`).join(''):'<span class="badge">Sin obras o servicios vigentes cargados</span>'}</div>
         <div class="quick-stats">
@@ -1165,7 +1181,16 @@ function renderDiagnosticoCatalogoEstaciones(){
   return `<div class="admin-panel"><h3>Diagnóstico Catálogo Estaciones</h3><p class="muted">Control V53 del catálogo maestro, fotos, hotspots y registros operativos asociados por idEstacion.</p><div class="admin-status-grid">${adminCard('Total estaciones',a.total)}${adminCard('Con hotspot',a.total-a.sinHotspot.length)}${adminCard('Sin hotspot',a.sinHotspot.length)}${adminCard('Con foto configurada',a.total-a.sinFotoPrincipal.length)}${adminCard('Sin foto configurada',a.sinFotoPrincipal.length)}${adminCard('Problemas detectados',a.problemas)}</div><div class="admin-actions"><button type="button" id="btnAuditarCatalogoEstaciones" class="primary">Auditar catálogo</button><button type="button" id="btnMigrarCatalogoEstaciones">Migrar registros a idEstacion</button></div><div class="catalog-diagnostic-note">Fotos previstas en <b>assets/estaciones/{idEstacion}.jpg</b>. Si una imagen no existe se muestra placeholder profesional.</div></div>`;
 }
 document.addEventListener('click',ev=>{if(ev.target.closest('#btnAuditarCatalogoEstaciones')){const r=auditarCatalogoMaestroEstaciones(false);adminSetMsg?.(`Catálogo auditado. Problemas detectados: ${r.problemas}.`,'ok');renderAdministracionSistema?.();}if(ev.target.closest('#btnMigrarCatalogoEstaciones')){const c=migrarRegistrosAIdEstacion({guardar:true});adminSetMsg?.(`Migración a idEstacion completada. Cambios aplicados: ${c}.`,'ok');renderAdministracionSistema?.();}});
-document.addEventListener('error',ev=>{const img=ev.target;if(img?.matches?.('[data-estacion-foto-asset]'))fallbackFotoEstacionMaestra(img);},true);
+function initErroresFotosEstacion(){
+  if(initErroresFotosEstacion.inicializado)return;
+  initErroresFotosEstacion.inicializado=true;
+  document.addEventListener("error",function(ev){
+    const img=ev.target;
+    if(!img||img.tagName!=="IMG")return;
+    if(!img.matches('[data-foto-estacion-img="true"]'))return;
+    fallbackFotoEstacionMaestra(img);
+  },true);
+}
 reconstruirCatalogoMaestroEstaciones();
 const ramalesEstacion = s => s.ramales || [s.ramal];
 const ramalTexto = s => ramalesEstacion(s).join(' / ');
@@ -4120,7 +4145,7 @@ function activarHoverEstaciones(){
    V32.1 - Acerca del Sistema + Historial de versiones
    =============================== */
 const APP_NAME = "COI Línea Roca";
-const APP_VERSION = "V53";
+const APP_VERSION = "V53.1";
 const APP_STATUS = "Versión operativa en desarrollo";
 const APP_RELEASE_DATE = "2026-07-01";
 const APP_AUTHOR = "Mariano Special";
@@ -4130,6 +4155,7 @@ const APP_OPERATIVE_TEXT = "Sistema operativo COI Línea Roca — Gestión de Ob
 const ADMIN_PIN = "1234";
 const USER_ROLES = { ADMIN: "Administrador", JEFE: "Jefatura" };
 const historialVersiones = [
+  {version:"V53.1",fecha:"2026-07-01",titulo:"Corrección visual de fotos de estaciones",cambios:["Se corrigió la ficha estación para evitar render simultáneo de imagen y placeholder.","Se unificó la resolución de fotos con prioridad localStorage > assets > placeholder.","Se agregó fallback visual cuando una imagen de assets no carga."],modulosAfectados:["Red Línea Roca","Ficha Estación","Catálogo Maestro de Estaciones"],estado:"Versión operativa en desarrollo",observaciones:"Se corrigió la ficha estación para evitar render simultáneo de imagen y placeholder, manteniendo prioridad localStorage > assets > placeholder."},
   {version:"V53",fecha:"2026-07-01",titulo:"Catálogo Maestro de Estaciones",cambios:["Se consolidó el Catálogo Maestro de Estaciones como fuente oficial de datos fijos de la red.","Se preparó la carga de fotos por carpeta assets/estaciones compatible con GitHub Pages.","Se incorporaron funciones de resolución por idEstacion, nombre y aliases.","Se agregó migración suave de registros operativos hacia idEstacion.","Se añadió auditoría de estaciones, hotspots, fotos y registros sin asociación."],modulosAfectados:["Red Línea Roca","Ficha Estación","Órdenes","UM","Administración","Acerca del Sistema"],estado:"Versión operativa en desarrollo",observaciones:"La versión mantiene compatibilidad con la estructura anterior y no rompe localStorage."},  {version:'V52',titulo:'Gestión Financiera, Acceso y Red Interactiva',fecha:'30/06/2026',estado:'Operativa',cambios:['Estado financiero por posiciones en Ficha OC','Servicios Técnicos asociados en Ficha UM','Login local con roles','Dashboard financiero e interactivo','Red con filtros visuales y mini resumen de estación']},
   {version:"V50",fecha:"2026-06-30",titulo:"Arquitectura Maestra del Sistema",cambios:["Se implementó el Modelo Maestro de Datos Ferroviarios.","Se incorporaron Catálogos Maestros de líneas, ramales, distritos, estaciones, tipos de UM, especialidades y nodos.","El SVG deja de ser la fuente oficial de información y queda como representación gráfica.","El sistema comienza a trabajar con IDs permanentes compatibles con nombres y aliases.","Se preparó la aplicación para futuras integraciones con CSV, Excel, Power BI, backend, IA y QR."],modulosAfectados:["Arquitectura","Catálogos Maestros","Red","Hotspots","Validadores"],estado:"Versión operativa en desarrollo",observaciones:"La nueva capa convive con la estructura actual sin modificar el comportamiento visual ni romper localStorage."},
   {version:"V47",fecha:"2026-06-25",titulo:"Panel de Administración Profesional",cambios:["Perfiles de usuario","Control de modo administrador con PIN","Gestión de datos","Catálogos","Diagnóstico del sistema","Optimización de base","Logs","Modo Demo / Producción"],modulosAfectados:["Administración","Acerca del Sistema","localStorage"],estado:"Versión operativa en desarrollo",observaciones:"Panel profesional con rol Jefatura por defecto y herramientas avanzadas para Administrador."},
@@ -5183,6 +5209,7 @@ function init(){
   if(typeof actualizarEstadosVisualesRed==='function') actualizarEstadosVisualesRed();
   if(typeof actualizarHeaderOperativo==='function') actualizarHeaderOperativo();
   initFotosEstacion();
+  if(typeof initErroresFotosEstacion==='function') initErroresFotosEstacion();
   initFotoYChecksOC();
   initImportacionAcumulativaV27();
   initImportadorV33();
