@@ -591,15 +591,118 @@ body.auth-locked .module-nav{display:none}
 .badge,.estado-badge,.alert-badge,.vigencia-badge,.doc-badge,.obs-badge,.finance-state,.version-status,.scope-tag{display:inline-flex;align-items:center;max-width:100%;white-space:nowrap}
 .oc-kpi b,.mini-kpi b,.alert-kpi b,.admin-status-card b,.finance-kpi b,.doc-kpi b,.obs-kpi b{overflow-wrap:normal;word-break:normal}
 @media(max-width:760px){.tabla-operativa,.coi-table.tabla-operativa{min-width:1150px}.tabla-operativa.table-alertas{min-width:1650px}.tabla-operativa.table-ordenes{min-width:1550px}}
+
+/* V68 - Identidad institucional, header limpio y footer operativo */
+:root{--rail-navy:#172f45;--rail-navy-2:#223746;--rail-blue:#1f6fa9;--rail-cyan:#2bb7d7;--rail-soft:#edf5fb;--rail-border:#d9e6f0;--rail-shadow:0 12px 32px rgba(16,45,72,.08);--rail-radius:16px}
+body{background:linear-gradient(180deg,#f7fafc 0,#f1f5f8 100%);padding-bottom:76px}
+header.main-header{height:auto;min-height:76px;background:linear-gradient(135deg,var(--rail-navy),#2f3944);color:#fff;display:grid;grid-template-columns:auto minmax(260px,1fr) auto;align-items:center;gap:18px;padding:12px 24px;box-shadow:0 10px 28px rgba(14,35,52,.20);position:sticky;top:0;z-index:12;border-bottom:1px solid rgba(255,255,255,.10)}
+.main-header .brand-logo{display:flex;align-items:center;gap:12px;min-width:220px;letter-spacing:.2px}
+.brand-logo-mark{width:58px;height:46px;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);overflow:hidden;flex:0 0 auto}
+.brand-logo-img{display:block;max-height:46px;max-width:100%;width:auto;height:auto;object-fit:contain}
+.brand-logo-fallback{display:none;color:#fff;font-size:11px;font-weight:900;line-height:1.05;text-transform:uppercase;text-align:center;padding:4px}
+.logo-error .brand-logo-img,.logo-error .footer-brand-logo-img,.logo-error img{display:none}
+.logo-error .brand-logo-fallback{display:inline-flex;align-items:center;justify-content:center}
+.brand-copy{display:flex;flex-direction:column;line-height:1.05}.brand-copy small{display:block;font-size:11px;font-weight:700;opacity:.76}.brand-copy strong{font-size:18px;font-weight:900;letter-spacing:.15px}
+.main-header .app-identity{align-items:flex-start;text-align:left;gap:3px;min-width:0}.app-title-line{font-size:19px;line-height:1.15}.app-version-badge{background:#eef7ff;color:#1d5f93;border-color:#9ccce9;box-shadow:0 2px 8px rgba(31,111,169,.18)}
+.app-subtitle{font-size:12px;color:#e1edf5;font-weight:800}.app-tagline{font-size:11px;color:#bdd0dd;font-weight:700;max-width:780px}
+.header-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px}.header-actions .quick-search-link{margin-left:0}.header-actions .quick-search-link button{background:#eaf6ff;color:#164d76;border:1px solid #9fcce8;border-radius:999px;padding:10px 16px;box-shadow:0 8px 20px rgba(0,0,0,.12)}
+.header-actions .quick-search-link button:hover{background:#fff;transform:translateY(-1px)}
+.header-operativo{display:none!important}
+.module-nav{position:sticky;top:76px;z-index:11;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-bottom:1px solid var(--rail-border);box-shadow:0 8px 20px rgba(20,49,71,.06);padding:11px 20px;gap:8px}
+.module-nav .nav-title{color:#1f3447;font-weight:900;letter-spacing:.2px}.module-nav button{border-radius:999px;border-color:#d4e2ed;background:#fff;color:#24445d;padding:9px 13px;transition:.16s ease}.module-nav button:hover{border-color:#9fcce8;background:#f0f8ff;box-shadow:0 8px 18px rgba(31,111,169,.10);transform:translateY(-1px)}.module-nav button.active{background:linear-gradient(135deg,#1f6fa9,#238abf);border-color:#1f6fa9;color:#fff;box-shadow:0 8px 20px rgba(31,111,169,.22)}
+.operative-footer{position:fixed;left:0;right:0;bottom:0;z-index:13;display:flex;align-items:center;gap:14px;padding:8px 20px;background:rgba(23,47,69,.94);color:#eaf4fb;border-top:1px solid rgba(255,255,255,.18);box-shadow:0 -10px 28px rgba(13,34,51,.16);backdrop-filter:blur(10px)}
+.footer-brand-logo{height:32px;min-width:76px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);overflow:hidden}.footer-brand-logo-img{max-height:26px;width:auto;object-fit:contain;display:block}
+.footer-status-grid{width:100%;display:grid;grid-template-columns:1.25fr .8fr 1.2fr .75fr .85fr;gap:8px;align-items:center}.footer-pill{display:flex;align-items:center;gap:6px;min-width:0;border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.07);border-radius:999px;padding:6px 10px;white-space:nowrap}.footer-pill span{font-size:10px;text-transform:uppercase;letter-spacing:.25px;color:#adc4d6;font-weight:900}.footer-pill b{font-size:12px;color:#fff;overflow:hidden;text-overflow:ellipsis}.footer-pill.mode b{color:#9fe2ff}
+.view-card,.calendar-module,.panel,.map-card,.quick-load-card{border-color:var(--rail-border);border-radius:var(--rail-radius);box-shadow:var(--rail-shadow)}.view-card .view-head,.calendar-head,.panel-head{background:linear-gradient(180deg,#f8fbfd,#edf4f8);border-bottom:1px solid var(--rail-border)}.view-card .view-head h2,.calendar-head h2,.panel-head h2{color:#14324a;letter-spacing:.1px}
+.kpis{gap:14px;padding:16px 20px}.kpi,.mini-kpi,.quick-stat,.calendar-kpi,.oc-kpi,.about-kpi,.alert-kpi,.finance-kpi,.dashboard-v52-chip,.admin-status-card,.doc-kpi,.obs-kpi{background:#fff;border:1px solid var(--rail-border);border-radius:14px;box-shadow:0 8px 22px rgba(16,45,72,.06);transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}.kpi{position:relative;padding:18px 18px 16px;overflow:hidden}.kpi:before{content:"";position:absolute;left:0;top:0;right:0;height:4px;background:var(--rail-blue)}.kpi:nth-child(2):before{background:#7a5cc8}.kpi:nth-child(3):before{background:var(--rail-cyan)}.kpi:nth-child(4):before{background:#f2b705}.kpi:hover,.mini-kpi:hover,.quick-stat:hover,.calendar-kpi:hover,.dashboard-v52-chip:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(16,45,72,.10);border-color:#bdd6e8}.kpi b,.mini-kpi b,.quick-stat b,.calendar-kpi b,.oc-kpi b,.about-kpi b,.alert-kpi b,.finance-kpi b,.dashboard-v52-chip b{color:#176294;font-size:26px;line-height:1.05;letter-spacing:.1px}.kpi span,.mini-kpi span,.quick-stat span,.calendar-kpi span,.oc-kpi span,.about-kpi span,.alert-kpi span,.finance-kpi span,.dashboard-v52-chip span{color:#62758a;font-size:11px;font-weight:900;letter-spacing:.25px}
+.alert-summary{display:flex;justify-content:space-between;align-items:center;gap:14px;background:linear-gradient(135deg,#f8fcff,#edf7fd);border:1px solid #cfe3f1;border-left:5px solid var(--rail-cyan);border-radius:16px;box-shadow:0 10px 26px rgba(16,45,72,.07);padding:15px 16px}.alert-summary strong{color:#15344c;font-size:16px}.alert-summary-list{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.alert-summary-chip{background:#fff;border:1px solid #d8e7f0;border-radius:999px;color:#265977;font-size:12px;font-weight:800;padding:6px 9px}#btnIrCentroAlertasDashboard{border-radius:999px;padding:10px 14px;box-shadow:0 8px 18px rgba(31,111,169,.18)}
+.dashboard-v52{gap:18px;margin:18px 0}.dashboard-v52-card{border:1px solid var(--rail-border);border-radius:16px;background:#fff;box-shadow:var(--rail-shadow);padding:16px}.dashboard-v52-card h3{color:#14324a;margin-top:0}.dashboard-v52-grid{gap:12px}.dashboard-v52-chip{padding:13px;background:linear-gradient(180deg,#fff,#f7fbfe)}
+.finance-summary{gap:12px}.finance-kpi{padding:13px;background:linear-gradient(180deg,#fff,#f7fbfe)}
+.coi-tabs button,.finance-tabs button,.admin-tabs button,.ficha-oc-subnav button{border-radius:999px;border-color:#d4e2ed;background:#fff;color:#24445d;transition:.16s ease}.coi-tabs button.active,.finance-tabs button.active,.admin-tabs button.active,.ficha-oc-subnav button.active{background:#1f6fa9;border-color:#1f6fa9;color:#fff;box-shadow:0 8px 20px rgba(31,111,169,.18)}
+.quick-type-card{border-color:var(--rail-border);border-radius:14px;background:linear-gradient(180deg,#fff,#f8fbfd);box-shadow:0 6px 18px rgba(16,45,72,.05)}.quick-type-card.active{border-color:#1f6fa9;box-shadow:0 0 0 2px rgba(31,111,169,.12),0 10px 24px rgba(16,45,72,.08)}
+.about-card.hero{background:linear-gradient(135deg,#15344c,#1f6fa9);border:0;box-shadow:0 14px 34px rgba(21,52,76,.18)}.about-hero-copy{display:flex;flex-direction:column;align-items:flex-start;gap:12px}.about-brand-logo{width:min(100%,420px);min-height:96px;display:flex;align-items:center;justify-content:center;border-radius:16px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.22);padding:14px;overflow:hidden}.about-brand-logo img{display:block;max-width:420px;width:100%;max-height:120px;height:auto;object-fit:contain}.about-brand-logo .brand-logo-fallback{font-size:18px}.about-card.hero p{color:#dcecf6;line-height:1.45}
+@media(max-width:1100px){body{padding-bottom:112px}header.main-header{grid-template-columns:1fr;align-items:flex-start;gap:10px;padding:14px 18px}.main-header .app-identity{align-items:flex-start;text-align:left}.header-actions{width:100%;justify-content:flex-start}.header-actions .quick-search-link,.header-actions .quick-search-link button{width:100%}.module-nav{top:154px}.footer-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.operative-footer{align-items:flex-start}.footer-brand-logo{display:none}}
+@media(max-width:720px){body{padding-bottom:154px}.footer-status-grid{grid-template-columns:1fr}.footer-pill{border-radius:12px;justify-content:space-between}.module-nav{position:relative;top:auto}.alert-summary{align-items:flex-start;flex-direction:column}.kpis{grid-template-columns:1fr!important}.about-brand-logo{min-height:72px}}
+
+/* V57.1 - Modulo Carga profesional tipo Excel + logo institucional SVG */
+#vistaCarga.carga-module{padding-bottom:104px}
+#vistaCarga .view-card{overflow:visible;border-radius:18px}
+#vistaCarga .carga-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;background:linear-gradient(135deg,#f8fcff,#eaf4fb);border-bottom:1px solid #d4e6f1}
+#vistaCarga .carga-header h2{font-size:24px;color:#14324a;margin:0 0 4px}
+#vistaCarga .carga-body{padding:18px}
+#vistaCarga .carga-module-shell{border:1px solid #d7e5ef;border-radius:18px;background:#fff;box-shadow:0 12px 30px rgba(16,45,72,.08);overflow:hidden}
+#vistaCarga .quick-load-head{background:#f8fbfd;border-bottom:1px solid #e2edf4;padding:14px 16px;gap:14px}
+#vistaCarga .quick-load-head h3{font-size:18px;color:#16364f}
+#vistaCarga .carga-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:14px 16px;background:linear-gradient(180deg,#fff,#f8fbfd);border-bottom:1px solid #e2edf4}
+#vistaCarga .quick-type-card{min-height:104px;display:flex;flex-direction:column;justify-content:center;border:1px solid #d7e5ef;border-radius:16px;background:#fff;padding:14px 16px;box-shadow:0 8px 20px rgba(16,45,72,.05);transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease,background .16s ease}
+#vistaCarga .quick-type-card h3{margin:0 0 6px;color:#18364d;font-size:16px}
+#vistaCarga .quick-type-card p{margin:0;color:#667887;font-size:12px;line-height:1.35}
+#vistaCarga .quick-type-card:hover{transform:translateY(-2px);border-color:#9ccce9;background:#f7fcff;box-shadow:0 12px 28px rgba(31,111,169,.10)}
+#vistaCarga .quick-type-card.active{border-color:#1f6fa9;background:linear-gradient(135deg,#1f6fa9,#2492c4);box-shadow:0 14px 28px rgba(31,111,169,.22)}
+#vistaCarga .quick-type-card.active h3,#vistaCarga .quick-type-card.active p{color:#fff}
+#vistaCarga .quick-load-head:has(#cargaRapidaTipoActivo),#vistaCarga .carga-toolbar{align-items:center;background:#fff}
+#vistaCarga .quick-load-badge{background:#eef7ff;color:#1b6095;border:1px solid #b9d9ef;border-radius:999px;padding:7px 12px}
+#vistaCarga .carga-toolbar-actions{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+#vistaCarga .carga-toolbar-actions button{border-radius:999px;padding:10px 14px;min-height:38px}
+#vistaCarga .carga-toolbar-actions button.primary{background:#1f6fa9;border-color:#1f6fa9;box-shadow:0 8px 18px rgba(31,111,169,.18)}
+#vistaCarga .quick-load-panel{padding:0;background:#fff}
+#vistaCarga .quick-load-panel.active{display:block}
+#vistaCarga .carga-table-wrapper,#vistaCarga .quick-load-wrap{width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;border-top:1px solid #e5eef5;background:#fff;scrollbar-width:thin;scrollbar-color:#9fcce8 #edf5fb}
+#vistaCarga .carga-table-wrapper::-webkit-scrollbar,#vistaCarga .quick-load-wrap::-webkit-scrollbar{height:11px}
+#vistaCarga .carga-table-wrapper::-webkit-scrollbar-track,#vistaCarga .quick-load-wrap::-webkit-scrollbar-track{background:#edf5fb;border-radius:999px}
+#vistaCarga .carga-table-wrapper::-webkit-scrollbar-thumb,#vistaCarga .quick-load-wrap::-webkit-scrollbar-thumb{background:#9fcce8;border-radius:999px}
+#vistaCarga .quick-load-table,#vistaCarga .carga-table{width:max-content;min-width:1500px;border-collapse:separate;border-spacing:0;table-layout:auto;background:#fff;font-size:12px}
+#vistaCarga #panelCargaServicio .quick-load-table{min-width:1800px}
+#vistaCarga #panelCargaObra .quick-load-table{min-width:2300px}
+#vistaCarga #panelCargaFinanciera .quick-load-table{min-width:1350px}
+#vistaCarga .quick-load-table th,#vistaCarga .quick-load-table td{border-right:1px solid #e5edf4;border-bottom:1px solid #eaf0f5;vertical-align:top;padding:7px 8px;background:#fff;white-space:normal;word-break:normal;overflow-wrap:break-word}
+#vistaCarga .quick-load-table th{position:sticky;top:0;z-index:2;background:#eaf4fb;color:#173a54;text-align:left;text-transform:uppercase;letter-spacing:.25px;font-size:11px;font-weight:900;white-space:nowrap}
+#vistaCarga .quick-load-table tbody tr:nth-child(even) td{background:#fbfdff}
+#vistaCarga .quick-load-table tbody tr:hover td{background:#f4faff}
+#vistaCarga .quick-load-row-num,#vistaCarga .carga-col-rownum{width:48px;min-width:48px;max-width:48px;text-align:center;background:#f3f7fa!important;color:#536879;font-weight:900;white-space:nowrap!important}
+#vistaCarga .carga-col-oc{width:150px;min-width:150px}
+#vistaCarga .carga-col-remito{width:150px;min-width:150px}
+#vistaCarga .carga-col-pos{width:110px;min-width:110px}
+#vistaCarga .carga-col-id{width:160px;min-width:160px}
+#vistaCarga .carga-col-monto{width:150px;min-width:150px}
+#vistaCarga .carga-col-fecha{width:150px;min-width:150px}
+#vistaCarga .carga-col-estacion{width:180px;min-width:180px}
+#vistaCarga .carga-col-proveedor{width:220px;min-width:220px}
+#vistaCarga .carga-col-descripcion{width:320px;min-width:300px}
+#vistaCarga .carga-col-observaciones{width:340px;min-width:320px}
+#vistaCarga .carga-col-cantidad{width:120px;min-width:120px}
+#vistaCarga .carga-col-unidad{width:110px;min-width:110px}
+#vistaCarga .carga-col-estado{width:170px;min-width:170px}
+#vistaCarga .quick-load-table input,#vistaCarga .quick-load-table select,#vistaCarga .quick-load-table textarea{width:100%;min-width:0;box-sizing:border-box;height:34px;border:1px solid #cfd9e3;border-radius:8px;padding:6px 9px;font-size:12px;background:#fff;color:#182f43;outline:none;box-shadow:none}
+#vistaCarga .quick-load-table input:focus,#vistaCarga .quick-load-table select:focus,#vistaCarga .quick-load-table textarea:focus{border-color:#1f6fa9;box-shadow:0 0 0 3px rgba(31,111,169,.12)}
+#vistaCarga .quick-load-table textarea{min-height:34px;max-height:72px;resize:vertical;line-height:1.25;display:block}
+#vistaCarga .quick-load-table textarea.w-desc,#vistaCarga .quick-load-table textarea[data-campo="DESCRIPCION"],#vistaCarga .quick-load-table textarea[data-campo="DESCRIPCION_POSICION"]{min-width:100%}
+#vistaCarga .fin-load-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 14px;background:#f8fbfd;border-top:1px solid #e2edf4;border-bottom:1px solid #e2edf4}
+#vistaCarga .fin-load-toolbar label{font-size:12px;text-transform:uppercase;font-weight:900;color:#26475f}
+#vistaCarga .fin-load-toolbar select{min-width:260px;border-radius:999px;border-color:#cbdce8;background:#fff}
+#vistaCarga .carga-status-bar,#vistaCarga .quick-load-msg{margin:0;padding:12px 16px;border-top:1px solid #e2edf4;border-radius:0;background:#f8fbfd;color:#31566f;font-size:13px;font-weight:800}
+#vistaCarga .quick-load-msg.ok{background:#effaf3;color:#1f7a3d}
+#vistaCarga .quick-load-msg.error{background:#fff1f1;color:#b42318}
+.view.active{padding-bottom:92px}
+@media(max-width:980px){#vistaCarga .carga-tabs{grid-template-columns:1fr}#vistaCarga .quick-load-head:has(#cargaRapidaTipoActivo),#vistaCarga .carga-toolbar{align-items:flex-start;flex-direction:column}#vistaCarga .carga-toolbar-actions{justify-content:flex-start;margin-left:0}#vistaCarga .carga-toolbar-actions button{flex:1 1 160px}.view.active{padding-bottom:132px}}
 </style>
 </head>
 <body>
-<header>
-  <div class="brand"><small>TRENES ARGENTINOS</small>LÍNEA ROCA</div>
-  <div class="app-identity" title="Sistema Integrado de Gestión de Obras y Servicios">
-    <div class="app-title-line" id="appTitleHeader">COI Línea Roca — <span id="appVersionHeader" class="app-version-badge">V57.0</span></div>
-    <div class="app-subtitle" id="appSubtitleHeader">Sistema Integrado de Gestión de Obras y Servicios</div>
-    <div class="app-tagline" id="appTaglineHeader">Sistema operativo COI Línea Roca — Gestión de Obras, Servicios, Certificaciones y Vencimientos</div><div class="header-operativo"><span class="header-pill">Versión: <b id="headerVersionOperativa">V57.0</b></span><span class="header-pill">Última actualización: <b id="headerUltimaActualizacion">Sin datos</b></span><span class="header-pill">OCs cargadas: <b id="headerTotalOC">0</b></span><span class="header-pill" id="headerModoSistema">Modo Jefatura</span></div>
+<header class="main-header">
+  <div class="brand brand-logo" aria-label="Trenes Argentinos Linea Roca">
+    <span class="brand-logo-mark" data-logo-fallback="Linea Roca">
+      <img class="brand-logo-img" src="assets/branding/Trenes_Argentinos_-_L%C3%ADnea_Roca.svg" alt="Linea Roca">
+      <span class="brand-logo-fallback">Linea Roca</span>
+    </span>
+    <span class="brand-copy"><small>TRENES ARGENTINOS</small><strong>L&Iacute;NEA ROCA</strong></span>
+  </div>
+  <div class="app-identity" title="Sistema Integrado de Gestion de Obras y Servicios">
+    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge">V57.1</span></div>
+    <div class="app-subtitle" id="appSubtitleHeader">Sistema Integrado de Gesti&oacute;n de Obras y Servicios</div>
+    <div class="app-tagline" id="appTaglineHeader">Sistema operativo COI L&iacute;nea Roca &mdash; Gesti&oacute;n de Obras, Servicios, Certificaciones y Vencimientos</div>
+  </div>
+  <div class="header-actions">
+    <span class="quick-search-link"><button type="button" id="btnAccesoBusquedaOrdenes">Buscar OC</button></span>
   </div>
 </header>
 
@@ -615,8 +718,20 @@ body.auth-locked .module-nav{display:none}
   <button type="button" id="btnAdministracionSistema">Administración</button>
   
   <button type="button" id="btnAcercaSistema">Acerca del Sistema</button>
-  <span class="quick-search-link"><button type="button" id="btnAccesoBusquedaOrdenes">Buscar OC</button></span>
 </section>
+<footer id="footerOperativo" class="operative-footer" aria-label="Estado operativo del sistema">
+  <div class="footer-brand-logo" data-logo-fallback="Linea Roca">
+    <img class="footer-brand-logo-img" src="assets/branding/Trenes_Argentinos_-_L%C3%ADnea_Roca.svg" alt="Linea Roca">
+    <span class="brand-logo-fallback">Linea Roca</span>
+  </div>
+  <div class="footer-status-grid">
+    <span class="footer-pill"><span>Sistema</span><b id="footerSistemaNombre">COI L&iacute;nea Roca</b></span>
+    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa">V57.1</b></span>
+    <span class="footer-pill"><span>&Uacute;ltima actualizaci&oacute;n</span><b id="headerUltimaActualizacion">Sin datos</b></span>
+    <span class="footer-pill"><span>OCs cargadas</span><b id="headerTotalOC">0</b></span>
+    <span class="footer-pill mode"><span>Estado</span><b id="headerModoSistema">Modo Operativo</b></span>
+  </div>
+</footer>
 
 <section id="vistaDashboard" class="view active">
   <section class="view-card">
@@ -941,7 +1056,7 @@ body.auth-locked .module-nav{display:none}
 </section>
 
 
-<section id="vistaCarga" class="view">
+<section id="vistaCarga" class="view carga-module">
 <section class="view-card">
   <div class="view-head">
     <h2>Carga rápida desde Excel</h2>
@@ -1143,6 +1258,7 @@ function actualizarHeaderOperativo(){
   const u=ultimaActualizacionDatos();
   if($("headerUltimaActualizacion")) $("headerUltimaActualizacion").textContent=u?(fmtFecha(u)||u.slice(0,10)):"Sin datos";
   if($("headerModoSistema")) $("headerModoSistema").textContent="Modo Operativo";
+  if($("footerSistemaNombre")) $("footerSistemaNombre").textContent=typeof APP_NAME!=="undefined"?APP_NAME:"COI L\u00ednea Roca";
   document.body.classList.remove("auth-locked","modo-jefatura","modo-visualizador");
   document.body.classList.add("modo-admin");
   const nav=$("moduleNav"); if(nav) nav.style.display="flex";
@@ -2921,6 +3037,7 @@ function guardarBaseLocal(){
   if(typeof migrarDatosV50==='function') migrarDatosV50(false);
   if(typeof actualizarEstadosVisualesRed==='function') actualizarEstadosVisualesRed();
   if(typeof actualizarHeaderOperativo==='function') actualizarHeaderOperativo();
+  if(typeof inicializarBrandingInstitucional==="function") inicializarBrandingInstitucional();
 }
 function buscarPorIdObra(idObra){
   migrarArquitecturaIdObra();
@@ -4374,9 +4491,9 @@ function activarHoverEstaciones(){
    V32.1 - Acerca del Sistema + Historial de versiones
    =============================== */
 const APP_NAME = "COI Línea Roca";
-const APP_VERSION = "V57.0";
+const APP_VERSION = "V57.1";
 const APP_STATUS = "Versión operativa en desarrollo";
-const APP_RELEASE_DATE = "2026-07-01";
+const APP_RELEASE_DATE = "2026-07-04";
 const APP_AUTHOR = "Mariano Special";
 const APP_START_YEAR = "2025";
 const APP_SUBTITLE = "Sistema Integrado de Gestión de Obras y Servicios";
@@ -4384,6 +4501,7 @@ const APP_OPERATIVE_TEXT = "Sistema operativo COI Línea Roca — Gestión de Ob
 const ADMIN_PIN = "1234";
 const USER_ROLES = { ADMIN: "Administrador", JEFE: "Jefatura" };
 const historialVersiones = [
+  {version:"V57.1",fecha:"2026-07-04",titulo:"Mejora visual del m\u00f3dulo Carga",cambios:["Se reorganiz\u00f3 visualmente el m\u00f3dulo Carga.","Se unific\u00f3 la est\u00e9tica de Servicio, Obra y Financiera.","Se corrigieron anchos de columnas, inputs y campos de descripci\u00f3n.","Se mejor\u00f3 el scroll horizontal interno de grillas tipo Excel.","Se ajust\u00f3 el espaciado para evitar interferencia con el footer operativo."],modulosAfectados:["Carga","Servicio","Obra","Financiera","Interfaz"],estado:"Implementado",observaciones:"Mejora visual sin modificar localStorage ni la l\u00f3gica de pegado desde Excel."},
   {version:"V57.0",fecha:"2026-07-02",titulo:"Auditoria integral, hardening y estabilizacion funcional",cambios:["Auditoria general de JavaScript y correcciones defensivas.","Normalizacion de datos localStorage para OC, UM y estaciones.","Validacion reforzada de OC cerradas, vencimientos y certificaciones.","Revision de fotos, observaciones, documentos y eventos dinamicos.","Proteccion contra valores null, undefined, NaN, fechas invalidas y fallas de guardado.","Se conserva la vigencia operativa por saldo remanente bajo la denominacion oficial."],modulosAfectados:["Dashboard","Ordenes","Ficha OC","Ficha UM","Calendario COI","Centro de Alertas","Estado Financiero","Administracion","localStorage"],estado:"Estable para prueba operativa controlada",observaciones:"Hardening incremental sin backend ni librerias externas. Mantiene compatibilidad con datos existentes y GitHub Pages."},
   {version:"V56.0",fecha:"2026-07-02",titulo:"Estabilizacion Ficha OC y UM",cambios:["Se formatea el monto contractual de Ficha OC como moneda ARS.","Se agregan galerias multiples de fotos en Ficha OC y Ficha UM con persistencia local.","Se incorpora historial acumulativo de observaciones y cierre operativo trazable de OC."],modulosAfectados:["Ficha OC","Ficha UM","Dashboard","Calendario COI","Centro de Alertas","localStorage"],estado:"Implementado",observaciones:"Version de correccion y preparacion para carga real. No usa backend ni librerias externas."},
   {version:"V55.0",fecha:"2026-07-02",titulo:"Armonizacion visual Ficha OC",cambios:["Se normalizaron las tarjetas de estados documentales en Ficha OC.","Se agrego estado visual activo uniforme para checkboxes documentales.","Se ajustaron espaciados, padding y tablas financieras sin modificar calculos ni persistencia."],modulosAfectados:["Ficha OC","Documentos","Estado Financiero"],estado:"Implementado",observaciones:"Correccion visual sobre HTML/CSS/JS puro. Mantiene localStorage y eventos addEventListener."},
@@ -4461,7 +4579,13 @@ function renderAcercaSistema(){
   const modulos=modulosImplementadosAcercaSistema();
   cont.innerHTML=`
     <section class="about-card hero">
-      <div><h3>${esc(APP_NAME)}</h3><div>${esc(APP_SUBTITLE)}</div><p>${esc(APP_OPERATIVE_TEXT)}</p></div>
+      <div class="about-hero-copy">
+        <div class="about-brand-logo" data-logo-fallback="Linea Roca">
+          <img src="assets/branding/Trenes_Argentinos_-_L%C3%ADnea_Roca.svg" alt="Linea Roca">
+          <span class="brand-logo-fallback">Linea Roca</span>
+        </div>
+        <h3>${esc(APP_NAME)}</h3><div>${esc(APP_SUBTITLE)}</div><p>${esc(APP_OPERATIVE_TEXT)}</p>
+      </div>
       <div class="about-meta">
         <div><b>Nombre del sistema</b><br>${esc(APP_NAME)}</div><div><b>Versión actual</b><br><span class="app-version-badge">${esc(APP_VERSION)}</span></div><div><b>Fecha de versión</b><br>${esc(APP_RELEASE_DATE)}</div><div><b>Estado</b><br>${esc(APP_STATUS)}</div><div><b>Responsable / autor</b><br>${esc(APP_AUTHOR)}</div><div><b>Tecnología usada</b><br>HTML, CSS, JavaScript puro, localStorage</div>
       </div>
@@ -4495,6 +4619,9 @@ function renderAcercaSistema(){
       <ul class="about-objectives"><li>La persistencia operativa se realiza en localStorage del navegador.</li><li>El backup JSON permite exportar e importar la base completa entre usuarios.</li><li>La Administración del Sistema centraliza exportación, importación, backup interno, demo operativa y limpieza controlada.</li><li>La demo operativa reemplaza datos locales solo con confirmación previa.</li><li>Sin backend no hay sincronización multiusuario automática: cada usuario debe importar el backup recibido.</li></ul>
     </section>    <section class="about-card"><h3>Historial de versiones</h3>${renderHistorialVersionesIntegrado(ordenadas)}</section>
     <section class="about-card about-credits"><b>${esc(APP_NAME)} © 2026</b><br>Diseño, arquitectura funcional y desarrollo:<br><b>${esc(APP_AUTHOR)}</b><br><br>Sistema desarrollado para la gestión operativa, documental y contractual de Obras, Servicios y Unidades de Mantenimiento de la Línea General Roca.</section>`;
+  if(typeof inicializarBrandingInstitucional==="function") inicializarBrandingInstitucional();
+  if(typeof v571AplicarLogoInstitucional==="function") v571AplicarLogoInstitucional();
+  if(typeof v571NormalizarModuloCargaUI==="function") v571NormalizarModuloCargaUI(document);
   renderListadoVersiones(ordenadas);
   $('filtroVersiones')?.addEventListener('input',()=>{
     const texto=$('filtroVersiones').value.toLowerCase().trim();
@@ -7270,6 +7397,96 @@ function v67InstalarObserverUI(){
 });
 v67InstalarObserverUI();
 setTimeout(()=>aplicarMejorasVisualesUI(document.body),0);
+/* ===============================
+   V57.1 - Mejora visual modulo Carga
+   Solo agrega clases visuales; no modifica datos ni localStorage.
+   =============================== */
+const LOGO_INSTITUCIONAL_ROCA = "assets/branding/Trenes_Argentinos_-_L%C3%ADnea_Roca.svg";
+function v571AplicarLogoInstitucional(){
+  document.querySelectorAll(".brand-logo-img,.footer-brand-logo-img,.about-brand-logo img").forEach(img=>{
+    if(!img.getAttribute("src") || img.getAttribute("src").includes("logo-linea-roca")) img.setAttribute("src",LOGO_INSTITUCIONAL_ROCA);
+  });
+  if(typeof inicializarBrandingInstitucional==="function" && !window.__v571BrandingGuard){
+    try{window.__v571BrandingGuard=true;inicializarBrandingInstitucional();}
+    finally{window.__v571BrandingGuard=false;}
+  }
+}function v571TextoColumna(txt){
+  return String(txt||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+}
+function v571ClaseColumnaCarga(header){
+  const h=v571TextoColumna(header);
+  if(h==="#")return "carga-col-rownum";
+  if(h==="OC"||h.includes("OC_NRO")||h.includes("NRO OC")||h.includes("N OC"))return "carga-col-oc";
+  if(h.includes("REMITO"))return "carga-col-remito";
+  if(h==="POS"||h.includes("POSICION"))return h.includes("DESCRIPCION")?"carga-col-descripcion":"carga-col-pos";
+  if(h.includes("ID OBRA")||h.includes("ID_OBRA")||h.includes("ID SERVICIO")||h.includes("ID_SERVICIO"))return "carga-col-id";
+  if(h.includes("MONTO")||h.includes("PRECIO")||h.includes("SALDO")||h.includes("$"))return "carga-col-monto";
+  if(h.includes("FECHA")||h.includes("PERIODO"))return "carga-col-fecha";
+  if(h.includes("ESTACION"))return "carga-col-estacion";
+  if(h.includes("PROVEED")||h.includes("PROVEEDOR"))return "carga-col-proveedor";
+  if(h.includes("DESCRIPCION")||h.includes("SERVICIO"))return "carga-col-descripcion";
+  if(h.includes("OBSERVACION"))return "carga-col-observaciones";
+  if(h.includes("CANTIDAD")||h==="CANT.")return "carga-col-cantidad";
+  if(h.includes("UNIDAD")||h==="UM")return "carga-col-unidad";
+  if(h.includes("ESTADO")||h.includes("ESTATUS")||h.includes("INDICADOR"))return "carga-col-estado";
+  return "";
+}
+function v571ClasificarTablaCarga(tabla){
+  if(!tabla)return;
+  tabla.classList.add("carga-table");
+  if(tabla.closest("#panelCargaFinanciera"))tabla.classList.add("carga-table-financiera");
+  const ths=[...tabla.querySelectorAll("thead th")];
+  if(!ths.length)return;
+  const clases=ths.map(th=>v571ClaseColumnaCarga(th.textContent));
+  ths.forEach((th,i)=>{if(clases[i])th.classList.add(clases[i]);});
+  [...tabla.querySelectorAll("tbody tr")].forEach(tr=>[...tr.children].forEach((td,i)=>{if(clases[i])td.classList.add(clases[i]);}));
+}
+function v571NormalizarModuloCargaUI(root=document){
+  const vista=document.getElementById("vistaCarga");
+  if(!vista)return;
+  vista.classList.add("carga-module");
+  vista.querySelector(".view-head")?.classList.add("carga-header");
+  vista.querySelector(".view-body")?.classList.add("carga-body");
+  vista.querySelector("#cargaRapidaOCSection")?.classList.add("carga-module-shell");
+  vista.querySelector(".quick-type-selector")?.classList.add("carga-tabs");
+  vista.querySelector(".quick-load-actions")?.classList.add("carga-toolbar-actions");
+  const badge=document.getElementById("cargaRapidaTipoActivo");
+  if(badge)badge.closest(".quick-load-head")?.classList.add("carga-toolbar");
+  vista.querySelectorAll(".quick-load-wrap").forEach(w=>w.classList.add("carga-table-wrapper","carga-table-scroll"));
+  vista.querySelectorAll(".quick-load-table").forEach(v571ClasificarTablaCarga);
+  document.getElementById("cargaRapidaMsg")?.classList.add("carga-status-bar");
+}
+function v571WrapCargaUI(nombre){
+  const fn=window[nombre];
+  if(typeof fn!=="function"||fn.__v571Wrapped)return;
+  const wrapped=function(...args){
+    const r=fn.apply(this,args);
+    setTimeout(()=>v571NormalizarModuloCargaUI(document),0);
+    return r;
+  };
+  wrapped.__v571Wrapped=true;
+  window[nombre]=wrapped;
+}
+["v45RenderTabla","v45SetTipoCarga","v45AgregarFilas","renderCarga","renderCargaServicio","renderCargaObra","renderCargaFinanciera","renderGrillaFinanciera","agregarFilasCargaFinanciera","limpiarGrillaCarga","limpiarGrillaCargaFinanciera"].forEach(v571WrapCargaUI);
+setTimeout(()=>{v571AplicarLogoInstitucional();v571NormalizarModuloCargaUI(document);},0);
+function inicializarBrandingInstitucional(){
+  const selector='.brand-logo-img,.footer-brand-logo img,.about-brand-logo img';
+  const marcarError=img=>{
+    const shell=img.closest('.brand-logo-mark,.footer-brand-logo,.about-brand-logo');
+    if(shell) shell.classList.add('logo-error');
+  };
+  document.querySelectorAll(selector).forEach(img=>{
+    if(img.dataset.brandingInit==='1')return;
+    img.dataset.brandingInit='1';
+    img.addEventListener('error',()=>marcarError(img),{once:false});
+    img.addEventListener('load',()=>{const shell=img.closest('.brand-logo-mark,.footer-brand-logo,.about-brand-logo');if(shell)shell.classList.remove('logo-error');},{once:false});
+    if(img.complete&&img.naturalWidth===0)marcarError(img);
+  });
+  if(!window.__coiBrandingErrorListener){
+    document.addEventListener('error',ev=>{const img=ev.target;if(img&&img.matches&&img.matches(selector))marcarError(img);},true);
+    window.__coiBrandingErrorListener=true;
+  }
+}
 function init(){
   loadImportedData();
   if(typeof sincronizarListasOCGlobales==='function') sincronizarListasOCGlobales();
@@ -7308,6 +7525,9 @@ function init(){
   if(typeof activarHoverEstaciones==='function') activarHoverEstaciones();
   if(typeof actualizarEstadosVisualesRed==='function') actualizarEstadosVisualesRed();
   if(typeof actualizarHeaderOperativo==='function') actualizarHeaderOperativo();
+  if(typeof inicializarBrandingInstitucional==="function") inicializarBrandingInstitucional();
+  if(typeof v571AplicarLogoInstitucional==="function") v571AplicarLogoInstitucional();
+  if(typeof v571NormalizarModuloCargaUI==="function") v571NormalizarModuloCargaUI(document);
   initFotosEstacion();
   if(typeof initErroresFotosEstacion==='function') initErroresFotosEstacion();
   initFotoYChecksOC();
@@ -7349,11 +7569,14 @@ function coiRenderSeguro(nombre,fn,onError){
 function coiConectarBotonVista(idBoton,idVista,renderFn,onError){
   var btn=document.getElementById(idBoton);
   if(!btn){console.warn('COI: boton inexistente',idBoton);return;}
-  btn.onclick=function(ev){
-    if(ev){ev.preventDefault();ev.stopPropagation();}
-    coiMostrarVistaSegura(idVista,idBoton);
-    coiRenderSeguro(idVista,renderFn,onError);
-  };
+  if(!btn.dataset.coiVistaRespaldo){
+    btn.dataset.coiVistaRespaldo="1";
+    btn.addEventListener("click",function(ev){
+      if(ev){ev.preventDefault();ev.stopPropagation();}
+      coiMostrarVistaSegura(idVista,idBoton);
+      coiRenderSeguro(idVista,renderFn,onError);
+    });
+  }
 }
 function initNavegacionRespaldoCOI(){
   coiConectarBotonVista('btnDashboard','vistaDashboard',function(){if(typeof updateKpis==='function')updateKpis();if(typeof renderDashboardAlertSummary==='function')renderDashboardAlertSummary();if(typeof renderDashboardInteractivoExtra==='function')renderDashboardInteractivoExtra();});
@@ -7366,7 +7589,7 @@ function initNavegacionRespaldoCOI(){
   coiConectarBotonVista('btnAcercaSistema','vistaAcercaSistema',function(){if(typeof renderAppVersionHeader==='function')renderAppVersionHeader();if(typeof renderAcercaSistema==='function')renderAcercaSistema();},function(err){var cont=document.getElementById('acercaSistemaBody');if(cont)cont.innerHTML='<section class="about-card"><h3>Acerca del Sistema</h3><p>No se pudo renderizar el detalle institucional. El resto del sistema permanece operativo.</p><p class="muted">'+coiEscError(err.message||err)+'</p></section>';});
   coiConectarBotonVista('btnUnidadesMantenimiento','vistaUnidadesMantenimiento',function(){if(typeof cargarUM==='function')cargarUM();if(typeof cargarFiltrosUM==='function')cargarFiltrosUM();if(typeof renderUnidadesMantenimiento==='function')renderUnidadesMantenimiento();},function(err){var tbody=document.getElementById('umTbody');if(tbody)tbody.innerHTML='<tr><td colspan="10">No se pudo renderizar Unidades de Mantenimiento: '+coiEscError(err.message||err)+'</td></tr>';});
   var btnBusqueda=document.getElementById('btnAccesoBusquedaOrdenes');
-  if(btnBusqueda){btnBusqueda.onclick=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}if(typeof abrirModuloOrdenes==='function')abrirModuloOrdenes(true);else{coiMostrarVistaSegura('vistaOrdenes','btnOrdenes');if(typeof renderOrdenes==='function')renderOrdenes();}};}
+  if(btnBusqueda&&!btnBusqueda.dataset.coiBusquedaRespaldo){btnBusqueda.dataset.coiBusquedaRespaldo="1";btnBusqueda.addEventListener("click",function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}if(typeof abrirModuloOrdenes==='function')abrirModuloOrdenes(true);else{coiMostrarVistaSegura('vistaOrdenes','btnOrdenes');if(typeof renderOrdenes==='function')renderOrdenes();}});}
   console.log('COI: navegacion de respaldo inicializada');
 }
 try{
@@ -7378,6 +7601,13 @@ initNavegacionRespaldoCOI();
 console.log('COI iniciado correctamente');
 </script>
 </body></html>
+
+
+
+
+
+
+
 
 
 
