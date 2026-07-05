@@ -748,6 +748,20 @@ body.modo-admin #btnAdminMode{background:#eef8f1;color:#236339;border-color:#bfe
 #coiTabCalendario .op-calendar{border-color:#d8e4ef}
 #coiTabCalendario .op-calendar-head,#coiTabCalendario .op-calendar-filters{display:none}
 
+
+/* V58.0 - Centro de Alertas por rol y calidad de datos */
+.alert-role-note{margin:0 0 12px;padding:12px 14px;border:1px solid #d8e7f0;border-left:5px solid #1f6fa9;border-radius:14px;background:linear-gradient(180deg,#fff,#f7fbfe);color:#24445d;font-weight:700}
+.alert-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;border-bottom:1px solid #e4edf5;padding-bottom:10px}
+.alert-tab{border:1px solid #d4e2ed;background:#fff;color:#24445d;border-radius:999px;padding:9px 12px;font-weight:900;cursor:pointer;transition:.16s ease}
+.alert-tab:hover{border-color:#1f6fa9;color:#1f6fa9}
+.alert-tab.active{background:#1f6fa9;border-color:#1f6fa9;color:#fff;box-shadow:0 8px 20px rgba(31,111,169,.18)}
+.alert-tab[disabled]{display:none}
+.alert-badge.critica,.alert-badge.alta{background:#fff1f1;color:#9b1c1c;border-color:#ffd0d0}
+.alert-badge.media{background:#fff8e6;color:#916600;border-color:#ffe3a3}
+.alert-badge.baja{background:#f1f3f5;color:#5b6470;border-color:#d8dde3}
+.alert-badge.informativa{background:#eef5ff;color:#245f9f;border-color:#cfe2ff}
+.alert-category-pill{display:inline-flex;margin-top:4px;border-radius:999px;padding:3px 7px;background:#f3f7fb;color:#35566d;font-size:11px;font-weight:900;text-transform:uppercase}
+body.modo-consulta #alertTabCalidadDatos,body.modo-consulta #alertTabTodas{display:none!important}
 </style>
 </head>
 <body>
@@ -931,10 +945,10 @@ body.modo-admin #btnAdminMode{background:#eef8f1;color:#236339;border-color:#bfe
       </div>
       <div id="coiPeriodoResumen" class="calendario-periodo-resumen" aria-live="polite"></div>
       <div class="coi-tabs calendario-subtabs" role="tablist" aria-label="Submódulos del Calendario COI">
-        <button type="button" class="active" data-coi-tab="inteligente">Vista Inteligente</button>
-        <button type="button" data-coi-tab="calendario">Vista Calendario</button>
-        <button type="button" data-coi-tab="vencimientos">Tabla Vencimientos</button>
-        <button type="button" data-coi-tab="certificaciones">Tabla Certificaciones</button>
+        <button type="button" id="btnCalendarioVistaCOI1" class="active" data-coi-tab="inteligente">Vista COI I</button>
+        <button type="button" id="btnCalendarioVistaCOI2" data-coi-tab="calendario">Vista COI II</button>
+        <button type="button" id="btnCalendarioTablaVencimientos" data-coi-tab="vencimientos">Tabla Vencimientos</button>
+        <button type="button" id="btnCalendarioTablaCertificaciones" data-coi-tab="certificaciones">Tabla Certificaciones</button>
       </div>
       <section id="coiTabInteligente" class="coi-tab-panel active">
         <div id="calendarioInteligenteCOI"></div>
@@ -4552,9 +4566,9 @@ function activarHoverEstaciones(){
    V32.1 - Acerca del Sistema + Historial de versiones
    =============================== */
 const APP_NAME = "COI Línea Roca";
-const APP_VERSION = "V57.6R";
+const APP_VERSION = "V58.0";
 const APP_STATUS = "Versión operativa en desarrollo";
-const APP_RELEASE_DATE = "2026-07-04";
+const APP_RELEASE_DATE = "2026-07-05";
 const APP_AUTHOR = "Mariano Special";
 const APP_START_YEAR = "2025";
 const APP_SUBTITLE = "Sistema Integrado de Gestión de Obras y Servicios";
@@ -4562,7 +4576,7 @@ const APP_OPERATIVE_TEXT = "Sistema operativo COI Línea Roca — Gestión de Ob
 const ADMIN_PIN = "1234";
 const USER_ROLES = { ADMIN: "Administrador", JEFE: "Jefatura" };
 const historialVersiones = [
-  {version:"V57.6R",fecha:"2026-07-05",titulo:"Calendario COI separado en submódulos",cambios:["Se separó Vista Inteligente y Vista Calendario en tabs internos independientes.","La Vista Inteligente conserva el tablero por columnas y usa los filtros globales.","La Vista Calendario muestra solo la grilla mensual operativa.","Tabla Vencimientos y Tabla Certificaciones quedan como submódulos separados.","Se corrigió la lectura de año y mes para no resetear el filtro al renderizar."],modulosAfectados:["Calendario COI","Filtros","Exportación CSV/ICS"],estado:"Implementado",observaciones:"Ajuste visual y funcional sobre base V57.5/V57.6 sin rehacer el sistema ni tocar localStorage."},
+  {version:"V58.0",fecha:"2026-07-05",titulo:"Centro de Alertas por rol y calidad de datos",cambios:["Se separaron alertas operativas, documentales, financieras y de calidad de datos.","En Modo Consulta se ocultan pendientes internos de carga administrativa.","En Modo Administrador se habilita la vista Calidad de Datos.","Se redujo el ruido visual para usuarios de consulta y jefatura.","Se mantuvo el control interno de datos incompletos para administracion."],modulosAfectados:["Centro de Alertas","Dashboard","Administracion","Modo Consulta","Modo Administrador"],estado:"Implementado",observaciones:"Las alertas administrativas quedan disponibles solo para administracion y no contaminan la vista de consulta."},{version:"V57.7",fecha:"2026-07-05",titulo:"Submodulos Calendario COI",cambios:["Se separo el Calendario COI en submodulos internos.","Se agregaron Vista COI I, Vista COI II, Tabla Vencimientos y Tabla Certificaciones.","Se evito la mezcla visual entre calendario inteligente, calendario mensual y tablas.","Los filtros dinamicos por anio, mes, estacion, proveedor, tipo, evento y estado actualizan solo la subvista activa.","Se mantuvo la exportacion CSV/ICS respetando filtros y subvista activa."],modulosAfectados:["Calendario COI","Filtros","Exportacion CSV/ICS"],estado:"Implementado",observaciones:"Ajuste visual y funcional sobre base V57.x sin rehacer el sistema ni tocar localStorage."},
       {version:"V57.5",fecha:"2026-07-05",titulo:"Documentos por tipologia y vencimiento por Acta de Inicio",cambios:["Se corrigio la regla contractual: el vencimiento se calcula desde el Acta de Inicio y el plazo.","Se definieron tipos documentales minimos: Factura, Remito, OC, Acta de Inicio, Acta de Medición, DDJJ, PRINT SERCAE, Pliegos, Fotos y Otros.","Se incorporo formulario dinamico por tipologia documental.","Se evitaron campos innecesarios segun tipo de documento.","Se mejoro la trazabilidad documental sin mezclar contextos.","Se integro la actualizacion automatica de vencimiento al cargar Acta de Inicio.","Se reforzo la relacion con OneDrive mediante ruta, link y estructura sugerida."],modulosAfectados:["Ficha OC","Documentos","Vigencia Operativa","Calendario","Alertas","Administracion","CSV","Backup JSON"],estado:"Implementado",observaciones:"El vencimiento contractual prioriza fechaActaInicio + plazoDias/plazoMeses. La fecha de emision de OC queda como dato administrativo."},{version:"V57.4",fecha:"2026-07-04",titulo:"Backup JSON completo y vigencia automatica por saldo",cambios:["Se agrego exportacion e importacion JSON completa desde Administracion.","Se incorporo transferencia de base entre archivo local, GitHub Pages y otros equipos.","Se automatizo la categoria Vencida certificable por saldo remanente para OCs vencidas con saldo disponible.","Se unificaron alias de vencida con saldo y vencida habilitada administrativamente para certificar.","Se mantuvo la trazabilidad administrativa sin cerrar ni eliminar OCs vencidas con saldo.","Se mejoraron badges y aplicacion de vigencia operativa en Ordenes, Ficha OC, Dashboard, Calendario y Alertas."],modulosAfectados:["Administracion","Backup JSON","Vigencia Operativa","Ordenes","Ficha OC","Dashboard","Calendario","Alertas"],estado:"Implementado",observaciones:"La condicion certificable por saldo remanente se calcula automaticamente por fecha contractual vencida y saldo disponible."},{version:"V57.3",fecha:"2026-07-04",titulo:"Inicio seguro en Modo Consulta",cambios:["El sistema inicia siempre en Modo Consulta al abrir o recargar la web.","La sesion administrativa ya no queda persistida automaticamente.","Se mantiene el ingreso manual como administrador desde Administracion.","Se agregaron funciones centralizadas para modo consulta / modo administrador.","Se protegieron acciones sensibles sin afectar la consulta operativa."],modulosAfectados:["Acceso","Administracion","Header","Footer","Permisos"],estado:"Implementado",observaciones:"Modo Consulta por defecto con sesion administrativa manual y no persistente."},
   {version:"V57.2",fecha:"2026-07-04",titulo:"Filtro documental en Ficha OC",cambios:["Se incorpor\u00f3 filtro por tipo documental en la secci\u00f3n Documentos / Expediente Digital.","Se agregaron categor\u00edas documentales: Acta de Inicio, DDJJ, Acta de Medici\u00f3n, SERCAE, Pliegos, Remitos, Facturas y Otros.","Se a\u00f1adi\u00f3 b\u00fasqueda textual dentro de documentos de la OC.","Se mejor\u00f3 la UX de consulta documental sin alterar localStorage ni la l\u00f3gica existente."],modulosAfectados:["Ficha OC","Documentos","Expediente Digital"],estado:"Implementado",observaciones:"Filtro visual y funcional por OC. La exportaci\u00f3n CSV original se mantiene completa y se agrega exportaci\u00f3n de vista filtrada."},
   {version:"V57.1",fecha:"2026-07-04",titulo:"Mejora visual del m\u00f3dulo Carga",cambios:["Se reorganiz\u00f3 visualmente el m\u00f3dulo Carga.","Se unific\u00f3 la est\u00e9tica de Servicio, Obra y Financiera.","Se corrigieron anchos de columnas, inputs y campos de descripci\u00f3n.","Se mejor\u00f3 el scroll horizontal interno de grillas tipo Excel.","Se ajust\u00f3 el espaciado para evitar interferencia con el footer operativo."],modulosAfectados:["Carga","Servicio","Obra","Financiera","Interfaz"],estado:"Implementado",observaciones:"Mejora visual sin modificar localStorage ni la l\u00f3gica de pegado desde Excel."},
@@ -8750,6 +8764,690 @@ function initCalendarioCOIUnificado(){
   activarTabCalendarioCOI(coiCalendarioTabActivo || 'inteligente', false);
 }
 
+
+/* V58.0 - Centro de Alertas por rol y calidad de datos */
+const ALERTAS_COI_V58 = true;
+let subvistaAlertasActual = 'operativa';
+const generarAlertasCOIV58Base = typeof generarAlertasCOI === 'function' ? generarAlertasCOI : null;
+const initCentroAlertasV46V58Base = typeof initCentroAlertasV46 === 'function' ? initCentroAlertasV46 : null;
+function esModoAdminAlertasV58(){try{return typeof esModoAdmin==='function'?!!esModoAdmin():(typeof adminIsEnabled==='function'?!!adminIsEnabled():false);}catch(e){return false;}}
+function v58Norm(v){return typeof normalizarTexto==='function'?normalizarTexto(v||''):String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();}
+function v58SeverityFromOld(v){const s=v58Norm(v);if(s.includes('ROJA')||s.includes('CRITICA'))return'critica';if(s.includes('AMARILLA')||s.includes('ALTA'))return'alta';if(s.includes('MEDIA')||s.includes('PROXIMA'))return'media';if(s.includes('GRIS')||s.includes('BAJA'))return'baja';return'informativa';}
+function v58SeverityRank(v){return {critica:0,alta:1,media:2,baja:3,informativa:4}[v]??4;}
+function v58CategoryLabel(c){return {operativa:'Operativas',documental:'Documentales',financiera:'Financieras',calidad_datos:'Calidad de Datos',sistema:'Sistema',todas:'Todas'}[c]||c;}
+function v58IdAlerta(a){return a.idAlerta||a.id||['ALERTA',a.tipoAlerta,a.oc,a.idRegistro,a.fechaRelacionada].map(x=>String(x||'').replace(/\W+/g,'_')).join('_');}
+function v58ClasificarCategoria(a){
+  const txt=v58Norm([a.tipoAlerta,a.categoria,a.mensaje,a.accionSugerida,a.descripcion].join(' '));
+  if(/SALDO|MONTO|FINANCIER|FACTURA SIN ACTA|DIFERENCIA|POSICION|CERTIFICABLE/.test(txt))return'financiera';
+  if(/FACTURA|DDJJ|SERCAE|ACTA|DOCUMENT|CARPETA|ONEDRIVE|REMITO|PLIEGO|LINK/.test(txt))return'documental';
+  if(/VENCID|VENCIMIENTO|PROXIM|CERTIFICACION|CERTIFICACION|PLAZO|CONTRACTUAL/.test(txt))return'operativa';
+  if(/FALTA|SIN ESTACION|SIN PROVEEDOR|SIN SECTOR|SIN TIPO|PENDIENTE DE COMPLETAR|DATO|INCOMPLET|CAMPO/.test(txt))return'calidad_datos';
+  return'sistema';
+}
+function v58EsCalidadNoConsulta(a){
+  const txt=v58Norm([a.tipoAlerta,a.categoria,a.mensaje,a.accionSugerida].join(' '));
+  return /FALTA ESTACION|FALTA PROVEEDOR|FALTA SECTOR|FALTA TIPO|FALTA OBSERVACION|FALTA CAMPO|PENDIENTE DE COMPLETAR|DATOS INCOMPLETOS|SIN ESTACION|SIN PROVEEDOR|DOCUMENTO SIN TIPO|LINK NO CRITICO/.test(txt);
+}
+function v58NormalizarAlerta(a){
+  const categoria = v58EsCalidadNoConsulta(a) ? 'calidad_datos' : v58ClasificarCategoria(a);
+  const severidad = categoria==='calidad_datos' ? (v58SeverityFromOld(a.severidad)==='critica'?'media':'baja') : v58SeverityFromOld(a.severidad);
+  const visibleConsulta = categoria!=='calidad_datos' && categoria!=='sistema';
+  return {
+    ...a,
+    idAlerta:v58IdAlerta(a),
+    idObra:a.idObra||a.idRegistro||'',
+    ocNro:a.ocNro||a.oc||'',
+    categoria,
+    categoriaOriginal:a.categoria||'',
+    severidad,
+    severidadOriginal:a.severidad||'',
+    titulo:a.titulo||a.tipoAlerta||'Alerta COI',
+    descripcion:a.descripcion||'',
+    fechaReferencia:a.fechaReferencia||a.fechaRelacionada||'',
+    estado:a.estado||'Pendiente',
+    visibleConsulta,
+    visibleAdmin:true
+  };
+}
+function v58OCActiva(row){
+  const txt=v58Norm([row.estado,row.item?.estado,row.estadoDocumental,row.item?.estadoDocumental].join(' '));
+  return /EJECUCION|EJECUCION|ACTIVO|VIGENTE|CURSO|EN PROCESO|PENDIENTE/.test(txt) && !/CERRAD|FINALIZAD|ARCHIVAD|CANCELAD/.test(txt);
+}
+function v58OCItemByAlerta(a){
+  if(a.item)return a.item;
+  const n=v58Norm(a.oc||a.ocNro);
+  const id=v58Norm(a.idRegistro||a.idObra||a.idServicio);
+  return (typeof todasLasOC==='function'?todasLasOC():[]).find(r=>v58Norm(r.oc)===n||v58Norm(r.item?.ocNro||r.item?.OC_NRO||r.item?.numeroOC)===n||v58Norm(r.id)===id||v58Norm(r.item?.idObra||r.item?.idServicio||r.item?.idOC)===id)?.item||null;
+}
+function v58AgregarAlertasCalidad(base){
+  const ids=new Set(base.map(a=>a.idAlerta||a.id));
+  const add=a=>{a=v58NormalizarAlerta(a);if(!ids.has(a.idAlerta)){ids.add(a.idAlerta);base.push(a);}};
+  (typeof todasLasOC==='function'?todasLasOC():[]).forEach(row=>{
+    const item=row.item||{}, oc=row.oc||item.ocNro||item.OC_NRO||item.numeroOC||'SIN OC', id=row.id||item.idObra||item.idServicio||item.idOC||oc;
+    const faltan=[];
+    if(!String(row.estacion||item.estacion||item.ESTACION||'').trim()||v58Norm(row.estacion||item.estacion).includes('SIN DEFINIR'))faltan.push('estacion');
+    if(!String(row.proveedor||item.proveedor||item.PROVEEDOR||'').trim()||v58Norm(row.proveedor||item.proveedor).includes('SIN DEFINIR'))faltan.push('proveedor');
+    if(!String(item.sector||item.SECTOR||'').trim())faltan.push('sector');
+    if(!String(item.tipoTrabajo||item.descripcion||row.especialidad||'').trim())faltan.push('tipo de trabajo');
+    const inicio=row.inicio||item.fechaActaInicio||item.FECHA_INICIO||item.fechaInicio||item.inicio;
+    const plazo=row.plazo||item.plazoDias||item.PLAZO_DIAS||item.plazo;
+    if(!inicio)faltan.push('fecha acta inicio');
+    if(!plazo)faltan.push('plazo');
+    if(faltan.length)add({id:`V58_CALIDAD_${id}`,tipoAlerta:'Pendientes de carga administrativa',categoria:'calidad_datos',severidad:'baja',oc,idRegistro:id,tipoRegistro:row.tipo||item.tipo||'',estacion:row.estacion||item.estacion||'Sin definir',proveedor:row.proveedor||item.proveedor||'Sin definir',descripcion:item.descripcion||row.especialidad||'',fechaRelacionada:'',dias:'',mensaje:`Faltan datos administrativos: ${faltan.join(', ')}.`,accionSugerida:'Completar datos en Ficha OC.',ocId:id,item});
+    if(v58OCActiva(row)&&!inicio)add({id:`V58_DOC_ACTA_INICIO_${id}`,tipoAlerta:'OC activa sin Acta de Inicio',categoria:'documental',severidad:'alta',oc,idRegistro:id,tipoRegistro:row.tipo||item.tipo||'',estacion:row.estacion||item.estacion||'Sin definir',proveedor:row.proveedor||item.proveedor||'Sin definir',descripcion:item.descripcion||row.especialidad||'',fechaRelacionada:'',dias:'',mensaje:'La OC esta activa o en ejecucion y no registra Acta de Inicio.',accionSugerida:'Registrar Acta de Inicio en Documentos / Expediente Digital.',ocId:id,item});
+    const carpeta=item.linkCarpetaOneDrive||item.carpetaDocumental||item.rutaDocumental||item.linkOneDrive;
+    if(v58OCActiva(row)&&!carpeta)add({id:`V58_DOC_CARPETA_${id}`,tipoAlerta:'OC activa sin carpeta documental',categoria:'documental',severidad:'media',oc,idRegistro:id,tipoRegistro:row.tipo||item.tipo||'',estacion:row.estacion||item.estacion||'Sin definir',proveedor:row.proveedor||item.proveedor||'Sin definir',descripcion:item.descripcion||row.especialidad||'',fechaRelacionada:'',dias:'',mensaje:'La OC activa no tiene carpeta documental o link OneDrive asociado.',accionSugerida:'Asociar carpeta documental OneDrive.',ocId:id,item});
+    try{
+      const fin=row.fin||item.fechaFin||item.fechaVencimiento, d=fin?(typeof diffDias==='function'?diffDias(fin,new Date()):0):null, saldo=typeof obtenerSaldoRemanenteCertificable==='function'?Number(obtenerSaldoRemanenteCertificable(item)||0):Number(item.saldoRemanenteCertificable||0);
+      if(d!==null&&d<0&&saldo>0)add({id:`V58_FIN_SALDO_${id}`,tipoAlerta:'OC vencida certificable por saldo remanente',categoria:'financiera',severidad:'alta',oc,idRegistro:id,tipoRegistro:row.tipo||item.tipo||'',estacion:row.estacion||item.estacion||'Sin definir',proveedor:row.proveedor||item.proveedor||'Sin definir',descripcion:item.descripcion||row.especialidad||'',fechaRelacionada:fin,dias:d,mensaje:'La OC esta vencida pero conserva saldo remanente certificable.',accionSugerida:'Revisar vigencia operativa y saldo financiero.',ocId:id,item});
+    }catch(e){}
+  });
+  return base;
+}
+function generarAlertasCOI(){
+  const base = generarAlertasCOIV58Base ? generarAlertasCOIV58Base() : [];
+  const normalizadas = base.map(v58NormalizarAlerta);
+  return v58AgregarAlertasCalidad(normalizadas).sort((a,b)=>v58SeverityRank(a.severidad)-v58SeverityRank(b.severidad)||String(a.oc).localeCompare(String(b.oc)));
+}
+function filtrarAlertasPorModo(alertas){
+  return esModoAdminAlertasV58() ? alertas.filter(a=>a.visibleAdmin!==false) : alertas.filter(a=>a.visibleConsulta===true);
+}
+function filtrarAlertasPorCategoria(alertas,categoria){
+  if(!categoria||categoria==='todas')return alertas;
+  return alertas.filter(a=>a.categoria===categoria);
+}
+function v58ActualizarFiltrosAlertas(alertas){
+  const set=(id,vals,label)=>{const el=document.getElementById(id);if(!el)return;const actual=el.value||'';el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean).map(String))].sort((a,b)=>a.localeCompare(b,'es')).map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');if([...el.options].some(o=>o.value===actual))el.value=actual;};
+  const admin=esModoAdminAlertasV58();
+  set('alertFiltroTipo',alertas.map(a=>a.tipoRegistro),'Todos los tipos');
+  set('alertFiltroEstacion',alertas.map(a=>a.estacion),'Estacion');
+  set('alertFiltroProveedor',alertas.map(a=>a.proveedor),'Proveedor');
+  const sev=document.getElementById('alertFiltroSeveridad');if(sev){const actual=sev.value;sev.innerHTML='<option value="">Todas las severidades</option><option value="critica">Critica</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option><option value="informativa">Informativa</option>';if([...sev.options].some(o=>o.value===actual))sev.value=actual;}
+  const cat=document.getElementById('alertFiltroCategoria');if(cat){const actual=cat.value;const cats=admin?['operativa','documental','financiera','calidad_datos','sistema']:['operativa','documental','financiera'];cat.innerHTML='<option value="">Todas las categorias</option>'+cats.map(c=>`<option value="${c}">${v58CategoryLabel(c)}</option>`).join('');if([...cat.options].some(o=>o.value===actual))cat.value=actual;}
+}
+function v58AplicarFiltrosUI(alertas){
+  const sev=document.getElementById('alertFiltroSeveridad')?.value||'',tipo=document.getElementById('alertFiltroTipo')?.value||'',est=document.getElementById('alertFiltroEstacion')?.value||'',prov=document.getElementById('alertFiltroProveedor')?.value||'',cat=document.getElementById('alertFiltroCategoria')?.value||'',txt=v58Norm(document.getElementById('alertFiltroTexto')?.value||'');
+  return alertas.filter(a=>(!sev||a.severidad===sev||v58Norm(a.severidadOriginal)===v58Norm(sev))&&(!tipo||a.tipoRegistro===tipo)&&(!est||a.estacion===est)&&(!prov||a.proveedor===prov)&&(!cat||a.categoria===cat)&&(!txt||v58Norm([a.oc,a.idRegistro,a.tipoAlerta,a.mensaje,a.accionSugerida,a.proveedor,a.estacion].join(' ')).includes(txt)));
+}
+function renderKPIsCentroAlertas(alertas){
+  const admin=esModoAdminAlertasV58();
+  const c=cat=>alertas.filter(a=>a.categoria===cat).length;
+  const txt=txt=>alertas.filter(a=>v58Norm([a.tipoAlerta,a.mensaje,a.accionSugerida].join(' ')).includes(v58Norm(txt))).length;
+  const data=admin?[
+    ['Operativas',c('operativa')],['Documentales',c('documental')],['Financieras',c('financiera')],['Calidad de Datos',c('calidad_datos')],['Total alertas',alertas.length],['Pendientes de carga',c('calidad_datos')]
+  ]:[
+    ['OCs vencidas',txt('vencida')],['Proximas a vencer',txt('proxima')+txt('vencimiento contractual')],['Certificaciones proximas',txt('certificacion')],['Documentacion critica',alertas.filter(a=>a.categoria==='documental'&&['critica','alta'].includes(a.severidad)).length],['Alertas financieras',c('financiera')],['Vencidas certificables',txt('saldo remanente')]
+  ];
+  const el=document.getElementById('alertasKpis');if(el)el.innerHTML=data.map(x=>`<div class="alert-kpi"><b>${esc(x[1])}</b><span>${esc(x[0])}</span></div>`).join('');
+}
+function renderTabsCentroAlertas(){
+  const admin=esModoAdminAlertasV58();
+  const permitidas=admin?['operativa','documental','financiera','calidad_datos','todas']:['operativa','documental','financiera'];
+  if(!permitidas.includes(subvistaAlertasActual))subvistaAlertasActual='operativa';
+  const html=`<div class="alert-role-note">${admin?'Se muestran alertas operativas, documentales, financieras y pendientes de calidad de datos para depuracion administrativa.':'Se muestran alertas operativas y documentales relevantes para seguimiento de gestion. Los pendientes internos de carga quedan reservados al administrador.'}</div><div class="alert-tabs" role="tablist">${permitidas.map(c=>`<button type="button" id="alertTab${c==='calidad_datos'?'CalidadDatos':c.charAt(0).toUpperCase()+c.slice(1)}" class="alert-tab ${subvistaAlertasActual===c?'active':''}" data-alert-tab="${c}">${v58CategoryLabel(c)}</button>`).join('')}</div>`;
+  const body=document.querySelector('#vistaCentroAlertas .view-body');const old=document.getElementById('alertasTabsV58');
+  if(old)old.innerHTML=html;else if(body)body.insertAdjacentHTML('afterbegin',`<div id="alertasTabsV58">${html}</div>`);
+}
+function renderListadoAlertas(alertas){
+  const admin=esModoAdminAlertasV58();
+  const tbody=document.getElementById('alertasTbody');if(!tbody)return;
+  tbody.innerHTML=alertas.map(a=>{const ocItem=v58OCItemByAlerta(a),folder=ocItem&&(ocItem.linkCarpetaOneDrive||ocItem.linkOneDrive);return `<tr class="${a.revisada?'alert-row-reviewed':''}"><td><span class="alert-badge ${esc(a.severidad)}">${esc(a.severidad)}</span>${a.revisada?'<span class="alert-reviewed-pill">revisada</span>':''}</td><td>${esc(a.titulo||a.tipoAlerta)}<br><span class="alert-category-pill">${esc(v58CategoryLabel(a.categoria))}</span></td><td>${esc(a.oc||a.ocNro)}</td><td>${esc(a.idRegistro||a.idObra||'')}</td><td>${esc(a.tipoRegistro)}</td><td>${esc(a.estacion)}</td><td>${esc(a.proveedor)}</td><td>${esc(a.descripcion)}</td><td>${fmtFecha(a.fechaReferencia||a.fechaRelacionada)}</td><td>${esc(a.dias)}</td><td>${esc(a.mensaje)}</td><td>${esc(a.accionSugerida)}</td><td><div class="alert-actions"><button type="button" class="primary" data-open-oc="${esc(a.ocId||a.idRegistro)}">Ver ficha OC</button>${a.categoria==='documental'?`<button type="button" data-alert-docs="${esc(a.ocId||a.idRegistro)}">Ir a documentos</button>`:''}${a.categoria==='operativa'?'<button type="button" data-alert-calendar>Ir a calendario</button>':''}${folder?`<button type="button" data-alert-folder="${esc(a.ocId||a.idRegistro)}">Abrir carpeta</button>`:''}${admin?`<button type="button" data-alert-complete="${esc(a.ocId||a.idRegistro)}">Completar datos</button>`:''}<button type="button" data-alert-reviewed="${esc(a.idAlerta||a.id)}">Marcar revisada</button></div></td></tr>`;}).join('')||'<tr><td colspan="13">Sin alertas para la vista y filtros seleccionados.</td></tr>';
+}
+function renderCentroAlertas(){
+  const todas=generarAlertasCOI();
+  const alertasPorModo=filtrarAlertasPorModo(todas);
+  v58ActualizarFiltrosAlertas(alertasPorModo);
+  renderTabsCentroAlertas();
+  const porCategoria=filtrarAlertasPorCategoria(alertasPorModo,subvistaAlertasActual);
+  const visibles=v58AplicarFiltrosUI(porCategoria);
+  renderKPIsCentroAlertas(alertasPorModo);
+  renderListadoAlertas(visibles);
+}
+function exportarAlertasCSV(){
+  const alertas=v58AplicarFiltrosUI(filtrarAlertasPorCategoria(filtrarAlertasPorModo(generarAlertasCOI()),subvistaAlertasActual));
+  const headers=['idAlerta','categoria','severidad','visibleConsulta','visibleAdmin','tipo alerta','OC','ID','tipo registro','estacion','proveedor','descripcion','fecha referencia','dias','mensaje','accion sugerida','revisada'];
+  const rows=alertas.map(a=>[a.idAlerta,a.categoria,a.severidad,a.visibleConsulta?'SI':'NO',a.visibleAdmin?'SI':'NO',a.tipoAlerta,a.oc,a.idRegistro,a.tipoRegistro,a.estacion,a.proveedor,a.descripcion,a.fechaReferencia||a.fechaRelacionada,a.dias,a.mensaje,a.accionSugerida,a.revisada?'SI':'NO']);
+  descargarArchivo(`centro_alertas_${subvistaAlertasActual}_v58.csv`,[headers,...rows].map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n'),'text/csv;charset=utf-8');
+}
+function renderDashboardAlertSummary(){
+  const alertas=filtrarAlertasPorModo(generarAlertasCOI());
+  const cont=document.getElementById('dashboardAlertSummary');if(!cont)return;
+  const venc=alertas.filter(a=>v58Norm([a.tipoAlerta,a.mensaje].join(' ')).includes('VENCID')).length;
+  const cert=alertas.filter(a=>v58Norm([a.tipoAlerta,a.mensaje].join(' ')).includes('CERTIFIC')).length;
+  const doc=alertas.filter(a=>a.categoria==='documental').length;
+  const fin=alertas.filter(a=>a.categoria==='financiera').length;
+  cont.innerHTML=`<div class="alert-summary"><div><strong>Resumen operativo de alertas</strong><div class="alert-summary-list"><span class="alert-summary-chip">${venc} OCs vencidas</span><span class="alert-summary-chip">${cert} certificaciones</span><span class="alert-summary-chip">${doc} documentales criticas</span><span class="alert-summary-chip">${fin} financieras</span></div></div><button type="button" id="btnIrCentroAlertasDashboard" class="primary">Ir al Centro de Alertas</button></div>`;
+  document.getElementById('btnIrCentroAlertasDashboard')?.addEventListener('click',()=>{mostrarVista('vistaCentroAlertas');renderCentroAlertas();});
+}
+function initCentroAlertasV58(){
+  document.addEventListener('click',ev=>{
+    const tab=ev.target.closest('[data-alert-tab]');if(tab){subvistaAlertasActual=tab.dataset.alertTab||'operativa';renderCentroAlertas();return;}
+    if(ev.target.closest('[data-alert-calendar]')){mostrarVista('vistaCalendarioCOI');if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();return;}
+    const doc=ev.target.closest('[data-alert-docs], [data-alert-complete]');if(doc){const id=doc.dataset.alertDocs||doc.dataset.alertComplete;if(typeof abrirFichaOC==='function')abrirFichaOC(id);return;}
+    const folder=ev.target.closest('[data-alert-folder]');if(folder){const oc=v58OCItemByAlerta({ocId:folder.dataset.alertFolder,idRegistro:folder.dataset.alertFolder});const link=oc&&(oc.linkCarpetaOneDrive||oc.linkOneDrive);if(link)window.open(link,'_blank');else alert('Esta OC aun no tiene carpeta documental asociada.');return;}
+  });
+}
+function initCentroAlertasV46(){
+  if(initCentroAlertasV46V58Base) initCentroAlertasV46V58Base();
+  initCentroAlertasV58();
+}
+let subvistaCalendarioCOI = 'coi1';
+function cambiarSubvistaCalendarioCOI(vista){
+  subvistaCalendarioCOI = vista || 'coi1';
+  const mapa={coi1:'inteligente',coi2:'calendario',vencimientos:'vencimientos',certificaciones:'certificaciones'};
+  if(typeof activarTabCalendarioCOI==='function') activarTabCalendarioCOI(mapa[subvistaCalendarioCOI]||'inteligente',true);
+}
+function renderSubvistaCalendarioCOI(){
+  const mapa={inteligente:'coi1',calendario:'coi2',vencimientos:'vencimientos',certificaciones:'certificaciones'};
+  subvistaCalendarioCOI = mapa[coiCalendarioTabActivo] || subvistaCalendarioCOI || 'coi1';
+  if(typeof renderCalendarioCOIUnificado==='function') renderCalendarioCOIUnificado();
+}
+function initSubmodulosCalendarioCOI(){
+  const mapa=[['btnCalendarioVistaCOI1','coi1'],['btnCalendarioVistaCOI2','coi2'],['btnCalendarioTablaVencimientos','vencimientos'],['btnCalendarioTablaCertificaciones','certificaciones']];
+  mapa.forEach(([id,vista])=>{const btn=document.getElementById(id);if(btn&&!btn.dataset.v577Init){btn.dataset.v577Init='1';btn.addEventListener('click',()=>cambiarSubvistaCalendarioCOI(vista));}});
+}
+const initCalendarioCOIUnificadoV58Base=typeof initCalendarioCOIUnificado==='function'?initCalendarioCOIUnificado:null;
+function initCalendarioCOIUnificado(){if(initCalendarioCOIUnificadoV58Base)initCalendarioCOIUnificadoV58Base();initSubmodulosCalendarioCOI();}
+
+/* =========================================================
+   V58.0R - Rescate funcional de módulos críticos
+   Objetivo: si una mejora previa rompe un render, el sistema
+   mantiene navegación, Órdenes, Carga, Calendario y Alertas.
+   ========================================================= */
+(function(){
+  const FIX_VERSION = 'V58.0R2';
+  const $fix = (id)=>document.getElementById(id);
+  const html = (v)=>String(v ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const normFix = (v)=>String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
+  const todayFix = (typeof COI_TODAY !== 'undefined' && COI_TODAY instanceof Date) ? COI_TODAY : new Date();
+  const mesesFix = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  let cargaTipoFix = 'Servicio';
+  let calendarioTabFix = 'inteligente';
+  let alertTabFix = 'operativa';
+  const ordenesSeleccionadasFix = new Set();
+
+  function parseDateFix(v){
+    if(!v) return null;
+    if(v instanceof Date && !isNaN(v)) return v;
+    if(typeof parseFecha === 'function'){
+      try{ const d = parseFecha(v); if(d instanceof Date && !isNaN(d)) return d; }catch(e){}
+    }
+    const s=String(v).trim();
+    let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if(m) return new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));
+    m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if(m) return new Date(Number(m[3].length===2?'20'+m[3]:m[3]),Number(m[2])-1,Number(m[1]));
+    const d=new Date(s); return isNaN(d)?null:d;
+  }
+  function isoFix(v){ const d=parseDateFix(v); return d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` : ''; }
+  function fmtFix(v){
+    if(typeof fmtFecha==='function'){ try{ const f=fmtFecha(v); if(f && f!=='Invalid Date') return f; }catch(e){} }
+    return isoFix(v) || '—';
+  }
+  function addDaysFix(v,n){ const d=parseDateFix(v); if(!d) return null; const x=new Date(d); x.setDate(x.getDate()+Number(n||0)); return x; }
+  function addMonthsFix(v,n){ const d=parseDateFix(v); if(!d) return null; const x=new Date(d); x.setMonth(x.getMonth()+Number(n||0)); return x; }
+  function diffFix(a,b=todayFix){ const d=parseDateFix(a), e=parseDateFix(b); if(!d||!e) return null; return Math.ceil((new Date(d.getFullYear(),d.getMonth(),d.getDate())-new Date(e.getFullYear(),e.getMonth(),e.getDate()))/86400000); }
+  function moneyNumFix(v){
+    if(typeof v==='number') return Number.isFinite(v)?v:0;
+    const s=String(v??'').replace(/[^0-9,.-]/g,'').replace(/\.(?=\d{3}(\D|$))/g,'').replace(',','.');
+    const n=Number(s); return Number.isFinite(n)?n:0;
+  }
+  function monedaFix(v){ return '$ '+Number(v||0).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function itemIdFix(item,row){ return item?.idObra || item?.idServicio || item?.idOC || item?.id || row?.idObra || row?.id || row?.oc || item?.oc || item?.numeroOC || 'SIN-ID'; }
+  function ocNroFix(item,row){ return item?.numeroOC || item?.ocNro || item?.OC_NRO || item?.oc || row?.numeroOC || row?.oc || 'SIN OC'; }
+  function tipoFix(item,row){ return item?.tipo || row?.tipo || (item?.idServicio?'Servicio':'Obra'); }
+  function estacionFix(item,row){ return row?.estacion || item?.estacion || item?.ESTACION || 'Sin definir'; }
+  function proveedorFix(item,row){ return row?.proveedor || item?.proveedor || item?.PROVEEDOR || 'Sin definir'; }
+  function estadoFix(item,row){ return row?.estado || item?.estadoCOI || item?.estado || 'Pendiente de completar'; }
+  function inicioFix(item,row){ return row?.inicio || item?.fechaActaInicio || item?.actaInicio || item?.fechaInicio || item?.FECHA_INICIO || item?.inicio || ''; }
+  function plazoFix(item,row){ return Number(row?.plazo || item?.plazoDias || item?.PLAZO_DIAS || item?.plazo || item?.['PLAZO OC (DIAS)'] || 0); }
+  function finFix(item,row){ return row?.fin || item?.fechaFin || item?.fechaVencimiento || item?.vencimiento || (inicioFix(item,row)&&plazoFix(item,row)?addDaysFix(inicioFix(item,row),plazoFix(item,row)):null); }
+  function proxCertFix(item,row){ return row?.proximaCertificacion || item?.proximaCertificacion || item?.proxCertificacion || item?.fechaProximaCertificacion || (inicioFix(item,row)?addMonthsFix(inicioFix(item,row),1):null); }
+  function saldoFix(item){
+    try{ if(typeof obtenerSaldoRemanenteCertificable==='function') return Number(obtenerSaldoRemanenteCertificable(item)||0); }catch(e){}
+    return moneyNumFix(item?.saldoRemanenteCertificable ?? item?.saldoRemanente ?? item?.saldo ?? item?.SALDO ?? 0);
+  }
+  function safeRowsFix(){
+    let rows=[];
+    try{ if(typeof todasLasOC==='function'){ rows=todasLasOC(); if(Array.isArray(rows)) return rows; } }catch(e){ console.warn('COI Fix: todasLasOC falló',e); }
+    try{ if(typeof filasOrdenesBase==='function'){ rows=filasOrdenesBase(); if(Array.isArray(rows)) return rows; } }catch(e){ console.warn('COI Fix: filasOrdenesBase falló',e); }
+    try{
+      if(Array.isArray(estaciones)){
+        estaciones.forEach(est=>{
+          const items=[...(est.obras||[]),...(est.servicios||[])];
+          items.forEach(item=>rows.push({item,estacion:est.nombre,oc:ocNroFix(item),tipo:tipoFix(item),proveedor:proveedorFix(item),estado:estadoFix(item)}));
+        });
+      }
+    }catch(e){ console.warn('COI Fix: estaciones fallback falló',e); }
+    return rows;
+  }
+  function safeOpenOCFix(id){
+    try{ if(typeof abrirFichaOC==='function'){ abrirFichaOC(id); return; } }catch(e){ console.warn('COI Fix abrirFichaOC',e); }
+    try{ if(typeof renderFichaOC==='function'){ mostrarVistaFix('vistaFichaOC',null); renderFichaOC(id); } }catch(e){ alert('No se pudo abrir la ficha OC: '+id); }
+  }
+  function badgeVigenciaFix(item,row){
+    let estado='Vigente';
+    try{ if(typeof calcularVigenciaOperativaOC==='function') estado=calcularVigenciaOperativaOC(item); else if(typeof v60CalcularEstadoVigencia==='function') estado=v60CalcularEstadoVigencia(item); }
+    catch(e){ const d=diffFix(finFix(item,row)); const s=saldoFix(item); estado=d===null?'Sin fecha':d<0?(s>0?'Vencida certificable por saldo remanente':'Vencida sin saldo'):d<=30?'Próxima a vencer':'Vigente'; }
+    const n=normFix(estado); let cls='vigente';
+    if(n.includes('CERTIFICABLE')) cls='certificable'; else if(n.includes('SIN SALDO')||n.includes('NO CERT')) cls='no-certificable'; else if(n.includes('PROX')) cls='proxima'; else if(n.includes('CERR')||n.includes('ARCH')||n.includes('FINAL')) cls='cerrada';
+    return `<span class="vigencia-badge ${cls}">${html(estado)}</span>`;
+  }
+  function mostrarVistaFix(idVista,btnId){
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    const v=$fix(idVista); if(v) v.classList.add('active');
+    document.querySelectorAll('.module-nav button').forEach(b=>b.classList.remove('active'));
+    if(btnId && $fix(btnId)) $fix(btnId).classList.add('active');
+    try{ if(idVista!=='vistaRed' && typeof ocultarPanelEstacion==='function') ocultarPanelEstacion(); }catch(e){}
+    actualizarFooterFix();
+  }
+  function actualizarFooterFix(){
+    const rows=safeRowsFix();
+    const set=(id,txt)=>{const el=$fix(id); if(el) el.textContent=txt;};
+    set('appVersionHeader',FIX_VERSION);
+    set('headerVersionOperativa',FIX_VERSION);
+    set('footerSistemaNombre','COI Línea Roca');
+    set('headerTotalOC',rows.length);
+    set('headerUltimaActualizacion', new Date().toISOString().slice(0,10));
+    const modo=(typeof adminIsEnabled==='function' && adminIsEnabled()) || document.body.classList.contains('modo-admin') ? 'Modo Administrador' : 'Modo Consulta';
+    set('headerModoSistema',modo);
+    document.body.classList.toggle('modo-admin',modo==='Modo Administrador');
+    document.body.classList.toggle('modo-consulta',modo!=='Modo Administrador');
+  }
+
+  function renderOrdenesFix(){
+    const base=safeRowsFix().map(r=>{
+      const item=r.item||r;
+      const id=itemIdFix(item,r), oc=ocNroFix(item,r), tipo=tipoFix(item,r), est=estacionFix(item,r), prov=proveedorFix(item,r);
+      const prox=proxCertFix(item,r), venc=finFix(item,r);
+      return {row:r,item,id,oc,tipo,est,prov,sector:item.sector||item.ubicacion||r.sector||'—',um:item.umVinculada||item.unidadMantenimiento||item.umClave||r.umVinculada||item.tipoUM||'—',trab:item.tipoTrabajo||item.descripcion||r.tipoTrabajo||r.especialidad||'—',estado:estadoFix(item,r),doc:item.estadoDocumental||r.estadoDocumental||'Pendiente',prox,venc};
+    });
+    const opt=(id,vals,label)=>{const el=$fix(id); if(!el) return; const val=el.value; el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'es')).map(v=>`<option value="${html(v)}">${html(v)}</option>`).join(''); if([...el.options].some(o=>o.value===val)) el.value=val;};
+    opt('ordenesFiltroEstacion',base.map(r=>r.est),'Estación'); opt('ordenesFiltroProveedor',base.map(r=>r.prov),'Proveedor'); opt('ordenesFiltroEstado',base.map(r=>r.estado),'Estado COI'); opt('ordenesFiltroSector',base.map(r=>r.sector),'Sector'); opt('ordenesFiltroUM',base.map(r=>r.um),'UM vinculada'); opt('ordenesFiltroDoc',base.map(r=>r.doc),'Estado documental');
+    const q=normFix($fix('ordenesBusqueda')?.value||''), ft=$fix('ordenesFiltroTipo')?.value||'', fe=$fix('ordenesFiltroEstacion')?.value||'', fp=$fix('ordenesFiltroProveedor')?.value||'', fs=$fix('ordenesFiltroEstado')?.value||'', fsec=$fix('ordenesFiltroSector')?.value||'', fum=$fix('ordenesFiltroUM')?.value||'', fdoc=$fix('ordenesFiltroDoc')?.value||'';
+    const rows=base.filter(r=>(!q||normFix([r.id,r.oc,r.tipo,r.est,r.prov,r.sector,r.um,r.trab,r.estado,r.doc].join(' ')).includes(q))&&(!ft||r.tipo===ft)&&(!fe||r.est===fe)&&(!fp||r.prov===fp)&&(!fs||r.estado===fs)&&(!fsec||r.sector===fsec)&&(!fum||r.um===fum)&&(!fdoc||r.doc===fdoc));
+    const set=(id,val)=>{const el=$fix(id); if(el) el.textContent=val;};
+    set('ordKTotal',rows.length); set('ordKObras',rows.filter(r=>normFix(r.tipo).includes('OBRA')).length); set('ordKServicios',rows.filter(r=>normFix(r.tipo).includes('SERV')).length); set('ordKProxCert',rows.filter(r=>{const d=diffFix(r.prox); return d!==null && d>=0 && d<=30;}).length);
+    const tbody=$fix('ordenesTbody'); if(!tbody) return;
+    tbody.innerHTML = rows.map(r=>`<tr class="row-clickable" data-open-oc="${html(r.id)}"><td class="orden-check-cell"><input type="checkbox" class="chk-orden-row" data-orden-key="${html(r.id)}" ${ordenesSeleccionadasFix.has(r.id)?'checked':''}></td><td class="orden-id-col"><b>${html(r.id)}</b></td><td class="orden-oc-col orden-oc-num">${html(r.oc)}</td><td>${html(r.est)}</td><td>${html(r.prov)}</td><td>${html(r.sector)}</td><td>${html(r.um)}</td><td>${html(r.trab)}</td><td>${html(r.estado)}</td><td>${fmtFix(r.prox)}</td><td>${fmtFix(r.venc)}</td><td class="orden-vigencia-cell">${badgeVigenciaFix(r.item,r.row)}</td><td class="orden-actions-col"><button type="button" class="btn-open-oc" data-open-oc="${html(r.id)}">Ver ficha OC</button></td></tr>`).join('') || '<tr><td colspan="13">Sin resultados para los filtros seleccionados.</td></tr>';
+    actualizarSeleccionOrdenesFix(); actualizarFooterFix();
+  }
+  function actualizarSeleccionOrdenesFix(){
+    const n=ordenesSeleccionadasFix.size;
+    if($fix('ordenesSeleccionadasCount')) $fix('ordenesSeleccionadasCount').textContent=`${n} seleccionada${n===1?'':'s'}`;
+    if($fix('btnBorrarSeleccionadas')) $fix('btnBorrarSeleccionadas').disabled=!n;
+    const checks=[...document.querySelectorAll('.chk-orden-row')];
+    if($fix('chkOrdenesSeleccionarTodas')) $fix('chkOrdenesSeleccionarTodas').checked=checks.length>0 && checks.every(c=>c.checked);
+  }
+
+  function camposCargaFix(tipo){
+    if(tipo==='Obra' && typeof V45_OBRA_COLUMNS!=='undefined') return V45_OBRA_COLUMNS;
+    if(tipo==='Financiera' && typeof FIN_COLUMNS!=='undefined') return FIN_COLUMNS;
+    if(typeof V45_SERVICIO_COLUMNS!=='undefined') return V45_SERVICIO_COLUMNS;
+    return ['ID_SERVICIO','OC_NRO','MONTO_OC','PLAZO_DIAS','EXPEDIENTE','ULTIMA_ACTA','PERIODO_MES','PERIODO_INICIO','PERIODO_FIN','DESCRIPCION','ESTACION','PROVEEDOR','FECHA_INICIO','FECHA_FIN','TIPO_UM','DIAS_RESTANTES','INDICADOR','ESTADO','PROX_CERTIFICACION','OBSERVACIONES'];
+  }
+  function panelBodyFix(tipo){ return $fix(tipo==='Obra'?'cargaRapidaObraBody':tipo==='Financiera'?'cargaRapidaFinancieraBody':'cargaRapidaServicioBody'); }
+  function panelHeadFix(tipo){ return $fix(tipo==='Obra'?'cargaRapidaObraHead':tipo==='Financiera'?'cargaRapidaFinancieraHead':'cargaRapidaServicioHead'); }
+  function controlCargaFix(c,tipo){
+    const up=normFix(c);
+    if(up.includes('DESCRIP')||up.includes('OBSERV')) return `<textarea data-campo="${html(c)}"></textarea>`;
+    if(up.includes('FECHA')||up.includes('PERIODO_DESDE')||up.includes('PERIODO_HASTA')||up.includes('INICIO')||up.includes('FIN')) return `<input data-campo="${html(c)}" placeholder="DD/MM/AAAA">`;
+    if(up.includes('MONTO')||up.includes('PRECIO')||up.includes('SALDO')||up.includes('CANTIDAD')||up.includes('PLAZO')||up.includes('DIAS')) return `<input data-campo="${html(c)}" placeholder="0">`;
+    return `<input data-campo="${html(c)}">`;
+  }
+  function agregarFilasCargaFix(tipo=cargaTipoFix,cantidad=5){
+    const body=panelBodyFix(tipo); if(!body) return;
+    const campos=camposCargaFix(tipo), start=body.querySelectorAll('tr').length+1;
+    let out='';
+    for(let i=0;i<cantidad;i++) out += `<tr data-tipo-carga="${html(tipo)}"><td class="quick-load-row-num">${start+i}</td>${campos.map(c=>`<td>${controlCargaFix(c,tipo)}</td>`).join('')}</tr>`;
+    body.insertAdjacentHTML('beforeend',out);
+  }
+  function renderTablaCargaFix(tipo){
+    const head=panelHeadFix(tipo), body=panelBodyFix(tipo); if(!head||!body) return;
+    const campos=camposCargaFix(tipo), headers=(tipo==='Obra' && typeof V45_OBRA_HEADERS!=='undefined')?V45_OBRA_HEADERS:((tipo==='Financiera' && typeof FIN_HEADERS!=='undefined')?FIN_HEADERS:campos);
+    head.innerHTML=`<tr><th>#</th>${headers.map(h=>`<th>${html(h)}</th>`).join('')}</tr>`;
+    body.innerHTML=''; agregarFilasCargaFix(tipo,5);
+    try{ if(typeof v571NormalizarModuloCargaUI==='function') v571NormalizarModuloCargaUI(document); }catch(e){}
+  }
+  function setTipoCargaFix(tipo){
+    cargaTipoFix=tipo||'Servicio';
+    ['Servicio','Obra','Financiera'].forEach(t=>{ const p=$fix(t==='Servicio'?'panelCargaServicio':t==='Obra'?'panelCargaObra':'panelCargaFinanciera'); if(p) p.classList.toggle('active',t===cargaTipoFix); });
+    document.querySelectorAll('.quick-type-card').forEach(c=>c.classList.toggle('active',c.dataset.cargaTipo===cargaTipoFix));
+    if($fix('cargaRapidaTipoActivo')) $fix('cargaRapidaTipoActivo').textContent='Carga activa: '+cargaTipoFix;
+    if(!panelBodyFix(cargaTipoFix)?.querySelector('tr')) renderTablaCargaFix(cargaTipoFix);
+    if($fix('cargaRapidaMsg')){ $fix('cargaRapidaMsg').textContent='Carga activa: '+cargaTipoFix+'. Complete filas o pegue desde Excel.'; $fix('cargaRapidaMsg').className='quick-load-msg carga-status-bar'; }
+  }
+  function renderCargaFix(){ ['Servicio','Obra','Financiera'].forEach(t=>{ if(!panelBodyFix(t)?.querySelector('tr')) renderTablaCargaFix(t); }); setTipoCargaFix(cargaTipoFix||'Servicio'); }
+  function guardarCargaFix(){
+    try{
+      if(cargaTipoFix==='Financiera' && typeof guardarCargaFinanciera==='function') return guardarCargaFinanciera();
+      if(typeof v45SetTipoCarga==='function') v45SetTipoCarga(cargaTipoFix);
+      if(typeof v45GuardarCarga==='function') return v45GuardarCarga();
+      alert('Grilla lista. No se encontró función de guardado original.');
+    }catch(e){ console.error('COI Fix guardar carga',e); alert('No se pudo guardar la carga: '+(e.message||e)); }
+  }
+
+  function eventosCalendarioFix(){
+    const eventos=[];
+    safeRowsFix().forEach(r=>{
+      const item=r.item||r, id=itemIdFix(item,r), oc=ocNroFix(item,r), tipo=tipoFix(item,r), est=estacionFix(item,r), prov=proveedorFix(item,r), estado=estadoFix(item,r);
+      const ini=inicioFix(item,r), fin=finFix(item,r), prox=proxCertFix(item,r);
+      if(ini) eventos.push({id:'ini-'+id,tipoEvento:'Acta inicio',fecha:isoFix(ini),ocId:id,oc,tipo,estacion:est,proveedor:prov,estado,item});
+      if(fin) eventos.push({id:'ven-'+id,tipoEvento:'Vencimiento OC',fecha:isoFix(fin),ocId:id,oc,tipo,estacion:est,proveedor:prov,estado,dias:diffFix(fin),item});
+      if(prox) eventos.push({id:'cert-'+id,tipoEvento:normFix(tipo).includes('SERV')?'Certificación servicio':'Certificación obra',fecha:isoFix(prox),ocId:id,oc,tipo,estacion:est,proveedor:prov,estado,dias:diffFix(prox),item});
+      if(normFix(item.estadoDocumental||estado).includes('PENDIENTE')) eventos.push({id:'doc-'+id,tipoEvento:'Documentación pendiente',fecha:isoFix(prox||fin||ini),ocId:id,oc,tipo,estacion:est,proveedor:prov,estado,item});
+    });
+    return eventos.filter(e=>e.fecha);
+  }
+  function prepararFiltrosCalendarioFix(){
+    const ev=eventosCalendarioFix();
+    const set=(id,vals,label)=>{const el=$fix(id); if(!el)return; const val=el.value; el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'es')).map(v=>`<option value="${html(v)}">${html(v)}</option>`).join(''); if([...el.options].some(o=>o.value===val)) el.value=val;};
+    const y=$fix('coiYear'), m=$fix('coiMonth');
+    if(y){const val=y.value||String(todayFix.getFullYear()); const years=[...new Set([todayFix.getFullYear(),...ev.map(e=>parseDateFix(e.fecha)?.getFullYear()).filter(Boolean)])].sort(); y.innerHTML=years.map(v=>`<option value="${v}">${v}</option>`).join(''); y.value=[...y.options].some(o=>o.value===val)?val:String(todayFix.getFullYear());}
+    if(m){const val=m.value!==''?m.value:String(todayFix.getMonth()); m.innerHTML=mesesFix.map((x,i)=>`<option value="${i}">${x}</option>`).join(''); m.value=[...m.options].some(o=>o.value===val)?val:String(todayFix.getMonth());}
+    set('coiEstacion',ev.map(e=>e.estacion),'Estación'); set('coiProveedor',ev.map(e=>e.proveedor),'Proveedor'); set('coiEvento',ev.map(e=>e.tipoEvento),'Tipo de evento'); set('coiEstado',ev.map(e=>e.estado),'Estado');
+  }
+  function filtrosCalendarioFix(){
+    const y=Number($fix('coiYear')?.value || todayFix.getFullYear()); let mv=$fix('coiMonth')?.value; let m=Number(mv); if(!Number.isFinite(m)) m=mesesFix.findIndex(x=>normFix(x)===normFix(mv)); if(m<0) m=todayFix.getMonth();
+    const est=$fix('coiEstacion')?.value||'', prov=$fix('coiProveedor')?.value||'', tipo=$fix('coiTipo')?.value||'', evento=$fix('coiEvento')?.value||'', estado=$fix('coiEstado')?.value||'';
+    return {y,m,est,prov,tipo,evento,estado};
+  }
+  function eventosFiltradosCalendarioFix(){
+    const f=filtrosCalendarioFix();
+    return eventosCalendarioFix().filter(e=>{const d=parseDateFix(e.fecha); return d && d.getFullYear()===f.y && d.getMonth()===f.m && (!f.est||e.estacion===f.est) && (!f.prov||e.proveedor===f.prov) && (!f.tipo||e.tipo===f.tipo) && (!f.evento||e.tipoEvento===f.evento) && (!f.estado||e.estado===f.estado);});
+  }
+  function renderPeriodoCalendarioFix(ev){ const f=filtrosCalendarioFix(); const cont=$fix('coiPeriodoResumen'); if(cont) cont.innerHTML=`<span>Mostrando eventos de <b>${mesesFix[f.m]} ${f.y}</b></span><span><b>${ev.length}</b> eventos encontrados</span>`; }
+  function eventoCardFix(e){ const dias=diffFix(e.fecha); return `<div class="calendar-intel-event"><b>${html(e.tipoEvento)}</b>${html(e.oc)} · ${html(e.estacion)}<br>${html(e.proveedor)}<br>${fmtFix(e.fecha)} · ${dias===null?'—':dias} días · ${html(e.estado)}<br><button type="button" class="btn-open-oc" data-open-oc="${html(e.ocId)}">Ver ficha OC</button></div>`; }
+  function renderVistaInteligenteFix(ev){
+    const cont=$fix('calendarioInteligenteCOI'); if(!cont)return;
+    const grupos=[['Hoy / otros del mes',[]],['Próximos 7 días',[]],['Próximos 15 días',[]],['Próximos 30 días',[]],['Vencidas',[]]];
+    ev.forEach(e=>{const d=diffFix(e.fecha); if(d!==null&&d<0)grupos[4][1].push(e); else if(d!==null&&d<=7)grupos[1][1].push(e); else if(d!==null&&d<=15)grupos[2][1].push(e); else if(d!==null&&d<=30)grupos[3][1].push(e); else grupos[0][1].push(e);});
+    cont.innerHTML=`<div class="calendar-intel"><h3>Vista Inteligente</h3><div class="muted" style="margin-bottom:10px">Resumen operativo del período seleccionado. Usa los filtros globales superiores.</div><div class="calendar-intel-grid">${grupos.map(g=>`<div class="calendar-intel-card"><h4>${html(g[0])} (${g[1].length})</h4>${g[1].slice(0,10).map(eventoCardFix).join('')||'<div class="calendar-intel-empty">Sin eventos.</div>'}</div>`).join('')}</div></div>`;
+  }
+  function claseEventoFix(e){ const n=normFix(e.tipoEvento); if(n.includes('ACTA'))return'acta'; if(n.includes('SERVICIO'))return'servicio'; if(n.includes('OBRA'))return'obra'; if(n.includes('DOCUMENT'))return'alerta'; return 'vencimiento'; }
+  function renderVistaCalendarioFix(ev){
+    const cont=$fix('opCoiCalendario'); if(!cont)return; const f=filtrosCalendarioFix();
+    const first=new Date(f.y,f.m,1), start=new Date(first), offset=(first.getDay()+6)%7; start.setDate(first.getDate()-offset);
+    const by={}; ev.forEach(e=>(by[e.fecha]=by[e.fecha]||[]).push(e));
+    let cells=''; for(let i=0;i<42;i++){const d=new Date(start); d.setDate(start.getDate()+i); const iso=isoFix(d), list=by[iso]||[]; cells+=`<div class="op-day ${d.getMonth()!==f.m?'out':''} ${iso===isoFix(todayFix)?'today':''}" data-op-day="coi" data-fecha="${iso}"><div class="op-day-num">${d.getDate()}</div>${list.slice(0,4).map(e=>`<button type="button" class="op-event ${claseEventoFix(e)}" data-open-oc="${html(e.ocId)}"><b>${html(e.tipoEvento)}</b><br>${html(e.oc)} · ${html(e.proveedor)}</button>`).join('')}${list.length>4?`<div class="op-more">+ ${list.length-4} más</div>`:''}</div>`;}
+    cont.innerHTML=`<div class="op-month-kpis"><div class="op-month-kpi"><b>${ev.length}</b><span>Total eventos del mes</span></div><div class="op-month-kpi"><b>${ev.filter(e=>normFix(e.tipoEvento).includes('VENC')).length}</b><span>Vencimientos OC</span></div><div class="op-month-kpi"><b>${ev.filter(e=>normFix(e.tipoEvento).includes('CERT')).length}</b><span>Certificaciones</span></div><div class="op-month-kpi"><b>${ev.filter(e=>normFix(e.tipoEvento).includes('ACTA')).length}</b><span>Actas de inicio</span></div><div class="op-month-kpi"><b>${ev.filter(e=>normFix(e.tipoEvento).includes('DOCUMENT')).length}</b><span>Alertas documentales</span></div><div class="op-month-kpi"><b>0</b><span>Eventos cerrados</span></div></div><div class="op-calendar-legend"><span class="op-legend-item"><i class="op-dot" style="background:#2563eb"></i>Acta inicio</span><span class="op-legend-item"><i class="op-dot" style="background:#dc2626"></i>Vencimiento OC</span><span class="op-legend-item"><i class="op-dot" style="background:#16a34a"></i>Certificación servicio</span><span class="op-legend-item"><i class="op-dot" style="background:#7c3aed"></i>Certificación obra</span><span class="op-legend-item"><i class="op-dot" style="background:#f59e0b"></i>Alerta documental</span></div><div class="op-grid"><div class="op-weekday">Lunes</div><div class="op-weekday">Martes</div><div class="op-weekday">Miércoles</div><div class="op-weekday">Jueves</div><div class="op-weekday">Viernes</div><div class="op-weekday">Sábado</div><div class="op-weekday">Domingo</div>${cells}</div>`;
+  }
+  function renderTablasCalendarioFix(ev){
+    const venc=ev.filter(e=>normFix(e.tipoEvento).includes('VENC')).sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
+    const cert=ev.filter(e=>normFix(e.tipoEvento).includes('CERT')).sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
+    if($fix('coiVencTbody')) $fix('coiVencTbody').innerHTML=venc.map(e=>`<tr><td>${diffFix(e.fecha)<0?'Vencida':diffFix(e.fecha)<=30?'Próxima':'En plazo'}</td><td>${diffFix(e.fecha)??'—'}</td><td>${html(e.oc)}</td><td>${html(e.tipo)}</td><td>${html(e.estacion)}</td><td>${html(e.proveedor)}</td><td>${fmtFix(inicioFix(e.item,{}))}</td><td>${html(plazoFix(e.item,{} )||'—')}</td><td>${fmtFix(e.fecha)}</td><td>${html(e.estado)}</td><td><button type="button" class="btn-open-oc" data-open-oc="${html(e.ocId)}">Ficha OC</button></td></tr>`).join('')||'<tr><td colspan="11">Sin vencimientos para los filtros seleccionados.</td></tr>';
+    if($fix('coiCertTbody')) $fix('coiCertTbody').innerHTML=cert.map(e=>`<tr><td>${diffFix(e.fecha)<0?'Vencida':diffFix(e.fecha)<=30?'Certificar':'Programada'}</td><td>${html(e.oc)}</td><td>${html(e.tipo)}</td><td>${html(e.estacion)}</td><td>${html(e.proveedor)}</td><td>${fmtFix(inicioFix(e.item,{}))}</td><td>—</td><td>—</td><td>${fmtFix(e.fecha)}</td><td>—</td><td>${html(e.estado)}</td><td>${fmtFix(finFix(e.item,{}))}</td><td>${diffFix(e.fecha)<0?'Vencida':'Programada'}</td></tr>`).join('')||'<tr><td colspan="13">Sin certificaciones para los filtros seleccionados.</td></tr>';
+  }
+  function activarTabCalendarioFix(tab){ calendarioTabFix=tab||'inteligente'; document.querySelectorAll('#vistaCalendarioCOI [data-coi-tab]').forEach(b=>b.classList.toggle('active',b.dataset.coiTab===calendarioTabFix)); document.querySelectorAll('#vistaCalendarioCOI .coi-tab-panel').forEach(p=>p.classList.remove('active')); const id={inteligente:'coiTabInteligente',calendario:'coiTabCalendario',vencimientos:'coiTabVencimientos',certificaciones:'coiTabCertificaciones'}[calendarioTabFix]; if($fix(id))$fix(id).classList.add('active'); }
+  function renderCalendarioFix(){ prepararFiltrosCalendarioFix(); const ev=eventosFiltradosCalendarioFix(); renderPeriodoCalendarioFix(ev); renderVistaInteligenteFix(ev); renderVistaCalendarioFix(ev); renderTablasCalendarioFix(ev); activarTabCalendarioFix(calendarioTabFix); }
+  function exportCalendarioFix(fmt){
+    const ev=eventosFiltradosCalendarioFix(); const f=filtrosCalendarioFix();
+    if(fmt==='ics'){
+      const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//COI Linea Roca//Calendario//ES']; ev.forEach(e=>{const d=e.fecha.replace(/-/g,''); ics.push('BEGIN:VEVENT',`UID:${e.id}@coi-roca`,`DTSTART;VALUE=DATE:${d}`,`SUMMARY:${e.tipoEvento} ${e.oc}`,`DESCRIPTION:${e.proveedor} - ${e.estacion}`,'END:VEVENT');}); ics.push('END:VCALENDAR'); descargarArchivo(`calendario-coi-${f.y}-${String(f.m+1).padStart(2,'0')}.ics`,ics.join('\r\n'),'text/calendar;charset=utf-8'); return;
+    }
+    const rows=[['Fecha','Evento','OC','Tipo','Estacion','Proveedor','Estado'],...ev.map(e=>[e.fecha,e.tipoEvento,e.oc,e.tipo,e.estacion,e.proveedor,e.estado])]; descargarArchivo(`calendario-coi-${f.y}-${String(f.m+1).padStart(2,'0')}.csv`,rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n'),'text/csv;charset=utf-8');
+  }
+
+  function esAdminFix(){ try{return (typeof adminIsEnabled==='function' && adminIsEnabled()) || document.body.classList.contains('modo-admin');}catch(e){return false;} }
+  function alertasFix(){
+    const out=[];
+    safeRowsFix().forEach(r=>{
+      const item=r.item||r, id=itemIdFix(item,r), oc=ocNroFix(item,r), tipo=tipoFix(item,r), est=estacionFix(item,r), prov=proveedorFix(item,r), estado=estadoFix(item,r), fin=finFix(item,r), prox=proxCertFix(item,r), saldo=saldoFix(item), dfin=diffFix(fin), dcert=diffFix(prox);
+      const base={idObra:id,oc,tipo,estacion:est,proveedor:prov,estado,descripcion:item.descripcion||r.especialidad||'',item};
+      const add=(categoria,severidad,tipoAlerta,fecha,dias,mensaje,accion)=>out.push({...base,idAlerta:`${categoria}-${tipoAlerta}-${id}-${fecha||''}`,categoria,severidad,tipoAlerta,fechaReferencia:isoFix(fecha),dias:dias??'',mensaje,accionSugerida:accion,visibleConsulta:categoria!=='calidad_datos',visibleAdmin:true});
+      if(dfin!==null && dfin<0 && saldo>0) add('financiera','alta','OC vencida certificable por saldo remanente',fin,dfin,'OC vencida con saldo remanente certificable.','Revisar saldo y certificar bajo la misma OC.');
+      else if(dfin!==null && dfin<0) add('operativa','alta','OC vencida',fin,dfin,'OC vencida contractualmente.','Revisar cierre, ampliación o regularización.');
+      else if(dfin!==null && dfin<=30) add('operativa','media','OC próxima a vencer',fin,dfin,'OC próxima a vencer.','Revisar plazo contractual.');
+      if(dcert!==null && dcert<=30) add('operativa',dcert<0?'alta':'media','Certificación próxima',prox,dcert,'Certificación dentro de ventana de control.','Preparar acta de medición / documentación.');
+      if(normFix(item.estadoDocumental||estado).includes('OBSERV')) add('documental','alta','Documentación observada',prox||fin,dcert,'Documentación observada o pendiente crítica.','Corregir documentación.');
+      if(esAdminFix()){
+        const faltan=[]; if(!est||normFix(est).includes('SIN DEFINIR'))faltan.push('estación'); if(!prov||normFix(prov).includes('SIN DEFINIR'))faltan.push('proveedor'); if(!inicioFix(item,r))faltan.push('acta de inicio'); if(!plazoFix(item,r))faltan.push('plazo'); if(!item.sector)faltan.push('sector');
+        if(faltan.length) add('calidad_datos','baja','Pendientes de carga administrativa','',null,'Faltan datos: '+faltan.join(', ')+'.','Completar datos internos de carga.');
+      }
+    });
+    return out.sort((a,b)=>({alta:0,media:1,baja:2,informativa:3}[a.severidad]??4)-({alta:0,media:1,baja:2,informativa:3}[b.severidad]??4));
+  }
+  function renderAlertTabsFix(){
+    const tabs=esAdminFix()?['operativa','documental','financiera','calidad_datos','todas']:['operativa','documental','financiera']; if(!tabs.includes(alertTabFix)) alertTabFix='operativa';
+    const labels={operativa:'Operativas',documental:'Documentales',financiera:'Financieras',calidad_datos:'Calidad de Datos',todas:'Todas'};
+    let box=$fix('alertasTabsV58'); const body=document.querySelector('#vistaCentroAlertas .view-body'); if(!box&&body){body.insertAdjacentHTML('afterbegin','<div id="alertasTabsV58"></div>'); box=$fix('alertasTabsV58');}
+    if(box) box.innerHTML=`<div class="alert-role-note">${esAdminFix()?'Se muestran alertas operativas, documentales, financieras y pendientes de calidad de datos para depuración administrativa.':'Se muestran alertas operativas, documentales y financieras relevantes para consulta. Los pendientes internos quedan reservados al administrador.'}</div><div class="alert-tabs">${tabs.map(t=>`<button type="button" class="alert-tab ${alertTabFix===t?'active':''}" data-alert-tab="${t}">${labels[t]}</button>`).join('')}</div>`;
+  }
+  function renderCentroAlertasFix(){
+    const todas=alertasFix(), visibles=todas.filter(a=>esAdminFix()?true:a.visibleConsulta).filter(a=>alertTabFix==='todas'||a.categoria===alertTabFix);
+    const sev=$fix('alertFiltroSeveridad')?.value||'', tipo=$fix('alertFiltroTipo')?.value||'', est=$fix('alertFiltroEstacion')?.value||'', prov=$fix('alertFiltroProveedor')?.value||'', cat=$fix('alertFiltroCategoria')?.value||'', txt=normFix($fix('alertFiltroTexto')?.value||'');
+    const set=(id,vals,label)=>{const el=$fix(id); if(!el)return; const val=el.value; el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'es')).map(v=>`<option value="${html(v)}">${html(v)}</option>`).join(''); if([...el.options].some(o=>o.value===val))el.value=val;};
+    set('alertFiltroTipo',todas.map(a=>a.tipo),'Todos los tipos'); set('alertFiltroEstacion',todas.map(a=>a.estacion),'Estación'); set('alertFiltroProveedor',todas.map(a=>a.proveedor),'Proveedor');
+    const sevEl=$fix('alertFiltroSeveridad'); if(sevEl){const v=sevEl.value; sevEl.innerHTML='<option value="">Todas las severidades</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option><option value="informativa">Informativa</option>'; if([...sevEl.options].some(o=>o.value===v))sevEl.value=v;}
+    const catEl=$fix('alertFiltroCategoria'); if(catEl){const v=catEl.value; const cats=esAdminFix()?['operativa','documental','financiera','calidad_datos']:['operativa','documental','financiera']; catEl.innerHTML='<option value="">Todas las categorías</option>'+cats.map(c=>`<option value="${c}">${c.replace('_',' ')}</option>`).join(''); if([...catEl.options].some(o=>o.value===v))catEl.value=v;}
+    renderAlertTabsFix();
+    const rows=visibles.filter(a=>(!sev||a.severidad===sev)&&(!tipo||a.tipo===tipo)&&(!est||a.estacion===est)&&(!prov||a.proveedor===prov)&&(!cat||a.categoria===cat)&&(!txt||normFix([a.oc,a.idObra,a.tipoAlerta,a.mensaje,a.accionSugerida,a.proveedor,a.estacion].join(' ')).includes(txt)));
+    const k=$fix('alertasKpis'); if(k){const c=x=>todas.filter(a=>a.categoria===x).length; k.innerHTML=[['Operativas',c('operativa')],['Documentales',c('documental')],['Financieras',c('financiera')],['Calidad de datos',c('calidad_datos')],['Total visibles',rows.length],['Vencidas cert.',todas.filter(a=>normFix(a.tipoAlerta).includes('CERTIFICABLE')).length]].map(x=>`<div class="alert-kpi"><b>${x[1]}</b><span>${html(x[0])}</span></div>`).join('');}
+    const tbody=$fix('alertasTbody'); if(tbody) tbody.innerHTML=rows.map(a=>`<tr><td><span class="alert-badge ${html(a.severidad)}">${html(a.severidad)}</span></td><td>${html(a.tipoAlerta)}<br><span class="alert-category-pill">${html(a.categoria.replace('_',' '))}</span></td><td>${html(a.oc)}</td><td>${html(a.idObra)}</td><td>${html(a.tipo)}</td><td>${html(a.estacion)}</td><td>${html(a.proveedor)}</td><td>${html(a.descripcion)}</td><td>${fmtFix(a.fechaReferencia)}</td><td>${html(a.dias)}</td><td>${html(a.mensaje)}</td><td>${html(a.accionSugerida)}</td><td><div class="alert-actions"><button type="button" class="primary" data-open-oc="${html(a.idObra)}">Ver ficha OC</button>${a.categoria==='documental'?`<button type="button" data-open-oc="${html(a.idObra)}" data-alert-docs-fix="1">Ir a documentos</button>`:''}<button type="button" data-alert-reviewed="${html(a.idAlerta)}">Marcar revisada</button></div></td></tr>`).join('')||'<tr><td colspan="13">Sin alertas para la vista y filtros seleccionados.</td></tr>';
+  }
+  function renderDashboardAlertSummaryFix(){ const c=$fix('dashboardAlertSummary'); if(!c)return; const a=alertasFix().filter(x=>esAdminFix()?true:x.visibleConsulta); c.innerHTML=`<div class="alert-summary"><div><strong>Resumen operativo de alertas</strong><div class="alert-summary-list"><span class="alert-summary-chip">${a.filter(x=>normFix(x.tipoAlerta).includes('VENC')).length} OCs vencidas</span><span class="alert-summary-chip">${a.filter(x=>normFix(x.tipoAlerta).includes('CERT')).length} certificaciones</span><span class="alert-summary-chip">${a.filter(x=>x.categoria==='documental').length} documentales</span><span class="alert-summary-chip">${a.filter(x=>x.categoria==='financiera').length} financieras</span></div></div><button type="button" id="btnIrCentroAlertasDashboard" class="primary">Ir al Centro de Alertas</button></div>`; }
+
+  // Overrides seguros usados por init() y por la navegación de respaldo.
+  renderOrdenes = renderOrdenesFix;
+  renderCarga = renderCargaFix;
+  renderCentroAlertas = renderCentroAlertasFix;
+  renderDashboardAlertSummary = renderDashboardAlertSummaryFix;
+  renderCalendarioCOIUnificado = renderCalendarioFix;
+  activarTabCalendarioCOI = function(tab){activarTabCalendarioFix(tab);};
+  cambiarSubvistaCalendarioCOI = function(vista){ const mapa={coi1:'inteligente',coi2:'calendario',vencimientos:'vencimientos',certificaciones:'certificaciones'}; calendarioTabFix=mapa[vista]||vista||'inteligente'; renderCalendarioFix(); };
+
+  function conectarEventosFix(){
+    if(document.body.dataset.coiFixEventos==='1') return; document.body.dataset.coiFixEventos='1';
+    const nav={btnDashboard:['vistaDashboard',()=>{try{updateKpis();}catch(e){} renderDashboardAlertSummaryFix();}],btnRed:['vistaRed',()=>{try{renderMap();}catch(e){}}],btnCalendarioCOI:['vistaCalendarioCOI',renderCalendarioFix],btnCentroAlertas:['vistaCentroAlertas',renderCentroAlertasFix],btnOrdenes:['vistaOrdenes',renderOrdenesFix],btnCarga:['vistaCarga',renderCargaFix],btnAdministracionSistema:['vistaAdministracionSistema',()=>{try{renderAdministracionSistema();}catch(e){}}],btnAcercaSistema:['vistaAcercaSistema',()=>{try{renderAcercaSistema();}catch(e){}}],btnUnidadesMantenimiento:['vistaUnidadesMantenimiento',()=>{try{renderUnidadesMantenimiento();}catch(e){}}]};
+    Object.entries(nav).forEach(([id,[vista,fn]])=>{ const b=$fix(id); if(!b)return; b.addEventListener('click',ev=>{ev.preventDefault(); ev.stopImmediatePropagation(); mostrarVistaFix(vista,id); try{fn();}catch(e){console.error('COI Fix render '+vista,e);} },true); });
+    $fix('btnAccesoBusquedaOrdenes')?.addEventListener('click',ev=>{ev.preventDefault();ev.stopImmediatePropagation();mostrarVistaFix('vistaOrdenes','btnOrdenes');renderOrdenesFix();$fix('ordenesBusqueda')?.focus();},true);
+    document.addEventListener('click',ev=>{
+      const oc=ev.target.closest('[data-open-oc]'); if(oc){ev.preventDefault(); ev.stopPropagation(); safeOpenOCFix(oc.dataset.openOc); return;}
+      const card=ev.target.closest('.quick-type-card[data-carga-tipo]'); if(card){ev.preventDefault(); ev.stopImmediatePropagation(); setTipoCargaFix(card.dataset.cargaTipo); return;}
+      const tab=ev.target.closest('#vistaCalendarioCOI [data-coi-tab]'); if(tab){ev.preventDefault(); ev.stopImmediatePropagation(); calendarioTabFix=tab.dataset.coiTab||'inteligente'; renderCalendarioFix(); return;}
+      const atab=ev.target.closest('[data-alert-tab]'); if(atab){ev.preventDefault(); ev.stopPropagation(); alertTabFix=atab.dataset.alertTab||'operativa'; renderCentroAlertasFix(); return;}
+      if(ev.target.closest('#btnIrCentroAlertasDashboard')){ev.preventDefault(); mostrarVistaFix('vistaCentroAlertas','btnCentroAlertas'); renderCentroAlertasFix(); return;}
+      if(ev.target.closest('#btnAgregarFilasCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); agregarFilasCargaFix(cargaTipoFix,5); return;}
+      if(ev.target.closest('#btnLimpiarCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); renderTablaCargaFix(cargaTipoFix); return;}
+      if(ev.target.closest('#btnGuardarCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); guardarCargaFix(); return;}
+      if(ev.target.closest('#btnOrdenesLimpiar')){ev.preventDefault(); ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert'].forEach(id=>{if($fix(id))$fix(id).value='';}); renderOrdenesFix(); return;}
+      if(ev.target.closest('#btnBorrarSeleccionadas')){ev.preventDefault(); alert('Borrado selectivo protegido en esta versión de rescate. Validar backup JSON antes de borrar registros.'); return;}
+      if(ev.target.closest('#btnCoiCsv')){ev.preventDefault(); exportCalendarioFix('csv'); return;}
+      if(ev.target.closest('#btnCoiIcs')){ev.preventDefault(); exportCalendarioFix('ics'); return;}
+      if(ev.target.closest('#btnExportAlertasCSV')){ev.preventDefault(); const rows=[['Categoria','Severidad','Tipo alerta','OC','ID','Tipo','Estacion','Proveedor','Fecha','Dias','Mensaje','Accion'],...alertasFix().map(a=>[a.categoria,a.severidad,a.tipoAlerta,a.oc,a.idObra,a.tipo,a.estacion,a.proveedor,a.fechaReferencia,a.dias,a.mensaje,a.accionSugerida])]; descargarArchivo('centro_alertas_v58_0r.csv',rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n'),'text/csv;charset=utf-8'); return;}
+      if(ev.target.closest('#btnLimpiarAlertas')){ev.preventDefault(); ['alertFiltroSeveridad','alertFiltroTipo','alertFiltroEstacion','alertFiltroProveedor','alertFiltroCategoria','alertFiltroTexto'].forEach(id=>{if($fix(id))$fix(id).value='';}); renderCentroAlertasFix(); return;}
+    },true);
+    document.addEventListener('change',ev=>{
+      if(ev.target.closest('#vistaCalendarioCOI select')){renderCalendarioFix(); return;}
+      if(ev.target.closest('#vistaCentroAlertas select')){renderCentroAlertasFix(); return;}
+      const chk=ev.target.closest('.chk-orden-row'); if(chk){ if(chk.checked) ordenesSeleccionadasFix.add(chk.dataset.ordenKey); else ordenesSeleccionadasFix.delete(chk.dataset.ordenKey); actualizarSeleccionOrdenesFix(); return;}
+      if(ev.target.closest('#chkOrdenesSeleccionarTodas')){document.querySelectorAll('.chk-orden-row').forEach(c=>{c.checked=ev.target.checked; if(c.checked)ordenesSeleccionadasFix.add(c.dataset.ordenKey); else ordenesSeleccionadasFix.delete(c.dataset.ordenKey);}); actualizarSeleccionOrdenesFix(); return;}
+    },true);
+    document.addEventListener('input',ev=>{ if(ev.target.closest('#ordenesBusqueda,#vistaOrdenes select')) renderOrdenesFix(); if(ev.target.closest('#alertFiltroTexto')) renderCentroAlertasFix(); },true);
+  }
+  function bootstrapFix(){
+    conectarEventosFix(); actualizarFooterFix();
+    try{ renderCargaFix(); }catch(e){ console.error('COI Fix carga',e); }
+    try{ renderDashboardAlertSummaryFix(); }catch(e){}
+    const active=document.querySelector('.view.active')?.id;
+    if(active==='vistaOrdenes') renderOrdenesFix();
+    if(active==='vistaCarga') renderCargaFix();
+    if(active==='vistaCalendarioCOI') renderCalendarioFix();
+    if(active==='vistaCentroAlertas') renderCentroAlertasFix();
+  }
+  const initOriginalFix = (typeof init === 'function') ? init : null;
+  init = function(){
+    try{ if(initOriginalFix) initOriginalFix(); }
+    catch(e){ console.error('COI Fix: init original falló; se activa rescate funcional',e); }
+    finally{ bootstrapFix(); }
+  };
+  window.COI_FIX_BOOTSTRAP = bootstrapFix;
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bootstrapFix,{once:true}); else setTimeout(bootstrapFix,0);
+})();
+
+
+
+/* =========================================================
+   V58.0R2 - Fix funcional Administración / subtabs
+   Objetivo: que Datos, Usuarios, Catálogos, Diagnóstico,
+   Auditor de datos, Configuración y Logs sean navegables y
+   rendericen aunque algún panel tenga error interno.
+   ========================================================= */
+(function(){
+  const FIX_ADMIN_VERSION = 'V58.0R2';
+  const $a = (id)=>document.getElementById(id);
+  const escA = (v)=>String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const titleA = (v)=>String(v||'estado').replace(/(^|_)([a-záéíóúñ])/gi,(_,p,c)=>c.toUpperCase()).replace(/_/g,'');
+  const panelIdA = (tab)=>'adminTab'+titleA(tab);
+  const adminA = ()=> typeof esModoAdmin==='function' ? esModoAdmin() : (typeof adminIsEnabled==='function' ? adminIsEnabled() : document.body.classList.contains('modo-admin'));
+  const rowsA = ()=>{ try{return typeof todasLasOC==='function' ? todasLasOC() : [];}catch(e){return [];} };
+  const alertsA = ()=>{ try{return typeof generarAlertasCOI==='function' ? generarAlertasCOI() : [];}catch(e){ try{return typeof alertasFix==='function'?alertasFix():[];}catch(_){return [];} } };
+  function storageSizeA(){
+    try{let n=0;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i)||'';n+=k.length+(localStorage.getItem(k)||'').length;}return n>1024?(n/1024).toFixed(1)+' KB':n+' bytes';}catch(e){return 'Sin acceso';}
+  }
+  function cardA(label,value){return `<div class="admin-status-card"><b>${escA(value)}</b><span>${escA(label)}</span></div>`;}
+  function setMsgA(msg,kind='ok'){
+    const m=$a('adminMsg'); if(!m) return; m.textContent=msg; m.className='admin-msg '+kind;
+  }
+  function paintPanelErrorA(tab,err){
+    const p=$a(panelIdA(tab)); if(!p) return;
+    p.innerHTML = `<div class="admin-panel"><h3>${escA(labelA(tab))}</h3><div class="coi-error-box"><b>No se pudo renderizar este panel.</b><br>${escA(err && (err.message||err))}</div></div>`;
+  }
+  function labelA(tab){
+    return {estado:'Estado',datos:'Datos',usuarios:'Usuarios',catalogos:'Catálogos',diagnostico:'Diagnóstico',auditor:'Auditor de datos',configuracion:'Configuración',logs:'Logs'}[tab]||tab;
+  }
+  function renderFallbackPanelA(tab){
+    const p=$a(panelIdA(tab)); if(!p) return;
+    if(tab==='estado'){
+      p.innerHTML = `<div class="admin-panel"><h3>Estado del sistema</h3><p class="muted">Panel local preparado para operación con localStorage, backup JSON e importación/exportación controlada.</p></div>`; return;
+    }
+    if(tab==='datos'){
+      p.innerHTML = `<div class="admin-panel"><h3>Gestión de datos</h3><div class="admin-actions"><button type="button" id="btnImportBackupViewerPanel">Importar backup recibido</button><button type="button" id="btnImportBaseJson">Importar Base JSON</button><button type="button" id="btnExportBaseCsv">Exportar Base CSV</button><button type="button" id="btnIrCargaCSV">Ir a Carga CSV</button><button type="button" id="btnExportBaseJson" data-admin-only>Exportar Base JSON</button><button type="button" id="btnCrearBackupInterno" data-admin-only>Crear Backup</button><button type="button" id="btnRestaurarBackupInterno" data-admin-only>Restaurar Backup</button><button type="button" id="btnLimpiarBase" data-admin-only class="btn-danger-soft">Limpiar Base</button></div><p class="muted">Use JSON para mover la base completa entre PC local, GitHub Pages y usuarios de consulta.</p></div>`; return;
+    }
+    if(tab==='usuarios'){
+      p.innerHTML = `<div class="admin-panel"><h3>Usuarios</h3><p class="muted">Gestión local de perfiles. En esta etapa no hay login real centralizado; el control es por modo Consulta / Administrador.</p><div class="admin-actions"><button type="button" id="btnCambiarPinAdmin">Cambiar PIN administrador</button></div></div>`; return;
+    }
+    if(tab==='catalogos'){
+      const totalEst = (typeof estaciones!=='undefined' && Array.isArray(estaciones)) ? estaciones.length : 0;
+      const totalCat = (typeof CAT_ESTACIONES!=='undefined' && Array.isArray(CAT_ESTACIONES)) ? CAT_ESTACIONES.length : totalEst;
+      p.innerHTML = `<div class="admin-panel"><h3>Catálogos</h3><div class="admin-status-grid">${cardA('Estaciones base',totalEst)}${cardA('Catálogo maestro',totalCat)}${cardA('OCs',rowsA().length)}${cardA('UM',typeof unidadesMantenimiento!=='undefined'&&Array.isArray(unidadesMantenimiento)?unidadesMantenimiento.length:0)}</div><p class="muted">Panel de consulta de catálogos internos. La edición fina de catálogos queda reservada a versión backend / base estructurada.</p></div>`; return;
+    }
+    if(tab==='diagnostico'){
+      p.innerHTML = `<div class="admin-panel"><h3>Diagnóstico</h3><div class="admin-actions"><button type="button" id="btnEjecutarDiagnostico" class="primary">Ejecutar diagnóstico</button><button type="button" id="btnOptimizarBase">Optimizar base</button></div><p class="muted">Verifica duplicados, fechas inválidas, registros incompletos y consistencia operativa.</p></div>`; return;
+    }
+    if(tab==='auditor'){
+      const r=rowsA();
+      const sinEst=r.filter(x=>!x.estacion||x.estacion==='Sin definir').length;
+      const sinProv=r.filter(x=>!x.proveedor||x.proveedor==='—'||x.proveedor==='Sin definir').length;
+      p.innerHTML = `<div class="admin-panel"><h3>Auditor de datos</h3><div class="admin-status-grid">${cardA('Total OC',r.length)}${cardA('Sin estación',sinEst)}${cardA('Sin proveedor',sinProv)}${cardA('Alertas',alertsA().length)}</div><div class="admin-actions"><button type="button" id="btnEjecutarAuditorDatos" class="primary">Actualizar auditoría</button><button type="button" id="btnExportAuditoriaCsv">Exportar auditoría CSV</button></div></div>`; return;
+    }
+    if(tab==='configuracion'){
+      let c={}; try{c=typeof adminConfig==='function'?adminConfig():{};}catch(e){}
+      p.innerHTML = `<div class="admin-panel"><h3>Configuración</h3><div class="admin-form-grid"><input id="adminCfgNombre" value="${escA(c.nombreSistema||'COI Línea Roca')}" placeholder="Nombre"><input id="adminCfgVersion" value="${escA(FIX_ADMIN_VERSION)}" placeholder="Versión"><input id="adminCfgFecha" value="${escA(c.fechaVersion||'2026-07-05')}" placeholder="Fecha"><select id="adminCfgModo"><option>Producción</option><option>Demo</option></select><button type="button" id="btnGuardarAdminConfig" class="primary">Guardar configuración</button></div></div>`; return;
+    }
+    if(tab==='logs'){
+      let logs=[]; try{logs=JSON.parse(localStorage.getItem(typeof LS_ADMIN_LOGS!=='undefined'?LS_ADMIN_LOGS:'coi_admin_logs')||'[]')||[];}catch(e){}
+      p.innerHTML = `<div class="admin-panel"><h3>Logs</h3><div class="admin-actions"><button type="button" id="btnLimpiarLogs" class="btn-danger-soft">Limpiar logs</button></div><div class="table-wrap"><table class="coi-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Mensaje</th><th>Detalle</th><th>Rol</th></tr></thead><tbody>${logs.map(x=>`<tr><td>${escA(x.fechaHora||'')}</td><td>${escA(x.tipo||'')}</td><td>${escA(x.mensaje||'')}</td><td>${escA(x.detalle||'')}</td><td>${escA(x.rol||'')}</td></tr>`).join('')||'<tr><td colspan="5">Sin logs registrados.</td></tr>'}</tbody></table></div></div>`; return;
+    }
+  }
+  function runPanelRendererA(tab){
+    const map={estado:'renderAdminEstado',datos:'renderAdminDatos',usuarios:'renderAdminUsuarios',catalogos:'renderAdminCatalogos',diagnostico:'renderAdminDiagnostico',auditor:'renderAuditorDatos',configuracion:'renderAdminConfig',logs:'renderAdminLogs'};
+    const fn=window[map[tab]] || (typeof globalThis!=='undefined'?globalThis[map[tab]]:null);
+    try{
+      if(typeof fn==='function') fn();
+      const p=$a(panelIdA(tab));
+      if(!p || !String(p.innerHTML||'').trim()) renderFallbackPanelA(tab);
+    }catch(err){
+      console.error('COI Admin R2 panel '+tab,err);
+      renderFallbackPanelA(tab);
+      const p=$a(panelIdA(tab));
+      if(p) p.insertAdjacentHTML('afterbegin',`<div class="coi-error-box"><b>Panel recuperado en modo seguro.</b><br>${escA(err && (err.message||err))}</div>`);
+    }
+  }
+  function renderAllAdminPanelsA(){ ['estado','datos','usuarios','catalogos','diagnostico','auditor','configuracion','logs'].forEach(runPanelRendererA); }
+  function renderAdminStatusA(){
+    const st=$a('adminStatus'); if(!st) return;
+    const r=rowsA(), a=alertsA();
+    let cfg={}; try{cfg=typeof adminConfig==='function'?adminConfig():{};}catch(e){}
+    const obras=r.filter(x=>String(x.tipo||'').toLowerCase()==='obra').length;
+    const serv=r.filter(x=>String(x.tipo||'').toLowerCase()==='servicio').length;
+    st.innerHTML=[
+      ['Versión actual',FIX_ADMIN_VERSION],['Fecha versión','2026-07-05'],['Rol activo',adminA()?'Administrador':'Modo Consulta'],['Total OCs',r.length],['Obras',obras],['Servicios',serv],['Alertas',a.length],['Último backup',typeof adminLastBackupText==='function'?adminLastBackupText():'Sin registros'],['LocalStorage',storageSizeA()],['Estado de datos',(cfg.fuenteDatos||'LocalStorage')+' / '+(cfg.modoSistema||'Producción')]
+    ].map(x=>cardA(x[0],x[1])).join('');
+  }
+  function updateAdminChromeA(){
+    const isAdmin=adminA();
+    const rol=$a('adminRolActivo'); if(rol) rol.textContent=isAdmin?'Administrador':'Modo Consulta';
+    const badge=$a('adminModoBadge'); if(badge){badge.textContent='PRODUCCIÓN'; badge.className='version-status ok';}
+    const btn=$a('btnAdminMode'); if(btn) btn.textContent=isAdmin?'Cerrar sesion de administrador':'Iniciar sesion como administrador';
+    document.body.classList.toggle('modo-admin',isAdmin);
+    document.body.classList.toggle('modo-consulta',!isAdmin);
+    document.querySelectorAll('[data-admin-only]').forEach(el=>el.classList.toggle('admin-hidden',!isAdmin));
+    ['appVersionHeader','headerVersionOperativa'].forEach(id=>{const e=$a(id); if(e) e.textContent=FIX_ADMIN_VERSION;});
+    const total=$a('headerTotalOC'); if(total) total.textContent=rowsA().length;
+    const modo=$a('headerModoSistema'); if(modo) modo.textContent=isAdmin?'Modo Administrador':'Modo Consulta';
+  }
+  function showAdminTabA(tab){
+    tab=tab||'estado';
+    try{adminTabActiva=tab;}catch(e){}
+    document.querySelectorAll('#vistaAdministracionSistema [data-admin-tab]').forEach(btn=>{
+      btn.classList.toggle('active',btn.dataset.adminTab===tab);
+    });
+    document.querySelectorAll('#vistaAdministracionSistema .admin-tab-panel').forEach(p=>p.classList.remove('active'));
+    const p=$a(panelIdA(tab));
+    if(p){ if(!String(p.innerHTML||'').trim()) runPanelRendererA(tab); p.classList.add('active'); }
+    setMsgA('Panel '+labelA(tab)+' activo.','ok');
+  }
+  function renderAdministracionSistemaSeguroA(){
+    updateAdminChromeA();
+    renderAdminStatusA();
+    renderAllAdminPanelsA();
+    updateAdminChromeA();
+    let t='estado'; try{t=adminTabActiva||'estado';}catch(e){}
+    const btn=document.querySelector(`#vistaAdministracionSistema [data-admin-tab="${t}"]`);
+    if(!btn || btn.classList.contains('admin-hidden')) t='estado';
+    showAdminTabA(t);
+    if(typeof renderMensajeModoAdministracionV573==='function'){
+      try{renderMensajeModoAdministracionV573();}catch(e){}
+    }
+  }
+  // Sobrescribe el render de Administración con una versión tolerante a fallos.
+  renderAdministracionSistema = renderAdministracionSistemaSeguroA;
+  adminMostrarTab = showAdminTabA;
+
+  function handleAdminClickA(ev){
+    const view=$a('vistaAdministracionSistema');
+    if(!view) return;
+    const tab=ev.target.closest('#vistaAdministracionSistema [data-admin-tab]');
+    if(tab){
+      ev.preventDefault(); ev.stopImmediatePropagation();
+      showAdminTabA(tab.dataset.adminTab||'estado');
+      return;
+    }
+    if(!ev.target.closest('#vistaAdministracionSistema')) return;
+    if(ev.target.closest('#btnImportBackupViewer,#btnImportBackupViewerPanel,#btnImportBaseJson')){ev.preventDefault(); ev.stopImmediatePropagation(); $a('adminImportFile')?.click(); return;}
+    if(ev.target.closest('#btnExportBaseJson')){ev.preventDefault(); ev.stopImmediatePropagation(); if(adminA() && typeof adminExportBaseJSON==='function') adminExportBaseJSON(); else setMsgA('Exportar JSON requiere modo Administrador.','warn'); return;}
+    if(ev.target.closest('#btnExportBaseCsv')){ev.preventDefault(); ev.stopImmediatePropagation(); if(typeof adminExportBaseCSV==='function') adminExportBaseCSV(); return;}
+    if(ev.target.closest('#btnCrearBackupInterno')){ev.preventDefault(); ev.stopImmediatePropagation(); if(adminA() && typeof adminCrearBackupInterno==='function') adminCrearBackupInterno(); else setMsgA('Crear backup requiere modo Administrador.','warn'); return;}
+    if(ev.target.closest('#btnRestaurarBackupInterno')){ev.preventDefault(); ev.stopImmediatePropagation(); if(adminA() && typeof adminRestaurarBackupInterno==='function') adminRestaurarBackupInterno(); else setMsgA('Restaurar backup requiere modo Administrador.','warn'); return;}
+    if(ev.target.closest('#btnLimpiarBase')){ev.preventDefault(); ev.stopImmediatePropagation(); if(adminA() && typeof adminLimpiarBase==='function') adminLimpiarBase(); else setMsgA('Limpiar base requiere modo Administrador.','warn'); return;}
+    if(ev.target.closest('#btnIrCargaCSV')){ev.preventDefault(); ev.stopImmediatePropagation(); if(typeof mostrarVistaFix==='function') mostrarVistaFix('vistaCarga','btnCarga'); else if(typeof mostrarVista==='function') mostrarVista('vistaCarga'); if(typeof renderCarga==='function') renderCarga(); return;}
+    if(ev.target.closest('#btnEjecutarDiagnostico')){ev.preventDefault(); ev.stopImmediatePropagation(); let res=null; try{res=typeof ejecutarDiagnosticoSistema==='function'?ejecutarDiagnosticoSistema():null;}catch(e){console.error(e);} try{if(typeof renderAdminDiagnostico==='function') renderAdminDiagnostico(res); else renderFallbackPanelA('diagnostico');}catch(e){renderFallbackPanelA('diagnostico');} showAdminTabA('diagnostico'); return;}
+    if(ev.target.closest('#btnEjecutarAuditorDatos')){ev.preventDefault(); ev.stopImmediatePropagation(); runPanelRendererA('auditor'); showAdminTabA('auditor'); return;}
+    if(ev.target.closest('#btnLimpiarLogs')){ev.preventDefault(); ev.stopImmediatePropagation(); if(!adminA()){setMsgA('Limpiar logs requiere modo Administrador.','warn'); return;} if(confirm('¿Limpiar logs del sistema?')){try{localStorage.setItem(typeof LS_ADMIN_LOGS!=='undefined'?LS_ADMIN_LOGS:'coi_admin_logs','[]');}catch(e){} runPanelRendererA('logs'); showAdminTabA('logs'); setMsgA('Logs limpiados.','ok');} return;}
+    if(ev.target.closest('#btnCambiarPinAdmin')){ev.preventDefault(); ev.stopImmediatePropagation(); if(!adminA()){setMsgA('Cambiar PIN requiere modo Administrador.','warn'); return;} const pin=prompt('Nuevo PIN administrador'); if(pin){try{const c=typeof adminConfig==='function'?adminConfig():{}; c.adminPin=pin; if(typeof saveJSON==='function'&&typeof LS_ADMIN_CONFIG!=='undefined') saveJSON(LS_ADMIN_CONFIG,c); else localStorage.setItem('coi_admin_config',JSON.stringify(c)); setMsgA('PIN administrador actualizado.','ok');}catch(e){setMsgA('No se pudo guardar el PIN.','err');}} return;}
+    if(ev.target.closest('#btnGuardarAdminConfig')){ev.preventDefault(); ev.stopImmediatePropagation(); try{ if(typeof adminConfig==='function'&&typeof saveJSON==='function'&&typeof LS_ADMIN_CONFIG!=='undefined'){const c=adminConfig(); c.nombreSistema=$a('adminCfgNombre')?.value||'COI Línea Roca'; c.versionVisible=$a('adminCfgVersion')?.value||FIX_ADMIN_VERSION; c.fechaVersion=$a('adminCfgFecha')?.value||'2026-07-05'; c.modoSistema=$a('adminCfgModo')?.value||'Producción'; saveJSON(LS_ADMIN_CONFIG,c);} setMsgA('Configuración guardada.','ok'); updateAdminChromeA();}catch(e){setMsgA('No se pudo guardar configuración.','err');} return;}
+  }
+  function initAdminFixA(){
+    document.removeEventListener('click',handleAdminClickA,true);
+    document.addEventListener('click',handleAdminClickA,true);
+    if($a('vistaAdministracionSistema')?.classList.contains('active')) renderAdministracionSistemaSeguroA();
+  }
+  window.COI_ADMIN_TABS_FIX = {render:renderAdministracionSistemaSeguroA,show:showAdminTabA,init:initAdminFixA};
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initAdminFixA,{once:true}); else setTimeout(initAdminFixA,0);
+})();
+
+console.log('COI V58.0 Centro de Alertas por rol y calidad de datos listo');
 try{
   init();
 }catch(err){
