@@ -714,6 +714,40 @@ body.modo-admin #btnAdminMode{background:#eef8f1;color:#236339;border-color:#bfe
 #vistaOrdenes .orden-oc-num{font-weight:800;color:#1f4e79;letter-spacing:.01em}
 #vistaOrdenes .orden-id-col{min-width:150px;white-space:nowrap!important}
 #vistaOrdenes .orden-actions-col{min-width:120px;white-space:nowrap!important}
+/* V57.4 - Backup JSON completo y vigencia automatica */
+.admin-backup-json-panel{border:1px solid #cfe2f3;background:linear-gradient(180deg,#f8fbff,#fff);border-radius:14px;padding:14px;margin:0 0 14px;box-shadow:0 8px 22px rgba(31,78,121,.06)}
+.admin-backup-json-panel h3{margin:0 0 6px;color:#12324a}
+.admin-backup-json-panel p{margin:0 0 12px;color:#475467;line-height:1.45}
+.backup-json-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.backup-json-note{border:1px solid #d8e4ef;background:#f8fafc;border-radius:10px;padding:10px;margin-top:10px;color:#475467;font-size:12px}
+.vigencia-auto-note{border:1px solid #cfe2ff;background:#eef6ff;color:#174a8b;border-radius:10px;padding:10px;margin:12px 0 0;font-weight:800}
+.vigencia-badge.sin-saldo,.vigencia-badge.no-certificable{background:#fff1f1;color:#9b1c1c;border-color:#ffd0d0}
+.vigencia-badge.archivada,.vigencia-badge.finalizada,.vigencia-badge.cerrada{background:#f1f3f5;color:#5b6470;border-color:#d8dde3}
+.vigencia-badge.sin-fecha{background:#f8fafc;color:#667085;border-color:#d8e4ef}
+.badge-vigencia-certificable,.vigencia-badge.certificable{background:#e7f1ff;color:#075ca8;border:1px solid #b8d7ff}
+.op-event.vencida-sin-saldo{background:#fff1f1;border-left:4px solid #dc2626;color:#9b1c1c}
+/* V57.5 - Documentos por tipologia y vencimiento contractual por Acta de Inicio */
+.doc-type-group{border:1px solid #d8e4ef;border-radius:14px;background:#fff;margin:12px 0;overflow:hidden;box-shadow:0 8px 20px rgba(31,78,121,.05)}
+.doc-type-group h4{display:flex;justify-content:space-between;gap:10px;align-items:center;margin:0;padding:11px 13px;background:#f7fbff;color:#12324a;font-size:13px;text-transform:uppercase;letter-spacing:.02em;border-bottom:1px solid #e4edf5}
+.doc-type-count{display:inline-flex;border-radius:999px;padding:3px 8px;background:#eef6ff;color:#245f9f;border:1px solid #b8d7ff;font-size:11px;font-weight:900}
+.doc-critical-box{border:1px solid #ffe3a3;background:#fff8e6;color:#755100;border-radius:12px;padding:11px 12px;margin:12px 0;font-weight:800}
+.doc-critical-box.ok{border-color:#cdebd8;background:#f0fbf4;color:#237a3b}
+.doc-critical-box ul{margin:8px 0 0 18px;padding:0;font-weight:700}
+.doc-contract-note{border:1px solid #cfe2ff;background:#eef6ff;color:#174a8b;border-radius:10px;padding:10px;margin:10px 0;font-weight:800}
+.doc-form-section-title{grid-column:1/-1;margin:4px 0 0;padding:8px 10px;border-radius:10px;background:#eef6ff;color:#174a8b;font-size:12px;font-weight:900;text-transform:uppercase}
+.doc-form-grid .doc-field-hidden{display:none}
+.doc-folder-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+
+
+
+/* V57.6R - Calendario COI separado en submódulos */
+.calendario-periodo-resumen{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border:1px solid #d8e4ef;border-radius:14px;background:linear-gradient(180deg,#fff,#f7fbfe);color:#31566f;font-size:13px;font-weight:800}
+.calendario-periodo-resumen b{color:#12324a}
+.calendario-subtabs{margin:12px 0 14px;border-bottom:1px solid #e4edf5;padding-bottom:10px}
+#coiTabInteligente .calendar-intel,#coiTabCalendario .op-calendar{margin-top:0}
+#coiTabCalendario .op-calendar{border-color:#d8e4ef}
+#coiTabCalendario .op-calendar-head,#coiTabCalendario .op-calendar-filters{display:none}
+
 </style>
 </head>
 <body>
@@ -895,13 +929,17 @@ body.modo-admin #btnAdminMode{background:#eef8f1;color:#236339;border-color:#bfe
         <select id="coiEvento"><option value="">Tipo de evento</option></select>
         <select id="coiEstado"><option value="">Estado</option></select>
       </div>
-      <div class="coi-tabs" role="tablist">
-        <button type="button" class="active" data-coi-tab="calendario">Vista Calendario</button>
+      <div id="coiPeriodoResumen" class="calendario-periodo-resumen" aria-live="polite"></div>
+      <div class="coi-tabs calendario-subtabs" role="tablist" aria-label="Submódulos del Calendario COI">
+        <button type="button" class="active" data-coi-tab="inteligente">Vista Inteligente</button>
+        <button type="button" data-coi-tab="calendario">Vista Calendario</button>
         <button type="button" data-coi-tab="vencimientos">Tabla Vencimientos</button>
         <button type="button" data-coi-tab="certificaciones">Tabla Certificaciones</button>
       </div>
-      <section id="coiTabCalendario" class="coi-tab-panel active">
+      <section id="coiTabInteligente" class="coi-tab-panel active">
         <div id="calendarioInteligenteCOI"></div>
+      </section>
+      <section id="coiTabCalendario" class="coi-tab-panel">
         <div id="opCoiCalendario" class="op-calendar" data-op-modo="coi"></div>
       </section>
       <section id="coiTabVencimientos" class="coi-tab-panel">
@@ -4514,7 +4552,7 @@ function activarHoverEstaciones(){
    V32.1 - Acerca del Sistema + Historial de versiones
    =============================== */
 const APP_NAME = "COI Línea Roca";
-const APP_VERSION = "V57.3";
+const APP_VERSION = "V57.6R";
 const APP_STATUS = "Versión operativa en desarrollo";
 const APP_RELEASE_DATE = "2026-07-04";
 const APP_AUTHOR = "Mariano Special";
@@ -4524,7 +4562,8 @@ const APP_OPERATIVE_TEXT = "Sistema operativo COI Línea Roca — Gestión de Ob
 const ADMIN_PIN = "1234";
 const USER_ROLES = { ADMIN: "Administrador", JEFE: "Jefatura" };
 const historialVersiones = [
-  {version:"V57.3",fecha:"2026-07-04",titulo:"Inicio seguro en Modo Consulta",cambios:["El sistema inicia siempre en Modo Consulta al abrir o recargar la web.","La sesion administrativa ya no queda persistida automaticamente.","Se mantiene el ingreso manual como administrador desde Administracion.","Se agregaron funciones centralizadas para modo consulta / modo administrador.","Se protegieron acciones sensibles sin afectar la consulta operativa."],modulosAfectados:["Acceso","Administracion","Header","Footer","Permisos"],estado:"Implementado",observaciones:"Modo Consulta por defecto con sesion administrativa manual y no persistente."},
+  {version:"V57.6R",fecha:"2026-07-05",titulo:"Calendario COI separado en submódulos",cambios:["Se separó Vista Inteligente y Vista Calendario en tabs internos independientes.","La Vista Inteligente conserva el tablero por columnas y usa los filtros globales.","La Vista Calendario muestra solo la grilla mensual operativa.","Tabla Vencimientos y Tabla Certificaciones quedan como submódulos separados.","Se corrigió la lectura de año y mes para no resetear el filtro al renderizar."],modulosAfectados:["Calendario COI","Filtros","Exportación CSV/ICS"],estado:"Implementado",observaciones:"Ajuste visual y funcional sobre base V57.5/V57.6 sin rehacer el sistema ni tocar localStorage."},
+      {version:"V57.5",fecha:"2026-07-05",titulo:"Documentos por tipologia y vencimiento por Acta de Inicio",cambios:["Se corrigio la regla contractual: el vencimiento se calcula desde el Acta de Inicio y el plazo.","Se definieron tipos documentales minimos: Factura, Remito, OC, Acta de Inicio, Acta de Medición, DDJJ, PRINT SERCAE, Pliegos, Fotos y Otros.","Se incorporo formulario dinamico por tipologia documental.","Se evitaron campos innecesarios segun tipo de documento.","Se mejoro la trazabilidad documental sin mezclar contextos.","Se integro la actualizacion automatica de vencimiento al cargar Acta de Inicio.","Se reforzo la relacion con OneDrive mediante ruta, link y estructura sugerida."],modulosAfectados:["Ficha OC","Documentos","Vigencia Operativa","Calendario","Alertas","Administracion","CSV","Backup JSON"],estado:"Implementado",observaciones:"El vencimiento contractual prioriza fechaActaInicio + plazoDias/plazoMeses. La fecha de emision de OC queda como dato administrativo."},{version:"V57.4",fecha:"2026-07-04",titulo:"Backup JSON completo y vigencia automatica por saldo",cambios:["Se agrego exportacion e importacion JSON completa desde Administracion.","Se incorporo transferencia de base entre archivo local, GitHub Pages y otros equipos.","Se automatizo la categoria Vencida certificable por saldo remanente para OCs vencidas con saldo disponible.","Se unificaron alias de vencida con saldo y vencida habilitada administrativamente para certificar.","Se mantuvo la trazabilidad administrativa sin cerrar ni eliminar OCs vencidas con saldo.","Se mejoraron badges y aplicacion de vigencia operativa en Ordenes, Ficha OC, Dashboard, Calendario y Alertas."],modulosAfectados:["Administracion","Backup JSON","Vigencia Operativa","Ordenes","Ficha OC","Dashboard","Calendario","Alertas"],estado:"Implementado",observaciones:"La condicion certificable por saldo remanente se calcula automaticamente por fecha contractual vencida y saldo disponible."},{version:"V57.3",fecha:"2026-07-04",titulo:"Inicio seguro en Modo Consulta",cambios:["El sistema inicia siempre en Modo Consulta al abrir o recargar la web.","La sesion administrativa ya no queda persistida automaticamente.","Se mantiene el ingreso manual como administrador desde Administracion.","Se agregaron funciones centralizadas para modo consulta / modo administrador.","Se protegieron acciones sensibles sin afectar la consulta operativa."],modulosAfectados:["Acceso","Administracion","Header","Footer","Permisos"],estado:"Implementado",observaciones:"Modo Consulta por defecto con sesion administrativa manual y no persistente."},
   {version:"V57.2",fecha:"2026-07-04",titulo:"Filtro documental en Ficha OC",cambios:["Se incorpor\u00f3 filtro por tipo documental en la secci\u00f3n Documentos / Expediente Digital.","Se agregaron categor\u00edas documentales: Acta de Inicio, DDJJ, Acta de Medici\u00f3n, SERCAE, Pliegos, Remitos, Facturas y Otros.","Se a\u00f1adi\u00f3 b\u00fasqueda textual dentro de documentos de la OC.","Se mejor\u00f3 la UX de consulta documental sin alterar localStorage ni la l\u00f3gica existente."],modulosAfectados:["Ficha OC","Documentos","Expediente Digital"],estado:"Implementado",observaciones:"Filtro visual y funcional por OC. La exportaci\u00f3n CSV original se mantiene completa y se agrega exportaci\u00f3n de vista filtrada."},
   {version:"V57.1",fecha:"2026-07-04",titulo:"Mejora visual del m\u00f3dulo Carga",cambios:["Se reorganiz\u00f3 visualmente el m\u00f3dulo Carga.","Se unific\u00f3 la est\u00e9tica de Servicio, Obra y Financiera.","Se corrigieron anchos de columnas, inputs y campos de descripci\u00f3n.","Se mejor\u00f3 el scroll horizontal interno de grillas tipo Excel.","Se ajust\u00f3 el espaciado para evitar interferencia con el footer operativo."],modulosAfectados:["Carga","Servicio","Obra","Financiera","Interfaz"],estado:"Implementado",observaciones:"Mejora visual sin modificar localStorage ni la l\u00f3gica de pegado desde Excel."},
   {version:"V57.0",fecha:"2026-07-02",titulo:"Auditoria integral, hardening y estabilizacion funcional",cambios:["Auditoria general de JavaScript y correcciones defensivas.","Normalizacion de datos localStorage para OC, UM y estaciones.","Validacion reforzada de OC cerradas, vencimientos y certificaciones.","Revision de fotos, observaciones, documentos y eventos dinamicos.","Proteccion contra valores null, undefined, NaN, fechas invalidas y fallas de guardado.","Se conserva la vigencia operativa por saldo remanente bajo la denominacion oficial."],modulosAfectados:["Dashboard","Ordenes","Ficha OC","Ficha UM","Calendario COI","Centro de Alertas","Estado Financiero","Administracion","localStorage"],estado:"Estable para prueba operativa controlada",observaciones:"Hardening incremental sin backend ni librerias externas. Mantiene compatibilidad con datos existentes y GitHub Pages."},
@@ -6780,7 +6819,7 @@ function v60RenderVigenciaOC(oc){
   const estado=v60CalcularEstadoVigencia(oc),dias=v60DiasFinOC(oc),fin=v60FechaFinOC(oc),saldo=v60SaldoFinancieroOC(oc);
   const contrato=dias===null?'Sin fecha fin':dias<0?'Vencida por fecha':dias<=30?'Proxima a vencer':'Vigente por fecha';
   const adminClass=v60AdminActivo()?'':'admin-hidden';
-  return `<section class="expediente-card full vigencia-card" id="v60VigenciaOperativaCard"><div class="vigencia-head"><h3>Vigencia operativa y saldo remanente</h3>${v60BadgeEstado(estado)}</div><div class="vigencia-grid"><div><b>Fecha fin contractual</b>${fmtFecha(fin)}</div><div><b>Estado contractual por fecha</b>${esc(contrato)}</div><div><b>Estado vigencia operativa</b>${esc(estado)}</div><div><b>Saldo remanente certificable</b>${v60Money(saldo)}</div><div><b>Motivo de uso del saldo remanente</b>${esc(oc.motivoUsoSaldoRemanente||'—')}</div><div><b>Responsable</b>${esc(oc.responsableAutorizacionUsoSaldo||'—')}</div><div><b>Fecha de autorizacion / validacion administrativa</b>${fmtFecha(oc.fechaAutorizacionUsoSaldo)}</div><div><b>Observaciones</b>${esc(oc.observacionUsoSaldoRemanente||'—')}</div></div><div class="vigencia-actions" data-admin-only><button type="button" class="primary ${adminClass}" data-v60-marcar-cert="${esc(v60IdOC(oc))}">Marcar como vencida certificable por saldo remanente</button><button type="button" class="btn-secondary ${adminClass}" data-v60-editar-vigencia="${esc(v60IdOC(oc))}">Editar vigencia operativa</button><button type="button" class="btn-danger-soft ${adminClass}" data-v60-quitar-cert="${esc(v60IdOC(oc))}">Quitar condicion certificable</button></div></section>`;
+  return `<section class="expediente-card full vigencia-card" id="v60VigenciaOperativaCard"><div class="vigencia-head"><h3>Vigencia operativa y saldo remanente</h3>${v60BadgeEstado(estado)}</div><div class="vigencia-grid"><div><b>Fecha fin contractual</b>${fmtFecha(fin)}</div><div><b>Estado contractual por fecha</b>${esc(contrato)}</div><div><b>Estado vigencia operativa</b>${esc(estado)}</div><div><b>Saldo remanente certificable</b>${v60Money(saldo)}</div><div><b>Motivo de uso del saldo remanente</b>${esc(oc.motivoUsoSaldoRemanente||'—')}</div><div><b>Responsable</b>${esc(oc.responsableAutorizacionUsoSaldo||'—')}</div><div><b>Fecha de autorizacion / validacion administrativa</b>${fmtFecha(oc.fechaAutorizacionUsoSaldo)}</div><div><b>Observaciones</b>${esc(oc.observacionUsoSaldoRemanente||'—')}</div></div><div class="vigencia-actions" data-admin-only><span class="vigencia-auto-note">Esta condicion se calcula automaticamente segun fecha contractual y saldo remanente.</span><button type="button" class="btn-secondary ${adminClass}" data-v60-editar-vigencia="${esc(v60IdOC(oc))}">Editar vigencia operativa</button><button type="button" class="btn-danger-soft ${adminClass}" data-v60-quitar-cert="${esc(v60IdOC(oc))}">Quitar condicion certificable</button></div></section>`;
 }
 function v60InsertarFichaOC(id){
   const found=typeof v59BuscarOC==='function'?v59BuscarOC(id||ocActualId):(typeof obtenerOC==='function'?obtenerOC(id||ocActualId):null);
@@ -7829,6 +7868,702 @@ function renderOrdenesV573Alineado(){
   if(typeof v45ActualizarSeleccionOrdenes==='function') v45ActualizarSeleccionOrdenes();
 }
 renderOrdenes=renderOrdenesV573Alineado;
+
+/* V57.4 - Backup JSON completo y vigencia automatica */
+const V57_4_BACKUP_SCHEMA='COI_LINEA_ROCA_BACKUP';
+const V57_4_BACKUP_SCHEMA_VERSION='1.0';
+const V57_4_ESTADO_VENCIDA_SIN_SALDO='Vencida sin saldo';
+const V57_4_ESTADO_SIN_FECHA='Sin fecha';
+const V57_4_ESTADO_ARCHIVADA='Archivada';
+const V57_4_ESTADO_FINALIZADA='Finalizada';
+
+function normalizarMontoARS(valor){
+  if(valor===null||valor===undefined||valor==='')return 0;
+  if(typeof valor==='number')return Number.isFinite(valor)?valor:0;
+  let s=String(valor).trim();
+  if(!s)return 0;
+  s=s.replace(/\s/g,'').replace(/[^\d,.\-]/g,'');
+  const coma=s.lastIndexOf(','),punto=s.lastIndexOf('.');
+  if(coma>-1&&punto>-1){
+    s=coma>punto?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');
+  }else if(coma>-1){
+    const dec=s.length-coma-1;
+    s=dec>0&&dec<=2?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');
+  }else if(punto>-1){
+    const parts=s.split('.');
+    if(parts.length>2||parts[parts.length-1].length===3)s=parts.join('');
+  }
+  const n=Number(s);
+  return Number.isFinite(n)?n:0;
+}
+
+function v574TextoOC(oc){
+  return normalizarTexto([oc?.estadoRegistro,oc?.estadoCOI,oc?.estado,oc?.estadoDocumental,oc?.estadoVigenciaOperativa,oc?.observaciones].filter(Boolean).join(' '));
+}
+function v574EsArchivadaOC(oc){return /\bARCHIVAD/.test(v574TextoOC(oc));}
+function v574EsCerradaOC(oc){return /\bCERRAD/.test(v574TextoOC(oc))||oc?.cerrada===true;}
+function v574EsFinalizadaOC(oc){const t=v574TextoOC(oc);return /\bFINALIZAD/.test(t)||/\bACTA FINAL\b/.test(t)||/\bDEFINITIV/.test(t);}
+function v574EsCanceladaOSuspendidaOC(oc){const t=v574TextoOC(oc);return /\bCANCELAD/.test(t)||/\bSUSPENDID/.test(t);}
+function v574FechaVencimientoOC(oc){
+  const valor=oc?.fechaFinContractual||oc?.fechaFin||oc?.fechaVencimiento||oc?.vencimiento||oc?.fin||oc?.fechaFinOC||oc?.fechaFinServicio;
+  if(typeof parseFechaSegura==='function')return parseFechaSegura(valor);
+  return typeof parseFecha==='function'?parseFecha(valor):null;
+}
+function v574DiffDias(fecha){
+  if(!fecha)return null;
+  return typeof diffDias==='function'?diffDias(fecha,COI_TODAY):Math.ceil((fecha-new Date())/86400000);
+}
+function v574OcKey(oc){
+  return String(oc?.ocNro||oc?.OC_NRO||oc?.numeroOC||oc?.nOC||oc?.oc||oc?.idObra||oc?.idServicio||oc?.idOC||'').trim();
+}
+function v574IdKey(oc){
+  return String(oc?.idObra||oc?.ID_OBRA||oc?.idServicio||oc?.ID_SERVICIO||oc?.idOC||oc?.id||'').trim();
+}
+function v574MismaOC(pos,oc){
+  const n=v574OcKey(oc),id=v574IdKey(oc);
+  const pn=String(pos?.ocNro||pos?.OC_NRO||pos?.numeroOC||pos?.nOC||pos?.oc||pos?.pedido||'').trim();
+  const pid=String(pos?.idObra||pos?.ID_OBRA||pos?.idServicio||pos?.ID_SERVICIO||pos?.idOC||pos?.id||'').trim();
+  return (n&&pn&&normalizarTexto(n)===normalizarTexto(pn))||(id&&pid&&normalizarTexto(id)===normalizarTexto(pid));
+}
+function obtenerSaldoRemanenteCertificable(oc){
+  if(!oc)return 0;
+  const directos=['saldoRemanenteCertificable','saldo','saldoPendiente','saldoRemanente','saldoDisponible','saldoFinancieroPendiente','saldoCertificable','SALDO_REMANENTE_CERTIFICABLE'];
+  for(const k of directos){const n=normalizarMontoARS(oc[k]);if(n>0)return n;}
+  try{
+    if(typeof calcularResumenFinancieroOC==='function'){
+      const r=calcularResumenFinancieroOC(v574OcKey(oc));
+      const n=normalizarMontoARS(r?.saldo);
+      if(n>0)return n;
+    }
+  }catch(e){}
+  try{
+    const fuentes=[];
+    if(Array.isArray(window.posicionesFinancieras))fuentes.push(...window.posicionesFinancieras);
+    const ls=safeParseJSON(localStorage.getItem('coiPosicionesFinancieras'),[]);
+    if(Array.isArray(ls))fuentes.push(...ls);
+  }catch(e){}
+  try{
+    let saldoPos=0,hayPos=false;
+    const fuentes=[];
+    if(Array.isArray(window.posicionesFinancieras))fuentes.push(...window.posicionesFinancieras);
+    const ls=safeParseJSON(localStorage.getItem('coiPosicionesFinancieras'),[]);
+    if(Array.isArray(ls))fuentes.push(...ls);
+    fuentes.filter(p=>v574MismaOC(p,oc)).forEach(p=>{
+      hayPos=true;
+      const s=normalizarMontoARS(p.saldo||p.saldoPendiente||p.saldoRemanente||p.saldoCertificable);
+      if(s>0)saldoPos+=s;
+      else{
+        const total=normalizarMontoARS(p.monto||p.montoTotal||p.importe||p.montoPosicion);
+        const usado=normalizarMontoARS(p.montoCertificado||p.certificado||p.consumido||p.ejecutado);
+        if(total>0)saldoPos+=Math.max(total-usado,0);
+      }
+    });
+    if(hayPos&&saldoPos>0)return saldoPos;
+  }catch(e){}
+  const total=normalizarMontoARS(oc.montoTotalOC||oc.montoTotalOCOriginal||oc.montoOC||oc.monto||oc.montoTotal||oc.saldoOcTotal||oc.SALDO_OC_TOTAL);
+  const usado=normalizarMontoARS(oc.montoCertificado||oc.montoConsumidoCertificado||oc.montoEjecutado||oc.saldoEjecutado||oc.SALDO_EJECUTADO||oc.totalCertificado);
+  if(total>0)return Math.max(total-usado,0);
+  return 0;
+}
+
+function calcularVigenciaOperativaOC(oc){
+  if(!oc)return V57_4_ESTADO_SIN_FECHA;
+  const alias=v60NormalizarEstadoVigencia? v60NormalizarEstadoVigencia(oc.estadoVigenciaOperativa||oc.vigenciaOperativa||'') : '';
+  if(alias===V60_ESTADO_CERT){
+    const finAlias=v574FechaVencimientoOC(oc),diasAlias=v574DiffDias(finAlias);
+    if(diasAlias!==null&&diasAlias<0&&obtenerSaldoRemanenteCertificable(oc)>0&&!v574EsCerradaOC(oc)&&!v574EsArchivadaOC(oc)&&!v574EsFinalizadaOC(oc)&&!v574EsCanceladaOSuspendidaOC(oc))return V60_ESTADO_CERT;
+  }
+  if(v574EsArchivadaOC(oc))return V57_4_ESTADO_ARCHIVADA;
+  if(v574EsCerradaOC(oc))return V60_ESTADO_CERRADA;
+  if(v574EsFinalizadaOC(oc)||v574EsCanceladaOSuspendidaOC(oc))return V57_4_ESTADO_FINALIZADA;
+  const fin=v574FechaVencimientoOC(oc);
+  if(!fin)return V57_4_ESTADO_SIN_FECHA;
+  const dias=v574DiffDias(fin);
+  if(dias!==null&&dias<0)return obtenerSaldoRemanenteCertificable(oc)>0?V60_ESTADO_CERT:V57_4_ESTADO_VENCIDA_SIN_SALDO;
+  if(dias!==null&&dias<=30)return V60_ESTADO_PROXIMA;
+  return V60_ESTADO_VIGENTE;
+}
+
+if(typeof v60NormalizarEstadoVigencia==='function'){
+  const v60NormalizarEstadoVigenciaV574Base=v60NormalizarEstadoVigencia;
+  v60NormalizarEstadoVigencia=function(v){
+    const s=normalizarTexto(v||'');
+    if(!s)return'';
+    if(s.includes('VENCIDA')&&(s.includes('SALDO')||s.includes('HABILITADA')||s.includes('CERTIFICABLE')))return V60_ESTADO_CERT;
+    if(s.includes('VENCIDA')&&(s.includes('SIN SALDO')||s.includes('NO CERTIFICABLE')))return V57_4_ESTADO_VENCIDA_SIN_SALDO;
+    if(s.includes('SIN FECHA'))return V57_4_ESTADO_SIN_FECHA;
+    if(s.includes('ARCHIVAD'))return V57_4_ESTADO_ARCHIVADA;
+    if(s.includes('FINALIZAD')||s.includes('CANCELAD')||s.includes('SUSPENDID'))return V57_4_ESTADO_FINALIZADA;
+    return v60NormalizarEstadoVigenciaV574Base(v);
+  };
+}
+if(typeof v60SaldoFinancieroOC==='function')v60SaldoFinancieroOC=obtenerSaldoRemanenteCertificable;
+if(typeof v60CalcularEstadoVigencia==='function')v60CalcularEstadoVigencia=calcularVigenciaOperativaOC;
+if(typeof v60EsCertificablePorSaldo==='function')v60EsCertificablePorSaldo=function(oc){return calcularVigenciaOperativaOC(oc)===V60_ESTADO_CERT;};
+if(typeof v60ClaseEstado==='function')v60ClaseEstado=function(estado){
+  estado=v60NormalizarEstadoVigencia(estado)||estado;
+  if(estado===V60_ESTADO_CERT)return'certificable';
+  if(estado===V57_4_ESTADO_VENCIDA_SIN_SALDO||estado===V60_ESTADO_NO_CERT)return'sin-saldo';
+  if(estado===V60_ESTADO_PROXIMA)return'proxima';
+  if(estado===V60_ESTADO_CERRADA)return'cerrada';
+  if(estado===V57_4_ESTADO_ARCHIVADA)return'archivada';
+  if(estado===V57_4_ESTADO_FINALIZADA)return'finalizada';
+  if(estado===V57_4_ESTADO_SIN_FECHA)return'sin-fecha';
+  return'vigente';
+};
+if(typeof v60ColorEstado==='function')v60ColorEstado=function(estado){
+  estado=v60NormalizarEstadoVigencia(estado)||estado;
+  if(estado===V60_ESTADO_CERT)return'azul';
+  if(estado===V57_4_ESTADO_VENCIDA_SIN_SALDO||estado===V60_ESTADO_NO_CERT)return'bad';
+  if(estado===V60_ESTADO_PROXIMA)return'warn';
+  if([V60_ESTADO_CERRADA,V57_4_ESTADO_ARCHIVADA,V57_4_ESTADO_FINALIZADA].includes(estado))return'closed';
+  return'ok';
+};
+if(typeof v60FinanceColor==='function')v60FinanceColor=function(estado){
+  estado=v60NormalizarEstadoVigencia(estado)||estado;
+  if(estado===V60_ESTADO_CERT)return'azul';
+  if(estado===V57_4_ESTADO_VENCIDA_SIN_SALDO||estado===V60_ESTADO_NO_CERT)return'rojo';
+  if(estado===V60_ESTADO_PROXIMA)return'amarillo';
+  if([V60_ESTADO_CERRADA,V57_4_ESTADO_ARCHIVADA,V57_4_ESTADO_FINALIZADA].includes(estado))return'gris';
+  return'verde';
+};
+if(typeof v60BadgeEstado==='function')v60BadgeEstado=function(estado){return `<span class="vigencia-badge ${v60ClaseEstado(estado)}">${esc(estado||'--')}</span>`;};
+if(typeof v60NormalizarOC==='function')v60NormalizarOC=function(oc){
+  if(!oc)return oc;
+  const estado=calcularVigenciaOperativaOC(oc);
+  oc.estadoVigenciaOperativa=estado;
+  oc.vigenciaOperativa=estado;
+  oc.saldoRemanenteCertificable=obtenerSaldoRemanenteCertificable(oc);
+  if(oc.motivoUsoSaldoRemanente===undefined)oc.motivoUsoSaldoRemanente='';
+  if(oc.fechaAutorizacionUsoSaldo===undefined)oc.fechaAutorizacionUsoSaldo='';
+  if(oc.responsableAutorizacionUsoSaldo===undefined)oc.responsableAutorizacionUsoSaldo='';
+  if(oc.observacionUsoSaldoRemanente===undefined)oc.observacionUsoSaldoRemanente='';
+  return oc;
+};
+if(typeof v60RenderVigenciaOC==='function')v60RenderVigenciaOC=function(oc){
+  v60NormalizarOC(oc);
+  const estado=calcularVigenciaOperativaOC(oc),dias=v574DiffDias(v574FechaVencimientoOC(oc)),fin=v574FechaVencimientoOC(oc),saldo=obtenerSaldoRemanenteCertificable(oc);
+  const contrato=dias===null?'Sin fecha fin':dias<0?'Vencida por fecha':dias<=30?'Proxima a vencer':'Vigente por fecha';
+  const adminClass=v60AdminActivo()?'':'admin-hidden';
+  return `<section class="expediente-card full vigencia-card" id="v60VigenciaOperativaCard"><div class="vigencia-head"><h3>Vigencia operativa y saldo remanente</h3>${v60BadgeEstado(estado)}</div><div class="vigencia-grid"><div><b>Fecha fin contractual</b>${fmtFecha(fin)}</div><div><b>Estado contractual por fecha</b>${esc(contrato)}</div><div><b>Estado vigencia operativa</b>${esc(estado)}</div><div><b>Saldo remanente certificable</b>${v60Money(saldo)}</div><div><b>Motivo de uso del saldo remanente</b>${esc(oc.motivoUsoSaldoRemanente||'--')}</div><div><b>Responsable</b>${esc(oc.responsableAutorizacionUsoSaldo||oc.responsableValidacion||'--')}</div><div><b>Fecha de autorizacion / validacion administrativa</b>${fmtFecha(oc.fechaAutorizacionUsoSaldo||oc.fechaAutorizacionAdministrativa)}</div><div><b>Observaciones</b>${esc(oc.observacionUsoSaldoRemanente||oc.observacionesVigencia||'--')}</div></div><div class="vigencia-auto-note">Esta condicion se calcula automaticamente segun fecha contractual y saldo remanente.</div><div class="vigencia-actions" data-admin-only><button type="button" class="btn-secondary ${adminClass}" data-v60-editar-vigencia="${esc(v60IdOC(oc))}">Editar vigencia operativa</button></div></section>`;
+};
+if(typeof v60MarcarCertificable==='function')v60MarcarCertificable=function(id){
+  alert('Esta condicion se calcula automaticamente segun fecha contractual y saldo remanente. Use "Editar vigencia operativa" solo para observaciones administrativas.');
+  const oc=v60EncontrarOC(id);if(oc&&typeof renderFichaOC==='function')renderFichaOC(v60IdOC(oc));
+};
+if(typeof v60EditarVigencia==='function')v60EditarVigencia=function(id){
+  if(!v60AdminActivo()){alert('Esta accion requiere modo Administrador.');return;}
+  const oc=v60EncontrarOC(id);if(!oc)return alert('No se encontro la OC.');
+  const saldo=prompt('Saldo remanente certificable (si corresponde)',String(oc.saldoRemanenteCertificable||obtenerSaldoRemanenteCertificable(oc)||''));if(saldo===null)return;
+  const motivo=prompt('Motivo de uso del saldo remanente',oc.motivoUsoSaldoRemanente||'');if(motivo===null)return;
+  const responsable=prompt('Responsable validacion',oc.responsableAutorizacionUsoSaldo||oc.responsableValidacion||'');if(responsable===null)return;
+  const fecha=prompt('Fecha autorizacion / validacion administrativa (AAAA-MM-DD o vacio)',fmtFecha(oc.fechaAutorizacionUsoSaldo||oc.fechaAutorizacionAdministrativa));if(fecha===null)return;
+  const obs=prompt('Observaciones vigencia',oc.observacionUsoSaldoRemanente||oc.observacionesVigencia||'');if(obs===null)return;
+  oc.saldoRemanenteCertificable=normalizarMontoARS(saldo);
+  oc.motivoUsoSaldoRemanente=motivo.trim();
+  oc.responsableAutorizacionUsoSaldo=responsable.trim();
+  oc.responsableValidacion=responsable.trim();
+  oc.fechaAutorizacionUsoSaldo=parseFecha(fecha)?parseFecha(fecha).toISOString():fecha.trim();
+  oc.fechaAutorizacionAdministrativa=oc.fechaAutorizacionUsoSaldo;
+  oc.observacionUsoSaldoRemanente=obs.trim();
+  oc.observacionesVigencia=obs.trim();
+  oc.estadoVigenciaOperativa=calcularVigenciaOperativaOC(oc);
+  oc.fechaUltimaModificacion=new Date().toISOString();
+  v60AgregarObs(oc,`Edicion administrativa de vigencia operativa. Estado automatico: ${oc.estadoVigenciaOperativa}.`);
+  v60Log('OC_VIGENCIA_OPERATIVA_EDITADA','Se modificaron datos administrativos de vigencia',{id:v60IdOC(oc),oc:v60OCNro(oc),estado:oc.estadoVigenciaOperativa});
+  v60GuardarTodo();renderFichaOC(v60IdOC(oc));
+};
+if(typeof v60QuitarCertificable==='function')v60QuitarCertificable=function(id){
+  if(!v60AdminActivo()){alert('Esta accion requiere modo Administrador.');return;}
+  const oc=v60EncontrarOC(id);if(!oc)return alert('No se encontro la OC.');
+  if(!confirm('Registrar excepcion administrativa para quitar condicion certificable? No se borra la OC ni se modifica el saldo.'))return;
+  const motivo=(prompt('Motivo/observacion obligatoria')||'').trim();
+  if(!motivo)return alert('El motivo es obligatorio.');
+  oc.excepcionNoCertificablePorSaldo=true;
+  oc.observacionUsoSaldoRemanente=[oc.observacionUsoSaldoRemanente,motivo].filter(Boolean).join(' | ');
+  oc.fechaUltimaModificacion=new Date().toISOString();
+  v60AgregarObs(oc,`Excepcion administrativa: ${motivo}`);
+  v60Log('OC_EXCEPCION_CERTIFICABLE','Se registro excepcion administrativa',{id:v60IdOC(oc),oc:v60OCNro(oc),motivo});
+  v60GuardarTodo();renderFichaOC(v60IdOC(oc));
+};
+
+function v574LocalStorageCompleto(){
+  const d={};
+  for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);d[k]=localStorage.getItem(k);}
+  return d;
+}
+function v574RecolectarGlobalArray(nombre){
+  try{return Array.isArray(window[nombre])?window[nombre]:[];}catch(e){return[];}
+}
+function v574TotalCertificaciones(rows){
+  let n=0;
+  rows.forEach(r=>{const oc=r.item||r;n+=Array.isArray(oc.certificaciones)?oc.certificaciones.length:0;n+=Array.isArray(oc.actasMedicion)?oc.actasMedicion.length:0;});
+  return n;
+}
+function obtenerBackupCompletoCOI(){
+  try{if(typeof v60NormalizarTodasLasOC==='function')v60NormalizarTodasLasOC();}catch(e){}
+  const ordenes=typeof todasLasOC==='function'?todasLasOC().map(r=>({...r,item:v60NormalizarOC?v60NormalizarOC(r.item):r.item})):v574RecolectarGlobalArray('ordenes');
+  const ums=typeof obtenerUM==='function'?obtenerUM():v574RecolectarGlobalArray('unidadesMantenimiento');
+  const documentos=[...v574RecolectarGlobalArray('documentacionOC'),...v574RecolectarGlobalArray('documentosOC')];
+  const obras=ordenes.filter(r=>r.tipo==='Obra'||normalizarTexto(r.item?.tipo||'').includes('OBRA'));
+  const servicios=ordenes.filter(r=>r.tipo==='Servicio'||normalizarTexto(r.item?.tipo||'').includes('SERVICIO'));
+  const local=v574LocalStorageCompleto();
+  return {
+    schema:V57_4_BACKUP_SCHEMA,
+    schemaVersion:V57_4_BACKUP_SCHEMA_VERSION,
+    appVersion:APP_VERSION,
+    fechaExportacion:new Date().toISOString(),
+    origen:location.href,
+    resumen:{
+      totalOC:ordenes.length,
+      totalObras:obras.length,
+      totalServicios:servicios.length,
+      totalUM:Array.isArray(ums)?ums.length:0,
+      totalDocumentos:documentos.length,
+      totalCertificaciones:v574TotalCertificaciones(ordenes)
+    },
+    localStorage:local,
+    datos:{
+      ordenes,
+      obras:obras.map(r=>r.item||r),
+      servicios:servicios.map(r=>r.item||r),
+      ums,
+      posicionesFinancieras:v574RecolectarGlobalArray('posicionesFinancieras'),
+      certificaciones:v574RecolectarGlobalArray('certificaciones'),
+      documentos,
+      estaciones:typeof CAT_ESTACIONES!=='undefined'?CAT_ESTACIONES:(typeof estaciones!=='undefined'?estaciones:[]),
+      configuracion:typeof adminConfig==='function'?adminConfig():{},
+      historial:typeof historialVersiones!=='undefined'?historialVersiones:[]
+    }
+  };
+}
+function descargarArchivoJSON(nombreArchivo,data){
+  const contenido=JSON.stringify(data,null,2);
+  if(typeof descargarArchivo==='function')return descargarArchivo(nombreArchivo,contenido,'application/json;charset=utf-8');
+  const blob=new Blob([contenido],{type:'application/json;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=nombreArchivo;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},0);
+}
+function v574NombreBackup(){
+  const d=new Date(),p=n=>String(n).padStart(2,'0');
+  return `backup-coi-linea-roca-${APP_VERSION}-${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
+}
+function exportarBackupJSONCompleto(){
+  const data=obtenerBackupCompletoCOI();
+  descargarArchivoJSON(v574NombreBackup(),data);
+  if(typeof adminSetLastBackup==='function')adminSetLastBackup('Exportacion JSON completa',v574NombreBackup());
+  if(typeof registrarLogSistema==='function')registrarLogSistema('backup','Backup JSON completo exportado',JSON.stringify(data.resumen));
+  if(typeof adminSetMsg==='function')adminSetMsg('Backup JSON completo exportado.','ok');
+}
+function v574ValidarBackupData(data){
+  if(!data||typeof data!=='object')throw new Error('El archivo no contiene un JSON valido.');
+  if(data.schema!==V57_4_BACKUP_SCHEMA)throw new Error('Schema invalido. Debe ser COI_LINEA_ROCA_BACKUP.');
+  if(!data.localStorage&&!data.datos)throw new Error('El backup no contiene localStorage ni datos operativos.');
+  return true;
+}
+function v574HayDatosActuales(){
+  return localStorage.length>0||(typeof todasLasOC==='function'&&todasLasOC().length>0);
+}
+function v574EsClaveSistema(k){
+  const s=String(k||'');
+  return /^coi/i.test(s)||/^LS_/i.test(s)||s.includes('COI')||s.includes('roca')||s.includes('Roca')||['estacionesData','umData','adminConfig'].includes(s);
+}
+function v574RestaurarLocalStorage(snapshot){
+  if(!snapshot||typeof snapshot!=='object')return;
+  const actuales=[];for(let i=0;i<localStorage.length;i++)actuales.push(localStorage.key(i));
+  actuales.filter(v574EsClaveSistema).forEach(k=>localStorage.removeItem(k));
+  Object.keys(snapshot).forEach(k=>localStorage.setItem(k,String(snapshot[k]??'')));
+}
+function v574RefrescarSistemaTrasBackup(){
+  try{if(typeof loadImportedData==='function')loadImportedData();}catch(e){console.warn('No se pudo recargar base importada',e);}
+  try{if(typeof cargarUM==='function')cargarUM();}catch(e){}
+  try{if(typeof v60NormalizarTodasLasOC==='function')v60NormalizarTodasLasOC();}catch(e){}
+  ['updateKpis','renderDashboard','renderOrdenes','renderCalendarioCOIUnificado','renderCalendario','renderUM','renderMap','renderAdministracionSistema','renderCentroAlertas'].forEach(fn=>{
+    try{if(typeof window[fn]==='function')window[fn]();}catch(e){console.warn('Render post backup fallo:',fn,e);}
+  });
+  try{if(typeof renderFichaOC==='function'&&window.ocActualId)renderFichaOC(window.ocActualId);}catch(e){}
+  try{if(typeof actualizarHeaderOperativo==='function')actualizarHeaderOperativo();}catch(e){}
+}
+function importarBackupJSONCompleto(file){
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    let data;
+    try{data=JSON.parse(reader.result);v574ValidarBackupData(data);}catch(e){alert('Backup JSON invalido: '+e.message);if(typeof adminSetMsg==='function')adminSetMsg('Backup JSON invalido: '+e.message,'err');return;}
+    if(!confirm('Esta accion reemplazara/restaurara la base local con el backup JSON seleccionado. Desea continuar?'))return;
+    if(v574HayDatosActuales()&&confirm('Desea descargar un backup preventivo de la base actual antes de importar?')){
+      descargarArchivoJSON('backup-pre-importacion-'+v574NombreBackup(),obtenerBackupCompletoCOI());
+    }
+    try{
+      if(data.localStorage)v574RestaurarLocalStorage(data.localStorage);
+      if(typeof registrarLogSistema==='function')registrarLogSistema('backup','Backup JSON completo importado/restaurado',file.name||'archivo local');
+      if(typeof adminSetLastBackup==='function')adminSetLastBackup('Importacion JSON completa',file.name||'backup');
+      v574RefrescarSistemaTrasBackup();
+      if(typeof adminSetMsg==='function')adminSetMsg('Backup JSON completo importado correctamente.','ok');
+      alert('Base cargada correctamente.');
+    }catch(e){console.error(e);alert('Error al importar backup JSON: '+e.message);if(typeof adminSetMsg==='function')adminSetMsg('Error al importar backup JSON: '+e.message,'err');}
+  };
+  reader.readAsText(file,'utf-8');
+}
+function validarBackupJSON(file){
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{const data=JSON.parse(reader.result);v574ValidarBackupData(data);alert(`Backup valido.\nVersion: ${data.appVersion||'--'}\nExportado: ${data.fechaExportacion||'--'}\nOCs: ${data.resumen?.totalOC??'--'}`);if(typeof adminSetMsg==='function')adminSetMsg('Backup JSON valido.','ok');}
+    catch(e){alert('Backup JSON invalido: '+e.message);if(typeof adminSetMsg==='function')adminSetMsg('Backup JSON invalido: '+e.message,'err');}
+  };
+  reader.readAsText(file,'utf-8');
+}
+if(typeof adminBackupPayload==='function'){
+  const adminBackupPayloadV574Base=adminBackupPayload;
+  adminBackupPayload=function(){return {...adminBackupPayloadV574Base(),backupCompleto:obtenerBackupCompletoCOI()};};
+}
+if(typeof renderAdminDatos==='function'&&!renderAdminDatos.__v574Wrapped){
+  const renderAdminDatosV574Base=renderAdminDatos;
+  renderAdminDatos=function(){
+    renderAdminDatosV574Base();
+    const cont=$('adminTabDatos');
+    if(cont&&!$('backupJsonV574Panel')){
+      cont.insertAdjacentHTML('afterbegin',`<div class="admin-backup-json-panel" id="backupJsonV574Panel"><h3>Backup JSON / Transferencia de base</h3><p>Los datos del sistema se guardan localmente en el navegador. Para trasladar la base a GitHub Pages, otra PC o OneDrive, exporte un backup JSON completo e importelo en el equipo destino.</p><div class="backup-json-actions"><button type="button" class="primary" id="btnExportarBackupJSONCompleto">Exportar backup JSON completo</button><button type="button" id="btnImportarBackupJSONCompleto">Importar backup JSON completo</button><button type="button" id="btnValidarBackupJSON">Validar backup JSON</button><button type="button" id="btnExportBaseCsvV574">Descargar CSV</button></div><input type="file" id="inputImportarBackupJSON" accept="application/json,.json" hidden><div class="backup-json-note">Incluye localStorage completo del sistema, OCs, obras, servicios, UM, posiciones financieras, documentos, certificaciones, fotos guardadas localmente y metadatos de version.</div></div>`);
+    }
+  };
+  renderAdminDatos.__v574Wrapped=true;
+}
+document.addEventListener('click',ev=>{
+  if(ev.target.closest('#btnExportarBackupJSONCompleto')){exportarBackupJSONCompleto();return;}
+  if(ev.target.closest('#btnImportarBackupJSONCompleto')){const i=$('inputImportarBackupJSON');if(i){i.dataset.modo='importar';i.click();}return;}
+  if(ev.target.closest('#btnValidarBackupJSON')){const i=$('inputImportarBackupJSON');if(i){i.dataset.modo='validar';i.click();}return;}
+  if(ev.target.closest('#btnExportBaseCsvV574')){if(typeof adminExportBaseCSV==='function')adminExportBaseCSV();return;}
+});
+document.addEventListener('change',ev=>{
+  const input=ev.target.closest('#inputImportarBackupJSON');
+  if(!input)return;
+  const file=input.files?.[0],modo=input.dataset.modo||'importar';
+  if(modo==='validar')validarBackupJSON(file);else importarBackupJSONCompleto(file);
+  input.value='';
+});
+
+if(typeof adminExportBaseCSV==='function'&&!adminExportBaseCSV.__v574Wrapped){
+  const adminExportBaseCSVV574Base=adminExportBaseCSV;
+  adminExportBaseCSV=function(){
+    try{if(typeof v60NormalizarTodasLasOC==='function')v60NormalizarTodasLasOC();}catch(e){}
+    const headers=['OC','Tipo','Estacion','Proveedor','Especialidad','Estado','Fecha inicio','Fecha fin','Dias restantes','Proxima certificacion','Estado documental','Vigencia operativa','Saldo remanente certificable'];
+    const rows=(typeof todasLasOC==='function'?todasLasOC():[]).map(x=>{
+      const estado=calcularVigenciaOperativaOC(x.item);
+      const saldo=obtenerSaldoRemanenteCertificable(x.item);
+      return [x.oc,x.tipo,x.estacion,x.proveedor,x.especialidad,x.estado,fmtFecha(x.inicio),fmtFecha(x.fin),x.diasRestantes??'',fmtFecha(x.proximaCertificacion),x.estadoDocumental||x.item?.estadoDocumental||'',estado,saldo];
+    });
+    const csv=[headers,...rows].map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n');
+    descargarArchivo(`base_coi_roca_${adminNowStamp()}.csv`,csv,'text/csv;charset=utf-8');
+    if(typeof registrarLogSistema==='function')registrarLogSistema('exportacion_csv','Base CSV exportada','Incluye vigencia operativa y saldo remanente');
+    if(typeof adminSetMsg==='function')adminSetMsg('Base CSV exportada correctamente con vigencia operativa y saldo.','ok');
+  };
+  adminExportBaseCSV.__v574Wrapped=true;
+}
+const generarAlertasCOIV574Base=typeof generarAlertasCOI==='function'?generarAlertasCOI:null;
+if(generarAlertasCOIV574Base&&!generarAlertasCOI.__v574Wrapped){
+  generarAlertasCOI=function(){
+    const base=generarAlertasCOIV574Base().filter(a=>!String(a.accion||'').includes('marcar como certificable'));
+    const ids=new Set(base.map(a=>a.id));
+    const add=a=>{if(a&&a.id&&!ids.has(a.id)){ids.add(a.id);base.push(a);}};
+    try{todasLasOC().forEach(row=>{
+      const oc=row.item,estado=calcularVigenciaOperativaOC(oc),dias=row.fin?diffDias(row.fin,COI_TODAY):v574DiffDias(v574FechaVencimientoOC(oc));
+      const r={item:oc,id:v574IdKey(oc)||v574OcKey(oc),oc:v574OcKey(oc)||row.oc,tipo:row.tipo,estacion:row.estacion,proveedor:row.proveedor,descripcion:oc?.descripcion||row.especialidad||''};
+      if(dias!==null&&dias<0&&estado===V60_ESTADO_CERT)add(crearAlerta(r,'OC vencida certificable por saldo remanente','Seguimiento','AZUL',row.fin||v574FechaVencimientoOC(oc),dias,'OC vencida contractualmente con saldo remanente certificable.','Controlar certificacion y trazabilidad administrativa.'));
+      if(dias!==null&&dias<0&&estado===V57_4_ESTADO_VENCIDA_SIN_SALDO)add(crearAlerta(r,'OC vencida sin saldo','Critica','ROJA',row.fin||v574FechaVencimientoOC(oc),dias,'OC vencida sin saldo remanente certificable.','Regularizar cierre operativo/documental.'));
+    });}catch(e){console.warn('Alertas V57.4 no pudieron recalcular vigencia',e);}
+    return base;
+  };
+  generarAlertasCOI.__v574Wrapped=true;
+}
+if(typeof consumirPosicionesOC==='function'&&!consumirPosicionesOC.__v574Wrapped){
+  const consumirPosicionesOCV574Base=consumirPosicionesOC;
+  consumirPosicionesOC=function(ocNro){
+    const found=typeof finBuscarOC==='function'?finBuscarOC(ocNro):null,oc=found?.item||v60EncontrarOC(ocNro);
+    const estado=calcularVigenciaOperativaOC(oc);
+    if(estado===V57_4_ESTADO_VENCIDA_SIN_SALDO){alert('La OC esta vencida y sin saldo remanente certificable.');return;}
+    return consumirPosicionesOCV574Base(ocNro);
+  };
+  consumirPosicionesOC.__v574Wrapped=true;
+}
+function renderOrdenesV574Alineado(){
+  if(typeof v60PrepararOrdenes==='function')v60PrepararOrdenes();
+  cargarFiltrosOrdenes();
+  const rows=filtrarOrdenes(filasOrdenesBase()).map(r=>({...r,estadoVigenciaOperativa:calcularVigenciaOperativaOC(r.item)})).sort((a,b)=>String(a.idObra).localeCompare(String(b.idObra)));
+  if($('ordKTotal'))$('ordKTotal').textContent=rows.length;
+  if($('ordKObras'))$('ordKObras').textContent=rows.filter(r=>r.tipo==='Obra').length;
+  if($('ordKServicios'))$('ordKServicios').textContent=rows.filter(r=>r.tipo==='Servicio').length;
+  if($('ordKProxCert'))$('ordKProxCert').textContent=rows.filter(r=>r.estadoVigenciaOperativa!==V57_4_ESTADO_VENCIDA_SIN_SALDO&&r.calc?.prox&&diffDias(r.calc.prox,COI_TODAY)<=30).length;
+  const tbody=$('ordenesTbody');
+  if(!tbody)return;
+  tbody.innerHTML=rows.map(r=>{
+    const key=esc(r.idSeleccion||r.idObra),checked=typeof v45SeleccionOrdenes!=='undefined'&&v45SeleccionOrdenes.has(r.idSeleccion)?'checked':'';
+    const vigenciaHTML=v60BadgeEstado(r.estadoVigenciaOperativa);
+    const cerrada=[V60_ESTADO_CERRADA,V57_4_ESTADO_ARCHIVADA,V57_4_ESTADO_FINALIZADA].includes(r.estadoVigenciaOperativa)?' oc-cerrada-row':'';
+    return `<tr class="row-clickable${cerrada}" data-open-oc="${esc(r.idObra)}"><td class="orden-check-cell"><input type="checkbox" class="chk-orden-row" data-orden-key="${key}" ${checked}></td><td class="orden-id-col"><b>${esc(r.idObra)}</b></td><td class="orden-oc-col orden-oc-num">${esc(r.numeroOC||'--')}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.sector||'--')}</td><td>${esc(r.umVinculada||'--')}</td><td>${esc(r.tipoTrabajo||'--')}</td><td>${esc(r.estado)}</td><td>${fmtFecha(r.calc.prox)}</td><td>${fmtFecha(r.calc.venc)}</td><td class="orden-vigencia-cell">${vigenciaHTML}</td><td class="orden-actions-col">${botonFichaOC(r.item,'Ver ficha OC')}</td></tr>`;
+  }).join('')||'<tr><td colspan="13">Sin resultados para los filtros seleccionados.</td></tr>';
+  if(typeof v45ActualizarSeleccionOrdenes==='function')v45ActualizarSeleccionOrdenes();
+}
+renderOrdenes=renderOrdenesV574Alineado;
+
+
+/* V57.5 - Documentos por tipologia y vencimiento contractual por Acta de Inicio */
+const DOC_TIPOS_OC_V575=['Factura','Remito','OC','Acta de Inicio','Acta de Medición','DDJJ','PRINT SERCAE','Pliegos','Fotos','Otros'];
+const DOC_ESTRUCTURA_ONEDRIVE_V575=['00_OC','01_ACTA_INICIO','02_PLIEGOS','03_REMITOS','04_ACTAS_MEDICION','05_FACTURAS','06_DDJJ','07_PRINT_SERCAE','08_FOTOS','09_OTROS','10_CIERRE'];
+const DOC_CAMPOS_COMUNES_V575=['idDocumento','idObra','ocNro','tipoDocumento','numeroDocumento','fechaDocumento','estadoDocumento','repositorio','rutaOneDrive','linkOneDrive','observaciones','fechaCarga','usuarioCarga'];
+const DOC_CAMPOS_ESPECIFICOS_V575={
+  'OC':[
+    ['numeroOC','Numero OC'],['fechaEmisionOC','Fecha emision OC','date'],['expediente','Expediente'],['proveedor','Proveedor'],['cuitProveedor','CUIT proveedor'],['montoNetoOC','Monto neto OC','number'],['montoTotalOC','Monto total OC','number'],['moneda','Moneda'],['grupoCompras','Grupo compras'],['organizacionCompras','Organizacion compras'],['posicionesOC','Posiciones OC','textarea'],['linkDocumento','Link documento']
+  ],
+  'Acta de Inicio':[
+    ['fechaActaInicio','Fecha Acta de Inicio','date'],['plazoDias','Plazo dias','number'],['plazoMeses','Plazo meses','number'],['fechaVencimientoContractual','Fecha vencimiento contractual calculada','readonly'],['representanteSOFSE','Representante SOFSE'],['representanteProveedor','Representante proveedor'],['firmantes','Firmantes','textarea'],['observacionesInicio','Observaciones inicio','textarea'],['linkDocumento','Link documento']
+  ],
+  'Remito':[
+    ['numeroRemito','Numero remito'],['fechaRemito','Fecha remito','date'],['posicionOC','Posicion OC'],['descripcionTrabajo','Descripcion trabajo','textarea'],['cantidad','Cantidad','number'],['unidad','Unidad'],['linea','Linea'],['estacion','Estacion'],['sector','Sector'],['periodo','Periodo'],['recibidoConforme','Recibido conforme','select:Si|No|Pendiente'],['firmanteRecepcion','Firmante recepcion'],['actaMedicionAsociada','Acta medicion asociada'],['facturaAsociada','Factura asociada'],['linkDocumento','Link documento']
+  ],
+  'Acta de Medición':[
+    ['numeroActaMedicion','Número acta medición'],['fechaActaMedicion','Fecha acta medición','date'],['periodoDesde','Periodo desde','date'],['periodoHasta','Periodo hasta','date'],['avanceAnterior','Avance anterior %','number'],['avancePresente','Avance presente %','number'],['avanceAcumulado','Avance acumulado %','number'],['descripcionServicio','Descripcion servicio','textarea'],['posicionesAsociadas','Posiciones asociadas','textarea'],['remitosAsociados','Remitos asociados','textarea'],['montoCertificado','Monto certificado','number'],['facturaAsociada','Factura asociada'],['linkDocumento','Link documento']
+  ],
+  'Factura':[
+    ['tipoFactura','Tipo factura','select:A|B|C|M|Otro'],['puntoVenta','Punto venta'],['numeroFactura','Numero factura'],['fechaFactura','Fecha factura','date'],['proveedor','Proveedor'],['cuitProveedor','CUIT proveedor'],['remitosAsociados','Remitos asociados','textarea'],['actaMedicionAsociada','Acta medicion asociada'],['periodo','Periodo'],['montoNeto','Monto neto','number'],['iva','IVA','number'],['montoTotal','Monto total','number'],['cae','CAE'],['fechaVencimientoCAE','Fecha vencimiento CAE','date'],['fechaVencimientoPago','Fecha vencimiento pago','date'],['estadoFactura','Estado factura','select:Recibida|Pendiente CAE|CAE validado|Observada|Enviada a P&C|Pagada|Anulada'],['linkDocumento','Link documento'],['linkCAE','Link CAE']
+  ],
+  'DDJJ':[
+    ['periodo','Periodo'],['proveedor','Proveedor'],['fechaDDJJ','Fecha DDJJ','date'],['estadoDDJJ','Estado DDJJ','select:Pendiente|Presentada|Observada|Validada|Vencida'],['linkDocumento','Link documento'],['observacionesDDJJ','Observaciones DDJJ','textarea']
+  ],
+  'PRINT SERCAE':[
+    ['fechaConsulta','Fecha consulta','date'],['proveedor','Proveedor'],['periodo','Periodo'],['estadoSERCAE','Estado SERCAE','select:Pendiente|OK|Observado|Vencido|No aplica'],['resultadoSERCAE','Resultado SERCAE','textarea'],['linkDocumento','Link documento'],['observacionesSERCAE','Observaciones SERCAE','textarea']
+  ],
+  'Pliegos':[
+    ['tipoPliego','Tipo pliego','select:PET|Pliego tecnico|Pliego general|Especificacion tecnica|Otros'],['fechaPliego','Fecha pliego','date'],['expediente','Expediente'],['versionPliego','Version pliego'],['linkDocumento','Link documento'],['observacionesPliego','Observaciones pliego','textarea']
+  ],
+  'Fotos':[
+    ['fechaFoto','Fecha foto','date'],['estacion','Estacion'],['sector','Sector'],['etapaObra','Etapa obra','select:Antes|Durante|Despues|Evidencia|Observacion|Cierre'],['descripcionFoto','Descripcion foto','textarea'],['linkDocumento','Link documento'],['observacionesFoto','Observaciones foto','textarea']
+  ],
+  'Otros':[
+    ['descripcion','Descripcion','textarea'],['fechaDocumento','Fecha documento','date'],['categoriaLibre','Categoria libre'],['linkDocumento','Link documento'],['observaciones','Observaciones','textarea']
+  ]
+};
+
+function normalizarTipoDocumentoOC(tipo){
+  const raw=String(tipo||'').trim();
+  const t=(typeof normalizarTexto==='function'?normalizarTexto(raw):raw.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase()).replace(/\s+/g,' ').trim();
+  if(!t)return'Otros';
+  if(['OC','ORDEN DE COMPRA','ORDEN COMPRA','PEDIDO'].includes(t))return'OC';
+  if(['ACTA INICIO','ACTA DE INICIO','ACTAS DE INICIO','INICIO'].includes(t))return'Acta de Inicio';
+  if(['ACTA MEDICION','ACTA DE MEDICION','ACTA DE MEDICIÃ“N','ACTAS DE MEDICION','ME','MEDICION'].includes(t))return'Acta de Medici\u00f3n';
+  if(['FACTURA','FACTURAS','FACTURA A','FACTURA B','FACTURA C','FC'].includes(t))return'Factura';
+  if(['REMITO','REMITOS'].includes(t))return'Remito';
+  if(['DDJJ','DECLARACION JURADA','DECLARACIÃ“N JURADA','DECLARACIONES JURADAS'].includes(t))return'DDJJ';
+  if(['SERCAE','PRINT SERCAE','DOCUMENTOS SERCAE','CONSTANCIA SERCAE'].includes(t))return'PRINT SERCAE';
+  if(['PLIEGO','PLIEGOS'].includes(t))return'Pliegos';
+  if(['FOTO','FOTOS','FOTO / EVIDENCIA','FOTOGRAFIA','FOTOGRAFÃA'].includes(t))return'Fotos';
+  return'Otros';
+}
+
+if(Array.isArray(DOC_TIPOS_OC_V64))DOC_TIPOS_OC_V64.splice(0,DOC_TIPOS_OC_V64.length,...DOC_TIPOS_OC_V575);
+if(Array.isArray(DOC_TIPOS_FILTRO_OC_V572))DOC_TIPOS_FILTRO_OC_V572.splice(0,DOC_TIPOS_FILTRO_OC_V572.length,'Todos',...DOC_TIPOS_OC_V575);
+if(Array.isArray(DOC_TIPOS_FORM_OC_V572))DOC_TIPOS_FORM_OC_V572.splice(0,DOC_TIPOS_FORM_OC_V572.length,...DOC_TIPOS_OC_V575);
+
+function v575ParseFecha(v){return (typeof parseFechaFlexible==='function'?parseFechaFlexible(v):(typeof parseFechaSegura==='function'?parseFechaSegura(v):(typeof parseFecha==='function'?parseFecha(v):null)));}
+function v575ISO(v){const d=v instanceof Date?v:v575ParseFecha(v);return d&&!isNaN(d)?d.toISOString().slice(0,10):'';}
+function v575AddDias(date,dias){const d=new Date(date.getFullYear(),date.getMonth(),date.getDate());d.setDate(d.getDate()+Number(dias||0));return d;}
+function v575AddMeses(date,meses){const d=new Date(date.getFullYear(),date.getMonth(),date.getDate());d.setMonth(d.getMonth()+Number(meses||0));return d;}
+function calcularFechaVencimientoContractualOC(oc){
+  if(!oc)return'';
+  const inicio=v575ParseFecha(oc.fechaActaInicio||oc.actaInicio||oc.fechaInicioActa||oc.fechaInicio);
+  if(!inicio)return'';
+  const dias=Number(oc.plazoDias||oc.plazoOC||oc.plazo||oc['PLAZO OC (DIAS)']||0);
+  if(Number.isFinite(dias)&&dias>0)return v575ISO(v575AddDias(inicio,dias));
+  const meses=Number(oc.plazoMeses||oc.plazoContractualMeses||0);
+  if(Number.isFinite(meses)&&meses>0)return v575ISO(v575AddMeses(inicio,meses));
+  return'';
+}
+function v575AplicarVencimientoContractual(oc){
+  if(!oc)return oc;
+  const venc=calcularFechaVencimientoContractualOC(oc);
+  if(venc){oc.fechaVencimientoContractual=venc;oc.fechaFinContractual=venc;oc.fechaVencimiento=venc;oc.vencimiento=venc;oc.fechaFin=venc;oc.estadoVencimientoContractual='Calculado desde Acta de Inicio';}
+  else if(!(oc.fechaActaInicio||oc.actaInicio)){oc.estadoVencimientoContractual='Pendiente de Acta de Inicio';}
+  return oc;
+}
+if(typeof v574FechaVencimientoOC==='function')v574FechaVencimientoOC=function(oc){
+  v575AplicarVencimientoContractual(oc);
+  const valor=oc?.fechaVencimientoContractual||oc?.fechaFinContractual||oc?.fechaFin||oc?.fechaVencimiento||oc?.vencimiento||oc?.fin||oc?.fechaFinOC||oc?.fechaFinServicio;
+  if(typeof parseFechaSegura==='function')return parseFechaSegura(valor);
+  return typeof parseFecha==='function'?parseFecha(valor):v575ParseFecha(valor);
+};
+if(typeof v60FechaFinOC==='function')v60FechaFinOC=function(oc){return v574FechaVencimientoOC(oc);};
+if(typeof v60NormalizarOC==='function'){
+  const v60NormalizarOCV575Base=v60NormalizarOC;
+  v60NormalizarOC=function(oc){v575AplicarVencimientoContractual(oc);return v60NormalizarOCV575Base(oc);};
+}
+if(typeof todasLasOC==='function'&&!todasLasOC.__v575Wrapped){
+  const todasLasOCV575Base=todasLasOC;
+  todasLasOC=function(){return todasLasOCV575Base().map(r=>{const oc=r.item||{};v575AplicarVencimientoContractual(oc);const fin=v574FechaVencimientoOC(oc);return {...r,fin,fechaVencimientoContractual:oc.fechaVencimientoContractual||'',calc:{...(r.calc||{}),venc:fin}};});};
+  todasLasOC.__v575Wrapped=true;
+}
+
+const v64NormalizarDocumentoV575Base=typeof v64NormalizarDocumento==='function'?v64NormalizarDocumento:null;
+if(v64NormalizarDocumentoV575Base)v64NormalizarDocumento=function(d={},oc=null){
+  const out=v64NormalizarDocumentoV575Base(d,oc);
+  out.tipoDocumento=normalizarTipoDocumentoOC(out.tipoDocumento||d.tipoDoc||d.tipo);
+  out.numeroDocumento=out.numeroDocumento||out.nroDocumento||out.numero||'';
+  out.nroDocumento=out.nroDocumento||out.numeroDocumento||'';
+  out.repositorio=out.repositorio||d.repositorioDocumental||v64FolderRepo(oc)||'OneDrive';
+  out.rutaOneDrive=out.rutaOneDrive||out.rutaDocumental||d.rutaOneDrive||d.ruta||'';
+  out.rutaDocumental=out.rutaDocumental||out.rutaOneDrive||'';
+  out.linkOneDrive=out.linkOneDrive||out.linkDocumento||d.linkOneDrive||d.link||d.url||'';
+  out.linkDocumento=out.linkDocumento||out.linkOneDrive||'';
+  out.usuarioCarga=out.usuarioCarga||d.usuario||d.usuarioAlta||(typeof APP_AUTHOR!=='undefined'?APP_AUTHOR:'Usuario local');
+  out.fechaCarga=out.fechaCarga||new Date().toISOString();
+  return out;
+};
+if(typeof v64EsDocTipo==='function')v64EsDocTipo=function(d,t){return normalizarTipoDocumentoOC(d?.tipoDocumento||d?.tipoDoc||d?.tipo)===normalizarTipoDocumentoOC(t);};
+if(typeof v64DocLink==='function')v64DocLink=function(d){return d?.linkOneDrive||d?.linkDocumento||d?.link||d?.url||'';};
+if(typeof v64FolderLink==='function')v64FolderLink=function(oc){return oc?.linkCarpetaDocumental||oc?.linkCarpetaOneDrive||oc?.linkCarpeta||oc?.carpetaDocumentalLink||oc?.linkOneDrive||'';};
+if(typeof v64FolderRuta==='function')v64FolderRuta=function(oc){return oc?.rutaDocumental||oc?.rutaDocumentalPrincipal||oc?.carpetaDocumental||'';};
+if(typeof v64FolderRepo==='function')v64FolderRepo=function(oc){return oc?.repositorioDocumental||oc?.repositorioDocumentalPrincipal||'OneDrive';};
+
+function v575CampoDoc(d,key){return d?.[key]??'';}
+function v575RenderCampoDoc(def,d){
+  const [key,label,kind='text']=def,val=v64Esc(v575CampoDoc(d,key));
+  if(kind==='textarea')return `<label class="full">${v64Esc(label)}<textarea id="v575Doc_${v64Esc(key)}" data-v575-doc-field="${v64Esc(key)}">${val}</textarea></label>`;
+  if(kind.startsWith('select:')){const opts=kind.slice(7).split('|').map(o=>`<option ${o===v575CampoDoc(d,key)?'selected':''}>${v64Esc(o)}</option>`).join('');return `<label>${v64Esc(label)}<select id="v575Doc_${v64Esc(key)}" data-v575-doc-field="${v64Esc(key)}">${opts}</select></label>`;}
+  const ro=kind==='readonly'?'readonly':'',type=kind==='number'?'text':'text';
+  return `<label>${v64Esc(label)}<input id="v575Doc_${v64Esc(key)}" data-v575-doc-field="${v64Esc(key)}" value="${val}" ${ro} placeholder="${kind==='date'?'AAAA-MM-DD o DD/MM/AAAA':''}" type="${type}"></label>`;
+}
+function v575RenderCamposEspecificos(tipo,d){
+  tipo=normalizarTipoDocumentoOC(tipo);
+  const doc={...d};
+  if(tipo==='Acta de Inicio')doc.fechaVencimientoContractual=doc.fechaVencimientoContractual||calcularFechaVencimientoContractualOC(doc)||calcularFechaVencimientoContractualOC({...doc,fechaActaInicio:doc.fechaActaInicio||doc.fechaDocumento});
+  const campos=DOC_CAMPOS_ESPECIFICOS_V575[tipo]||DOC_CAMPOS_ESPECIFICOS_V575.Otros;
+  return `<div class="doc-form-section-title">Campos especificos: ${v64Esc(tipo)}</div><div data-v575-specific-fields class="full doc-form-grid">${campos.map(c=>v575RenderCampoDoc(c,doc)).join('')}</div>`;
+}
+if(typeof v64RenderModalDoc==='function')v64RenderModalDoc=function(oc){
+  if(v64DocEditandoOC!==v64KeyOC(oc))return'';
+  const existente=v64DocEditandoId&&v64DocEditandoId!=='__new__'?(documentacionOC||[]).find(d=>d.idDocumento===v64DocEditandoId):null;
+  const d=v64NormalizarDocumento(existente||{repositorio:v64FolderRepo(oc),linkCarpeta:v64FolderLink(oc)},oc);
+  d.tipoDocumento=normalizarTipoDocumentoOC(d.tipoDocumento);
+  const titulo=existente?'Editar documento':'Agregar documento';
+  return `<div class="doc-modal-overlay" data-v64-doc-modal><div class="doc-modal-card"><div class="doc-modal-head"><div><h3>${v64Esc(titulo)}</h3><p class="muted">Referencia documental asociada a la OC ${v64Esc(v64OCNro(oc)||v64KeyOC(oc))}.</p></div><button type="button" data-v64-doc-cancel>Cerrar</button></div><div class="doc-warning">El archivo no se guarda dentro del sistema. Pegue ruta y link de OneDrive/SharePoint/Drive.</div><div class="doc-form-grid" data-v64-doc-form data-doc-id="${v64Esc(existente?.idDocumento||'__new__')}" data-oc-key="${v64Esc(v64KeyOC(oc))}"><label>Tipo documento<select id="v64DocTipo">${v64Options(DOC_TIPOS_OC_V575,d.tipoDocumento)}</select></label><label>N documento<input id="v64DocNro" value="${v64Esc(d.numeroDocumento||d.nroDocumento)}"></label><label>Nombre archivo<input id="v64DocNombre" value="${v64Esc(d.nombreArchivo)}"></label><label>Repositorio<select id="v64DocRepo">${v64Options(DOC_REPOSITORIOS_OC_V64,d.repositorio)}</select></label><label>Fecha documento<input id="v64DocFecha" value="${v64Esc(d.fechaDocumento)}" placeholder="AAAA-MM-DD o DD/MM/AAAA"></label><label>Estado documento<select id="v64DocEstado">${v64Options(DOC_ESTADOS_OC_V64,d.estadoDocumento)}</select></label><label class="full">Ruta OneDrive<input id="v64DocRuta" value="${v64Esc(d.rutaOneDrive||d.rutaDocumental)}"></label><label class="full">Link OneDrive / documento<input id="v64DocLink" value="${v64Esc(v64DocLink(d))}" placeholder="https://..."></label><label class="full">Link carpeta<input id="v64DocLinkCarpeta" value="${v64Esc(d.linkCarpeta||v64FolderLink(oc))}" placeholder="https://..."></label>${v575RenderCamposEspecificos(d.tipoDocumento,d)}<label class="full">Tomar nombre desde archivo<input id="v64DocFile" type="file" data-v64-doc-file></label><label class="full">Observaciones<textarea id="v64DocObs">${v64Esc(d.observaciones)}</textarea></label></div><div class="doc-modal-actions"><button type="button" data-v64-doc-cancel>Cancelar</button><button type="button" class="primary" data-v64-doc-save>Guardar documento</button></div></div></div>`;
+};
+
+function v575LeerCamposEspecificos(form,doc){
+  form.querySelectorAll('[data-v575-doc-field]').forEach(el=>{doc[el.dataset.v575DocField]=el.value?.trim?.()||'';});
+  if(doc.numeroDocumento&&!doc.nroDocumento)doc.nroDocumento=doc.numeroDocumento;
+  if(doc.linkOneDrive&&!doc.linkDocumento)doc.linkDocumento=doc.linkOneDrive;
+  if(doc.rutaOneDrive&&!doc.rutaDocumental)doc.rutaDocumental=doc.rutaOneDrive;
+  return doc;
+}
+function v575ActualizarOCDesdeDocumento(oc,doc){
+  if(!oc||!doc)return;
+  if(doc.tipoDocumento==='Acta de Inicio'){
+    oc.fechaActaInicio=v575ISO(doc.fechaActaInicio||doc.fechaDocumento)||doc.fechaActaInicio||doc.fechaDocumento||oc.fechaActaInicio||'';
+    if(doc.plazoDias)oc.plazoDias=doc.plazoDias;
+    if(doc.plazoMeses)oc.plazoMeses=doc.plazoMeses;
+    v575AplicarVencimientoContractual(oc);
+  }
+  if(doc.tipoDocumento==='Acta de Medición'){
+    oc.actasMedicion=Array.isArray(oc.actasMedicion)?oc.actasMedicion:[];
+    const idx=oc.actasMedicion.findIndex(a=>a.idDocumento===doc.idDocumento);
+    const acta={idDocumento:doc.idDocumento,numero:doc.numeroActaMedicion||doc.nroDocumento||doc.numeroDocumento,fecha:v575ISO(doc.fechaActaMedicion||doc.fechaDocumento),periodoDesde:v575ISO(doc.periodoDesde),periodoHasta:v575ISO(doc.periodoHasta),avanceFisico:doc.avanceAcumulado||doc.avancePresente||'',montoCertificado:doc.montoCertificado||'',observaciones:doc.observaciones||doc.descripcionServicio||'',fuente:'Documento'};
+    if(idx>=0)oc.actasMedicion[idx]=acta;else oc.actasMedicion.push(acta);
+    if(acta.periodoHasta){const prox=v575AddDias(v575ParseFecha(acta.periodoHasta),1);oc.proximaCertificacion=v575ISO(prox);oc.proxCertificacion=oc.proximaCertificacion;oc.PROX_CERTIFICACION=oc.proximaCertificacion;}
+    if(acta.avanceFisico){oc.avanceFisico=acta.avanceFisico;oc.avancePorc=acta.avanceFisico;oc.AVANCE_PORC=acta.avanceFisico;}
+    if(acta.montoCertificado)oc.montoCertificado=acta.montoCertificado;
+  }
+  oc.fechaUltimaModificacion=new Date().toISOString();
+}
+if(typeof v64LeerDocForm==='function')v64LeerDocForm=function(form,oc,existing=null){
+  const get=id=>form.querySelector('#'+id)?.value?.trim()||'';
+  const tipo=normalizarTipoDocumentoOC(get('v64DocTipo'));
+  if(!tipo){alert('Seleccione tipo de documento.');return null;}
+  const now=v64Now(),nombre=get('v64DocNombre');
+  const doc=v64NormalizarDocumento(existing||{},oc);
+  Object.assign(doc,{tipoDocumento:tipo,numeroDocumento:get('v64DocNro'),nroDocumento:get('v64DocNro'),nombreArchivo:nombre,extensionArchivo:get('v64DocExtension')||v64Ext(nombre),repositorio:get('v64DocRepo')||'OneDrive',rutaOneDrive:get('v64DocRuta'),rutaDocumental:get('v64DocRuta'),linkOneDrive:get('v64DocLink'),linkDocumento:get('v64DocLink'),linkCarpeta:get('v64DocLinkCarpeta'),fechaDocumento:v575ISO(get('v64DocFecha'))||get('v64DocFecha'),estadoDocumento:get('v64DocEstado')||'Pendiente',observaciones:get('v64DocObs'),usuarioCarga:doc.usuarioCarga||APP_AUTHOR||'Usuario local',fechaUltimaModificacion:now});
+  doc.fechaCarga=doc.fechaCarga||now;
+  v575LeerCamposEspecificos(form,doc);
+  if(!doc.numeroDocumento)doc.numeroDocumento=doc.numeroOC||doc.numeroRemito||doc.numeroActaMedicion||doc.numeroFactura||doc.nroDocumento||'';
+  if(!doc.nroDocumento)doc.nroDocumento=doc.numeroDocumento;
+  v575ActualizarOCDesdeDocumento(oc,doc);
+  return doc;
+};
+
+function v575FaltantesCriticosOC(oc,docs){
+  const tipos=new Set((docs||[]).map(d=>normalizarTipoDocumentoOC(d.tipoDocumento)));
+  const faltan=[];
+  if(!tipos.has('OC'))faltan.push('OC');
+  const estado=normalizarTexto([oc?.estado,oc?.estadoCOI,oc?.estadoDocumental].filter(Boolean).join(' '));
+  const activa=estado.includes('EJECUC')||estado.includes('ACTIV')||estado.includes('CONTROL')||estado.includes('PLANIFICACION')||estado.includes('VIGENTE');
+  if(activa&&!tipos.has('Acta de Inicio'))faltan.push('Acta de Inicio');
+  const tieneFactura=tipos.has('Factura');
+  if(tieneFactura&&!tipos.has('PRINT SERCAE'))faltan.push('PRINT SERCAE / validacion CAE si corresponde');
+  return faltan;
+}
+function v575KpisDocs(docs,oc){
+  const contar=t=>(docs||[]).filter(d=>normalizarTipoDocumentoOC(d.tipoDocumento)===t).length;
+  return {total:docs.length,oc:contar('OC'),inicio:contar('Acta de Inicio'),remitos:contar('Remito'),actas:contar('Acta de Medición'),facturas:contar('Factura'),ddjj:contar('DDJJ'),sercae:contar('PRINT SERCAE'),pliegos:contar('Pliegos'),fotos:contar('Fotos'),sinLink:docs.filter(d=>!v64DocLink(d)).length,faltantes:v575FaltantesCriticosOC(oc,docs).length};
+}
+function v575RenderTablaDocumentosOC(docs,admin){
+  const rows=docs.map(d=>`<tr><td>${v64Esc(normalizarTipoDocumentoOC(d.tipoDocumento))}</td><td>${v64Esc(d.numeroDocumento||d.nroDocumento||'--')}</td><td>${v64Esc(d.nombreArchivo||'--')}</td><td>${v64Esc(d.repositorio||'--')}</td><td>${d.fechaDocumento?fmtFecha(d.fechaDocumento):'--'}</td><td><span class="doc-badge ${v64EstadoClass(d.estadoDocumento)}">${v64Esc(d.estadoDocumento||'Pendiente')}</span></td><td>${v64DocLink(d)?'<span class="doc-link-ok">Con link</span>':'<span class="doc-link-missing">Sin link</span>'}</td><td>${v64Esc(d.observaciones||'--')}</td><td><div class="doc-actions"><button type="button" data-v64-doc-open="${v64Esc(d.idDocumento)}">Abrir</button><button type="button" data-v64-doc-copy="${v64Esc(d.idDocumento)}">Copiar link</button>${admin?`<button type="button" data-v64-doc-edit="${v64Esc(d.idDocumento)}">Editar</button><button type="button" class="btn-danger-soft" data-v64-doc-delete="${v64Esc(d.idDocumento)}">Eliminar</button>`:''}</div></td></tr>`).join('');
+  return `<div class="table-wrap"><table class="coi-table"><thead><tr><th>Tipo</th><th>N documento</th><th>Archivo</th><th>Repositorio</th><th>Fecha</th><th>Estado</th><th>Link</th><th>Observaciones</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function v575RenderDocumentosAgrupados(docs,admin){
+  if(!docs.length)return'<div class="doc-empty-filter">No hay documentos para el tipo seleccionado.</div>';
+  const grupos={};
+  docs.forEach(d=>{const t=normalizarTipoDocumentoOC(d.tipoDocumento);(grupos[t]||(grupos[t]=[])).push(d);});
+  return DOC_TIPOS_OC_V575.filter(t=>grupos[t]?.length).map(t=>`<div class="doc-type-group"><h4>${v64Esc(t)}<span class="doc-type-count">${grupos[t].length}</span></h4>${v575RenderTablaDocumentosOC(grupos[t],admin)}</div>`).join('');
+}
+if(typeof v64RenderDocumentosFichaOC==='function')v64RenderDocumentosFichaOC=function(oc){
+  const key=v64KeyOC(oc),docs=v64DocsOC(oc).map(d=>v64NormalizarDocumento(d,oc)),filtros=getFiltrosDocumentosOC(key),filtrados=filtrarDocumentosOC(docs,filtros),admin=v64EsAdmin(),folderLink=v64FolderLink(oc),k=v575KpisDocs(docs,oc),faltantes=v575FaltantesCriticosOC(oc,docs);
+  const folder=`<div class="doc-folder-card"><h4>Carpeta documental OneDrive</h4>${admin?`<div class="doc-folder-grid" data-v64-folder-form="${v64Esc(key)}"><label>Repositorio<select id="v64FolderRepo">${v64Options(DOC_REPOSITORIOS_OC_V64,v64FolderRepo(oc))}</select></label><label>Ruta<input id="v64FolderRuta" value="${v64Esc(v64FolderRuta(oc))}"></label><label>Link carpeta<input id="v64FolderLink" value="${v64Esc(folderLink)}"></label></div><div class="doc-folder-actions"><button type="button" class="primary" data-v64-save-folder="${v64Esc(key)}">Guardar carpeta documental</button><button type="button" data-v64-open-folder="${v64Esc(key)}">Abrir carpeta documental</button><button type="button" data-v575-copy-onedrive>Copiar estructura sugerida OneDrive</button></div>`:`<div class="grid"><div><b>Repositorio</b>${v64Esc(v64FolderRepo(oc))}</div><div><b>Ruta</b>${v64Esc(v64FolderRuta(oc)||'--')}</div><div><b>Link carpeta</b>${folderLink?'<span class="doc-link-ok">Disponible</span>':'<span class="doc-link-missing">Sin link</span>'}</div></div><div class="doc-folder-actions"><button type="button" data-v64-open-folder="${v64Esc(key)}">Abrir carpeta documental</button><button type="button" data-v575-copy-onedrive>Copiar estructura sugerida OneDrive</button></div>`}</div>`;
+  const aviso=faltantes.length?`<div class="doc-critical-box">Documentos faltantes criticos<ul>${faltantes.map(x=>`<li>${v64Esc(x)}</li>`).join('')}</ul></div>`:'<div class="doc-critical-box ok">Sin faltantes criticos detectados para el estado actual.</div>';
+  const filterBar=v572RenderFiltroDocumental(key,docs,filtrados,filtros);
+  return `<h3>5. Documentos / Expediente Digital</h3><p class="muted">Referencias documentales por tipologia. El formulario muestra solo campos aplicables a cada documento.</p><div class="doc-contract-note">El vencimiento contractual se calcula desde el Acta de Inicio.</div>${folder}${aviso}<div class="doc-kpi-grid">${[['Total documentos',k.total],['OC',k.oc],['Actas de inicio',k.inicio],['Remitos',k.remitos],['Actas medición',k.actas],['Facturas',k.facturas],['DDJJ',k.ddjj],['PRINT SERCAE',k.sercae],['Pliegos',k.pliegos],['Fotos',k.fotos],['Sin link',k.sinLink],['Faltantes criticos',k.faltantes]].map(x=>`<div class="doc-kpi"><b>${v64Esc(x[1])}</b><span>${v64Esc(x[0])}</span></div>`).join('')}</div>${filterBar}<div class="doc-toolbar"><div>${admin?'<span class="doc-badge cargado">Administrador: edicion habilitada</span>':'<span class="doc-badge">Jefatura: consulta habilitada</span>'}</div><div class="admin-actions">${admin?`<button type="button" class="primary" data-v64-doc-add="${v64Esc(key)}">Agregar documento</button>`:'<button type="button" disabled>Agregar documento</button>'}<button type="button" data-v64-open-folder="${v64Esc(key)}">Abrir carpeta documental</button><button type="button" data-v64-doc-export="${v64Esc(key)}">Exportar documentos CSV</button><button type="button" class="doc-export-filtered" data-v572-doc-export-filtered="${v64Esc(key)}">Exportar vista filtrada CSV</button></div></div>${filtrados.length?v575RenderDocumentosAgrupados(filtrados,admin):(docs.length?'<div class="doc-empty-filter">No hay documentos para el tipo seleccionado.</div>':'<div class="doc-empty">Esta OC aun no tiene documentacion digital asociada.</div>')}${v64RenderModalDoc(oc)}`;
+};
+v572RenderDocumentosFichaOC=v64RenderDocumentosFichaOC;
+
+if(typeof v64GuardarCarpetaOC==='function')v64GuardarCarpetaOC=function(key){
+  if(!v64EsAdmin()){alert('Solo Administrador puede modificar la carpeta documental.');return;}
+  const found=v64BuscarOC(key),oc=found?.item||found;if(!oc)return;
+  oc.repositorioDocumental=document.getElementById('v64FolderRepo')?.value||'OneDrive';
+  oc.repositorioDocumentalPrincipal=oc.repositorioDocumental;
+  oc.rutaDocumental=document.getElementById('v64FolderRuta')?.value||'';
+  oc.rutaDocumentalPrincipal=oc.rutaDocumental;
+  oc.carpetaDocumental=oc.rutaDocumental;
+  oc.linkCarpetaDocumental=document.getElementById('v64FolderLink')?.value||'';
+  oc.linkCarpetaOneDrive=oc.linkCarpetaDocumental;
+  oc.fechaUltimaModificacion=v64Now();
+  if(typeof guardarBaseLocal==='function')guardarBaseLocal();
+  if(typeof registrarLogSistema==='function')registrarLogSistema('carpeta_documental','Carpeta documental OC actualizada',v64OCNro(oc)||key);
+  v64RerenderFichaOC(oc,'panelFichaDocumentos');
+};
+
+function v575TodosCamposDocumento(){
+  const spec=[...new Set(Object.values(DOC_CAMPOS_ESPECIFICOS_V575).flat().map(x=>x[0]))];
+  return [...new Set([...DOC_CAMPOS_COMUNES_V575,'nroDocumento','nombreArchivo','linkDocumento','rutaDocumental','linkCarpeta','fechaUltimaModificacion',...spec])];
+}
+if(typeof v64ExportarDocumentosCSV==='function')v64ExportarDocumentosCSV=function(docs,nombre){
+  const h=v575TodosCamposDocumento(),rows=[h,...(docs||[]).map(d=>{const nd=v64NormalizarDocumento(d);return h.map(k=>nd[k]??'');})];
+  descargarArchivo(nombre,v64CSV(rows),'text/csv;charset=utf-8');
+  if(typeof registrarLogSistema==='function')registrarLogSistema('exportacion_documentos_csv','Documentacion OC exportada',nombre);
+};
+if(typeof obtenerBackupCompletoCOI==='function'&&!obtenerBackupCompletoCOI.__v575Wrapped){
+  const obtenerBackupCompletoCOIV575Base=obtenerBackupCompletoCOI;
+  obtenerBackupCompletoCOI=function(){const p=obtenerBackupCompletoCOIV575Base();p.datos=p.datos||{};p.datos.documentos=(documentacionOC||[]).map(d=>v64NormalizarDocumento(d));p.datos.estructuraOneDriveSugerida=DOC_ESTRUCTURA_ONEDRIVE_V575;p.datos.modeloDocumentalVersion='V57.5';return p;};
+  obtenerBackupCompletoCOI.__v575Wrapped=true;
+}
+document.addEventListener('change',ev=>{
+  if(ev.target?.id!=='v64DocTipo')return;
+  const form=ev.target.closest('[data-v64-doc-form]');if(!form)return;
+  const cont=form.querySelector('[data-v575-specific-fields]');if(!cont)return;
+  cont.outerHTML=v575RenderCamposEspecificos(ev.target.value,{});
+});
+document.addEventListener('click',ev=>{
+  if(!ev.target.closest('[data-v575-copy-onedrive]'))return;
+  const txt=DOC_ESTRUCTURA_ONEDRIVE_V575.join('\n');
+  if(navigator.clipboard?.writeText)navigator.clipboard.writeText(txt).then(()=>alert('Estructura OneDrive copiada.')).catch(()=>alert(txt));
+  else alert(txt);
+});
+
 function init(){
   if(typeof inicializarModoAccesoSeguro==='function') inicializarModoAccesoSeguro();
   loadImportedData();
@@ -7937,6 +8672,84 @@ function initNavegacionRespaldoCOI(){
   if(btnBusqueda&&!btnBusqueda.dataset.coiBusquedaRespaldo){btnBusqueda.dataset.coiBusquedaRespaldo="1";btnBusqueda.addEventListener("click",function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}if(typeof abrirModuloOrdenes==='function')abrirModuloOrdenes(true);else{coiMostrarVistaSegura('vistaOrdenes','btnOrdenes');if(typeof renderOrdenes==='function')renderOrdenes();}});}
   console.log('COI: navegacion de respaldo inicializada');
 }
+
+/* V57.6R - Calendario COI en submódulos separados: Vista Inteligente / Vista Calendario / Tablas */
+let coiCalendarioTabActivo = 'inteligente';
+function nombreMesCalendarioCOI(indice){
+  const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  return meses[Number(indice)] || '';
+}
+function actualizarResumenPeriodoCalendarioCOI(){
+  const cont=document.getElementById('coiPeriodoResumen');
+  if(!cont || typeof filtrarEventosCalendarioCOI!=='function') return;
+  const estado=calendarioOperativoEstado?.coi || {year:new Date().getFullYear(),month:new Date().getMonth()};
+  const eventos=filtrarEventosCalendarioCOI('coi');
+  const filtros=[
+    ['Estación',document.getElementById('coiEstacion')?.value||''],
+    ['Proveedor',document.getElementById('coiProveedor')?.value||''],
+    ['Tipo',document.getElementById('coiTipo')?.value||''],
+    ['Evento',document.getElementById('coiEvento')?.value||''],
+    ['Estado',document.getElementById('coiEstado')?.value||'']
+  ].filter(x=>x[1]);
+  cont.innerHTML=`<span>Mostrando eventos de <b>${esc(nombreMesCalendarioCOI(estado.month))} ${esc(estado.year)}</b></span><span><b>${eventos.length}</b> eventos encontrados${filtros.length?' · '+filtros.map(x=>`${esc(x[0])}: ${esc(x[1])}`).join(' · '):''}</span>`;
+}
+function renderCalendarioInteligenteCOI(){
+  const cont=document.getElementById('calendarioInteligenteCOI');
+  if(!cont)return;
+  if(typeof aplicarFiltrosGlobalesCalendarioCOI==='function') aplicarFiltrosGlobalesCalendarioCOI();
+  const eventos=filtrarEventosCalendarioCOI('coi',generarEventosCalendarioCOI()).filter(e=>['Certificación servicio','Certificación obra','Vencimiento OC','Avance de obra','Envío a Planificación y Control','Documentación pendiente','Alerta factura anticipada'].includes(e.tipoEvento));
+  const grupos=['Hoy','Próximos 7 días','Próximos 15 días','Próximos 30 días','Vencidas'];
+  const por=Object.fromEntries(grupos.map(g=>[g,[]]));
+  eventos.forEach(e=>{const g=categoriaCalendarioInteligente(e); if(g&&por[g]) por[g].push(e);});
+  const sinClasificar=eventos.filter(e=>!categoriaCalendarioInteligente(e));
+  // Si el mes elegido tiene eventos fuera de la ventana de 30 días, los dejamos visibles en la primera columna sin romper el diseño anterior.
+  if(sinClasificar.length){por['Hoy'].push(...sinClasificar);}
+  cont.innerHTML=`<div class="calendar-intel"><h3>Vista Inteligente</h3><div class="muted" style="margin-bottom:10px">Resumen operativo del período seleccionado. Usa los filtros globales superiores.</div><div class="calendar-intel-grid">${grupos.map((g,idx)=>{const titulo=(idx===0&&sinClasificar.length)?'Hoy / otros del mes':g;return `<div class="calendar-intel-card"><h4>${esc(titulo)} (${por[g].length})</h4>${por[g].slice(0,8).map(e=>{const dias=diffDias(e.fecha,COI_TODAY);return `<div class="calendar-intel-event"><b>${esc(e.tipoEvento)}</b>${esc(e.oc)} · ${esc(e.estacion)}<br>${esc(e.proveedor)}<br>${fmtFecha(e.fecha)} · ${dias===null?'—':dias} días · ${esc(e.estado)}<br>${botonFichaOC(e.item,'Ver ficha OC')}</div>`;}).join('')||'<div class="calendar-intel-empty">Sin eventos.</div>'}</div>`;}).join('')}</div></div>`;
+}
+function renderCalendarioCOIUnificado(){
+  // Primero leer DOM para no resetear el mes/año seleccionado al recargar opciones.
+  if(typeof aplicarFiltrosGlobalesCalendarioCOI==='function') aplicarFiltrosGlobalesCalendarioCOI();
+  if(typeof cargarFiltrosCalendarioCOIUnificado==='function') cargarFiltrosCalendarioCOIUnificado();
+  if(typeof aplicarFiltrosGlobalesCalendarioCOI==='function') aplicarFiltrosGlobalesCalendarioCOI();
+  actualizarResumenPeriodoCalendarioCOI();
+  if(typeof renderCalendarioInteligenteCOI==='function') renderCalendarioInteligenteCOI();
+  if(typeof renderCalendarioOperativoCOI==='function') renderCalendarioOperativoCOI('coi');
+  if(typeof renderTablasCalendarioCOI==='function') renderTablasCalendarioCOI();
+  activarTabCalendarioCOI(coiCalendarioTabActivo || 'inteligente', false);
+}
+function activarTabCalendarioCOI(tab, renderizar=true){
+  coiCalendarioTabActivo = tab || 'inteligente';
+  document.querySelectorAll('#vistaCalendarioCOI [data-coi-tab]').forEach(b=>b.classList.toggle('active',b.dataset.coiTab===coiCalendarioTabActivo));
+  document.querySelectorAll('#vistaCalendarioCOI .coi-tab-panel').forEach(p=>p.classList.remove('active'));
+  const id='coiTab'+coiCalendarioTabActivo.charAt(0).toUpperCase()+coiCalendarioTabActivo.slice(1);
+  const panel=document.getElementById(id);
+  if(panel) panel.classList.add('active');
+  if(renderizar && typeof renderCalendarioCOIUnificado==='function') renderCalendarioCOIUnificado();
+}
+function initCalendarioCOIUnificado(){
+  ['coiYear','coiMonth','coiEstacion','coiProveedor','coiTipo','coiEvento','coiEstado'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el&&!el.dataset.coiFiltroV576r){
+      el.dataset.coiFiltroV576r='1';
+      el.addEventListener('change',renderCalendarioCOIUnificado);
+    }
+  });
+  const csv=document.getElementById('btnCoiCsv');
+  if(csv&&!csv.dataset.coiExportV576r){csv.dataset.coiExportV576r='1';csv.addEventListener('click',()=>exportarEventosCalendarioOperativo('coi','csv'));}
+  const ics=document.getElementById('btnCoiIcs');
+  if(ics&&!ics.dataset.coiExportV576r){ics.dataset.coiExportV576r='1';ics.addEventListener('click',()=>exportarEventosCalendarioOperativo('coi','ics'));}
+  if(!document.body.dataset.coiTabsCalendarioV576r){
+    document.body.dataset.coiTabsCalendarioV576r='1';
+    document.addEventListener('click',ev=>{
+      const tab=ev.target.closest('#vistaCalendarioCOI [data-coi-tab]');
+      if(!tab) return;
+      ev.preventDefault();
+      activarTabCalendarioCOI(tab.dataset.coiTab,true);
+    });
+  }
+  activarTabCalendarioCOI(coiCalendarioTabActivo || 'inteligente', false);
+}
+
 try{
   init();
 }catch(err){
