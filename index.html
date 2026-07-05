@@ -1165,13 +1165,13 @@ body.modo-consulta #alertTabCalidadDatos,body.modo-consulta #alertTabTodas{displ
         </div>
       </div>
       <div id="panelCargaServicio" class="quick-load-panel active">
-        <div class="quick-load-wrap"><table class="quick-load-table"><thead id="cargaRapidaServicioHead"></thead><tbody id="cargaRapidaServicioBody"></tbody></table></div>
+        <div class="quick-load-wrap"><table class="quick-load-table carga-grid-table"><thead id="cargaRapidaServicioHead"></thead><tbody id="cargaRapidaServicioBody"></tbody></table></div>
       </div>
       <div id="panelCargaObra" class="quick-load-panel">
-        <div class="quick-load-wrap"><table class="quick-load-table"><thead id="cargaRapidaObraHead"></thead><tbody id="cargaRapidaObraBody"></tbody></table></div>
+        <div class="quick-load-wrap"><table class="quick-load-table carga-grid-table"><thead id="cargaRapidaObraHead"></thead><tbody id="cargaRapidaObraBody"></tbody></table></div>
       </div>
       <div id="panelCargaFinanciera" class="quick-load-panel">
-        <div class="quick-load-wrap"><table class="quick-load-table"><thead id="cargaRapidaFinancieraHead"></thead><tbody id="cargaRapidaFinancieraBody"></tbody></table></div>
+        <div class="quick-load-wrap"><table class="quick-load-table carga-grid-table"><thead id="cargaRapidaFinancieraHead"></thead><tbody id="cargaRapidaFinancieraBody"></tbody></table></div>
       </div>
       <div id="cargaRapidaMsg" class="quick-load-msg">Carga activa: Servicio. Complete filas o pegue desde Excel.</div>
     </section>
@@ -5711,7 +5711,7 @@ function finV54Control(c,v=''){
 function renderCargaFinanciera(){
   const panel=$('panelCargaFinanciera'); if(!panel)return;
   const cfg=finV54Config();
-  panel.innerHTML=`<div class="fin-load-toolbar"><label for="finTipoBloqueCarga">Tipo de carga financiera:</label><select id="finTipoBloqueCarga">${Object.entries(FIN_V54_BLOQUES).map(([k,v])=>`<option value="${k}" ${k===finV54BloqueActivo?'selected':''}>${esc(v.label)}</option>`).join('')}</select><span class="muted">La grilla cambia columnas según el bloque seleccionado.</span></div><div class="quick-load-wrap"><table class="quick-load-table"><thead id="cargaRapidaFinancieraHead"></thead><tbody id="cargaRapidaFinancieraBody"></tbody></table></div>`;
+  panel.innerHTML=`<div class="fin-load-toolbar"><label for="finTipoBloqueCarga">Tipo de carga financiera:</label><select id="finTipoBloqueCarga">${Object.entries(FIN_V54_BLOQUES).map(([k,v])=>`<option value="${k}" ${k===finV54BloqueActivo?'selected':''}>${esc(v.label)}</option>`).join('')}</select><span class="muted">La grilla cambia columnas según el bloque seleccionado.</span></div><div class="quick-load-wrap"><table class="quick-load-table carga-grid-table"><thead id="cargaRapidaFinancieraHead"></thead><tbody id="cargaRapidaFinancieraBody"></tbody></table></div>`;
   $('finTipoBloqueCarga')?.addEventListener('change',ev=>{finV54BloqueActivo=ev.target.value;renderCargaFinanciera();if($('cargaRapidaMsg'))$('cargaRapidaMsg').textContent='Carga financiera: '+finV54Config().label+'. Pegue desde Excel con estas columnas.';});
   const head=$('cargaRapidaFinancieraHead'),body=$('cargaRapidaFinancieraBody');
   head.innerHTML=`<tr><th>#</th>${cfg.headers.map(h=>`<th class="excel-service-head">${esc(h)}</th>`).join('')}</tr>`;
@@ -5998,7 +5998,7 @@ function renderGrillaFinanciera(tipoBloque){
 }
 function renderCargaFinanciera(){
   const panel=$('panelCargaFinanciera');if(!panel)return;
-  panel.innerHTML=`<div class="fin-load-toolbar"><label for="finTipoBloqueCarga">Tipo de carga financiera:</label><select id="finTipoBloqueCarga">${Object.entries(FIN_V55_BLOQUES).map(([k,v])=>`<option value="${k}" ${k===finV55BloqueActivo?'selected':''}>${esc(v.label)}</option>`).join('')}</select><span class="muted">Cada subtipo usa columnas propias para pegar desde Excel.</span></div><div class="quick-load-wrap"><table class="quick-load-table"><thead id="cargaRapidaFinancieraHead"></thead><tbody id="cargaRapidaFinancieraBody"></tbody></table></div>`;
+  panel.innerHTML=`<div class="fin-load-toolbar"><label for="finTipoBloqueCarga">Tipo de carga financiera:</label><select id="finTipoBloqueCarga">${Object.entries(FIN_V55_BLOQUES).map(([k,v])=>`<option value="${k}" ${k===finV55BloqueActivo?'selected':''}>${esc(v.label)}</option>`).join('')}</select><span class="muted">Cada subtipo usa columnas propias para pegar desde Excel.</span></div><div class="quick-load-wrap"><table class="quick-load-table carga-grid-table"><thead id="cargaRapidaFinancieraHead"></thead><tbody id="cargaRapidaFinancieraBody"></tbody></table></div>`;
   $('finTipoBloqueCarga')?.addEventListener('change',ev=>{renderGrillaFinanciera(ev.target.value);if($('cargaRapidaMsg'))$('cargaRapidaMsg').textContent='Carga financiera: '+finV55Bloque(finV55BloqueActivo).label+'.';});
   renderGrillaFinanciera(finV55BloqueActivo);
 }
@@ -8955,7 +8955,7 @@ function initCalendarioCOIUnificado(){if(initCalendarioCOIUnificadoV58Base)initC
    mantiene navegación, Órdenes, Carga, Calendario y Alertas.
    ========================================================= */
 (function(){
-  const FIX_VERSION = 'V58.0R2';
+  const FIX_VERSION = 'V58.0R3';
   const $fix = (id)=>document.getElementById(id);
   const html = (v)=>String(v ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const normFix = (v)=>String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
@@ -9127,6 +9127,95 @@ function initCalendarioCOIUnificado(){if(initCalendarioCOIUnificadoV58Base)initC
     }catch(e){ console.error('COI Fix guardar carga',e); alert('No se pudo guardar la carga: '+(e.message||e)); }
   }
 
+
+  /* V58.0R3 - Pegado tabular Excel / Sheets en módulo Carga */
+  function parsearClipboardTabularFix(texto){
+    if(!texto) return [];
+    return String(texto)
+      .replace(/\r\n/g,'\n')
+      .replace(/\r/g,'\n')
+      .split('\n')
+      .filter(linea=>linea.trim()!=='')
+      .map(linea=>linea.split('\t'));
+  }
+  function tipoDesdeTablaCargaFix(tabla){
+    if(!tabla) return cargaTipoFix || 'Servicio';
+    if(tabla.closest('#panelCargaObra')) return 'Obra';
+    if(tabla.closest('#panelCargaFinanciera')) return 'Financiera';
+    return 'Servicio';
+  }
+  function refrescarFilaCargaPegadaFix(tr,tipo){
+    if(!tr) return;
+    try{
+      if(tipo==='Financiera' && typeof actualizarFilaFinanciera==='function') actualizarFilaFinanciera(tr);
+      else if(typeof v45ActualizarFila==='function') v45ActualizarFila(tr);
+    }catch(e){ console.warn('COI V58.0R3: no se pudo recalcular fila pegada', e); }
+  }
+  function pegarMatrizEnGrillaCargaFix(inputInicial, matriz){
+    const tabla=inputInicial?.closest?.('#vistaCarga table.quick-load-table,#vistaCarga table.carga-grid-table');
+    if(!tabla || !Array.isArray(matriz) || !matriz.length) return;
+    const tipo=tipoDesdeTablaCargaFix(tabla);
+    let filas=Array.from(tabla.querySelectorAll('tbody tr'));
+    const filaInicial=inputInicial.closest('tr');
+    const celdaInicial=inputInicial.closest('td');
+    if(!filaInicial || !celdaInicial || !filas.length) return;
+    const rowStart=filas.indexOf(filaInicial);
+    const celdasIniciales=Array.from(filaInicial.querySelectorAll('td'));
+    const colStart=celdasIniciales.indexOf(celdaInicial);
+    if(rowStart<0 || colStart<0) return;
+
+    const faltan=(rowStart + matriz.length) - filas.length;
+    if(faltan>0){
+      try{ agregarFilasCargaFix(tipo, Math.ceil(faltan/5)*5); }
+      catch(e){ console.warn('COI V58.0R3: no se pudieron agregar filas automáticamente', e); }
+      filas=Array.from(tabla.querySelectorAll('tbody tr'));
+    }
+
+    matriz.forEach((filaValores,rOffset)=>{
+      const filaDestino=filas[rowStart+rOffset];
+      if(!filaDestino) return;
+      const celdasDestino=Array.from(filaDestino.querySelectorAll('td'));
+      filaValores.forEach((valor,cOffset)=>{
+        const celdaDestino=celdasDestino[colStart+cOffset];
+        if(!celdaDestino) return;
+        const control=celdaDestino.querySelector('input, textarea, select');
+        if(!control || control.disabled || control.readOnly) return;
+        control.value=String(valor ?? '').trim();
+        control.dispatchEvent(new Event('input',{bubbles:true}));
+        control.dispatchEvent(new Event('change',{bubbles:true}));
+      });
+      refrescarFilaCargaPegadaFix(filaDestino,tipo);
+    });
+
+    try{
+      if(tipo==='Financiera') Array.from(tabla.querySelectorAll('tbody tr')).forEach(tr=>refrescarFilaCargaPegadaFix(tr,tipo));
+      else Array.from(tabla.querySelectorAll('tbody tr')).forEach(tr=>refrescarFilaCargaPegadaFix(tr,tipo));
+    }catch(e){}
+    if($fix('cargaRapidaMsg')){
+      const filasPegadas=matriz.length;
+      const colsPegadas=Math.max(...matriz.map(r=>r.length));
+      $fix('cargaRapidaMsg').textContent=`Pegado desde Excel aplicado: ${filasPegadas} fila${filasPegadas===1?'':'s'} x ${colsPegadas} columna${colsPegadas===1?'':'s'}. Revise y presione Guardar registros.`;
+      $fix('cargaRapidaMsg').className='quick-load-msg ok carga-status-bar';
+    }
+  }
+  function manejarPegadoGrillaCargaFix(ev){
+    const target=ev.target;
+    if(!target || !target.matches?.('input, textarea, select')) return;
+    if(!target.closest('#vistaCarga')) return;
+    const tabla=target.closest('table.quick-load-table,table.carga-grid-table');
+    if(!tabla) return;
+    const texto=(ev.clipboardData || window.clipboardData)?.getData('text/plain') || (ev.clipboardData || window.clipboardData)?.getData('text') || '';
+    if(!texto) return;
+    const esTabular=texto.includes('\t') || texto.includes('\n') || texto.includes('\r');
+    if(!esTabular) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(typeof ev.stopImmediatePropagation==='function') ev.stopImmediatePropagation();
+    const matriz=parsearClipboardTabularFix(texto);
+    if(!matriz.length) return;
+    pegarMatrizEnGrillaCargaFix(target,matriz);
+  }
+
   function eventosCalendarioFix(){
     const eventos=[];
     safeRowsFix().forEach(r=>{
@@ -9238,6 +9327,8 @@ function initCalendarioCOIUnificado(){if(initCalendarioCOIUnificadoV58Base)initC
 
   function conectarEventosFix(){
     if(document.body.dataset.coiFixEventos==='1') return; document.body.dataset.coiFixEventos='1';
+    document.removeEventListener('paste', manejarPegadoGrillaCargaFix, true);
+    document.addEventListener('paste', manejarPegadoGrillaCargaFix, true);
     const nav={btnDashboard:['vistaDashboard',()=>{try{updateKpis();}catch(e){} renderDashboardAlertSummaryFix();}],btnRed:['vistaRed',()=>{try{renderMap();}catch(e){}}],btnCalendarioCOI:['vistaCalendarioCOI',renderCalendarioFix],btnCentroAlertas:['vistaCentroAlertas',renderCentroAlertasFix],btnOrdenes:['vistaOrdenes',renderOrdenesFix],btnCarga:['vistaCarga',renderCargaFix],btnAdministracionSistema:['vistaAdministracionSistema',()=>{try{renderAdministracionSistema();}catch(e){}}],btnAcercaSistema:['vistaAcercaSistema',()=>{try{renderAcercaSistema();}catch(e){}}],btnUnidadesMantenimiento:['vistaUnidadesMantenimiento',()=>{try{renderUnidadesMantenimiento();}catch(e){}}]};
     Object.entries(nav).forEach(([id,[vista,fn]])=>{ const b=$fix(id); if(!b)return; b.addEventListener('click',ev=>{ev.preventDefault(); ev.stopImmediatePropagation(); mostrarVistaFix(vista,id); try{fn();}catch(e){console.error('COI Fix render '+vista,e);} },true); });
     $fix('btnAccesoBusquedaOrdenes')?.addEventListener('click',ev=>{ev.preventDefault();ev.stopImmediatePropagation();mostrarVistaFix('vistaOrdenes','btnOrdenes');renderOrdenesFix();$fix('ordenesBusqueda')?.focus();},true);
