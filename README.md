@@ -2,7 +2,7 @@
 
 🔗 Acceso al sistema:
 
-https://msp-byte.github.io/HTML-COI-Linea-Roca/index.html?v=5825
+https://msp-byte.github.io/HTML-COI-Linea-Roca/
 
 
 ## Sistema COI – Línea General Roca
