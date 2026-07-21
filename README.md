@@ -6,7 +6,7 @@ https://msp-byte.github.io/HTML-COI-Linea-Roca/
 
 Versión actualizada con botón “Actualizar datos Supabase” en Ficha OC:
 
-https://msp-byte.github.io/HTML-COI-Linea-Roca/?v=r38-financiero-oc-estable
+https://msp-byte.github.io/HTML-COI-Linea-Roca/?v=r381-boot-fix
 
 ## Sistema COI – Línea General Roca
 ## Gestión Integral de Obras y Servicios
