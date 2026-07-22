@@ -1,0 +1,25 @@
+{
+  "version": "V58.1R38.2-CONTROL-TERCEROS-FIX",
+  "date": "2026-07-22",
+  "production_writes": 0,
+  "checks": {
+    "targeted_static_contract": {"status": "passed", "checks": 11},
+    "inline_javascript_syntax": {"status": "passed", "scripts_checked": 33, "failures": 0},
+    "chromium_selenium_suite": {
+      "status": "blocked_environment",
+      "reason": "Selenium/Chromium are not installed; npm and apt downloads returned HTTP 403 in the execution environment.",
+      "log": "TEST_CONTROL_TERCEROS_BROWSER.log",
+      "production_requests_attempted": 0
+    }
+  },
+  "browser_cases_implemented": [
+    "edit without persistence",
+    "cancel restores original without persistence",
+    "save performs one mocked update for current nro_oc",
+    "event delegation survives re-render",
+    "changing OC discards draft",
+    "permissions hide controls",
+    "invalid and pre-2000 dates do not persist"
+  ],
+  "overall": "implementation checks passed; browser execution pending in an environment with Chromium and Selenium"
+}

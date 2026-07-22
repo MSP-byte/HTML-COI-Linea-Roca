@@ -1,0 +1,18 @@
+{
+  "version": "V58.1R38.3-IMPUTACION-POSICIONES-CANTIDADES",
+  "date": "2026-07-22",
+  "production_supabase_writes": 0,
+  "results": {
+    "core_exact_functions": {"status": "passed", "pos_key": "160.10", "cantidad_imputada": 4, "monto_imputado": 1424505.60, "cantidad_remanente": 1, "monto_remanente": 356126.40},
+    "static_contract": {"status": "passed", "checks": 16},
+    "inline_javascript_syntax": {"status": "passed", "scripts": 33, "failures": 0},
+    "selenium_chromium": {
+      "status": "blocked_environment",
+      "reason": "Selenium and Chromium are unavailable in the container; dependency downloads are blocked by HTTP 403.",
+      "log": "TEST_IMPUTACION_POSICIONES_BROWSER.log",
+      "screenshot": null
+    }
+  },
+  "browser_suite_implemented": ["exact master/POS identity", "partial consumption", "detailed confirmation", "cancel confirmation", "total follow-up consumption", "excess rejection", "multi-selection", "textual POS normalization", "reload persistence"],
+  "overall": "deterministic checks passed; browser verification remains pending and the issue is not declared browser-verified"
+}
