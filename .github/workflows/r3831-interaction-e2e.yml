@@ -1,0 +1,26 @@
+name: R3831 Interaction E2E
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  chromium-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-save @playwright/test
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test e2e/r3831-interaction.spec.js --reporter=line
+        env:
+          R3831_HOLD_MS: 600000
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r3831-performance-results
+          path: |
+            playwright-r3831-results.json
+            test-results/
