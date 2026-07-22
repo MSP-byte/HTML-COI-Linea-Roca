@@ -1478,23 +1478,6 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
 </style>
 </head>
 <body>
-<script id="coi-interaction-early-errors">
-/* Chrome profile audit: collect runtime failures without storing credentials or data. */
-(function(){
-  'use strict';
-  if(window.__COI_INTERACTION_EARLY__)return;
-  const state=window.__COI_INTERACTION_EARLY__={errors:[],rejections:[],startedAt:Date.now()};
-  const safeMessage=value=>String(value?.message||value||'Error sin detalle').slice(0,1200);
-  window.addEventListener('error',event=>{
-    state.errors.push({at:new Date().toISOString(),message:safeMessage(event.error||event.message),source:String(event.filename||'').split('/').pop(),line:Number(event.lineno||0)});
-    if(state.errors.length>20)state.errors.shift();
-  });
-  window.addEventListener('unhandledrejection',event=>{
-    state.rejections.push({at:new Date().toISOString(),message:safeMessage(event.reason)});
-    if(state.rejections.length>20)state.rejections.shift();
-  });
-})();
-</script>
 <header class="main-header">
   <div class="brand brand-logo" aria-label="Trenes Argentinos Linea Roca">
     <span class="brand-logo-mark" data-logo-fallback="Linea Roca">
@@ -18263,6 +18246,7 @@ function installOverrides(){
   window.renderCentroAlertas=function(){const result=baseRenderAlerts?baseRenderAlerts.apply(this,arguments):undefined;fixAlerts();return result;};
   window.navegarDesdeKPI=navigateKpi;
 }
+let versionObserver=null;
 function applyVersion(){
   window.APP_VERSION=VERSION;
   ['appVersionHeader','headerVersionOperativa'].forEach(id=>{const e=$(id);if(e&&e.textContent!==VERSION)e.textContent=VERSION;});
@@ -18270,6 +18254,12 @@ function applyVersion(){
 }
 function setVersion(){
   applyVersion();
+  if(versionObserver)return;
+  versionObserver=new MutationObserver(()=>applyVersion());
+  const header=$('appVersionHeader')?.parentElement||document.querySelector('.app-identity');
+  const footer=$('footerOperativo')||document.querySelector('.operative-footer');
+  if(header)versionObserver.observe(header,{childList:true,subtree:true,characterData:true});
+  if(footer)versionObserver.observe(footer,{childList:true,subtree:true,characterData:true});
 }
 function bind(){
   if(window.__coiEventosFiltrosOrdenesR14Inicializados)return;
@@ -24049,228 +24039,6 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     }
   }catch(e){}
   console.log('COI hotfix: parseMontoARS/parseNumero unificados con parser ARS correcto (fix #1 montos).');
-})();
-</script>
-
-<style id="coi-interaction-diagnostics-styles">
-#coiInteractionDebugPanel{position:fixed;top:150px;right:10px;z-index:2147483000;width:min(340px,calc(100vw - 20px));max-height:calc(100vh - 230px);overflow:auto;padding:11px;border:1px solid #9fb6c7;border-radius:8px;background:#fff;color:#172f45;box-shadow:0 12px 32px rgba(10,30,43,.22);font:12px/1.4 Arial,sans-serif;pointer-events:auto}
-#coiInteractionDebugPanel[hidden]{display:none!important}#coiInteractionDebugPanel h2{margin:0 0 8px;font-size:14px;color:#17384f}#coiInteractionDebugPanel dl{display:grid;grid-template-columns:92px minmax(0,1fr);gap:4px 8px;margin:0}#coiInteractionDebugPanel dt{font-weight:700;color:#50697a}#coiInteractionDebugPanel dd{margin:0;overflow-wrap:anywhere}#coiInteractionDebugPanel .coi-debug-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}#coiInteractionDebugPanel button{min-height:30px;padding:5px 8px;border-radius:5px;font-size:11px}#coiInteractionRecoveryNotice{position:fixed;right:16px;bottom:78px;z-index:2147482999;max-width:420px;padding:10px 12px;border:1px solid #d7a92d;border-radius:7px;background:#fff8e1;color:#654b00;box-shadow:0 10px 28px rgba(10,30,43,.18);font:700 12px/1.4 Arial,sans-serif;pointer-events:none}
-@media(max-width:700px){#coiInteractionDebugPanel{top:150px;right:6px;width:calc(100vw - 12px);max-height:42vh}}
-</style>
-<script id="coi-chrome-profile-interaction-diagnostics">
-/*
-  Chrome profile diagnostics. This layer is intentionally additive: it does not
-  clear storage, alter Supabase configuration, close sessions or remove foreign nodes.
-*/
-(function(){
-  'use strict';
-  if(window.__COI_INTERACTION_DIAGNOSTICS_INSTALLED__)return;
-  window.__COI_INTERACTION_DIAGNOSTICS_INSTALLED__=true;
-
-  const startedAt=window.__COI_INTERACTION_EARLY__?.startedAt||Date.now();
-  const sourceInventory={fixed:24,inset0:11,pointerEvents:14,highZIndex:21,documentOrWindowListeners:370,captureListeners:3,preventDefault:143,stopPropagation:22,stopImmediatePropagation:70,mutationObservers:7,resizeObservers:0,intersectionObservers:1,setIntervals:3,setTimeouts:182,requestAnimationFrames:14,onAuthStateChange:1,supabaseClients:1};
-  const principalButtons=['btnDashboard','btnRed','btnCalendarioCOI','btnOrdenes','btnCarga','btnAdministracionSistema','btnCentroAlertas','btnAccesoBusquedaOrdenes'];
-  const ownModalSelectors=['#supabaseAuthModal','.doc-modal-overlay','.op-modal','.circuito-historial-modal','.exec-modal','[data-v64-doc-modal]'];
-  const ownLoaderSelectors=['#coiBootIndicator','.coi-boot-indicator','.coi-loader','.coi-loading','[data-coi-loader]'];
-  const state={auth:{status:'unknown',hasSession:false,checkedAt:null},readyReason:'',watchdogPending:true,lastDiagnostic:null};
-
-  function text(value){return String(value??'').trim()}
-  function visible(element){
-    if(!element||element.hidden)return false;
-    const style=getComputedStyle(element),rect=element.getBoundingClientRect();
-    return style.display!=='none'&&style.visibility!=='hidden'&&rect.width>0&&rect.height>0;
-  }
-  function extensionHint(element){
-    if(!element)return false;
-    const attrs=[...element.attributes||[]].map(attr=>`${attr.name}=${attr.value}`).join(' ');
-    const root=element.getRootNode?.();
-    return /(?:chrome|moz|safari-web)-extension:/i.test(attrs)||/(?:grammarly|lastpass|bitwarden|dashlane|1password|adguard|ublock)/i.test(`${element.id} ${element.className} ${attrs}`)||root instanceof ShadowRoot;
-  }
-  function describeElement(element){
-    if(!element)return null;
-    const style=getComputedStyle(element),rect=element.getBoundingClientRect();
-    return {tag:element.tagName,id:element.id||'',className:text(element.className).slice(0,240),position:style.position,zIndex:style.zIndex,pointerEvents:style.pointerEvents,display:style.display,visibility:style.visibility,opacity:style.opacity,rect:{x:Math.round(rect.x),y:Math.round(rect.y),width:Math.round(rect.width),height:Math.round(rect.height)},extensionHint:extensionHint(element),diagnosticOwn:element.id==='coiInteractionDebugPanel'||!!element.closest?.('#coiInteractionDebugPanel')};
-  }
-  function topAtElement(element,label){
-    if(!element)return {label,missing:true};
-    const rect=element.getBoundingClientRect();
-    if(rect.width<=0||rect.height<=0)return {label,hidden:true,element:describeElement(element)};
-    const x=Math.max(0,Math.min(innerWidth-1,rect.left+rect.width/2)),y=Math.max(0,Math.min(innerHeight-1,rect.top+rect.height/2));
-    const top=document.elementFromPoint(x,y);
-    return {label,point:{x:Math.round(x),y:Math.round(y)},legitimate:top===element||element.contains(top),target:describeElement(element),top:describeElement(top)};
-  }
-  function getTopElements(){
-    const center=document.elementFromPoint(Math.floor(innerWidth/2),Math.floor(innerHeight/2));
-    return [{label:'viewport-center',point:{x:Math.floor(innerWidth/2),y:Math.floor(innerHeight/2)},top:describeElement(center)},...principalButtons.map(id=>topAtElement(document.getElementById(id),id))];
-  }
-  function getFixedElements(){
-    const result=[];
-    for(const element of document.body?.querySelectorAll('*')||[]){
-      const style=getComputedStyle(element);
-      if(style.position!=='fixed')continue;
-      result.push(describeElement(element));
-      if(result.length>=120)break;
-    }
-    return result;
-  }
-  function isViewportBlocker(item){
-    if(!item||item.diagnosticOwn||item.display==='none'||item.visibility==='hidden'||item.pointerEvents==='none')return false;
-    const area=item.rect.width*item.rect.height,viewport=Math.max(1,innerWidth*innerHeight);
-    return area/viewport>=0.55;
-  }
-  function getVisible(selectorList){
-    return [...document.querySelectorAll(selectorList.join(','))].filter(visible).map(describeElement);
-  }
-  function safeStorageKeys(){
-    const keys=[];
-    try{for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(!key)continue;keys.push(/token|jwt|password|secret/i.test(key)?'[sensitive-key-redacted]':key)}}catch(error){keys.push('[localStorage-unavailable]')}
-    return [...new Set(keys)].sort();
-  }
-  function activeView(){return document.querySelector('.view.active')?.id||''}
-  function diagnostic(){
-    const fixed=getFixedElements(),tops=getTopElements();
-    const pointBlockers=tops.filter(item=>item.target&&!item.legitimate&&item.top&&!item.top.diagnosticOwn).map(item=>({...item.top,detectedAt:item.label,reason:'elementFromPoint'}));
-    const blocking=[...fixed.filter(isViewportBlocker).map(item=>({...item,reason:'fixed viewport coverage'})),...pointBlockers];
-    const uniqueBlocking=[...new Map(blocking.map(item=>[`${item.tag}|${item.id}|${item.className}|${item.reason}`,item])).values()];
-    const early=window.__COI_INTERACTION_EARLY__||{errors:[],rejections:[]};
-    const result={
-      version:text(window.APP_VERSION||document.getElementById('appVersionHeader')?.textContent||'unknown'),
-      url:location.href,
-      bodyClasses:[...document.body.classList],
-      appReady:window.__COI_APP_READY===true,
-      authState:{...state.auth},
-      activeView:activeView(),
-      topElementsAtCenter:tops,
-      blockingOverlays:uniqueBlocking,
-      fixedElements:fixed,
-      visibleModals:getVisible(ownModalSelectors),
-      pendingLoaders:getVisible(ownLoaderSelectors),
-      recentErrors:[...early.errors],
-      recentPromiseRejections:[...early.rejections],
-      observersDetected:{source:sourceInventory.mutationObservers+sourceInventory.resizeObservers+sourceInventory.intersectionObservers,mutation:sourceInventory.mutationObservers,resize:sourceInventory.resizeObservers,intersection:sourceInventory.intersectionObservers,knownRuntime:{legacyBodyObserverConnected:!!window.__coiV67Observer,fichaObserverPresent:typeof window.fichaOCObserverV63!=='undefined'&&!!window.fichaOCObserverV63}},
-      timersDetected:{sourceTimeouts:sourceInventory.setTimeouts,sourceIntervals:sourceInventory.setIntervals,sourceAnimationFrames:sourceInventory.requestAnimationFrames,diagnosticWatchdogPending:state.watchdogPending},
-      sourceInventory,
-      localStorageKeys:safeStorageKeys(),
-      userAgent:navigator.userAgent
-    };
-    state.lastDiagnostic=result;
-    console.log('COI interaction diagnostic',result);
-    return result;
-  }
-  window.COIDiagnosticoInteraccion=diagnostic;
-
-  async function authStateWithTimeout(timeoutMs=2500){
-    let client=null;
-    try{client=typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null}catch(error){}
-    if(!client?.auth?.getSession){state.auth={status:'unavailable',hasSession:false,checkedAt:new Date().toISOString()};return state.auth}
-    let timer;
-    try{
-      const response=await Promise.race([
-        Promise.resolve(client.auth.getSession()),
-        new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('session-timeout')),timeoutMs)})
-      ]);
-      if(response?.error)throw response.error;
-      state.auth={status:response?.data?.session?'valid':'none',hasSession:!!response?.data?.session,checkedAt:new Date().toISOString()};
-    }catch(error){state.auth={status:error?.message==='session-timeout'?'timeout':'error',hasSession:false,checkedAt:new Date().toISOString(),message:text(error?.message).slice(0,240)}}
-    finally{clearTimeout(timer)}
-    return state.auth;
-  }
-  function hasLegitimateModal(){return getVisible(ownModalSelectors).some(item=>!item.diagnosticOwn)}
-  function mainDomPresent(){return !!(document.getElementById('moduleNav')&&document.getElementById('vistaDashboard')&&document.querySelector('.view.active'))}
-  function navigationHitTestPasses(){
-    const candidates=principalButtons.map(id=>document.getElementById(id)).filter(el=>visible(el));
-    return candidates.length>0&&candidates.some(button=>topAtElement(button,button.id).legitimate);
-  }
-  function markReady(reason){
-    if(window.__COI_APP_READY===true)return true;
-    if(!mainDomPresent()||hasLegitimateModal()||!navigationHitTestPasses())return false;
-    window.__COI_APP_READY=true;state.readyReason=reason||'interactive';
-    if(window.APP_STATE)window.APP_STATE.ready=true;
-    window.dispatchEvent(new CustomEvent('coi:ready',{detail:{reason:state.readyReason,at:new Date().toISOString()}}));
-    updateDebugPanel();
-    return true;
-  }
-  function recoveryNotice(message){
-    let notice=document.getElementById('coiInteractionRecoveryNotice');
-    if(!notice){notice=document.createElement('div');notice.id='coiInteractionRecoveryNotice';document.body.appendChild(notice)}
-    notice.textContent=message;clearTimeout(notice.__timer);notice.__timer=setTimeout(()=>notice.remove(),7000);
-  }
-  async function recover(){
-    const before=diagnostic(),auth=await authStateWithTimeout(),changes=[];
-    const age=Date.now()-startedAt,active=activeView();
-    if(age>=8000&&mainDomPresent()&&document.body.classList.contains('coi-booting')){document.body.classList.remove('coi-booting');changes.push('body.coi-booting')}
-    if(auth.hasSession&&document.body.classList.contains('auth-locked')){document.body.classList.remove('auth-locked');changes.push('body.auth-locked')}
-    if(active!=='vistaDashboard'&&document.body.classList.contains('dashboard-focus-mode')){document.body.classList.remove('dashboard-focus-mode');changes.push('body.dashboard-focus-mode')}
-    if(active!=='vistaOrdenes'&&document.body.classList.contains('orders-analytics-focus')){document.body.classList.remove('orders-analytics-focus');changes.push('body.orders-analytics-focus')}
-    for(const selector of ownLoaderSelectors){
-      for(const element of document.querySelectorAll(selector)){
-        if(age>=8000&&visible(element)){element.hidden=true;element.style.display='none';changes.push(selector)}
-      }
-    }
-    for(const selector of ownModalSelectors){
-      for(const element of document.querySelectorAll(selector)){
-        if(!visible(element))continue;
-        const hasCard=!!element.querySelector('[role="dialog"],.supabase-auth-card,.doc-modal-card,.op-modal-card,.circuito-historial-card,.exec-modal-card');
-        if(!hasCard){element.hidden=true;element.style.display='none';changes.push(`${selector}:orphan`)}
-      }
-    }
-    const nav=document.getElementById('moduleNav');
-    if(nav){nav.style.pointerEvents='';nav.removeAttribute('aria-busy')}
-    principalButtons.forEach(id=>{const button=document.getElementById(id);if(button&&button.disabled){button.disabled=false;changes.push(`${id}:enabled`)}});
-    if(!hasLegitimateModal()&&!document.body.classList.contains('dashboard-focus-mode')&&!document.body.classList.contains('orders-analytics-focus'))document.body.style.overflow='';
-    const ready=markReady(changes.length?'safe-recovery':'manual-check');
-    const after=diagnostic();
-    const result={recovered:changes.length>0,changes,ready,auth,before,after};
-    if(changes.length)recoveryNotice('La interfaz fue recuperada en modo seguro. Abra el diagn\u00f3stico para revisar el bloqueo detectado.');
-    return result;
-  }
-  window.COIRecuperarInterfaz=recover;
-
-  function debugTopLabel(report){
-    const blocker=report.blockingOverlays[0];
-    if(!blocker)return 'Sin bloqueo detectado';
-    return `${blocker.tag||''}${blocker.id?`#${blocker.id}`:''}${blocker.extensionHint?' (posible extensi\u00f3n)':''}`;
-  }
-  function updateDebugPanel(){
-    const panel=document.getElementById('coiInteractionDebugPanel');if(!panel)return;
-    const report=diagnostic(),lastError=report.recentErrors.at(-1)?.message||report.recentPromiseRejections.at(-1)?.message||'Sin errores';
-    const values={coiDebugVersion:report.version,coiDebugReady:report.appReady?`Listo (${state.readyReason||'ready'})`:'Pendiente',coiDebugSession:report.authState.status,coiDebugView:report.activeView||'Sin vista activa',coiDebugBody:report.bodyClasses.join(' ')||'(sin clases)',coiDebugOverlay:debugTopLabel(report),coiDebugError:lastError};
-    Object.entries(values).forEach(([id,value])=>{const el=document.getElementById(id);if(el)el.textContent=value});
-  }
-  function createDebugPanel(){
-    if(document.getElementById('coiInteractionDebugPanel'))return;
-    const panel=document.createElement('aside');panel.id='coiInteractionDebugPanel';panel.setAttribute('aria-label','Diagn\u00f3stico de interacci\u00f3n COI');
-    panel.innerHTML='<h2>Diagn\u00f3stico de interacci\u00f3n</h2><dl><dt>Versi\u00f3n</dt><dd id="coiDebugVersion"></dd><dt>Arranque</dt><dd id="coiDebugReady"></dd><dt>Sesi\u00f3n</dt><dd id="coiDebugSession"></dd><dt>Vista</dt><dd id="coiDebugView"></dd><dt>Body</dt><dd id="coiDebugBody"></dd><dt>Elemento superior</dt><dd id="coiDebugOverlay"></dd><dt>\u00daltimo error</dt><dd id="coiDebugError"></dd></dl><div class="coi-debug-actions"><button type="button" data-coi-debug-copy>Copiar diagn\u00f3stico</button><button type="button" data-coi-debug-recover>Recuperar interfaz</button><button type="button" data-coi-debug-hide>Ocultar panel</button></div>';
-    document.body.appendChild(panel);
-    panel.addEventListener('click',async event=>{
-      if(event.target.closest('[data-coi-debug-hide]')){panel.hidden=true;return}
-      if(event.target.closest('[data-coi-debug-recover]')){await recover();updateDebugPanel();return}
-      if(event.target.closest('[data-coi-debug-copy]')){
-        const payload=JSON.stringify(diagnostic(),null,2);
-        try{await navigator.clipboard.writeText(payload)}catch(error){const area=document.createElement('textarea');area.value=payload;document.body.appendChild(area);area.select();document.execCommand('copy');area.remove()}
-      }
-    });
-    updateDebugPanel();
-  }
-  function debugRequested(){try{return new URLSearchParams(location.search).get('coiDebug')==='1'}catch(error){return false}}
-  function onDomReady(){
-    if(debugRequested())createDebugPanel();
-    authStateWithTimeout().finally(()=>{markReady('dom-ready');updateDebugPanel()});
-    setTimeout(()=>markReady('post-dom-ready'),1500);
-    window.addEventListener('load',()=>{authStateWithTimeout().finally(()=>{markReady('window-load');updateDebugPanel()})},{once:true});
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',onDomReady,{once:true});else onDomReady();
-  window.addEventListener('coi:ready',updateDebugPanel);
-
-  setTimeout(async()=>{
-    state.watchdogPending=false;
-    if(window.__COI_APP_READY===true)return;
-    const auth=await authStateWithTimeout(),report=diagnostic();
-    console.warn('COI watchdog: la aplicaci\u00f3n no hab\u00eda emitido coi:ready a los 8 segundos.',report);
-    if(auth.hasSession&&mainDomPresent())await recover();
-    else if(mainDomPresent()&&!hasLegitimateModal()&&navigationHitTestPasses())markReady('local-degraded');
-    updateDebugPanel();
-  },8000);
 })();
 </script>
 
