@@ -1487,7 +1487,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
     <span class="brand-copy"><small>TRENES ARGENTINOS</small><strong>L&Iacute;NEA ROCA</strong></span>
   </div>
   <div class="app-identity" title="Sistema Integrado de Gestion de Obras y Servicios">
-    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge">V58.1R38.2-CONTROL-TERCEROS-FIX</span></div>
+    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge">V58.1R38.1-BOOT-FIX-FINANCIERO-OC</span></div>
     <div class="app-subtitle" id="appSubtitleHeader">Sistema Integrado de Gesti&oacute;n de Obras y Servicios</div>
     <div class="app-tagline" id="appTaglineHeader">Sistema operativo COI L&iacute;nea Roca &mdash; Gesti&oacute;n de Obras, Servicios, Certificaciones y Vencimientos</div>
   </div>
@@ -1515,7 +1515,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
   </div>
   <div class="footer-status-grid">
     <span class="footer-pill"><span>Sistema</span><b id="footerSistemaNombre">COI L&iacute;nea Roca</b></span>
-    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa">V58.1R38.2-CONTROL-TERCEROS-FIX</b></span>
+    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa">V58.1R38.1-BOOT-FIX-FINANCIERO-OC</b></span>
     <span class="footer-pill"><span>&Uacute;ltima actualizaci&oacute;n</span><b id="headerUltimaActualizacion">Sin datos</b></span>
     <span class="footer-pill"><span>OCs cargadas</span><b id="headerTotalOC">0</b></span>
     <span class="footer-pill mode"><span>Estado</span><b id="headerModoSistema">Modo Operativo</b></span>
@@ -5280,7 +5280,7 @@ function activarHoverEstaciones(){
    V32.1 - Acerca del Sistema + Historial de versiones
    =============================== */
 const APP_NAME = "COI Línea Roca";
-const APP_VERSION = "V58.1R38.2-CONTROL-TERCEROS-FIX";
+const APP_VERSION = "V58.1R38.1-BOOT-FIX-FINANCIERO-OC";
 const APP_STATUS = "Versión operativa en desarrollo";
 const APP_RELEASE_DATE = "2026-07-17";
 const APP_AUTHOR = "Mariano Special";
@@ -7665,7 +7665,7 @@ const _renderAuditorDatosV60Base=typeof renderAuditorDatos==='function'?renderAu
 if(_renderAuditorDatosV60Base){renderAuditorDatos=function(){_renderAuditorDatosV60Base();const a=typeof ejecutarDiagnosticoSistema==='function'?ejecutarDiagnosticoSistema():{};if($('adminTabAuditor'))$('adminTabAuditor').insertAdjacentHTML('beforeend',`<div class="admin-panel"><h3>Diagnostico vigencia operativa</h3><div class="admin-status-grid">${adminCard('Vencida sin estado vigencia',a.ocVencidaSinEstadoVigencia||0)}${adminCard('Certificable sin saldo',a.ocVencidaCertificableSinSaldo||0)}${adminCard('Certificable sin motivo',a.ocVencidaCertificableSinMotivo||0)}${adminCard('Certificable sin responsable',a.ocVencidaCertificableSinResponsable||0)}${adminCard('No certificable con saldo',a.ocVencidaNoCertificableConSaldo||0)}${adminCard('Cerrada con saldo',a.ocCerradaConSaldoRemanente||0)}${adminCard('Estado contradictorio',a.ocEstadoContradictorio||0)}</div></div>`);};}
 
 /* V61 - Auditoria integral y hardening V57 */
-const COI_HARDENING_VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+const COI_HARDENING_VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
 function escapeHTML(valor){return typeof esc==='function'?esc(valor):String(valor??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function normalizarTextoSeguro(valor){return String(valor??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toUpperCase();}
 const _normalizarTextoV61Base=typeof normalizarTexto==='function'?normalizarTexto:null;
@@ -9705,7 +9705,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
    mantiene navegación, Órdenes, Carga, Calendario y Alertas.
    ========================================================= */
 (function(){
-  const FIX_VERSION = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const FIX_VERSION = 'V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const $fix = (id)=>document.getElementById(id);
   const html = (v)=>String(v ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const normFix = (v)=>String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
@@ -10298,7 +10298,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
    rendericen aunque algún panel tenga error interno.
    ========================================================= */
 (function(){
-  const FIX_ADMIN_VERSION = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const FIX_ADMIN_VERSION = 'V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const $a = (id)=>document.getElementById(id);
   const escA = (v)=>String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const titleA = (v)=>String(v||'estado').replace(/(^|_)([a-záéíóúñ])/gi,(_,p,c)=>c.toUpperCase()).replace(/_/g,'');
@@ -10460,7 +10460,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
    - Persiste la baja en localStorage vía guardarBaseLocal().
    ========================================================= */
 (function(){
-  const VERSION_ORDENES_DELETE_FIX = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_ORDENES_DELETE_FIX = 'V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const qs = (sel,ctx=document)=>ctx.querySelector(sel);
   const qsa = (sel,ctx=document)=>Array.from(ctx.querySelectorAll(sel));
   const txt = v => String(v ?? '').trim();
@@ -10670,7 +10670,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
    =============================== */
 (function(){
   'use strict';
-  const VERSION_CARGA_FIN_R7 = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_CARGA_FIN_R7 = 'V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const FIN_BLOCKS_R7 = {
     POSICION_OC: {
       label: 'Posiciones OC',
@@ -10940,7 +10940,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
    V58.0R9 - Cartel de carga financiera y borrado selectivo de posiciones
    =============================== */
 (function(){
-  const VERSION_FIN_R8 = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_FIN_R8 = 'V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const $r8 = (id)=>document.getElementById(id);
   const escR8 = (v)=>{ try{ return typeof esc === 'function' ? esc(v) : String(v ?? '').replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }catch(e){ return String(v ?? ''); } };
   function cssEscapeR8(v){ try{ return CSS.escape(String(v||'')); }catch(e){ return String(v||'').replace(/[^a-zA-Z0-9_-]/g,'\\$&'); } }
@@ -11110,7 +11110,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
    V58.0R10 - Guardado financiero sin bloqueo + resumen libre por OC/POS
    =============================== */
 (function(){
-  const VERSION_FIN_R10='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_FIN_R10='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const norm=(v)=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,'').replace(/\./g,',').trim();
   const n=(v)=>Number(v||0)||0;
   function block(p){const b=String(p?.tipoBloqueFinanciero||p?.bloque||'').toUpperCase(); if(b.includes('CERT'))return 'CERTIFICADA'; if(b.includes('LIBRE'))return 'LIBRE'; return 'POSICION_OC';}
@@ -11166,7 +11166,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
    quedan interceptados por renders dinámicos.
    =============================== */
 (function(){
-  const VERSION_UM_FIX='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_UM_FIX='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const $um=(id)=>document.getElementById(id);
   const escUM=(v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const normUM=(v)=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
@@ -11372,7 +11372,7 @@ console.log('COI iniciado correctamente');
 <script id="coi-v58r12-script">
 (function(){
   'use strict';
-  const R12_VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const R12_VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const ESTADOS_COI_R12=[
     'Pendiente de completar','Pliegos en preparación','Pliegos terminados sin SOLPED','Con SOLPED sin expediente','Con expediente','Con expediente y OC sin C3','Con OC con C3 sin acta','Con OC y C3 con acta','Obra/Servicio en ejecución','En ejecución','Suspendida','Cancelada','Finalizada','Finalizada con acta provisoria','Finalizada con acta definitiva','Enviado a Planificación y Control','Cerrada','Archivada'
   ];
@@ -11587,7 +11587,7 @@ console.log('COI iniciado correctamente');
    ========================================================= */
 (function(){
   'use strict';
-  const VERSION_R13='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_R13='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const $ = (id)=>document.getElementById(id);
   const esc = (v)=>String(v??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const norm = (v)=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
@@ -11839,7 +11839,7 @@ console.log('COI iniciado correctamente');
    Fix final: Centro de Alertas -> Observaciones + Ficha UM ST
    ============================================================ */
 (function(){
-  const VERSION_R14='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_R14='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const q=(id)=>document.getElementById(id);
   const h=(v)=>String(v??'').replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
   const txt=(v)=>String(v??'').trim();
@@ -12103,7 +12103,7 @@ console.log('COI iniciado correctamente');
    - Botón robusto en Centro de Alertas: Enviar a Observaciones.
    =============================== */
 (function(){
-  const VERSION_R15='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_R15='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const ST_LS_KEY='coi_servicios_tecnicos';
   const $r15=(id)=>document.getElementById(id);
   const safe=(v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -12371,7 +12371,7 @@ console.log('COI iniciado correctamente');
    - Campos ST operativos: Fecha, Obra, Tipo UM, Descripción y Técnico.
    =============================== */
 (function(){
-  const VERSION_R16='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_R16='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const ST_KEY='coi_servicios_tecnicos';
   const $r16=(id)=>document.getElementById(id);
   const clean=(v)=>String(v??'').trim();
@@ -12631,7 +12631,7 @@ console.log('COI iniciado correctamente');
    ========================================================= */
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const RELEASE_DATE='2026-07-08';
   const LS_BACKUP_META='coi_v581_backup_meta';
   const LS_OBS='coi_observaciones_oc';
@@ -14065,7 +14065,7 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
    ========================================================= */
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
@@ -16762,7 +16762,7 @@ const APP_DATA_MODE = "supabase_first";
 <script id="coi-dashboard-filtros-v583">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const $=id=>document.getElementById(id);
   const clean=v=>String(v??'').trim();
   const fold=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
@@ -17074,7 +17074,7 @@ const APP_DATA_MODE = "supabase_first";
 (function(){
   'use strict';
 
-  const VERSION = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION = 'V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const $ = (id) => document.getElementById(id);
   const clean = (value) => String(value ?? '').trim();
   const fold = (value) => clean(value)
@@ -17656,7 +17656,7 @@ const APP_DATA_MODE = "supabase_first";
    ========================================================= */
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const $=id=>document.getElementById(id);
   const clean=v=>String(v??'').trim();
   const fold=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
@@ -17950,7 +17950,7 @@ const APP_DATA_MODE = "supabase_first";
 <script id="coiV581R9OrdersRepair">
 (function(){
 'use strict';
-const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
 const $=id=>document.getElementById(id);
 const clean=v=>String(v??'').trim();
 const fold=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
@@ -18295,7 +18295,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script id="coi-r10-stability-script">
 (function(){
 'use strict';
-const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
 const $=id=>document.getElementById(id);
 const clean=v=>String(v??'').trim();
 const fold=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
@@ -18398,7 +18398,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script id="coi-v581r11-nav-dashboard-script">
 (function(){
 'use strict';
-const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
 const $=id=>document.getElementById(id);
 function ordenarMenu(){
   const nav=$('moduleNav'),alerts=$('btnCentroAlertas'),about=$('btnAcercaSistema');
@@ -18633,7 +18633,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 (function(){
 'use strict';
 
-const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
 const BOOT_AUDIT={"DOMContentLoaded": 25, "window.load": 0, "setTimeout": 144, "MutationObserver": 11, "critical_function_defs": {"renderOrdenes": 11, "renderCentroAlertas": 15, "renderCalendarioCOI": 1, "renderUnidadesMantenimiento": 5, "renderFichaOC": 11, "abrirFichaOC": 3, "mostrarVista": 9, "navegarDesdeKPI": 2, "cargarOrdenesPrincipal": 2, "cargarOrdenesDesdeSupabase": 2, "verificarSesionSupabase": 2, "initSupabase": 2, "usuarioEsAdministrador": 2, "esAdminR13": 3}};
 const $=id=>document.getElementById(id);
 const clean=v=>String(v??'').trim();
@@ -19710,7 +19710,7 @@ if(document.readyState==='loading'){
    ========================================================= */
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const FALLBACK='Sin descripción cargada para esta OC.';
   const CAMPOS_DESCRIPCION=[
     'descripcion','DESCRIPCION','descripcion_oc','descripcionOC','objeto','objeto_contratacion',
@@ -20890,7 +20890,7 @@ if(document.readyState==='loading'){
 <script id="coi-v581r24-estado-contractual-versionado">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   function setText(id,value){const el=document.getElementById(id);if(el)el.textContent=value;}
   function aplicarVersion(){
     setText('appVersionHeader',VERSION);
@@ -20909,7 +20909,7 @@ if(document.readyState==='loading'){
 <script id="coi-v581r26-sync-docs-oc">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const CACHE_KEY='coi_documentos_storage_cache_v1';
   function byId(id){return document.getElementById(id)}
   function clean(v){return String(v??'').trim()}
@@ -21102,7 +21102,7 @@ if(document.readyState==='loading'){
 (function(){
   'use strict';
 
-  const VERSION = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION = 'V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const BUCKET = 'coi-documentos';
   const TABLE = 'coi_documentos_oc';
   const CACHE_KEY = 'coi_docs_storage_index_cache_v1';
@@ -21658,8 +21658,6 @@ if(document.readyState==='loading'){
   padding:6px 8px;
   font-size:12px;
 }
-.ct-editor-inline[hidden],.ct-contractual-actions[hidden]{display:none!important}
-.ct-editor-inline input:disabled,.ct-contractual-actions input:disabled{background:#f1f3f5;color:#667085;cursor:not-allowed}
 .ct-editor-inline button{
   min-height:32px;
   padding:6px 8px;
@@ -21727,11 +21725,10 @@ if(document.readyState==='loading'){
 <script id="coi-v581r28-contractual-ct-script">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const CT_DATE_FIELDS=['controlTercerosHasta','control_terceros_hasta','fechaControlTercerosHasta','fecha_control_terceros_hasta','control_terceros_vigente_hasta','ct_hasta'];
   const CT_STATUS_FIELDS=['controlTercerosEstado','control_terceros_estado','estadoControlTerceros','estado_control_terceros','ct_estado'];
   const ESTADO_DOC_FIELDS=['estadoDocumental','estado_documental','ESTADO_DOCUMENTAL','estado_doc','estadoDoc','estado','estadoCOI','estado_coi'];
-  let ctEditState=null;
   const ETAPAS_FALLBACK=[
     {codigo:'pliegos_preparacion',nombre:'PLIEGOS EN PREPARACIÓN'},
     {codigo:'pliegos_terminado_sin_solped',nombre:'PLIEGOS TERMINADO SIN SOLPED'},
@@ -21831,15 +21828,11 @@ if(document.readyState==='loading'){
   function fechaISO(value){
     const v=clean(value);
     if(!v)return'';
-    if(/^\d{4}-\d{2}-\d{2}$/.test(v)){
-      const [year,month,day]=v.split('-').map(Number);
-      const date=new Date(Date.UTC(year,month-1,day));
-      return year>=2000&&date.getUTCFullYear()===year&&date.getUTCMonth()===month-1&&date.getUTCDate()===day?v:'';
-    }
+    if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;
     const dmy=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if(dmy)return fechaISO(`${dmy[3]}-${String(dmy[2]).padStart(2,'0')}-${String(dmy[1]).padStart(2,'0')}`);
+    if(dmy)return `${dmy[3]}-${String(dmy[2]).padStart(2,'0')}-${String(dmy[1]).padStart(2,'0')}`;
     const d=new Date(v);
-    return Number.isNaN(d.getTime())?'':fechaISO(d.toISOString().slice(0,10));
+    return Number.isNaN(d.getTime())?'':d.toISOString().slice(0,10);
   }
   function todayISO(){return new Date().toISOString().slice(0,10);}
   function parseISODate(value){
@@ -22010,9 +22003,9 @@ if(document.readyState==='loading'){
       <span class="ct-date">${esc(calc.fecha||'Sin fecha')}</span>
       <span class="ct-badge ${esc(calc.clase)}">${esc(calc.estado)}</span>
       <div class="ct-editor-inline" data-r28-ct-editor hidden>
-        <input type="date" data-r28-ct-input value="${esc(calc.fecha)}" disabled>
-        <button type="button" class="primary" data-r28-ct-save disabled>Guardar</button>
-        <button type="button" data-r28-ct-cancel disabled>Cancelar</button>
+        <input type="date" data-r28-ct-input value="${esc(calc.fecha)}">
+        <button type="button" class="primary" data-r28-ct-save>Guardar</button>
+        <button type="button" data-r28-ct-cancel>Cancelar</button>
       </div>
     </div>`;
   }
@@ -22027,11 +22020,9 @@ if(document.readyState==='loading'){
         <div><b>Estado</b><span class="ct-badge ${esc(calc.clase)}">${esc(calc.estado)}</span></div>
         <div><b>Días restantes</b>${calc.dias===null?'—':esc(calc.dias)}</div>
       </div>
-      ${can?`<button type="button" class="ct-mini-btn" data-r28-ct-edit>Editar</button>
-      <div class="ct-contractual-actions" hidden>
-        <label><b>Editar fecha hasta</b> <input type="date" data-r28-ct-input value="${esc(calc.fecha)}" disabled></label>
-        <button type="button" class="primary" data-r28-ct-save disabled>Guardar Control de Terceros</button>
-        <button type="button" data-r28-ct-cancel disabled>Cancelar</button>
+      ${can?`<div class="ct-contractual-actions">
+        <label><b>Editar fecha hasta</b> <input type="date" data-r28-ct-input value="${esc(calc.fecha)}"></label>
+        <button type="button" class="primary" data-r28-ct-save>Guardar Control de Terceros</button>
       </div>`:''}
       ${normText(pick(oc,ESTADO_DOC_FIELDS,''))==='PLIEGO CON EXPTE Y CON OC EMITIDA, PERO SIN CONTROL DE 3'?'<div class="doc-warning">La etapa actual indica falta de Control de Terceros.</div>':''}
     </div>`;
@@ -22039,8 +22030,6 @@ if(document.readyState==='loading'){
   function injectCT(ref){
     const oc=findOrder(ref)||findOrder(currentKey(ref));
     if(!oc)return;
-    const key=orderNro(oc);
-    if(ctEditState&&ctEditState.nroOC!==key)ctEditState=null;
     const body=document.getElementById('fichaOCBody');
     if(!body)return;
     const kpis=body.querySelector('.oc-kpis');
@@ -22059,37 +22048,6 @@ if(document.readyState==='loading'){
       else contractual.insertAdjacentHTML('beforeend',renderCTContractualBox(oc));
     }
     markStageDOM(pick(oc,ESTADO_DOC_FIELDS,''));
-    if(ctEditState?.modoEdicion)setControlTercerosEditMode(true,oc,false);
-  }
-  function setControlTercerosEditMode(enabled,oc=findOrder(currentKey()),captureOriginal=true){
-    if(!oc||(enabled&&!canEdit()))return false;
-    const nroOC=orderNro(oc);
-    if(enabled){
-      if(captureOriginal||ctEditState?.nroOC!==nroOC){
-        const original=getCTDate(oc);
-        ctEditState={nroOC,valorOriginal:original,valorEdicion:original,modoEdicion:true};
-      }
-    }else ctEditState=null;
-    document.querySelectorAll('#fichaOCBody [data-r28-ct-card],#fichaOCBody [data-r28-ct-contractual]').forEach(scope=>{
-      const edit=scope.querySelector('[data-r28-ct-edit]');
-      const actions=scope.querySelector('[data-r28-ct-editor],.ct-contractual-actions');
-      const input=scope.querySelector('[data-r28-ct-input]');
-      const save=scope.querySelector('[data-r28-ct-save]');
-      const cancel=scope.querySelector('[data-r28-ct-cancel]');
-      if(edit){edit.hidden=enabled;edit.disabled=enabled;}
-      if(actions)actions.hidden=!enabled;
-      if(input){input.disabled=!enabled;if(enabled)input.value=ctEditState?.valorEdicion||'';}
-      if(save)save.disabled=!enabled;
-      if(cancel)cancel.disabled=!enabled;
-    });
-    if(enabled)setTimeout(()=>document.querySelector('#fichaOCBody [data-r28-ct-input]:not(:disabled)')?.focus(),0);
-    return true;
-  }
-  function cancelarEdicionControlTerceros(){
-    const state=ctEditState;
-    if(!state)return;
-    document.querySelectorAll('#fichaOCBody [data-r28-ct-input]').forEach(input=>{input.value=state.valorOriginal;});
-    setControlTercerosEditMode(false,findOrder(state.nroOC),false);
   }
   async function saveCTFromButton(btn){
     const oc=findOrder(currentKey());
@@ -22097,23 +22055,13 @@ if(document.readyState==='loading'){
     if(!canEdit()){toast('Modo consulta: no posee permisos para editar Control de Terceros.','warning');return;}
     const scope=btn.closest('[data-r28-ct-card],[data-r28-ct-contractual]')||document;
     const input=scope.querySelector('[data-r28-ct-input]');
-    const raw=clean(input?.value||'');
-    const fecha=fechaISO(raw);
-    if(!fecha){
-      toast(raw?'Ingresá una fecha válida con año 2000 o posterior.':'La fecha Hasta es obligatoria.','warning');
-      input?.focus();
-      return false;
-    }
-    if(!ctEditState||ctEditState.nroOC!==orderNro(oc)||!ctEditState.modoEdicion)return false;
-    ctEditState.valorEdicion=fecha;
+    const fecha=fechaISO(input?.value||'');
     const {estado}=setCT(oc,fecha);
     guardarLocal();
-    const synced=await syncCTSupabase(oc,fecha,estado);
-    ctEditState=null;
     injectCT(oc);
+    const synced=await syncCTSupabase(oc,fecha,estado);
     try{if(typeof window.renderCentroAlertas==='function'&&document.getElementById('vistaCentroAlertas')?.classList.contains('active'))window.renderCentroAlertas();}catch(e){}
-    toast(synced?`Control de Terceros sincronizado hasta ${fecha}.`:`Control de Terceros guardado localmente hasta ${fecha}.`,synced?'ok':'info');
-    return true;
+    toast(synced?`Control de Terceros sincronizado hasta ${fecha||'Sin fecha'}.`:`Control de Terceros guardado localmente hasta ${fecha||'Sin fecha'}.`,synced?'ok':'info');
   }
   function updateVersion(){
     ['appVersionHeader','headerVersionOperativa','adminCfgVersion'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=VERSION;});
@@ -22122,7 +22070,7 @@ if(document.readyState==='loading'){
     try{localStorage.setItem('coi_version_actual',VERSION);}catch(e){}
     try{
       if(Array.isArray(window.historialVersiones)&&!window.historialVersiones.some(v=>v.version===VERSION)){
-        window.historialVersiones.unshift({version:VERSION,fecha:'2026-07-22',titulo:'Edición segura de Control de Terceros',cambios:['Modos lectura y edición con Editar, Guardar y Cancelar','Estado temporal aislado por OC y listeners delegados resistentes al re-render','Validación estricta de fechas desde el año 2000'],modulosAfectados:['Ficha OC','Contractual'],estado:'Estable'});
+        window.historialVersiones.unshift({version:VERSION,fecha:'2026-07-20',titulo:'Control de Terceros y Estado Documental sincronizado',cambios:['Control de Terceros / Hasta en Ficha OC','Click en circuito contractual actualiza Estado Documental'],modulosAfectados:['Ficha OC','Contractual'],estado:'Estable'});
       }
     }catch(e){}
   }
@@ -22149,13 +22097,16 @@ if(document.readyState==='loading'){
     const edit=event.target.closest?.('[data-r28-ct-edit]');
     if(edit){
       event.preventDefault();
-      setControlTercerosEditMode(true);
+      const card=edit.closest('[data-r28-ct-card]');
+      const editor=card?.querySelector('[data-r28-ct-editor]');
+      if(editor)editor.hidden=!editor.hidden;
       return;
     }
     const cancel=event.target.closest?.('[data-r28-ct-cancel]');
     if(cancel){
       event.preventDefault();
-      cancelarEdicionControlTerceros();
+      const editor=cancel.closest('[data-r28-ct-editor]');
+      if(editor)editor.hidden=true;
       return;
     }
     const save=event.target.closest?.('[data-r28-ct-save]');
@@ -22192,8 +22143,6 @@ if(document.readyState==='loading'){
   window.actualizarEstadoDocumentalDesdePasoContractual=actualizarEstadoDocumentalDesdePasoContractualR28;
   window.coiR28InjectControlTerceros=injectCT;
   window.coiR28GuardarControlTerceros=saveCTFromButton;
-  window.setControlTercerosEditMode=setControlTercerosEditMode;
-  window.cancelarEdicionControlTerceros=cancelarEdicionControlTerceros;
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});
   else init();
@@ -22243,7 +22192,7 @@ if(document.readyState==='loading'){
 
 <script id="coi-v581r31-financiero-posiciones-normalizadas">
 /* V58.1R37-ORDENES-ANALITICA-CORREGIDA */
-var COI_FIN_R31_VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+var COI_FIN_R31_VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
 var __normalizarOCObjetoBaseR31 = typeof window.normalizarOC === 'function' ? window.normalizarOC : null;
 function finR31Texto(row){
   for(var i=1;i<arguments.length;i++){
@@ -22609,7 +22558,7 @@ function coiR31UpdateVersion(){
 <script id="coi-fase11-security-script">
 (function(){
   'use strict';
-  const VERSION_FASE11 = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_FASE11 = 'V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const SCHEMA_VERSION = 'fase11_v1';
   const AUDIT_LOCAL_KEY = 'coi_fase11_auditoria_cache_v1';
   const SESSION_LOCAL_KEY = 'coi_fase11_sesion_actual_v1';
@@ -22928,7 +22877,7 @@ function coiR31UpdateVersion(){
 <script id="coi-r321-hotfix-version-console">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   function setTextSafe(el,value){
     if(!el) return false;
     if(el.tagName==='INPUT'){
@@ -22967,7 +22916,7 @@ function coiR31UpdateVersion(){
 <script id="coi-r324-auditoria-integral-runtime">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const ERROR_KEY='coi_runtime_errors_v1';
   function safeRead(){try{const v=JSON.parse(localStorage.getItem(ERROR_KEY)||'[]');return Array.isArray(v)?v:[];}catch(e){return [];}}
   function safeWrite(rows){try{localStorage.setItem(ERROR_KEY,JSON.stringify(rows.slice(0,100)));}catch(e){}}
@@ -23034,7 +22983,7 @@ function coiR31UpdateVersion(){
 <script id="coi-dashboard-interactivo-v33-runtime">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const FILTER_KEY='coi_dashboard_filters_v33';
   const PERIODS={today:0,'30':30,'60':60,'90':90,'180':180,year:'year',all:null};
   const STATUS={
@@ -23262,7 +23211,7 @@ function coiR31UpdateVersion(){
 <script id="coi-v581r34-experiencia-visual-script">
 (()=>{
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const MOTION_KEY='coi.visual.motion.enabled';
   const $=id=>document.getElementById(id);
   const reduced=()=>window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -23325,7 +23274,7 @@ function coiR31UpdateVersion(){
 <script id="coi-r37-auditoria-general-runtime">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const $=id=>document.getElementById(id);
   const clean=v=>String(v??'').trim();
   const fold=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
@@ -23660,7 +23609,7 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
 */
 (function(){
   'use strict';
-  const VERSION = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION = 'V58.1R38.1-BOOT-FIX-FINANCIERO-OC';
   const LS_FIN = 'coi_posiciones_financieras';
   const LS_INDEX = 'coi_finanzas_por_oc_v1';
   const SAVE_LOCK = {running:false};
