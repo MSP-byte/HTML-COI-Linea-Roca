@@ -1,0 +1,5877 @@
+﻿{
+  "generatedAt": "2026-07-22T02:51:12.086Z",
+  "baseUrl": "http://127.0.0.1:4173/",
+  "chromePath": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  "mockedSupabase": true,
+  "productiveWrites": 0,
+  "longRun": {
+    "skipped": false,
+    "requestedMs": 600000,
+    "actualMs": 603215,
+    "navigation": [
+      {
+        "id": "btnDashboard",
+        "disabled": false,
+        "point": {
+          "x": 157,
+          "y": 116
+        },
+        "top": {
+          "tag": "BUTTON",
+          "id": "btnDashboard",
+          "className": "active"
+        },
+        "legitimate": true,
+        "expectedView": "vistaDashboard",
+        "activeView": "vistaDashboard",
+        "passed": true
+      },
+      {
+        "id": "btnRed",
+        "disabled": false,
+        "point": {
+          "x": 282,
+          "y": 116
+        },
+        "top": {
+          "tag": "BUTTON",
+          "id": "btnRed",
+          "className": ""
+        },
+        "legitimate": true,
+        "expectedView": "vistaRed",
+        "activeView": "vistaRed",
+        "passed": true
+      },
+      {
+        "id": "btnCalendarioCOI",
+        "disabled": false,
+        "point": {
+          "x": 421,
+          "y": 116
+        },
+        "top": {
+          "tag": "BUTTON",
+          "id": "btnCalendarioCOI",
+          "className": ""
+        },
+        "legitimate": true,
+        "expectedView": "vistaCalendarioCOI",
+        "activeView": "vistaCalendarioCOI",
+        "passed": true
+      },
+      {
+        "id": "btnOrdenes",
+        "disabled": false,
+        "point": {
+          "x": 536,
+          "y": 116
+        },
+        "top": {
+          "tag": "BUTTON",
+          "id": "btnOrdenes",
+          "className": ""
+        },
+        "legitimate": true,
+        "expectedView": "vistaOrdenes",
+        "activeView": "vistaOrdenes",
+        "passed": true
+      },
+      {
+        "id": "btnCarga",
+        "disabled": false,
+        "point": {
+          "x": 620,
+          "y": 116
+        },
+        "top": {
+          "tag": "BUTTON",
+          "id": "btnCarga",
+          "className": ""
+        },
+        "legitimate": true,
+        "expectedView": "vistaCarga",
+        "activeView": "vistaCarga",
+        "passed": true
+      },
+      {
+        "id": "btnAdministracionSistema",
+        "disabled": false,
+        "point": {
+          "x": 727,
+          "y": 116
+        },
+        "top": {
+          "tag": "BUTTON",
+          "id": "btnAdministracionSistema",
+          "className": ""
+        },
+        "legitimate": true,
+        "expectedView": "vistaAdministracionSistema",
+        "activeView": "vistaAdministracionSistema",
+        "passed": true
+      },
+      {
+        "id": "btnCentroAlertas",
+        "disabled": false,
+        "point": {
+          "x": 1338,
+          "y": 116
+        },
+        "top": {
+          "tag": "BUTTON",
+          "id": "btnCentroAlertas",
+          "className": "nav-alertas-right"
+        },
+        "legitimate": true,
+        "expectedView": "vistaCentroAlertas",
+        "activeView": "vistaCentroAlertas",
+        "passed": true
+      },
+      {
+        "id": "btnAccesoBusquedaOrdenes",
+        "disabled": false,
+        "point": {
+          "x": 975,
+          "y": 42
+        },
+        "top": {
+          "tag": "BUTTON",
+          "id": "btnAccesoBusquedaOrdenes",
+          "className": ""
+        },
+        "legitimate": true,
+        "expectedView": "vistaOrdenes",
+        "activeView": "vistaOrdenes",
+        "passed": true
+      }
+    ],
+    "diagnostic": {
+      "version": "V58.1R38.1-BOOT-FIX-FINANCIERO-OC",
+      "url": "http://127.0.0.1:4173/",
+      "bodyClasses": [
+        "modo-admin"
+      ],
+      "appReady": true,
+      "authState": {
+        "status": "valid",
+        "hasSession": true,
+        "checkedAt": "2026-07-22T02:40:59.246Z"
+      },
+      "activeView": "vistaOrdenes",
+      "topElementsAtCenter": [
+        {
+          "label": "viewport-center",
+          "point": {
+            "x": 720,
+            "y": 500
+          },
+          "top": {
+            "tag": "DIV",
+            "id": "",
+            "className": "ordenes-resumen ordenes-resumen-financiero",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "grid",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 37,
+              "y": 450,
+              "width": 1366,
+              "height": 82
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        },
+        {
+          "label": "btnDashboard",
+          "point": {
+            "x": 157,
+            "y": 116
+          },
+          "legitimate": true,
+          "target": {
+            "tag": "BUTTON",
+            "id": "btnDashboard",
+            "className": "",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 106,
+              "y": 98,
+              "width": 101,
+              "height": 36
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnDashboard",
+            "className": "",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 106,
+              "y": 98,
+              "width": 101,
+              "height": 36
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        },
+        {
+          "label": "btnRed",
+          "point": {
+            "x": 282,
+            "y": 116
+          },
+          "legitimate": true,
+          "target": {
+            "tag": "BUTTON",
+            "id": "btnRed",
+            "className": "",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 216,
+              "y": 98,
+              "width": 133,
+              "height": 36
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnRed",
+            "className": "",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 216,
+              "y": 98,
+              "width": 133,
+              "height": 36
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        },
+        {
+          "label": "btnCalendarioCOI",
+          "point": {
+            "x": 421,
+            "y": 116
+          },
+          "legitimate": true,
+          "target": {
+            "tag": "BUTTON",
+            "id": "btnCalendarioCOI",
+            "className": "",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 357,
+              "y": 98,
+              "width": 129,
+              "height": 36
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCalendarioCOI",
+            "className": "",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 357,
+              "y": 98,
+              "width": 129,
+              "height": 36
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        },
+        {
+          "label": "btnOrdenes",
+          "point": {
+            "x": 536,
+            "y": 116
+          },
+          "legitimate": true,
+          "target": {
+            "tag": "BUTTON",
+            "id": "btnOrdenes",
+            "className": "active",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 494,
+              "y": 98,
+              "width": 85,
+              "height": 36
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnOrdenes",
+            "className": "active",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 494,
+              "y": 98,
+              "width": 85,
+              "height": 36
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        },
+        {
+          "label": "btnCarga",
+          "point": {
+            "x": 620,
+            "y": 116
+          },
+          "legitimate": true,
+          "target": {
+            "tag": "BUTTON",
+            "id": "btnCarga",
+            "className": "",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 587,
+              "y": 98,
+              "width": 68,
+              "height": 36
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCarga",
+            "className": "",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 587,
+              "y": 98,
+              "width": 68,
+              "height": 36
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        },
+        {
+          "label": "btnAdministracionSistema",
+          "point": {
+            "x": 727,
+            "y": 116
+          },
+          "legitimate": true,
+          "target": {
+            "tag": "BUTTON",
+            "id": "btnAdministracionSistema",
+            "className": "",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 662,
+              "y": 98,
+              "width": 130,
+              "height": 36
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAdministracionSistema",
+            "className": "",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 662,
+              "y": 98,
+              "width": 130,
+              "height": 36
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        },
+        {
+          "label": "btnCentroAlertas",
+          "point": {
+            "x": 1338,
+            "y": 116
+          },
+          "legitimate": true,
+          "target": {
+            "tag": "BUTTON",
+            "id": "btnCentroAlertas",
+            "className": "nav-alertas-right",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 1257,
+              "y": 97,
+              "width": 163,
+              "height": 39
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCentroAlertas",
+            "className": "nav-alertas-right",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 1257,
+              "y": 97,
+              "width": 163,
+              "height": 39
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        },
+        {
+          "label": "btnAccesoBusquedaOrdenes",
+          "point": {
+            "x": 975,
+            "y": 41
+          },
+          "legitimate": true,
+          "target": {
+            "tag": "BUTTON",
+            "id": "btnAccesoBusquedaOrdenes",
+            "className": "",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "inline-block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 918,
+              "y": 21,
+              "width": 115,
+              "height": 41
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAccesoBusquedaOrdenes",
+            "className": "",
+            "position": "static",
+            "zIndex": "auto",
+            "pointerEvents": "auto",
+            "display": "inline-block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 918,
+              "y": 21,
+              "width": 115,
+              "height": 41
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        }
+      ],
+      "blockingOverlays": [],
+      "fixedElements": [
+        {
+          "tag": "FOOTER",
+          "id": "footerOperativo",
+          "className": "operative-footer",
+          "position": "fixed",
+          "zIndex": "13",
+          "pointerEvents": "auto",
+          "display": "flex",
+          "visibility": "visible",
+          "opacity": "1",
+          "rect": {
+            "x": 0,
+            "y": 951,
+            "width": 1440,
+            "height": 49
+          },
+          "extensionHint": false,
+          "diagnosticOwn": false
+        },
+        {
+          "tag": "DIV",
+          "id": "d33Tooltip",
+          "className": "d33-tooltip",
+          "position": "fixed",
+          "zIndex": "100000",
+          "pointerEvents": "none",
+          "display": "none",
+          "visibility": "visible",
+          "opacity": "1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          },
+          "extensionHint": false,
+          "diagnosticOwn": false
+        },
+        {
+          "tag": "DIV",
+          "id": "ordAnaliticaTooltipR36",
+          "className": "orders-chart-tooltip",
+          "position": "fixed",
+          "zIndex": "100000",
+          "pointerEvents": "none",
+          "display": "none",
+          "visibility": "visible",
+          "opacity": "1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          },
+          "extensionHint": false,
+          "diagnosticOwn": false
+        },
+        {
+          "tag": "DIV",
+          "id": "tip",
+          "className": "tooltip",
+          "position": "fixed",
+          "zIndex": "99",
+          "pointerEvents": "none",
+          "display": "none",
+          "visibility": "visible",
+          "opacity": "1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          },
+          "extensionHint": false,
+          "diagnosticOwn": false
+        },
+        {
+          "tag": "DIV",
+          "id": "supabaseAuthModal",
+          "className": "supabase-auth-modal",
+          "position": "fixed",
+          "zIndex": "10050",
+          "pointerEvents": "auto",
+          "display": "none",
+          "visibility": "visible",
+          "opacity": "1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          },
+          "extensionHint": false,
+          "diagnosticOwn": false
+        },
+        {
+          "tag": "DIV",
+          "id": "coiBootIndicator",
+          "className": "coi-boot-indicator",
+          "position": "fixed",
+          "zIndex": "100000",
+          "pointerEvents": "auto",
+          "display": "none",
+          "visibility": "visible",
+          "opacity": "1",
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0
+          },
+          "extensionHint": false,
+          "diagnosticOwn": false
+        }
+      ],
+      "visibleModals": [],
+      "pendingLoaders": [],
+      "recentErrors": [],
+      "recentPromiseRejections": [],
+      "observersDetected": {
+        "source": 8,
+        "mutation": 7,
+        "resize": 0,
+        "intersection": 1,
+        "knownRuntime": {
+          "legacyBodyObserverConnected": false,
+          "fichaObserverPresent": false
+        }
+      },
+      "timersDetected": {
+        "sourceTimeouts": 182,
+        "sourceIntervals": 3,
+        "sourceAnimationFrames": 14,
+        "diagnosticWatchdogPending": false
+      },
+      "sourceInventory": {
+        "fixed": 24,
+        "inset0": 11,
+        "pointerEvents": 14,
+        "highZIndex": 21,
+        "documentOrWindowListeners": 370,
+        "captureListeners": 3,
+        "preventDefault": 143,
+        "stopPropagation": 22,
+        "stopImmediatePropagation": 70,
+        "mutationObservers": 7,
+        "resizeObservers": 0,
+        "intersectionObservers": 1,
+        "setIntervals": 3,
+        "setTimeouts": 182,
+        "requestAnimationFrames": 14,
+        "onAuthStateChange": 1,
+        "supabaseClients": 1
+      },
+      "localStorageKeys": [
+        "__coi_test_session__",
+        "coi.visual.motion.enabled",
+        "coi_admin_logs_v47",
+        "coi_admin_users_v47",
+        "coi_data_last_update_v50",
+        "coi_fase11_auditoria_cache_v1",
+        "coi_fase11_sesion_actual_v1",
+        "coi_linea_roca_master_v18",
+        "coi_roca_unidades_mantenimiento",
+        "coi_rol_usuario",
+        "coi_servicios_tecnicos",
+        "coi_supabase_estaciones_cache_v1",
+        "coi_supabase_meta_v2",
+        "coi_supabase_ordenes_cache_v2",
+        "coi_timeline_events_v1",
+        "coi_version_actual",
+        "roca_coi_intervenciones_v10"
+      ],
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36"
+    },
+    "errors": [],
+    "runtimeRejections": [],
+    "passed": true
+  },
+  "results": [
+    {
+      "scenario": "A-clean-incognito",
+      "context": "clean",
+      "domContentLoadedMs": 6709,
+      "loadMs": 6796,
+      "navigation": [
+        {
+          "id": "btnDashboard",
+          "disabled": false,
+          "point": {
+            "x": 157,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnDashboard",
+            "className": "active"
+          },
+          "legitimate": true,
+          "expectedView": "vistaDashboard",
+          "activeView": "vistaDashboard",
+          "passed": true
+        },
+        {
+          "id": "btnRed",
+          "disabled": false,
+          "point": {
+            "x": 282,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnRed",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaRed",
+          "activeView": "vistaRed",
+          "passed": true
+        },
+        {
+          "id": "btnCalendarioCOI",
+          "disabled": false,
+          "point": {
+            "x": 421,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCalendarioCOI",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaCalendarioCOI",
+          "activeView": "vistaCalendarioCOI",
+          "passed": true
+        },
+        {
+          "id": "btnOrdenes",
+          "disabled": false,
+          "point": {
+            "x": 536,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnOrdenes",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaOrdenes",
+          "activeView": "vistaOrdenes",
+          "passed": true
+        },
+        {
+          "id": "btnCarga",
+          "disabled": false,
+          "point": {
+            "x": 620,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCarga",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaCarga",
+          "activeView": "vistaCarga",
+          "passed": true
+        },
+        {
+          "id": "btnAdministracionSistema",
+          "disabled": false,
+          "point": {
+            "x": 727,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAdministracionSistema",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaAdministracionSistema",
+          "activeView": "vistaAdministracionSistema",
+          "passed": true
+        },
+        {
+          "id": "btnCentroAlertas",
+          "hidden": true,
+          "disabled": false,
+          "expectedView": "vistaCentroAlertas",
+          "restrictedAsExpected": true
+        },
+        {
+          "id": "btnAccesoBusquedaOrdenes",
+          "disabled": false,
+          "point": {
+            "x": 874,
+            "y": 42
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAccesoBusquedaOrdenes",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaOrdenes",
+          "activeView": "vistaOrdenes",
+          "passed": true
+        }
+      ],
+      "diagnostic": {
+        "version": "V58.1R38.1-BOOT-FIX-FINANCIERO-OC",
+        "url": "http://127.0.0.1:4173/?coiDebug=1",
+        "bodyClasses": [
+          "modo-consulta"
+        ],
+        "appReady": true,
+        "authState": {
+          "status": "none",
+          "hasSession": false,
+          "checkedAt": "2026-07-22T02:37:46.588Z"
+        },
+        "activeView": "vistaOrdenes",
+        "topElementsAtCenter": [
+          {
+            "label": "viewport-center",
+            "point": {
+              "x": 720,
+              "y": 500
+            },
+            "top": {
+              "tag": "DIV",
+              "id": "",
+              "className": "ordenes-resumen ordenes-resumen-financiero",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "grid",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 37,
+                "y": 447,
+                "width": 1366,
+                "height": 82
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnDashboard",
+            "point": {
+              "x": 157,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnDashboard",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 106,
+                "y": 97,
+                "width": 101,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnDashboard",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 106,
+                "y": 97,
+                "width": 101,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnRed",
+            "point": {
+              "x": 282,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnRed",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 216,
+                "y": 97,
+                "width": 133,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnRed",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 216,
+                "y": 97,
+                "width": 133,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCalendarioCOI",
+            "point": {
+              "x": 421,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCalendarioCOI",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 357,
+                "y": 97,
+                "width": 129,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCalendarioCOI",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 357,
+                "y": 97,
+                "width": 129,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnOrdenes",
+            "point": {
+              "x": 536,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnOrdenes",
+              "className": "active",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 494,
+                "y": 97,
+                "width": 85,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnOrdenes",
+              "className": "active",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 494,
+                "y": 97,
+                "width": 85,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCarga",
+            "point": {
+              "x": 620,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCarga",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 587,
+                "y": 97,
+                "width": 68,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCarga",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 587,
+                "y": 97,
+                "width": 68,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnAdministracionSistema",
+            "point": {
+              "x": 727,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnAdministracionSistema",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 662,
+                "y": 97,
+                "width": 130,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnAdministracionSistema",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 662,
+                "y": 97,
+                "width": 130,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCentroAlertas",
+            "hidden": true,
+            "element": {
+              "tag": "BUTTON",
+              "id": "btnCentroAlertas",
+              "className": "nav-alertas-right",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "none",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "width": 0,
+                "height": 0
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnAccesoBusquedaOrdenes",
+            "point": {
+              "x": 874,
+              "y": 41
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnAccesoBusquedaOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline-block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 816,
+                "y": 21,
+                "width": 115,
+                "height": 41
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnAccesoBusquedaOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline-block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 816,
+                "y": 21,
+                "width": 115,
+                "height": 41
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          }
+        ],
+        "blockingOverlays": [],
+        "fixedElements": [
+          {
+            "tag": "FOOTER",
+            "id": "footerOperativo",
+            "className": "operative-footer",
+            "position": "fixed",
+            "zIndex": "13",
+            "pointerEvents": "auto",
+            "display": "flex",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 951,
+              "width": 1440,
+              "height": 49
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "d33Tooltip",
+            "className": "d33-tooltip",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "ordAnaliticaTooltipR36",
+            "className": "orders-chart-tooltip",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "tip",
+            "className": "tooltip",
+            "position": "fixed",
+            "zIndex": "99",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "supabaseAuthModal",
+            "className": "supabase-auth-modal",
+            "position": "fixed",
+            "zIndex": "10050",
+            "pointerEvents": "auto",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "coiBootIndicator",
+            "className": "coi-boot-indicator",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "auto",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "ASIDE",
+            "id": "coiInteractionDebugPanel",
+            "className": "",
+            "position": "fixed",
+            "zIndex": "2147483000",
+            "pointerEvents": "auto",
+            "display": "block",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 1090,
+              "y": 150,
+              "width": 340,
+              "height": 302
+            },
+            "extensionHint": false,
+            "diagnosticOwn": true
+          }
+        ],
+        "visibleModals": [],
+        "pendingLoaders": [],
+        "recentErrors": [],
+        "recentPromiseRejections": [],
+        "observersDetected": {
+          "source": 8,
+          "mutation": 7,
+          "resize": 0,
+          "intersection": 1,
+          "knownRuntime": {
+            "legacyBodyObserverConnected": false,
+            "fichaObserverPresent": false
+          }
+        },
+        "timersDetected": {
+          "sourceTimeouts": 182,
+          "sourceIntervals": 3,
+          "sourceAnimationFrames": 14,
+          "diagnosticWatchdogPending": false
+        },
+        "sourceInventory": {
+          "fixed": 24,
+          "inset0": 11,
+          "pointerEvents": 14,
+          "highZIndex": 21,
+          "documentOrWindowListeners": 370,
+          "captureListeners": 3,
+          "preventDefault": 143,
+          "stopPropagation": 22,
+          "stopImmediatePropagation": 70,
+          "mutationObservers": 7,
+          "resizeObservers": 0,
+          "intersectionObservers": 1,
+          "setIntervals": 3,
+          "setTimeouts": 182,
+          "requestAnimationFrames": 14,
+          "onAuthStateChange": 1,
+          "supabaseClients": 1
+        },
+        "localStorageKeys": [
+          "coi.visual.motion.enabled",
+          "coi_admin_logs_v47",
+          "coi_admin_users_v47",
+          "coi_data_last_update_v50",
+          "coi_fase11_auditoria_cache_v1",
+          "coi_linea_roca_master_v18",
+          "coi_roca_unidades_mantenimiento",
+          "coi_servicios_tecnicos",
+          "coi_supabase_estaciones_cache_v1",
+          "coi_supabase_meta_v2",
+          "coi_timeline_events_v1",
+          "coi_version_actual",
+          "roca_coi_intervenciones_v10"
+        ],
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36"
+      },
+      "runtimeRejections": [],
+      "errors": [],
+      "warnings": [],
+      "pendingRequests": [],
+      "elapsedMs": 19096,
+      "passed": true
+    },
+    {
+      "scenario": "B-persistent-profile",
+      "context": "persistent",
+      "domContentLoadedMs": 6336,
+      "loadMs": 7898,
+      "navigation": [
+        {
+          "id": "btnDashboard",
+          "disabled": false,
+          "point": {
+            "x": 157,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnDashboard",
+            "className": "active"
+          },
+          "legitimate": true,
+          "expectedView": "vistaDashboard",
+          "activeView": "vistaDashboard",
+          "passed": true
+        },
+        {
+          "id": "btnRed",
+          "disabled": false,
+          "point": {
+            "x": 282,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnRed",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaRed",
+          "activeView": "vistaRed",
+          "passed": true
+        },
+        {
+          "id": "btnCalendarioCOI",
+          "disabled": false,
+          "point": {
+            "x": 421,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCalendarioCOI",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaCalendarioCOI",
+          "activeView": "vistaCalendarioCOI",
+          "passed": true
+        },
+        {
+          "id": "btnOrdenes",
+          "disabled": false,
+          "point": {
+            "x": 536,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnOrdenes",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaOrdenes",
+          "activeView": "vistaOrdenes",
+          "passed": true
+        },
+        {
+          "id": "btnCarga",
+          "disabled": false,
+          "point": {
+            "x": 620,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCarga",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaCarga",
+          "activeView": "vistaCarga",
+          "passed": true
+        },
+        {
+          "id": "btnAdministracionSistema",
+          "disabled": false,
+          "point": {
+            "x": 727,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAdministracionSistema",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaAdministracionSistema",
+          "activeView": "vistaAdministracionSistema",
+          "passed": true
+        },
+        {
+          "id": "btnCentroAlertas",
+          "hidden": true,
+          "disabled": false,
+          "expectedView": "vistaCentroAlertas",
+          "restrictedAsExpected": true
+        },
+        {
+          "id": "btnAccesoBusquedaOrdenes",
+          "disabled": false,
+          "point": {
+            "x": 874,
+            "y": 42
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAccesoBusquedaOrdenes",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaOrdenes",
+          "activeView": "vistaOrdenes",
+          "passed": true
+        }
+      ],
+      "diagnostic": {
+        "version": "V58.1R38.1-BOOT-FIX-FINANCIERO-OC",
+        "url": "http://127.0.0.1:4173/",
+        "bodyClasses": [
+          "modo-consulta"
+        ],
+        "appReady": true,
+        "authState": {
+          "status": "none",
+          "hasSession": false,
+          "checkedAt": "2026-07-22T02:38:10.085Z"
+        },
+        "activeView": "vistaOrdenes",
+        "topElementsAtCenter": [
+          {
+            "label": "viewport-center",
+            "point": {
+              "x": 720,
+              "y": 500
+            },
+            "top": {
+              "tag": "DIV",
+              "id": "",
+              "className": "ordenes-resumen ordenes-resumen-financiero",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "grid",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 37,
+                "y": 447,
+                "width": 1366,
+                "height": 82
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnDashboard",
+            "point": {
+              "x": 157,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnDashboard",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 106,
+                "y": 97,
+                "width": 101,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnDashboard",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 106,
+                "y": 97,
+                "width": 101,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnRed",
+            "point": {
+              "x": 282,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnRed",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 216,
+                "y": 97,
+                "width": 133,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnRed",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 216,
+                "y": 97,
+                "width": 133,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCalendarioCOI",
+            "point": {
+              "x": 421,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCalendarioCOI",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 357,
+                "y": 97,
+                "width": 129,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCalendarioCOI",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 357,
+                "y": 97,
+                "width": 129,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnOrdenes",
+            "point": {
+              "x": 536,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnOrdenes",
+              "className": "active",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 494,
+                "y": 97,
+                "width": 85,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnOrdenes",
+              "className": "active",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 494,
+                "y": 97,
+                "width": 85,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCarga",
+            "point": {
+              "x": 620,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCarga",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 587,
+                "y": 97,
+                "width": 68,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCarga",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 587,
+                "y": 97,
+                "width": 68,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnAdministracionSistema",
+            "point": {
+              "x": 727,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnAdministracionSistema",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 662,
+                "y": 97,
+                "width": 130,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnAdministracionSistema",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 662,
+                "y": 97,
+                "width": 130,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCentroAlertas",
+            "hidden": true,
+            "element": {
+              "tag": "BUTTON",
+              "id": "btnCentroAlertas",
+              "className": "nav-alertas-right",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "none",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "width": 0,
+                "height": 0
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnAccesoBusquedaOrdenes",
+            "point": {
+              "x": 874,
+              "y": 41
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnAccesoBusquedaOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline-block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 816,
+                "y": 21,
+                "width": 115,
+                "height": 41
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnAccesoBusquedaOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline-block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 816,
+                "y": 21,
+                "width": 115,
+                "height": 41
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          }
+        ],
+        "blockingOverlays": [],
+        "fixedElements": [
+          {
+            "tag": "FOOTER",
+            "id": "footerOperativo",
+            "className": "operative-footer",
+            "position": "fixed",
+            "zIndex": "13",
+            "pointerEvents": "auto",
+            "display": "flex",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 951,
+              "width": 1440,
+              "height": 49
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "d33Tooltip",
+            "className": "d33-tooltip",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "ordAnaliticaTooltipR36",
+            "className": "orders-chart-tooltip",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "tip",
+            "className": "tooltip",
+            "position": "fixed",
+            "zIndex": "99",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "supabaseAuthModal",
+            "className": "supabase-auth-modal",
+            "position": "fixed",
+            "zIndex": "10050",
+            "pointerEvents": "auto",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "coiBootIndicator",
+            "className": "coi-boot-indicator",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "auto",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        ],
+        "visibleModals": [],
+        "pendingLoaders": [],
+        "recentErrors": [],
+        "recentPromiseRejections": [],
+        "observersDetected": {
+          "source": 8,
+          "mutation": 7,
+          "resize": 0,
+          "intersection": 1,
+          "knownRuntime": {
+            "legacyBodyObserverConnected": false,
+            "fichaObserverPresent": false
+          }
+        },
+        "timersDetected": {
+          "sourceTimeouts": 182,
+          "sourceIntervals": 3,
+          "sourceAnimationFrames": 14,
+          "diagnosticWatchdogPending": false
+        },
+        "sourceInventory": {
+          "fixed": 24,
+          "inset0": 11,
+          "pointerEvents": 14,
+          "highZIndex": 21,
+          "documentOrWindowListeners": 370,
+          "captureListeners": 3,
+          "preventDefault": 143,
+          "stopPropagation": 22,
+          "stopImmediatePropagation": 70,
+          "mutationObservers": 7,
+          "resizeObservers": 0,
+          "intersectionObservers": 1,
+          "setIntervals": 3,
+          "setTimeouts": 182,
+          "requestAnimationFrames": 14,
+          "onAuthStateChange": 1,
+          "supabaseClients": 1
+        },
+        "localStorageKeys": [
+          "coi.visual.motion.enabled",
+          "coi_admin_logs_v47",
+          "coi_admin_users_v47",
+          "coi_data_last_update_v50",
+          "coi_fase11_auditoria_cache_v1",
+          "coi_linea_roca_master_v18",
+          "coi_roca_unidades_mantenimiento",
+          "coi_servicios_tecnicos",
+          "coi_supabase_estaciones_cache_v1",
+          "coi_supabase_meta_v2",
+          "coi_timeline_events_v1",
+          "coi_version_actual",
+          "roca_coi_intervenciones_v10"
+        ],
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36"
+      },
+      "runtimeRejections": [],
+      "errors": [],
+      "warnings": [],
+      "pendingRequests": [],
+      "elapsedMs": 20493,
+      "passed": true
+    },
+    {
+      "scenario": "C-persistent-localstorage",
+      "context": "persistent",
+      "domContentLoadedMs": 6584,
+      "loadMs": 6631,
+      "navigation": [
+        {
+          "id": "btnDashboard",
+          "disabled": false,
+          "point": {
+            "x": 157,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnDashboard",
+            "className": "active"
+          },
+          "legitimate": true,
+          "expectedView": "vistaDashboard",
+          "activeView": "vistaDashboard",
+          "passed": true
+        },
+        {
+          "id": "btnRed",
+          "disabled": false,
+          "point": {
+            "x": 282,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnRed",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaRed",
+          "activeView": "vistaRed",
+          "passed": true
+        },
+        {
+          "id": "btnCalendarioCOI",
+          "disabled": false,
+          "point": {
+            "x": 421,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCalendarioCOI",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaCalendarioCOI",
+          "activeView": "vistaCalendarioCOI",
+          "passed": true
+        },
+        {
+          "id": "btnOrdenes",
+          "disabled": false,
+          "point": {
+            "x": 536,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnOrdenes",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaOrdenes",
+          "activeView": "vistaOrdenes",
+          "passed": true
+        },
+        {
+          "id": "btnCarga",
+          "disabled": false,
+          "point": {
+            "x": 620,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCarga",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaCarga",
+          "activeView": "vistaCarga",
+          "passed": true
+        },
+        {
+          "id": "btnAdministracionSistema",
+          "disabled": false,
+          "point": {
+            "x": 727,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAdministracionSistema",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaAdministracionSistema",
+          "activeView": "vistaAdministracionSistema",
+          "passed": true
+        },
+        {
+          "id": "btnCentroAlertas",
+          "disabled": false,
+          "point": {
+            "x": 1338,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCentroAlertas",
+            "className": "nav-alertas-right"
+          },
+          "legitimate": true,
+          "expectedView": "vistaCentroAlertas",
+          "activeView": "vistaCentroAlertas",
+          "passed": true
+        },
+        {
+          "id": "btnAccesoBusquedaOrdenes",
+          "disabled": false,
+          "point": {
+            "x": 874,
+            "y": 42
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAccesoBusquedaOrdenes",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaOrdenes",
+          "activeView": "vistaOrdenes",
+          "passed": true
+        }
+      ],
+      "diagnostic": {
+        "version": "V58.1R38.1-BOOT-FIX-FINANCIERO-OC",
+        "url": "http://127.0.0.1:4173/",
+        "bodyClasses": [
+          "modo-admin"
+        ],
+        "appReady": true,
+        "authState": {
+          "status": "none",
+          "hasSession": false,
+          "checkedAt": "2026-07-22T02:38:38.136Z"
+        },
+        "activeView": "vistaOrdenes",
+        "topElementsAtCenter": [
+          {
+            "label": "viewport-center",
+            "point": {
+              "x": 720,
+              "y": 500
+            },
+            "top": {
+              "tag": "DIV",
+              "id": "",
+              "className": "ordenes-resumen ordenes-resumen-financiero",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "grid",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 37,
+                "y": 450,
+                "width": 1366,
+                "height": 82
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnDashboard",
+            "point": {
+              "x": 157,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnDashboard",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 106,
+                "y": 98,
+                "width": 101,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnDashboard",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 106,
+                "y": 98,
+                "width": 101,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnRed",
+            "point": {
+              "x": 282,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnRed",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 216,
+                "y": 98,
+                "width": 133,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnRed",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 216,
+                "y": 98,
+                "width": 133,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCalendarioCOI",
+            "point": {
+              "x": 421,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCalendarioCOI",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 357,
+                "y": 98,
+                "width": 129,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCalendarioCOI",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 357,
+                "y": 98,
+                "width": 129,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnOrdenes",
+            "point": {
+              "x": 536,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnOrdenes",
+              "className": "active",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 494,
+                "y": 98,
+                "width": 85,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnOrdenes",
+              "className": "active",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 494,
+                "y": 98,
+                "width": 85,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCarga",
+            "point": {
+              "x": 620,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCarga",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 587,
+                "y": 98,
+                "width": 68,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCarga",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 587,
+                "y": 98,
+                "width": 68,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnAdministracionSistema",
+            "point": {
+              "x": 727,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnAdministracionSistema",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 662,
+                "y": 98,
+                "width": 130,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnAdministracionSistema",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 662,
+                "y": 98,
+                "width": 130,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCentroAlertas",
+            "point": {
+              "x": 1338,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCentroAlertas",
+              "className": "nav-alertas-right",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 1257,
+                "y": 97,
+                "width": 163,
+                "height": 39
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCentroAlertas",
+              "className": "nav-alertas-right",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 1257,
+                "y": 97,
+                "width": 163,
+                "height": 39
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnAccesoBusquedaOrdenes",
+            "point": {
+              "x": 874,
+              "y": 41
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnAccesoBusquedaOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline-block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 816,
+                "y": 21,
+                "width": 115,
+                "height": 41
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnAccesoBusquedaOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline-block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 816,
+                "y": 21,
+                "width": 115,
+                "height": 41
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          }
+        ],
+        "blockingOverlays": [],
+        "fixedElements": [
+          {
+            "tag": "FOOTER",
+            "id": "footerOperativo",
+            "className": "operative-footer",
+            "position": "fixed",
+            "zIndex": "13",
+            "pointerEvents": "auto",
+            "display": "flex",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 951,
+              "width": 1440,
+              "height": 49
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "d33Tooltip",
+            "className": "d33-tooltip",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "ordAnaliticaTooltipR36",
+            "className": "orders-chart-tooltip",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "tip",
+            "className": "tooltip",
+            "position": "fixed",
+            "zIndex": "99",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "supabaseAuthModal",
+            "className": "supabase-auth-modal",
+            "position": "fixed",
+            "zIndex": "10050",
+            "pointerEvents": "auto",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "coiBootIndicator",
+            "className": "coi-boot-indicator",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "auto",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        ],
+        "visibleModals": [],
+        "pendingLoaders": [],
+        "recentErrors": [],
+        "recentPromiseRejections": [],
+        "observersDetected": {
+          "source": 8,
+          "mutation": 7,
+          "resize": 0,
+          "intersection": 1,
+          "knownRuntime": {
+            "legacyBodyObserverConnected": false,
+            "fichaObserverPresent": false
+          }
+        },
+        "timersDetected": {
+          "sourceTimeouts": 182,
+          "sourceIntervals": 3,
+          "sourceAnimationFrames": 14,
+          "diagnosticWatchdogPending": false
+        },
+        "sourceInventory": {
+          "fixed": 24,
+          "inset0": 11,
+          "pointerEvents": 14,
+          "highZIndex": 21,
+          "documentOrWindowListeners": 370,
+          "captureListeners": 3,
+          "preventDefault": 143,
+          "stopPropagation": 22,
+          "stopImmediatePropagation": 70,
+          "mutationObservers": 7,
+          "resizeObservers": 0,
+          "intersectionObservers": 1,
+          "setIntervals": 3,
+          "setTimeouts": 182,
+          "requestAnimationFrames": 14,
+          "onAuthStateChange": 1,
+          "supabaseClients": 1
+        },
+        "localStorageKeys": [
+          "coi.visual.motion.enabled",
+          "coi_admin_logs_v47",
+          "coi_admin_users_v47",
+          "coi_data_last_update_v50",
+          "coi_fase11_auditoria_cache_v1",
+          "coi_linea_roca_master_v18",
+          "coi_modo",
+          "coi_roca_unidades_mantenimiento",
+          "coi_rol_usuario",
+          "coi_servicios_tecnicos",
+          "coi_supabase_estaciones_cache_v1",
+          "coi_supabase_meta_v2",
+          "coi_timeline_events_v1",
+          "coi_version_actual",
+          "roca_coi_intervenciones_v10",
+          "rolActivo"
+        ],
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36"
+      },
+      "financialFixture": {
+        "count": 5,
+        "amounts": [
+          1000,
+          102976,
+          2000000,
+          102975.84,
+          12.5
+        ],
+        "parserChecks": [
+          {
+            "value": "1.000",
+            "parsed": 1000
+          },
+          {
+            "value": "2.000.000",
+            "parsed": 2000000
+          },
+          {
+            "value": "102.976",
+            "parsed": 102976
+          },
+          {
+            "value": "102.975,84",
+            "parsed": 102975.84
+          },
+          {
+            "value": "12.5",
+            "parsed": 12.5
+          }
+        ],
+        "associatedCount": 5,
+        "summary": {
+          "ocNro": "4530009999",
+          "totalPosiciones": 2206964.34,
+          "totalCertificado": 0,
+          "saldoLibre": 2206964.34,
+          "cantidadPosiciones": 5,
+          "cantidadCertificadas": 0,
+          "cantidadLibres": 5
+        },
+        "fichaOpened": true,
+        "fichaError": "",
+        "appReady": true,
+        "navigationResponsiveAfterSave": true,
+        "passed": true
+      },
+      "runtimeRejections": [],
+      "errors": [],
+      "warnings": [
+        "COI documentos Storage: Error: Debe iniciar sesión en Supabase para consultar documentos PDF.\n    at http://127.0.0.1:4173/:16561:19\n    at async cargarDocumentosStorageOC (http://127.0.0.1:4173/:16570:16)\n    at async cargarYRenderDocumentosStorageOC (http://127.0.0.1:4173/:16591:282)"
+      ],
+      "pendingRequests": [],
+      "elapsedMs": 21874,
+      "passed": true
+    },
+    {
+      "scenario": "D-restored-session",
+      "context": "persistent",
+      "domContentLoadedMs": 6486,
+      "loadMs": 6540,
+      "navigation": [
+        {
+          "id": "btnDashboard",
+          "disabled": false,
+          "point": {
+            "x": 157,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnDashboard",
+            "className": "active"
+          },
+          "legitimate": true,
+          "expectedView": "vistaDashboard",
+          "activeView": "vistaDashboard",
+          "passed": true
+        },
+        {
+          "id": "btnRed",
+          "disabled": false,
+          "point": {
+            "x": 282,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnRed",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaRed",
+          "activeView": "vistaRed",
+          "passed": true
+        },
+        {
+          "id": "btnCalendarioCOI",
+          "disabled": false,
+          "point": {
+            "x": 421,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCalendarioCOI",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaCalendarioCOI",
+          "activeView": "vistaCalendarioCOI",
+          "passed": true
+        },
+        {
+          "id": "btnOrdenes",
+          "disabled": false,
+          "point": {
+            "x": 536,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnOrdenes",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaOrdenes",
+          "activeView": "vistaOrdenes",
+          "passed": true
+        },
+        {
+          "id": "btnCarga",
+          "disabled": false,
+          "point": {
+            "x": 620,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCarga",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaCarga",
+          "activeView": "vistaCarga",
+          "passed": true
+        },
+        {
+          "id": "btnAdministracionSistema",
+          "disabled": false,
+          "point": {
+            "x": 727,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAdministracionSistema",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaAdministracionSistema",
+          "activeView": "vistaAdministracionSistema",
+          "passed": true
+        },
+        {
+          "id": "btnCentroAlertas",
+          "disabled": false,
+          "point": {
+            "x": 1338,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCentroAlertas",
+            "className": "nav-alertas-right"
+          },
+          "legitimate": true,
+          "expectedView": "vistaCentroAlertas",
+          "activeView": "vistaCentroAlertas",
+          "passed": true
+        },
+        {
+          "id": "btnAccesoBusquedaOrdenes",
+          "disabled": false,
+          "point": {
+            "x": 975,
+            "y": 42
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAccesoBusquedaOrdenes",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaOrdenes",
+          "activeView": "vistaOrdenes",
+          "passed": true
+        }
+      ],
+      "diagnostic": {
+        "version": "V58.1R38.1-BOOT-FIX-FINANCIERO-OC",
+        "url": "http://127.0.0.1:4173/",
+        "bodyClasses": [
+          "modo-admin"
+        ],
+        "appReady": true,
+        "authState": {
+          "status": "valid",
+          "hasSession": true,
+          "checkedAt": "2026-07-22T02:39:03.720Z"
+        },
+        "activeView": "vistaOrdenes",
+        "topElementsAtCenter": [
+          {
+            "label": "viewport-center",
+            "point": {
+              "x": 720,
+              "y": 500
+            },
+            "top": {
+              "tag": "DIV",
+              "id": "",
+              "className": "ordenes-resumen ordenes-resumen-financiero",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "grid",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 37,
+                "y": 450,
+                "width": 1366,
+                "height": 82
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnDashboard",
+            "point": {
+              "x": 157,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnDashboard",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 106,
+                "y": 98,
+                "width": 101,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnDashboard",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 106,
+                "y": 98,
+                "width": 101,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnRed",
+            "point": {
+              "x": 282,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnRed",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 216,
+                "y": 98,
+                "width": 133,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnRed",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 216,
+                "y": 98,
+                "width": 133,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCalendarioCOI",
+            "point": {
+              "x": 421,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCalendarioCOI",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 357,
+                "y": 98,
+                "width": 129,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCalendarioCOI",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 357,
+                "y": 98,
+                "width": 129,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnOrdenes",
+            "point": {
+              "x": 536,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnOrdenes",
+              "className": "active",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 494,
+                "y": 98,
+                "width": 85,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnOrdenes",
+              "className": "active",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 494,
+                "y": 98,
+                "width": 85,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCarga",
+            "point": {
+              "x": 620,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCarga",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 587,
+                "y": 98,
+                "width": 68,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCarga",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 587,
+                "y": 98,
+                "width": 68,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnAdministracionSistema",
+            "point": {
+              "x": 727,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnAdministracionSistema",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 662,
+                "y": 98,
+                "width": 130,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnAdministracionSistema",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 662,
+                "y": 98,
+                "width": 130,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCentroAlertas",
+            "point": {
+              "x": 1338,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCentroAlertas",
+              "className": "nav-alertas-right",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 1257,
+                "y": 97,
+                "width": 163,
+                "height": 39
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCentroAlertas",
+              "className": "nav-alertas-right",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 1257,
+                "y": 97,
+                "width": 163,
+                "height": 39
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnAccesoBusquedaOrdenes",
+            "point": {
+              "x": 975,
+              "y": 41
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnAccesoBusquedaOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline-block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 918,
+                "y": 21,
+                "width": 115,
+                "height": 41
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnAccesoBusquedaOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline-block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 918,
+                "y": 21,
+                "width": 115,
+                "height": 41
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          }
+        ],
+        "blockingOverlays": [],
+        "fixedElements": [
+          {
+            "tag": "FOOTER",
+            "id": "footerOperativo",
+            "className": "operative-footer",
+            "position": "fixed",
+            "zIndex": "13",
+            "pointerEvents": "auto",
+            "display": "flex",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 951,
+              "width": 1440,
+              "height": 49
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "d33Tooltip",
+            "className": "d33-tooltip",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "ordAnaliticaTooltipR36",
+            "className": "orders-chart-tooltip",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "tip",
+            "className": "tooltip",
+            "position": "fixed",
+            "zIndex": "99",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "supabaseAuthModal",
+            "className": "supabase-auth-modal",
+            "position": "fixed",
+            "zIndex": "10050",
+            "pointerEvents": "auto",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "coiBootIndicator",
+            "className": "coi-boot-indicator",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "auto",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        ],
+        "visibleModals": [],
+        "pendingLoaders": [],
+        "recentErrors": [],
+        "recentPromiseRejections": [],
+        "observersDetected": {
+          "source": 8,
+          "mutation": 7,
+          "resize": 0,
+          "intersection": 1,
+          "knownRuntime": {
+            "legacyBodyObserverConnected": false,
+            "fichaObserverPresent": false
+          }
+        },
+        "timersDetected": {
+          "sourceTimeouts": 182,
+          "sourceIntervals": 3,
+          "sourceAnimationFrames": 14,
+          "diagnosticWatchdogPending": false
+        },
+        "sourceInventory": {
+          "fixed": 24,
+          "inset0": 11,
+          "pointerEvents": 14,
+          "highZIndex": 21,
+          "documentOrWindowListeners": 370,
+          "captureListeners": 3,
+          "preventDefault": 143,
+          "stopPropagation": 22,
+          "stopImmediatePropagation": 70,
+          "mutationObservers": 7,
+          "resizeObservers": 0,
+          "intersectionObservers": 1,
+          "setIntervals": 3,
+          "setTimeouts": 182,
+          "requestAnimationFrames": 14,
+          "onAuthStateChange": 1,
+          "supabaseClients": 1
+        },
+        "localStorageKeys": [
+          "__coi_test_session__",
+          "coi.visual.motion.enabled",
+          "coi_admin_logs_v47",
+          "coi_admin_users_v47",
+          "coi_data_last_update_v50",
+          "coi_fase11_auditoria_cache_v1",
+          "coi_fase11_sesion_actual_v1",
+          "coi_linea_roca_master_v18",
+          "coi_roca_unidades_mantenimiento",
+          "coi_rol_usuario",
+          "coi_servicios_tecnicos",
+          "coi_supabase_estaciones_cache_v1",
+          "coi_supabase_meta_v2",
+          "coi_supabase_ordenes_cache_v2",
+          "coi_timeline_events_v1",
+          "coi_version_actual",
+          "roca_coi_intervenciones_v10"
+        ],
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36"
+      },
+      "recoveryAndExternal": {
+        "recovery": {
+          "recovered": true,
+          "changes": [
+            "body.coi-booting",
+            ".coi-loader",
+            ".op-modal:orphan"
+          ],
+          "bootClass": false,
+          "staleLoaderVisible": false,
+          "orphanVisible": false
+        },
+        "externalDiagnostic": {
+          "detected": true,
+          "extensionHint": true,
+          "reason": "fixed viewport coverage"
+        },
+        "externalRecovery": {
+          "stillPresent": true,
+          "stillVisible": true
+        }
+      },
+      "runtimeRejections": [],
+      "errors": [],
+      "warnings": [],
+      "pendingRequests": [],
+      "elapsedMs": 19691,
+      "passed": true
+    },
+    {
+      "scenario": "E-invalid-old-state",
+      "context": "persistent",
+      "domContentLoadedMs": 7286,
+      "loadMs": 7351,
+      "navigation": [
+        {
+          "id": "btnDashboard",
+          "disabled": false,
+          "point": {
+            "x": 157,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnDashboard",
+            "className": "active"
+          },
+          "legitimate": true,
+          "expectedView": "vistaDashboard",
+          "activeView": "vistaDashboard",
+          "passed": true
+        },
+        {
+          "id": "btnRed",
+          "disabled": false,
+          "point": {
+            "x": 282,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnRed",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaRed",
+          "activeView": "vistaRed",
+          "passed": true
+        },
+        {
+          "id": "btnCalendarioCOI",
+          "disabled": false,
+          "point": {
+            "x": 421,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCalendarioCOI",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaCalendarioCOI",
+          "activeView": "vistaCalendarioCOI",
+          "passed": true
+        },
+        {
+          "id": "btnOrdenes",
+          "disabled": false,
+          "point": {
+            "x": 536,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnOrdenes",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaOrdenes",
+          "activeView": "vistaOrdenes",
+          "passed": true
+        },
+        {
+          "id": "btnCarga",
+          "disabled": false,
+          "point": {
+            "x": 620,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCarga",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaCarga",
+          "activeView": "vistaCarga",
+          "passed": true
+        },
+        {
+          "id": "btnAdministracionSistema",
+          "disabled": false,
+          "point": {
+            "x": 727,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAdministracionSistema",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaAdministracionSistema",
+          "activeView": "vistaAdministracionSistema",
+          "passed": true
+        },
+        {
+          "id": "btnCentroAlertas",
+          "hidden": true,
+          "disabled": false,
+          "expectedView": "vistaCentroAlertas",
+          "restrictedAsExpected": true
+        },
+        {
+          "id": "btnAccesoBusquedaOrdenes",
+          "disabled": false,
+          "point": {
+            "x": 874,
+            "y": 42
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAccesoBusquedaOrdenes",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaOrdenes",
+          "activeView": "vistaOrdenes",
+          "passed": true
+        }
+      ],
+      "diagnostic": {
+        "version": "V58.1R38.1-BOOT-FIX-FINANCIERO-OC",
+        "url": "http://127.0.0.1:4173/",
+        "bodyClasses": [
+          "modo-consulta",
+          "modo-visualizador"
+        ],
+        "appReady": true,
+        "authState": {
+          "status": "none",
+          "hasSession": false,
+          "checkedAt": "2026-07-22T02:39:31.051Z"
+        },
+        "activeView": "vistaOrdenes",
+        "topElementsAtCenter": [
+          {
+            "label": "viewport-center",
+            "point": {
+              "x": 720,
+              "y": 500
+            },
+            "top": {
+              "tag": "DIV",
+              "id": "",
+              "className": "ordenes-resumen ordenes-resumen-financiero",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "grid",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 37,
+                "y": 447,
+                "width": 1366,
+                "height": 82
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnDashboard",
+            "point": {
+              "x": 157,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnDashboard",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 106,
+                "y": 97,
+                "width": 101,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnDashboard",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 106,
+                "y": 97,
+                "width": 101,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnRed",
+            "point": {
+              "x": 282,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnRed",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 216,
+                "y": 97,
+                "width": 133,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnRed",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 216,
+                "y": 97,
+                "width": 133,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCalendarioCOI",
+            "point": {
+              "x": 421,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCalendarioCOI",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 357,
+                "y": 97,
+                "width": 129,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCalendarioCOI",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 357,
+                "y": 97,
+                "width": 129,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnOrdenes",
+            "point": {
+              "x": 536,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnOrdenes",
+              "className": "active",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 494,
+                "y": 97,
+                "width": 85,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnOrdenes",
+              "className": "active",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 494,
+                "y": 97,
+                "width": 85,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCarga",
+            "point": {
+              "x": 620,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCarga",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 587,
+                "y": 97,
+                "width": 68,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCarga",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 587,
+                "y": 97,
+                "width": 68,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnAdministracionSistema",
+            "point": {
+              "x": 727,
+              "y": 115
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnAdministracionSistema",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 662,
+                "y": 97,
+                "width": 130,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnAdministracionSistema",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 662,
+                "y": 97,
+                "width": 130,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCentroAlertas",
+            "hidden": true,
+            "element": {
+              "tag": "BUTTON",
+              "id": "btnCentroAlertas",
+              "className": "nav-alertas-right",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "none",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "width": 0,
+                "height": 0
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnAccesoBusquedaOrdenes",
+            "point": {
+              "x": 874,
+              "y": 41
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnAccesoBusquedaOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline-block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 816,
+                "y": 21,
+                "width": 115,
+                "height": 41
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnAccesoBusquedaOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline-block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 816,
+                "y": 21,
+                "width": 115,
+                "height": 41
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          }
+        ],
+        "blockingOverlays": [],
+        "fixedElements": [
+          {
+            "tag": "FOOTER",
+            "id": "footerOperativo",
+            "className": "operative-footer",
+            "position": "fixed",
+            "zIndex": "13",
+            "pointerEvents": "auto",
+            "display": "flex",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 951,
+              "width": 1440,
+              "height": 49
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "d33Tooltip",
+            "className": "d33-tooltip",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "ordAnaliticaTooltipR36",
+            "className": "orders-chart-tooltip",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "tip",
+            "className": "tooltip",
+            "position": "fixed",
+            "zIndex": "99",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "supabaseAuthModal",
+            "className": "supabase-auth-modal",
+            "position": "fixed",
+            "zIndex": "10050",
+            "pointerEvents": "auto",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "coiBootIndicator",
+            "className": "coi-boot-indicator",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "auto",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        ],
+        "visibleModals": [],
+        "pendingLoaders": [],
+        "recentErrors": [],
+        "recentPromiseRejections": [],
+        "observersDetected": {
+          "source": 8,
+          "mutation": 7,
+          "resize": 0,
+          "intersection": 1,
+          "knownRuntime": {
+            "legacyBodyObserverConnected": false,
+            "fichaObserverPresent": false
+          }
+        },
+        "timersDetected": {
+          "sourceTimeouts": 182,
+          "sourceIntervals": 3,
+          "sourceAnimationFrames": 14,
+          "diagnosticWatchdogPending": false
+        },
+        "sourceInventory": {
+          "fixed": 24,
+          "inset0": 11,
+          "pointerEvents": 14,
+          "highZIndex": 21,
+          "documentOrWindowListeners": 370,
+          "captureListeners": 3,
+          "preventDefault": 143,
+          "stopPropagation": 22,
+          "stopImmediatePropagation": 70,
+          "mutationObservers": 7,
+          "resizeObservers": 0,
+          "intersectionObservers": 1,
+          "setIntervals": 3,
+          "setTimeouts": 182,
+          "requestAnimationFrames": 14,
+          "onAuthStateChange": 1,
+          "supabaseClients": 1
+        },
+        "localStorageKeys": [
+          "activeView",
+          "coi.visual.motion.enabled",
+          "coi_active_view",
+          "coi_admin_logs_v47",
+          "coi_admin_users_v47",
+          "coi_data_last_update_v50",
+          "coi_fase11_auditoria_cache_v1",
+          "coi_linea_roca_master_v18",
+          "coi_modo_usuario",
+          "coi_roca_unidades_mantenimiento",
+          "coi_servicios_tecnicos",
+          "coi_supabase_estaciones_cache_v1",
+          "coi_supabase_meta_v2",
+          "coi_timeline_events_v1",
+          "coi_version_actual",
+          "roca_coi_intervenciones_v10"
+        ],
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36"
+      },
+      "runtimeRejections": [],
+      "errors": [],
+      "warnings": [],
+      "pendingRequests": [],
+      "elapsedMs": 19656,
+      "passed": true
+    },
+    {
+      "scenario": "F-login-and-reload",
+      "context": "persistent",
+      "domContentLoadedMs": 5636,
+      "loadMs": 7121,
+      "reloadedAfterLogin": true,
+      "navigation": [
+        {
+          "id": "btnDashboard",
+          "disabled": false,
+          "point": {
+            "x": 157,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnDashboard",
+            "className": "active"
+          },
+          "legitimate": true,
+          "expectedView": "vistaDashboard",
+          "activeView": "vistaDashboard",
+          "passed": true
+        },
+        {
+          "id": "btnRed",
+          "disabled": false,
+          "point": {
+            "x": 282,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnRed",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaRed",
+          "activeView": "vistaRed",
+          "passed": true
+        },
+        {
+          "id": "btnCalendarioCOI",
+          "disabled": false,
+          "point": {
+            "x": 421,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCalendarioCOI",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaCalendarioCOI",
+          "activeView": "vistaCalendarioCOI",
+          "passed": true
+        },
+        {
+          "id": "btnOrdenes",
+          "disabled": false,
+          "point": {
+            "x": 536,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnOrdenes",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaOrdenes",
+          "activeView": "vistaOrdenes",
+          "passed": true
+        },
+        {
+          "id": "btnCarga",
+          "disabled": false,
+          "point": {
+            "x": 620,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCarga",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaCarga",
+          "activeView": "vistaCarga",
+          "passed": true
+        },
+        {
+          "id": "btnAdministracionSistema",
+          "disabled": false,
+          "point": {
+            "x": 727,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAdministracionSistema",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaAdministracionSistema",
+          "activeView": "vistaAdministracionSistema",
+          "passed": true
+        },
+        {
+          "id": "btnCentroAlertas",
+          "disabled": false,
+          "point": {
+            "x": 1338,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCentroAlertas",
+            "className": "nav-alertas-right"
+          },
+          "legitimate": true,
+          "expectedView": "vistaCentroAlertas",
+          "activeView": "vistaCentroAlertas",
+          "passed": true
+        },
+        {
+          "id": "btnAccesoBusquedaOrdenes",
+          "disabled": false,
+          "point": {
+            "x": 975,
+            "y": 42
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAccesoBusquedaOrdenes",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaOrdenes",
+          "activeView": "vistaOrdenes",
+          "passed": true
+        }
+      ],
+      "diagnostic": {
+        "version": "V58.1R38.1-BOOT-FIX-FINANCIERO-OC",
+        "url": "http://127.0.0.1:4173/",
+        "bodyClasses": [
+          "modo-admin"
+        ],
+        "appReady": true,
+        "authState": {
+          "status": "valid",
+          "hasSession": true,
+          "checkedAt": "2026-07-22T02:40:12.200Z"
+        },
+        "activeView": "vistaOrdenes",
+        "topElementsAtCenter": [
+          {
+            "label": "viewport-center",
+            "point": {
+              "x": 720,
+              "y": 500
+            },
+            "top": {
+              "tag": "DIV",
+              "id": "",
+              "className": "ordenes-resumen ordenes-resumen-financiero",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "grid",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 37,
+                "y": 450,
+                "width": 1366,
+                "height": 82
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnDashboard",
+            "point": {
+              "x": 157,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnDashboard",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 106,
+                "y": 98,
+                "width": 101,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnDashboard",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 106,
+                "y": 98,
+                "width": 101,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnRed",
+            "point": {
+              "x": 282,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnRed",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 216,
+                "y": 98,
+                "width": 133,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnRed",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 216,
+                "y": 98,
+                "width": 133,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCalendarioCOI",
+            "point": {
+              "x": 421,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCalendarioCOI",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 357,
+                "y": 98,
+                "width": 129,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCalendarioCOI",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 357,
+                "y": 98,
+                "width": 129,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnOrdenes",
+            "point": {
+              "x": 536,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnOrdenes",
+              "className": "active",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 494,
+                "y": 98,
+                "width": 85,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnOrdenes",
+              "className": "active",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 494,
+                "y": 98,
+                "width": 85,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCarga",
+            "point": {
+              "x": 620,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCarga",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 587,
+                "y": 98,
+                "width": 68,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCarga",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 587,
+                "y": 98,
+                "width": 68,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnAdministracionSistema",
+            "point": {
+              "x": 727,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnAdministracionSistema",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 662,
+                "y": 98,
+                "width": 130,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnAdministracionSistema",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 662,
+                "y": 98,
+                "width": 130,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCentroAlertas",
+            "point": {
+              "x": 1338,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCentroAlertas",
+              "className": "nav-alertas-right",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 1257,
+                "y": 97,
+                "width": 163,
+                "height": 39
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCentroAlertas",
+              "className": "nav-alertas-right",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 1257,
+                "y": 97,
+                "width": 163,
+                "height": 39
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnAccesoBusquedaOrdenes",
+            "point": {
+              "x": 975,
+              "y": 41
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnAccesoBusquedaOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline-block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 918,
+                "y": 21,
+                "width": 115,
+                "height": 41
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnAccesoBusquedaOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline-block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 918,
+                "y": 21,
+                "width": 115,
+                "height": 41
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          }
+        ],
+        "blockingOverlays": [],
+        "fixedElements": [
+          {
+            "tag": "FOOTER",
+            "id": "footerOperativo",
+            "className": "operative-footer",
+            "position": "fixed",
+            "zIndex": "13",
+            "pointerEvents": "auto",
+            "display": "flex",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 951,
+              "width": 1440,
+              "height": 49
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "d33Tooltip",
+            "className": "d33-tooltip",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "ordAnaliticaTooltipR36",
+            "className": "orders-chart-tooltip",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "tip",
+            "className": "tooltip",
+            "position": "fixed",
+            "zIndex": "99",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "supabaseAuthModal",
+            "className": "supabase-auth-modal",
+            "position": "fixed",
+            "zIndex": "10050",
+            "pointerEvents": "auto",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "coiBootIndicator",
+            "className": "coi-boot-indicator",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "auto",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        ],
+        "visibleModals": [],
+        "pendingLoaders": [],
+        "recentErrors": [],
+        "recentPromiseRejections": [],
+        "observersDetected": {
+          "source": 8,
+          "mutation": 7,
+          "resize": 0,
+          "intersection": 1,
+          "knownRuntime": {
+            "legacyBodyObserverConnected": false,
+            "fichaObserverPresent": false
+          }
+        },
+        "timersDetected": {
+          "sourceTimeouts": 182,
+          "sourceIntervals": 3,
+          "sourceAnimationFrames": 14,
+          "diagnosticWatchdogPending": false
+        },
+        "sourceInventory": {
+          "fixed": 24,
+          "inset0": 11,
+          "pointerEvents": 14,
+          "highZIndex": 21,
+          "documentOrWindowListeners": 370,
+          "captureListeners": 3,
+          "preventDefault": 143,
+          "stopPropagation": 22,
+          "stopImmediatePropagation": 70,
+          "mutationObservers": 7,
+          "resizeObservers": 0,
+          "intersectionObservers": 1,
+          "setIntervals": 3,
+          "setTimeouts": 182,
+          "requestAnimationFrames": 14,
+          "onAuthStateChange": 1,
+          "supabaseClients": 1
+        },
+        "localStorageKeys": [
+          "__coi_test_session__",
+          "coi.visual.motion.enabled",
+          "coi_admin_logs_v47",
+          "coi_admin_users_v47",
+          "coi_data_last_update_v50",
+          "coi_fase11_auditoria_cache_v1",
+          "coi_fase11_sesion_actual_v1",
+          "coi_linea_roca_master_v18",
+          "coi_roca_unidades_mantenimiento",
+          "coi_rol_usuario",
+          "coi_servicios_tecnicos",
+          "coi_supabase_estaciones_cache_v1",
+          "coi_supabase_meta_v2",
+          "coi_supabase_ordenes_cache_v2",
+          "coi_timeline_events_v1",
+          "coi_version_actual",
+          "roca_coi_intervenciones_v10"
+        ],
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36"
+      },
+      "runtimeRejections": [],
+      "errors": [],
+      "warnings": [],
+      "pendingRequests": [],
+      "elapsedMs": 35802,
+      "passed": true
+    },
+    {
+      "scenario": "G-return-navigation",
+      "context": "persistent",
+      "domContentLoadedMs": 5608,
+      "loadMs": 6782,
+      "navigation": [
+        {
+          "id": "btnDashboard",
+          "disabled": false,
+          "point": {
+            "x": 157,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnDashboard",
+            "className": "active"
+          },
+          "legitimate": true,
+          "expectedView": "vistaDashboard",
+          "activeView": "vistaDashboard",
+          "passed": true
+        },
+        {
+          "id": "btnRed",
+          "disabled": false,
+          "point": {
+            "x": 282,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnRed",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaRed",
+          "activeView": "vistaRed",
+          "passed": true
+        },
+        {
+          "id": "btnCalendarioCOI",
+          "disabled": false,
+          "point": {
+            "x": 421,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCalendarioCOI",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaCalendarioCOI",
+          "activeView": "vistaCalendarioCOI",
+          "passed": true
+        },
+        {
+          "id": "btnOrdenes",
+          "disabled": false,
+          "point": {
+            "x": 536,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnOrdenes",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaOrdenes",
+          "activeView": "vistaOrdenes",
+          "passed": true
+        },
+        {
+          "id": "btnCarga",
+          "disabled": false,
+          "point": {
+            "x": 620,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCarga",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaCarga",
+          "activeView": "vistaCarga",
+          "passed": true
+        },
+        {
+          "id": "btnAdministracionSistema",
+          "disabled": false,
+          "point": {
+            "x": 727,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAdministracionSistema",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaAdministracionSistema",
+          "activeView": "vistaAdministracionSistema",
+          "passed": true
+        },
+        {
+          "id": "btnCentroAlertas",
+          "disabled": false,
+          "point": {
+            "x": 1338,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCentroAlertas",
+            "className": "nav-alertas-right"
+          },
+          "legitimate": true,
+          "expectedView": "vistaCentroAlertas",
+          "activeView": "vistaCentroAlertas",
+          "passed": true
+        },
+        {
+          "id": "btnAccesoBusquedaOrdenes",
+          "disabled": false,
+          "point": {
+            "x": 975,
+            "y": 42
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAccesoBusquedaOrdenes",
+            "className": ""
+          },
+          "legitimate": true,
+          "expectedView": "vistaOrdenes",
+          "activeView": "vistaOrdenes",
+          "passed": true
+        }
+      ],
+      "returnNavigationView": "vistaRed",
+      "diagnostic": {
+        "version": "V58.1R38.1-BOOT-FIX-FINANCIERO-OC",
+        "url": "http://127.0.0.1:4173/",
+        "bodyClasses": [
+          "modo-admin"
+        ],
+        "appReady": true,
+        "authState": {
+          "status": "valid",
+          "hasSession": true,
+          "checkedAt": "2026-07-22T02:40:34.936Z"
+        },
+        "activeView": "vistaRed",
+        "topElementsAtCenter": [
+          {
+            "label": "viewport-center",
+            "point": {
+              "x": 720,
+              "y": 500
+            },
+            "top": {
+              "tag": "image",
+              "id": "",
+              "className": "[object SVGAnimatedString]",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 21,
+                "y": 358,
+                "width": 1398,
+                "height": 556
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnDashboard",
+            "point": {
+              "x": 157,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnDashboard",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 106,
+                "y": 98,
+                "width": 101,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnDashboard",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 106,
+                "y": 98,
+                "width": 101,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnRed",
+            "point": {
+              "x": 282,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnRed",
+              "className": "active",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 216,
+                "y": 98,
+                "width": 133,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnRed",
+              "className": "active",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 216,
+                "y": 98,
+                "width": 133,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCalendarioCOI",
+            "point": {
+              "x": 421,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCalendarioCOI",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 357,
+                "y": 98,
+                "width": 129,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCalendarioCOI",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 357,
+                "y": 98,
+                "width": 129,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnOrdenes",
+            "point": {
+              "x": 536,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 494,
+                "y": 98,
+                "width": 85,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 494,
+                "y": 98,
+                "width": 85,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCarga",
+            "point": {
+              "x": 620,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCarga",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 587,
+                "y": 98,
+                "width": 68,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCarga",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 587,
+                "y": 98,
+                "width": 68,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnAdministracionSistema",
+            "point": {
+              "x": 727,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnAdministracionSistema",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 662,
+                "y": 98,
+                "width": 130,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnAdministracionSistema",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 662,
+                "y": 98,
+                "width": 130,
+                "height": 36
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnCentroAlertas",
+            "point": {
+              "x": 1338,
+              "y": 116
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnCentroAlertas",
+              "className": "nav-alertas-right",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 1257,
+                "y": 97,
+                "width": 163,
+                "height": 39
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnCentroAlertas",
+              "className": "nav-alertas-right",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 1257,
+                "y": 97,
+                "width": 163,
+                "height": 39
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          },
+          {
+            "label": "btnAccesoBusquedaOrdenes",
+            "point": {
+              "x": 975,
+              "y": 42
+            },
+            "legitimate": true,
+            "target": {
+              "tag": "BUTTON",
+              "id": "btnAccesoBusquedaOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline-block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 918,
+                "y": 22,
+                "width": 115,
+                "height": 41
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            },
+            "top": {
+              "tag": "BUTTON",
+              "id": "btnAccesoBusquedaOrdenes",
+              "className": "",
+              "position": "static",
+              "zIndex": "auto",
+              "pointerEvents": "auto",
+              "display": "inline-block",
+              "visibility": "visible",
+              "opacity": "1",
+              "rect": {
+                "x": 918,
+                "y": 22,
+                "width": 115,
+                "height": 41
+              },
+              "extensionHint": false,
+              "diagnosticOwn": false
+            }
+          }
+        ],
+        "blockingOverlays": [],
+        "fixedElements": [
+          {
+            "tag": "FOOTER",
+            "id": "footerOperativo",
+            "className": "operative-footer",
+            "position": "fixed",
+            "zIndex": "13",
+            "pointerEvents": "auto",
+            "display": "flex",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 951,
+              "width": 1440,
+              "height": 49
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "d33Tooltip",
+            "className": "d33-tooltip",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "ordAnaliticaTooltipR36",
+            "className": "orders-chart-tooltip",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "tip",
+            "className": "tooltip",
+            "position": "fixed",
+            "zIndex": "99",
+            "pointerEvents": "none",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "supabaseAuthModal",
+            "className": "supabase-auth-modal",
+            "position": "fixed",
+            "zIndex": "10050",
+            "pointerEvents": "auto",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          },
+          {
+            "tag": "DIV",
+            "id": "coiBootIndicator",
+            "className": "coi-boot-indicator",
+            "position": "fixed",
+            "zIndex": "100000",
+            "pointerEvents": "auto",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "width": 0,
+              "height": 0
+            },
+            "extensionHint": false,
+            "diagnosticOwn": false
+          }
+        ],
+        "visibleModals": [],
+        "pendingLoaders": [],
+        "recentErrors": [],
+        "recentPromiseRejections": [],
+        "observersDetected": {
+          "source": 8,
+          "mutation": 7,
+          "resize": 0,
+          "intersection": 1,
+          "knownRuntime": {
+            "legacyBodyObserverConnected": false,
+            "fichaObserverPresent": false
+          }
+        },
+        "timersDetected": {
+          "sourceTimeouts": 182,
+          "sourceIntervals": 3,
+          "sourceAnimationFrames": 14,
+          "diagnosticWatchdogPending": false
+        },
+        "sourceInventory": {
+          "fixed": 24,
+          "inset0": 11,
+          "pointerEvents": 14,
+          "highZIndex": 21,
+          "documentOrWindowListeners": 370,
+          "captureListeners": 3,
+          "preventDefault": 143,
+          "stopPropagation": 22,
+          "stopImmediatePropagation": 70,
+          "mutationObservers": 7,
+          "resizeObservers": 0,
+          "intersectionObservers": 1,
+          "setIntervals": 3,
+          "setTimeouts": 182,
+          "requestAnimationFrames": 14,
+          "onAuthStateChange": 1,
+          "supabaseClients": 1
+        },
+        "localStorageKeys": [
+          "__coi_test_session__",
+          "coi.visual.motion.enabled",
+          "coi_admin_logs_v47",
+          "coi_admin_users_v47",
+          "coi_data_last_update_v50",
+          "coi_fase11_auditoria_cache_v1",
+          "coi_linea_roca_master_v18",
+          "coi_roca_unidades_mantenimiento",
+          "coi_rol_usuario",
+          "coi_servicios_tecnicos",
+          "coi_supabase_estaciones_cache_v1",
+          "coi_supabase_meta_v2",
+          "coi_supabase_ordenes_cache_v2",
+          "coi_timeline_events_v1",
+          "coi_version_actual",
+          "roca_coi_intervenciones_v10"
+        ],
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/150.0.0.0 Safari/537.36"
+      },
+      "runtimeRejections": [],
+      "errors": [],
+      "warnings": [],
+      "pendingRequests": [],
+      "elapsedMs": 20036,
+      "passed": true
+    }
+  ],
+  "passed": true
+}
