@@ -1,0 +1,20 @@
+{
+  "version": "V58.1R38.3-IMPUTACION-POSICIONES-CANTIDADES",
+  "fixture": {
+    "oc": "4530008964",
+    "posOriginal": "160,10",
+    "posCanonica": "160.10",
+    "descripcion": "MTO DE EQUIPOS",
+    "cantidadOriginal": 5,
+    "cantidadImputada": 4,
+    "precioUnitario": 356126.4,
+    "montoImputado": 1424505.6,
+    "cantidadRemanente": 1,
+    "montoRemanente": 356126.4,
+    "estado": "PARCIAL"
+  },
+  "tests": 13,
+  "status": "PASS",
+  "productiveWrites": 0,
+  "timestamp": "2026-07-22T00:00:00Z"
+}
