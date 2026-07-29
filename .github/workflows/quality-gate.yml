@@ -33,7 +33,14 @@ jobs:
         run: git diff --check
 
       - name: Comprobar marcadores de conflicto
-        run: '! rg --line-number ''^\s*(<<<<<<<|=======|>>>>>>>)(\s|$)'' index.html'
+        run: |
+          if grep -En '^[[:space:]]*(<<<<<<<|=======|>>>>>>>)([[:space:]]|$)' index.html; then
+            echo "Se encontraron marcadores de conflicto"
+            exit 1
+          fi
 
       - name: Comprobar DOCTYPE unico
-        run: test "$(rg --ignore-case --only-matching '<!doctype\s+html\s*>' index.html | wc -l)" -eq 1
+        run: |
+          count=$(grep -Eio '<!doctype[[:space:]]+html[[:space:]]*>' index.html | wc -l)
+          echo "DOCTYPE encontrados: $count"
+          test "$count" -eq 1
