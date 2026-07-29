@@ -29,6 +29,9 @@ jobs:
       - name: Ejecutar controles de linea base
         run: node tests/check_baseline.js
 
+      - name: Ejecutar CRUD seguro de Ordenes con mocks
+        run: node tests/check_crud_ordenes.js
+
       - name: Validar espacios y fin de linea
         run: git diff --check
 

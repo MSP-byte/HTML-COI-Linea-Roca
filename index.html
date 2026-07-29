@@ -8,12 +8,12 @@
 (function(){
   'use strict';
 
-  const VERSION = 'V59.6-CACHE-SEGURO';
-  const RELEASE_DATE = '2026-07-23';
+  const VERSION = 'V60.1-CRUD-OC-PERSISTENTE';
+  const RELEASE_DATE = '2026-07-29';
 
   window.COI_CONFIG = Object.freeze({
     version: VERSION,
-    title: 'Reparación segura de caché local y recuperación controlada de Supabase',
+    title: 'Borrado persistente y seguro de Órdenes de Compra',
     releaseDate: RELEASE_DATE,
     schemaVersion: 1,
     storageRegistryVersion: 1
@@ -1684,7 +1684,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
     <span class="brand-copy"><small>TRENES ARGENTINOS</small><strong>L&Iacute;NEA ROCA</strong></span>
   </div>
   <div class="app-identity" title="Sistema Integrado de Gestion de Obras y Servicios">
-    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge" data-app-version>V59.6-CACHE-SEGURO</span></div>
+    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge" data-app-version>V60.1-CRUD-OC-PERSISTENTE</span></div>
     <div class="app-subtitle" id="appSubtitleHeader">Sistema Integrado de Gesti&oacute;n de Obras y Servicios</div>
     <div class="app-tagline" id="appTaglineHeader">Sistema operativo COI L&iacute;nea Roca &mdash; Gesti&oacute;n de Obras, Servicios, Certificaciones y Vencimientos</div>
   </div>
@@ -1712,7 +1712,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
   </div>
   <div class="footer-status-grid">
     <span class="footer-pill"><span>Sistema</span><b id="footerSistemaNombre">COI L&iacute;nea Roca</b></span>
-    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa" data-app-version>V59.6-CACHE-SEGURO</b></span>
+    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa" data-app-version>V60.1-CRUD-OC-PERSISTENTE</b></span>
     <span class="footer-pill"><span>&Uacute;ltima actualizaci&oacute;n</span><b id="headerUltimaActualizacion">Sin datos</b></span>
     <span class="footer-pill"><span>OCs cargadas</span><b id="headerTotalOC">0</b></span>
     <span class="footer-pill mode"><span>Estado</span><b id="headerModoSistema">Modo Operativo</b></span>
@@ -5478,8 +5478,8 @@ function activarHoverEstaciones(){
    =============================== */
 const APP_NAME = "COI Línea Roca";
 const APP_VERSION = window.COI_CONFIG.version;
-const APP_STATUS = "Base estable con reparación segura de caché y recuperación controlada";
-const APP_RELEASE_DATE = "2026-07-23";
+const APP_STATUS = "Borrado persistente y seguro de Órdenes de Compra";
+const APP_RELEASE_DATE = "2026-07-29";
 const APP_AUTHOR = "Mariano Special";
 const APP_START_YEAR = "2025";
 const APP_SUBTITLE = "Sistema Integrado de Gestión de Obras y Servicios";
@@ -5487,6 +5487,7 @@ const APP_OPERATIVE_TEXT = "Sistema operativo COI Línea Roca — Gestión de Ob
 const ADMIN_PIN = "1234";
 const USER_ROLES = { ADMIN: "Administrador", JEFE: "Jefatura" };
 const historialVersiones = [
+  {version:"V60.1-CRUD-OC-PERSISTENTE",fecha:"2026-07-29",titulo:"Borrado persistente y seguro de Órdenes de Compra",cambios:["Supabase confirma cada DELETE filtrado y devuelve las filas afectadas.","Las dependencias de negocio bloquean el borrado y las asociaciones de estaciones se eliminan de forma selectiva.","La caché reconstruible se reemplaza solo después de verificar el estado remoto.","Se incorporó confirmación administrativa accesible con PIN y texto ELIMINAR."],modulosAfectados:["Órdenes","Supabase","localStorage"],estado:"Pendiente de validación manual online",observaciones:"No elimina archivos de Storage, documentos ni información de negocio."},
   {version:"V59.6-CACHE-SEGURO",fecha:"2026-07-23",titulo:"Reparación segura de caché local y recuperación controlada de Supabase",cambios:["Se agregó el botón Reparar caché local en Administración → Diagnóstico.","La reparación crea un respaldo JSON previo descargable desde el navegador.","Solo elimina claves declaradas como UI_CACHE y bloqueos temporales legacy; nunca usa localStorage.clear().","Se preservan datos operativos, posiciones financieras, pendientes, borradores, sesión Supabase y claves legacy protegidas.","Se verifica y recarga Supabase con timeout para evitar bloqueos indefinidos.","La vista activa se actualiza de forma controlada y se genera un informe detallado de la reparación.","La operación evita doble clic, registra auditoría y libera siempre la interfaz mediante finally."],modulosAfectados:["Administración","Diagnóstico","localStorage","Supabase","Auditoría"],estado:"Estable",observaciones:"Fase 2 de estabilidad. No modifica tablas, RLS, Storage ni datos financieros."},
   {version:"V59.6-CACHE-SEGURO",fecha:"2026-07-23",titulo:"Reparación segura de caché local y recuperación controlada de Supabase",cambios:["Se definió COI_CONFIG como única fuente de versión activa.","Se unificaron las constantes históricas de versionado para evitar sobrescrituras entre capas.","Se retiró el MutationObserver dedicado exclusivamente al badge de versión.","Se creó COI_STORAGE para clasificar datos operativos, caché de Supabase, pendientes, borradores, sesión, preferencias y diagnóstico.","Se agregaron helpers seguros de lectura, escritura, inventario y reparación exclusiva de caché visual.","No se borraron, migraron ni renombraron datos existentes."],modulosAfectados:["Core","Header","Footer","Acerca del Sistema","localStorage"],estado:"Estable",observaciones:"Primera fase estructural. Las claves legacy permanecen protegidas hasta una migración controlada posterior."},
   {version:"V58.1R28-CONTRACTUAL-CT",fecha:"2026-07-17",titulo:"Registro automático de documentos Storage en tabla documental",cambios:["Se corrigió la sincronización documental por OC.","El sistema detecta archivos existentes en Supabase Storage aunque no tengan fila documental.","Se crean automáticamente registros faltantes en public.coi_documentos_oc usando la columna real estado.","Se evita duplicar documentos por storage_path y OC.","Las Actas de Medición detectadas se reflejan también en Certificaciones.","Se elimina la necesidad de validar manualmente cada documento desde SQL Editor."],modulosAfectados:["Ficha OC","Documentos","Certificaciones","Supabase Storage","coi_documentos_oc"],estado:"Estable",observaciones:"Storage conserva el PDF físico y la tabla documental queda como índice operativo trazable."},
@@ -16133,26 +16134,8 @@ const APP_DATA_MODE = "supabase_first";
   }
 
   async function eliminarSeleccionadasSupabase() {
-    await requireSupabaseWriteAccess();
-    const checked = [...document.querySelectorAll('.chk-orden-row:checked')];
-    if (!checked.length) {
-      toast('No hay OCs seleccionadas.', 'warning');
-      return false;
-    }
-    const allOrders = estacionesDisponibles().flatMap((station) => [...(station.obras || []), ...(station.servicios || [])]);
-    const selected = [];
-    checked.forEach((checkbox) => {
-      const key = checkbox.dataset.ordenKey;
-      let order = null;
-      if (typeof window.v45RegistroKey === 'function') order = allOrders.find((item) => window.v45RegistroKey(item) === key);
-      if (!order) order = allOrders.find((item) => [item.idObra, item.numeroOC, item.oc].some((value) => norm(value) === norm(key)));
-      if (order && !selected.includes(order)) selected.push(order);
-    });
-    if (!selected.length) throw new Error('No se pudieron resolver las OCs seleccionadas.');
-    if (!confirm(`¿Eliminar ${selected.length} OC(s) de Supabase? Esta acción afecta la fuente principal.`)) return false;
-    for (const order of selected) await eliminarOrdenEnSupabase(order.supabaseId || order.idObra);
-    toast(`${selected.length} OC(s) eliminadas de Supabase.`, 'ok');
-    return true;
+    if (!window.COI_CRUD_ORDENES) throw new Error('El borrado seguro de OCs no está disponible. Recargue la aplicación.');
+    return window.COI_CRUD_ORDENES.eliminarSeleccionadasDesdeUI();
   }
 
   function actualizarPanelAdminSupabase(status = null) {
@@ -16391,10 +16374,8 @@ const APP_DATA_MODE = "supabase_first";
           const id = diagDelete.dataset.v581DeleteOc || diagDelete.dataset.diagDeleteOc || diagDelete.dataset.deleteOc;
           try {
             await requireSupabaseWriteAccess();
-            if (confirm(`¿Eliminar la OC ${id} de Supabase?`)) {
-              await eliminarOrdenEnSupabase(id);
-              toast('OC eliminada de Supabase.', 'ok');
-            }
+            if (!window.COI_CRUD_ORDENES) throw new Error('El borrado seguro de OCs no está disponible.');
+            await window.COI_CRUD_ORDENES.eliminarPorClaveDesdeUI(id);
           } catch (error) { toast(error?.message || String(error), 'error'); }
           return;
         }
@@ -24804,6 +24785,115 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true});
   else init();
+})();
+</script>
+
+<script id="coi-crud-ordenes-v601">
+/* V60.1 — eliminación confirmada contra Supabase; nunca elimina archivos de Storage. */
+(function(){
+  'use strict';
+  const VERSION='V60.1-CRUD-OC-PERSISTENTE';
+  const ORDER_TABLE='coi_ordenes';
+  const STATION_TABLE='coi_ordenes_estaciones';
+  const ORDER_CACHE_KEY='coi_supabase_ordenes_cache_v2';
+  const BUSINESS_DEPENDENCIES=Object.freeze([
+    {table:'coi_documentos_oc',label:'documentos',field:'nro_oc'},
+    {table:'coi_certificaciones',label:'certificaciones',field:'nro_oc'},
+    {table:'coi_historial_oc',label:'eventos de historial',field:'nro_oc'},
+    {table:'coi_links_documentales',label:'links documentales',field:'nro_oc'},
+    {table:'coi_auditorias_calidad',label:'registros de auditoría',field:'nro_oc'},
+    {table:'coi_timeline_events',label:'movimientos de Timeline',field:'oc'}
+  ]);
+  let deleting=false;
+  const clean=v=>String(v??'').trim();
+  function normalizarNroOC(v){return clean(v).replace(/^OC-\s*/i,'').replace(/\s+/g,'');}
+  function nro(o){return normalizarNroOC(o?.nro_oc??o?.numeroOC??o?.oc??o?.OC_NRO??o?.ocNro);}
+  function oid(o){const value=o?.supabaseId??o?._supabaseRaw?.id??o?.orden_id??o?.id;return clean(value)||'';}
+  function key(o){return oid(o)?`id:${oid(o)}`:`oc:${nro(o)}`;}
+  function allOrders(){return (Array.isArray(window.estaciones)?window.estaciones:[]).flatMap(e=>[...(e.obras||[]),...(e.servicios||[])]).filter(o=>!o?._estacionAsociadaTemporal);}
+  function uniqueOrders(rows){const seen=new Set();return (rows||[]).filter(o=>{const k=key(o);if((!oid(o)&&!nro(o))||seen.has(k))return false;seen.add(k);return true;});}
+  function toast(message,type='info'){if(typeof window.coiToast==='function')return window.coiToast(message,type);if(typeof window.mostrarToast==='function')return window.mostrarToast(message,type);console[type==='error'?'error':'info'](message);}
+  function client(){return typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;}
+  async function requireAccess(){
+    if(typeof window.adminIsEnabled!=='function'||!window.adminIsEnabled())throw new Error('Esta acción requiere modo Administrador.');
+    if(!navigator.onLine||!client())throw new Error('No se puede confirmar la eliminación sin conexión a Supabase');
+    const user=typeof window.getUsuarioActual==='function'?await window.getUsuarioActual():null;
+    if(!user)throw new Error('Debe iniciar sesión en Supabase para eliminar OCs.');
+  }
+  function friendlyError(error){const text=clean(error?.message||error);if(/row.level.security|rls|permission|not authorized|42501/i.test(text))return 'Supabase rechazó la eliminación por autorización (RLS). Los datos permanecen sin cambios.';return text||'Supabase rechazó la operación. Los datos permanecen sin cambios.';}
+  async function countDependency(dep,order){
+    const result=await client().from(dep.table).select('*',{count:'exact',head:true}).eq(dep.field,nro(order));
+    if(result.error)throw new Error(`No se pudo verificar ${dep.label} en public.${dep.table}: ${result.error.message||result.error}`);
+    return Number(result.count||0);
+  }
+  async function dependencies(order){
+    const counts={};
+    for(const dep of BUSINESS_DEPENDENCIES){const n=await countDependency(dep,order);if(n)counts[dep.label]=n;}
+    return counts;
+  }
+  function dependencyText(counts){return Object.entries(counts).map(([label,count])=>`${count} ${label}`).join(', ');}
+  function ensureModal(){
+    let modal=document.getElementById('crudOcDeleteModal');if(modal)return modal;
+    modal=document.createElement('div');modal.id='crudOcDeleteModal';modal.className='crud-oc-modal';modal.hidden=true;modal.innerHTML=`<div class="crud-oc-card" role="dialog" aria-modal="true" aria-labelledby="crudOcTitle"><h2 id="crudOcTitle">Eliminar Órdenes de Compra</h2><div id="crudOcDetail"></div><label for="crudOcPin">PIN de Administrador</label><input id="crudOcPin" type="password" autocomplete="current-password"><label for="crudOcPhrase">Escriba ELIMINAR para confirmar</label><input id="crudOcPhrase" autocomplete="off"><div id="crudOcError" role="alert"></div><div class="crud-oc-actions"><button type="button" data-crud-cancel>Cancelar</button><button type="button" class="btn-danger-soft" data-crud-confirm>Eliminar definitivamente</button></div></div>`;
+    document.body.appendChild(modal);return modal;
+  }
+  function confirmDeletion(orders,blocked){return new Promise(resolve=>{
+    const modal=ensureModal(),detail=modal.querySelector('#crudOcDetail'),pin=modal.querySelector('#crudOcPin'),phrase=modal.querySelector('#crudOcPhrase'),error=modal.querySelector('#crudOcError');
+    detail.innerHTML=`<p>Se eliminarán definitivamente <b>${orders.length}</b> OC(s):</p><ul>${orders.map(o=>`<li>${normalizarNroOC(nro(o))}</li>`).join('')}</ul><p><b>Esta acción no elimina PDFs de Storage.</b></p>${blocked.length?`<p>${blocked.length} OC(s) bloqueadas por información vinculada.</p>`:''}`;pin.value='';phrase.value='';error.textContent='';modal.hidden=false;pin.focus();
+    const finish=value=>{modal.hidden=true;pin.value='';phrase.value='';modal.removeEventListener('click',click);resolve(value);};
+    const click=e=>{if(e.target.closest('[data-crud-cancel]')||e.target===modal){finish(false);return;}if(!e.target.closest('[data-crud-confirm]'))return;const expected=typeof window.adminPinActual==='function'?String(window.adminPinActual()):null;if(!expected||pin.value!==expected){error.textContent='PIN incorrecto. No se eliminó ningún registro.';return;}if(phrase.value.trim()!=='ELIMINAR'){error.textContent='Escriba ELIMINAR exactamente para confirmar.';return;}finish(true);};modal.addEventListener('click',click);
+  });}
+  async function deleteSafeRelations(order){
+    let removed=[];
+    if(oid(order)){const byId=await client().from(STATION_TABLE).delete().eq('orden_id',oid(order)).select('*');if(byId.error)throw byId.error;removed.push(...(byId.data||[]));}
+    const byNumber=await client().from(STATION_TABLE).delete().eq('nro_oc',nro(order)).select('*');if(byNumber.error)throw byNumber.error;
+    const seen=new Set(removed.map(row=>clean(row.id)));removed.push(...(byNumber.data||[]).filter(row=>!seen.has(clean(row.id))));return removed;
+  }
+  async function restoreSafeRelations(rows){if(!rows.length)return;const {error}=await client().from(STATION_TABLE).insert(rows).select('id');if(error)throw error;}
+  async function deleteOrders(orders){
+    const ids=orders.map(oid).filter(Boolean),numbers=orders.filter(o=>!oid(o)).map(nro).filter(Boolean);let deleted=[];
+    if(ids.length){const {data,error}=await client().from(ORDER_TABLE).delete().in('id',ids).select('id,nro_oc');if(error)throw error;deleted.push(...(data||[]));}
+    if(numbers.length){const {data,error}=await client().from(ORDER_TABLE).delete().in('nro_oc',numbers).select('id,nro_oc');if(error)throw error;deleted.push(...(data||[]));}
+    return deleted;
+  }
+  async function remoteOrders(){const {data,error}=await client().from(ORDER_TABLE).select('*').limit(10000);if(error)throw error;return Array.isArray(data)?data:[];}
+  function purgeCache(remote){localStorage.setItem(ORDER_CACHE_KEY,JSON.stringify({savedAt:new Date().toISOString(),orders:remote}));}
+  function setButton(active,count=0){const b=document.getElementById('btnBorrarSeleccionadas');if(!b)return;b.disabled=active||count===0;b.textContent=active?'Eliminando…':count?`Borrar seleccionadas (${count})`:'Borrar seleccionadas';}
+  async function eliminarOrdenesPersistentes(selection,{skipDialog=false}={}){
+    if(deleting)return {status:'busy'};deleting=true;const orders=uniqueOrders(selection);setButton(true,orders.length);
+    try{
+      await requireAccess();if(!orders.length)throw new Error('No hay OCs seleccionadas.');
+      const deletable=[],blocked=[];
+      for(const order of orders){const counts=await dependencies(order);if(Object.keys(counts).length)blocked.push({order,counts});else deletable.push(order);}
+      blocked.forEach(x=>toast(`No se puede eliminar la OC ${nro(x.order)} porque posee información vinculada: ${dependencyText(x.counts)}.`,'warning'));
+      if(!deletable.length)return {status:'blocked',deleted:[],blocked};
+      if(!skipDialog&&!(await confirmDeletion(deletable,blocked)))return {status:'cancelled',deleted:[],blocked};
+      const removedRelations=[];
+      try{for(const order of deletable)removedRelations.push(...await deleteSafeRelations(order));}
+      catch(error){await restoreSafeRelations(removedRelations);throw error;}
+      let deleted;
+      try{deleted=await deleteOrders(deletable);}
+      catch(error){await restoreSafeRelations(removedRelations);throw error;}
+      const remote=await remoteOrders();
+      const stillPresent=deletable.filter(w=>remote.some(r=>(oid(w)&&clean(r.id)===oid(w))||(!oid(w)&&normalizarNroOC(r.nro_oc)===nro(w))));
+      if(deleted.length!==deletable.length||stillPresent.length){
+        const idsStillPresent=new Set(stillPresent.map(oid).filter(Boolean)),numbersStillPresent=new Set(stillPresent.map(nro));
+        await restoreSafeRelations(removedRelations.filter(row=>idsStillPresent.has(clean(row.orden_id))||numbersStillPresent.has(normalizarNroOC(row.nro_oc))));
+        if(typeof window.recargarDatosDesdeSupabase==='function')await window.recargarDatosDesdeSupabase({silencioso:true});
+        throw new Error(`El borrado no pudo confirmarse: se solicitaron ${deletable.length} y Supabase devolvió ${deleted.length}.`);
+      }
+      purgeCache(remote);if(typeof window.recargarDatosDesdeSupabase==='function')await window.recargarDatosDesdeSupabase({silencioso:true});
+      if(window.v45SeleccionOrdenes?.clear)window.v45SeleccionOrdenes.clear();
+      ['renderOrdenes','updateKpis','renderDashboardAlertSummary','renderDashboardInteractivoExtra','renderMap'].forEach(name=>{try{window[name]?.();}catch(_e){}});
+      toast(`${deleted.length} OC(s) eliminadas correctamente. ${blocked.length} bloqueada(s). La información fue confirmada en Supabase.`,'ok');
+      return {status:blocked.length?'partial':'success',deleted,blocked};
+    }catch(error){toast(friendlyError(error),'error');throw error;}finally{deleting=false;setButton(false,document.querySelectorAll('.chk-orden-row:checked').length);}
+  }
+  function resolveSelected(){const keys=[...document.querySelectorAll('.chk-orden-row:checked')].map(c=>clean(c.dataset.ordenKey));return uniqueOrders(keys.map(k=>allOrders().find(o=>(typeof window.v45RegistroKey==='function'&&window.v45RegistroKey(o)===k)||[o.idObra,nro(o),oid(o)].some(v=>clean(v)===k))).filter(Boolean));}
+  function resolveKey(k){return allOrders().find(o=>[o.idObra,nro(o),oid(o)].some(v=>clean(v)===clean(k)));}
+  window.COI_CRUD_ORDENES=Object.freeze({version:VERSION,normalizarNroOC,eliminarOrdenesPersistentes,eliminarSeleccionadasDesdeUI:()=>eliminarOrdenesPersistentes(resolveSelected()),eliminarPorClaveDesdeUI:k=>{const o=resolveKey(k);if(!o)throw new Error('No se encontró la OC seleccionada.');return eliminarOrdenesPersistentes([o]);},businessDependencies:BUSINESS_DEPENDENCIES});
+  const style=document.createElement('style');style.id='coi-crud-ordenes-style';style.textContent='.crud-oc-modal{position:fixed;inset:0;z-index:100100;background:#0f172a99;display:flex;align-items:center;justify-content:center;padding:18px}.crud-oc-modal[hidden]{display:none}.crud-oc-card{width:min(560px,96vw);background:#fff;border-radius:16px;padding:20px;box-shadow:0 24px 70px #0005}.crud-oc-card label{display:block;font-weight:800;margin:12px 0 5px}.crud-oc-card input{width:100%;box-sizing:border-box}.crud-oc-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.crud-oc-card [role=alert]{min-height:22px;color:#9b1c1c;font-weight:800;margin-top:8px}';document.head.appendChild(style);
+  document.querySelectorAll('[data-app-version]').forEach(el=>el.textContent=VERSION);window.APP_VERSION=VERSION;
 })();
 </script>
 
