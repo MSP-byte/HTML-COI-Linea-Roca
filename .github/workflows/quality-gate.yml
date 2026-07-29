@@ -1,0 +1,39 @@
+name: Quality Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    name: Baseline estatica
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout sin credenciales persistentes
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configurar Node estable
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Ejecutar controles de linea base
+        run: node tests/check_baseline.js
+
+      - name: Validar espacios y fin de linea
+        run: git diff --check
+
+      - name: Comprobar marcadores de conflicto
+        run: '! rg --line-number ''^\s*(<<<<<<<|=======|>>>>>>>)(\s|$)'' index.html'
+
+      - name: Comprobar DOCTYPE unico
+        run: test "$(rg --ignore-case --only-matching '<!doctype\s+html\s*>' index.html | wc -l)" -eq 1
