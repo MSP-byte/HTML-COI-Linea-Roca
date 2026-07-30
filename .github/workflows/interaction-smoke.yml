@@ -1,0 +1,30 @@
+name: Interaction Smoke
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar Playwright aislado
+        run: npm install --no-save @playwright/test@1.55.0
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Servir HTML y ejecutar interacción real con mocks
+        run: |
+          python3 -m http.server 4173 >/tmp/coi-http.log 2>&1 &
+          npx playwright test tests/e2e_interacciones.spec.js --project=chromium
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
