@@ -8,8 +8,8 @@
 (function(){
   'use strict';
 
-  const VERSION = 'V60.1-CRUD-OC-PERSISTENTE';
-  const RELEASE_DATE = '2026-07-29';
+  const VERSION = 'V60.1.1-DELETE-REMOTO-CONFIRMADO';
+  const RELEASE_DATE = '2026-07-30';
 
   window.COI_CONFIG = Object.freeze({
     version: VERSION,
@@ -1684,7 +1684,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
     <span class="brand-copy"><small>TRENES ARGENTINOS</small><strong>L&Iacute;NEA ROCA</strong></span>
   </div>
   <div class="app-identity" title="Sistema Integrado de Gestion de Obras y Servicios">
-    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge" data-app-version>V60.1-CRUD-OC-PERSISTENTE</span></div>
+    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge" data-app-version>V60.1.1-DELETE-REMOTO-CONFIRMADO</span></div>
     <div class="app-subtitle" id="appSubtitleHeader">Sistema Integrado de Gesti&oacute;n de Obras y Servicios</div>
     <div class="app-tagline" id="appTaglineHeader">Sistema operativo COI L&iacute;nea Roca &mdash; Gesti&oacute;n de Obras, Servicios, Certificaciones y Vencimientos</div>
   </div>
@@ -1712,7 +1712,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
   </div>
   <div class="footer-status-grid">
     <span class="footer-pill"><span>Sistema</span><b id="footerSistemaNombre">COI L&iacute;nea Roca</b></span>
-    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa" data-app-version>V60.1-CRUD-OC-PERSISTENTE</b></span>
+    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa" data-app-version>V60.1.1-DELETE-REMOTO-CONFIRMADO</b></span>
     <span class="footer-pill"><span>&Uacute;ltima actualizaci&oacute;n</span><b id="headerUltimaActualizacion">Sin datos</b></span>
     <span class="footer-pill"><span>OCs cargadas</span><b id="headerTotalOC">0</b></span>
     <span class="footer-pill mode"><span>Estado</span><b id="headerModoSistema">Modo Operativo</b></span>
@@ -5487,7 +5487,7 @@ const APP_OPERATIVE_TEXT = "Sistema operativo COI Línea Roca — Gestión de Ob
 const ADMIN_PIN = "1234";
 const USER_ROLES = { ADMIN: "Administrador", JEFE: "Jefatura" };
 const historialVersiones = [
-  {version:"V60.1-CRUD-OC-PERSISTENTE",fecha:"2026-07-29",titulo:"Borrado persistente y seguro de Órdenes de Compra",cambios:["Supabase confirma cada DELETE filtrado y devuelve las filas afectadas.","Las dependencias de negocio bloquean el borrado y las asociaciones de estaciones se eliminan de forma selectiva.","La caché reconstruible se reemplaza solo después de verificar el estado remoto.","Se incorporó confirmación administrativa accesible con PIN y texto ELIMINAR."],modulosAfectados:["Órdenes","Supabase","localStorage"],estado:"Pendiente de validación manual online",observaciones:"No elimina archivos de Storage, documentos ni información de negocio."},
+  {version:"V60.1.1-DELETE-REMOTO-CONFIRMADO",fecha:"2026-07-29",titulo:"Borrado persistente y seguro de Órdenes de Compra",cambios:["Supabase confirma cada DELETE filtrado y devuelve las filas afectadas.","Las dependencias de negocio bloquean el borrado y las asociaciones de estaciones se eliminan de forma selectiva.","La caché reconstruible se reemplaza solo después de verificar el estado remoto.","Se incorporó confirmación administrativa accesible con PIN y texto ELIMINAR."],modulosAfectados:["Órdenes","Supabase","localStorage"],estado:"Pendiente de validación manual online",observaciones:"No elimina archivos de Storage, documentos ni información de negocio."},
   {version:"V59.6-CACHE-SEGURO",fecha:"2026-07-23",titulo:"Reparación segura de caché local y recuperación controlada de Supabase",cambios:["Se agregó el botón Reparar caché local en Administración → Diagnóstico.","La reparación crea un respaldo JSON previo descargable desde el navegador.","Solo elimina claves declaradas como UI_CACHE y bloqueos temporales legacy; nunca usa localStorage.clear().","Se preservan datos operativos, posiciones financieras, pendientes, borradores, sesión Supabase y claves legacy protegidas.","Se verifica y recarga Supabase con timeout para evitar bloqueos indefinidos.","La vista activa se actualiza de forma controlada y se genera un informe detallado de la reparación.","La operación evita doble clic, registra auditoría y libera siempre la interfaz mediante finally."],modulosAfectados:["Administración","Diagnóstico","localStorage","Supabase","Auditoría"],estado:"Estable",observaciones:"Fase 2 de estabilidad. No modifica tablas, RLS, Storage ni datos financieros."},
   {version:"V59.6-CACHE-SEGURO",fecha:"2026-07-23",titulo:"Reparación segura de caché local y recuperación controlada de Supabase",cambios:["Se definió COI_CONFIG como única fuente de versión activa.","Se unificaron las constantes históricas de versionado para evitar sobrescrituras entre capas.","Se retiró el MutationObserver dedicado exclusivamente al badge de versión.","Se creó COI_STORAGE para clasificar datos operativos, caché de Supabase, pendientes, borradores, sesión, preferencias y diagnóstico.","Se agregaron helpers seguros de lectura, escritura, inventario y reparación exclusiva de caché visual.","No se borraron, migraron ni renombraron datos existentes."],modulosAfectados:["Core","Header","Footer","Acerca del Sistema","localStorage"],estado:"Estable",observaciones:"Primera fase estructural. Las claves legacy permanecen protegidas hasta una migración controlada posterior."},
   {version:"V58.1R28-CONTRACTUAL-CT",fecha:"2026-07-17",titulo:"Registro automático de documentos Storage en tabla documental",cambios:["Se corrigió la sincronización documental por OC.","El sistema detecta archivos existentes en Supabase Storage aunque no tengan fila documental.","Se crean automáticamente registros faltantes en public.coi_documentos_oc usando la columna real estado.","Se evita duplicar documentos por storage_path y OC.","Las Actas de Medición detectadas se reflejan también en Certificaciones.","Se elimina la necesidad de validar manualmente cada documento desde SQL Editor."],modulosAfectados:["Ficha OC","Documentos","Certificaciones","Supabase Storage","coi_documentos_oc"],estado:"Estable",observaciones:"Storage conserva el PDF físico y la tabla documental queda como índice operativo trazable."},
@@ -24789,10 +24789,10 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
 </script>
 
 <script id="coi-crud-ordenes-v601">
-/* V60.1 — eliminación confirmada contra Supabase; nunca elimina archivos de Storage. */
+/* V60.1.1 — identidad canónica y eliminación confirmada contra Supabase; nunca elimina archivos de Storage. */
 (function(){
   'use strict';
-  const VERSION='V60.1-CRUD-OC-PERSISTENTE';
+  const VERSION='V60.1.1-DELETE-REMOTO-CONFIRMADO';
   const ORDER_TABLE='coi_ordenes';
   const STATION_TABLE='coi_ordenes_estaciones';
   const ORDER_CACHE_KEY='coi_supabase_ordenes_cache_v2';
@@ -24820,7 +24820,9 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     const user=typeof window.getUsuarioActual==='function'?await window.getUsuarioActual():null;
     if(!user)throw new Error('Debe iniciar sesión en Supabase para eliminar OCs.');
   }
-  function friendlyError(error){const text=clean(error?.message||error);if(/row.level.security|rls|permission|not authorized|42501/i.test(text))return 'Supabase rechazó la eliminación por autorización (RLS). Los datos permanecen sin cambios.';return text||'Supabase rechazó la operación. Los datos permanecen sin cambios.';}
+  const UNCONFIRMED_DELETE='Supabase no confirmó la eliminación de la OC. Puede existir una política RLS que impida borrar. La OC permanece sin cambios.';
+  function friendlyError(error){const text=clean(error?.message||error),code=clean(error?.code||error?.status);if(/row.level.security|rls|permission denied|not authorized|42501|401|403/i.test(`${code} ${text}`)||error?.unconfirmed)return UNCONFIRMED_DELETE;return text||'Supabase rechazó la operación. Los datos permanecen sin cambios.';}
+  function diagnostic(event,detail){console.info(`[COI DELETE] ${event}`,{nro_oc:detail.nro_oc||'',uuid:detail.uuid||'',deleteCount:Number(detail.deleteCount||0),postDeleteCount:Number(detail.postDeleteCount||0),errorCode:clean(detail.errorCode)});}
   async function countDependency(dep,order){
     const result=await client().from(dep.table).select('*',{count:'exact',head:true}).eq(dep.field,nro(order));
     if(result.error)throw new Error(`No se pudo verificar ${dep.label} en public.${dep.table}: ${result.error.message||result.error}`);
@@ -24850,11 +24852,32 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     const seen=new Set(removed.map(row=>clean(row.id)));removed.push(...(byNumber.data||[]).filter(row=>!seen.has(clean(row.id))));return removed;
   }
   async function restoreSafeRelations(rows){if(!rows.length)return;const {error}=await client().from(STATION_TABLE).insert(rows).select('id');if(error)throw error;}
-  async function deleteOrders(orders){
-    const ids=orders.map(oid).filter(Boolean),numbers=orders.filter(o=>!oid(o)).map(nro).filter(Boolean);let deleted=[];
-    if(ids.length){const {data,error}=await client().from(ORDER_TABLE).delete().in('id',ids).select('id,nro_oc');if(error)throw error;deleted.push(...(data||[]));}
-    if(numbers.length){const {data,error}=await client().from(ORDER_TABLE).delete().in('nro_oc',numbers).select('id,nro_oc');if(error)throw error;deleted.push(...(data||[]));}
-    return deleted;
+  async function canonicalOrder(order){
+    const number=nro(order);if(!number)throw new Error('La OC seleccionada no posee nro_oc verificable.');
+    const {data,error}=await client().from(ORDER_TABLE).select('id,nro_oc').eq('nro_oc',number);
+    if(error){diagnostic('resolución fallida',{nro_oc:number,errorCode:error.code||error.status});throw error;}
+    const rows=Array.isArray(data)?data:[];
+    if(!rows.length)return {missing:true,nro_oc:number};
+    if(rows.length!==1)throw new Error(`Inconsistencia: public.${ORDER_TABLE} contiene ${rows.length} filas para nro_oc ${number}. No se eliminó ninguna.`);
+    const canonical={id:clean(rows[0].id),nro_oc:normalizarNroOC(rows[0].nro_oc)};
+    if(!canonical.id||canonical.nro_oc!==number)throw new Error(`Supabase devolvió una identidad inconsistente para la OC ${number}.`);
+    diagnostic('identidad canónica',{nro_oc:number,uuid:canonical.id});return canonical;
+  }
+  async function deleteCanonical(canonical){
+    const result=await client().from(ORDER_TABLE).delete().eq('id',canonical.id).select('id,nro_oc');
+    const rows=Array.isArray(result.data)?result.data:[];
+    diagnostic('respuesta DELETE',{nro_oc:canonical.nro_oc,uuid:canonical.id,deleteCount:rows.length,errorCode:result.error?.code||result.error?.status});
+    if(result.error)throw result.error;
+    if(rows.length!==1||clean(rows[0].id)!==canonical.id||normalizarNroOC(rows[0].nro_oc)!==canonical.nro_oc){const error=new Error(UNCONFIRMED_DELETE);error.unconfirmed=true;throw error;}
+    const [byId,byNumber]=await Promise.all([
+      client().from(ORDER_TABLE).select('id,nro_oc').eq('id',canonical.id),
+      client().from(ORDER_TABLE).select('id,nro_oc').eq('nro_oc',canonical.nro_oc)
+    ]);
+    if(byId.error)throw byId.error;if(byNumber.error)throw byNumber.error;
+    const idRows=Array.isArray(byId.data)?byId.data:[],numberRows=Array.isArray(byNumber.data)?byNumber.data:[];
+    diagnostic('verificación posterior',{nro_oc:canonical.nro_oc,uuid:canonical.id,deleteCount:rows.length,postDeleteCount:idRows.length+numberRows.length});
+    if(idRows.length||numberRows.length){const error=new Error(UNCONFIRMED_DELETE);error.unconfirmed=true;throw error;}
+    return rows[0];
   }
   async function remoteOrders(){const {data,error}=await client().from(ORDER_TABLE).select('*').limit(10000);if(error)throw error;return Array.isArray(data)?data:[];}
   function purgeCache(remote){localStorage.setItem(ORDER_CACHE_KEY,JSON.stringify({savedAt:new Date().toISOString(),orders:remote}));}
@@ -24868,19 +24891,17 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
       blocked.forEach(x=>toast(`No se puede eliminar la OC ${nro(x.order)} porque posee información vinculada: ${dependencyText(x.counts)}.`,'warning'));
       if(!deletable.length)return {status:'blocked',deleted:[],blocked};
       if(!skipDialog&&!(await confirmDeletion(deletable,blocked)))return {status:'cancelled',deleted:[],blocked};
-      const removedRelations=[];
-      try{for(const order of deletable)removedRelations.push(...await deleteSafeRelations(order));}
-      catch(error){await restoreSafeRelations(removedRelations);throw error;}
-      let deleted;
-      try{deleted=await deleteOrders(deletable);}
+      const canonical=[];for(const order of deletable){const resolved=await canonicalOrder(order);if(resolved.missing){toast(`La OC ${resolved.nro_oc} ya no existe en Supabase.`,'warning');}else canonical.push({order,resolved});}
+      if(!canonical.length)return {status:'missing',deleted:[],blocked};
+      const removedRelations=[];let deleted=[];
+      try{for(const item of canonical){const canonicalOrderObject={...item.order,supabaseId:item.resolved.id,nro_oc:item.resolved.nro_oc};removedRelations.push(...await deleteSafeRelations(canonicalOrderObject));deleted.push(await deleteCanonical(item.resolved));}}
       catch(error){await restoreSafeRelations(removedRelations);throw error;}
       const remote=await remoteOrders();
-      const stillPresent=deletable.filter(w=>remote.some(r=>(oid(w)&&clean(r.id)===oid(w))||(!oid(w)&&normalizarNroOC(r.nro_oc)===nro(w))));
-      if(deleted.length!==deletable.length||stillPresent.length){
-        const idsStillPresent=new Set(stillPresent.map(oid).filter(Boolean)),numbersStillPresent=new Set(stillPresent.map(nro));
-        await restoreSafeRelations(removedRelations.filter(row=>idsStillPresent.has(clean(row.orden_id))||numbersStillPresent.has(normalizarNroOC(row.nro_oc))));
+      const stillPresent=canonical.filter(w=>remote.some(r=>clean(r.id)===w.resolved.id||normalizarNroOC(r.nro_oc)===w.resolved.nro_oc));
+      if(deleted.length!==canonical.length||stillPresent.length){
+        await restoreSafeRelations(removedRelations);
         if(typeof window.recargarDatosDesdeSupabase==='function')await window.recargarDatosDesdeSupabase({silencioso:true});
-        throw new Error(`El borrado no pudo confirmarse: se solicitaron ${deletable.length} y Supabase devolvió ${deleted.length}.`);
+        const error=new Error(UNCONFIRMED_DELETE);error.unconfirmed=true;throw error;
       }
       purgeCache(remote);if(typeof window.recargarDatosDesdeSupabase==='function')await window.recargarDatosDesdeSupabase({silencioso:true});
       if(window.v45SeleccionOrdenes?.clear)window.v45SeleccionOrdenes.clear();
