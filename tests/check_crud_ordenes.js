@@ -41,14 +41,13 @@ const fixtures=[{id:'a',nro_oc:'4530009999'},{id:'b',nro_oc:'00004'},{id:'c',nro
     assert.ok(!forbiddenLegacy.test(body),`${name} todavía contiene borrado local`);
     assert.strictEqual((body.match(/COI_CRUD_ORDENES\.eliminarSeleccionadasDesdeUI\s*\(/g)||[]).length,1,`${name} debe delegar una sola vez`);
   }
-  // Simula la propagación real: el propietario en window/captura neutraliza wrappers posteriores.
+  // Simula el único propietario delegado en document/bubble; no compite con wrappers legacy.
   let remoteCalls=0,confirmations=0,finalMessages=0,localSaves=0;
   const legacyState={estaciones:[{obras:[{numeroOC:'00004'}],servicios:[]}],storage:'intacto',rowVisible:true};
   const canonicalClick=async()=>{remoteCalls++;confirmations++;finalMessages++;};
-  const event={stopped:false,preventDefault(){},stopImmediatePropagation(){this.stopped=true;}};
-  const owner=async ev=>{ev.preventDefault();ev.stopImmediatePropagation();await canonicalClick();};
-  const legacyWrappers=[async()=>canonicalClick(),async()=>canonicalClick()];
-  await owner(event);for(const wrapper of legacyWrappers){if(!event.stopped)await wrapper();}
+  const event={prevented:false,preventDefault(){this.prevented=true;}};
+  const owner=async ev=>{ev.preventDefault();await canonicalClick();};
+  await owner(event);
   assert.strictEqual(remoteCalls,1);assert.strictEqual(confirmations,1);assert.strictEqual(finalMessages,1);assert.strictEqual(localSaves,0);
   assert.deepStrictEqual(legacyState,{estaciones:[{obras:[{numeroOC:'00004'}],servicios:[]}],storage:'intacto',rowVisible:true});
   assert.strictEqual(normalize('OC-4530009999'),'4530009999'); assert.strictEqual(normalize(' 4530009999 '),'4530009999'); assert.strictEqual(normalize('00004'),'00004');
@@ -67,7 +66,7 @@ const fixtures=[{id:'a',nro_oc:'4530009999'},{id:'b',nro_oc:'00004'},{id:'c',nro
   m=new MockStore(fixtures); const [x,y]=await Promise.all([m.remove([fixtures[0]]),m.remove([fixtures[0]],{locked:true})]); assert.strictEqual(x.status,'success'); assert.strictEqual(y.status,'busy'); assert.strictEqual(m.writes,1);
   const remote=[fixtures[2]], legacy=[fixtures[0],fixtures[1]]; assert.deepStrictEqual(structuredClone(remote),[fixtures[2]]); assert.strictEqual(legacy.length,2);
   m=new MockStore(fixtures); await m.remove([fixtures[0]]); r=await m.remove([fixtures[0]]); assert.strictEqual(m.orders.length,2); assert.ok(!m.orders.some(o=>o.nro_oc==='4530009999'));
-  for(const marker of ['eliminarOrdenesPersistentes','canonicalOrder','deleteCanonical','coi_ordenes_estaciones',".delete().eq('id',canonical.id).select('id,nro_oc')",'No se puede confirmar la eliminación sin conexión a Supabase','V60.1.2-DELETE-HANDLER-UNICO','Esta acción no elimina PDFs de Storage.','[COI DELETE] click recibido','[COI DELETE] handler propietario','__coiDeleteOcInProgress']) assert.ok(html.includes(marker),`Falta marcador: ${marker}`);
+  for(const marker of ['eliminarOrdenesPersistentes','canonicalOrder','deleteCanonical','coi_ordenes_estaciones',".delete().eq('id',canonical.id).select('id,nro_oc')",'No se puede confirmar la eliminación sin conexión a Supabase','V60.1.3-INTERACCION-ADMIN-SEGURA','Esta acción no elimina PDFs de Storage.','bindCrudOrdenesUI','__coiCrudOrdenesUIController','AbortController','esUsuarioAdministradorAutenticado','actualizarEstadoBotonBorrarOC','admin@coiroca.com','__coiDeleteOcInProgress']) assert.ok(html.includes(marker),`Falta marcador: ${marker}`);
   const crudModule=html.match(/<script id="coi-crud-ordenes-v601">([\s\S]*?)<\/script>/)?.[1]||''; assert.ok(crudModule); assert.ok(!/localStorage\.clear\s*\(/.test(crudModule));
   assert.ok(!/(?:upsertOrdenSupabase|upsertMasivoSupabase|guardarOrdenEnSupabase)\s*\(/.test(crudModule),'La recarga post-DELETE no puede reinsertar OCs');
   console.log('CRUD Órdenes: handlers únicos y DELETE confirmado OK; cliente Supabase 100% simulado, cero conexiones productivas.');

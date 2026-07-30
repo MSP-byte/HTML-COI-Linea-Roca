@@ -32,6 +32,9 @@ jobs:
       - name: Ejecutar CRUD seguro de Ordenes con mocks
         run: node tests/check_crud_ordenes.js
 
+      - name: Auditar interacciones criticas
+        run: node tests/check_interacciones_criticas.js
+
       - name: Validar espacios y fin de linea
         run: git diff --check
 

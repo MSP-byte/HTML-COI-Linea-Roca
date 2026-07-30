@@ -8,12 +8,12 @@
 (function(){
   'use strict';
 
-  const VERSION = 'V60.1.2-DELETE-HANDLER-UNICO';
+  const VERSION = 'V60.1.3-INTERACCION-ADMIN-SEGURA';
   const RELEASE_DATE = '2026-07-30';
 
   window.COI_CONFIG = Object.freeze({
     version: VERSION,
-    title: 'Borrado persistente y seguro de Órdenes de Compra',
+    title: 'Interacción restaurada y borrado administrativo seguro',
     releaseDate: RELEASE_DATE,
     schemaVersion: 1,
     storageRegistryVersion: 1
@@ -1684,7 +1684,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
     <span class="brand-copy"><small>TRENES ARGENTINOS</small><strong>L&Iacute;NEA ROCA</strong></span>
   </div>
   <div class="app-identity" title="Sistema Integrado de Gestion de Obras y Servicios">
-    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge" data-app-version>V60.1.2-DELETE-HANDLER-UNICO</span></div>
+    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge" data-app-version>V60.1.3-INTERACCION-ADMIN-SEGURA</span></div>
     <div class="app-subtitle" id="appSubtitleHeader">Sistema Integrado de Gesti&oacute;n de Obras y Servicios</div>
     <div class="app-tagline" id="appTaglineHeader">Sistema operativo COI L&iacute;nea Roca &mdash; Gesti&oacute;n de Obras, Servicios, Certificaciones y Vencimientos</div>
   </div>
@@ -1712,7 +1712,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
   </div>
   <div class="footer-status-grid">
     <span class="footer-pill"><span>Sistema</span><b id="footerSistemaNombre">COI L&iacute;nea Roca</b></span>
-    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa" data-app-version>V60.1.2-DELETE-HANDLER-UNICO</b></span>
+    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa" data-app-version>V60.1.3-INTERACCION-ADMIN-SEGURA</b></span>
     <span class="footer-pill"><span>&Uacute;ltima actualizaci&oacute;n</span><b id="headerUltimaActualizacion">Sin datos</b></span>
     <span class="footer-pill"><span>OCs cargadas</span><b id="headerTotalOC">0</b></span>
     <span class="footer-pill mode"><span>Estado</span><b id="headerModoSistema">Modo Operativo</b></span>
@@ -5478,8 +5478,8 @@ function activarHoverEstaciones(){
    =============================== */
 const APP_NAME = "COI Línea Roca";
 const APP_VERSION = window.COI_CONFIG.version;
-const APP_STATUS = "Borrado persistente y seguro de Órdenes de Compra";
-const APP_RELEASE_DATE = "2026-07-29";
+const APP_STATUS = "Interacción restaurada y borrado administrativo seguro";
+const APP_RELEASE_DATE = "2026-07-30";
 const APP_AUTHOR = "Mariano Special";
 const APP_START_YEAR = "2025";
 const APP_SUBTITLE = "Sistema Integrado de Gestión de Obras y Servicios";
@@ -5487,6 +5487,7 @@ const APP_OPERATIVE_TEXT = "Sistema operativo COI Línea Roca — Gestión de Ob
 const ADMIN_PIN = "1234";
 const USER_ROLES = { ADMIN: "Administrador", JEFE: "Jefatura" };
 const historialVersiones = [
+  {version:"V60.1.3-INTERACCION-ADMIN-SEGURA",fecha:"2026-07-30",titulo:"Interacción restaurada y borrado administrativo seguro",cambios:["El botón de borrado usa delegación estable en fase bubble y AbortController.","La sesión real de Supabase y el correo admin@coiroca.com se validan antes del modal.","La aplicación reinicia siempre en Modo Consulta sin cerrar la sesión Supabase.","El estado del botón refleja selección, autenticación, modo y operación en curso."],modulosAfectados:["Órdenes","Autenticación","Administración"],estado:"Implementado",observaciones:"No modifica RLS, Storage, tablas ni datos productivos."},
   {version:"V60.1.2-DELETE-HANDLER-UNICO",fecha:"2026-07-29",titulo:"Borrado persistente y seguro de Órdenes de Compra",cambios:["Supabase confirma cada DELETE filtrado y devuelve las filas afectadas.","Las dependencias de negocio bloquean el borrado y las asociaciones de estaciones se eliminan de forma selectiva.","La caché reconstruible se reemplaza solo después de verificar el estado remoto.","Se incorporó confirmación administrativa accesible con PIN y texto ELIMINAR."],modulosAfectados:["Órdenes","Supabase","localStorage"],estado:"Pendiente de validación manual online",observaciones:"No elimina archivos de Storage, documentos ni información de negocio."},
   {version:"V59.6-CACHE-SEGURO",fecha:"2026-07-23",titulo:"Reparación segura de caché local y recuperación controlada de Supabase",cambios:["Se agregó el botón Reparar caché local en Administración → Diagnóstico.","La reparación crea un respaldo JSON previo descargable desde el navegador.","Solo elimina claves declaradas como UI_CACHE y bloqueos temporales legacy; nunca usa localStorage.clear().","Se preservan datos operativos, posiciones financieras, pendientes, borradores, sesión Supabase y claves legacy protegidas.","Se verifica y recarga Supabase con timeout para evitar bloqueos indefinidos.","La vista activa se actualiza de forma controlada y se genera un informe detallado de la reparación.","La operación evita doble clic, registra auditoría y libera siempre la interfaz mediante finally."],modulosAfectados:["Administración","Diagnóstico","localStorage","Supabase","Auditoría"],estado:"Estable",observaciones:"Fase 2 de estabilidad. No modifica tablas, RLS, Storage ni datos financieros."},
   {version:"V59.6-CACHE-SEGURO",fecha:"2026-07-23",titulo:"Reparación segura de caché local y recuperación controlada de Supabase",cambios:["Se definió COI_CONFIG como única fuente de versión activa.","Se unificaron las constantes históricas de versionado para evitar sobrescrituras entre capas.","Se retiró el MutationObserver dedicado exclusivamente al badge de versión.","Se creó COI_STORAGE para clasificar datos operativos, caché de Supabase, pendientes, borradores, sesión, preferencias y diagnóstico.","Se agregaron helpers seguros de lectura, escritura, inventario y reparación exclusiva de caché visual.","No se borraron, migraron ni renombraron datos existentes."],modulosAfectados:["Core","Header","Footer","Acerca del Sistema","localStorage"],estado:"Estable",observaciones:"Primera fase estructural. Las claves legacy permanecen protegidas hasta una migración controlada posterior."},
@@ -8743,6 +8744,7 @@ function actualizarUIModoAcceso(){
   document.querySelectorAll("[data-edit-only]").forEach(el=>{el.style.display=esModoAdmin()?"":"none";});
   aplicarClaseAccionAdminV573();
   renderMensajeModoAdministracionV573();
+  if(typeof window.actualizarEstadoBotonBorrarOC==="function") window.actualizarEstadoBotonBorrarOC();
 }
 if(typeof actualizarHeaderOperativo==="function"){
   const actualizarHeaderOperativoBaseV573=actualizarHeaderOperativo;
@@ -10728,7 +10730,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     const master = qs('#chkOrdenesSeleccionarTodas');
 
     if(count) count.textContent = `${keys.length} seleccionada${keys.length===1?'':'s'}`;
-    if(btn) btn.disabled = keys.length === 0;
+    if(btn && typeof window.actualizarEstadoBotonBorrarOC !== 'function') btn.disabled = keys.length === 0;
     if(master){
       master.checked = checks.length > 0 && checks.every(chk=>chk.checked);
       master.indeterminate = checks.some(chk=>chk.checked) && !master.checked;
@@ -10742,6 +10744,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
         keys.forEach(k=>v45SeleccionOrdenes.add(k));
       }
     }catch(e){}
+    if(typeof window.actualizarEstadoBotonBorrarOC === 'function') window.actualizarEstadoBotonBorrarOC();
   }
 
   function refrescarOrdenesPostBorrado(){
@@ -10763,38 +10766,10 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     if(document.body.dataset.coiOrdenesDeleteR4 === '1') return;
     document.body.dataset.coiOrdenesDeleteR4 = '1';
 
-    // Window capture corre antes que los listeners documentales antiguos: bloquea apertura accidental de Ficha OC.
-    // Importante: el checkbox maestro se procesa en CHANGE, no en CLICK, porque en CLICK
-    // el navegador todavía puede no haber aplicado el estado checked definitivo.
-    window.addEventListener('click',async ev=>{
-      const chk = ev.target?.closest?.('#ordenesTbody .chk-orden-row');
-      if(chk){
-        ev.stopImmediatePropagation();
-        return;
-      }
-
-      const master = ev.target?.closest?.('#chkOrdenesSeleccionarTodas');
-      if(master){
-        ev.stopImmediatePropagation();
-        return;
-      }
-
-      const borrar = ev.target?.closest?.('#btnBorrarSeleccionadas');
-      if(borrar){
-        ev.preventDefault();
-        ev.stopImmediatePropagation();
-        console.info('[COI DELETE] click recibido');
-        console.info('[COI DELETE] handler propietario');
-        try{ await borrarOrdenesSeleccionadasR4(); }
-        catch(error){ console.error('[COI DELETE] resultado final',error?.message||String(error)); }
-        return;
-      }
-    },true);
-
+    // Compatibilidad de selección únicamente. El borrado pertenece exclusivamente a bindCrudOrdenesUI.
     window.addEventListener('change',ev=>{
       const master = ev.target?.closest?.('#chkOrdenesSeleccionarTodas');
       if(master){
-        ev.stopImmediatePropagation();
         const marcado = !!master.checked;
         qsa('#ordenesTbody .chk-orden-row').forEach(c=>{ c.checked = marcado; });
         syncSeleccionOrdenesDesdeDOM();
@@ -10803,11 +10778,10 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
 
       const chk = ev.target?.closest?.('#ordenesTbody .chk-orden-row');
       if(chk){
-        ev.stopImmediatePropagation();
         syncSeleccionOrdenesDesdeDOM();
         return;
       }
-    },true);
+    });
 
     const tbody = qs('#ordenesTbody');
     if(tbody && typeof MutationObserver !== 'undefined'){
@@ -24746,10 +24720,11 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
 </script>
 
 <script id="coi-crud-ordenes-v601">
-/* V60.1.2 — un solo handler de UI y eliminación confirmada contra Supabase; nunca elimina archivos de Storage. */
+/* V60.1.3 — handler delegado estable y autorización Supabase real; nunca elimina archivos de Storage. */
 (function(){
   'use strict';
-  const VERSION='V60.1.2-DELETE-HANDLER-UNICO';
+  const VERSION='V60.1.3-INTERACCION-ADMIN-SEGURA';
+  const ADMIN_EMAIL='admin@coiroca.com';
   const ORDER_TABLE='coi_ordenes';
   const STATION_TABLE='coi_ordenes_estaciones';
   const ORDER_CACHE_KEY='coi_supabase_ordenes_cache_v2';
@@ -24769,13 +24744,22 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
   function key(o){return oid(o)?`id:${oid(o)}`:`oc:${nro(o)}`;}
   function allOrders(){return (Array.isArray(window.estaciones)?window.estaciones:[]).flatMap(e=>[...(e.obras||[]),...(e.servicios||[])]).filter(o=>!o?._estacionAsociadaTemporal);}
   function uniqueOrders(rows){const seen=new Set();return (rows||[]).filter(o=>{const k=key(o);if((!oid(o)&&!nro(o))||seen.has(k))return false;seen.add(k);return true;});}
-  function toast(message,type='info'){if(typeof window.coiToast==='function')return window.coiToast(message,type);if(typeof window.mostrarToast==='function')return window.mostrarToast(message,type);console[type==='error'?'error':'info'](message);}
+  function toast(message,type='info'){if(typeof window.coiToast==='function')return window.coiToast(message,type);if(typeof window.mostrarToast==='function')return window.mostrarToast(message,type);console[type==='error'?'error':'info'](message);if(type==='error'&&typeof window.alert==='function')window.alert(message);}
   function client(){return typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;}
+  async function usuarioSupabaseReal(){
+    if(typeof window.getUsuarioActual==='function')return await window.getUsuarioActual();
+    const supabase=client();if(!supabase?.auth?.getUser)return null;
+    const {data,error}=await supabase.auth.getUser();if(error)throw error;return data?.user||null;
+  }
+  async function esUsuarioAdministradorAutenticado(){const user=await usuarioSupabaseReal();return clean(user?.email).toLowerCase()===ADMIN_EMAIL;}
   async function requireAccess(){
-    if(typeof window.adminIsEnabled!=='function'||!window.adminIsEnabled())throw new Error('Esta acción requiere modo Administrador.');
-    if(!navigator.onLine||!client())throw new Error('No se puede confirmar la eliminación sin conexión a Supabase');
-    const user=typeof window.getUsuarioActual==='function'?await window.getUsuarioActual():null;
-    if(!user)throw new Error('Debe iniciar sesión en Supabase para eliminar OCs.');
+    if(!client())throw new Error('No se puede confirmar la eliminación sin conexión a Supabase');
+    const user=await usuarioSupabaseReal();
+    if(!user)throw new Error('Debe iniciar sesión con el usuario administrador para eliminar OCs.');
+    if(clean(user.email).toLowerCase()!==ADMIN_EMAIL)throw new Error('Solo el usuario administrador puede eliminar Órdenes de Compra.');
+    if(typeof window.adminIsEnabled!=='function'||!window.adminIsEnabled())throw new Error('Active el Modo Administrador desde Administración para eliminar OCs.');
+    if(!navigator.onLine)throw new Error('No se puede confirmar la eliminación sin conexión a Supabase');
+    return user;
   }
   const UNCONFIRMED_DELETE='Supabase no confirmó la eliminación de la OC. Puede existir una política RLS que impida borrar. La OC permanece sin cambios.';
   function friendlyError(error){const text=clean(error?.message||error),code=clean(error?.code||error?.status);if(/row.level.security|rls|permission denied|not authorized|42501|401|403/i.test(`${code} ${text}`)||error?.unconfirmed)return UNCONFIRMED_DELETE;return text||'Supabase rechazó la operación. Los datos permanecen sin cambios.';}
@@ -24838,7 +24822,21 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
   }
   async function remoteOrders(){const {data,error}=await client().from(ORDER_TABLE).select('*').limit(10000);if(error)throw error;return Array.isArray(data)?data:[];}
   function purgeCache(remote){localStorage.setItem(ORDER_CACHE_KEY,JSON.stringify({savedAt:new Date().toISOString(),orders:remote}));}
-  function setButton(active,count=0){const b=document.getElementById('btnBorrarSeleccionadas');if(!b)return;b.disabled=active||count===0;b.textContent=active?'Eliminando…':count?`Borrar seleccionadas (${count})`:'Borrar seleccionadas';}
+  let buttonStateSequence=0;
+  async function actualizarEstadoBotonBorrarOC(){
+    const sequence=++buttonStateSequence,b=document.getElementById('btnBorrarSeleccionadas');if(!b)return;
+    const count=document.querySelectorAll('.chk-orden-row:checked').length;
+    if(deleting||window.__coiDeleteOcInProgress){b.disabled=true;b.textContent='Eliminando…';b.title='';return;}
+    b.textContent=count?`Borrar seleccionadas (${count})`:'Borrar seleccionadas';
+    if(!count){b.disabled=true;b.title='Seleccione al menos una OC.';return;}
+    let authenticated=false,administrator=false;
+    try{const user=await usuarioSupabaseReal();authenticated=!!user;administrator=clean(user?.email).toLowerCase()===ADMIN_EMAIL;}catch(error){console.error('[COI DELETE] no se pudo verificar la sesión',error);}
+    if(sequence!==buttonStateSequence)return;
+    const adminMode=typeof window.adminIsEnabled==='function'&&window.adminIsEnabled();
+    b.disabled=!(authenticated&&administrator&&adminMode);
+    b.title=!authenticated?'Requiere iniciar sesión como administrador.':!administrator?'Solo el usuario administrador puede eliminar OCs.':!adminMode?'Active el Modo Administrador desde Administración.':'';
+  }
+  function setButton(active){if(active){const b=document.getElementById('btnBorrarSeleccionadas');if(b){b.disabled=true;b.textContent='Eliminando…';b.title='';}}else actualizarEstadoBotonBorrarOC();}
   async function eliminarOrdenesPersistentes(selection,{skipDialog=false}={}){
     if(deleting||window.__coiDeleteOcInProgress)return {status:'busy'};deleting=true;window.__coiDeleteOcInProgress=true;const orders=uniqueOrders(selection);setButton(true,orders.length);
     try{
@@ -24866,11 +24864,27 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
       toast(`${deleted.length} OC(s) eliminadas correctamente. ${blocked.length} bloqueada(s). La información fue confirmada en Supabase.`,'ok');
       diagnostic('resultado final',{deleteCount:deleted.length,postDeleteCount:0});
       return {status:blocked.length?'partial':'success',deleted,blocked};
-    }catch(error){diagnostic('resultado final',{errorCode:error?.code||error?.status||error?.message});toast(friendlyError(error),'error');throw error;}finally{deleting=false;window.__coiDeleteOcInProgress=false;setButton(false,document.querySelectorAll('.chk-orden-row:checked').length);}
+    }catch(error){diagnostic('resultado final',{errorCode:error?.code||error?.status||error?.message});toast(friendlyError(error),'error');throw error;}finally{deleting=false;window.__coiDeleteOcInProgress=false;setButton(false);}
   }
   function resolveSelected(){const keys=[...document.querySelectorAll('.chk-orden-row:checked')].map(c=>clean(c.dataset.ordenKey));return uniqueOrders(keys.map(k=>allOrders().find(o=>(typeof window.v45RegistroKey==='function'&&window.v45RegistroKey(o)===k)||[o.idObra,nro(o),oid(o)].some(v=>clean(v)===k))).filter(Boolean));}
   function resolveKey(k){return allOrders().find(o=>[o.idObra,nro(o),oid(o)].some(v=>clean(v)===clean(k)));}
-  window.COI_CRUD_ORDENES=Object.freeze({version:VERSION,normalizarNroOC,eliminarOrdenesPersistentes,eliminarSeleccionadasDesdeUI:()=>eliminarOrdenesPersistentes(resolveSelected()),eliminarPorClaveDesdeUI:k=>{const o=resolveKey(k);if(!o)throw new Error('No se encontró la OC seleccionada.');return eliminarOrdenesPersistentes([o]);},businessDependencies:BUSINESS_DEPENDENCIES});
+  window.COI_CRUD_ORDENES=Object.freeze({version:VERSION,normalizarNroOC,esUsuarioAdministradorAutenticado,actualizarEstadoBotonBorrarOC,eliminarOrdenesPersistentes,eliminarSeleccionadasDesdeUI:()=>eliminarOrdenesPersistentes(resolveSelected()),eliminarPorClaveDesdeUI:k=>{const o=resolveKey(k);if(!o)throw new Error('No se encontró la OC seleccionada.');return eliminarOrdenesPersistentes([o]);},businessDependencies:BUSINESS_DEPENDENCIES});
+  window.esUsuarioAdministradorAutenticado=esUsuarioAdministradorAutenticado;
+  window.actualizarEstadoBotonBorrarOC=actualizarEstadoBotonBorrarOC;
+  function bindCrudOrdenesUI(){
+    window.__coiCrudOrdenesUIController?.abort();
+    const controller=new AbortController();window.__coiCrudOrdenesUIController=controller;
+    document.addEventListener('click',async event=>{
+      const button=event.target?.closest?.('#btnBorrarSeleccionadas');if(!button)return;
+      event.preventDefault();
+      try{await window.COI_CRUD_ORDENES.eliminarSeleccionadasDesdeUI();}
+      catch(error){console.error('[COI DELETE] handler canónico',error);}
+    },{signal:controller.signal});
+    document.addEventListener('change',event=>{if(event.target?.matches?.('.chk-orden-row,#chkOrdenesSeleccionarTodas'))actualizarEstadoBotonBorrarOC();},{signal:controller.signal});
+    actualizarEstadoBotonBorrarOC();
+  }
+  window.bindCrudOrdenesUI=bindCrudOrdenesUI;
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindCrudOrdenesUI,{once:true});else bindCrudOrdenesUI();
   const style=document.createElement('style');style.id='coi-crud-ordenes-style';style.textContent='.crud-oc-modal{position:fixed;inset:0;z-index:100100;background:#0f172a99;display:flex;align-items:center;justify-content:center;padding:18px}.crud-oc-modal[hidden]{display:none}.crud-oc-card{width:min(560px,96vw);background:#fff;border-radius:16px;padding:20px;box-shadow:0 24px 70px #0005}.crud-oc-card label{display:block;font-weight:800;margin:12px 0 5px}.crud-oc-card input{width:100%;box-sizing:border-box}.crud-oc-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.crud-oc-card [role=alert]{min-height:22px;color:#9b1c1c;font-weight:800;margin-top:8px}';document.head.appendChild(style);
   document.querySelectorAll('[data-app-version]').forEach(el=>el.textContent=VERSION);window.APP_VERSION=VERSION;
 })();
