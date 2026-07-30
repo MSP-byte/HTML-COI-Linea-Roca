@@ -8,7 +8,7 @@
 (function(){
   'use strict';
 
-  const VERSION = 'V60.1.1-DELETE-REMOTO-CONFIRMADO';
+  const VERSION = 'V60.1.2-DELETE-HANDLER-UNICO';
   const RELEASE_DATE = '2026-07-30';
 
   window.COI_CONFIG = Object.freeze({
@@ -1684,7 +1684,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
     <span class="brand-copy"><small>TRENES ARGENTINOS</small><strong>L&Iacute;NEA ROCA</strong></span>
   </div>
   <div class="app-identity" title="Sistema Integrado de Gestion de Obras y Servicios">
-    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge" data-app-version>V60.1.1-DELETE-REMOTO-CONFIRMADO</span></div>
+    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge" data-app-version>V60.1.2-DELETE-HANDLER-UNICO</span></div>
     <div class="app-subtitle" id="appSubtitleHeader">Sistema Integrado de Gesti&oacute;n de Obras y Servicios</div>
     <div class="app-tagline" id="appTaglineHeader">Sistema operativo COI L&iacute;nea Roca &mdash; Gesti&oacute;n de Obras, Servicios, Certificaciones y Vencimientos</div>
   </div>
@@ -1712,7 +1712,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
   </div>
   <div class="footer-status-grid">
     <span class="footer-pill"><span>Sistema</span><b id="footerSistemaNombre">COI L&iacute;nea Roca</b></span>
-    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa" data-app-version>V60.1.1-DELETE-REMOTO-CONFIRMADO</b></span>
+    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa" data-app-version>V60.1.2-DELETE-HANDLER-UNICO</b></span>
     <span class="footer-pill"><span>&Uacute;ltima actualizaci&oacute;n</span><b id="headerUltimaActualizacion">Sin datos</b></span>
     <span class="footer-pill"><span>OCs cargadas</span><b id="headerTotalOC">0</b></span>
     <span class="footer-pill mode"><span>Estado</span><b id="headerModoSistema">Modo Operativo</b></span>
@@ -5487,7 +5487,7 @@ const APP_OPERATIVE_TEXT = "Sistema operativo COI Línea Roca — Gestión de Ob
 const ADMIN_PIN = "1234";
 const USER_ROLES = { ADMIN: "Administrador", JEFE: "Jefatura" };
 const historialVersiones = [
-  {version:"V60.1.1-DELETE-REMOTO-CONFIRMADO",fecha:"2026-07-29",titulo:"Borrado persistente y seguro de Órdenes de Compra",cambios:["Supabase confirma cada DELETE filtrado y devuelve las filas afectadas.","Las dependencias de negocio bloquean el borrado y las asociaciones de estaciones se eliminan de forma selectiva.","La caché reconstruible se reemplaza solo después de verificar el estado remoto.","Se incorporó confirmación administrativa accesible con PIN y texto ELIMINAR."],modulosAfectados:["Órdenes","Supabase","localStorage"],estado:"Pendiente de validación manual online",observaciones:"No elimina archivos de Storage, documentos ni información de negocio."},
+  {version:"V60.1.2-DELETE-HANDLER-UNICO",fecha:"2026-07-29",titulo:"Borrado persistente y seguro de Órdenes de Compra",cambios:["Supabase confirma cada DELETE filtrado y devuelve las filas afectadas.","Las dependencias de negocio bloquean el borrado y las asociaciones de estaciones se eliminan de forma selectiva.","La caché reconstruible se reemplaza solo después de verificar el estado remoto.","Se incorporó confirmación administrativa accesible con PIN y texto ELIMINAR."],modulosAfectados:["Órdenes","Supabase","localStorage"],estado:"Pendiente de validación manual online",observaciones:"No elimina archivos de Storage, documentos ni información de negocio."},
   {version:"V59.6-CACHE-SEGURO",fecha:"2026-07-23",titulo:"Reparación segura de caché local y recuperación controlada de Supabase",cambios:["Se agregó el botón Reparar caché local en Administración → Diagnóstico.","La reparación crea un respaldo JSON previo descargable desde el navegador.","Solo elimina claves declaradas como UI_CACHE y bloqueos temporales legacy; nunca usa localStorage.clear().","Se preservan datos operativos, posiciones financieras, pendientes, borradores, sesión Supabase y claves legacy protegidas.","Se verifica y recarga Supabase con timeout para evitar bloqueos indefinidos.","La vista activa se actualiza de forma controlada y se genera un informe detallado de la reparación.","La operación evita doble clic, registra auditoría y libera siempre la interfaz mediante finally."],modulosAfectados:["Administración","Diagnóstico","localStorage","Supabase","Auditoría"],estado:"Estable",observaciones:"Fase 2 de estabilidad. No modifica tablas, RLS, Storage ni datos financieros."},
   {version:"V59.6-CACHE-SEGURO",fecha:"2026-07-23",titulo:"Reparación segura de caché local y recuperación controlada de Supabase",cambios:["Se definió COI_CONFIG como única fuente de versión activa.","Se unificaron las constantes históricas de versionado para evitar sobrescrituras entre capas.","Se retiró el MutationObserver dedicado exclusivamente al badge de versión.","Se creó COI_STORAGE para clasificar datos operativos, caché de Supabase, pendientes, borradores, sesión, preferencias y diagnóstico.","Se agregaron helpers seguros de lectura, escritura, inventario y reparación exclusiva de caché visual.","No se borraron, migraron ni renombraron datos existentes."],modulosAfectados:["Core","Header","Footer","Acerca del Sistema","localStorage"],estado:"Estable",observaciones:"Primera fase estructural. Las claves legacy permanecen protegidas hasta una migración controlada posterior."},
   {version:"V58.1R28-CONTRACTUAL-CT",fecha:"2026-07-17",titulo:"Registro automático de documentos Storage en tabla documental",cambios:["Se corrigió la sincronización documental por OC.","El sistema detecta archivos existentes en Supabase Storage aunque no tengan fila documental.","Se crean automáticamente registros faltantes en public.coi_documentos_oc usando la columna real estado.","Se evita duplicar documentos por storage_path y OC.","Las Actas de Medición detectadas se reflejan también en Certificaciones.","Se elimina la necesidad de validar manualmente cada documento desde SQL Editor."],modulosAfectados:["Ficha OC","Documentos","Certificaciones","Supabase Storage","coi_documentos_oc"],estado:"Estable",observaciones:"Storage conserva el PDF físico y la tabla documental queda como índice operativo trazable."},
@@ -6462,14 +6462,17 @@ function v45ItemDesdeObra(row){return normalizarRegistroCargaObra(row);}
 function v45RefreshAfterDataChange(){if(typeof renderMap==='function')renderMap();if(typeof updateKpis==='function')updateKpis();if(typeof cargarFiltrosCalendario==='function')cargarFiltrosCalendario();if(typeof renderCalendarioCOI==='function')renderCalendarioCOI();if(typeof cargarFiltrosV16==='function'){cargarFiltrosV16('venc');cargarFiltrosV16('cert');}if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();if(typeof renderOrdenes==='function')renderOrdenes();if(typeof renderCentroAlertas==='function'&&$('vistaCentroAlertas')?.classList.contains('active'))renderCentroAlertas();if(typeof renderDashboardAlertSummary==='function')renderDashboardAlertSummary();if(typeof renderAcercaSistema==='function'&&$('vistaAcercaSistema')?.classList.contains('active'))renderAcercaSistema();if(typeof renderAdministracionSistema==='function'&&$('vistaAdministracionSistema')?.classList.contains('active'))renderAdministracionSistema();}
 function v45GuardarCarga(){document.querySelectorAll('#panelCargaServicio tbody tr,#panelCargaObra tbody tr').forEach(v45ActualizarFila);const body=v45BodyActivo();if(!body)return;let guardados=0,vacios=0,duplicados=0;[...body.querySelectorAll('tr')].forEach(tr=>{const tipo=tr.dataset.tipoCarga||v45TipoCarga,row=v45LeerFila(tr);if(v45FilaVacia(row,tipo)){vacios++;return;}const item=tipo==='Servicio'?v45ItemDesdeServicio(row):v45ItemDesdeObra(row);const key=v45RegistroKey(item);if(todasLasOC().some(r=>v45RegistroKey(r.item)===key)){duplicados++;return;}const est=v45EstacionDestino(item.estacion);item.estacion=est.nombre;item.idEstacion=est.idEstacion||('EST-'+slugOC(est.nombre));(tipo==='Servicio'?est.servicios:est.obras).push(item);guardados++;});v45MigrarCampos();guardarBaseLocal();v45RefreshAfterDataChange();const msg=`Se guardaron ${guardados} registros. Filas vacías: ${vacios}. Duplicados omitidos: ${duplicados}.`;if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent=msg;$('cargaRapidaMsg').className='quick-load-msg ok';}alert(msg);}
 function v45ActualizarSeleccionOrdenes(){const total=v45SeleccionOrdenes.size;if($('ordenesSeleccionadasCount'))$('ordenesSeleccionadasCount').textContent=`${total} seleccionada${total===1?'':'s'}`;if($('btnBorrarSeleccionadas'))$('btnBorrarSeleccionadas').disabled=!total;const checks=[...document.querySelectorAll('.chk-orden-row')];if($('chkOrdenesSeleccionarTodas'))$('chkOrdenesSeleccionarTodas').checked=checks.length>0&&checks.every(c=>c.checked);}
-function v45BorrarSeleccionadas(){const ids=[...v45SeleccionOrdenes];if(!ids.length)return;if(!confirm(`¿Borrar ${ids.length} OC seleccionada(s)? Esta acción actualiza localStorage.`))return;const set=new Set(ids);estaciones.forEach(est=>{est.obras=(est.obras||[]).filter(i=>!set.has(v45RegistroKey(i)));est.servicios=(est.servicios||[]).filter(i=>!set.has(v45RegistroKey(i)));});v45SeleccionOrdenes.clear();guardarBaseLocal();v45RefreshAfterDataChange();}
+async function v45BorrarSeleccionadas(){
+  if(!window.COI_CRUD_ORDENES) throw new Error('El borrado seguro de OCs no está disponible. Recargue la aplicación.');
+  return window.COI_CRUD_ORDENES.eliminarSeleccionadasDesdeUI();
+}
 const _loadImportedDataV45Base = typeof loadImportedData==='function' ? loadImportedData : null;
 loadImportedData = function(){const data=safeParseJSON(localStorage.getItem(STORAGE_KEY),null);if(!Array.isArray(data)){if(_loadImportedDataV45Base)_loadImportedDataV45Base();return;}clearInterventions();data.forEach(d=>{let e=estaciones.find(x=>x.nombre===d.nombre);if(!e){e={nombre:d.nombre||'Sin definir',ramal:d.ramal||d.nombre||'Sin definir',x:-999,y:-999,obras:[],servicios:[],ramales:[d.ramal||d.nombre||'Sin definir']};estaciones.push(e);}e.idEstacion=d.idEstacion||e.idEstacion;e.obras=Array.isArray(d.obras)?d.obras:[];e.servicios=Array.isArray(d.servicios)?d.servicios:[];});v45MigrarCampos();};
 const _filasOrdenesBaseV45 = filasOrdenesBase;
 filasOrdenesBase = function(){v45MigrarCampos();return _filasOrdenesBaseV45().map(r=>({...r,idSeleccion:v45RegistroKey(r.item),estadoDocumental:r.item.estadoDocumental||'',umVinculada:r.item.umVinculada||r.item.unidadMantenimiento||r.item.tipoUM||r.item.tipoUm||r.item.especialidad||''}));};
 renderOrdenes = function(){cargarFiltrosOrdenes();const rows=filtrarOrdenes(filasOrdenesBase()).sort((a,b)=>String(a.idObra).localeCompare(String(b.idObra)));if($('ordKTotal'))$('ordKTotal').textContent=rows.length;if($('ordKObras'))$('ordKObras').textContent=rows.filter(r=>r.tipo==='Obra').length;if($('ordKServicios'))$('ordKServicios').textContent=rows.filter(r=>r.tipo==='Servicio').length;if($('ordKProxCert'))$('ordKProxCert').textContent=rows.filter(r=>r.calc.prox&&diffDias(r.calc.prox,COI_TODAY)<=30).length;if($('ordenesTbody')){$('ordenesTbody').innerHTML=rows.map(r=>`<tr class="row-clickable" data-open-oc="${esc(r.idObra)}"><td class="orden-check-cell"><input type="checkbox" class="chk-orden-row" data-orden-key="${esc(r.idSeleccion)}" ${v45SeleccionOrdenes.has(r.idSeleccion)?'checked':''}></td><td><b>${esc(r.idObra)}</b></td><td>${esc(r.numeroOC||'—')}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.sector||'—')}</td><td>${esc(r.umVinculada||'—')}</td><td>${esc(r.tipoTrabajo||'—')}</td><td>${esc(r.estado)}</td><td>${fmtFecha(r.calc.prox)}</td><td>${fmtFecha(r.calc.venc)}</td><td>${botonFichaOC(r.item,'Ver ficha OC')}</td></tr>`).join('')||'<tr><td colspan="13">Sin resultados para los filtros seleccionados.</td></tr>';}v45ActualizarSeleccionOrdenes();};
 const _initOrdenesCentroOperativoV45 = initOrdenesCentroOperativo;
-initOrdenesCentroOperativo = function(){_initOrdenesCentroOperativoV45();$('chkOrdenesSeleccionarTodas')?.addEventListener('change',ev=>{document.querySelectorAll('.chk-orden-row').forEach(chk=>{chk.checked=ev.target.checked;if(chk.checked)v45SeleccionOrdenes.add(chk.dataset.ordenKey);else v45SeleccionOrdenes.delete(chk.dataset.ordenKey);});v45ActualizarSeleccionOrdenes();});$('btnBorrarSeleccionadas')?.addEventListener('click',v45BorrarSeleccionadas);document.addEventListener('change',ev=>{const chk=ev.target.closest('.chk-orden-row');if(!chk)return;if(chk.checked)v45SeleccionOrdenes.add(chk.dataset.ordenKey);else v45SeleccionOrdenes.delete(chk.dataset.ordenKey);v45ActualizarSeleccionOrdenes();});document.addEventListener('click',ev=>{const del=ev.target.closest('#btnBorrarSeleccionadas');if(del){ev.preventDefault();ev.stopPropagation();v45BorrarSeleccionadas();return;}if(ev.target.closest('.chk-orden-row')||ev.target.closest('#chkOrdenesSeleccionarTodas'))ev.stopPropagation();},true);};
+initOrdenesCentroOperativo = function(){_initOrdenesCentroOperativoV45();$('chkOrdenesSeleccionarTodas')?.addEventListener('change',ev=>{document.querySelectorAll('.chk-orden-row').forEach(chk=>{chk.checked=ev.target.checked;if(chk.checked)v45SeleccionOrdenes.add(chk.dataset.ordenKey);else v45SeleccionOrdenes.delete(chk.dataset.ordenKey);});v45ActualizarSeleccionOrdenes();});document.addEventListener('change',ev=>{const chk=ev.target.closest('.chk-orden-row');if(!chk)return;if(chk.checked)v45SeleccionOrdenes.add(chk.dataset.ordenKey);else v45SeleccionOrdenes.delete(chk.dataset.ordenKey);v45ActualizarSeleccionOrdenes();});document.addEventListener('click',ev=>{if(ev.target.closest('.chk-orden-row')||ev.target.closest('#chkOrdenesSeleccionarTodas'))ev.stopPropagation();},true);};
 function renderCarga(){v45RenderTabla('Servicio');v45RenderTabla('Obra');v45SetTipoCarga(v45TipoCarga||'Servicio');}
 function renderCargaObra(){v45RenderTabla('Obra');v45SetTipoCarga('Obra');}
 function renderCargaServicio(){v45RenderTabla('Servicio');v45SetTipoCarga('Servicio');}
@@ -10455,7 +10458,6 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       if(ev.target.closest('#btnLimpiarCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); renderTablaCargaFix(cargaTipoFix); return;}
       if(ev.target.closest('#btnGuardarCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); guardarCargaFix(); return;}
       if(ev.target.closest('#btnOrdenesLimpiar')){ev.preventDefault(); ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert','ordenMontoOrden'].forEach(id=>{if($fix(id))$fix(id).value='';}); try{window.renderOrdenes?.();}catch(e){console.error('COI limpiar filtros',e);} return;}
-      if(ev.target.closest('#btnBorrarSeleccionadas')){ev.preventDefault(); ev.stopImmediatePropagation(); if(window.COI_ORDENES_DELETE_FIX_R4&&typeof window.COI_ORDENES_DELETE_FIX_R4.borrar==='function') window.COI_ORDENES_DELETE_FIX_R4.borrar(); return;}
       if(ev.target.closest('#btnCoiCsv')){ev.preventDefault(); exportCalendarioFix('csv'); return;}
       if(ev.target.closest('#btnCoiIcs')){ev.preventDefault(); exportCalendarioFix('ics'); return;}
       if(ev.target.closest('#btnExportAlertasCSV')){ev.preventDefault(); const rows=[['Categoria','Severidad','Tipo alerta','OC','ID','Tipo','Estacion','Proveedor','Fecha','Dias','Mensaje','Accion'],...alertasFix().map(a=>[a.categoria,a.severidad,a.tipoAlerta,a.oc,a.idObra,a.tipo,a.estacion,a.proveedor,a.fechaReferencia,a.dias,a.mensaje,a.accionSugerida])]; descargarArchivo('centro_alertas_v58_0r.csv',rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n'),'text/csv;charset=utf-8'); return;}
@@ -10752,48 +10754,9 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     setTimeout(syncSeleccionOrdenesDesdeDOM,0);
   }
 
-  function borrarOrdenesSeleccionadasR4(){
-    const keys = selectedOrdenKeysDOM();
-    if(!keys.length){
-      toastOrdenes('No hay OCs seleccionadas para borrar.','warning');
-      return;
-    }
-    if(!modoAdminActivo()){
-      alert('Para borrar OCs primero ingresá como Administrador desde el módulo Administración.');
-      return;
-    }
-
-    const pin = prompt(`Borrar ${keys.length} OC seleccionada(s). Ingrese PIN de Administrador:`);
-    if(pin === null) return;
-    if(String(pin) !== pinAdministradorActual()){
-      alert('PIN incorrecto. No se borró ningún registro.');
-      return;
-    }
-
-    const seleccion = new Set(keys);
-    let borradas = 0;
-    try{
-      if(Array.isArray(estaciones)){
-        estaciones.forEach(est=>{
-          const filtrar = arr => (Array.isArray(arr)?arr:[]).filter(item=>{
-            const coincide = Array.from(itemKeySetOrdenes(item,null,est.nombre)).some(k=>seleccion.has(k));
-            if(coincide) borradas++;
-            return !coincide;
-          });
-          est.obras = filtrar(est.obras);
-          est.servicios = filtrar(est.servicios);
-        });
-      }
-    }catch(e){
-      console.error('COI R4: error borrando OCs seleccionadas',e);
-      alert('No se pudo completar el borrado. Revisá la consola del navegador.');
-      return;
-    }
-
-    qsa('#ordenesTbody .chk-orden-row').forEach(chk=>{ chk.checked=false; });
-    try{ if(typeof v45SeleccionOrdenes !== 'undefined' && v45SeleccionOrdenes?.clear) v45SeleccionOrdenes.clear(); }catch(e){}
-    refrescarOrdenesPostBorrado();
-    toastOrdenes(borradas ? `Borrado correcto: ${borradas} registro(s) eliminado(s).` : 'No se encontró ningún registro coincidente para borrar.','ok');
+  async function borrarOrdenesSeleccionadasR4(){
+    if(!window.COI_CRUD_ORDENES) throw new Error('El borrado seguro de OCs no está disponible. Recargue la aplicación.');
+    return window.COI_CRUD_ORDENES.eliminarSeleccionadasDesdeUI();
   }
 
   function bindOrdenesR4(){
@@ -10803,7 +10766,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     // Window capture corre antes que los listeners documentales antiguos: bloquea apertura accidental de Ficha OC.
     // Importante: el checkbox maestro se procesa en CHANGE, no en CLICK, porque en CLICK
     // el navegador todavía puede no haber aplicado el estado checked definitivo.
-    window.addEventListener('click',ev=>{
+    window.addEventListener('click',async ev=>{
       const chk = ev.target?.closest?.('#ordenesTbody .chk-orden-row');
       if(chk){
         ev.stopImmediatePropagation();
@@ -10820,7 +10783,10 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       if(borrar){
         ev.preventDefault();
         ev.stopImmediatePropagation();
-        borrarOrdenesSeleccionadasR4();
+        console.info('[COI DELETE] click recibido');
+        console.info('[COI DELETE] handler propietario');
+        try{ await borrarOrdenesSeleccionadasR4(); }
+        catch(error){ console.error('[COI DELETE] resultado final',error?.message||String(error)); }
         return;
       }
     },true);
@@ -16354,15 +16320,6 @@ const APP_DATA_MODE = "supabase_first";
           } finally {
             if (button) button.disabled = false;
           }
-          return;
-        }
-
-        if (target?.closest?.('#btnBorrarSeleccionadas')) {
-          event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation();
-          try { await eliminarSeleccionadasSupabase(); }
-          catch (error) { toast(error?.message || String(error), 'error'); }
           return;
         }
 
@@ -24789,10 +24746,10 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
 </script>
 
 <script id="coi-crud-ordenes-v601">
-/* V60.1.1 — identidad canónica y eliminación confirmada contra Supabase; nunca elimina archivos de Storage. */
+/* V60.1.2 — un solo handler de UI y eliminación confirmada contra Supabase; nunca elimina archivos de Storage. */
 (function(){
   'use strict';
-  const VERSION='V60.1.1-DELETE-REMOTO-CONFIRMADO';
+  const VERSION='V60.1.2-DELETE-HANDLER-UNICO';
   const ORDER_TABLE='coi_ordenes';
   const STATION_TABLE='coi_ordenes_estaciones';
   const ORDER_CACHE_KEY='coi_supabase_ordenes_cache_v2';
@@ -24861,12 +24818,12 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     if(rows.length!==1)throw new Error(`Inconsistencia: public.${ORDER_TABLE} contiene ${rows.length} filas para nro_oc ${number}. No se eliminó ninguna.`);
     const canonical={id:clean(rows[0].id),nro_oc:normalizarNroOC(rows[0].nro_oc)};
     if(!canonical.id||canonical.nro_oc!==number)throw new Error(`Supabase devolvió una identidad inconsistente para la OC ${number}.`);
-    diagnostic('identidad canónica',{nro_oc:number,uuid:canonical.id});return canonical;
+    diagnostic('nro_oc',{nro_oc:number});diagnostic('UUID canónico',{nro_oc:number,uuid:canonical.id});return canonical;
   }
   async function deleteCanonical(canonical){
     const result=await client().from(ORDER_TABLE).delete().eq('id',canonical.id).select('id,nro_oc');
     const rows=Array.isArray(result.data)?result.data:[];
-    diagnostic('respuesta DELETE',{nro_oc:canonical.nro_oc,uuid:canonical.id,deleteCount:rows.length,errorCode:result.error?.code||result.error?.status});
+    diagnostic('filas devueltas por DELETE',{nro_oc:canonical.nro_oc,uuid:canonical.id,deleteCount:rows.length,errorCode:result.error?.code||result.error?.status});
     if(result.error)throw result.error;
     if(rows.length!==1||clean(rows[0].id)!==canonical.id||normalizarNroOC(rows[0].nro_oc)!==canonical.nro_oc){const error=new Error(UNCONFIRMED_DELETE);error.unconfirmed=true;throw error;}
     const [byId,byNumber]=await Promise.all([
@@ -24875,7 +24832,7 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     ]);
     if(byId.error)throw byId.error;if(byNumber.error)throw byNumber.error;
     const idRows=Array.isArray(byId.data)?byId.data:[],numberRows=Array.isArray(byNumber.data)?byNumber.data:[];
-    diagnostic('verificación posterior',{nro_oc:canonical.nro_oc,uuid:canonical.id,deleteCount:rows.length,postDeleteCount:idRows.length+numberRows.length});
+    diagnostic('filas posteriores',{nro_oc:canonical.nro_oc,uuid:canonical.id,deleteCount:rows.length,postDeleteCount:idRows.length+numberRows.length});
     if(idRows.length||numberRows.length){const error=new Error(UNCONFIRMED_DELETE);error.unconfirmed=true;throw error;}
     return rows[0];
   }
@@ -24883,7 +24840,7 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
   function purgeCache(remote){localStorage.setItem(ORDER_CACHE_KEY,JSON.stringify({savedAt:new Date().toISOString(),orders:remote}));}
   function setButton(active,count=0){const b=document.getElementById('btnBorrarSeleccionadas');if(!b)return;b.disabled=active||count===0;b.textContent=active?'Eliminando…':count?`Borrar seleccionadas (${count})`:'Borrar seleccionadas';}
   async function eliminarOrdenesPersistentes(selection,{skipDialog=false}={}){
-    if(deleting)return {status:'busy'};deleting=true;const orders=uniqueOrders(selection);setButton(true,orders.length);
+    if(deleting||window.__coiDeleteOcInProgress)return {status:'busy'};deleting=true;window.__coiDeleteOcInProgress=true;const orders=uniqueOrders(selection);setButton(true,orders.length);
     try{
       await requireAccess();if(!orders.length)throw new Error('No hay OCs seleccionadas.');
       const deletable=[],blocked=[];
@@ -24907,8 +24864,9 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
       if(window.v45SeleccionOrdenes?.clear)window.v45SeleccionOrdenes.clear();
       ['renderOrdenes','updateKpis','renderDashboardAlertSummary','renderDashboardInteractivoExtra','renderMap'].forEach(name=>{try{window[name]?.();}catch(_e){}});
       toast(`${deleted.length} OC(s) eliminadas correctamente. ${blocked.length} bloqueada(s). La información fue confirmada en Supabase.`,'ok');
+      diagnostic('resultado final',{deleteCount:deleted.length,postDeleteCount:0});
       return {status:blocked.length?'partial':'success',deleted,blocked};
-    }catch(error){toast(friendlyError(error),'error');throw error;}finally{deleting=false;setButton(false,document.querySelectorAll('.chk-orden-row:checked').length);}
+    }catch(error){diagnostic('resultado final',{errorCode:error?.code||error?.status||error?.message});toast(friendlyError(error),'error');throw error;}finally{deleting=false;window.__coiDeleteOcInProgress=false;setButton(false,document.querySelectorAll('.chk-orden-row:checked').length);}
   }
   function resolveSelected(){const keys=[...document.querySelectorAll('.chk-orden-row:checked')].map(c=>clean(c.dataset.ordenKey));return uniqueOrders(keys.map(k=>allOrders().find(o=>(typeof window.v45RegistroKey==='function'&&window.v45RegistroKey(o)===k)||[o.idObra,nro(o),oid(o)].some(v=>clean(v)===k))).filter(Boolean));}
   function resolveKey(k){return allOrders().find(o=>[o.idObra,nro(o),oid(o)].some(v=>clean(v)===clean(k)));}
