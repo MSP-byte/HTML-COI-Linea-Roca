@@ -1,0 +1,12 @@
+{
+  "version": "V58.1R38.3.1-ESTABILIDAD-INTERACCION",
+  "strategy": "emergency-safe-rollback",
+  "local_real_browser_available": false,
+  "local_e2e_status": "NOT_RUN_NO_BROWSER",
+  "ci_workflow": ".github/workflows/r3831-interaction-e2e.yml",
+  "ci_status": "PENDING_PULL_REQUEST",
+  "freeze_fixed_claimed": false,
+  "stable_backup": "index_PRE_IMPUTACION_POSICIONES_R383.html",
+  "rollback_functional_diff_vs_stable": "version/date/changelog only",
+  "productive_supabase_writes": 0
+}
