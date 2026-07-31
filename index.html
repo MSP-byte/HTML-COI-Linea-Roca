@@ -24056,6 +24056,16 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
         const detail=warnings[0]||'No hay filas válidas para guardar.';
         setMessage(detail,'error');toast(detail,'warning');return;
       }
+      /* La escritura remota precede siempre a la caché. Se colapsan las antiguas
+         vistas POSICION_OC/CERTIFICADA a una sola fila lógica OC + posición. */
+      if(typeof window.guardarPosicionesFinancierasSupabase!=='function')throw new Error('El servicio financiero Supabase no está disponible. Recargue la aplicación.');
+      const sincronizables=new Map();
+      existing.filter(p=>affected.has(normalizarOC(p.ocNro||p.nro_oc))).forEach(p=>{
+        const key=`${normalizarOC(p.ocNro||p.nro_oc)}|${normalizarPOS(p.posicion)}`;
+        const actual=sincronizables.get(key),esConsumo=fold(p.tipoBloqueFinanciero).includes('CERT');
+        if(!actual||esConsumo)sincronizables.set(key,{...p,estado_posicion:esConsumo?'CONSUMIDA':'LIBRE',fecha_consumo:esConsumo?(p.fechaActa||p.fechaUltimaModificacion||new Date().toISOString()):null});
+      });
+      await window.guardarPosicionesFinancierasSupabase([...sincronizables.values()]);
       writeStoredPositions(existing);
       updateRelationIndex(affected,existing);
       refreshOnlyAffectedUI(affected);
@@ -24754,6 +24764,7 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
   const STATION_TABLE='coi_ordenes_estaciones';
   const ORDER_CACHE_KEY='coi_supabase_ordenes_cache_v2';
   const BUSINESS_DEPENDENCIES=Object.freeze([
+    {table:'coi_posiciones_financieras',label:'posiciones financieras',field:'nro_oc'},
     {table:'coi_documentos_oc',label:'documentos',field:'nro_oc'},
     {table:'coi_certificaciones',label:'certificaciones',field:'nro_oc'},
     {table:'coi_historial_oc',label:'eventos de historial',field:'nro_oc'},
@@ -24763,7 +24774,10 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
   ]);
   let deleting=false;
   const clean=v=>String(v??'').trim();
-  function normalizarNroOC(v){return clean(v).replace(/^OC-\s*/i,'').replace(/\s+/g,'');}
+  function normalizarNumeroOC(valor){
+    return String(valor || "").trim().toUpperCase().replace(/^OC[\s\-:]*/i, "").replace(/\s+/g, "");
+  }
+  const normalizarNroOC=normalizarNumeroOC;
   function nro(o){return normalizarNroOC(o?.nro_oc??o?.numeroOC??o?.oc??o?.OC_NRO??o?.ocNro);}
   function oid(o){const value=o?.supabaseId??o?._supabaseRaw?.id??o?.orden_id??o?.id;return clean(value)||'';}
   function key(o){return oid(o)?`id:${oid(o)}`:`oc:${nro(o)}`;}
@@ -24843,15 +24857,19 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     if(deleting||window.__coiDeleteOcInProgress)return {status:'busy'};deleting=true;window.__coiDeleteOcInProgress=true;const orders=uniqueOrders(selection);setButton(true,orders.length);
     try{
       await requireAccess();if(!orders.length)throw new Error('No hay OCs seleccionadas.');
-      const deletable=[],blocked=[];
-      for(const order of orders){const counts=await dependencies(order);if(Object.keys(counts).length)blocked.push({order,counts});else deletable.push(order);}
-      blocked.forEach(x=>toast(`No se puede eliminar la OC ${nro(x.order)} porque posee información vinculada: ${dependencyText(x.counts)}.`,'warning'));
-      if(!deletable.length)return {status:'blocked',deleted:[],blocked};
+      const deletable=orders,blocked=[];
       if(!skipDialog&&!(await confirmDeletion(deletable,blocked)))return {status:'cancelled',deleted:[],blocked};
       const canonical=[];for(const order of deletable){const resolved=await canonicalOrder(order);if(resolved.missing){toast(`La OC ${resolved.nro_oc} ya no existe en Supabase.`,'warning');}else canonical.push({order,resolved});}
       if(!canonical.length)return {status:'missing',deleted:[],blocked};
       const removedRelations=[];let deleted=[];
-      try{for(const item of canonical){const canonicalOrderObject={...item.order,supabaseId:item.resolved.id,nro_oc:item.resolved.nro_oc};removedRelations.push(...await deleteSafeRelations(canonicalOrderObject));deleted.push(await deleteCanonical(item.resolved));}}
+      try{for(const item of canonical){
+        const canonicalOrderObject={...item.order,supabaseId:item.resolved.id,nro_oc:item.resolved.nro_oc};
+        for(const dep of BUSINESS_DEPENDENCIES){
+          const result=await client().from(dep.table).delete().eq(dep.field,item.resolved.nro_oc).select('*');
+          if(result.error)throw new Error(`No se pudo eliminar ${dep.label}: ${result.error.message||result.error}`);
+        }
+        removedRelations.push(...await deleteSafeRelations(canonicalOrderObject));deleted.push(await deleteCanonical(item.resolved));
+      }}
       catch(error){await restoreSafeRelations(removedRelations);throw error;}
       const remote=await remoteOrders();
       const stillPresent=canonical.filter(w=>remote.some(r=>clean(r.id)===w.resolved.id||normalizarNroOC(r.nro_oc)===w.resolved.nro_oc));
@@ -24870,9 +24888,73 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
   }
   function resolveSelected(){const keys=[...document.querySelectorAll('.chk-orden-row:checked')].map(c=>clean(c.dataset.ordenKey));return uniqueOrders(keys.map(k=>allOrders().find(o=>(typeof window.v45RegistroKey==='function'&&window.v45RegistroKey(o)===k)||[o.idObra,nro(o),oid(o)].some(v=>clean(v)===k))).filter(Boolean));}
   function resolveKey(k){return allOrders().find(o=>[o.idObra,nro(o),oid(o)].some(v=>clean(v)===clean(k)));}
-  window.COI_CRUD_ORDENES=Object.freeze({version:VERSION,normalizarNroOC,eliminarOrdenesPersistentes,eliminarSeleccionadasDesdeUI:()=>eliminarOrdenesPersistentes(resolveSelected()),eliminarPorClaveDesdeUI:k=>{const o=resolveKey(k);if(!o)throw new Error('No se encontró la OC seleccionada.');return eliminarOrdenesPersistentes([o]);},businessDependencies:BUSINESS_DEPENDENCIES});
+  window.normalizarNumeroOC=normalizarNumeroOC;
+  window.borrarOrdenesSeleccionadas=()=>eliminarOrdenesPersistentes(resolveSelected());
+  window.COI_CRUD_ORDENES=Object.freeze({version:VERSION,normalizarNroOC,normalizarNumeroOC,eliminarOrdenesPersistentes,eliminarSeleccionadasDesdeUI:window.borrarOrdenesSeleccionadas,eliminarPorClaveDesdeUI:k=>{const o=resolveKey(k);if(!o)throw new Error('No se encontró la OC seleccionada.');return eliminarOrdenesPersistentes([o]);},businessDependencies:BUSINESS_DEPENDENCIES});
   const style=document.createElement('style');style.id='coi-crud-ordenes-style';style.textContent='.crud-oc-modal{position:fixed;inset:0;z-index:100100;background:#0f172a99;display:flex;align-items:center;justify-content:center;padding:18px}.crud-oc-modal[hidden]{display:none}.crud-oc-card{width:min(560px,96vw);background:#fff;border-radius:16px;padding:20px;box-shadow:0 24px 70px #0005}.crud-oc-card label{display:block;font-weight:800;margin:12px 0 5px}.crud-oc-card input{width:100%;box-sizing:border-box}.crud-oc-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.crud-oc-card [role=alert]{min-height:22px;color:#9b1c1c;font-weight:800;margin-top:8px}';document.head.appendChild(style);
   document.querySelectorAll('[data-app-version]').forEach(el=>el.textContent=VERSION);window.APP_VERSION=VERSION;
+})();
+</script>
+
+<script id="coi-finanzas-supabase-v602">
+/* Supabase es la autoridad; memoria y localStorage son una caché reemplazable. */
+(function(){
+  'use strict';
+  const TABLE='coi_posiciones_financieras';
+  const CACHE='coi_posiciones_financieras';
+  const seleccionadas=new Set();
+  const text=value=>String(value??'').trim();
+  const normalizarNumeroOC=window.normalizarNumeroOC||function(valor){
+    return String(valor||'').trim().toUpperCase().replace(/^OC[\s\-:]*/i,'').replace(/\s+/g,'');
+  };
+  const client=()=>typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;
+  const toast=(message,type='info')=>typeof window.coiToast==='function'?window.coiToast(message,type):typeof window.mostrarToast==='function'?window.mostrarToast(message,type):console[type==='error'?'error':'info'](message);
+  const cache=rows=>{localStorage.setItem(CACHE,JSON.stringify(rows));window.posicionesFinancieras=rows;try{posicionesFinancieras=rows;}catch(_error){}};
+  const cached=()=>{try{const rows=JSON.parse(localStorage.getItem(CACHE)||'[]');return Array.isArray(rows)?rows:[];}catch(_error){return [];}};
+  const estado=p=>/CONSUM|CERTIFIC/.test(String(p.estado_posicion||p.estadoPosicion||p.tipoBloqueFinanciero||'LIBRE').toUpperCase())?'CONSUMIDA':'LIBRE';
+  const numero=p=>text(p.numero_posicion??p.posicion??p.posKey);
+  const ocDe=p=>normalizarNumeroOC(p.nro_oc??p.ocNro??p.OC_NRO);
+  const dinero=value=>{const n=Number(value||0);return Number.isFinite(n)?n:0;};
+
+  async function cargarPosicionesOC(nroOC,{permitirCache=true}={}){
+    const oc=normalizarNumeroOC(nroOC),sb=client();
+    if(!oc)return [];
+    if(!sb){if(permitirCache){toast('Datos recuperados desde caché por falta de conexión.','warning');return cached().filter(p=>ocDe(p)===oc);}throw new Error('No hay conexión con Supabase.');}
+    try{
+      const {data,error}=await sb.from(TABLE).select('*').eq('nro_oc',oc).order('numero_posicion',{ascending:true});
+      if(error)throw error;
+      const other=cached().filter(p=>ocDe(p)!==oc),rows=Array.isArray(data)?data:[];cache([...other,...rows]);return rows;
+    }catch(error){console.error('[COI][FINANCIERA][CARGAR]',error);if(!permitirCache)throw error;toast('Datos recuperados desde caché por falta de conexión.','warning');return cached().filter(p=>ocDe(p)===oc);}
+  }
+  async function buscarOrden(oc){
+    try{const local=(typeof window.todasLasOC==='function'?window.todasLasOC():[]).find(r=>[r?.oc,r?.numeroOC,r?.item?.oc,r?.item?.numeroOC,r?.item?.nro_oc].some(v=>normalizarNumeroOC(v)===oc));if(local)return local.item||local;}catch(_error){}
+    const sb=client();if(!sb)return null;const {data,error}=await sb.from('coi_ordenes').select('id,nro_oc').eq('nro_oc',oc).maybeSingle();if(error)throw error;return data;
+  }
+  function registroRemoto(p,orden){
+    const cantidad=dinero(p.cantidad??p.cantidadTotal),precio=dinero(p.precio_unitario??p.precioUnitario),total=dinero(p.monto_total??p.precioTotal??p.montoPosicion)||(cantidad*precio);
+    return {id:p.id||undefined,orden_id:p.orden_id||p.ordenId||orden?.id||orden?.supabaseId||orden?._supabaseRaw?.id||null,nro_oc:ocDe(p),numero_posicion:numero(p),descripcion:text(p.descripcion??p.descripcionPosicion),cantidad,unidad:text(p.unidad),precio_unitario:precio,monto_total:total,estado_posicion:estado(p),fecha_carga:p.fecha_carga||p.fechaCarga||new Date().toISOString(),fecha_consumo:p.fecha_consumo||p.fechaConsumo||null,acta_medicion:text(p.acta_medicion??p.actaMedicionNro)||null,observaciones:text(p.observaciones),updated_at:new Date().toISOString()};
+  }
+  async function guardarPosicionesFinancieras(posiciones){
+    const input=Array.isArray(posiciones)?posiciones:[];if(!input.length)throw new Error('No hay posiciones para guardar.');
+    const sb=client();if(!sb)throw new Error('No hay conexión con Supabase. No se guardaron datos únicamente en caché.');
+    const payload=[];const seen=new Set();
+    for(const p of input){const oc=ocDe(p),pos=numero(p),key=`${oc}|${pos}`;if(!oc||!pos)throw new Error('Cada posición debe indicar OC y número de posición.');if(seen.has(key))throw new Error(`Posición duplicada para la OC ${oc}: ${pos}.`);seen.add(key);const orden=await buscarOrden(oc);if(!orden)throw new Error('No se encontró la OC indicada. Verifique el número antes de cargar las posiciones.');payload.push(registroRemoto({...p,nro_oc:oc},orden));}
+    try{const {data,error}=await sb.from(TABLE).upsert(payload,{onConflict:'nro_oc,numero_posicion'}).select('*');if(error)throw error;const saved=Array.isArray(data)?data:[];const keys=new Set(saved.map(p=>`${ocDe(p)}|${numero(p)}`));cache([...cached().filter(p=>!keys.has(`${ocDe(p)}|${numero(p)}`)),...saved]);toast(`${saved.length} posición(es) guardadas en Supabase.`,'ok');return saved;}catch(error){console.error('[COI][FINANCIERA][CARGA_POSICIONES]',error);toast(`No se pudieron guardar las posiciones: ${error.message||error}`,'error');throw error;}
+  }
+  async function actualizarEstadoPosiciones(ids,nuevoEstado,extra={}){
+    const cleanIds=[...new Set(ids.map(text).filter(Boolean))],sb=client();if(!cleanIds.length)throw new Error('No hay posiciones seleccionadas.');if(!sb)throw new Error('No hay conexión con Supabase.');
+    const values={estado_posicion:nuevoEstado,fecha_consumo:nuevoEstado==='CONSUMIDA'?new Date().toISOString():null,acta_medicion:extra.acta_medicion||null,observaciones:extra.observaciones||'',updated_at:new Date().toISOString()};
+    const {data,error}=await sb.from(TABLE).update(values).in('id',cleanIds).select('*');if(error)throw error;if((data||[]).length!==cleanIds.length)throw new Error('Supabase no confirmó todas las posiciones actualizadas.');return data;
+  }
+  async function consumirPosicionesSeleccionadas(nroOC){
+    const oc=normalizarNumeroOC(nroOC),ids=[...seleccionadas];if(!ids.length){toast('No hay posiciones seleccionadas.','warning');return;}
+    if(!confirm(`Se marcarán ${ids.length} posiciones como consumidas. ¿Desea continuar?`))return;
+    try{await actualizarEstadoPosiciones(ids,'CONSUMIDA');seleccionadas.clear();await cargarPosicionesOC(oc,{permitirCache:false});if(typeof window.renderFichaOC==='function')window.renderFichaOC(oc);toast('Posiciones consumidas y confirmadas en Supabase.','ok');}catch(error){console.error('[COI][FINANCIERA][CONSUMIR]',error);toast(`Error al actualizar posiciones: ${error.message||error}`,'error');throw error;}
+  }
+  function resumen(nroOC,orden={}){const rows=cached().filter(p=>ocDe(p)===normalizarNumeroOC(nroOC)),consumidas=rows.filter(p=>estado(p)==='CONSUMIDA'),libres=rows.filter(p=>estado(p)!=='CONSUMIDA'),sum=a=>a.reduce((t,p)=>t+dinero(p.monto_total??p.precioTotal??p.montoPosicion),0),montoTotal=dinero(orden.monto_total??orden.montoOC??orden.monto);const montoConsumido=sum(consumidas),montoLibre=sum(libres);return {posicionesTotales:rows,posicionesConsumidas:consumidas,posicionesLibres:libres,montoTotalOC:montoTotal,montoPosiciones:sum(rows),montoConsumido,montoLibre,porcentajeConsumido:montoTotal>0?montoConsumido/montoTotal*100:0,saldoContractual:montoTotal-montoConsumido,cantidadTotal:rows.length,cantidadConsumida:consumidas.length,cantidadLibre:libres.length};}
+  document.addEventListener('change',event=>{const check=event.target.closest('[data-fin-pos-id],.fin-pos-check');if(!check)return;const id=text(check.dataset.finPosId||check.value);if(!id)return;check.checked?seleccionadas.add(id):seleccionadas.delete(id);});
+  window.COI_FINANZAS_SUPABASE=Object.freeze({table:TABLE,seleccionadas,cargarPosicionesOC,guardarPosicionesFinancieras,actualizarEstadoPosiciones,consumirPosicionesSeleccionadas,resumen,normalizarNumeroOC});
+  window.cargarPosicionesOC=cargarPosicionesOC;window.guardarPosicionesFinancierasSupabase=guardarPosicionesFinancieras;window.actualizarEstadoPosiciones=actualizarEstadoPosiciones;window.consumirPosicionesSeleccionadas=consumirPosicionesSeleccionadas;
 })();
 </script>
 
