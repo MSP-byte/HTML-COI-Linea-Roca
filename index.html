@@ -23732,6 +23732,8 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
   const VERSION = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
   const LS_FIN = 'coi_posiciones_financieras';
   const LS_INDEX = 'coi_finanzas_por_oc_v1';
+  const LS_SUPABASE_CACHE = 'coi_posiciones_oc_supabase_cache_v1';
+  const TABLE_POSITIONS = 'coi_posiciones_oc';
   const SAVE_LOCK = {running:false};
   const $ = id => document.getElementById(id);
   const text = value => String(value ?? '').trim();
@@ -23882,6 +23884,9 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     try{if(Array.isArray(window.posicionesFinancieras)&&window.posicionesFinancieras.length>rows.length)rows=window.posicionesFinancieras;}catch(e){}
     return rows.map(normalizeExisting);
   }
+  function readLocalStoragePositions(){
+    try{const parsed=JSON.parse(localStorage.getItem(LS_FIN)||'[]');return Array.isArray(parsed)?parsed.map(normalizeExisting):[];}catch(e){return [];}
+  }
   function writeStoredPositions(rows){
     const json=JSON.stringify(rows);
     if(json.length > 4_500_000) throw new Error('La base financiera local supera el tamaño seguro del navegador. Exporte un backup antes de continuar.');
@@ -23889,6 +23894,81 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     try{window.posicionesFinancieras=rows;}catch(e){}
     try{posicionesFinancieras=rows;}catch(e){}
   }
+  function readSupabaseCache(){
+    try{const value=JSON.parse(localStorage.getItem(LS_SUPABASE_CACHE)||'null');return Array.isArray(value)?value:(Array.isArray(value?.rows)?value.rows:[]);}catch(e){return [];}
+  }
+  function fromSupabase(row){
+    return normalizeExisting({
+      idPosicionFinanciera:row.id,orden_id:row.orden_id,ordenId:row.orden_id,nro_oc:row.nro_oc,ocNro:row.nro_oc,OC_NRO:row.nro_oc,
+      tipoBloqueFinanciero:'POSICION_OC',posicion:mostrarPOS(row.posicion),posKey:normalizarPOS(row.posicion),descripcion:row.descripcion||'',descripcionPosicion:row.descripcion||'',
+      cantidad:Number(row.cantidad_total||0),cantidadTotal:Number(row.cantidad_total||0),cantidadConsumida:Number(row.cantidad_consumida||0),cantidadDisponible:Number(row.cantidad_disponible||0),
+      precioUnitario:Number(row.precio_unitario||0),precioTotal:Number(row.monto_total||0),montoPosicion:Number(row.monto_total||0),montoConsumido:Number(row.monto_consumido||0),
+      saldo:Number(row.monto_disponible||0),saldoMonto:Number(row.monto_disponible||0),moneda:row.moneda||'ARS',estadoPosicion:row.estado||'LIBRE',remito:row.remito||'',observaciones:row.observaciones||'',
+      origenCarga:row.origen_carga||'Carga Financiera',usuario:row.usuario_email||'',fechaCarga:row.fecha_creacion||'',fechaUltimaModificacion:row.fecha_actualizacion||''
+    });
+  }
+  function refreshRuntimeFromCache(remoteRows){
+    const local=readLocalStoragePositions();
+    const certs=local.filter(p=>fold(p.tipoBloqueFinanciero).includes('CERT'));
+    const masters=(remoteRows||readSupabaseCache()).map(fromSupabase);
+    const combined=masters.concat(certs);
+    try{window.posicionesFinancieras=combined;posicionesFinancieras=combined;}catch(e){}
+    return combined;
+  }
+  function cacheSupabaseRows(rows){
+    localStorage.setItem(LS_SUPABASE_CACHE,JSON.stringify({savedAt:new Date().toISOString(),rows}));
+    refreshRuntimeFromCache(rows);
+    return rows;
+  }
+  function obtenerCliente(){
+    const client=typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;
+    if(!client||typeof client.from!=='function')throw new Error('Cliente Supabase no disponible.');
+    return client;
+  }
+  async function verificarAccesoEscritura(options={}){
+    if(typeof navigator!=='undefined'&&!navigator.onLine)throw new Error('Sin conexión: no se guardó ninguna posición.');
+    const client=obtenerCliente();
+    const {data,error}=await client.auth.getSession();if(error)throw error;
+    const user=data?.session?.user;if(!user)throw new Error('Debe iniciar sesión en Supabase para guardar posiciones OC.');
+    if(options.admin&&fold(user.email)!=='ADMIN@COIROCA.COM')throw new Error('La migración requiere el usuario administrador.');
+    return {client,user};
+  }
+  async function buscarOrdenPorOC(ocNro){
+    const nro=normalizarOC(ocNro);if(!nro)throw new Error('Falta el número de OC.');
+    const client=obtenerCliente();
+    const {data,error}=await client.from('coi_ordenes').select('id,nro_oc').eq('nro_oc',nro).limit(2);
+    if(error)throw error;if(!data?.length)throw new Error(`La OC ${nro} no existe en public.coi_ordenes.`);
+    if(data.length>1)throw new Error(`La OC ${nro} está duplicada en public.coi_ordenes.`);return data[0];
+  }
+  async function listarTodas(){
+    const client=obtenerCliente();const {data,error}=await client.from(TABLE_POSITIONS).select('*').order('nro_oc').order('posicion').limit(10000);
+    if(error)throw error;return cacheSupabaseRows(data||[]);
+  }
+  async function listarPorOC(ocNro){
+    const nro=normalizarOC(ocNro),client=obtenerCliente();const {data,error}=await client.from(TABLE_POSITIONS).select('*').eq('nro_oc',nro).order('posicion');
+    if(error)throw error;const other=readSupabaseCache().filter(p=>normalizarOC(p.nro_oc)!==nro);cacheSupabaseRows(other.concat(data||[]));return (data||[]).map(fromSupabase);
+  }
+  function payloadPosition(record,order,user,origin='Carga Financiera'){
+    return {orden_id:order.id,nro_oc:normalizarOC(order.nro_oc),posicion:normalizarPOS(record.posicion),descripcion:text(record.descripcion||record.descripcionPosicion),cantidad_total:parseNumero(record.cantidadTotal??record.cantidad),
+      monto_total:parseNumero(record.precioTotal??record.montoPosicion),moneda:text(record.moneda)||'ARS',observaciones:text(record.observaciones),
+      unidad_medida:text(record.unidadMedida||record.unidad_medida),precio_unitario:parseNumero(record.precioUnitario),remito:text(record.remito),usuario_email:text(user?.email),origen_carga:origin};
+  }
+  async function guardarPosicionesOC(records,options={}){
+    const input=Array.isArray(records)?records:[];if(!input.length)throw new Error('No hay posiciones OC válidas para guardar.');
+    const {client,user}=await verificarAccesoEscritura(options);const orders=new Map(),payload=[];
+    for(const record of input){const nro=normalizarOC(record.ocNro||record.nro_oc);if(!orders.has(nro))orders.set(nro,await buscarOrdenPorOC(nro));payload.push(payloadPosition(record,orders.get(nro),user,options.origenCarga));}
+    const {data,error}=await client.from(TABLE_POSITIONS).upsert(payload,{onConflict:'orden_id,posicion'}).select('*');if(error)throw error;
+    await listarTodas();return {guardadas:data||[],cantidad:(data||[]).length,ocs:[...orders.keys()]};
+  }
+  async function analizarMigracion(){
+    const local=readLocalStoragePositions().filter(p=>fold(p.tipoBloqueFinanciero)==='POSICION_OC');const remote=await listarTodas();
+    const keys=new Set(remote.map(p=>`${normalizarOC(p.nro_oc)}|${normalizarPOS(p.posicion)}`)),valid=[],duplicates=[],invalid=[];
+    local.forEach(p=>{const key=`${normalizarOC(p.ocNro||p.nro_oc)}|${normalizarPOS(p.posicion)}`;if(!normalizarOC(p.ocNro||p.nro_oc)||!normalizarPOS(p.posicion))invalid.push(p);else if(keys.has(key))duplicates.push(p);else{keys.add(key);valid.push(p);}});
+    return {fecha:new Date().toISOString(),locales:local.length,listasParaMigrar:valid.length,yaExistentes:duplicates.length,invalidas:invalid.length,valid,duplicates,invalid};
+  }
+  async function ejecutarMigracion(){const report=await analizarMigracion();if(!report.valid.length)return report;await guardarPosicionesOC(report.valid,{admin:true,origenCarga:'Migración localStorage Fase 2A'});return {...report,migradas:report.valid.length};}
+  function exportarInforme(report){const safe={...report,valid:undefined,duplicates:undefined,invalid:undefined};const blob=new Blob([JSON.stringify(safe,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`informe_migracion_posiciones_oc_${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),500);return safe;}
+  async function diagnostico(){const cached=readSupabaseCache();let session=null,error='';try{const {data}=await obtenerCliente().auth.getSession();session=data?.session||null;}catch(e){error=e?.message||String(e);}return {version:VERSION,tabla:`public.${TABLE_POSITIONS}`,online:navigator.onLine,autenticado:Boolean(session),usuario:session?.user?.email||'',cache:cached.length,cacheFecha:JSON.parse(localStorage.getItem(LS_SUPABASE_CACHE)||'null')?.savedAt||'',error};}
   function calculateSummary(ocNro,rows){
     const oc=normalizarOC(ocNro);
     const list=rows.filter(p=>normalizarOC(p.ocNro||p.nro_oc)===oc);
@@ -23957,6 +24037,22 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
       }
     }
   }
+  async function saveSupabaseMasterRows(rows){
+    let empty=0,invalid=0;const warnings=[],records=[];
+    rows.forEach((row,index)=>{
+      if(rowIsEmpty(row)){empty++;return;}
+      const oc=normalizarOC(row.OC??row.OC_NRO??row.nro_oc),pos=normalizarPOS(row.POS??row.POSICION);
+      if(!oc||!pos){invalid++;warnings.push(`Fila ${index+1}: ${!oc?'falta OC':'falta POS'}.`);return;}
+      records.push(rowToRecord(row,'POSICION_OC',findOrder(oc),null));
+    });
+    if(!records.length)throw new Error(warnings[0]||'No hay filas válidas para guardar.');
+    const result=await guardarPosicionesOC(records);
+    const affected=new Set(result.ocs);refreshOnlyAffectedUI(affected);
+    const detail=`Posiciones OC guardadas en Supabase: ${result.cantidad}. Vacías: ${empty}. Omitidas: ${invalid}.`;
+    setMessage(detail,'ok');toast(detail,'ok');
+    try{window.registrarLogSistema?.('CARGA_FINANCIERA_SUPABASE','Posiciones OC guardadas en Supabase',JSON.stringify({cantidad:result.cantidad,empty,invalid,ocs:result.ocs}));}catch(e){}
+    return {...result,empty,invalid,warnings};
+  }
   async function saveFinancialRows(){
     if(SAVE_LOCK.running)return;
     const block=activeFinancialBlock();
@@ -23966,7 +24062,11 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     }
     const trs=currentFinancialRows();
     const rows=trs.map(readRow);
-    const existing=readStoredPositions();
+    if(block==='POSICION_OC'){
+      SAVE_LOCK.running=true;
+      try{return await saveSupabaseMasterRows(rows);}finally{SAVE_LOCK.running=false;}
+    }
+    const existing=readLocalStoragePositions();
     const byKey=new Map(existing.map((p,i)=>[recordKey(p),i]));
     const ordersAvailable=(()=>{try{return typeof window.todasLasOC==='function'?(window.todasLasOC()||[]).length:0;}catch(e){return 0;}})();
     let created=0,updated=0,empty=0,invalid=0;const warnings=[];const affected=new Set();
@@ -24028,6 +24128,35 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     finally{button.disabled=false;button.textContent=old||'Guardar registros';}
   },true);
 
+  let lastMigrationReport=null;
+  function ensureMigrationPanel(){
+    const host=$('adminTabDatos')||document.querySelector('#vistaAdministracionSistema .view-body');
+    if(!host||$('coiFinMigrationPanel'))return;
+    const panel=document.createElement('section');panel.id='coiFinMigrationPanel';panel.className='admin-panel';
+    panel.innerHTML='<h3>Posiciones OC — Supabase</h3><p>Supabase es la fuente oficial. La copia local es una caché descartable; esta herramienta no borra los datos históricos de localStorage.</p><div class="admin-actions"><button type="button" id="btnFinAnalizarMigracion">Analizar localStorage</button><button type="button" id="btnFinEjecutarMigracion" class="primary" disabled>Migrar posiciones pendientes</button><button type="button" id="btnFinExportarMigracion" disabled>Exportar informe</button><button type="button" id="btnFinRecargarCache">Recargar caché Supabase</button></div><div id="coiFinMigrationResult" class="supabase-admin-detail" aria-live="polite">La migración nunca se ejecuta automáticamente.</div>';
+    host.prepend(panel);
+  }
+  function showMigrationReport(report,message=''){
+    const box=$('coiFinMigrationResult');if(box)box.textContent=message||`Locales: ${report.locales}. Pendientes: ${report.listasParaMigrar}. Ya existentes: ${report.yaExistentes}. Inválidas: ${report.invalidas}.`;
+    const run=$('btnFinEjecutarMigracion'),exp=$('btnFinExportarMigracion');if(run)run.disabled=!report.listasParaMigrar;if(exp)exp.disabled=false;
+  }
+  document.addEventListener('click',async event=>{
+    if(event.target?.closest?.('#btnAdministracionSistema,[data-admin-tab="datos"]'))setTimeout(ensureMigrationPanel,0);
+    const action=event.target?.closest?.('#btnFinAnalizarMigracion,#btnFinEjecutarMigracion,#btnFinExportarMigracion,#btnFinRecargarCache');if(!action)return;
+    event.preventDefault();action.disabled=true;
+    try{
+      if(action.id==='btnFinAnalizarMigracion'){lastMigrationReport=await analizarMigracion();showMigrationReport(lastMigrationReport);}
+      if(action.id==='btnFinEjecutarMigracion'){
+        if(!lastMigrationReport)throw new Error('Primero ejecute el análisis.');
+        if(!confirm(`Se migrarán ${lastMigrationReport.listasParaMigrar} posiciones OC a Supabase. Los datos locales no se eliminarán. ¿Continuar?`))return;
+        lastMigrationReport=await ejecutarMigracion();showMigrationReport(lastMigrationReport,`Migración finalizada: ${lastMigrationReport.migradas||0} posiciones. LocalStorage se conservó sin eliminaciones.`);
+      }
+      if(action.id==='btnFinExportarMigracion'){if(!lastMigrationReport)throw new Error('No hay un informe para exportar.');exportarInforme(lastMigrationReport);}
+      if(action.id==='btnFinRecargarCache'){const rows=await listarTodas();const box=$('coiFinMigrationResult');if(box)box.textContent=`Caché actualizada desde Supabase: ${rows.length} posiciones.`;}
+    }catch(error){const box=$('coiFinMigrationResult');if(box)box.textContent=`Error: ${error?.message||error}`;toast(error?.message||String(error),'error');}
+    finally{if(action.id!=='btnFinEjecutarMigracion'||lastMigrationReport?.listasParaMigrar)action.disabled=false;}
+  });
+
   function applyVersion(){
     window.APP_VERSION=VERSION;
     ['appVersionHeader','headerVersionOperativa'].forEach(id=>{const el=$(id);if(el&&el.textContent!==VERSION)el.textContent=VERSION;});
@@ -24036,13 +24165,19 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
   }
   function init(){
     applyVersion();
+    refreshRuntimeFromCache();
+    window.COI_FINANZAS_SUPABASE={version:'2A.1',obtenerCliente,verificarAccesoEscritura,buscarOrdenPorOC,listarTodas,listarPorOC,guardarPosicionesOC,recargarCache:listarTodas,obtenerCache:()=>readSupabaseCache().map(fromSupabase),migracion:{analizar:analizarMigracion,ejecutar:ejecutarMigracion,exportarInforme},diagnostico};
     window.COI_FINANZAS=Object.assign(window.COI_FINANZAS||{}, {
       version:VERSION,
       guardarDesdeCarga:saveFinancialRows,
-      obtenerPorOC:oc=>readStoredPositions().filter(p=>normalizarOC(p.ocNro||p.nro_oc)===normalizarOC(oc)),
-      resumenPorOC:oc=>calculateSummary(oc,readStoredPositions()),
+      obtenerPorOC:oc=>refreshRuntimeFromCache().filter(p=>normalizarOC(p.ocNro||p.nro_oc)===normalizarOC(oc)),
+      resumenPorOC:oc=>calculateSummary(oc,refreshRuntimeFromCache()),
       normalizarOC,normalizarPOS
     });
+    const officialGetter=oc=>refreshRuntimeFromCache().filter(p=>normalizarOC(p.ocNro||p.nro_oc)===normalizarOC(oc));
+    try{window.obtenerPosicionesFinancierasPorOC=officialGetter;obtenerPosicionesFinancierasPorOC=officialGetter;window.obtenerPosicionesPorOC=officialGetter;obtenerPosicionesPorOC=officialGetter;}catch(e){}
+    setTimeout(ensureMigrationPanel,600);setTimeout(ensureMigrationPanel,2500);
+    setTimeout(()=>{if(navigator.onLine)listarTodas().catch(error=>console.warn('COI Finanzas: se mantiene la caché de lectura',error));},1200);
     [100,500,1500,3500,6500].forEach(ms=>setTimeout(applyVersion,ms));
     // R38.1: se eliminó el MutationObserver de versión. Dos observers de capas
     // distintas se reescribían mutuamente y bloqueaban DOMContentLoaded.
