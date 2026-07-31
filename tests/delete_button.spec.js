@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
-test('selección → click real → una sola confirmación; cancelar conserva la fila', async ({ page }) => {
+test('selección → click real → confirmación nativa muestra la OC visual; cancelar conserva la fila', async ({ page }) => {
   const clickLogs=[];
   page.on('console',message=>{if(message.text().includes('[COI DELETE] CLICK RECIBIDO'))clickLogs.push(message.text());});
   await page.goto('/index.html');
@@ -12,11 +12,11 @@ test('selección → click real → una sola confirmación; cancelar conserva la
   await expect(page.locator('#btnBorrarSeleccionadas')).toHaveText('Borrar seleccionadas (1)');
   const rowsBefore=await page.locator('#ordenesTbody tr').count();
 
+  let message='';
+  page.once('dialog',async dialog=>{message=dialog.message();await dialog.dismiss();});
   await page.locator('#btnBorrarSeleccionadas').click();
-  await expect(page.locator('#crudOcDeleteModal')).toBeVisible();
+  await expect.poll(()=>message).toContain(await checkbox.getAttribute('aria-label').then(label=>label.replace(/^Seleccionar OC\s+/i,'')));
   expect(clickLogs).toHaveLength(1);
-  await page.locator('[data-crud-cancel]').click();
-  await expect(page.locator('#crudOcDeleteModal')).toBeHidden();
   await expect(page.locator('#ordenesTbody tr')).toHaveCount(rowsBefore);
 });
 
@@ -26,11 +26,8 @@ test('error Supabase posterior a confirmar mantiene la fila y es visible', async
   const checkbox=page.locator('.chk-orden-row').first();
   await checkbox.check();
   const rowsBefore=await page.locator('#ordenesTbody tr').count();
+  page.on('dialog',async dialog=>{if(dialog.type()==='confirm')await dialog.accept();else if(dialog.message().includes('ELIMINAR'))await dialog.accept('ELIMINAR');else await dialog.accept('1234');});
   await page.locator('#btnBorrarSeleccionadas').click();
-  await expect(page.locator('#crudOcDeleteModal')).toBeVisible();
-  await page.locator('#crudOcPin').fill('1234');
-  await page.locator('#crudOcPhrase').fill('ELIMINAR');
-  await page.locator('[data-crud-confirm]').click();
   await expect(page.locator('.coi-toast')).toContainText('No se pudo eliminar la OC en Supabase:');
   await expect(page.locator('#ordenesTbody tr')).toHaveCount(rowsBefore);
   await expect(page.locator('#btnBorrarSeleccionadas')).toBeEnabled();
@@ -43,7 +40,7 @@ test('el binding idempotente sobrevive re-render y no duplica el handler', async
   await page.locator('#btnOrdenes').click();
   await page.evaluate(()=>{ window.bindCrudOrdenesUI(); window.renderOrdenes(); });
   await page.locator('.chk-orden-row').first().check();
+  page.once('dialog',dialog=>dialog.dismiss());
   await page.locator('#btnBorrarSeleccionadas').click();
-  await expect(page.locator('#crudOcDeleteModal')).toBeVisible();
   expect(logs).toHaveLength(1);
 });
