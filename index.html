@@ -24795,17 +24795,24 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     return counts;
   }
   function dependencyText(counts){return Object.entries(counts).map(([label,count])=>`${count} ${label}`).join(', ');}
-  function ensureModal(){
-    let modal=document.getElementById('crudOcDeleteModal');if(modal)return modal;
-    modal=document.createElement('div');modal.id='crudOcDeleteModal';modal.className='crud-oc-modal';modal.hidden=true;modal.innerHTML=`<div class="crud-oc-card" role="dialog" aria-modal="true" aria-labelledby="crudOcTitle"><h2 id="crudOcTitle">Eliminar Órdenes de Compra</h2><div id="crudOcDetail"></div><label for="crudOcPin">PIN de Administrador</label><input id="crudOcPin" type="password" autocomplete="current-password"><label for="crudOcPhrase">Escriba ELIMINAR para confirmar</label><input id="crudOcPhrase" autocomplete="off"><div id="crudOcError" role="alert"></div><div class="crud-oc-actions"><button type="button" data-crud-cancel>Cancelar</button><button type="button" class="btn-danger-soft" data-crud-confirm>Eliminar definitivamente</button></div></div>`;
-    document.body.appendChild(modal);return modal;
+  function mostrarMensaje(message,type){toast(message,type);}
+  function confirmarEliminacionNativa(orders){
+    const numbers=orders.map(order=>nro(order));
+    const confirmation=window.confirm(`Se eliminarán ${orders.length} OC(s):\n${numbers.join('\n')}\n\n¿Desea continuar?`);
+    if(!confirmation)return {status:'cancelled'};
+    const phrase=window.prompt('Escriba ELIMINAR para confirmar:');
+    if(phrase!=='ELIMINAR'){
+      mostrarMensaje('Confirmación incorrecta. No se eliminó ninguna OC.','warning');
+      return {status:'cancelled'};
+    }
+    const pin=window.prompt('Ingrese el PIN de Administrador:');
+    const expected=typeof window.adminPinActual==='function'?window.adminPinActual():ADMIN_PIN;
+    if(String(pin||'')!==String(expected)){
+      mostrarMensaje('PIN incorrecto. No se eliminó ninguna OC.','error');
+      return {status:'bad-pin'};
+    }
+    return {status:'confirmed'};
   }
-  function confirmDeletion(orders,blocked){return new Promise(resolve=>{
-    const modal=ensureModal(),detail=modal.querySelector('#crudOcDetail'),pin=modal.querySelector('#crudOcPin'),phrase=modal.querySelector('#crudOcPhrase'),error=modal.querySelector('#crudOcError');
-    detail.innerHTML=`<p>Se eliminarán definitivamente <b>${orders.length}</b> OC(s):</p><ul>${orders.map(o=>`<li>${normalizarNroOC(nro(o))}</li>`).join('')}</ul><p><b>Esta acción no elimina PDFs de Storage.</b></p>${blocked.length?`<p>${blocked.length} OC(s) bloqueadas por información vinculada.</p>`:''}`;pin.value='';phrase.value='';error.textContent='';modal.hidden=false;pin.focus();
-    const finish=value=>{modal.hidden=true;pin.value='';phrase.value='';modal.removeEventListener('click',click);resolve(value);};
-    const click=e=>{if(e.target.closest('[data-crud-cancel]')||e.target===modal){finish(false);return;}if(!e.target.closest('[data-crud-confirm]'))return;const expected=typeof window.adminPinActual==='function'?String(window.adminPinActual()):null;if(!expected||pin.value!==expected){error.textContent='PIN incorrecto. No se eliminó ningún registro.';return;}if(phrase.value.trim()!=='ELIMINAR'){error.textContent='Escriba ELIMINAR exactamente para confirmar.';return;}finish(true);};modal.addEventListener('click',click);
-  });}
   async function deleteSafeRelations(order){
     let removed=[];
     if(oid(order)){const byId=await client().from(STATION_TABLE).delete().eq('orden_id',oid(order)).select('*');if(byId.error)throw byId.error;removed.push(...(byId.data||[]));}
@@ -24848,7 +24855,7 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     try{
       if(!orders.length)throw new Error('No hay OCs seleccionadas.');
       const deletable=orders,blocked=[];
-      if(!skipDialog&&!(await confirmDeletion(deletable,blocked)))return {status:'cancelled',deleted:[],blocked};
+      if(!skipDialog){const confirmation=confirmarEliminacionNativa(deletable);if(confirmation.status!=='confirmed')return {...confirmation,deleted:[],blocked};}
       await requireAccess();
       const canonical=[];for(const order of deletable){const resolved=await canonicalOrder(order);if(resolved.missing){toast(`La OC ${resolved.nro_oc} ya no existe en Supabase.`,'warning');}else canonical.push({order,resolved});}
       if(!canonical.length)return {status:'missing',deleted:[],blocked};
@@ -24877,7 +24884,21 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
       return {status:blocked.length?'partial':'success',deleted,blocked};
     }catch(error){diagnostic('resultado final',{errorCode:error?.code||error?.status||error?.message});console.error('[COI DELETE][SUPABASE]',error);toast(`No se pudo eliminar la OC en Supabase: ${friendlyError(error)}`,'error');throw error;}finally{deleting=false;window.__coiDeleteOcInProgress=false;setButton(false,document.querySelectorAll('.chk-orden-row:checked').length);}
   }
-  function resolveSelected(){const keys=[...document.querySelectorAll('.chk-orden-row:checked')].map(c=>clean(c.dataset.ordenKey));return uniqueOrders(keys.map(k=>allOrders().find(o=>(typeof window.v45RegistroKey==='function'&&window.v45RegistroKey(o)===k)||[o.idObra,nro(o),oid(o)].some(v=>clean(v)===k))).filter(Boolean));}
+  function selectedNumber(checkbox){
+    const labelled=clean(checkbox.getAttribute('aria-label')).match(/^Seleccionar OC\s+(.+)$/i)?.[1];
+    const visible=clean(checkbox.closest('tr')?.querySelector('.col-oc,.orden-oc-num')?.textContent);
+    return normalizarNroOC(labelled||visible);
+  }
+  function resolveSelected(){
+    const orders=allOrders();
+    return uniqueOrders([...document.querySelectorAll('.chk-orden-row:checked')].map(checkbox=>{
+      const number=selectedNumber(checkbox);
+      if(!number)throw new Error('No se pudo identificar el nro_oc de una fila seleccionada. No se eliminó ninguna OC.');
+      const matches=orders.filter(order=>nro(order)===number);
+      if(matches.length!==1)throw new Error(`No se pudo resolver de forma unívoca la OC seleccionada ${number}. No se eliminó ninguna OC.`);
+      return matches[0];
+    }));
+  }
   function resolveKey(k){return allOrders().find(o=>[o.idObra,nro(o),oid(o)].some(v=>clean(v)===clean(k)));}
   window.normalizarNumeroOC=normalizarNumeroOC;
   window.borrarOrdenesSeleccionadas=()=>eliminarOrdenesPersistentes(resolveSelected());
@@ -24915,7 +24936,6 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     return {botonEncontrado:Boolean(boton),botonId:boton?.id||null,botonDisabled:boton?.disabled??null,cantidadSeleccionadas:seleccionadas.length,crudDisponible:typeof window.COI_CRUD_ORDENES?.eliminarSeleccionadasDesdeUI==='function',bindingActivo:Boolean(window.__coiDeleteUIAbortController)};
   };
   bindCrudOrdenesUI();
-  const style=document.createElement('style');style.id='coi-crud-ordenes-style';style.textContent='.crud-oc-modal{position:fixed;inset:0;z-index:100100;background:#0f172a99;display:flex;align-items:center;justify-content:center;padding:18px}.crud-oc-modal[hidden]{display:none}.crud-oc-card{width:min(560px,96vw);background:#fff;border-radius:16px;padding:20px;box-shadow:0 24px 70px #0005}.crud-oc-card label{display:block;font-weight:800;margin:12px 0 5px}.crud-oc-card input{width:100%;box-sizing:border-box}.crud-oc-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.crud-oc-card [role=alert]{min-height:22px;color:#9b1c1c;font-weight:800;margin-top:8px}';document.head.appendChild(style);
   document.querySelectorAll('[data-app-version]').forEach(el=>el.textContent=VERSION);window.APP_VERSION=VERSION;
 })();
 </script>
