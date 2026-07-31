@@ -1487,7 +1487,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
     <span class="brand-copy"><small>TRENES ARGENTINOS</small><strong>L&Iacute;NEA ROCA</strong></span>
   </div>
   <div class="app-identity" title="Sistema Integrado de Gestion de Obras y Servicios">
-    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge">V58.1R38.2-CONTROL-TERCEROS-FIX</span></div>
+    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge">V58.1R39-FINANZAS-SUPABASE-2A</span></div>
     <div class="app-subtitle" id="appSubtitleHeader">Sistema Integrado de Gesti&oacute;n de Obras y Servicios</div>
     <div class="app-tagline" id="appTaglineHeader">Sistema operativo COI L&iacute;nea Roca &mdash; Gesti&oacute;n de Obras, Servicios, Certificaciones y Vencimientos</div>
   </div>
@@ -1515,7 +1515,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
   </div>
   <div class="footer-status-grid">
     <span class="footer-pill"><span>Sistema</span><b id="footerSistemaNombre">COI L&iacute;nea Roca</b></span>
-    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa">V58.1R38.2-CONTROL-TERCEROS-FIX</b></span>
+    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa">V58.1R39-FINANZAS-SUPABASE-2A</b></span>
     <span class="footer-pill"><span>&Uacute;ltima actualizaci&oacute;n</span><b id="headerUltimaActualizacion">Sin datos</b></span>
     <span class="footer-pill"><span>OCs cargadas</span><b id="headerTotalOC">0</b></span>
     <span class="footer-pill mode"><span>Estado</span><b id="headerModoSistema">Modo Operativo</b></span>
@@ -5280,7 +5280,7 @@ function activarHoverEstaciones(){
    V32.1 - Acerca del Sistema + Historial de versiones
    =============================== */
 const APP_NAME = "COI Línea Roca";
-const APP_VERSION = "V58.1R38.2-CONTROL-TERCEROS-FIX";
+const APP_VERSION = "V58.1R39-FINANZAS-SUPABASE-2A";
 const APP_STATUS = "Versión operativa en desarrollo";
 const APP_RELEASE_DATE = "2026-07-17";
 const APP_AUTHOR = "Mariano Special";
@@ -7665,7 +7665,7 @@ const _renderAuditorDatosV60Base=typeof renderAuditorDatos==='function'?renderAu
 if(_renderAuditorDatosV60Base){renderAuditorDatos=function(){_renderAuditorDatosV60Base();const a=typeof ejecutarDiagnosticoSistema==='function'?ejecutarDiagnosticoSistema():{};if($('adminTabAuditor'))$('adminTabAuditor').insertAdjacentHTML('beforeend',`<div class="admin-panel"><h3>Diagnostico vigencia operativa</h3><div class="admin-status-grid">${adminCard('Vencida sin estado vigencia',a.ocVencidaSinEstadoVigencia||0)}${adminCard('Certificable sin saldo',a.ocVencidaCertificableSinSaldo||0)}${adminCard('Certificable sin motivo',a.ocVencidaCertificableSinMotivo||0)}${adminCard('Certificable sin responsable',a.ocVencidaCertificableSinResponsable||0)}${adminCard('No certificable con saldo',a.ocVencidaNoCertificableConSaldo||0)}${adminCard('Cerrada con saldo',a.ocCerradaConSaldoRemanente||0)}${adminCard('Estado contradictorio',a.ocEstadoContradictorio||0)}</div></div>`);};}
 
 /* V61 - Auditoria integral y hardening V57 */
-const COI_HARDENING_VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+const COI_HARDENING_VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
 function escapeHTML(valor){return typeof esc==='function'?esc(valor):String(valor??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function normalizarTextoSeguro(valor){return String(valor??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toUpperCase();}
 const _normalizarTextoV61Base=typeof normalizarTexto==='function'?normalizarTexto:null;
@@ -9774,7 +9774,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
    mantiene navegación, Órdenes, Carga, Calendario y Alertas.
    ========================================================= */
 (function(){
-  const FIX_VERSION = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const FIX_VERSION = 'V58.1R39-FINANZAS-SUPABASE-2A';
   const $fix = (id)=>document.getElementById(id);
   const html = (v)=>String(v ?? '').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const normFix = (v)=>String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
@@ -10367,7 +10367,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
    rendericen aunque algún panel tenga error interno.
    ========================================================= */
 (function(){
-  const FIX_ADMIN_VERSION = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const FIX_ADMIN_VERSION = 'V58.1R39-FINANZAS-SUPABASE-2A';
   const $a = (id)=>document.getElementById(id);
   const escA = (v)=>String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const titleA = (v)=>String(v||'estado').replace(/(^|_)([a-záéíóúñ])/gi,(_,p,c)=>c.toUpperCase()).replace(/_/g,'');
@@ -10529,7 +10529,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
    - Persiste la baja en localStorage vía guardarBaseLocal().
    ========================================================= */
 (function(){
-  const VERSION_ORDENES_DELETE_FIX = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_ORDENES_DELETE_FIX = 'V58.1R39-FINANZAS-SUPABASE-2A';
   const qs = (sel,ctx=document)=>ctx.querySelector(sel);
   const qsa = (sel,ctx=document)=>Array.from(ctx.querySelectorAll(sel));
   const txt = v => String(v ?? '').trim();
@@ -10739,7 +10739,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
    =============================== */
 (function(){
   'use strict';
-  const VERSION_CARGA_FIN_R7 = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_CARGA_FIN_R7 = 'V58.1R39-FINANZAS-SUPABASE-2A';
   const FIN_BLOCKS_R7 = {
     POSICION_OC: {
       label: 'Posiciones OC',
@@ -11009,7 +11009,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
    V58.0R9 - Cartel de carga financiera y borrado selectivo de posiciones
    =============================== */
 (function(){
-  const VERSION_FIN_R8 = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_FIN_R8 = 'V58.1R39-FINANZAS-SUPABASE-2A';
   const $r8 = (id)=>document.getElementById(id);
   const escR8 = (v)=>{ try{ return typeof esc === 'function' ? esc(v) : String(v ?? '').replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }catch(e){ return String(v ?? ''); } };
   function cssEscapeR8(v){ try{ return CSS.escape(String(v||'')); }catch(e){ return String(v||'').replace(/[^a-zA-Z0-9_-]/g,'\\$&'); } }
@@ -11179,7 +11179,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
    V58.0R10 - Guardado financiero sin bloqueo + resumen libre por OC/POS
    =============================== */
 (function(){
-  const VERSION_FIN_R10='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_FIN_R10='V58.1R39-FINANZAS-SUPABASE-2A';
   const norm=(v)=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,'').replace(/\./g,',').trim();
   const n=(v)=>Number(v||0)||0;
   function block(p){const b=String(p?.tipoBloqueFinanciero||p?.bloque||'').toUpperCase(); if(b.includes('CERT'))return 'CERTIFICADA'; if(b.includes('LIBRE'))return 'LIBRE'; return 'POSICION_OC';}
@@ -11235,7 +11235,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
    quedan interceptados por renders dinámicos.
    =============================== */
 (function(){
-  const VERSION_UM_FIX='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_UM_FIX='V58.1R39-FINANZAS-SUPABASE-2A';
   const $um=(id)=>document.getElementById(id);
   const escUM=(v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const normUM=(v)=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
@@ -11441,7 +11441,7 @@ console.log('COI iniciado correctamente');
 <script id="coi-v58r12-script">
 (function(){
   'use strict';
-  const R12_VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const R12_VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
   const ESTADOS_COI_R12=[
     'Pendiente de completar','Pliegos en preparación','Pliegos terminados sin SOLPED','Con SOLPED sin expediente','Con expediente','Con expediente y OC sin C3','Con OC con C3 sin acta','Con OC y C3 con acta','Obra/Servicio en ejecución','En ejecución','Suspendida','Cancelada','Finalizada','Finalizada con acta provisoria','Finalizada con acta definitiva','Enviado a Planificación y Control','Cerrada','Archivada'
   ];
@@ -11656,7 +11656,7 @@ console.log('COI iniciado correctamente');
    ========================================================= */
 (function(){
   'use strict';
-  const VERSION_R13='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_R13='V58.1R39-FINANZAS-SUPABASE-2A';
   const $ = (id)=>document.getElementById(id);
   const esc = (v)=>String(v??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const norm = (v)=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();
@@ -11908,7 +11908,7 @@ console.log('COI iniciado correctamente');
    Fix final: Centro de Alertas -> Observaciones + Ficha UM ST
    ============================================================ */
 (function(){
-  const VERSION_R14='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_R14='V58.1R39-FINANZAS-SUPABASE-2A';
   const q=(id)=>document.getElementById(id);
   const h=(v)=>String(v??'').replace(/[&<>'"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
   const txt=(v)=>String(v??'').trim();
@@ -12172,7 +12172,7 @@ console.log('COI iniciado correctamente');
    - Botón robusto en Centro de Alertas: Enviar a Observaciones.
    =============================== */
 (function(){
-  const VERSION_R15='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_R15='V58.1R39-FINANZAS-SUPABASE-2A';
   const ST_LS_KEY='coi_servicios_tecnicos';
   const $r15=(id)=>document.getElementById(id);
   const safe=(v)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -12440,7 +12440,7 @@ console.log('COI iniciado correctamente');
    - Campos ST operativos: Fecha, Obra, Tipo UM, Descripción y Técnico.
    =============================== */
 (function(){
-  const VERSION_R16='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_R16='V58.1R39-FINANZAS-SUPABASE-2A';
   const ST_KEY='coi_servicios_tecnicos';
   const $r16=(id)=>document.getElementById(id);
   const clean=(v)=>String(v??'').trim();
@@ -12700,7 +12700,7 @@ console.log('COI iniciado correctamente');
    ========================================================= */
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
   const RELEASE_DATE='2026-07-08';
   const LS_BACKUP_META='coi_v581_backup_meta';
   const LS_OBS='coi_observaciones_oc';
@@ -14134,7 +14134,7 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
    ========================================================= */
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
@@ -16831,7 +16831,7 @@ const APP_DATA_MODE = "supabase_first";
 <script id="coi-dashboard-filtros-v583">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
   const $=id=>document.getElementById(id);
   const clean=v=>String(v??'').trim();
   const fold=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
@@ -17143,7 +17143,7 @@ const APP_DATA_MODE = "supabase_first";
 (function(){
   'use strict';
 
-  const VERSION = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION = 'V58.1R39-FINANZAS-SUPABASE-2A';
   const $ = (id) => document.getElementById(id);
   const clean = (value) => String(value ?? '').trim();
   const fold = (value) => clean(value)
@@ -17725,7 +17725,7 @@ const APP_DATA_MODE = "supabase_first";
    ========================================================= */
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
   const $=id=>document.getElementById(id);
   const clean=v=>String(v??'').trim();
   const fold=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
@@ -18019,7 +18019,7 @@ const APP_DATA_MODE = "supabase_first";
 <script id="coiV581R9OrdersRepair">
 (function(){
 'use strict';
-const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
 const $=id=>document.getElementById(id);
 const clean=v=>String(v??'').trim();
 const fold=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
@@ -18364,7 +18364,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script id="coi-r10-stability-script">
 (function(){
 'use strict';
-const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
 const $=id=>document.getElementById(id);
 const clean=v=>String(v??'').trim();
 const fold=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
@@ -18467,7 +18467,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <script id="coi-v581r11-nav-dashboard-script">
 (function(){
 'use strict';
-const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
 const $=id=>document.getElementById(id);
 function ordenarMenu(){
   const nav=$('moduleNav'),alerts=$('btnCentroAlertas'),about=$('btnAcercaSistema');
@@ -18702,7 +18702,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 (function(){
 'use strict';
 
-const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
 const BOOT_AUDIT={"DOMContentLoaded": 25, "window.load": 0, "setTimeout": 144, "MutationObserver": 11, "critical_function_defs": {"renderOrdenes": 11, "renderCentroAlertas": 15, "renderCalendarioCOI": 1, "renderUnidadesMantenimiento": 5, "renderFichaOC": 11, "abrirFichaOC": 3, "mostrarVista": 9, "navegarDesdeKPI": 2, "cargarOrdenesPrincipal": 2, "cargarOrdenesDesdeSupabase": 2, "verificarSesionSupabase": 2, "initSupabase": 2, "usuarioEsAdministrador": 2, "esAdminR13": 3}};
 const $=id=>document.getElementById(id);
 const clean=v=>String(v??'').trim();
@@ -19779,7 +19779,7 @@ if(document.readyState==='loading'){
    ========================================================= */
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
   const FALLBACK='Sin descripción cargada para esta OC.';
   const CAMPOS_DESCRIPCION=[
     'descripcion','DESCRIPCION','descripcion_oc','descripcionOC','objeto','objeto_contratacion',
@@ -20959,7 +20959,7 @@ if(document.readyState==='loading'){
 <script id="coi-v581r24-estado-contractual-versionado">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
   function setText(id,value){const el=document.getElementById(id);if(el)el.textContent=value;}
   function aplicarVersion(){
     setText('appVersionHeader',VERSION);
@@ -20978,7 +20978,7 @@ if(document.readyState==='loading'){
 <script id="coi-v581r26-sync-docs-oc">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
   const CACHE_KEY='coi_documentos_storage_cache_v1';
   function byId(id){return document.getElementById(id)}
   function clean(v){return String(v??'').trim()}
@@ -21171,7 +21171,7 @@ if(document.readyState==='loading'){
 (function(){
   'use strict';
 
-  const VERSION = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION = 'V58.1R39-FINANZAS-SUPABASE-2A';
   const BUCKET = 'coi-documentos';
   const TABLE = 'coi_documentos_oc';
   const CACHE_KEY = 'coi_docs_storage_index_cache_v1';
@@ -21796,7 +21796,7 @@ if(document.readyState==='loading'){
 <script id="coi-v581r28-contractual-ct-script">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
   const CT_DATE_FIELDS=['controlTercerosHasta','control_terceros_hasta','fechaControlTercerosHasta','fecha_control_terceros_hasta','control_terceros_vigente_hasta','ct_hasta'];
   const CT_STATUS_FIELDS=['controlTercerosEstado','control_terceros_estado','estadoControlTerceros','estado_control_terceros','ct_estado'];
   const ESTADO_DOC_FIELDS=['estadoDocumental','estado_documental','ESTADO_DOCUMENTAL','estado_doc','estadoDoc','estado','estadoCOI','estado_coi'];
@@ -22312,7 +22312,7 @@ if(document.readyState==='loading'){
 
 <script id="coi-v581r31-financiero-posiciones-normalizadas">
 /* V58.1R37-ORDENES-ANALITICA-CORREGIDA */
-var COI_FIN_R31_VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+var COI_FIN_R31_VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
 var __normalizarOCObjetoBaseR31 = typeof window.normalizarOC === 'function' ? window.normalizarOC : null;
 function finR31Texto(row){
   for(var i=1;i<arguments.length;i++){
@@ -22678,7 +22678,7 @@ function coiR31UpdateVersion(){
 <script id="coi-fase11-security-script">
 (function(){
   'use strict';
-  const VERSION_FASE11 = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION_FASE11 = 'V58.1R39-FINANZAS-SUPABASE-2A';
   const SCHEMA_VERSION = 'fase11_v1';
   const AUDIT_LOCAL_KEY = 'coi_fase11_auditoria_cache_v1';
   const SESSION_LOCAL_KEY = 'coi_fase11_sesion_actual_v1';
@@ -22997,7 +22997,7 @@ function coiR31UpdateVersion(){
 <script id="coi-r321-hotfix-version-console">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
   function setTextSafe(el,value){
     if(!el) return false;
     if(el.tagName==='INPUT'){
@@ -23036,7 +23036,7 @@ function coiR31UpdateVersion(){
 <script id="coi-r324-auditoria-integral-runtime">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
   const ERROR_KEY='coi_runtime_errors_v1';
   function safeRead(){try{const v=JSON.parse(localStorage.getItem(ERROR_KEY)||'[]');return Array.isArray(v)?v:[];}catch(e){return [];}}
   function safeWrite(rows){try{localStorage.setItem(ERROR_KEY,JSON.stringify(rows.slice(0,100)));}catch(e){}}
@@ -23103,7 +23103,7 @@ function coiR31UpdateVersion(){
 <script id="coi-dashboard-interactivo-v33-runtime">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
   const FILTER_KEY='coi_dashboard_filters_v33';
   const PERIODS={today:0,'30':30,'60':60,'90':90,'180':180,year:'year',all:null};
   const STATUS={
@@ -23331,7 +23331,7 @@ function coiR31UpdateVersion(){
 <script id="coi-v581r34-experiencia-visual-script">
 (()=>{
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
   const MOTION_KEY='coi.visual.motion.enabled';
   const $=id=>document.getElementById(id);
   const reduced=()=>window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -23394,7 +23394,7 @@ function coiR31UpdateVersion(){
 <script id="coi-r37-auditoria-general-runtime">
 (function(){
   'use strict';
-  const VERSION='V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
   const $=id=>document.getElementById(id);
   const clean=v=>String(v??'').trim();
   const fold=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
@@ -23729,7 +23729,7 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
 */
 (function(){
   'use strict';
-  const VERSION = 'V58.1R38.2-CONTROL-TERCEROS-FIX';
+  const VERSION = 'V58.1R39-FINANZAS-SUPABASE-2A';
   const LS_FIN = 'coi_posiciones_financieras';
   const LS_INDEX = 'coi_finanzas_por_oc_v1';
   const SAVE_LOCK = {running:false};
@@ -23966,7 +23966,7 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     }
     const trs=currentFinancialRows();
     const rows=trs.map(readRow);
-    const existing=readStoredPositions();
+    let existing=readStoredPositions();
     const byKey=new Map(existing.map((p,i)=>[recordKey(p),i]));
     const ordersAvailable=(()=>{try{return typeof window.todasLasOC==='function'?(window.todasLasOC()||[]).length:0;}catch(e){return 0;}})();
     let created=0,updated=0,empty=0,invalid=0;const warnings=[];const affected=new Set();
@@ -23995,6 +23995,11 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
       if(!created&&!updated){
         const detail=warnings[0]||'No hay filas válidas para guardar.';
         setMessage(detail,'error');toast(detail,'warning');return;
+      }
+      if(block==='POSICION_OC'){
+        const integration=window.COI_FIN_SUPABASE_2A;
+        if(!integration?.guardarPosicionesOC)throw new Error('La integración Supabase de Posiciones OC no está disponible.');
+        existing=await integration.guardarPosicionesOC(existing.filter(p=>affected.has(normalizarOC(p.ocNro||p.nro_oc))&&fold(p.tipoBloqueFinanciero)==='POSICION_OC'));
       }
       writeStoredPositions(existing);
       updateRelationIndex(affected,existing);
@@ -24159,6 +24164,112 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     }
   }catch(e){}
   console.log('COI hotfix: parseMontoARS/parseNumero unificados con parser ARS correcto (fix #1 montos).');
+})();
+</script>
+
+<script id="coi-finanzas-supabase-2a">
+/* V58.1R39-FINANZAS-SUPABASE-2A
+   Supabase es la fuente oficial de Posiciones OC. localStorage conserva la clave
+   historica solamente como cache; las certificaciones legacy permanecen locales. */
+(function(){
+  'use strict';
+  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
+  const TABLE_POS='coi_posiciones_oc';
+  const TABLE_ORD='coi_ordenes';
+  const CACHE_KEY='coi_posiciones_financieras';
+  const PAGE_SIZE=1000;
+  const $=id=>document.getElementById(id);
+  const text=v=>String(v??'').trim();
+  const normOC=v=>{const raw=text(v).replace(/^OC[\s:_-]*/i,'').replace(/\s+/g,'');const d=raw.replace(/\D/g,'');return d.length>=6?d.replace(/^0+(?=\d)/,''):raw.toUpperCase();};
+  const normPOS=v=>{const raw=text(v).replace(/^POS(?:ICI[ÓO]N)?[\s:_-]*/i,'').replace(/\s+/g,'').replace(',','.');const n=Number(raw);return Number.isFinite(n)?n.toFixed(2):raw.toUpperCase();};
+  const client=()=>typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;
+  const isMaster=p=>text(p?.tipoBloqueFinanciero||p?.tipo_bloque).toUpperCase()==='POSICION_OC';
+  const readCache=()=>{try{const v=JSON.parse(localStorage.getItem(CACHE_KEY)||'[]');return Array.isArray(v)?v:[];}catch(e){return[];}};
+  function writeCache(rows){localStorage.setItem(CACHE_KEY,JSON.stringify(rows));try{window.posicionesFinancieras=rows;posicionesFinancieras=rows;}catch(e){}}
+  function legacyCertifications(){return readCache().filter(p=>!isMaster(p));}
+  async function requireRemote(){
+    const c=client();if(!c)throw new Error('Cliente Supabase no disponible.');
+    const user=typeof window.getUsuarioActual==='function'?await window.getUsuarioActual():null;
+    if(!user)throw new Error('Debe iniciar sesión en Supabase.');
+    if(!navigator.onLine)throw new Error('Sin conexión: Posiciones OC no se guardaron.');
+    return c;
+  }
+  async function readAll(table,columns='*'){
+    const c=client();if(!c)throw new Error('Cliente Supabase no disponible.');
+    const all=[];
+    for(let desde=0;;desde+=PAGE_SIZE){
+      const hasta=desde+PAGE_SIZE-1;
+      const {data,error}=await c.from(table).select(columns).range(desde,hasta);
+      if(error)throw error;
+      const page=Array.isArray(data)?data:[];all.push(...page);
+      if(page.length<PAGE_SIZE)break;
+    }
+    return all;
+  }
+  async function resolveOrderUUID(nroOC,c=client()){
+    const nro=normOC(nroOC);if(!nro)throw new Error('OC vacía.');
+    const {data,error}=await c.from(TABLE_ORD).select('id,nro_oc').eq('nro_oc',nro).limit(2);
+    if(error)throw error;
+    if(!data?.length)throw new Error(`La OC ${nro} no existe en public.${TABLE_ORD}.`);
+    if(data.length>1)throw new Error(`La OC ${nro} está duplicada en public.${TABLE_ORD}.`);
+    const id=text(data[0].id);if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))throw new Error(`La OC ${nro} no tiene un UUID válido.`);
+    return id;
+  }
+  function fromRemote(row){
+    return {idPosicionFinanciera:row.id||`SUPA-${row.orden_id}-${row.posicion}`,orden_id:row.orden_id,ordenId:row.orden_id,nro_oc:normOC(row.nro_oc),ocNro:normOC(row.nro_oc),OC_NRO:normOC(row.nro_oc),tipoBloqueFinanciero:'POSICION_OC',posicion:text(row.posicion).replace('.',','),posKey:normPOS(row.posicion),remito:text(row.remito),descripcion:text(row.descripcion),descripcionPosicion:text(row.descripcion),cantidad:Number(row.cantidad||0),cantidadTotal:Number(row.cantidad||0),precioUnitario:Number(row.precio_unitario||0),precioTotal:Number(row.precio_total||0),montoPosicion:Number(row.precio_total||0),periodo:text(row.periodo),observaciones:text(row.observaciones),fechaCarga:row.created_at||'',fechaUltimaModificacion:row.updated_at||row.created_at||'',origenCarga:'Supabase Fase 2A'};
+  }
+  async function recargarDesdeSupabase(options={}){
+    const remote=await readAll(TABLE_POS,'*');
+    const merged=remote.map(fromRemote).concat(legacyCertifications());
+    writeCache(merged);
+    if(typeof window.finV56MigrarMemoria?.invalidarCache==='function')window.finV56MigrarMemoria.invalidarCache();
+    if(options.render!==false){try{window.renderOrdenes?.();const active=$('vistaFichaOC');if(active?.classList.contains('active'))window.renderFichaOC?.(window.ocActualId||'');}catch(e){}}
+    return merged;
+  }
+  async function toPayload(record,c,uuidCache){
+    const nro=normOC(record.ocNro||record.nro_oc||record.OC_NRO);
+    let ordenId=text(record.orden_id||record.ordenId);
+    if(!ordenId||!/^[0-9a-f-]{36}$/i.test(ordenId)){if(!uuidCache.has(nro))uuidCache.set(nro,await resolveOrderUUID(nro,c));ordenId=uuidCache.get(nro);}
+    return {orden_id:ordenId,nro_oc:nro,posicion:normPOS(record.posicion),remito:text(record.remito)||null,descripcion:text(record.descripcion||record.descripcionPosicion)||null,cantidad:Number(record.cantidad||record.cantidadTotal||0),precio_unitario:Number(record.precioUnitario||0),precio_total:Number(record.precioTotal||record.montoPosicion||0),periodo:text(record.periodo)||null,observaciones:text(record.observaciones)||null,updated_at:new Date().toISOString()};
+  }
+  async function upsertRecords(records){
+    const c=await requireRemote(),uuidCache=new Map(),payload=[];
+    for(const record of records)payload.push(await toPayload(record,c,uuidCache));
+    for(let desde=0;desde<payload.length;desde+=PAGE_SIZE){
+      const {error}=await c.from(TABLE_POS).upsert(payload.slice(desde,desde+PAGE_SIZE),{onConflict:'orden_id,posicion'});
+      if(error)throw error;
+    }
+    return payload.length;
+  }
+  async function guardarPosicionesOC(records){await upsertRecords(records);return recargarDesdeSupabase();}
+  function analizarLocales(){
+    const rows=readCache(),valid=[],invalid=[],certifications=[];
+    rows.forEach((row,index)=>{if(!isMaster(row)){certifications.push(row);return;}const oc=normOC(row.ocNro||row.nro_oc||row.OC_NRO),pos=normPOS(row.posicion);if(!oc||!pos)invalid.push({fila:index+1,motivo:!oc?'Falta OC':'Falta posición',registro:row});else valid.push(row);});
+    const report={version:VERSION,fecha:new Date().toISOString(),total:rows.length,posicionesValidas:valid.length,posicionesInvalidas:invalid.length,certificacionesLegacyNoMigradas:certifications.length,valid,invalid};
+    window.__coiFinMigrationReport=report;return report;
+  }
+  function downloadReport(){const report=window.__coiFinMigrationReport||analizarLocales();const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`informe_migracion_finanzas_${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);}
+  function adminMessage(message,type='ok'){const el=$('coiFin2AAdminMsg');if(el){el.textContent=message;el.className=`quick-load-msg ${type}`;}}
+  function ensureAdminTool(){
+    const view=$('vistaAdministracionSistema');if(!view||$('coiFin2AAdmin'))return;
+    const section=document.createElement('section');section.id='coiFin2AAdmin';section.className='admin-section';section.dataset.adminOnly='';
+    section.innerHTML='<h3>Migración controlada · Finanzas Supabase 2A</h3><p>Analiza y migra únicamente Posiciones OC válidas. No borra la caché histórica ni migra certificaciones legacy.</p><div class="actions"><button id="btnFin2AAnalizar" type="button">Analizar datos locales</button><button id="btnFin2AInforme" type="button">Exportar informe</button><button id="btnFin2AMigrar" type="button" class="primary">Migrar posiciones válidas</button><button id="btnFin2ARecargar" type="button">Recargar desde Supabase</button></div><div id="coiFin2AAdminMsg" class="quick-load-msg"></div>';
+    view.appendChild(section);
+  }
+  document.addEventListener('click',async event=>{
+    const id=event.target?.id;if(!['btnFin2AAnalizar','btnFin2AInforme','btnFin2AMigrar','btnFin2ARecargar'].includes(id))return;
+    event.preventDefault();
+    try{
+      if(id==='btnFin2AAnalizar'){const r=analizarLocales();adminMessage(`Válidas: ${r.posicionesValidas}. Inválidas: ${r.posicionesInvalidas}. Certificaciones legacy: ${r.certificacionesLegacyNoMigradas}.`);}
+      if(id==='btnFin2AInforme'){downloadReport();adminMessage('Informe exportado.');}
+      if(id==='btnFin2AMigrar'){if(typeof window.adminIsEnabled==='function'&&!window.adminIsEnabled())throw new Error('Solo Administrador puede ejecutar la migración.');const r=window.__coiFinMigrationReport||analizarLocales();if(!confirm(`Migrar ${r.posicionesValidas} Posiciones OC válidas a Supabase?`))return;await upsertRecords(r.valid);await recargarDesdeSupabase();adminMessage(`Migración completada: ${r.posicionesValidas} posiciones. localStorage se conservó como caché.`);}
+      if(id==='btnFin2ARecargar'){await requireRemote();const rows=await recargarDesdeSupabase();adminMessage(`Caché actualizada desde Supabase: ${rows.filter(isMaster).length} Posiciones OC.`);}
+    }catch(error){adminMessage(error?.message||String(error),'error');}
+  });
+  function init(){ensureAdminTool();window.APP_VERSION=VERSION;['appVersionHeader','headerVersionOperativa'].forEach(id=>{const el=$(id);if(el)el.textContent=VERSION;});const cfg=$('adminCfgVersion');if(cfg)cfg.value=VERSION;}
+  window.COI_FIN_SUPABASE_2A={version:VERSION,guardarPosicionesOC,recargarDesdeSupabase,resolverOrdenUUID:resolveOrderUUID,analizarLocales,exportarInforme:downloadReport,migrarPosicionesValidas:async()=>{const r=window.__coiFinMigrationReport||analizarLocales();await upsertRecords(r.valid);return recargarDesdeSupabase();}};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+  window.addEventListener('load',()=>{init();if(client())recargarDesdeSupabase({render:false}).catch(error=>console.warn('Finanzas 2A: se mantiene la caché hasta recuperar Supabase.',error));},{once:true});
 })();
 </script>
 
