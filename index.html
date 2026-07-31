@@ -8,7 +8,7 @@
 (function(){
   'use strict';
 
-  const VERSION = 'V60.1.2-DELETE-HANDLER-UNICO';
+  const VERSION = 'V60.1.4-DELETE-BUTTON-FUNCIONAL';
   const RELEASE_DATE = '2026-07-30';
 
   window.COI_CONFIG = Object.freeze({
@@ -1684,7 +1684,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
     <span class="brand-copy"><small>TRENES ARGENTINOS</small><strong>L&Iacute;NEA ROCA</strong></span>
   </div>
   <div class="app-identity" title="Sistema Integrado de Gestion de Obras y Servicios">
-    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge" data-app-version>V60.1.2-DELETE-HANDLER-UNICO</span></div>
+    <div class="app-title-line" id="appTitleHeader">COI L&iacute;nea Roca &mdash; <span id="appVersionHeader" class="app-version-badge" data-app-version>V60.1.4-DELETE-BUTTON-FUNCIONAL</span></div>
     <div class="app-subtitle" id="appSubtitleHeader">Sistema Integrado de Gesti&oacute;n de Obras y Servicios</div>
     <div class="app-tagline" id="appTaglineHeader">Sistema operativo COI L&iacute;nea Roca &mdash; Gesti&oacute;n de Obras, Servicios, Certificaciones y Vencimientos</div>
   </div>
@@ -1712,7 +1712,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
   </div>
   <div class="footer-status-grid">
     <span class="footer-pill"><span>Sistema</span><b id="footerSistemaNombre">COI L&iacute;nea Roca</b></span>
-    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa" data-app-version>V60.1.2-DELETE-HANDLER-UNICO</b></span>
+    <span class="footer-pill"><span>Versi&oacute;n</span><b id="headerVersionOperativa" data-app-version>V60.1.4-DELETE-BUTTON-FUNCIONAL</b></span>
     <span class="footer-pill"><span>&Uacute;ltima actualizaci&oacute;n</span><b id="headerUltimaActualizacion">Sin datos</b></span>
     <span class="footer-pill"><span>OCs cargadas</span><b id="headerTotalOC">0</b></span>
     <span class="footer-pill mode"><span>Estado</span><b id="headerModoSistema">Modo Operativo</b></span>
@@ -5487,7 +5487,7 @@ const APP_OPERATIVE_TEXT = "Sistema operativo COI Línea Roca — Gestión de Ob
 const ADMIN_PIN = "1234";
 const USER_ROLES = { ADMIN: "Administrador", JEFE: "Jefatura" };
 const historialVersiones = [
-  {version:"V60.1.2-DELETE-HANDLER-UNICO",fecha:"2026-07-29",titulo:"Borrado persistente y seguro de Órdenes de Compra",cambios:["Supabase confirma cada DELETE filtrado y devuelve las filas afectadas.","Las dependencias de negocio bloquean el borrado y las asociaciones de estaciones se eliminan de forma selectiva.","La caché reconstruible se reemplaza solo después de verificar el estado remoto.","Se incorporó confirmación administrativa accesible con PIN y texto ELIMINAR."],modulosAfectados:["Órdenes","Supabase","localStorage"],estado:"Pendiente de validación manual online",observaciones:"No elimina archivos de Storage, documentos ni información de negocio."},
+  {version:"V60.1.4-DELETE-BUTTON-FUNCIONAL",fecha:"2026-07-29",titulo:"Borrado persistente y seguro de Órdenes de Compra",cambios:["Supabase confirma cada DELETE filtrado y devuelve las filas afectadas.","Las dependencias de negocio bloquean el borrado y las asociaciones de estaciones se eliminan de forma selectiva.","La caché reconstruible se reemplaza solo después de verificar el estado remoto.","Se incorporó confirmación administrativa accesible con PIN y texto ELIMINAR."],modulosAfectados:["Órdenes","Supabase","localStorage"],estado:"Pendiente de validación manual online",observaciones:"No elimina archivos de Storage, documentos ni información de negocio."},
   {version:"V59.6-CACHE-SEGURO",fecha:"2026-07-23",titulo:"Reparación segura de caché local y recuperación controlada de Supabase",cambios:["Se agregó el botón Reparar caché local en Administración → Diagnóstico.","La reparación crea un respaldo JSON previo descargable desde el navegador.","Solo elimina claves declaradas como UI_CACHE y bloqueos temporales legacy; nunca usa localStorage.clear().","Se preservan datos operativos, posiciones financieras, pendientes, borradores, sesión Supabase y claves legacy protegidas.","Se verifica y recarga Supabase con timeout para evitar bloqueos indefinidos.","La vista activa se actualiza de forma controlada y se genera un informe detallado de la reparación.","La operación evita doble clic, registra auditoría y libera siempre la interfaz mediante finally."],modulosAfectados:["Administración","Diagnóstico","localStorage","Supabase","Auditoría"],estado:"Estable",observaciones:"Fase 2 de estabilidad. No modifica tablas, RLS, Storage ni datos financieros."},
   {version:"V59.6-CACHE-SEGURO",fecha:"2026-07-23",titulo:"Reparación segura de caché local y recuperación controlada de Supabase",cambios:["Se definió COI_CONFIG como única fuente de versión activa.","Se unificaron las constantes históricas de versionado para evitar sobrescrituras entre capas.","Se retiró el MutationObserver dedicado exclusivamente al badge de versión.","Se creó COI_STORAGE para clasificar datos operativos, caché de Supabase, pendientes, borradores, sesión, preferencias y diagnóstico.","Se agregaron helpers seguros de lectura, escritura, inventario y reparación exclusiva de caché visual.","No se borraron, migraron ni renombraron datos existentes."],modulosAfectados:["Core","Header","Footer","Acerca del Sistema","localStorage"],estado:"Estable",observaciones:"Primera fase estructural. Las claves legacy permanecen protegidas hasta una migración controlada posterior."},
   {version:"V58.1R28-CONTRACTUAL-CT",fecha:"2026-07-17",titulo:"Registro automático de documentos Storage en tabla documental",cambios:["Se corrigió la sincronización documental por OC.","El sistema detecta archivos existentes en Supabase Storage aunque no tengan fila documental.","Se crean automáticamente registros faltantes en public.coi_documentos_oc usando la columna real estado.","Se evita duplicar documentos por storage_path y OC.","Las Actas de Medición detectadas se reflejan también en Certificaciones.","Se elimina la necesidad de validar manualmente cada documento desde SQL Editor."],modulosAfectados:["Ficha OC","Documentos","Certificaciones","Supabase Storage","coi_documentos_oc"],estado:"Estable",observaciones:"Storage conserva el PDF físico y la tabla documental queda como índice operativo trazable."},
@@ -6461,7 +6461,7 @@ function normalizarRegistroCargaObra(row){
 function v45ItemDesdeObra(row){return normalizarRegistroCargaObra(row);}
 function v45RefreshAfterDataChange(){if(typeof renderMap==='function')renderMap();if(typeof updateKpis==='function')updateKpis();if(typeof cargarFiltrosCalendario==='function')cargarFiltrosCalendario();if(typeof renderCalendarioCOI==='function')renderCalendarioCOI();if(typeof cargarFiltrosV16==='function'){cargarFiltrosV16('venc');cargarFiltrosV16('cert');}if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();if(typeof renderOrdenes==='function')renderOrdenes();if(typeof renderCentroAlertas==='function'&&$('vistaCentroAlertas')?.classList.contains('active'))renderCentroAlertas();if(typeof renderDashboardAlertSummary==='function')renderDashboardAlertSummary();if(typeof renderAcercaSistema==='function'&&$('vistaAcercaSistema')?.classList.contains('active'))renderAcercaSistema();if(typeof renderAdministracionSistema==='function'&&$('vistaAdministracionSistema')?.classList.contains('active'))renderAdministracionSistema();}
 function v45GuardarCarga(){document.querySelectorAll('#panelCargaServicio tbody tr,#panelCargaObra tbody tr').forEach(v45ActualizarFila);const body=v45BodyActivo();if(!body)return;let guardados=0,vacios=0,duplicados=0;[...body.querySelectorAll('tr')].forEach(tr=>{const tipo=tr.dataset.tipoCarga||v45TipoCarga,row=v45LeerFila(tr);if(v45FilaVacia(row,tipo)){vacios++;return;}const item=tipo==='Servicio'?v45ItemDesdeServicio(row):v45ItemDesdeObra(row);const key=v45RegistroKey(item);if(todasLasOC().some(r=>v45RegistroKey(r.item)===key)){duplicados++;return;}const est=v45EstacionDestino(item.estacion);item.estacion=est.nombre;item.idEstacion=est.idEstacion||('EST-'+slugOC(est.nombre));(tipo==='Servicio'?est.servicios:est.obras).push(item);guardados++;});v45MigrarCampos();guardarBaseLocal();v45RefreshAfterDataChange();const msg=`Se guardaron ${guardados} registros. Filas vacías: ${vacios}. Duplicados omitidos: ${duplicados}.`;if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent=msg;$('cargaRapidaMsg').className='quick-load-msg ok';}alert(msg);}
-function v45ActualizarSeleccionOrdenes(){const total=v45SeleccionOrdenes.size;if($('ordenesSeleccionadasCount'))$('ordenesSeleccionadasCount').textContent=`${total} seleccionada${total===1?'':'s'}`;if($('btnBorrarSeleccionadas'))$('btnBorrarSeleccionadas').disabled=!total;const checks=[...document.querySelectorAll('.chk-orden-row')];if($('chkOrdenesSeleccionarTodas'))$('chkOrdenesSeleccionarTodas').checked=checks.length>0&&checks.every(c=>c.checked);}
+function v45ActualizarSeleccionOrdenes(){const total=v45SeleccionOrdenes.size;if($('ordenesSeleccionadasCount'))$('ordenesSeleccionadasCount').textContent=`${total} seleccionada${total===1?'':'s'}`;if($('btnBorrarSeleccionadas')){const b=$('btnBorrarSeleccionadas');b.disabled=!total;b.textContent=total?`Borrar seleccionadas (${total})`:'Borrar seleccionadas';}const checks=[...document.querySelectorAll('.chk-orden-row')];if($('chkOrdenesSeleccionarTodas'))$('chkOrdenesSeleccionarTodas').checked=checks.length>0&&checks.every(c=>c.checked);}
 async function v45BorrarSeleccionadas(){
   if(!window.COI_CRUD_ORDENES) throw new Error('El borrado seguro de OCs no está disponible. Recargue la aplicación.');
   return window.COI_CRUD_ORDENES.eliminarSeleccionadasDesdeUI();
@@ -10728,7 +10728,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     const master = qs('#chkOrdenesSeleccionarTodas');
 
     if(count) count.textContent = `${keys.length} seleccionada${keys.length===1?'':'s'}`;
-    if(btn) btn.disabled = keys.length === 0;
+    if(btn){ btn.disabled = keys.length === 0; btn.textContent = keys.length ? `Borrar seleccionadas (${keys.length})` : 'Borrar seleccionadas'; }
     if(master){
       master.checked = checks.length > 0 && checks.every(chk=>chk.checked);
       master.indeterminate = checks.some(chk=>chk.checked) && !master.checked;
@@ -10779,16 +10779,6 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
         return;
       }
 
-      const borrar = ev.target?.closest?.('#btnBorrarSeleccionadas');
-      if(borrar){
-        ev.preventDefault();
-        ev.stopImmediatePropagation();
-        console.info('[COI DELETE] click recibido');
-        console.info('[COI DELETE] handler propietario');
-        try{ await borrarOrdenesSeleccionadasR4(); }
-        catch(error){ console.error('[COI DELETE] resultado final',error?.message||String(error)); }
-        return;
-      }
     },true);
 
     window.addEventListener('change',ev=>{
@@ -24756,10 +24746,10 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
 </script>
 
 <script id="coi-crud-ordenes-v601">
-/* V60.1.2 — un solo handler de UI y eliminación confirmada contra Supabase; nunca elimina archivos de Storage. */
+/* V60.1.4 — un único handler delegado y eliminación confirmada contra Supabase; nunca elimina archivos de Storage. */
 (function(){
   'use strict';
-  const VERSION='V60.1.2-DELETE-HANDLER-UNICO';
+  const VERSION='V60.1.4-DELETE-BUTTON-FUNCIONAL';
   const ORDER_TABLE='coi_ordenes';
   const STATION_TABLE='coi_ordenes_estaciones';
   const ORDER_CACHE_KEY='coi_supabase_ordenes_cache_v2';
@@ -24781,7 +24771,7 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
   function nro(o){return normalizarNroOC(o?.nro_oc??o?.numeroOC??o?.oc??o?.OC_NRO??o?.ocNro);}
   function oid(o){const value=o?.supabaseId??o?._supabaseRaw?.id??o?.orden_id??o?.id;return clean(value)||'';}
   function key(o){return oid(o)?`id:${oid(o)}`:`oc:${nro(o)}`;}
-  function allOrders(){return (Array.isArray(window.estaciones)?window.estaciones:[]).flatMap(e=>[...(e.obras||[]),...(e.servicios||[])]).filter(o=>!o?._estacionAsociadaTemporal);}
+  function allOrders(){const source=typeof estaciones!=='undefined'&&Array.isArray(estaciones)?estaciones:(Array.isArray(window.estaciones)?window.estaciones:[]);return source.flatMap(e=>[...(e.obras||[]),...(e.servicios||[])]).filter(o=>!o?._estacionAsociadaTemporal);}
   function uniqueOrders(rows){const seen=new Set();return (rows||[]).filter(o=>{const k=key(o);if((!oid(o)&&!nro(o))||seen.has(k))return false;seen.add(k);return true;});}
   function toast(message,type='info'){if(typeof window.coiToast==='function')return window.coiToast(message,type);if(typeof window.mostrarToast==='function')return window.mostrarToast(message,type);console[type==='error'?'error':'info'](message);}
   function client(){return typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;}
@@ -24856,9 +24846,10 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
   async function eliminarOrdenesPersistentes(selection,{skipDialog=false}={}){
     if(deleting||window.__coiDeleteOcInProgress)return {status:'busy'};deleting=true;window.__coiDeleteOcInProgress=true;const orders=uniqueOrders(selection);setButton(true,orders.length);
     try{
-      await requireAccess();if(!orders.length)throw new Error('No hay OCs seleccionadas.');
+      if(!orders.length)throw new Error('No hay OCs seleccionadas.');
       const deletable=orders,blocked=[];
       if(!skipDialog&&!(await confirmDeletion(deletable,blocked)))return {status:'cancelled',deleted:[],blocked};
+      await requireAccess();
       const canonical=[];for(const order of deletable){const resolved=await canonicalOrder(order);if(resolved.missing){toast(`La OC ${resolved.nro_oc} ya no existe en Supabase.`,'warning');}else canonical.push({order,resolved});}
       if(!canonical.length)return {status:'missing',deleted:[],blocked};
       const removedRelations=[];let deleted=[];
@@ -24884,13 +24875,46 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
       toast(`${deleted.length} OC(s) eliminadas correctamente. ${blocked.length} bloqueada(s). La información fue confirmada en Supabase.`,'ok');
       diagnostic('resultado final',{deleteCount:deleted.length,postDeleteCount:0});
       return {status:blocked.length?'partial':'success',deleted,blocked};
-    }catch(error){diagnostic('resultado final',{errorCode:error?.code||error?.status||error?.message});toast(friendlyError(error),'error');throw error;}finally{deleting=false;window.__coiDeleteOcInProgress=false;setButton(false,document.querySelectorAll('.chk-orden-row:checked').length);}
+    }catch(error){diagnostic('resultado final',{errorCode:error?.code||error?.status||error?.message});console.error('[COI DELETE][SUPABASE]',error);toast(`No se pudo eliminar la OC en Supabase: ${friendlyError(error)}`,'error');throw error;}finally{deleting=false;window.__coiDeleteOcInProgress=false;setButton(false,document.querySelectorAll('.chk-orden-row:checked').length);}
   }
   function resolveSelected(){const keys=[...document.querySelectorAll('.chk-orden-row:checked')].map(c=>clean(c.dataset.ordenKey));return uniqueOrders(keys.map(k=>allOrders().find(o=>(typeof window.v45RegistroKey==='function'&&window.v45RegistroKey(o)===k)||[o.idObra,nro(o),oid(o)].some(v=>clean(v)===k))).filter(Boolean));}
   function resolveKey(k){return allOrders().find(o=>[o.idObra,nro(o),oid(o)].some(v=>clean(v)===clean(k)));}
   window.normalizarNumeroOC=normalizarNumeroOC;
   window.borrarOrdenesSeleccionadas=()=>eliminarOrdenesPersistentes(resolveSelected());
   window.COI_CRUD_ORDENES=Object.freeze({version:VERSION,normalizarNroOC,normalizarNumeroOC,eliminarOrdenesPersistentes,eliminarSeleccionadasDesdeUI:window.borrarOrdenesSeleccionadas,eliminarPorClaveDesdeUI:k=>{const o=resolveKey(k);if(!o)throw new Error('No se encontró la OC seleccionada.');return eliminarOrdenesPersistentes([o]);},businessDependencies:BUSINESS_DEPENDENCIES});
+
+  async function handleBorrarSeleccionadasClick(event){
+    const button=event.target?.closest?.('#btnBorrarSeleccionadas');
+    if(!button)return;
+    event.preventDefault();
+    const selected=document.querySelectorAll('.chk-orden-row:checked');
+    const cantidadSeleccionada=selected.length;
+    console.info('[COI DELETE] CLICK RECIBIDO',{boton:true,seleccionadas:cantidadSeleccionada,fecha:new Date().toISOString()});
+    if(!cantidadSeleccionada){
+      toast('No hay órdenes seleccionadas para borrar.','warning');
+      return;
+    }
+    if(deleting||window.__coiDeleteOcInProgress)return;
+    try{
+      await window.COI_CRUD_ORDENES.eliminarSeleccionadasDesdeUI();
+    }catch(error){
+      console.error('[COI DELETE][SUPABASE]',error);
+    }
+  }
+  function bindCrudOrdenesUI(){
+    if(window.__coiDeleteUIAbortController)window.__coiDeleteUIAbortController.abort();
+    const controller=new AbortController();
+    window.__coiDeleteUIAbortController=controller;
+    document.addEventListener('click',handleBorrarSeleccionadasClick,{signal:controller.signal});
+  }
+  window.handleBorrarSeleccionadasClick=handleBorrarSeleccionadasClick;
+  window.bindCrudOrdenesUI=bindCrudOrdenesUI;
+  window.COI_DELETE_DIAGNOSTICO=function(){
+    const boton=document.querySelector('#btnBorrarSeleccionadas');
+    const seleccionadas=document.querySelectorAll('.chk-orden-row:checked');
+    return {botonEncontrado:Boolean(boton),botonId:boton?.id||null,botonDisabled:boton?.disabled??null,cantidadSeleccionadas:seleccionadas.length,crudDisponible:typeof window.COI_CRUD_ORDENES?.eliminarSeleccionadasDesdeUI==='function',bindingActivo:Boolean(window.__coiDeleteUIAbortController)};
+  };
+  bindCrudOrdenesUI();
   const style=document.createElement('style');style.id='coi-crud-ordenes-style';style.textContent='.crud-oc-modal{position:fixed;inset:0;z-index:100100;background:#0f172a99;display:flex;align-items:center;justify-content:center;padding:18px}.crud-oc-modal[hidden]{display:none}.crud-oc-card{width:min(560px,96vw);background:#fff;border-radius:16px;padding:20px;box-shadow:0 24px 70px #0005}.crud-oc-card label{display:block;font-weight:800;margin:12px 0 5px}.crud-oc-card input{width:100%;box-sizing:border-box}.crud-oc-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.crud-oc-card [role=alert]{min-height:22px;color:#9b1c1c;font-weight:800;margin-top:8px}';document.head.appendChild(style);
   document.querySelectorAll('[data-app-version]').forEach(el=>el.textContent=VERSION);window.APP_VERSION=VERSION;
 })();
