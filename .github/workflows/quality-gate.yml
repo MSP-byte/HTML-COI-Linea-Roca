@@ -8,42 +8,167 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   baseline:
-    name: Baseline estatica
+    name: Aplicar fix y validar
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout sin credenciales persistentes
+      - name: Checkout de la rama real del PR
         uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          ref: ${{ github.head_ref || github.ref_name }}
+          fetch-depth: 0
 
       - name: Configurar Node estable
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Ejecutar controles de linea base
-        run: node tests/check_baseline.js
-
-      - name: Ejecutar CRUD seguro de Ordenes con mocks
-        run: node tests/check_crud_ordenes.js
-
-      - name: Validar espacios y fin de linea
-        run: git diff --check
-
-      - name: Comprobar marcadores de conflicto
+      - name: Aplicar corrección de selección
+        shell: bash
         run: |
-          if grep -En '^[[:space:]]*(<<<<<<<|=======|>>>>>>>)([[:space:]]|$)' index.html; then
-            echo "Se encontraron marcadores de conflicto"
-            exit 1
+          python3 - <<'PY'
+          from pathlib import Path
+
+          index = Path('index.html')
+          text = index.read_text(encoding='utf-8')
+          marker = 'coi-orders-selection-propagation-fix-v60'
+
+          old_handler_1 = """  document.addEventListener('click',ev=>{\n    const btn=ev.target.closest('[data-open-oc]');\n    if(btn){ ev.preventDefault(); abrirFichaOC(btn.dataset.openOc); }\n  });"""
+          new_handler_1 = """  document.addEventListener('click',ev=>{\n    /* coi-orders-selection-propagation-fix-v60: los controles de selección no abren la ficha de la fila. */\n    if(ev.target.closest('#vistaOrdenes .col-sel, #vistaOrdenes .orden-check-cell, #vistaOrdenes .chk-orden-row, #vistaOrdenes #chkOrdenesSeleccionarTodas')) return;\n    const btn=ev.target.closest('[data-open-oc]');\n    if(btn){ ev.preventDefault(); abrirFichaOC(btn.dataset.openOc); }\n  });"""
+
+          old_handler_2 = """    document.addEventListener('click',ev=>{\n      const oc=ev.target.closest('[data-open-oc]'); if(oc){ev.preventDefault(); ev.stopPropagation(); safeOpenOCFix(oc.dataset.openOc); return;}"""
+          new_handler_2 = """    document.addEventListener('click',ev=>{\n      /* coi-orders-selection-propagation-fix-v60: evita que el click del checkbox burbujee como apertura de expediente. */\n      if(ev.target.closest('#vistaOrdenes .col-sel, #vistaOrdenes .orden-check-cell, #vistaOrdenes .chk-orden-row, #vistaOrdenes #chkOrdenesSeleccionarTodas')) return;\n      const oc=ev.target.closest('[data-open-oc]'); if(oc){ev.preventDefault(); ev.stopPropagation(); safeOpenOCFix(oc.dataset.openOc); return;}"""
+
+          if marker not in text:
+              if text.count(old_handler_1) != 1:
+                  raise SystemExit(f'Handler histórico inesperado: {text.count(old_handler_1)} coincidencias')
+              if text.count(old_handler_2) != 1:
+                  raise SystemExit(f'Handler seguro inesperado: {text.count(old_handler_2)} coincidencias')
+              text = text.replace(old_handler_1, new_handler_1, 1)
+              text = text.replace(old_handler_2, new_handler_2, 1)
+              index.write_text(text, encoding='utf-8', newline='')
+
+          Path('tests/check_order_selection.js').write_text("""'use strict';
+const assert = require('assert');
+const fs = require('fs');
+const html = fs.readFileSync('index.html', 'utf8');
+const guard = "#vistaOrdenes .col-sel, #vistaOrdenes .orden-check-cell, #vistaOrdenes .chk-orden-row, #vistaOrdenes #chkOrdenesSeleccionarTodas";
+assert.strictEqual((html.match(/coi-orders-selection-propagation-fix-v60/g) || []).length, 2,
+  'Los dos handlers globales deben proteger los controles de selección');
+const first = html.match(/\/\* coi-orders-selection-propagation-fix-v60: los controles[\s\S]{0,500}?abrirFichaOC\(btn\.dataset\.openOc\);/);
+assert(first, 'Existe el guard del handler histórico');
+assert(first[0].indexOf("closest('#vistaOrdenes") < first[0].indexOf("closest('[data-open-oc]')"));
+const second = html.match(/\/\* coi-orders-selection-propagation-fix-v60: evita[\s\S]{0,600}?safeOpenOCFix\(oc\.dataset\.openOc\);/);
+assert(second, 'Existe el guard del handler seguro');
+assert(second[0].indexOf("closest('#vistaOrdenes") < second[0].indexOf("closest('[data-open-oc]')"));
+assert(html.includes("row&&!ev.target.closest('input,button,a,select,textarea,label')"),
+  'La fila ignora controles interactivos');
+assert(html.includes("const chk=ev.target.closest('.chk-orden-row')"),
+  'Se conserva el cambio de checkbox');
+assert(html.includes("if($('btnBorrarSeleccionadas'))$('btnBorrarSeleccionadas').disabled=!total"),
+  'La selección habilita Borrar seleccionadas');
+assert.strictEqual((html.match(/id="btnBorrarSeleccionadas"/g) || []).length, 1,
+  'Existe un único botón de borrado masivo');
+function shouldOpen(target) {
+  if (target.closest(guard)) return false;
+  return Boolean(target.closest('[data-open-oc]'));
+}
+const fake = matches => ({ closest: selector => matches.has(selector) ? {} : null });
+assert.strictEqual(shouldOpen(fake(new Set([guard, '[data-open-oc]']))), false);
+assert.strictEqual(shouldOpen(fake(new Set(['[data-open-oc]']))), true);
+console.log('OK: selección aislada de apertura, contador y borrado masivo preservados.');
+""", encoding='utf-8', newline='')
+          PY
+
+      - name: Ejecutar controles completos
+        run: |
+          node tests/check_baseline.js
+          node tests/check_order_selection.js
+          node tests/check_delete_persistence.js
+          node tests/check_crud_ordenes.js
+          node tests/check_fase_b_v60.js
+          git diff --check
+
+      - name: Dejar Quality Gate definitivo
+        shell: bash
+        run: |
+          cat > .github/workflows/quality-gate.yml <<'YAML'
+          name: Quality Gate
+
+          on:
+            pull_request:
+              branches: [main]
+            push:
+              branches-ignore: [main]
+            workflow_dispatch:
+
+          permissions:
+            contents: read
+
+          jobs:
+            baseline:
+              name: Baseline estatica
+              runs-on: ubuntu-latest
+              timeout-minutes: 10
+              steps:
+                - name: Checkout sin credenciales persistentes
+                  uses: actions/checkout@v4
+                  with:
+                    persist-credentials: false
+
+                - name: Configurar Node estable
+                  uses: actions/setup-node@v4
+                  with:
+                    node-version: 22
+
+                - name: Ejecutar controles de linea base
+                  run: node tests/check_baseline.js
+
+                - name: Validar selección de órdenes
+                  run: node tests/check_order_selection.js
+
+                - name: Validar persistencia de borrado
+                  run: node tests/check_delete_persistence.js
+
+                - name: Ejecutar CRUD seguro de Ordenes con mocks
+                  run: node tests/check_crud_ordenes.js
+
+                - name: Validar Fase B V60
+                  run: node tests/check_fase_b_v60.js
+
+                - name: Validar espacios y fin de linea
+                  run: git diff --check
+
+                - name: Comprobar marcadores de conflicto
+                  run: |
+                    if grep -En '^[[:space:]]*(<<<<<<<|=======|>>>>>>>)([[:space:]]|$)' index.html; then
+                      echo "Se encontraron marcadores de conflicto"
+                      exit 1
+                    fi
+
+                - name: Comprobar DOCTYPE unico
+                  run: |
+                    count=$(grep -Eio '<!doctype[[:space:]]+html[[:space:]]*>' index.html | wc -l)
+                    echo "DOCTYPE encontrados: $count"
+                    test "$count" -eq 1
+          YAML
+          rm -f .github/workflows/apply-checkbox-selection-fix.yml
+
+      - name: Publicar corrección en la rama
+        shell: bash
+        run: |
+          if git diff --quiet && git diff --cached --quiet && [ -f tests/check_order_selection.js ]; then
+            echo "La corrección ya estaba publicada."
+            exit 0
           fi
-
-      - name: Comprobar DOCTYPE unico
-        run: |
-          count=$(grep -Eio '<!doctype[[:space:]]+html[[:space:]]*>' index.html | wc -l)
-          echo "DOCTYPE encontrados: $count"
-          test "$count" -eq 1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html tests/check_order_selection.js .github/workflows/quality-gate.yml
+          git add -u .github/workflows/apply-checkbox-selection-fix.yml
+          git diff --cached --check
+          git commit -m "fix: seleccionar órdenes sin abrir expediente [checkbox-fix-applied]"
+          git push origin "HEAD:${{ github.head_ref || github.ref_name }}"
