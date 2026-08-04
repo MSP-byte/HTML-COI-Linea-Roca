@@ -1941,7 +1941,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
       <div class="muted">Panel profesional de perfiles, permisos, datos, catálogos, diagnóstico, optimización y logs.</div>
     </div>
     <div class="view-body">
-      <div class="admin-note">Este sistema trabaja localmente en el navegador. Para compartir información entre usuarios, exporte la base JSON y envíela al usuario destino para importarla.</div>
+      <div class="admin-note">Supabase es la fuente oficial de datos operativos. LocalStorage se utiliza únicamente para preferencias, caché y respaldo legacy temporal.</div>
       <div class="admin-topbar">
         <div><b>Rol activo:</b> <span id="adminRolActivo" class="app-version-badge">Jefatura</span> <span id="adminModoBadge" class="version-status ok">PRODUCCIÓN</span></div>
         <div class="admin-actions compact"><button type="button" id="btnAdminMode" class="primary">Ingresar como Administrador</button><button type="button" id="btnImportBackupViewer">Importar backup recibido</button><input type="file" id="adminImportFile" accept="application/json,.json" class="admin-hidden"></div>
@@ -2627,6 +2627,7 @@ function initBotonesLegacySinInline(){
 }
 
 const STORAGE_KEY='roca_coi_intervenciones_v10';
+window.__COI_SUPABASE_SOURCE_OF_TRUTH__=true;
 
 function norm(v){
   return String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
@@ -2961,6 +2962,9 @@ function importRows(rows, forcedTipo='auto', options={}){
   return {creadas,actualizadas,sinEstacion,todo};
 }
 function loadImportedData(){
+  let demoExplicita=false;
+  try{demoExplicita=sessionStorage.getItem('coi.demo.explicit.once')==='1';}catch(error){console.warn('COI demo: sessionStorage no disponible.',error);}
+  if(window.__COI_SUPABASE_SOURCE_OF_TRUTH__===true&&!demoExplicita)return false;
   const data=safeParseJSON(localStorage.getItem(STORAGE_KEY), null);
   if(!Array.isArray(data)) return;
   clearInterventions();
@@ -2979,6 +2983,7 @@ function downloadTemplate(){
   a.click();
 }
 function restoreDemo(){
+  try{sessionStorage.setItem('coi.demo.explicit.once','1');}catch(error){console.warn('COI demo: no se pudo registrar la acción explícita.',error);}
   localStorage.removeItem(STORAGE_KEY);
   location.reload();
 }
@@ -3826,6 +3831,10 @@ function serializarIntervenciones(){
   }));
 }
 function guardarBaseLocal(){
+  let demoExplicita=false;
+  try{demoExplicita=sessionStorage.getItem('coi.demo.explicit.once')==='1';}catch(error){console.warn('COI almacenamiento: sessionStorage no disponible.',error);}
+  if(window.__COI_SUPABASE_SOURCE_OF_TRUTH__===true&&!demoExplicita)return false;
+  if(demoExplicita){try{sessionStorage.removeItem('coi.demo.explicit.once');}catch(error){console.warn('COI demo: no se pudo limpiar la autorización temporal.',error);}}
   migrarArquitecturaIdObra();
   if(typeof migrarOrdenesAIdEstacion==='function') migrarOrdenesAIdEstacion();
   const data=serializarIntervenciones();
@@ -5476,10 +5485,10 @@ let adminTabActiva='estado';
 function adminConfig(){return safeParseJSON(localStorage.getItem(LS_ADMIN_CONFIG),{})||{};}function adminPinActual(){return adminConfig().adminPin||ADMIN_PIN;}function adminRolActivo(){return (typeof esModoAdmin==="function"&&esModoAdmin())?USER_ROLES.ADMIN:"Modo Consulta";}function adminIsEnabled(){return typeof esModoAdmin==="function"&&esModoAdmin();}function adminSetRole(r){if(r===USER_ROLES.ADMIN&&typeof iniciarSesionAdministrador==="function")iniciarSesionAdministrador();else if(typeof cerrarSesionAdministrador==="function")cerrarSesionAdministrador();}function adminSetMsg(m,c='ok'){const e=$('adminMsg');if(e){e.textContent=m;e.className=`admin-msg ${c}`;}}function adminNowStamp(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`;}function adminBackupFileName(){return `backup_coi_roca_${adminNowStamp()}.json`;}function adminSnapshotLocalStorage(){const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);d[k]=localStorage.getItem(k);}return d;}function adminBackupPayload(){return {tipo:'COI_LINEA_ROCA_BACKUP',appName:APP_NAME,version:APP_VERSION,fechaExportacion:new Date().toISOString(),autor:APP_AUTHOR,rolActivo:adminRolActivo(),catalogoEstaciones:typeof CAT_ESTACIONES!=='undefined'?CAT_ESTACIONES:[],totalOC:typeof todasLasOC==='function'?todasLasOC().length:0,ultimaActualizacionDatos:typeof ultimaActualizacionDatos==='function'?ultimaActualizacionDatos():'',localStorage:adminSnapshotLocalStorage()};}
 function registrarLogSistema(tipo,mensaje,detalle=''){const logs=safeParseJSON(localStorage.getItem(LS_ADMIN_LOGS),[])||[];logs.unshift({fechaHora:new Date().toISOString(),tipo,mensaje,detalle,usuario:APP_AUTHOR,rol:adminRolActivo()});saveJSON(LS_ADMIN_LOGS,logs.slice(0,300));}function adminSetLastBackup(t,a=''){saveJSON(LS_ADMIN_LAST_BACKUP,{tipo:t,archivo:a,fecha:new Date().toISOString(),version:APP_VERSION});}function adminLastBackupText(){const b=safeParseJSON(localStorage.getItem(LS_ADMIN_LAST_BACKUP),null);return b?`${b.tipo} ${b.archivo||''} · ${fmtFecha(b.fecha)||b.fecha}`:'Sin registros';}function adminStorageSizeText(){let n=0;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i),v=localStorage.getItem(k)||'';n+=k.length+v.length;}return n>1024?`${(n/1024).toFixed(1)} KB`:`${n} bytes`;}
 function adminRefreshAll(){loadImportedData();if(typeof renderMap==='function')renderMap();if(typeof updateKpis==='function')updateKpis();if(typeof renderOrdenes==='function')renderOrdenes();if(typeof cargarFiltrosCalendario==='function')cargarFiltrosCalendario();if(typeof renderCalendarioCOI==='function')renderCalendarioCOI();if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();if(typeof renderCentroAlertas==='function'&&$('vistaCentroAlertas')?.classList.contains('active'))renderCentroAlertas();if(typeof renderDashboardAlertSummary==='function')renderDashboardAlertSummary();if(typeof renderAcercaSistema==='function'&&$('vistaAcercaSistema')?.classList.contains('active'))renderAcercaSistema();renderAdministracionSistema();}
-function adminEstadoDatos(){const r=typeof todasLasOC==='function'?todasLasOC():[],a=typeof generarAlertasCOI==='function'?generarAlertasCOI():[],c=adminConfig();return {oc:r.length,obras:r.filter(x=>x.tipo==='Obra').length,servicios:r.filter(x=>x.tipo==='Servicio').length,alertas:a.length,modo:c.modoSistema||'Producción',fuente:c.fuenteDatos||'LocalStorage'};}function adminCard(l,v){return `<div class="admin-status-card"><b>${esc(v)}</b><span>${esc(l)}</span></div>`;}
-function renderAdministracionSistema(){const e=adminEstadoDatos(),r=adminRolActivo(),c=adminConfig();if($('adminRolActivo'))$('adminRolActivo').textContent=r;if($('adminModoBadge')){$('adminModoBadge').textContent=e.modo==='Demo'?'MODO DEMO':'PRODUCCIÓN';$('adminModoBadge').className=`version-status ${e.modo==='Demo'?'warn':'ok'}`;}if($('btnAdminMode'))$('btnAdminMode').textContent=adminIsEnabled()?'Salir de modo Administrador':'Ingresar como Administrador';document.querySelectorAll('[data-admin-only]').forEach(x=>x.classList.toggle('admin-hidden',!adminIsEnabled()));const cards=[['Versión actual',c.versionVisible||APP_VERSION],['Fecha versión',c.fechaVersion||APP_RELEASE_DATE],['Rol activo',r],['Total OCs',e.oc],['Obras',e.obras],['Servicios',e.servicios],['Alertas',e.alertas],['Último backup',adminLastBackupText()],['LocalStorage',adminStorageSizeText()],['Estado de datos',`${e.fuente} / ${e.modo}`]];if($('adminStatus'))$('adminStatus').innerHTML=cards.map(x=>adminCard(x[0],x[1])).join('');renderAdminEstado();renderAdminDatos();renderAdminUsuarios();renderAdminCatalogos();renderAdminDiagnostico();renderAuditorDatos();renderAdminConfig();renderAdminLogs();document.querySelectorAll('[data-admin-only]').forEach(x=>x.classList.toggle('admin-hidden',!adminIsEnabled()));adminMostrarTab(adminTabActiva);if(typeof actualizarHeaderOperativo==='function')actualizarHeaderOperativo();}
+function adminEstadoDatos(){const r=typeof todasLasOC==='function'?todasLasOC():[],a=typeof generarAlertasCOI==='function'?generarAlertasCOI():[],c=adminConfig(),d=window.COI_FINANZAS_SUPABASE?.diagnostico?.()||null;return {oc:r.length,obras:r.filter(x=>x.tipo==='Obra').length,servicios:r.filter(x=>x.tipo==='Servicio').length,alertas:a.length,modo:c.modoSistema||'Producción',fuente:'Supabase',estadoSupabase:d?.estado||'CLIENTE_INICIALIZANDO',sesionSupabase:d?.sesionActiva?'Activa':'Sin sesión',cacheSupabase:d?`${d.filasCache} filas`:'Sin diagnóstico'};}function adminCard(l,v){return `<div class="admin-status-card"><b>${esc(v)}</b><span>${esc(l)}</span></div>`;}
+function renderAdministracionSistema(){const e=adminEstadoDatos(),r=adminRolActivo(),c=adminConfig();if($('adminRolActivo'))$('adminRolActivo').textContent=r;if($('adminModoBadge')){$('adminModoBadge').textContent=e.modo==='Demo'?'MODO DEMO':'PRODUCCIÓN';$('adminModoBadge').className=`version-status ${e.modo==='Demo'?'warn':'ok'}`;}if($('btnAdminMode'))$('btnAdminMode').textContent=adminIsEnabled()?'Salir de modo Administrador':'Ingresar como Administrador';document.querySelectorAll('[data-admin-only]').forEach(x=>x.classList.toggle('admin-hidden',!adminIsEnabled()));const cards=[['Versión actual',c.versionVisible||APP_VERSION],['Fecha versión',c.fechaVersion||APP_RELEASE_DATE],['Rol activo',r],['Total OCs',e.oc],['Obras',e.obras],['Servicios',e.servicios],['Alertas',e.alertas],['Último backup',adminLastBackupText()],['Caché local',adminStorageSizeText()],['Fuente oficial',e.fuente],['Estado Supabase',e.estadoSupabase],['Sesión Supabase',e.sesionSupabase],['Caché Posiciones OC',e.cacheSupabase]];if($('adminStatus'))$('adminStatus').innerHTML=cards.map(x=>adminCard(x[0],x[1])).join('');renderAdminEstado();renderAdminDatos();renderAdminUsuarios();renderAdminCatalogos();renderAdminDiagnostico();renderAuditorDatos();renderAdminConfig();renderAdminLogs();document.querySelectorAll('[data-admin-only]').forEach(x=>x.classList.toggle('admin-hidden',!adminIsEnabled()));adminMostrarTab(adminTabActiva);if(typeof actualizarHeaderOperativo==='function')actualizarHeaderOperativo();}
 function adminMostrarTab(t){adminTabActiva=t||'estado';document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b.dataset.adminTab===adminTabActiva));document.querySelectorAll('.admin-tab-panel').forEach(p=>p.classList.remove('active'));const p=$(`adminTab${adminTabActiva[0].toUpperCase()+adminTabActiva.slice(1)}`);if(p)p.classList.add('active');}
-function renderAdminEstado(){if($('adminTabEstado'))$('adminTabEstado').innerHTML='<div class="admin-panel"><h3>Estado del sistema</h3><p class="muted">Panel local preparado para base.json o base compartida futura. El sistema inicia en Jefatura y las herramientas críticas requieren Administrador.</p></div>';}
+function renderAdminEstado(){if($('adminTabEstado'))$('adminTabEstado').innerHTML='<div class="admin-panel"><h3>Estado del sistema</h3><p class="muted">Supabase es la fuente oficial de datos operativos. LocalStorage se utiliza únicamente para preferencias, caché y respaldo legacy temporal.</p></div>';}
 function renderAdminDatos(){if(!$('adminTabDatos'))return;$('adminTabDatos').innerHTML=`<div class="admin-panel"><h3>Gestión de datos</h3><div class="admin-actions"><button type="button" id="btnImportBackupViewerPanel">Importar backup recibido</button><button type="button" id="btnImportBaseJson">Importar Base JSON</button><button type="button" id="btnExportBaseCsv">Exportar Base CSV</button><button type="button" id="btnIrCargaCSV">Importar CSV</button><button type="button" id="btnImportExcelPreparado">Importar Excel</button><button type="button" id="btnExportBaseJson" data-admin-only>Exportar Base JSON</button><button type="button" id="btnCrearBackupInterno" data-admin-only>Crear Backup</button><button type="button" id="btnRestaurarBackupInterno" data-admin-only>Restaurar Backup</button><button type="button" id="btnCargarDemoOperativa" data-admin-only>Cargar Demo Operativa</button><button type="button" id="btnLimpiarBase" data-admin-only class="btn-danger-soft">Limpiar Base</button></div><div class="muted">${adminIsEnabled()?'Administrador: herramientas completas disponibles.':'Jefatura: puede importar un backup recibido y exportar CSV operativo.'}</div></div>`;}
 function usuariosSistema(){let u=safeParseJSON(localStorage.getItem(LS_ADMIN_USERS),null);if(!Array.isArray(u)){u=[{idUsuario:'USR-ADMIN',nombre:APP_AUTHOR,rol:USER_ROLES.ADMIN,estado:'Activo',observaciones:'Usuario local inicial'}];saveJSON(LS_ADMIN_USERS,u);}return u;}function guardarUsuariosSistema(u){saveJSON(LS_ADMIN_USERS,u);registrarLogSistema('usuarios','Usuarios locales actualizados',`${u.length} usuario(s)`);}
 function renderAdminUsuarios(){if(!$('adminTabUsuarios'))return;const u=usuariosSistema();$('adminTabUsuarios').innerHTML=`<div class="admin-panel"><h3>Seguridad y usuarios</h3><div class="admin-form-grid"><input id="adminUserNombre" placeholder="Nombre"><select id="adminUserRol"><option>${USER_ROLES.JEFE}</option><option>${USER_ROLES.ADMIN}</option></select><input id="adminUserObs" placeholder="Observaciones"><button type="button" id="btnCrearUsuarioLocal" class="primary">Crear usuario local</button><button type="button" id="btnCambiarPinAdmin">Cambiar PIN administrador</button></div><div class="table-wrap"><table class="coi-table"><thead><tr><th>ID</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Observaciones</th><th>Acción</th></tr></thead><tbody>${u.map(x=>`<tr><td>${esc(x.idUsuario)}</td><td>${esc(x.nombre)}</td><td>${esc(x.rol)}</td><td>${esc(x.estado)}</td><td>${esc(x.observaciones||'')}</td><td><button type="button" data-del-user="${esc(x.idUsuario)}">Eliminar</button></td></tr>`).join('')}</tbody></table></div></div>`;}
@@ -5489,14 +5498,14 @@ function renderAdminCatalogos(){if(!$('adminTabCatalogos'))return;const c=getCat
 function ejecutarDiagnosticoSistema(){const r=typeof todasLasOC==='function'?todasLasOC():[],oc={},id={};r.forEach(x=>{const i=x.item?.idObra||x.item?.idOC||x.item?.idServicio||'';if(x.oc)oc[x.oc]=(oc[x.oc]||0)+1;if(i)id[i]=(id[i]||0)+1;});const res={total:r.length,duplicadosOC:Object.values(oc).filter(n=>n>1).length,duplicadosID:Object.values(id).filter(n=>n>1).length,sinOC:r.filter(x=>!x.oc||x.oc==='SIN OC').length,sinID:r.filter(x=>!(x.item?.idObra||x.item?.idOC||x.item?.idServicio)).length,sinEstacion:r.filter(x=>!x.estacion||x.estacion==='Sin definir').length,sinProveedor:r.filter(x=>!x.proveedor||x.proveedor==='—'||x.proveedor==='Sin definir').length,sinFechaInicio:r.filter(x=>!x.inicio).length,sinFechaFin:r.filter(x=>!x.fin).length,fechasInvalidas:r.filter(x=>(x.inicio&&!parseFecha(x.inicio))||(x.fin&&!parseFecha(x.fin))).length,estadosVacios:r.filter(x=>!x.estado||x.estado==='—').length,registrosIncompletos:r.filter(x=>String(x.item?.estadoDocumental||'').toLowerCase().includes('incompleto')).length,alertasCriticas:(typeof generarAlertasCOI==='function'?generarAlertasCOI().filter(a=>a.severidad==='ROJA').length:0)};registrarLogSistema('diagnostico','Diagnóstico ejecutado',JSON.stringify(res));return res;}
 function renderAdminDiagnostico(res=null){if(!$('adminTabDiagnostico'))return;const rows=res?Object.entries(res):[];$('adminTabDiagnostico').innerHTML=`<div class="admin-panel"><h3>Diagnóstico</h3><div class="admin-actions"><button type="button" id="btnEjecutarDiagnostico" class="primary">Ejecutar diagnóstico</button><button type="button" id="btnOptimizarBase">Optimizar base</button></div>${rows.length?`<div class="admin-status-grid">${rows.map(x=>adminCard(x[0],x[1])).join('')}</div>`:'<p class="muted">Ejecute el diagnóstico para verificar duplicados, fechas inválidas y registros incompletos.</p>'}</div>`;}
 function optimizarBaseSistema(){if(!confirm('Antes de optimizar se creará un backup interno automático. ¿Continuar?'))return;adminCrearBackupInterno();let n=0;estaciones.forEach(est=>allItems(est).forEach(i=>{i.oc=i.oc||i.numeroOC||i.OC_NRO||'SIN OC';i.numeroOC=i.numeroOC||i.oc;i.tipo=i.tipo||'Servicio';i.estacion=i.estacion||est.nombre;i.proveedor=i.proveedor||'Sin definir';i.estado=i.estado||'Pendiente de completar';i.estadoDocumental=i.estadoDocumental||'';if(!i.vencimiento&&i.actaInicio&&i.plazoDias){const f=addDias(parseFecha(i.actaInicio),Number(i.plazoDias));if(f)i.vencimiento=f.toISOString().slice(0,10);}if(!i.proximaCertificacion&&i.actaInicio)i.proximaCertificacion=addMeses(i.actaInicio,1)?.toISOString().slice(0,10)||'';n++;}));guardarBaseLocal();registrarLogSistema('optimizacion','Optimización ejecutada',`${n} registros normalizados`);adminRefreshAll();adminSetMsg(`Base optimizada. Registros revisados: ${n}.`,'ok');}
-function renderAdminConfig(){if(!$('adminTabConfiguracion'))return;const c=adminConfig();$('adminTabConfiguracion').innerHTML=`<div class="admin-panel"><h3>Configuración y versión del sistema</h3><div class="admin-form-grid"><input id="adminCfgNombre" value="${esc(c.nombreSistema||APP_NAME)}" placeholder="Nombre"><input id="adminCfgVersion" value="${esc(c.versionVisible||APP_VERSION)}" placeholder="Versión"><input id="adminCfgBuild" value="${esc(c.build||adminNowStamp())}" placeholder="Build"><input id="adminCfgFecha" value="${esc(c.fechaVersion||APP_RELEASE_DATE)}" placeholder="Fecha"><select id="adminCfgModo"><option ${c.modoSistema==='Demo'?'selected':''}>Demo</option><option ${c.modoSistema!=='Demo'?'selected':''}>Producción</option></select><select id="adminCfgFuente"><option ${c.fuenteDatos!=='base.json futuro'?'selected':''}>LocalStorage</option><option ${c.fuenteDatos==='base.json futuro'?'selected':''}>base.json futuro</option></select><input id="adminCfgEstado" value="${esc(c.estadoVersion||APP_STATUS)}" placeholder="Estado"><input id="adminCfgObs" value="${esc(c.observacionesVersion||'')}" placeholder="Observaciones"><button type="button" id="btnGuardarAdminConfig" class="primary">Guardar configuración</button></div></div>`;}
+function renderAdminConfig(){if(!$('adminTabConfiguracion'))return;const c=adminConfig();$('adminTabConfiguracion').innerHTML=`<div class="admin-panel"><h3>Configuración y versión del sistema</h3><div class="admin-form-grid"><input id="adminCfgNombre" value="${esc(c.nombreSistema||APP_NAME)}" placeholder="Nombre"><input id="adminCfgVersion" value="${esc(c.versionVisible||APP_VERSION)}" placeholder="Versión"><input id="adminCfgBuild" value="${esc(c.build||adminNowStamp())}" placeholder="Build"><input id="adminCfgFecha" value="${esc(c.fechaVersion||APP_RELEASE_DATE)}" placeholder="Fecha"><select id="adminCfgModo"><option ${c.modoSistema==='Demo'?'selected':''}>Demo</option><option ${c.modoSistema!=='Demo'?'selected':''}>Producción</option></select><input id="adminCfgFuente" value="Supabase" readonly><input id="adminCfgEstado" value="${esc(c.estadoVersion||APP_STATUS)}" placeholder="Estado"><input id="adminCfgObs" value="${esc(c.observacionesVersion||'')}" placeholder="Observaciones"><button type="button" id="btnGuardarAdminConfig" class="primary">Guardar configuración</button></div></div>`;}
 function renderAdminLogs(){if(!$('adminTabLogs'))return;const l=safeParseJSON(localStorage.getItem(LS_ADMIN_LOGS),[])||[];$('adminTabLogs').innerHTML=`<div class="admin-panel"><h3>Logs del sistema</h3><div class="admin-actions"><button type="button" id="btnLimpiarLogs" class="btn-danger-soft">Limpiar logs</button></div><div class="table-wrap"><table class="coi-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Mensaje</th><th>Detalle</th><th>Rol</th></tr></thead><tbody>${l.map(x=>`<tr><td>${esc(fmtFecha(x.fechaHora)||x.fechaHora)}</td><td>${esc(x.tipo)}</td><td>${esc(x.mensaje)}</td><td>${esc(x.detalle||'')}</td><td>${esc(x.rol||'')}</td></tr>`).join('')||'<tr><td colspan="5">Sin logs registrados.</td></tr>'}</tbody></table></div></div>`;}
 function adminExportBaseJSON(){const p=adminBackupPayload(),f=adminBackupFileName();descargarArchivo(f,JSON.stringify(p,null,2),'application/json;charset=utf-8');adminSetLastBackup('exportado',f);registrarLogSistema('exportacion_json','Base JSON exportada',f);renderAdministracionSistema();adminSetMsg(`Backup JSON exportado: ${f}`,'ok');}function adminValidateBackup(d){if(!d||typeof d!=='object')return null;if(d.localStorage&&typeof d.localStorage==='object')return d.localStorage;return Object.values(d).every(v=>typeof v==='string')?d:null;}function adminApplyLocalStorageSnapshot(s,m){const r=adminRolActivo();localStorage.clear();Object.entries(s).forEach(([k,v])=>localStorage.setItem(k,String(v)));adminSetRole(r||USER_ROLES.JEFE);adminSetLastBackup(m?.tipo||'importado',m?.archivo||'backup JSON');registrarLogSistema('importacion_json','Backup JSON importado',m?.archivo||'backup JSON');adminRefreshAll();}
 function adminImportJSONFile(file){if(!file)return;const reader=new FileReader();reader.onload=()=>{let d;try{d=JSON.parse(reader.result);}catch(e){adminSetMsg('El archivo JSON no es válido.','err');registrarLogSistema('error','JSON inválido',file.name);return;}const s=adminValidateBackup(d);if(!s){adminSetMsg('La estructura del backup no es compatible con COI Línea Roca.','err');return;}if(!confirm('Esta acción reemplazará la base actual. ¿Desea continuar?'))return;adminApplyLocalStorageSnapshot(s,{tipo:'importado',archivo:file.name});adminSetMsg(`Backup importado correctamente: ${file.name}`,'ok');};reader.readAsText(file,'utf-8');}
 function adminExportBaseCSV(){const h=['OC','Tipo','Estación','Proveedor','Especialidad','Estado','Fecha inicio','Fecha fin','Días restantes','Próxima certificación','Estado documental'],r=todasLasOC().map(x=>[x.oc,x.tipo,x.estacion,x.proveedor,x.especialidad,x.estado,fmtFecha(x.inicio),fmtFecha(x.fin),x.diasRestantes??'',fmtFecha(x.proximaCertificacion),x.estadoDocumental||x.item?.estadoDocumental||'']);const csv=[h,...r].map(row=>row.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n');descargarArchivo(`base_coi_roca_${adminNowStamp()}.csv`,csv,'text/csv;charset=utf-8');registrarLogSistema('exportacion_csv','Base CSV exportada','Vista operativa');adminSetMsg('Base CSV exportada correctamente.','ok');}
 function adminCrearBackupInterno(){saveJSON(LS_ADMIN_INTERNAL_BACKUP,adminBackupPayload());adminSetLastBackup('backup interno creado','localStorage');registrarLogSistema('backup_creado','Backup interno creado','localStorage');renderAdministracionSistema();adminSetMsg('Backup interno creado en localStorage.','ok');}function adminRestaurarBackupInterno(){const p=safeParseJSON(localStorage.getItem(LS_ADMIN_INTERNAL_BACKUP),null),s=adminValidateBackup(p);if(!s){adminSetMsg('No existe backup interno válido para restaurar.','warn');return;}if(!confirm('Esta acción restaurará el backup interno y reemplazará la base actual. ¿Desea continuar?'))return;adminApplyLocalStorageSnapshot(s,{tipo:'backup interno restaurado',archivo:'localStorage'});adminSetMsg('Backup interno restaurado correctamente.','ok');}
 function adminCargarDemoOperativa(){if(!confirm('La demo operativa reemplazará la base actual. ¿Desea continuar?'))return;adminCrearBackupInterno();if(typeof restoreDemo==='function')restoreDemo();const c=adminConfig();c.modoSistema='Demo';saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('demo','Demo operativa cargada','restoreDemo');adminRefreshAll();adminSetMsg('Demo operativa cargada correctamente.','ok');}function adminLimpiarBase(){if(!confirm('Primera confirmación: se vaciará la base operativa local. ¿Continuar?'))return;if(!confirm('Segunda confirmación: esta acción no puede deshacerse salvo que tenga un backup JSON. ¿Limpiar base?'))return;adminCrearBackupInterno();clearInterventions();guardarBaseLocal();[typeof V33_LS_ORDENES!=='undefined'?V33_LS_ORDENES:'coiOrdenes',typeof V33_LS_INCOMPLETOS!=='undefined'?V33_LS_INCOMPLETOS:'coiRegistrosIncompletos',typeof V33_LS_DOCS!=='undefined'?V33_LS_DOCS:'coiDocumentos',typeof V33_LS_UM!=='undefined'?V33_LS_UM:'coiUM',typeof LS_UM!=='undefined'?LS_UM:'coi_roca_unidades_mantenimiento'].forEach(k=>localStorage.removeItem(k));adminSetLastBackup('base limpiada','localStorage');registrarLogSistema('limpieza','Base local limpiada','Sistema vacío funcional');adminRefreshAll();adminSetMsg('Base local limpiada. El sistema quedó vacío y funcional.','ok');}
-function initAdministracionSistema(){const file=$('adminImportFile');if(!localStorage.getItem(LS_ADMIN_ROLE))adminSetRole(USER_ROLES.JEFE);$('btnAdministracionSistema')?.addEventListener('click',()=>{mostrarVista('vistaAdministracionSistema');renderAdministracionSistema();});$('btnAdminMode')?.addEventListener('click',()=>{if(adminIsEnabled()){adminSetRole(USER_ROLES.JEFE);registrarLogSistema('sesion','Salida de modo Administrador','Vuelve a Jefatura');adminSetMsg('Modo presentación activado.','warn');renderAdministracionSistema();return;}const pin=prompt('Ingrese PIN de Administrador');if(pin===adminPinActual()){adminSetRole(USER_ROLES.ADMIN);registrarLogSistema('sesion','Modo administrador activado','PIN correcto');adminSetMsg('Modo administrador activado','ok');}else if(pin!==null){adminSetMsg('PIN incorrecto','err');registrarLogSistema('error','PIN incorrecto','Intento de acceso administrador');}renderAdministracionSistema();});document.addEventListener('click',ev=>{const tab=ev.target.closest('[data-admin-tab]');if(tab){adminMostrarTab(tab.dataset.adminTab);return;}if(ev.target.closest('#btnImportBackupViewer,#btnImportBackupViewerPanel,#btnImportBaseJson'))file?.click();if(ev.target.closest('#btnExportBaseJson'))adminExportBaseJSON();if(ev.target.closest('#btnExportBaseCsv'))adminExportBaseCSV();if(ev.target.closest('#btnCrearBackupInterno'))adminCrearBackupInterno();if(ev.target.closest('#btnRestaurarBackupInterno'))adminRestaurarBackupInterno();if(ev.target.closest('#btnCargarDemoOperativa'))adminCargarDemoOperativa();if(ev.target.closest('#btnLimpiarBase'))adminLimpiarBase();if(ev.target.closest('#btnIrCargaCSV'))mostrarVista('vistaCarga');if(ev.target.closest('#btnImportExcelPreparado'))adminSetMsg('Excel directo queda preparado para futura etapa. Por ahora exportar la hoja como CSV UTF-8.','warn');if(ev.target.closest('#btnEjecutarDiagnostico')){const res=ejecutarDiagnosticoSistema();renderAdminDiagnostico(res);adminMostrarTab('diagnostico');adminSetMsg('Diagnóstico ejecutado.','ok');}if(ev.target.closest('#btnOptimizarBase'))optimizarBaseSistema();if(ev.target.closest('#btnEjecutarAuditorDatos')){renderAuditorDatos();adminMostrarTab('auditor');adminSetMsg('Auditoría de datos actualizada.','ok');}if(ev.target.closest('#btnExportAuditoriaCsv'))exportarAuditoriaDatosCSV();if(ev.target.closest('#btnCrearUsuarioLocal')){const u=usuariosSistema();u.push({idUsuario:'USR-'+Date.now(),nombre:$('adminUserNombre')?.value||'Usuario local',rol:$('adminUserRol')?.value||USER_ROLES.JEFE,estado:'Activo',observaciones:$('adminUserObs')?.value||''});guardarUsuariosSistema(u);renderAdministracionSistema();}const del=ev.target.closest('[data-del-user]');if(del){guardarUsuariosSistema(usuariosSistema().filter(u=>u.idUsuario!==del.dataset.delUser));renderAdministracionSistema();}if(ev.target.closest('#btnCambiarPinAdmin')){const pin=prompt('Nuevo PIN administrador');if(pin){const c=adminConfig();c.adminPin=pin;saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('configuracion','PIN administrador actualizado','PIN local');adminSetMsg('PIN administrador actualizado.','ok');}}if(ev.target.closest('#btnAgregarCatalogo')){const n=$('adminCatalogoNombre')?.value,v=($('adminCatalogoValor')?.value||'').trim();if(n&&v){setCatalogo(n,[...new Set([...getCatalogo(n),v])].sort());renderAdministracionSistema();}}if(ev.target.closest('#btnEliminarCatalogo')){const n=$('adminCatalogoNombre')?.value,v=($('adminCatalogoValor')?.value||'').trim();if(n&&v){setCatalogo(n,getCatalogo(n).filter(x=>x!==v));renderAdministracionSistema();}}if(ev.target.closest('#btnGuardarAdminConfig')){const c=adminConfig();c.nombreSistema=$('adminCfgNombre')?.value||APP_NAME;c.versionVisible=$('adminCfgVersion')?.value||APP_VERSION;c.build=$('adminCfgBuild')?.value||adminNowStamp();c.fechaVersion=$('adminCfgFecha')?.value||APP_RELEASE_DATE;c.modoSistema=$('adminCfgModo')?.value||'Producción';c.fuenteDatos=$('adminCfgFuente')?.value||'LocalStorage';c.estadoVersion=$('adminCfgEstado')?.value||APP_STATUS;c.observacionesVersion=$('adminCfgObs')?.value||'';saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('configuracion','Configuración del sistema actualizada',c.versionVisible);renderAdministracionSistema();adminSetMsg('Configuración guardada.','ok');}if(ev.target.closest('#btnLimpiarLogs')){if(confirm('¿Limpiar logs del sistema?')){saveJSON(LS_ADMIN_LOGS,[]);renderAdminLogs();adminSetMsg('Logs limpiados.','ok');}}});file?.addEventListener('change',()=>{adminImportJSONFile(file.files?.[0]);file.value='';});renderAdministracionSistema();}/* ===============================
+function initAdministracionSistema(){const file=$('adminImportFile');if(!localStorage.getItem(LS_ADMIN_ROLE))adminSetRole(USER_ROLES.JEFE);$('btnAdministracionSistema')?.addEventListener('click',()=>{mostrarVista('vistaAdministracionSistema');renderAdministracionSistema();});$('btnAdminMode')?.addEventListener('click',()=>{if(adminIsEnabled()){adminSetRole(USER_ROLES.JEFE);registrarLogSistema('sesion','Salida de modo Administrador','Vuelve a Jefatura');adminSetMsg('Modo presentación activado.','warn');renderAdministracionSistema();return;}const pin=prompt('Ingrese PIN de Administrador');if(pin===adminPinActual()){adminSetRole(USER_ROLES.ADMIN);registrarLogSistema('sesion','Modo administrador activado','PIN correcto');adminSetMsg('Modo administrador activado','ok');}else if(pin!==null){adminSetMsg('PIN incorrecto','err');registrarLogSistema('error','PIN incorrecto','Intento de acceso administrador');}renderAdministracionSistema();});document.addEventListener('click',ev=>{const tab=ev.target.closest('[data-admin-tab]');if(tab){adminMostrarTab(tab.dataset.adminTab);return;}if(ev.target.closest('#btnImportBackupViewer,#btnImportBackupViewerPanel,#btnImportBaseJson'))file?.click();if(ev.target.closest('#btnExportBaseJson'))adminExportBaseJSON();if(ev.target.closest('#btnExportBaseCsv'))adminExportBaseCSV();if(ev.target.closest('#btnCrearBackupInterno'))adminCrearBackupInterno();if(ev.target.closest('#btnRestaurarBackupInterno'))adminRestaurarBackupInterno();if(ev.target.closest('#btnCargarDemoOperativa'))adminCargarDemoOperativa();if(ev.target.closest('#btnLimpiarBase'))adminLimpiarBase();if(ev.target.closest('#btnIrCargaCSV'))mostrarVista('vistaCarga');if(ev.target.closest('#btnImportExcelPreparado'))adminSetMsg('Excel directo queda preparado para futura etapa. Por ahora exportar la hoja como CSV UTF-8.','warn');if(ev.target.closest('#btnEjecutarDiagnostico')){const res=ejecutarDiagnosticoSistema();renderAdminDiagnostico(res);adminMostrarTab('diagnostico');adminSetMsg('Diagnóstico ejecutado.','ok');}if(ev.target.closest('#btnOptimizarBase'))optimizarBaseSistema();if(ev.target.closest('#btnEjecutarAuditorDatos')){renderAuditorDatos();adminMostrarTab('auditor');adminSetMsg('Auditoría de datos actualizada.','ok');}if(ev.target.closest('#btnExportAuditoriaCsv'))exportarAuditoriaDatosCSV();if(ev.target.closest('#btnCrearUsuarioLocal')){const u=usuariosSistema();u.push({idUsuario:'USR-'+Date.now(),nombre:$('adminUserNombre')?.value||'Usuario local',rol:$('adminUserRol')?.value||USER_ROLES.JEFE,estado:'Activo',observaciones:$('adminUserObs')?.value||''});guardarUsuariosSistema(u);renderAdministracionSistema();}const del=ev.target.closest('[data-del-user]');if(del){guardarUsuariosSistema(usuariosSistema().filter(u=>u.idUsuario!==del.dataset.delUser));renderAdministracionSistema();}if(ev.target.closest('#btnCambiarPinAdmin')){const pin=prompt('Nuevo PIN administrador');if(pin){const c=adminConfig();c.adminPin=pin;saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('configuracion','PIN administrador actualizado','PIN local');adminSetMsg('PIN administrador actualizado.','ok');}}if(ev.target.closest('#btnAgregarCatalogo')){const n=$('adminCatalogoNombre')?.value,v=($('adminCatalogoValor')?.value||'').trim();if(n&&v){setCatalogo(n,[...new Set([...getCatalogo(n),v])].sort());renderAdministracionSistema();}}if(ev.target.closest('#btnEliminarCatalogo')){const n=$('adminCatalogoNombre')?.value,v=($('adminCatalogoValor')?.value||'').trim();if(n&&v){setCatalogo(n,getCatalogo(n).filter(x=>x!==v));renderAdministracionSistema();}}if(ev.target.closest('#btnGuardarAdminConfig')){const c=adminConfig();c.nombreSistema=$('adminCfgNombre')?.value||APP_NAME;c.versionVisible=$('adminCfgVersion')?.value||APP_VERSION;c.build=$('adminCfgBuild')?.value||adminNowStamp();c.fechaVersion=$('adminCfgFecha')?.value||APP_RELEASE_DATE;c.modoSistema=$('adminCfgModo')?.value||'Producción';c.fuenteDatos=$('adminCfgFuente')?.value||'Supabase';c.estadoVersion=$('adminCfgEstado')?.value||APP_STATUS;c.observacionesVersion=$('adminCfgObs')?.value||'';saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('configuracion','Configuración del sistema actualizada',c.versionVisible);renderAdministracionSistema();adminSetMsg('Configuración guardada.','ok');}if(ev.target.closest('#btnLimpiarLogs')){if(confirm('¿Limpiar logs del sistema?')){saveJSON(LS_ADMIN_LOGS,[]);renderAdminLogs();adminSetMsg('Logs limpiados.','ok');}}});file?.addEventListener('change',()=>{adminImportJSONFile(file.files?.[0]);file.value='';});renderAdministracionSistema();}/* ===============================
    V30 - Órdenes centro operativo + Expediente Digital OC
    =============================== */
 function valorMesOrdenes(d){ return mesKey(d); }
@@ -6262,14 +6271,20 @@ function v45ItemDesdeObra(row){return normalizarRegistroCargaObra(row);}
 function v45RefreshAfterDataChange(){if(typeof renderMap==='function')renderMap();if(typeof updateKpis==='function')updateKpis();if(typeof cargarFiltrosCalendario==='function')cargarFiltrosCalendario();if(typeof renderCalendarioCOI==='function')renderCalendarioCOI();if(typeof cargarFiltrosV16==='function'){cargarFiltrosV16('venc');cargarFiltrosV16('cert');}if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();if(typeof renderOrdenes==='function')renderOrdenes();if(typeof renderCentroAlertas==='function'&&$('vistaCentroAlertas')?.classList.contains('active'))renderCentroAlertas();if(typeof renderDashboardAlertSummary==='function')renderDashboardAlertSummary();if(typeof renderAcercaSistema==='function'&&$('vistaAcercaSistema')?.classList.contains('active'))renderAcercaSistema();if(typeof renderAdministracionSistema==='function'&&$('vistaAdministracionSistema')?.classList.contains('active'))renderAdministracionSistema();}
 function v45GuardarCarga(){document.querySelectorAll('#panelCargaServicio tbody tr,#panelCargaObra tbody tr').forEach(v45ActualizarFila);const body=v45BodyActivo();if(!body)return;let guardados=0,vacios=0,duplicados=0;[...body.querySelectorAll('tr')].forEach(tr=>{const tipo=tr.dataset.tipoCarga||v45TipoCarga,row=v45LeerFila(tr);if(v45FilaVacia(row,tipo)){vacios++;return;}const item=tipo==='Servicio'?v45ItemDesdeServicio(row):v45ItemDesdeObra(row);const key=v45RegistroKey(item);if(todasLasOC().some(r=>v45RegistroKey(r.item)===key)){duplicados++;return;}const est=v45EstacionDestino(item.estacion);item.estacion=est.nombre;item.idEstacion=est.idEstacion||('EST-'+slugOC(est.nombre));(tipo==='Servicio'?est.servicios:est.obras).push(item);guardados++;});v45MigrarCampos();guardarBaseLocal();v45RefreshAfterDataChange();const msg=`Se guardaron ${guardados} registros. Filas vacías: ${vacios}. Duplicados omitidos: ${duplicados}.`;if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent=msg;$('cargaRapidaMsg').className='quick-load-msg ok';}alert(msg);}
 function v45ActualizarSeleccionOrdenes(){const total=v45SeleccionOrdenes.size;if($('ordenesSeleccionadasCount'))$('ordenesSeleccionadasCount').textContent=`${total} seleccionada${total===1?'':'s'}`;if($('btnBorrarSeleccionadas'))$('btnBorrarSeleccionadas').disabled=!total;const checks=[...document.querySelectorAll('.chk-orden-row')];if($('chkOrdenesSeleccionarTodas'))$('chkOrdenesSeleccionarTodas').checked=checks.length>0&&checks.every(c=>c.checked);}
-function v45BorrarSeleccionadas(){const ids=[...v45SeleccionOrdenes];if(!ids.length)return;if(!confirm(`¿Borrar ${ids.length} OC seleccionada(s)? Esta acción actualiza localStorage.`))return;const set=new Set(ids);estaciones.forEach(est=>{est.obras=(est.obras||[]).filter(i=>!set.has(v45RegistroKey(i)));est.servicios=(est.servicios||[]).filter(i=>!set.has(v45RegistroKey(i)));});v45SeleccionOrdenes.clear();guardarBaseLocal();v45RefreshAfterDataChange();}
 const _loadImportedDataV45Base = typeof loadImportedData==='function' ? loadImportedData : null;
 loadImportedData = function(){const data=safeParseJSON(localStorage.getItem(STORAGE_KEY),null);if(!Array.isArray(data)){if(_loadImportedDataV45Base)_loadImportedDataV45Base();return;}clearInterventions();data.forEach(d=>{let e=estaciones.find(x=>x.nombre===d.nombre);if(!e){e={nombre:d.nombre||'Sin definir',ramal:d.ramal||d.nombre||'Sin definir',x:-999,y:-999,obras:[],servicios:[],ramales:[d.ramal||d.nombre||'Sin definir']};estaciones.push(e);}e.idEstacion=d.idEstacion||e.idEstacion;e.obras=Array.isArray(d.obras)?d.obras:[];e.servicios=Array.isArray(d.servicios)?d.servicios:[];});v45MigrarCampos();};
 const _filasOrdenesBaseV45 = filasOrdenesBase;
 filasOrdenesBase = function(){v45MigrarCampos();return _filasOrdenesBaseV45().map(r=>({...r,idSeleccion:v45RegistroKey(r.item),estadoDocumental:r.item.estadoDocumental||'',umVinculada:r.item.umVinculada||r.item.unidadMantenimiento||r.item.tipoUM||r.item.tipoUm||r.item.especialidad||''}));};
 renderOrdenes = function(){cargarFiltrosOrdenes();const rows=filtrarOrdenes(filasOrdenesBase()).sort((a,b)=>String(a.idObra).localeCompare(String(b.idObra)));if($('ordKTotal'))$('ordKTotal').textContent=rows.length;if($('ordKObras'))$('ordKObras').textContent=rows.filter(r=>r.tipo==='Obra').length;if($('ordKServicios'))$('ordKServicios').textContent=rows.filter(r=>r.tipo==='Servicio').length;if($('ordKProxCert'))$('ordKProxCert').textContent=rows.filter(r=>r.calc.prox&&diffDias(r.calc.prox,COI_TODAY)<=30).length;if($('ordenesTbody')){$('ordenesTbody').innerHTML=rows.map(r=>`<tr class="row-clickable" data-open-oc="${esc(r.idObra)}"><td class="orden-check-cell"><input type="checkbox" class="chk-orden-row" data-orden-key="${esc(r.idSeleccion)}" ${v45SeleccionOrdenes.has(r.idSeleccion)?'checked':''}></td><td><b>${esc(r.idObra)}</b></td><td>${esc(r.numeroOC||'—')}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.sector||'—')}</td><td>${esc(r.umVinculada||'—')}</td><td>${esc(r.tipoTrabajo||'—')}</td><td>${esc(r.estado)}</td><td>${fmtFecha(r.calc.prox)}</td><td>${fmtFecha(r.calc.venc)}</td><td>${botonFichaOC(r.item,'Ver ficha OC')}</td></tr>`).join('')||'<tr><td colspan="13">Sin resultados para los filtros seleccionados.</td></tr>';}v45ActualizarSeleccionOrdenes();};
 const _initOrdenesCentroOperativoV45 = initOrdenesCentroOperativo;
-initOrdenesCentroOperativo = function(){_initOrdenesCentroOperativoV45();$('chkOrdenesSeleccionarTodas')?.addEventListener('change',ev=>{document.querySelectorAll('.chk-orden-row').forEach(chk=>{chk.checked=ev.target.checked;if(chk.checked)v45SeleccionOrdenes.add(chk.dataset.ordenKey);else v45SeleccionOrdenes.delete(chk.dataset.ordenKey);});v45ActualizarSeleccionOrdenes();});$('btnBorrarSeleccionadas')?.addEventListener('click',v45BorrarSeleccionadas);document.addEventListener('change',ev=>{const chk=ev.target.closest('.chk-orden-row');if(!chk)return;if(chk.checked)v45SeleccionOrdenes.add(chk.dataset.ordenKey);else v45SeleccionOrdenes.delete(chk.dataset.ordenKey);v45ActualizarSeleccionOrdenes();});document.addEventListener('click',ev=>{const del=ev.target.closest('#btnBorrarSeleccionadas');if(del){ev.preventDefault();ev.stopPropagation();v45BorrarSeleccionadas();return;}if(ev.target.closest('.chk-orden-row')||ev.target.closest('#chkOrdenesSeleccionarTodas'))ev.stopPropagation();},true);};
+initOrdenesCentroOperativo = function(){
+  _initOrdenesCentroOperativoV45();
+  $('chkOrdenesSeleccionarTodas')?.addEventListener('change',ev=>{
+    document.querySelectorAll('.chk-orden-row').forEach(chk=>{chk.checked=ev.target.checked;if(chk.checked)v45SeleccionOrdenes.add(chk.dataset.ordenKey);else v45SeleccionOrdenes.delete(chk.dataset.ordenKey);});
+    v45ActualizarSeleccionOrdenes();
+  });
+  document.addEventListener('change',ev=>{const chk=ev.target.closest('.chk-orden-row');if(!chk)return;if(chk.checked)v45SeleccionOrdenes.add(chk.dataset.ordenKey);else v45SeleccionOrdenes.delete(chk.dataset.ordenKey);v45ActualizarSeleccionOrdenes();});
+};
 function renderCarga(){v45RenderTabla('Servicio');v45RenderTabla('Obra');v45SetTipoCarga(v45TipoCarga||'Servicio');}
 function renderCargaObra(){v45RenderTabla('Obra');v45SetTipoCarga('Obra');}
 function renderCargaServicio(){v45RenderTabla('Servicio');v45SetTipoCarga('Servicio');}
@@ -9164,76 +9179,6 @@ if(typeof todasLasOC==='function'&&!todasLasOC.__v575Wrapped){
   todasLasOC=function(){return todasLasOCV575Base().map(r=>{const oc=r.item||{};v575AplicarVencimientoContractual(oc);const fin=v574FechaVencimientoOC(oc);return {...r,fin,fechaVencimientoContractual:oc.fechaVencimientoContractual||'',calc:{...(r.calc||{}),venc:fin}};});};
   todasLasOC.__v575Wrapped=true;
 }
-/* coi-delete-supabase: enruta el BORRADO de Ordenes a Supabase (fuente unica).
-   Bug medido: borrarOrdenesSeleccionadasR4 (window-capture, registrado en
-   DOMContentLoaded) gana la carrera y borra SOLO local; el handler Supabase que ya
-   existe (eliminarSeleccionadasSupabase) queda tapado. Este handler se registra en
-   parse-time (antes de init/binds) => corre primero, corta la propagacion y hace el
-   borrado correcto: Supabase via window.eliminarOrdenEnSupabase + limpieza local +
-   recarga. Solo intercepta #btnBorrarSeleccionadas; el resto de los botones sigue igual. */
-(function(){
-  'use strict';
-  if(window.__coiDeleteSupabaseWired) return; window.__coiDeleteSupabaseWired=true;
-  function norm(v){ return String(v==null?'':v).trim().toUpperCase(); }
-  function keyMatch(item, key){
-    try{ if(typeof window.v45RegistroKey==='function' && window.v45RegistroKey(item)===key) return true; }catch(e){}
-    return [item.idObra,item.numeroOC,item.oc,item.OC_NRO,item.ocNro].some(function(v){ return norm(v)===norm(key); });
-  }
-  function ordersSeleccionadas(){
-    var checks=[].slice.call(document.querySelectorAll('#ordenesTbody .chk-orden-row:checked'));
-    var rows=(typeof window.todasLasOC==='function'?(window.todasLasOC()||[]):[]).map(function(r){ return r.item||r; });
-    var out=[], seen=[];
-    checks.forEach(function(chk){
-      var key=chk.dataset.ordenKey;
-      var it=rows.find(function(x){ return keyMatch(x,key); });
-      if(it && seen.indexOf(it)<0){ seen.push(it); out.push(it); }
-    });
-    return out;
-  }
-  function idParaSupabase(it){
-    return it.supabaseId || (it._supabaseRaw&&it._supabaseRaw.id) || it.orden_id || it.idObra || it.numeroOC || it.oc || null;
-  }
-  async function borrarCorrecto(){
-    var sel=ordersSeleccionadas();
-    if(!sel.length){ try{ alert('No hay OCs seleccionadas para borrar.'); }catch(e){} return; }
-    if(!confirm('¿Eliminar '+sel.length+' OC(s)? Se eliminan de Supabase (fuente principal) y de la lista local.')) return;
-    var okSupa=0, errores=[];
-    for(var i=0;i<sel.length;i++){
-      var it=sel[i], sid=idParaSupabase(it);
-      try{
-        if(typeof window.eliminarOrdenEnSupabase==='function'){ await window.eliminarOrdenEnSupabase(sid); okSupa++; }
-        else errores.push((it.oc||it.idObra||sid)+': funcion Supabase no disponible');
-      }catch(e){ errores.push((it.oc||it.idObra||sid)+': '+((e&&e.message)||e)); }
-    }
-    // limpieza de la base local (para orfanas demo/test que no estan en Supabase)
-    try{
-      var ests = (typeof estaciones!=='undefined' && Array.isArray(estaciones)) ? estaciones : (Array.isArray(window.estaciones)?window.estaciones:null);
-      if(ests){
-        ests.forEach(function(est){
-          ['obras','servicios'].forEach(function(c){
-            if(Array.isArray(est[c])) est[c]=est[c].filter(function(x){ return sel.indexOf(x)<0; });
-          });
-        });
-        if(typeof guardarBaseLocal==='function') guardarBaseLocal();
-      }
-    }catch(e){ console.warn('COI delete-supabase: limpieza local fallo', e); }
-    try{ if(typeof window.recargarDatosDesdeSupabase==='function') await window.recargarDatosDesdeSupabase({silencioso:true}); }catch(e){}
-    try{ if(typeof renderOrdenes==='function') renderOrdenes(); }catch(e){}
-    var msg='Borrado: '+okSupa+' de '+sel.length+' en Supabase'+(errores.length?(' · '+errores.length+' con error'):'')+'.';
-    try{ if(typeof toastOrdenes==='function') toastOrdenes(msg, errores.length?'warning':'ok'); else alert(msg); }catch(e){ try{alert(msg);}catch(_){} }
-    if(errores.length) console.warn('COI delete-supabase errores:', errores);
-  }
-  window.coiBorrarOrdenesCorrecto = borrarCorrecto;
-  window.addEventListener('click', function(ev){
-    var btn = ev.target && ev.target.closest && ev.target.closest('#btnBorrarSeleccionadas');
-    if(!btn) return;
-    ev.preventDefault(); ev.stopImmediatePropagation();
-    borrarCorrecto();
-  }, true);
-  try{ console.log('COI hotfix: borrado de Ordenes enrutado a Supabase (coi-delete-supabase).'); }catch(e){}
-})();
-
-
 const v64NormalizarDocumentoV575Base=typeof v64NormalizarDocumento==='function'?v64NormalizarDocumento:null;
 if(v64NormalizarDocumentoV575Base)v64NormalizarDocumento=function(d={},oc=null){
   const out=v64NormalizarDocumentoV575Base(d,oc);
@@ -10324,7 +10269,6 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       if(ev.target.closest('#btnLimpiarCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); renderTablaCargaFix(cargaTipoFix); return;}
       if(ev.target.closest('#btnGuardarCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); guardarCargaFix(); return;}
       if(ev.target.closest('#btnOrdenesLimpiar')){ev.preventDefault(); ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert','ordenMontoOrden'].forEach(id=>{if($fix(id))$fix(id).value='';}); try{window.renderOrdenes?.();}catch(e){console.error('COI limpiar filtros',e);} return;}
-      if(ev.target.closest('#btnBorrarSeleccionadas')){ev.preventDefault(); ev.stopImmediatePropagation(); if(window.COI_ORDENES_DELETE_FIX_R4&&typeof window.COI_ORDENES_DELETE_FIX_R4.borrar==='function') window.COI_ORDENES_DELETE_FIX_R4.borrar(); return;}
       if(ev.target.closest('#btnCoiCsv')){ev.preventDefault(); exportCalendarioFix('csv'); return;}
       if(ev.target.closest('#btnCoiIcs')){ev.preventDefault(); exportCalendarioFix('ics'); return;}
       if(ev.target.closest('#btnExportAlertasCSV')){ev.preventDefault(); const rows=[['Categoria','Severidad','Tipo alerta','OC','ID','Tipo','Estacion','Proveedor','Fecha','Dias','Mensaje','Accion'],...alertasFix().map(a=>[a.categoria,a.severidad,a.tipoAlerta,a.oc,a.idObra,a.tipo,a.estacion,a.proveedor,a.fechaReferencia,a.dias,a.mensaje,a.accionSugerida])]; descargarArchivo('centro_alertas_v58_0r.csv',rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(';')).join('\n'),'text/csv;charset=utf-8'); return;}
@@ -10611,124 +10555,24 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     }catch(e){}
   }
 
-  function refrescarOrdenesPostBorrado(){
-    try{ if(typeof guardarBaseLocal === 'function') guardarBaseLocal(); }catch(e){ console.warn('COI R4: no se pudo guardar base local',e); }
-    try{ if(typeof v45RefreshAfterDataChange === 'function') v45RefreshAfterDataChange(); }catch(e){ console.warn('COI R4: refresh V45 falló',e); }
-    try{ if(typeof renderOrdenes === 'function') renderOrdenes(); }catch(e){ console.warn('COI R4: renderOrdenes falló',e); }
-    try{ if(typeof renderDashboardAlertSummary === 'function') renderDashboardAlertSummary(); }catch(e){}
-    try{ if(typeof updateKpis === 'function') updateKpis(); }catch(e){}
-    try{ if(typeof actualizarFooterFix === 'function') actualizarFooterFix(); }catch(e){}
-    setTimeout(syncSeleccionOrdenesDesdeDOM,0);
-  }
-
-  function borrarOrdenesSeleccionadasR4(){
-    const keys = selectedOrdenKeysDOM();
-    if(!keys.length){
-      toastOrdenes('No hay OCs seleccionadas para borrar.','warning');
-      return;
-    }
-    if(!modoAdminActivo()){
-      alert('Para borrar OCs primero ingresá como Administrador desde el módulo Administración.');
-      return;
-    }
-
-    const pin = prompt(`Borrar ${keys.length} OC seleccionada(s). Ingrese PIN de Administrador:`);
-    if(pin === null) return;
-    if(String(pin) !== pinAdministradorActual()){
-      alert('PIN incorrecto. No se borró ningún registro.');
-      return;
-    }
-
-    const seleccion = new Set(keys);
-    let borradas = 0;
-    try{
-      if(Array.isArray(estaciones)){
-        estaciones.forEach(est=>{
-          const filtrar = arr => (Array.isArray(arr)?arr:[]).filter(item=>{
-            const coincide = Array.from(itemKeySetOrdenes(item,null,est.nombre)).some(k=>seleccion.has(k));
-            if(coincide) borradas++;
-            return !coincide;
-          });
-          est.obras = filtrar(est.obras);
-          est.servicios = filtrar(est.servicios);
-        });
-      }
-    }catch(e){
-      console.error('COI R4: error borrando OCs seleccionadas',e);
-      alert('No se pudo completar el borrado. Revisá la consola del navegador.');
-      return;
-    }
-
-    qsa('#ordenesTbody .chk-orden-row').forEach(chk=>{ chk.checked=false; });
-    try{ if(typeof v45SeleccionOrdenes !== 'undefined' && v45SeleccionOrdenes?.clear) v45SeleccionOrdenes.clear(); }catch(e){}
-    refrescarOrdenesPostBorrado();
-    toastOrdenes(borradas ? `Borrado correcto: ${borradas} registro(s) eliminado(s).` : 'No se encontró ningún registro coincidente para borrar.','ok');
-  }
-
   function bindOrdenesR4(){
     if(document.body.dataset.coiOrdenesDeleteR4 === '1') return;
     document.body.dataset.coiOrdenesDeleteR4 = '1';
-
-    // Window capture corre antes que los listeners documentales antiguos: bloquea apertura accidental de Ficha OC.
-    // Importante: el checkbox maestro se procesa en CHANGE, no en CLICK, porque en CLICK
-    // el navegador todavía puede no haber aplicado el estado checked definitivo.
-    window.addEventListener('click',ev=>{
-      const chk = ev.target?.closest?.('#ordenesTbody .chk-orden-row');
-      if(chk){
-        ev.stopImmediatePropagation();
-        return;
-      }
-
-      const master = ev.target?.closest?.('#chkOrdenesSeleccionarTodas');
-      if(master){
-        ev.stopImmediatePropagation();
-        return;
-      }
-
-      const borrar = ev.target?.closest?.('#btnBorrarSeleccionadas');
-      if(borrar){
-        ev.preventDefault();
-        ev.stopImmediatePropagation();
-        borrarOrdenesSeleccionadasR4();
-        return;
-      }
-    },true);
-
-    window.addEventListener('change',ev=>{
-      const master = ev.target?.closest?.('#chkOrdenesSeleccionarTodas');
-      if(master){
-        ev.stopImmediatePropagation();
-        const marcado = !!master.checked;
-        qsa('#ordenesTbody .chk-orden-row').forEach(c=>{ c.checked = marcado; });
-        syncSeleccionOrdenesDesdeDOM();
-        return;
-      }
-
-      const chk = ev.target?.closest?.('#ordenesTbody .chk-orden-row');
-      if(chk){
-        ev.stopImmediatePropagation();
-        syncSeleccionOrdenesDesdeDOM();
-        return;
-      }
-    },true);
-
-    const tbody = qs('#ordenesTbody');
-    if(tbody && typeof MutationObserver !== 'undefined'){
-      new MutationObserver(()=>setTimeout(syncSeleccionOrdenesDesdeDOM,0)).observe(tbody,{childList:true,subtree:true});
-    }
-
-    // Etiqueta de versión visible en header/footer para confirmar que el fix cargó.
-    ['appVersionHeader','headerVersionOperativa'].forEach(id=>{ const el=qs('#'+id); if(el) el.textContent = VERSION_ORDENES_DELETE_FIX; });
+    document.addEventListener('change',ev=>{
+      const master=ev.target?.closest?.('#chkOrdenesSeleccionarTodas');
+      if(master){const marcado=!!master.checked;qsa('#ordenesTbody .chk-orden-row').forEach(c=>{c.checked=marcado;});syncSeleccionOrdenesDesdeDOM();return;}
+      if(ev.target?.closest?.('#ordenesTbody .chk-orden-row'))syncSeleccionOrdenesDesdeDOM();
+    });
+    const tbody=qs('#ordenesTbody');
+    if(tbody&&typeof MutationObserver!=='undefined')new MutationObserver(()=>setTimeout(syncSeleccionOrdenesDesdeDOM,0)).observe(tbody,{childList:true,subtree:true});
     setTimeout(syncSeleccionOrdenesDesdeDOM,0);
-    console.log('COI '+VERSION_ORDENES_DELETE_FIX+' selección/borrado de Órdenes activo');
+    console.log('COI '+VERSION_ORDENES_DELETE_FIX+' selección de Órdenes activa; borrado delegado al controlador V60.');
   }
-
-  // Deja una función pública para prueba manual desde consola si hiciera falta.
-  window.COI_ORDENES_DELETE_FIX_R4 = {
+  // Compatibilidad limitada a la selección; R4 ya no posee ninguna operación de borrado.
+  window.COI_ORDENES_DELETE_FIX_R4 = Object.freeze({
     sync: syncSeleccionOrdenesDesdeDOM,
-    borrar: borrarOrdenesSeleccionadasR4,
     version: VERSION_ORDENES_DELETE_FIX
-  };
+  });
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded',bindOrdenesR4,{once:true});
   else setTimeout(bindOrdenesR4,0);
@@ -11075,102 +10919,14 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     }
   }catch(e){ console.warn('COI R8 no pudo envolver guardado financiero',e); }
 
-  function delToolbarR8(safeId){
-    return `<div class="finance-delete-bar" data-fin-delete-toolbar="${escR8(safeId)}" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0;padding:12px;border:1px solid #d7e7f5;border-radius:14px;background:#f7fbff;">
-      <b id="finDelCount_${escR8(safeId)}">0 posiciones seleccionadas</b>
-      <button type="button" data-fin-select-visible="${escR8(safeId)}">Seleccionar visibles</button>
-      <button type="button" data-fin-clear-visible="${escR8(safeId)}">Limpiar selección</button>
-      <button type="button" class="btn-danger-soft" data-fin-delete-selected="${escR8(safeId)}">Borrar Posiciones</button>
-      <span class="muted">El borrado requiere Modo Administrador y PIN.</span>
-    </div>`;
-  }
-  function chkDelR8(p,extraClass=''){
-    const id = p?.idPosicionFinanciera || p?.idPosicionOrigen || '';
-    return `<input type="checkbox" class="finance-check chk-fin-delete-position ${extraClass}" data-fin-delete-id="${escR8(id)}" data-pos-id="${escR8(id)}">`;
-  }
-
-  // Reescritura visual de tablas financieras para habilitar selección y borrado.
-  if(typeof finV56TablaOC === 'function'){
-    finV56TablaOC = function(r,safeId){
-      const rows=(r.posOC||[]).map(p=>{const sem=finV56SemOC(p,r.cert||[]),s=finV56SaldoPosicion(p,r.cert||[]);return `<tr data-fin-row-id="${escR8(p.idPosicionFinanciera)}"><td>${chkDelR8(p,'chk-fin-pos-oc')}</td><td>${finV56Badge(sem)}</td><td>${escR8(p.ocNro)}</td><td>${escR8(p.remito)}</td><td>${escR8(p.posicion)}</td><td>${escR8(p.descripcion)}</td><td>${escR8(p.cantidad)}</td><td>${finV56Money(p.precioUnitario)}</td><td>${finV56Money(p.precioTotal)}</td><td>${escR8(p.periodo)}</td><td>${finV56Money(s.saldoMonto)}</td><td>${escR8(p.observaciones||'')}</td></tr>`;}).join('');
-      return `${delToolbarR8(safeId)}<div class="finance-consume-bar"><span class="finance-consume-count" id="finSelCount_${escR8(safeId)}">0 seleccionadas</span><label>Cantidad a consumir<input id="finCantidadConsumir_${escR8(safeId)}" type="text" placeholder="Opcional"></label><label>Monto a consumir<input id="finMontoConsumir_${escR8(safeId)}" type="text" placeholder="Opcional"></label><button type="button" class="primary" data-fin-consumir="${escR8(safeId)}" data-oc-nro="${escR8(r.ocNro)}">Consumir seleccionadas</button></div><div class="finance-table-wrap"><table class="finance-table v56"><thead><tr><th>Sel.</th><th>Semáforo</th><th>OC</th><th>REMITO</th><th>POS</th><th>DESCRIPCIÓN</th><th>CANTIDAD</th><th>PRECIO UNITARIO</th><th>PRECIO TOTAL</th><th>PERIODO</th><th>SALDO</th><th>OBSERVACIONES</th></tr></thead><tbody>${rows||'<tr><td colspan="12">Sin posiciones OC cargadas.</td></tr>'}</tbody></table></div>`;
-    };
-  }
-  if(typeof finV56TablaCert === 'function'){
-    finV56TablaCert = function(r,safeId=''){
-      safeId = safeId || slugOC((r&&r.ocNro)||'OC');
-      const rows=(r.cert||[]).map(p=>{const editing=finV56EditandoCertificacion===p.idPosicionFinanciera,sem=finV56SemCert(p);const c=(field,val)=>editing?finV56Input(field,val):escR8(val||'');return `<tr data-cert-id="${escR8(p.idPosicionFinanciera)}" data-fin-row-id="${escR8(p.idPosicionFinanciera)}"><td>${chkDelR8(p,'')}</td><td>${finV56Badge(sem)}</td><td>${escR8(p.ocNro)}</td><td>${editing?finV56Input('remito',p.remito):escR8(p.remito)}</td><td>${escR8(p.posicion)}</td><td>${editing?finV56Textarea('descripcion',p.descripcion):escR8(p.descripcion)}</td><td>${c('cantidad',p.cantidad)}</td><td>${editing?finV56Input('precioUnitario',p.precioUnitario):finV56Money(p.precioUnitario)}</td><td>${editing?finV56Input('precioTotal',p.precioTotal):finV56Money(p.precioTotal)}</td><td>${c('mes',p.mes)}</td><td>${c('periodo',p.periodo)}</td><td>${c('actaNro',p.actaNro)}</td><td>${c('fechaActa',p.fechaActa)}</td><td>${editing?finV56Textarea('observaciones',p.observaciones):escR8(p.observaciones||'')}</td><td class="finance-row-actions">${editing?`<button type="button" class="primary" data-fin-cert-save="${escR8(p.idPosicionFinanciera)}">Guardar</button><button type="button" data-fin-cert-cancel="${escR8(p.idPosicionFinanciera)}">Cancelar</button>`:`<button type="button" data-fin-cert-edit="${escR8(p.idPosicionFinanciera)}">Editar</button><button type="button" class="btn-danger-soft" data-fin-cert-delete="${escR8(p.idPosicionFinanciera)}">Eliminar certificación</button>`}</td></tr>`;}).join('');
-      return `${delToolbarR8(safeId)}<div class="finance-table-wrap"><table class="finance-table v56"><thead><tr><th>Sel.</th><th>Semáforo</th><th>OC</th><th>REMITO</th><th>POS</th><th>DESCRIPCIÓN</th><th>CANTIDAD</th><th>PRECIO UNITARIO</th><th>PRECIO TOTAL</th><th>MES</th><th>PERIODO</th><th>ACTA Nº</th><th>FECHA ACTA</th><th>OBSERVACIONES</th><th>ACCIONES</th></tr></thead><tbody>${rows||'<tr><td colspan="15">Sin posiciones certificadas.</td></tr>'}</tbody></table></div>`;
-    };
-  }
-  if(typeof finV56TablaLibre === 'function'){
-    finV56TablaLibre = function(r,safeId=''){
-      safeId = safeId || slugOC((r&&r.ocNro)||'OC');
-      const rows=(r.libres||[]).map(p=>`<tr data-fin-row-id="${escR8(p.idPosicionFinanciera||p.idPosicionOrigen)}"><td>${chkDelR8(p,'')}</td><td>${finV56Badge(finV56SemLibre(p))}</td><td>${escR8(p.ocNro)}</td><td>${escR8(p.remito)}</td><td>${escR8(p.posicion)}</td><td>${escR8(p.descripcion)}</td><td>${escR8(p.cantidadOriginal)}</td><td>${escR8(p.cantidadConsumida)}</td><td>${escR8(p.saldoCantidad)}</td><td>${finV56Money(p.montoOriginal)}</td><td>${finV56Money(p.montoConsumido)}</td><td>${finV56Money(p.saldoMonto)}</td><td>${escR8(p.periodo)}</td></tr>`).join('');
-      return `${delToolbarR8(safeId)}<div class="finance-table-wrap"><table class="finance-table v56"><thead><tr><th>Sel.</th><th>Semáforo</th><th>OC</th><th>REMITO</th><th>POS</th><th>DESCRIPCIÓN</th><th>CANT. ORIGINAL</th><th>CANT. CONSUMIDA</th><th>SALDO CANT.</th><th>MONTO ORIGINAL</th><th>MONTO CONSUMIDO</th><th>SALDO MONTO</th><th>PERIODO</th></tr></thead><tbody>${rows||'<tr><td colspan="13">Sin saldo libre pendiente.</td></tr>'}</tbody></table></div>`;
-    };
-  }
-  if(typeof renderEstadoFinancieroOC === 'function'){
-    renderEstadoFinancieroOC = function(oc){
-      if(!oc) return '';
-      const ocNro=finV54OCNro(oc),r=calcularResumenFinancieroOC(ocNro),safeId=slugOC(ocNro||obtenerIdOCV52(oc)||'OC'),montoOc=finV56MontoOC(oc),diff=montoOc-r.totalPosiciones;
-      r.ocNro=ocNro;
-      const pct = Number.isFinite(Number(r.porcentajeConsumido)) ? Number(r.porcentajeConsumido).toFixed(1) : '0.0';
-      const kpis=[['Monto total OC',finV56Money(montoOc)],['Monto total posiciones OC',finV56Money(r.totalPosiciones)],['Monto certificado acumulado',finV56Money(r.totalCertificado)],['Saldo libre',finV56Money(r.saldo)],['Cantidad posiciones OC',r.cantidadPosicionesOC],['Cantidad posiciones certificadas',r.cantidadCertificadas],['Cantidad posiciones libres',r.cantidadLibres],['Porcentaje consumido',`${pct}%`],['Diferencia OC vs posiciones',finV56Money(diff)]].map(x=>`<div class="finance-kpi"><b>${escR8(x[1])}</b><span>${escR8(x[0])}</span></div>`).join('');
-      return `<section class="expediente-card full" data-fin-oc="${escR8(safeId)}" data-fin-oc-nro="${escR8(ocNro)}"><div class="finance-advanced-head"><div><h3>4. Estado Financiero</h3><p class="muted">Consumo financiero por posiciones. Puede seleccionar posiciones y borrar registros financieros erróneos en modo Administrador.</p></div></div><div class="finance-summary">${kpis}</div><div class="finance-tabs" role="tablist"><button type="button" class="active" data-fin-tab="pos-${escR8(safeId)}">Posiciones OC</button><button type="button" data-fin-tab="cert-${escR8(safeId)}">Posiciones Certificadas</button><button type="button" data-fin-tab="lib-${escR8(safeId)}">Posiciones Libres</button></div><div id="pos-${escR8(safeId)}" class="finance-tab-panel active">${finV56TablaOC(r,safeId)}</div><div id="cert-${escR8(safeId)}" class="finance-tab-panel">${finV56TablaCert(r,safeId)}</div><div id="lib-${escR8(safeId)}" class="finance-tab-panel">${finV56TablaLibre(r,safeId)}</div></section>`;
-    };
-  }
-
-  function updateDeleteCountR8(section){
-    if(!section) return;
-    const n = section.querySelectorAll('.chk-fin-delete-position:checked').length;
-    section.querySelectorAll('[id^="finDelCount_"]').forEach(el=>el.textContent=`${n} posiciones seleccionadas`);
-    try{ if(typeof finV56ActualizarSeleccion === 'function') finV56ActualizarSeleccion(section); }catch(e){}
-  }
-  function idsSeleccionadosR8(section){ return [...new Set([...section.querySelectorAll('.chk-fin-delete-position:checked')].map(x=>x.dataset.finDeleteId).filter(Boolean))]; }
-  function fichaKeyR8(ocNro){ try{ const item=finBuscarOC(ocNro)?.item; return (item&&typeof fichaV54Key==='function')?fichaV54Key(item):ocNro; }catch(e){ return ocNro; } }
-  function borrarPosicionesSeleccionadasR8(section){
-    if(!section) return;
-    const ocNro = section.dataset.finOcNro || '';
-    const ids = idsSeleccionadosR8(section);
-    if(!ids.length){ alert('Seleccione una o más posiciones para borrar.'); return; }
-    if(!isAdminR8()){ alert('Para borrar posiciones debe ingresar en Modo Administrador.'); return; }
-    const pin = prompt(`Borrar ${ids.length} posición(es) financiera(s). Ingrese PIN de Administrador:`);
-    if(pin === null) return;
-    if(String(pin) !== adminPinR8()){ alert('PIN incorrecto. No se borró ninguna posición.'); return; }
-    const idsSet = new Set(ids);
-    const vinculadas = (Array.isArray(posicionesFinancieras)?posicionesFinancieras:[]).filter(p=>idsSet.has(p.idPosicionOrigen)).map(p=>p.idPosicionFinanciera).filter(Boolean);
-    vinculadas.forEach(id=>idsSet.add(id));
-    if(!confirm(`Confirmación final: se borrarán ${idsSet.size} registro(s) financiero(s) de la OC ${ocNro || 'seleccionada'}. ¿Continuar?`)) return;
-    const antes = (posicionesFinancieras||[]).length;
-    posicionesFinancieras = (posicionesFinancieras||[]).filter(p=>!idsSet.has(p.idPosicionFinanciera));
-    const borradas = antes - posicionesFinancieras.length;
-    refrescarDatosR8();
-    logR8('ELIMINACION_POSICIONES_FINANCIERAS','Posiciones financieras borradas',JSON.stringify({ocNro,ids:[...idsSet],borradas}));
-    toastR8('Posiciones borradas',`Se eliminaron ${borradas} registro(s) financiero(s).`,'ok');
-    if(typeof renderFichaOC === 'function') renderFichaOC(fichaKeyR8(ocNro));
-  }
-
-  document.addEventListener('change',function(ev){
-    const chk = ev.target?.closest?.('.chk-fin-delete-position');
-    if(!chk) return;
-    updateDeleteCountR8(chk.closest('[data-fin-oc]'));
-  },true);
-  document.addEventListener('click',function(ev){
-    const del = ev.target?.closest?.('[data-fin-delete-selected]');
-    if(del){ ev.preventDefault(); ev.stopImmediatePropagation(); borrarPosicionesSeleccionadasR8(del.closest('[data-fin-oc]')); return; }
-    const sel = ev.target?.closest?.('[data-fin-select-visible]');
-    if(sel){ ev.preventDefault(); ev.stopImmediatePropagation(); const section=sel.closest('[data-fin-oc]'); const panel=section?.querySelector('.finance-tab-panel.active'); panel?.querySelectorAll('.chk-fin-delete-position').forEach(c=>c.checked=true); updateDeleteCountR8(section); return; }
-    const clear = ev.target?.closest?.('[data-fin-clear-visible]');
-    if(clear){ ev.preventDefault(); ev.stopImmediatePropagation(); const section=clear.closest('[data-fin-oc]'); const panel=section?.querySelector('.finance-tab-panel.active'); panel?.querySelectorAll('.chk-fin-delete-position').forEach(c=>c.checked=false); updateDeleteCountR8(section); return; }
-  },true);
+  // El borrado local R8 fue retirado. La selección y el DELETE pertenecen al controlador V60 Supabase-first.
 
   // Reaplicar versión y pequeño estilo visual.
   const style=document.createElement('style');
   style.textContent=`.finance-delete-bar button{border:1px solid #c9dff0;border-radius:10px;background:#fff;padding:8px 12px;font-weight:800;cursor:pointer}.finance-delete-bar .btn-danger-soft{background:#fff0f0;border-color:#fecaca;color:#991b1b}.finance-delete-bar b{color:#064b7a}.chk-fin-delete-position{width:16px;height:16px}`;
   document.head.appendChild(style);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',versionarR8,{once:true}); else setTimeout(versionarR8,0);
-  console.log('COI '+VERSION_FIN_R8+' borrado selectivo de posiciones financieras activo');
+  console.log('COI '+VERSION_FIN_R8+' compatibilidad de carga activa; borrado local R8 retirado.');
 })();
 
 
@@ -11729,30 +11485,9 @@ console.log('COI iniciado correctamente');
     return set;
   }
   function eliminarOCR13(key){
-    if(!key)return;
-    if(!esAdminR13()){alert('Para eliminar registros primero ingresá como Administrador.');return;}
-    const pin=prompt('Ingrese PIN de Administrador para eliminar el registro seleccionado:');
-    if(pin===null)return;
-    if(String(pin)!==pinAdminR13()){alert('PIN incorrecto. No se eliminó ningún registro.');return;}
-    if(!confirm('Confirmación final: se eliminará el registro seleccionado de la base local. ¿Continuar?'))return;
-    const nk=norm(key); let borrados=0;
-    try{
-      if(Array.isArray(estaciones)){
-        estaciones.forEach(est=>{
-          ['obras','servicios'].forEach(arrName=>{
-            const arr=Array.isArray(est[arrName])?est[arrName]:[];
-            est[arrName]=arr.filter(item=>{const hit=keysItemR13(item,{oc:item?.oc||item?.numeroOC}).has(nk); if(hit)borrados++; return !hit;});
-          });
-        });
-      }
-      if(Array.isArray(window.obras)) window.obras=window.obras.filter(item=>!keysItemR13(item,{}).has(nk));
-      if(Array.isArray(window.servicios)) window.servicios=window.servicios.filter(item=>!keysItemR13(item,{}).has(nk));
-      try{ if(typeof guardarBaseLocal==='function')guardarBaseLocal(); }catch(e){}
-      try{ if(typeof registrarLogSistema==='function')registrarLogSistema('diagnostico','Registro eliminado desde diagnóstico',String(key)); }catch(e){}
-      try{ if(typeof renderOrdenes==='function')renderOrdenes(); }catch(e){}
-      try{ if(typeof ejecutarDiagnosticoSistema==='function'&&typeof renderAdminDiagnostico==='function')renderAdminDiagnostico(ejecutarDiagnosticoSistema()); }catch(e){}
-      toastR13(borrados?`Registro eliminado correctamente (${borrados}).`:'No se encontró coincidencia exacta para eliminar.','ok');
-    }catch(e){console.error(e);alert('No se pudo eliminar el registro. Revisá consola.');}
+    if(!key)return Promise.resolve(false);
+    if(typeof window.eliminarOrdenesPersistentesV60!=='function')return Promise.reject(new Error('El borrado persistente V60 todavía no está disponible.'));
+    return window.eliminarOrdenesPersistentesV60([key]);
   }
   function postProcesarDiagnosticoR13(){
     const panel=$('adminTabDiagnostico'); if(!panel)return;
@@ -11890,7 +11625,6 @@ console.log('COI iniciado correctamente');
     document.head.appendChild(style);
   }
   document.addEventListener('click',ev=>{
-    const del=ev.target?.closest?.('[data-r13-delete-oc]'); if(del){ev.preventDefault();ev.stopImmediatePropagation();eliminarOCR13(del.dataset.r13DeleteOc);return;}
     const editObs=ev.target?.closest?.('[data-r13-edit-obs]'); if(editObs){ev.preventDefault();ev.stopImmediatePropagation();editarObservacionR13(editObs.dataset.r13EditObs);return;}
     const alObs=ev.target?.closest?.('[data-r13-alert-to-obs]'); if(alObs){ev.preventDefault();ev.stopImmediatePropagation();agregarObservacionDesdeAlertaR13(alObs.dataset.r13AlertToObs,alObs.dataset.r13AlertText);return;}
     const saveST=ev.target?.closest?.('[data-r13-save-st]'); if(saveST){ev.preventDefault();ev.stopImmediatePropagation();guardarSTR13(saveST.dataset.r13SaveSt);return;}
@@ -14216,82 +13950,16 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
     }catch(e){ console.warn('No se pudo limpiar global '+nombre,e); }
     return n;
   }
-  function borrarRegistroOperativo(target){
-    let borradas=0;
-    const t=String(target||'').trim();
-    if(!t) return 0;
-
-    // 1) Base principal histórica: estaciones[].obras / estaciones[].servicios.
-    try{
-      if(Array.isArray(window.estaciones)){
-        window.estaciones.forEach(est=>{
-          ['obras','servicios'].forEach(tipo=>{
-            const arr=Array.isArray(est[tipo])?est[tipo]:[];
-            const antes=arr.length;
-            est[tipo]=arr.filter(item=>!sameRecord(item,null,est.nombre,t));
-            borradas+=antes-est[tipo].length;
-          });
-        });
-      }else if(typeof estaciones!=='undefined' && Array.isArray(estaciones)){
-        estaciones.forEach(est=>{
-          ['obras','servicios'].forEach(tipo=>{
-            const arr=Array.isArray(est[tipo])?est[tipo]:[];
-            const antes=arr.length;
-            est[tipo]=arr.filter(item=>!sameRecord(item,null,est.nombre,t));
-            borradas+=antes-est[tipo].length;
-          });
-        });
-      }
-    }catch(e){ console.error('Error eliminando en estaciones',e); }
-
-    // 2) Bases planas de versiones intermedias.
-    ['obrasServicios','ordenesCompra','obras','servicios'].forEach(n=>{borradas+=borrarEnArrayGlobal(n,t);});
-
-    // 3) LocalStorage plano si alguna versión lo usa como fuente directa.
-    ['obrasServicios','ordenesCompra','coi_obras_servicios','coi_ordenes_compra','coiOrdenes','coi_ordenes'].forEach(key=>{
-      try{
-        const raw=localStorage.getItem(key); if(!raw) return;
-        const val=JSON.parse(raw);
-        if(Array.isArray(val)){
-          const antes=val.length; const nuevo=val.filter(it=>!sameRecord(it,it,'',t));
-          if(nuevo.length!==antes){localStorage.setItem(key,JSON.stringify(nuevo)); borradas+=antes-nuevo.length;}
-        }else if(val && Array.isArray(val.obrasServicios)){
-          const antes=val.obrasServicios.length; val.obrasServicios=val.obrasServicios.filter(it=>!sameRecord(it,it,'',t));
-          if(val.obrasServicios.length!==antes){localStorage.setItem(key,JSON.stringify(val)); borradas+=antes-val.obrasServicios.length;}
-        }
-      }catch(e){}
-    });
-
-    return borradas;
-  }
   function handleDeleteFromDiag(btn){
     const key=btn?.dataset?.v581DeleteOc || btn?.dataset?.diagDeleteOc || btn?.dataset?.deleteOc || '';
-    const row=findRow(key);
-    const oc=(row?.item?.numeroOC||row?.item?.ocNro||row?.item?.OC_NRO||row?.item?.oc||row?.oc||'');
-    const label=key || oc;
-    if(!label){toast('No se encontró identificador para eliminar','error');return;}
-    if(!isAdmin()){toast('Para eliminar, primero ingresá como Administrador.','error');return;}
-    if(!confirm(`¿Eliminar el registro seleccionado del diagnóstico?\n\nID/OC: ${label}\n\nSe borrará el registro operativo, no las posiciones financieras compartidas por OC.`)) return;
-    const pin=prompt('Ingrese PIN de Administrador para confirmar eliminación:');
-    if(pin===null) return;
-    if(String(pin)!==pinActual()){toast('PIN incorrecto. No se eliminó el registro.','error');return;}
-    const n=borrarRegistroOperativo(label);
-    if(!n){toast('No se encontró registro coincidente para eliminar.','warn',label);return;}
-    try{ if(typeof registrarLogSistema==='function') registrarLogSistema('diagnostico','Registro eliminado desde diagnóstico V58.1R6',label); }catch(e){}
-    refreshPostDelete();
-    toast('Registro eliminado desde diagnóstico','ok',`${n} registro(s) borrado(s)`);
+    if(!key)return Promise.resolve(false);
+    if(typeof window.eliminarOrdenesPersistentesV60!=='function')return Promise.reject(new Error('El borrado persistente V60 todavía no está disponible.'));
+    return window.eliminarOrdenesPersistentesV60([key]);
   }
   function bind(){
-    if(document.body.dataset.coiDiagDeleteR6==='1') return;
-    document.body.dataset.coiDiagDeleteR6='1';
-    window.addEventListener('click',ev=>{
-      const btn=ev.target?.closest?.('[data-v581-delete-oc],[data-diag-delete-oc],[data-delete-oc]');
-      if(!btn) return;
-      ev.preventDefault(); ev.stopImmediatePropagation();
-      handleDeleteFromDiag(btn);
-    },true);
-  }
-  function style(){
+    // Los controles diagnósticos son atendidos por el único gateway V60.
+    document.body.dataset.coiDiagDeleteR6='delegated-v60';
+  }  function style(){
     if($('styleV581R6')) return;
     const s=document.createElement('style'); s.id='styleV581R6';
     s.textContent=`.coi-toast-v581-r6{position:fixed;right:22px;bottom:88px;z-index:999999;background:#1768a9;color:#fff;border-radius:14px;padding:12px 16px;box-shadow:0 14px 34px rgba(0,0,0,.25);font-weight:800;opacity:0;transform:translateY(10px);transition:.2s}.coi-toast-v581-r6.show{opacity:1;transform:translateY(0)}.coi-toast-v581-r6 small{display:block;font-weight:600;opacity:.95;margin-top:3px}.coi-toast-v581-r6.ok{background:#138a4b}.coi-toast-v581-r6.warn{background:#b26a00}.coi-toast-v581-r6.error{background:#b42318}`;
@@ -14303,7 +13971,7 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
   }
   function init(){style();bind();setVersion();setTimeout(setVersion,700);console.log('COI '+VERSION+' fix eliminación diagnóstico activo');}
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init,{once:true}); else init();
-  window.COI_DIAG_DELETE_FIX_R6={version:VERSION,borrarRegistroOperativo,refreshPostDelete};
+  window.COI_DIAG_DELETE_FIX_R6=Object.freeze({version:VERSION});
 })();
 </script>
 
@@ -14374,7 +14042,7 @@ const APP_DATA_MODE = "supabase_first";
     'coi_supabase_meta_v1'
   ];
 
-  let supabaseClient = null;
+  let supabaseClient = window.__COI_SUPABASE_CLIENT__ || null;
   let supabaseUsuario = null;
   let supabaseModo = 'local';
   let supabaseUltimoError = '';
@@ -14485,9 +14153,12 @@ const APP_DATA_MODE = "supabase_first";
   }
 
   function normalizeNroOC(value) {
-    return String(value ?? '')
-      .trim()
-      .replace(/\s+/g, '');
+    let text = String(value ?? '').trim().toUpperCase();
+    if (!text) return '';
+    text = text
+      .replace(/^O(?:RDEN)?\s*(?:DE\s*)?C(?:OMPRA)?\s*[:#\-]?\s*/i, '')
+      .replace(/^OC\s*[:#\-]?\s*/i, '');
+    return text.replace(/[^A-Z0-9]/g, '');
   }
 
   function generarIdObraEstable(orden) {
@@ -14742,6 +14413,7 @@ const APP_DATA_MODE = "supabase_first";
       'renderDashboardInteractivoExtra',
       'renderCentroAlertas',
       'renderCalendarioCOIUnificado',
+      'renderBuscador',
       'actualizarHeaderOperativo',
       'renderMap'
     ];
@@ -14806,7 +14478,10 @@ const APP_DATA_MODE = "supabase_first";
   }
 
   function getSupabaseClient() {
-    return supabaseClient;
+    const canonical = window.__COI_SUPABASE_CLIENT__ || supabaseClient || null;
+    if (canonical && canonical !== supabaseClient) supabaseClient = canonical;
+    if (canonical && !window.__COI_SUPABASE_CLIENT__) window.__COI_SUPABASE_CLIENT__ = canonical;
+    return canonical;
   }
 
   async function getUsuarioActual() {
@@ -15586,19 +15261,248 @@ const APP_DATA_MODE = "supabase_first";
     return { data, error: null };
   }
 
-  async function eliminarOrdenEnSupabase(id) {
-    await requireSupabaseWriteAccess();
-    const client = getSupabaseClient();
-    const current = buscarOrdenEnMemoria(id);
-    let query = client.from(SUPABASE_TABLE).delete();
-    if (current?.supabaseId !== undefined && current?.supabaseId !== null && clean(current.supabaseId) !== '') query = query.eq('id', current.supabaseId);
-    else query = query.eq('id_obra', current?.idObra || id);
-    const { data, error } = await query.select();
-    if (error) throw error;
-    await recargarDatosDesdeSupabase({ silencioso: true });
-    return { data, error: null };
-  }
+  /* coi-delete-v60-canonical: único propietario del borrado persistente de OCs. */
+  const DELETE_ADMIN_EMAIL_V60 = 'admin@coiroca.com';
+  const DELETE_FINANCE_CACHE_V60 = 'coi_cache_posiciones_oc_supabase_v1';
+  let deleteOrdersPromiseV60 = null;
 
+  function deleteTextV60(value) { return String(value ?? '').trim(); }
+  function deleteUUIDV60(value) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(deleteTextV60(value)); }
+  function deleteOrderKeysV60(order) {
+    const keys = new Set();
+    const add = (value) => { const text = deleteTextV60(value); if (text) keys.add(norm(text)); };
+    if (order && typeof order === 'object') {
+      [order.supabaseId, order.id, order.idObra, order.id_obra, order.idOC, order.idServicio, order.numeroOC, order.nro_oc, order.oc, order.ocNro].forEach(add);
+      add(normalizeNroOC(order.nro_oc || order.numeroOC || order.oc || order.ocNro));
+    } else {
+      add(order);
+      add(normalizeNroOC(order));
+    }
+    return keys;
+  }
+  function deleteOrdersMatchV60(left, right) {
+    const a = deleteOrderKeysV60(left), b = deleteOrderKeysV60(right);
+    return [...a].some((key) => b.has(key));
+  }
+  function deleteMemoryOrdersV60() {
+    return estacionesDisponibles().flatMap((station) => [...(station.obras || []), ...(station.servicios || [])]);
+  }
+  function deleteResolveLocalV60(reference) {
+    if (reference && typeof reference === 'object') return reference;
+    return deleteMemoryOrdersV60().find((order) => deleteOrdersMatchV60(order, reference)) || null;
+  }
+  function deleteSelectedOrdersV60(explicitReferences = null) {
+    const references = Array.isArray(explicitReferences) && explicitReferences.length
+      ? explicitReferences
+      : [...document.querySelectorAll('#ordenesTbody .chk-orden-row:checked')].map((input) => input.dataset.ordenKey).filter(Boolean);
+    const rows = [];
+    references.forEach((reference) => {
+      let order = deleteResolveLocalV60(reference);
+      if (!order && reference) order = { idObra: reference, numeroOC: normalizeNroOC(reference) };
+      if (order && !rows.some((item) => deleteOrdersMatchV60(item, order))) rows.push(order);
+    });
+    return rows;
+  }
+  async function deleteRequireAdminV60() {
+    if (navigator.onLine === false) throw new Error('Modo solo lectura: no se pueden eliminar OCs sin conexión.');
+    const client = typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null;
+    if (!client) throw new Error('Cliente Supabase no disponible. No se eliminó ninguna OC.');
+    const { data: { session } = {}, error } = await client.auth.getSession();
+    if (error) throw error;
+    if (!session?.user) throw new Error('Debe iniciar sesión en Supabase para eliminar OCs.');
+    const email = deleteTextV60(session.user.email).toLowerCase();
+    if (email !== DELETE_ADMIN_EMAIL_V60) throw new Error(`La eliminación está autorizada únicamente para ${DELETE_ADMIN_EMAIL_V60}.`);
+    return { client, session, email };
+  }
+  async function deleteResolveRemoteV60(client, reference) {
+    const local = deleteResolveLocalV60(reference) || (reference && typeof reference === 'object' ? reference : {});
+    const id = deleteTextV60(local.supabaseId || local.id || (deleteUUIDV60(reference) ? reference : ''));
+    const columns = 'id,nro_oc,id_obra,proveedor,tipo';
+    let rows = [];
+    if (id) {
+      const byId = await client.from(SUPABASE_TABLE).select(columns).eq('id', id).limit(2);
+      if (byId.error) throw byId.error;
+      rows = byId.data || [];
+    }
+    if (!rows.length) {
+      const nro = normalizeNroOC(local.nro_oc || local.numeroOC || local.oc || reference);
+      if (!nro) throw new Error('No se pudo normalizar el número de OC seleccionado.');
+      const byNro = await client.from(SUPABASE_TABLE).select(columns).eq('nro_oc', nro).limit(3);
+      if (byNro.error) throw byNro.error;
+      rows = byNro.data || [];
+    }
+    if (!rows.length) throw new Error(`La OC ${normalizeNroOC(local.nro_oc || local.numeroOC || local.oc || reference) || reference} no existe en public.${SUPABASE_TABLE}.`);
+    if (rows.length !== 1) throw new Error('La selección es ambigua: Supabase devolvió más de una fila para la misma OC.');
+    if (!deleteUUIDV60(rows[0].id)) throw new Error('La OC remota no tiene un UUID válido; el DELETE fue bloqueado.');
+    return { local, row: rows[0] };
+  }
+  function deleteIsStationsFkV60(error) {
+    const detail = `${error?.code || ''} ${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
+    return String(error?.code || '') === '23503' && (detail.includes('coi_ordenes_estaciones') || detail.includes('orden_id'));
+  }
+  async function deleteRestoreStationsV60(client, rows) {
+    if (!Array.isArray(rows) || !rows.length) return true;
+    const restored = await client.from(SUPABASE_STATIONS_TABLE).upsert(rows, { onConflict: 'id' }).select('id');
+    if (restored.error) throw restored.error;
+    return true;
+  }
+  async function deleteRemoteRowV60(client, reference) {
+    const resolved = await deleteResolveRemoteV60(client, reference);
+    const row = resolved.row;
+    console.info('[COI][ORDENES][DELETE]', { etapa: 'inicio', id: row.id, nro_oc: row.nro_oc });
+    let result = await client.from(SUPABASE_TABLE).delete().eq('id', row.id).select('id,nro_oc');
+    let relatedRows = [];
+    if (result.error) {
+      if (!deleteIsStationsFkV60(result.error)) throw result.error;
+      const relationRead = await client.from(SUPABASE_STATIONS_TABLE).select('*').eq('orden_id', row.id);
+      if (relationRead.error) throw relationRead.error;
+      relatedRows = relationRead.data || [];
+      if (relatedRows.length) {
+        const relationDelete = await client.from(SUPABASE_STATIONS_TABLE).delete().eq('orden_id', row.id).select('id');
+        if (relationDelete.error) throw relationDelete.error;
+      }
+      result = await client.from(SUPABASE_TABLE).delete().eq('id', row.id).select('id,nro_oc');
+      if (result.error) {
+        try { await deleteRestoreStationsV60(client, relatedRows); }
+        catch (restoreError) { console.error('[COI][ORDENES][DELETE][ERROR]', { etapa: 'restaurar_relaciones', error: restoreError }); }
+        throw result.error;
+      }
+    }
+    const deleted = Array.isArray(result.data) ? result.data : [];
+    if (deleted.length !== 1 || String(deleted[0]?.id) !== String(row.id)) throw new Error('Supabase no confirmó exactamente una fila eliminada.');
+    const verification = await client.from(SUPABASE_TABLE).select('id,nro_oc').eq('id', row.id);
+    if (verification.error) throw verification.error;
+    if (Array.isArray(verification.data) && verification.data.length) throw new Error(`La OC ${row.nro_oc || row.id} todavía existe después del DELETE.`);
+    console.info('[COI][ORDENES][DELETE]', { etapa: 'verificado', id: row.id, nro_oc: row.nro_oc, relacionesEliminadas: relatedRows.length });
+    return { ...resolved, relatedRows, deleted };
+  }
+  function deleteFilterCacheV60(key, row, kind) {
+    const cached = safeReadJSON(key, null);
+    if (cached === null) return false;
+    const filter = (rows) => (Array.isArray(rows) ? rows : []).filter((item) => {
+      if (kind === 'stations') return String(item?.orden_id || '') !== String(row.id) && normalizeNroOC(item?.nro_oc) !== normalizeNroOC(row.nro_oc);
+      if (kind === 'finance') return String(item?.orden_id || '') !== String(row.id) && normalizeNroOC(item?.nro_oc || item?.ocNro) !== normalizeNroOC(row.nro_oc);
+      return !deleteOrdersMatchV60(item, row);
+    });
+    if (Array.isArray(cached)) return safeWriteJSON(key, filter(cached));
+    if (cached && Array.isArray(cached.orders)) return safeWriteJSON(key, { ...cached, orders: filter(cached.orders), savedAt: nowISO() });
+    if (cached && Array.isArray(cached.rows)) return safeWriteJSON(key, { ...cached, rows: filter(cached.rows), savedAt: nowISO() });
+    return false;
+  }
+  function deletePurgeConfirmedV60(result) {
+    const row = result.row;
+    estacionesDisponibles().forEach((station) => {
+      station.obras = (station.obras || []).filter((item) => !deleteOrdersMatchV60(item, row));
+      station.servicios = (station.servicios || []).filter((item) => !deleteOrdersMatchV60(item, row));
+    });
+    supabaseEstacionesAsociadas = (supabaseEstacionesAsociadas || []).filter((item) => String(item?.orden_id || '') !== String(row.id) && normalizeNroOC(item?.nro_oc) !== normalizeNroOC(row.nro_oc));
+    deleteFilterCacheV60(SUPABASE_CACHE_KEY, row, 'orders');
+    deleteFilterCacheV60(SUPABASE_STATIONS_CACHE_KEY, row, 'stations');
+    deleteFilterCacheV60(DELETE_FINANCE_CACHE_V60, row, 'finance');
+    document.querySelectorAll('#ordenesTbody .chk-orden-row:checked').forEach((input) => { input.checked = false; });
+    try { if (typeof v45SeleccionOrdenes !== 'undefined' && v45SeleccionOrdenes?.clear) v45SeleccionOrdenes.clear(); }
+    catch (selectionError) { console.warn('[COI][ORDENES][DELETE] No se pudo limpiar la selección legacy.', selectionError); }
+    const count = document.getElementById('ordenesSeleccionadasCount');
+    if (count) count.textContent = '0 seleccionadas';
+    return true;
+  }
+  async function deleteRefreshAfterSuccessV60(results) {
+    await recargarDatosDesdeSupabase({ silencioso: true });
+    const active = window.ocActualId || window.fichaOCActualKeyV64 || '';
+    if (results.some((result) => deleteOrdersMatchV60(result.row, active))) {
+      window.ocActualId = '';
+      window.fichaOCActualKeyV64 = '';
+      if (typeof window.mostrarVista === 'function') window.mostrarVista('vistaOrdenes');
+    }
+    if (typeof window.renderOrdenes === 'function') window.renderOrdenes();
+    if (typeof window.updateKpis === 'function') window.updateKpis();
+    if (typeof window.renderMap === 'function') window.renderMap();
+    if (typeof window.renderDashboardAlertSummary === 'function') window.renderDashboardAlertSummary();
+    if (typeof window.renderCentroAlertas === 'function' && document.getElementById('vistaCentroAlertas')?.classList.contains('active')) window.renderCentroAlertas();
+    return true;
+  }
+  function deleteEnsureModalV60() {
+    let modal = document.getElementById('coiDeleteModalV60');
+    if (modal) return modal;
+    const style = document.createElement('style');
+    style.id = 'coiDeleteModalStylesV60';
+    style.textContent = '.coi-delete-v60{position:fixed;inset:0;z-index:120000;display:flex;align-items:center;justify-content:center;background:#0f172acc;padding:20px}.coi-delete-v60[hidden]{display:none!important}.coi-delete-v60-card{width:min(640px,96vw);max-height:90vh;overflow:auto;background:#fff;border-radius:18px;padding:22px;box-shadow:0 30px 90px #0006}.coi-delete-v60-card h2{margin:0 0 8px;color:#8f1d1d}.coi-delete-v60-warning{border:1px solid #fecaca;background:#fff1f2;color:#881337;border-radius:12px;padding:12px;margin:12px 0;font-weight:800}.coi-delete-v60-list{display:grid;gap:7px;margin:12px 0;max-height:190px;overflow:auto}.coi-delete-v60-item{border:1px solid #e5e7eb;border-radius:9px;padding:8px}.coi-delete-v60-card label{display:block;font-weight:900;margin:14px 0 6px}.coi-delete-v60-card input{width:100%}.coi-delete-v60-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.coi-delete-v60-progress{min-height:22px;margin-top:10px;font-weight:800;color:#475467}';
+    document.head.appendChild(style);
+    modal = document.createElement('div');
+    modal.id = 'coiDeleteModalV60';
+    modal.className = 'coi-delete-v60';
+    modal.hidden = true;
+    modal.innerHTML = '<div class="coi-delete-v60-card" role="dialog" aria-modal="true" aria-labelledby="coiDeleteTitleV60"><h2 id="coiDeleteTitleV60">Eliminar OCs definitivamente</h2><p id="coiDeleteCountV60"></p><div class="coi-delete-v60-warning">La operación elimina las filas seleccionadas de Supabase. No se borrarán archivos físicos de Storage ni certificaciones históricas con ON DELETE SET NULL.</div><div id="coiDeleteListV60" class="coi-delete-v60-list"></div><label for="coiDeleteInputV60">Escribí ELIMINAR para continuar</label><input id="coiDeleteInputV60" autocomplete="off" spellcheck="false"><div id="coiDeleteProgressV60" class="coi-delete-v60-progress" aria-live="polite"></div><div class="coi-delete-v60-actions"><button type="button" id="coiDeleteCancelV60">Cancelar</button><button type="button" id="coiDeleteConfirmV60" class="btn-danger-soft" disabled>Eliminar definitivamente</button></div></div>';
+    document.body.appendChild(modal);
+    return modal;
+  }
+  function deleteConfirmModalV60(orders, executor) {
+    const modal = deleteEnsureModalV60();
+    const count = modal.querySelector('#coiDeleteCountV60'), list = modal.querySelector('#coiDeleteListV60');
+    const input = modal.querySelector('#coiDeleteInputV60'), confirmButton = modal.querySelector('#coiDeleteConfirmV60');
+    const cancelButton = modal.querySelector('#coiDeleteCancelV60'), progress = modal.querySelector('#coiDeleteProgressV60');
+    count.textContent = `Cantidad seleccionada: ${orders.length}`;
+    list.replaceChildren();
+    orders.forEach((order) => { const item = document.createElement('div'); item.className = 'coi-delete-v60-item'; item.textContent = `OC ${normalizeNroOC(order?.nro_oc || order?.numeroOC || order?.oc) || order?.idObra || order}`; list.appendChild(item); });
+    input.value = ''; input.disabled = false; confirmButton.disabled = true; cancelButton.disabled = false; progress.textContent = ''; modal.hidden = false;
+    setTimeout(() => input.focus(), 0);
+    return new Promise((resolve) => {
+      let processing = false;
+      const close = (result) => { input.removeEventListener('input', onInput); cancelButton.removeEventListener('click', onCancel); confirmButton.removeEventListener('click', onConfirm); document.removeEventListener('keydown', onKey); modal.hidden = true; resolve(result); };
+      const onInput = () => { confirmButton.disabled = processing || input.value.trim().toUpperCase() !== 'ELIMINAR'; };
+      const onCancel = () => { if (!processing) close(false); };
+      const onKey = (event) => { if (event.key === 'Escape' && !processing) close(false); };
+      const onConfirm = async () => {
+        if (processing || input.value.trim().toUpperCase() !== 'ELIMINAR') return;
+        processing = true; input.disabled = true; cancelButton.disabled = true; confirmButton.disabled = true; confirmButton.textContent = 'Eliminando…'; progress.textContent = 'Eliminando y verificando Supabase…';
+        try { const result = await executor(progress); close(result); }
+        catch (error) { console.error('[COI][ORDENES][DELETE][ERROR]', error); progress.textContent = `Error: ${error?.message || error}`; toast(`No se pudo completar la eliminación: ${error?.message || error}`, 'error'); close(false); }
+        finally { processing = false; input.disabled = false; cancelButton.disabled = false; confirmButton.textContent = 'Eliminar definitivamente'; confirmButton.disabled = input.value.trim().toUpperCase() !== 'ELIMINAR'; }
+      };
+      input.addEventListener('input', onInput); cancelButton.addEventListener('click', onCancel); confirmButton.addEventListener('click', onConfirm); document.addEventListener('keydown', onKey);
+    });
+  }
+  async function eliminarOrdenEnSupabase(reference, options = {}) {
+    const access = options.client ? { client: options.client } : await deleteRequireAdminV60();
+    const result = await deleteRemoteRowV60(access.client, reference);
+    deletePurgeConfirmedV60(result);
+    if (options.refresh !== false) await deleteRefreshAfterSuccessV60([result]);
+    return { data: result.deleted, verified: true, row: result.row, error: null };
+  }
+  async function eliminarOrdenesPersistentesV60(explicitReferences = null) {
+    if (deleteOrdersPromiseV60) return deleteOrdersPromiseV60;
+    const toolbarButton = document.getElementById('btnBorrarSeleccionadas');
+    const originalText = toolbarButton?.textContent || 'Borrar seleccionadas';
+    deleteOrdersPromiseV60 = (async () => {
+      const access = await deleteRequireAdminV60();
+      const orders = deleteSelectedOrdersV60(explicitReferences);
+      if (!orders.length) throw new Error('No hay OCs seleccionadas para eliminar.');
+      return deleteConfirmModalV60(orders, async (progress) => {
+        const results = [];
+        try {
+          for (let index = 0; index < orders.length; index += 1) {
+            progress.textContent = `Eliminando OC ${index + 1} de ${orders.length}…`;
+            const result = await deleteRemoteRowV60(access.client, orders[index]);
+            deletePurgeConfirmedV60(result);
+            results.push(result);
+          }
+          await deleteRefreshAfterSuccessV60(results);
+          toast(`${results.length} OC(s) eliminadas y verificadas en Supabase.`, 'ok');
+          return { ok: true, results };
+        } catch (error) {
+          if (results.length) await deleteRefreshAfterSuccessV60(results);
+          throw error;
+        }
+      });
+    })();
+    if (toolbarButton) { toolbarButton.disabled = true; toolbarButton.textContent = 'Eliminando…'; }
+    try { return await deleteOrdersPromiseV60; }
+    catch (error) { console.error('[COI][ORDENES][DELETE][ERROR]', error); toast(error?.message || String(error), 'error'); throw error; }
+    finally {
+      deleteOrdersPromiseV60 = null;
+      if (toolbarButton) { toolbarButton.textContent = originalText; toolbarButton.disabled = document.querySelectorAll('#ordenesTbody .chk-orden-row:checked').length === 0; }
+    }
+  }
   async function recargarDatosDesdeSupabase(options = {}) {
     const result = await cargarOrdenesPrincipal({ abrirOrdenes: options.abrirOrdenes === true });
     if (!options.silencioso && Array.isArray(result)) toast(`Datos recargados desde Supabase: ${result.length} OC(s).`, 'ok');
@@ -16003,28 +15907,8 @@ const APP_DATA_MODE = "supabase_first";
   }
 
   async function eliminarSeleccionadasSupabase() {
-    await requireSupabaseWriteAccess();
-    const checked = [...document.querySelectorAll('.chk-orden-row:checked')];
-    if (!checked.length) {
-      toast('No hay OCs seleccionadas.', 'warning');
-      return false;
-    }
-    const allOrders = estacionesDisponibles().flatMap((station) => [...(station.obras || []), ...(station.servicios || [])]);
-    const selected = [];
-    checked.forEach((checkbox) => {
-      const key = checkbox.dataset.ordenKey;
-      let order = null;
-      if (typeof window.v45RegistroKey === 'function') order = allOrders.find((item) => window.v45RegistroKey(item) === key);
-      if (!order) order = allOrders.find((item) => [item.idObra, item.numeroOC, item.oc].some((value) => norm(value) === norm(key)));
-      if (order && !selected.includes(order)) selected.push(order);
-    });
-    if (!selected.length) throw new Error('No se pudieron resolver las OCs seleccionadas.');
-    if (!confirm(`¿Eliminar ${selected.length} OC(s) de Supabase? Esta acción afecta la fuente principal.`)) return false;
-    for (const order of selected) await eliminarOrdenEnSupabase(order.supabaseId || order.idObra);
-    toast(`${selected.length} OC(s) eliminadas de Supabase.`, 'ok');
-    return true;
+    return eliminarOrdenesPersistentesV60();
   }
-
   function actualizarPanelAdminSupabase(status = null) {
     const mode = $sb('adminSupabaseMode');
     const user = $sb('adminSupabaseUser');
@@ -16203,6 +16087,17 @@ const APP_DATA_MODE = "supabase_first";
       if (input) programarVerificacionOCExistente(input, 0);
     }, true);
 
+    if (!window.__COI_DELETE_HANDLER_V60_BOUND__) {
+      window.__COI_DELETE_HANDLER_V60_BOUND__ = true;
+      document.addEventListener('click', async (event) => {
+        const button = event.target?.closest?.('#btnBorrarSeleccionadas');
+        if (!button) return;
+        event.preventDefault();
+        event.stopPropagation();
+        try { await eliminarOrdenesPersistentesV60(); }
+        catch (error) { /* El flujo canónico ya registra y muestra el error. */ }
+      });
+    }
     window.addEventListener('click', async (event) => {
       const target = event.target;
       try {
@@ -16244,31 +16139,15 @@ const APP_DATA_MODE = "supabase_first";
           return;
         }
 
-        if (target?.closest?.('#btnBorrarSeleccionadas')) {
-          event.preventDefault();
-          event.stopPropagation();
-          event.stopImmediatePropagation();
-          try { await eliminarSeleccionadasSupabase(); }
-          catch (error) { toast(error?.message || String(error), 'error'); }
-          return;
-        }
-
-        const diagDelete = target?.closest?.('[data-v581-delete-oc],[data-diag-delete-oc],[data-delete-oc]');
+        const diagDelete = target?.closest?.('[data-v581-delete-oc],[data-diag-delete-oc],[data-delete-oc],[data-r13-delete-oc]');
         if (diagDelete) {
           event.preventDefault();
           event.stopPropagation();
-          event.stopImmediatePropagation();
-          const id = diagDelete.dataset.v581DeleteOc || diagDelete.dataset.diagDeleteOc || diagDelete.dataset.deleteOc;
-          try {
-            await requireSupabaseWriteAccess();
-            if (confirm(`¿Eliminar la OC ${id} de Supabase?`)) {
-              await eliminarOrdenEnSupabase(id);
-              toast('OC eliminada de Supabase.', 'ok');
-            }
-          } catch (error) { toast(error?.message || String(error), 'error'); }
+          const id = diagDelete.dataset.v581DeleteOc || diagDelete.dataset.diagDeleteOc || diagDelete.dataset.deleteOc || diagDelete.dataset.r13DeleteOc;
+          try { await eliminarOrdenesPersistentesV60([id]); }
+          catch (error) { /* El flujo canónico ya registra y muestra el error. */ }
           return;
         }
-
         if (target?.closest?.('#btnLimpiarCacheSupabase')) {
           event.preventDefault();
           await limpiarCacheLocal();
@@ -16291,50 +16170,75 @@ const APP_DATA_MODE = "supabase_first";
   }
 
   async function initSupabase() {
-    createSupabaseUI();
-    if (window.__coiSupabaseReady && (!window.supabase || typeof window.supabase.createClient !== 'function')) {
-      try {
-        await Promise.race([
-          window.__coiSupabaseReady,
-          new Promise((resolve) => setTimeout(() => resolve(false), 10500))
-        ]);
-      } catch (error) {
-        console.warn('COI Supabase: el cargador externo no pudo completarse.', error);
+    if (window.__COI_SUPABASE_INIT_PROMISE__) return window.__COI_SUPABASE_INIT_PROMISE__;
+    const initialize = (async () => {
+      createSupabaseUI();
+      if (window.__coiSupabaseReady && (!window.supabase || typeof window.supabase.createClient !== 'function')) {
+        try {
+          await Promise.race([
+            window.__coiSupabaseReady,
+            new Promise((resolve) => setTimeout(() => resolve(false), 10500))
+          ]);
+        } catch (error) {
+          console.warn('COI Supabase: el cargador externo no pudo completarse.', error);
+        }
       }
-    }
-    if (!SUPABASE_CONFIG.enabled || !SUPABASE_CONFIG.url || !SUPABASE_CONFIG.key) {
-      fallbackLocalStorageSiFallaSupabase('Configuración Supabase incompleta.');
-      return null;
-    }
-    if (!window.supabase || typeof window.supabase.createClient !== 'function') {
-      fallbackLocalStorageSiFallaSupabase('No se pudo cargar supabase-js desde CDN.');
-      return null;
-    }
-    try {
-      supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.key, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true
+      if (!SUPABASE_CONFIG.enabled || !SUPABASE_CONFIG.url || !SUPABASE_CONFIG.key) {
+        fallbackLocalStorageSiFallaSupabase('Configuración Supabase incompleta.');
+        return null;
+      }
+      if (!window.__COI_SUPABASE_CLIENT__ && (!window.supabase || typeof window.supabase.createClient !== 'function')) {
+        fallbackLocalStorageSiFallaSupabase('No se pudo cargar supabase-js desde CDN.');
+        return null;
+      }
+      try {
+        supabaseClient = window.__COI_SUPABASE_CLIENT__ || null;
+        if (!supabaseClient) {
+          supabaseClient = window.supabase.createClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.key, {
+            auth: {
+              persistSession: true,
+              autoRefreshToken: true,
+              detectSessionInUrl: true
+            }
+          });
+          window.__COI_SUPABASE_CLIENT__ = supabaseClient;
         }
-      });
-      supabaseClient.auth.onAuthStateChange((event, session) => {
-        updateSupabaseUserUI(session?.user || null);
-        if (['SIGNED_IN', 'TOKEN_REFRESHED', 'INITIAL_SESSION'].includes(event) && session?.user) {
-          Promise.resolve().then(() => cargarOrdenesPrincipal());
+        if (window.__COI_SUPABASE_AUTH_CLIENT__ && window.__COI_SUPABASE_AUTH_CLIENT__ !== supabaseClient) {
+          try { window.__COI_SUPABASE_AUTH_SUBSCRIPTION__?.unsubscribe?.(); } catch (error) {}
+          window.__COI_SUPABASE_AUTH_SUBSCRIPTION__ = null;
         }
-        if (event === 'SIGNED_OUT') fallbackLocalStorageSiFallaSupabase('Sesión Supabase cerrada.');
-      });
-      await verificarSesionSupabase();
-      return supabaseClient;
-    } catch (error) {
-      console.error('COI Supabase: error de inicialización', error);
-      fallbackLocalStorageSiFallaSupabase(error?.message || 'No se pudo inicializar Supabase.');
-      return null;
-    }
+        if (!window.__COI_SUPABASE_AUTH_SUBSCRIPTION__) {
+          const authRegistration = supabaseClient.auth.onAuthStateChange((event, session) => {
+            updateSupabaseUserUI(session?.user || null);
+            try { window.dispatchEvent(new CustomEvent('coi:supabase-auth', { detail: { event, session } })); } catch (error) {}
+            if (['SIGNED_IN', 'TOKEN_REFRESHED', 'INITIAL_SESSION', 'USER_UPDATED'].includes(event) && session?.user) {
+              Promise.resolve().then(() => cargarOrdenesPrincipal());
+            }
+            if (event === 'SIGNED_OUT') fallbackLocalStorageSiFallaSupabase('Sesión Supabase cerrada.');
+          });
+          window.__COI_SUPABASE_AUTH_SUBSCRIPTION__ = authRegistration?.data?.subscription || authRegistration || true;
+          window.__COI_SUPABASE_AUTH_CLIENT__ = supabaseClient;
+        }
+        await verificarSesionSupabase();
+        return supabaseClient;
+      } catch (error) {
+        console.error('COI Supabase: error de inicialización', error);
+        fallbackLocalStorageSiFallaSupabase(error?.message || 'No se pudo inicializar Supabase.');
+        return null;
+      }
+    })();
+    window.__COI_SUPABASE_INIT_PROMISE__ = initialize;
+    const result = await initialize;
+    if (!result) window.__COI_SUPABASE_INIT_PROMISE__ = null;
+    return result;
   }
 
   function bootstrapSupabasePrincipal() {
+    if (window.__COI_SUPABASE_BOOTSTRAPPED__) {
+      initSupabase();
+      return;
+    }
+    window.__COI_SUPABASE_BOOTSTRAPPED__ = true;
     window.APP_DATA_MODE = APP_DATA_MODE;
     window.SUPABASE_CONFIG = SUPABASE_CONFIG;
     installSupabaseStyles();
@@ -16362,6 +16266,7 @@ const APP_DATA_MODE = "supabase_first";
   window.guardarOrdenEnSupabase = guardarOrdenEnSupabase;
   window.actualizarOrdenEnSupabase = actualizarOrdenEnSupabase;
   window.eliminarOrdenEnSupabase = eliminarOrdenEnSupabase;
+  window.eliminarOrdenesPersistentesV60 = eliminarOrdenesPersistentesV60;
   window.recargarDatosDesdeSupabase = recargarDatosDesdeSupabase;
   window.limpiarCacheLocal = limpiarCacheLocal;
   window.verificarEstadoSupabase = verificarEstadoSupabase;
@@ -23857,9 +23762,11 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
       descripcionPosicion:text(row.DESCRIPCION ?? row.DESCRIPCION_POSICION),
       cantidad,
       cantidadTotal:cantidad,
+      unidad:text(row.UNIDAD ?? row.UNIDAD_MEDIDA),
       precioUnitario,
       precioTotal,
       montoPosicion:precioTotal,
+      moneda:text(row.MONEDA)||'ARS',
       periodo:text(row.PERIODO),
       mes:text(row.MES),
       actaNro:text(row.ACTA_NRO ?? row.ACTA_MEDICION_NRO),
@@ -23919,21 +23826,8 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     return index;
   }
   async function syncOrderBalancesInBackground(affectedOCs,rows){
-    let client=null;
-    try{client=typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;}catch(e){}
-    if(!client||typeof client.from!=='function')return {synced:0,errors:[]};
-    const errors=[];let synced=0;
-    for(const oc of affectedOCs){
-      const summary=calculateSummary(oc,rows);
-      try{
-        const request=client.from('coi_ordenes').update({saldo_remanente:summary.saldoLibre}).eq('nro_oc',oc);
-        const result=await Promise.race([Promise.resolve(request),new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),7000))]);
-        if(result?.error)throw result.error;
-        synced++;
-      }catch(error){errors.push(`${oc}: ${error?.message||error}`);}
-      await yieldUI();
-    }
-    return {synced,errors};
+    // V60 Fase A: deshabilitado hasta validar la RPC transaccional de certificación.
+    return {synced:0,errors:[],disabled:'V60_FASE_A_CERTIFICACION_NO_TRANSACCIONAL'};
   }
   function toast(message,type='ok'){
     let box=$('coiR38FinancialToast');
@@ -23964,10 +23858,18 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
       setMessage('Posiciones Libres se calculan automáticamente desde Posiciones OC menos Posiciones Certificadas. No se guardó una tabla manual.','error');
       toast('Posiciones Libres es una vista calculada.','warning');return;
     }
+    if(block==='CERTIFICADA'){
+      setMessage('Modo solo lectura: la certificación requiere la RPC transaccional V60.','error');
+      toast('Certificación bloqueada hasta validar la RPC V60.','warning');return;
+    }
+    const integration=window.COI_FINANZAS_SUPABASE;
+    if(!integration?.guardarPosiciones)throw new Error('El repositorio Supabase V60 de Posiciones OC no está disponible.');
     const trs=currentFinancialRows();
     const rows=trs.map(readRow);
-    let existing=readStoredPositions();
+    let existing=(Array.isArray(window.posicionesFinancieras)?window.posicionesFinancieras:[])
+      .filter(p=>fold(p.tipoBloqueFinanciero)==='POSICION_OC');
     const byKey=new Map(existing.map((p,i)=>[recordKey(p),i]));
+    const pending=[];
     const ordersAvailable=(()=>{try{return typeof window.todasLasOC==='function'?(window.todasLasOC()||[]).length:0;}catch(e){return 0;}})();
     let created=0,updated=0,empty=0,invalid=0;const warnings=[];const affected=new Set();
     SAVE_LOCK.running=true;
@@ -23988,6 +23890,7 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
           const record=rowToRecord(row,block,match,previous);
           if(at===undefined){existing.push(record);byKey.set(key,existing.length-1);created++;}
           else{existing[at]=record;updated++;}
+          pending.push(record);
           affected.add(oc);
         });
         await yieldUI();
@@ -23996,21 +23899,11 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
         const detail=warnings[0]||'No hay filas válidas para guardar.';
         setMessage(detail,'error');toast(detail,'warning');return;
       }
-      if(block==='POSICION_OC'){
-        const integration=window.COI_FIN_SUPABASE_2A;
-        if(!integration?.guardarPosicionesOC)throw new Error('La integración Supabase de Posiciones OC no está disponible.');
-        existing=await integration.guardarPosicionesOC(existing.filter(p=>affected.has(normalizarOC(p.ocNro||p.nro_oc))&&fold(p.tipoBloqueFinanciero)==='POSICION_OC'));
-      }
-      writeStoredPositions(existing);
-      updateRelationIndex(affected,existing);
+      existing=await integration.guardarPosiciones(pending);
       refreshOnlyAffectedUI(affected);
       const detail=`Posiciones ${block==='CERTIFICADA'?'certificadas':'OC'} guardadas. Nuevas: ${created}. Actualizadas: ${updated}. Vacías: ${empty}. Omitidas: ${invalid}.`;
       setMessage(detail,'ok');toast(detail,'ok');
       try{if(typeof window.registrarLogSistema==='function')window.registrarLogSistema('CARGA_FINANCIERA_R38','Carga financiera vinculada por OC',JSON.stringify({block,created,updated,empty,invalid,ocs:[...affected]}));}catch(e){}
-      setTimeout(async()=>{
-        const result=await syncOrderBalancesInBackground(affected,existing);
-        if(result.errors.length)console.warn('R38: posiciones archivadas localmente; no se pudo actualizar todo el saldo Supabase',result.errors);
-      },0);
     }finally{SAVE_LOCK.running=false;}
   }
 
@@ -24164,112 +24057,6 @@ pero aísla el guardado financiero para que actualice únicamente la grilla y el
     }
   }catch(e){}
   console.log('COI hotfix: parseMontoARS/parseNumero unificados con parser ARS correcto (fix #1 montos).');
-})();
-</script>
-
-<script id="coi-finanzas-supabase-2a">
-/* V58.1R39-FINANZAS-SUPABASE-2A
-   Supabase es la fuente oficial de Posiciones OC. localStorage conserva la clave
-   historica solamente como cache; las certificaciones legacy permanecen locales. */
-(function(){
-  'use strict';
-  const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
-  const TABLE_POS='coi_posiciones_oc';
-  const TABLE_ORD='coi_ordenes';
-  const CACHE_KEY='coi_posiciones_financieras';
-  const PAGE_SIZE=1000;
-  const $=id=>document.getElementById(id);
-  const text=v=>String(v??'').trim();
-  const normOC=v=>{const raw=text(v).replace(/^OC[\s:_-]*/i,'').replace(/\s+/g,'');const d=raw.replace(/\D/g,'');return d.length>=6?d.replace(/^0+(?=\d)/,''):raw.toUpperCase();};
-  const normPOS=v=>{const raw=text(v).replace(/^POS(?:ICI[ÓO]N)?[\s:_-]*/i,'').replace(/\s+/g,'').replace(',','.');const n=Number(raw);return Number.isFinite(n)?n.toFixed(2):raw.toUpperCase();};
-  const client=()=>typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;
-  const isMaster=p=>text(p?.tipoBloqueFinanciero||p?.tipo_bloque).toUpperCase()==='POSICION_OC';
-  const readCache=()=>{try{const v=JSON.parse(localStorage.getItem(CACHE_KEY)||'[]');return Array.isArray(v)?v:[];}catch(e){return[];}};
-  function writeCache(rows){localStorage.setItem(CACHE_KEY,JSON.stringify(rows));try{window.posicionesFinancieras=rows;posicionesFinancieras=rows;}catch(e){}}
-  function legacyCertifications(){return readCache().filter(p=>!isMaster(p));}
-  async function requireRemote(){
-    const c=client();if(!c)throw new Error('Cliente Supabase no disponible.');
-    const user=typeof window.getUsuarioActual==='function'?await window.getUsuarioActual():null;
-    if(!user)throw new Error('Debe iniciar sesión en Supabase.');
-    if(!navigator.onLine)throw new Error('Sin conexión: Posiciones OC no se guardaron.');
-    return c;
-  }
-  async function readAll(table,columns='*'){
-    const c=client();if(!c)throw new Error('Cliente Supabase no disponible.');
-    const all=[];
-    for(let desde=0;;desde+=PAGE_SIZE){
-      const hasta=desde+PAGE_SIZE-1;
-      const {data,error}=await c.from(table).select(columns).range(desde,hasta);
-      if(error)throw error;
-      const page=Array.isArray(data)?data:[];all.push(...page);
-      if(page.length<PAGE_SIZE)break;
-    }
-    return all;
-  }
-  async function resolveOrderUUID(nroOC,c=client()){
-    const nro=normOC(nroOC);if(!nro)throw new Error('OC vacía.');
-    const {data,error}=await c.from(TABLE_ORD).select('id,nro_oc').eq('nro_oc',nro).limit(2);
-    if(error)throw error;
-    if(!data?.length)throw new Error(`La OC ${nro} no existe en public.${TABLE_ORD}.`);
-    if(data.length>1)throw new Error(`La OC ${nro} está duplicada en public.${TABLE_ORD}.`);
-    const id=text(data[0].id);if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))throw new Error(`La OC ${nro} no tiene un UUID válido.`);
-    return id;
-  }
-  function fromRemote(row){
-    return {idPosicionFinanciera:row.id||`SUPA-${row.orden_id}-${row.posicion}`,orden_id:row.orden_id,ordenId:row.orden_id,nro_oc:normOC(row.nro_oc),ocNro:normOC(row.nro_oc),OC_NRO:normOC(row.nro_oc),tipoBloqueFinanciero:'POSICION_OC',posicion:text(row.posicion).replace('.',','),posKey:normPOS(row.posicion),remito:text(row.remito),descripcion:text(row.descripcion),descripcionPosicion:text(row.descripcion),cantidad:Number(row.cantidad||0),cantidadTotal:Number(row.cantidad||0),precioUnitario:Number(row.precio_unitario||0),precioTotal:Number(row.precio_total||0),montoPosicion:Number(row.precio_total||0),periodo:text(row.periodo),observaciones:text(row.observaciones),fechaCarga:row.created_at||'',fechaUltimaModificacion:row.updated_at||row.created_at||'',origenCarga:'Supabase Fase 2A'};
-  }
-  async function recargarDesdeSupabase(options={}){
-    const remote=await readAll(TABLE_POS,'*');
-    const merged=remote.map(fromRemote).concat(legacyCertifications());
-    writeCache(merged);
-    if(typeof window.finV56MigrarMemoria?.invalidarCache==='function')window.finV56MigrarMemoria.invalidarCache();
-    if(options.render!==false){try{window.renderOrdenes?.();const active=$('vistaFichaOC');if(active?.classList.contains('active'))window.renderFichaOC?.(window.ocActualId||'');}catch(e){}}
-    return merged;
-  }
-  async function toPayload(record,c,uuidCache){
-    const nro=normOC(record.ocNro||record.nro_oc||record.OC_NRO);
-    let ordenId=text(record.orden_id||record.ordenId);
-    if(!ordenId||!/^[0-9a-f-]{36}$/i.test(ordenId)){if(!uuidCache.has(nro))uuidCache.set(nro,await resolveOrderUUID(nro,c));ordenId=uuidCache.get(nro);}
-    return {orden_id:ordenId,nro_oc:nro,posicion:normPOS(record.posicion),remito:text(record.remito)||null,descripcion:text(record.descripcion||record.descripcionPosicion)||null,cantidad:Number(record.cantidad||record.cantidadTotal||0),precio_unitario:Number(record.precioUnitario||0),precio_total:Number(record.precioTotal||record.montoPosicion||0),periodo:text(record.periodo)||null,observaciones:text(record.observaciones)||null,updated_at:new Date().toISOString()};
-  }
-  async function upsertRecords(records){
-    const c=await requireRemote(),uuidCache=new Map(),payload=[];
-    for(const record of records)payload.push(await toPayload(record,c,uuidCache));
-    for(let desde=0;desde<payload.length;desde+=PAGE_SIZE){
-      const {error}=await c.from(TABLE_POS).upsert(payload.slice(desde,desde+PAGE_SIZE),{onConflict:'orden_id,posicion'});
-      if(error)throw error;
-    }
-    return payload.length;
-  }
-  async function guardarPosicionesOC(records){await upsertRecords(records);return recargarDesdeSupabase();}
-  function analizarLocales(){
-    const rows=readCache(),valid=[],invalid=[],certifications=[];
-    rows.forEach((row,index)=>{if(!isMaster(row)){certifications.push(row);return;}const oc=normOC(row.ocNro||row.nro_oc||row.OC_NRO),pos=normPOS(row.posicion);if(!oc||!pos)invalid.push({fila:index+1,motivo:!oc?'Falta OC':'Falta posición',registro:row});else valid.push(row);});
-    const report={version:VERSION,fecha:new Date().toISOString(),total:rows.length,posicionesValidas:valid.length,posicionesInvalidas:invalid.length,certificacionesLegacyNoMigradas:certifications.length,valid,invalid};
-    window.__coiFinMigrationReport=report;return report;
-  }
-  function downloadReport(){const report=window.__coiFinMigrationReport||analizarLocales();const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`informe_migracion_finanzas_${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500);}
-  function adminMessage(message,type='ok'){const el=$('coiFin2AAdminMsg');if(el){el.textContent=message;el.className=`quick-load-msg ${type}`;}}
-  function ensureAdminTool(){
-    const view=$('vistaAdministracionSistema');if(!view||$('coiFin2AAdmin'))return;
-    const section=document.createElement('section');section.id='coiFin2AAdmin';section.className='admin-section';section.dataset.adminOnly='';
-    section.innerHTML='<h3>Migración controlada · Finanzas Supabase 2A</h3><p>Analiza y migra únicamente Posiciones OC válidas. No borra la caché histórica ni migra certificaciones legacy.</p><div class="actions"><button id="btnFin2AAnalizar" type="button">Analizar datos locales</button><button id="btnFin2AInforme" type="button">Exportar informe</button><button id="btnFin2AMigrar" type="button" class="primary">Migrar posiciones válidas</button><button id="btnFin2ARecargar" type="button">Recargar desde Supabase</button></div><div id="coiFin2AAdminMsg" class="quick-load-msg"></div>';
-    view.appendChild(section);
-  }
-  document.addEventListener('click',async event=>{
-    const id=event.target?.id;if(!['btnFin2AAnalizar','btnFin2AInforme','btnFin2AMigrar','btnFin2ARecargar'].includes(id))return;
-    event.preventDefault();
-    try{
-      if(id==='btnFin2AAnalizar'){const r=analizarLocales();adminMessage(`Válidas: ${r.posicionesValidas}. Inválidas: ${r.posicionesInvalidas}. Certificaciones legacy: ${r.certificacionesLegacyNoMigradas}.`);}
-      if(id==='btnFin2AInforme'){downloadReport();adminMessage('Informe exportado.');}
-      if(id==='btnFin2AMigrar'){if(typeof window.adminIsEnabled==='function'&&!window.adminIsEnabled())throw new Error('Solo Administrador puede ejecutar la migración.');const r=window.__coiFinMigrationReport||analizarLocales();if(!confirm(`Migrar ${r.posicionesValidas} Posiciones OC válidas a Supabase?`))return;await upsertRecords(r.valid);await recargarDesdeSupabase();adminMessage(`Migración completada: ${r.posicionesValidas} posiciones. localStorage se conservó como caché.`);}
-      if(id==='btnFin2ARecargar'){await requireRemote();const rows=await recargarDesdeSupabase();adminMessage(`Caché actualizada desde Supabase: ${rows.filter(isMaster).length} Posiciones OC.`);}
-    }catch(error){adminMessage(error?.message||String(error),'error');}
-  });
-  function init(){ensureAdminTool();window.APP_VERSION=VERSION;['appVersionHeader','headerVersionOperativa'].forEach(id=>{const el=$(id);if(el)el.textContent=VERSION;});const cfg=$('adminCfgVersion');if(cfg)cfg.value=VERSION;}
-  window.COI_FIN_SUPABASE_2A={version:VERSION,guardarPosicionesOC,recargarDesdeSupabase,resolverOrdenUUID:resolveOrderUUID,analizarLocales,exportarInforme:downloadReport,migrarPosicionesValidas:async()=>{const r=window.__coiFinMigrationReport||analizarLocales();await upsertRecords(r.valid);return recargarDesdeSupabase();}};
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
-  window.addEventListener('load',()=>{init();if(client())recargarDesdeSupabase({render:false}).catch(error=>console.warn('Finanzas 2A: se mantiene la caché hasta recuperar Supabase.',error));},{once:true});
 })();
 </script>
 
@@ -24612,4 +24399,467 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
 })();
 </script>
 
-</body></html>
+<script id="coi-v60-finanzas-supabase-first">
+/* V60 Fase A · Repositorio canónico de Posiciones OC.
+   Flujo obligatorio: validar -> escribir Supabase -> verificar -> memoria -> caché -> render. */
+(function(){
+  'use strict';
+  const VERSION='V60.0-FINANZAS-SUPABASE-A';
+  const TABLE='coi_posiciones_oc',ORDERS_TABLE='coi_ordenes';
+  const CACHE_KEY='coi_cache_posiciones_oc_supabase_v1';
+  const LEGACY_KEY='coi_posiciones_financieras';
+  const PAGE_SIZE=1000;
+  const STATES=Object.freeze({CLIENTE_INICIALIZANDO:'CLIENTE_INICIALIZANDO',SIN_CLIENTE:'SIN_CLIENTE',SIN_SESION:'SIN_SESION',OFFLINE:'OFFLINE',SUPABASE_FIRST:'SUPABASE_FIRST',ERROR_RLS:'ERROR_RLS'});
+  const runtime=window.__COI_FINANZAS_SUPABASE_RUNTIME__||{estado:STATES.CLIENTE_INICIALIZANDO,cliente:null,sesion:null,ultimaCarga:null,ultimoError:null,initPromise:null,reconnectPromise:null};
+  window.__COI_FINANZAS_SUPABASE_RUNTIME__=runtime;
+  const $=id=>document.getElementById(id);
+  const text=value=>String(value??'').trim();
+  const normalizeOC=value=>{const raw=text(value).replace(/^OC[\s:_-]*/i,'').replace(/\s+/g,'');const digits=raw.replace(/\D/g,'');return digits.length>=6?digits.replace(/^0+(?=\d)/,''):raw.toUpperCase();};
+  const normalizePosition=value=>{const raw=text(value).replace(/^POS(?:ICI[ÓO]N)?[\s:_-]*/i,'').replace(/\s+/g,'').replace(',','.');const number=Number(raw);return Number.isFinite(number)?number.toFixed(2):raw.toUpperCase();};
+  const client=()=>{const value=typeof window.getSupabaseClient==='function'?window.getSupabaseClient():window.__COI_SUPABASE_CLIENT__||null;if(value)runtime.cliente=value;return value||runtime.cliente||null;};
+  const parseNumber=value=>{const parser=window.coiParseMontoAR||window.parseMontoARS;const number=typeof parser==='function'?parser(value):Number(value);return Number.isFinite(Number(number))?Number(number):0;};
+  const isMaster=row=>text(row?.tipoBloqueFinanciero||row?.tipo_bloque).toUpperCase()==='POSICION_OC';
+  const emptyCache=()=>({version:1,savedAt:null,source:'Supabase',rows:[]});
+  const readLegacy=()=>{try{const rows=JSON.parse(localStorage.getItem(LEGACY_KEY)||'[]');return Array.isArray(rows)?rows:[];}catch(error){return[];}};
+  const readCache=()=>{try{const value=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');return value?.version===1&&value?.source==='Supabase'&&Array.isArray(value.rows)?value:emptyCache();}catch(error){return emptyCache();}};
+  const legacyCertifications=()=>readLegacy().filter(row=>!isMaster(row));
+  function fromRemote(row){
+    return {
+      id:row.id,idPosicionFinanciera:row.id||`SUPA-${row.orden_id}-${row.posicion}`,
+      orden_id:row.orden_id,ordenId:row.orden_id,nro_oc:normalizeOC(row.nro_oc),ocNro:normalizeOC(row.nro_oc),OC_NRO:normalizeOC(row.nro_oc),
+      tipoBloqueFinanciero:'POSICION_OC',posicion:text(row.posicion).replace('.',','),posKey:normalizePosition(row.posicion),
+      descripcion:text(row.descripcion),descripcionPosicion:text(row.descripcion),cantidad:Number(row.cantidad_total||0),cantidadTotal:Number(row.cantidad_total||0),
+      cantidadConsumida:Number(row.cantidad_consumida||0),cantidadDisponible:Number(row.cantidad_disponible||0),unidad:text(row.unidad_medida),unidadMedida:text(row.unidad_medida),
+      precioUnitario:Number(row.precio_unitario||0),precioTotal:Number(row.monto_total||0),montoPosicion:Number(row.monto_total||0),montoConsumido:Number(row.monto_consumido||0),montoDisponible:Number(row.monto_disponible||0),
+      moneda:text(row.moneda)||'ARS',estadoPosicion:text(row.estado)||'LIBRE',remito:text(row.remito),observaciones:text(row.observaciones),
+      fechaCarga:row.fecha_creacion||'',fechaUltimaModificacion:row.fecha_actualizacion||row.fecha_creacion||'',usuarioEmail:text(row.usuario_email),origenCarga:text(row.origen_carga)||'Carga Financiera'
+    };
+  }
+  function applyMemory(remoteRows){const merged=remoteRows.map(fromRemote).concat(legacyCertifications());try{window.posicionesFinancieras=merged;posicionesFinancieras=merged;}catch(error){}return merged;}
+  function saveRemoteCache(remoteRows){const envelope={version:1,savedAt:new Date().toISOString(),source:'Supabase',rows:remoteRows};localStorage.setItem(CACHE_KEY,JSON.stringify(envelope));return envelope;}
+  async function currentUser(c=client()){if(typeof window.getUsuarioActual==='function'){const user=await window.getUsuarioActual();if(user)return user;}if(c?.auth?.getUser){const {data}=await c.auth.getUser();return data?.user||null;}return null;}
+  function stateMessage(state,detail=''){
+    if(state===STATES.CLIENTE_INICIALIZANDO)return 'Conectando con Supabase…';
+    if(state===STATES.SIN_CLIENTE)return 'Modo solo lectura · cliente Supabase no disponible';
+    if(state===STATES.SIN_SESION)return 'Supabase disponible · iniciá sesión para editar';
+    if(state===STATES.OFFLINE)return 'Modo solo lectura · sin conexión';
+    if(state===STATES.ERROR_RLS)return `Modo solo lectura · acceso restringido por RLS${detail?` · ${detail}`:''}`;
+    return 'Supabase-first operativo';
+  }
+  function setState(state,error=null){
+    runtime.estado=state;runtime.ultimoError=error?text(error?.message||error):null;
+    const readOnly=state!==STATES.SUPABASE_FIRST;
+    if(document.body){document.body.classList.toggle('coi-data-readonly',readOnly);document.body.dataset.coiDataMode=readOnly?'readonly':'supabase-first';document.body.dataset.coiDataState=state;document.body.dataset.coiDataReason=runtime.ultimoError||'';}
+    const mode=$('headerModoSistema');if(mode)mode.textContent=readOnly?'Modo solo lectura':'Modo Operativo';
+    let banner=$('coiV60ReadOnlyBanner');
+    if(readOnly&&!banner&&document.body){banner=document.createElement('div');banner.id='coiV60ReadOnlyBanner';banner.setAttribute('role','status');banner.style.cssText='position:fixed;right:18px;bottom:18px;z-index:5000;padding:10px 14px;border-radius:10px;background:#7f1d1d;color:#fff;font-weight:800;box-shadow:0 8px 24px #0005';document.body.appendChild(banner);}
+    if(banner){banner.textContent=stateMessage(state,runtime.ultimoError);banner.hidden=!readOnly;}
+    return state;
+  }
+  async function waitForSupabaseClient({timeoutMs=10000,intervalMs=250}={}){
+    const existing=client();if(existing)return existing;
+    setState(STATES.CLIENTE_INICIALIZANDO);
+    if(typeof window.initSupabase==='function')Promise.resolve(window.initSupabase()).catch(()=>null);
+    const started=Date.now();
+    while(Date.now()-started<timeoutMs){const available=client();if(available)return available;await new Promise(resolve=>setTimeout(resolve,intervalMs));}
+    setState(STATES.SIN_CLIENTE,'Tiempo de espera agotado.');return null;
+  }
+  function isRlsError(error){const value=`${error?.code||''} ${error?.message||error||''}`.toLowerCase();return value.includes('42501')||value.includes('row-level security')||value.includes('row level security')||value.includes('permission denied')||value.includes('rls');}
+  function applyCacheState(state,error=null){const cached=readCache();applyMemory(cached.rows);setState(state,error);return cached.rows.map(fromRemote).concat(legacyCertifications());}
+  async function verificarAcceso(options={}){
+    const online=navigator.onLine!==false;
+    if(!online){setState(STATES.OFFLINE);if(options.escritura)throw new Error('Sin conexión: modo solo lectura.');return {client:client(),user:null,online:false,writable:false,mode:STATES.OFFLINE};}
+    const c=client()||await waitForSupabaseClient(options);
+    if(!c){if(options.escritura)throw new Error('Cliente Supabase no disponible.');return {client:null,user:null,online:true,writable:false,mode:STATES.SIN_CLIENTE};}
+    const user=await currentUser(c);runtime.sesion=user?{user}:null;
+    if(!user){setState(STATES.SIN_SESION);if(options.escritura)throw new Error('Debe iniciar sesión en Supabase.');return {client:c,user:null,online:true,writable:false,mode:STATES.SIN_SESION};}
+    setState(STATES.SUPABASE_FIRST);return {client:c,user,online:true,writable:true,mode:STATES.SUPABASE_FIRST};
+  }
+  async function readPaged(table,columns='*'){const c=client()||await waitForSupabaseClient();if(!c)throw new Error('Cliente Supabase no disponible.');const rows=[];for(let from=0;;from+=PAGE_SIZE){const to=from+PAGE_SIZE-1;const {data,error}=await c.from(table).select(columns).range(from,to);if(error)throw error;const page=Array.isArray(data)?data:[];rows.push(...page);if(page.length<PAGE_SIZE)break;}return rows;}
+  async function buscarOrdenPorOC(value,c=client()){const nro=normalizeOC(value);if(!nro)throw new Error('OC vacía.');if(!c)throw new Error('Cliente Supabase no disponible.');const {data,error}=await c.from(ORDERS_TABLE).select('id,nro_oc').eq('nro_oc',nro).limit(2);if(error)throw error;if(!data?.length)throw new Error(`La OC ${nro} no existe en public.${ORDERS_TABLE}.`);if(data.length>1)throw new Error(`La OC ${nro} está duplicada en public.${ORDERS_TABLE}.`);const id=text(data[0].id);if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))throw new Error(`La OC ${nro} no tiene UUID válido.`);return {id,nro_oc:nro};}
+  async function recargarCache(options={}){const remote=await readPaged(TABLE,'*');saveRemoteCache(remote);const merged=applyMemory(remote);runtime.ultimaCarga=new Date().toISOString();runtime.ultimoError=null;setState(STATES.SUPABASE_FIRST);if(options.render!==false){try{window.renderOrdenes?.();const view=$('vistaFichaOC');if(view?.classList.contains('active'))window.renderFichaOC?.(window.ocActualId||'');}catch(error){console.warn('V60: no se pudo refrescar la vista financiera.',error);}}return merged;}
+  async function listarTodas(options={}){const access=await verificarAcceso();if(!access.client||!access.online||!access.user)return applyCacheState(access.mode);try{return await recargarCache(options);}catch(error){const state=isRlsError(error)?STATES.ERROR_RLS:STATES.SIN_CLIENTE;const cached=applyCacheState(state,error);if(options.soloRemoto)throw error;return cached;}}
+  async function reintentarConexion(options={}){
+    if(runtime.reconnectPromise)return runtime.reconnectPromise;
+    runtime.reconnectPromise=(async()=>{if(navigator.onLine===false)return applyCacheState(STATES.OFFLINE);const c=client()||await waitForSupabaseClient(options);if(!c)return applyCacheState(STATES.SIN_CLIENTE,'Cliente Supabase no disponible.');const access=await verificarAcceso(options);if(!access.user)return applyCacheState(STATES.SIN_SESION);try{return await recargarCache({render:options.render!==false});}catch(error){const state=isRlsError(error)?STATES.ERROR_RLS:STATES.SIN_CLIENTE;const cached=applyCacheState(state,error);if(options.soloRemoto)throw error;return cached;}})();
+    try{return await runtime.reconnectPromise;}finally{runtime.reconnectPromise=null;}
+  }
+  async function listarPorOC(value,options={}){const nro=normalizeOC(value);return (await listarTodas(options)).filter(row=>isMaster(row)&&normalizeOC(row.nro_oc||row.ocNro)===nro);}
+  async function toPayload(record,c,orderCache,userEmail){const nro=normalizeOC(record.ocNro||record.nro_oc||record.OC_NRO);let ordenId=text(record.orden_id||record.ordenId);if(!/^[0-9a-f-]{36}$/i.test(ordenId)){if(!orderCache.has(nro))orderCache.set(nro,(await buscarOrdenPorOC(nro,c)).id);ordenId=orderCache.get(nro);}const posicion=normalizePosition(record.posicion);if(!posicion)throw new Error(`La OC ${nro||'(vacía)'} no tiene posición.`);return {orden_id:ordenId,nro_oc:nro,posicion,descripcion:text(record.descripcion||record.descripcionPosicion)||null,cantidad_total:parseNumber(record.cantidad??record.cantidadTotal),unidad_medida:text(record.unidad||record.unidadMedida)||null,precio_unitario:parseNumber(record.precioUnitario),monto_total:parseNumber(record.precioTotal??record.montoPosicion),moneda:text(record.moneda)||'ARS',remito:text(record.remito)||null,observaciones:text(record.observaciones)||null,usuario_email:text(userEmail)||null,origen_carga:text(record.origenCarga)||'Carga Financiera'};}
+  async function guardarPosiciones(records){if(!Array.isArray(records)||!records.length)throw new Error('No hay Posiciones OC válidas para guardar.');const access=await verificarAcceso({escritura:true}),payload=[],orderCache=new Map();for(const record of records)payload.push(await toPayload(record,access.client,orderCache,access.user?.email));for(let from=0;from<payload.length;from+=PAGE_SIZE){const batch=payload.slice(from,from+PAGE_SIZE);const {data,error}=await access.client.from(TABLE).upsert(batch,{onConflict:'orden_id,posicion'}).select('*');if(error)throw error;if(!Array.isArray(data)||data.length!==batch.length)throw new Error('Supabase no confirmó todas las Posiciones OC guardadas.');}return recargarCache();}
+  async function actualizarPosicion(id,changes={}){const access=await verificarAcceso({escritura:true}),patch={};for(const key of ['descripcion','unidad_medida','moneda','remito','observaciones','origen_carga'])if(Object.prototype.hasOwnProperty.call(changes,key))patch[key]=text(changes[key])||null;for(const key of ['cantidad_total','precio_unitario','monto_total'])if(Object.prototype.hasOwnProperty.call(changes,key))patch[key]=parseNumber(changes[key]);if(!Object.keys(patch).length)throw new Error('No hay campos editables para actualizar.');if(access.user?.email)patch.usuario_email=access.user.email;const {data,error}=await access.client.from(TABLE).update(patch).eq('id',id).select('*').single();if(error)throw error;if(!data?.id)throw new Error('Supabase no confirmó la actualización.');await recargarCache();return fromRemote(data);}
+  async function eliminarPosicion(id){const access=await verificarAcceso({escritura:true});const {data,error}=await access.client.from(TABLE).delete().eq('id',id).select('id').single();if(error)throw error;if(data?.id!==id)throw new Error('Supabase no confirmó la eliminación.');await recargarCache();return data;}
+  function analizarLegacy(){const rows=readLegacy(),valid=[],invalid=[],duplicates=[],certifications=[],seen=new Map();rows.forEach((row,index)=>{if(!isMaster(row)){certifications.push(row);return;}const oc=normalizeOC(row.ocNro||row.nro_oc||row.OC_NRO),position=normalizePosition(row.posicion);if(!oc||!position){invalid.push({fila:index+1,motivo:!oc?'Falta OC':'Falta posición',registro:row});return;}const key=`${oc}::${position}`;if(seen.has(key)){duplicates.push({clave:key,primeraFila:seen.get(key),fila:index+1,registro:row});return;}seen.set(key,index+1);valid.push(row);});const report={version:VERSION,fecha:new Date().toISOString(),legacyKey:LEGACY_KEY,total:rows.length,posicionesValidas:valid.length,posicionesInvalidas:invalid.length,duplicados:duplicates.length,certificacionesLegacyNoMigradas:certifications.length,valid,invalid,duplicates};window.__coiFinMigrationReport=report;return report;}
+  function downloadJSON(data,name){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(link.href),500);return name;}
+  const exportarBackup=()=>downloadJSON({format:'COI_V60_LEGACY_BACKUP',exportedAt:new Date().toISOString(),key:LEGACY_KEY,rows:readLegacy()},`backup_${LEGACY_KEY}_${new Date().toISOString().slice(0,10)}.json`);
+  const exportarInforme=()=>downloadJSON(window.__coiFinMigrationReport||analizarLegacy(),`informe_migracion_finanzas_${new Date().toISOString().slice(0,10)}.json`);
+  async function verificarMigracion(report=window.__coiFinMigrationReport||analizarLegacy()){const remote=await listarTodas({soloRemoto:true,render:false}),keys=new Set(remote.filter(isMaster).map(row=>`${normalizeOC(row.nro_oc||row.ocNro)}::${normalizePosition(row.posicion)}`)),missing=report.valid.filter(row=>!keys.has(`${normalizeOC(row.nro_oc||row.ocNro||row.OC_NRO)}::${normalizePosition(row.posicion)}`));return {fecha:new Date().toISOString(),esperadas:report.valid.length,encontradas:report.valid.length-missing.length,faltantes:missing,ok:missing.length===0};}
+  async function migrarLegacy(options={}){const report=window.__coiFinMigrationReport||analizarLegacy();if(!options.confirmado)throw new Error('La migración requiere confirmación manual explícita.');if((report.invalid.length||report.duplicates.length)&&!options.aceptarRiesgos)throw new Error('Migración bloqueada por filas inválidas o duplicadas.');await guardarPosiciones(report.valid);return verificarMigracion(report);}
+  function diagnostico(){const cache=readCache(),c=client(),canonical=window.__COI_SUPABASE_CLIENT__||null,user=runtime.sesion?.user||null;return {version:VERSION,estado:runtime.estado,clienteDisponible:Boolean(c),clienteUnico:Boolean(c&&canonical===c&&(!window.getSupabaseClient||window.getSupabaseClient()===c)),online:navigator.onLine!==false,sesionActiva:Boolean(user),usuarioEmail:text(user?.email)||null,modo:document.body?.dataset?.coiDataMode||runtime.estado,ultimaCarga:runtime.ultimaCarga,ultimoError:runtime.ultimoError,cacheKey:CACHE_KEY,filasCache:cache.rows.length,cacheRows:cache.rows.length,cacheSavedAt:cache.savedAt,table:TABLE,legacyKey:LEGACY_KEY,legacyRows:readLegacy().length,saldoRemanenteAutomatico:false,pageSize:PAGE_SIZE};}
+  function ensureAdminTool(){const view=$('vistaAdministracionSistema');if(!view||$('coiV60FinanzasAdmin'))return;const section=document.createElement('section');section.id='coiV60FinanzasAdmin';section.className='admin-section';section.dataset.adminOnly='';section.innerHTML='<h3>Finanzas V60 · Migración manual</h3><p>Supabase es la fuente oficial de datos operativos. LocalStorage se utiliza únicamente para preferencias, caché y respaldo legacy temporal.</p><div class="actions"><button id="btnV60FinAnalizar" type="button">Analizar</button><button id="btnV60FinBackup" type="button">Exportar backup JSON</button><button id="btnV60FinInforme" type="button">Exportar informe</button><button id="btnV60FinMigrar" type="button" class="primary">Migrar</button><button id="btnV60FinVerificar" type="button">Verificar</button><button id="btnV60FinRecargar" type="button">Reintentar conexión</button></div><div id="coiV60FinMsg" class="quick-load-msg"></div>';view.appendChild(section);}
+  const message=(value,type='ok')=>{const box=$('coiV60FinMsg');if(box){box.textContent=value;box.className=`quick-load-msg ${type}`;}};
+  if(!window.__COI_FINANZAS_ADMIN_LISTENER_BOUND__){window.__COI_FINANZAS_ADMIN_LISTENER_BOUND__=true;document.addEventListener('click',async event=>{const id=event.target?.id;if(!['btnV60FinAnalizar','btnV60FinBackup','btnV60FinInforme','btnV60FinMigrar','btnV60FinVerificar','btnV60FinRecargar'].includes(id))return;event.preventDefault();try{if(id==='btnV60FinAnalizar'){const report=analizarLegacy();message(`Válidas ${report.posicionesValidas}; inválidas ${report.posicionesInvalidas}; duplicadas ${report.duplicados}.`);}if(id==='btnV60FinBackup'){exportarBackup();message('Backup exportado; localStorage quedó intacto.');}if(id==='btnV60FinInforme'){exportarInforme();message('Informe exportado.');}if(id==='btnV60FinMigrar'){if(typeof window.adminIsEnabled==='function'&&!window.adminIsEnabled())throw new Error('Solo Administrador puede migrar.');const report=window.__coiFinMigrationReport||analizarLegacy();if(report.invalid.length||report.duplicates.length)throw new Error('Revise filas inválidas o duplicadas.');if(!confirm(`¿Migrar ${report.posicionesValidas} posiciones a Supabase?`))return;const result=await migrarLegacy({confirmado:true});message(`Verificadas ${result.encontradas}/${result.esperadas}.`,result.ok?'ok':'error');}if(id==='btnV60FinVerificar'){const result=await verificarMigracion();message(`Verificadas ${result.encontradas}/${result.esperadas}.`,result.ok?'ok':'error');}if(id==='btnV60FinRecargar'){const rows=await reintentarConexion();message(`Posiciones remotas: ${rows.filter(isMaster).length}.`);}}catch(error){message(error?.message||String(error),'error');}},false);}
+  async function procesarEventoAuth(event,session){if(!['INITIAL_SESSION','SIGNED_IN','TOKEN_REFRESHED','USER_UPDATED','SIGNED_OUT'].includes(event))return;runtime.sesion=session||null;if(event==='SIGNED_OUT'||!session?.user){applyCacheState(STATES.SIN_SESION);return;}await reintentarConexion({render:false});}
+  function aplicarOffline(){return applyCacheState(STATES.OFFLINE);}
+  const api={version:VERSION,states:STATES,waitForSupabaseClient,reintentarConexion,procesarEventoAuth,aplicarOffline,verificarAcceso,buscarOrdenPorOC,listarTodas,listarPorOC,guardarPosiciones,actualizarPosicion,eliminarPosicion,recargarCache,obtenerCache:readCache,diagnostico,migracion:{analizar:analizarLegacy,exportarBackup,exportarInforme,migrar:migrarLegacy,verificar:verificarMigracion}};
+  window.COI_FINANZAS_SUPABASE=api;window.waitForSupabaseClient=waitForSupabaseClient;
+  window.COI_FIN_SUPABASE_2A={version:VERSION,guardarPosicionesOC:guardarPosiciones,recargarDesdeSupabase:recargarCache,resolverOrdenUUID:async value=>(await buscarOrdenPorOC(value)).id,analizarLocales:analizarLegacy,exportarInforme,migrarPosicionesValidas:()=>migrarLegacy({confirmado:true})};
+  window.COI_REPOSITORY=Object.assign(window.COI_REPOSITORY||{},{posiciones:api});
+  window.COI_FINANZAS=Object.assign(window.COI_FINANZAS||{},{version:VERSION,obtenerPorOC:value=>(window.posicionesFinancieras||[]).filter(row=>isMaster(row)&&normalizeOC(row.nro_oc||row.ocNro)===normalizeOC(value))});
+  window.obtenerPosicionesPorOC=value=>(window.posicionesFinancieras||[]).filter(row=>isMaster(row)&&normalizeOC(row.nro_oc||row.ocNro)===normalizeOC(value));
+  const legacyWriter=()=>{console.warn(`[COI ${VERSION}] ${LEGACY_KEY} está en modo legacy de solo lectura.`);return false;};window.guardarPosicionesFinancieras=legacyWriter;try{guardarPosicionesFinancieras=legacyWriter;}catch(error){}
+  function init(){if(runtime.initPromise)return runtime.initPromise;runtime.initPromise=(async()=>{ensureAdminTool();const cache=readCache();if(cache.rows.length)applyMemory(cache.rows);return reintentarConexion({render:false});})();return runtime.initPromise;}
+  if(!window.__COI_FINANZAS_AUTH_EVENT_BOUND__){window.__COI_FINANZAS_AUTH_EVENT_BOUND__=true;window.addEventListener('coi:supabase-auth',event=>window.COI_FINANZAS_SUPABASE?.procesarEventoAuth(event.detail?.event,event.detail?.session),{passive:true});}
+  if(!window.__COI_FINANZAS_CONNECTION_EVENTS_BOUND__){window.__COI_FINANZAS_CONNECTION_EVENTS_BOUND__=true;window.addEventListener('online',()=>window.COI_FINANZAS_SUPABASE?.reintentarConexion({render:false}),{passive:true});window.addEventListener('offline',()=>window.COI_FINANZAS_SUPABASE?.aplicarOffline(),{passive:true});}
+  if(document.readyState==='loading'){if(!window.__COI_FINANZAS_DOM_READY_BOUND__){window.__COI_FINANZAS_DOM_READY_BOUND__=true;document.addEventListener('DOMContentLoaded',init,{once:true});}}else init();
+})();
+</script>
+
+
+<script id="coi-v60-posiciones-delete">
+/* V60 Fase A · Eliminación segura de Posiciones OC. */
+(function(){
+  'use strict';
+  const POSITIONS_TABLE='coi_posiciones_oc';
+  const CERT_TABLE='coi_certificaciones';
+  const CACHE_KEY='coi_cache_posiciones_oc_supabase_v1';
+  const LEGACY_KEY='coi_posiciones_financieras';
+  const ADMIN_EMAIL='admin@coiroca.com';
+  const TRACE_MESSAGE='No se puede eliminar la posición porque tiene consumos o certificaciones vinculadas. Debe conservarse por trazabilidad.';
+  const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const text=value=>String(value??'').trim();
+  const number=value=>{const parsed=Number(value);return Number.isFinite(parsed)?parsed:0;};
+  const html=value=>text(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const money=value=>{try{return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS'}).format(number(value));}catch(error){return text(value);}};
+  let operationPromise=null;
+
+  function canonicalApi(){const api=window.COI_FINANZAS_SUPABASE;if(!api)throw new Error('La API financiera V60 no está disponible.');return api;}
+  async function requireAdmin(){
+    if(navigator.onLine===false)throw new Error('Modo solo lectura: no se pueden eliminar posiciones sin conexión.');
+    const client=typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;
+    if(!client)throw new Error('Cliente Supabase no disponible.');
+    const {data:{session}={},error}=await client.auth.getSession();
+    if(error)throw error;
+    if(!session?.user)throw new Error('Debe iniciar sesión en Supabase para eliminar posiciones.');
+    if(text(session.user.email).toLowerCase()!==ADMIN_EMAIL)throw new Error(`La eliminación de posiciones está autorizada únicamente para ${ADMIN_EMAIL}.`);
+    return {client,session};
+  }
+  async function readRemotePosition(client,id){
+    const uuid=text(id);
+    if(!UUID_RE.test(uuid))throw new Error(`UUID de posición inválido: ${uuid||'(vacío)'}.`);
+    const {data,error}=await client.from(POSITIONS_TABLE).select('id,orden_id,nro_oc,posicion,descripcion,cantidad_total,monto_total,cantidad_consumida,monto_consumido,estado').eq('id',uuid).limit(2);
+    if(error)throw error;
+    const rows=Array.isArray(data)?data:[];
+    if(rows.length!==1)throw new Error(rows.length?`La posición ${uuid} es ambigua.`:`La posición ${uuid} no existe en public.${POSITIONS_TABLE}.`);
+    return rows[0];
+  }
+  async function assertTraceability(client,row){
+    const state=text(row.estado).toUpperCase();
+    const consumed=number(row.cantidad_consumida)>0||number(row.monto_consumido)>0||state==='PARCIAL'||state==='CONSUMIDA';
+    const {data,error}=await client.from(CERT_TABLE).select('id').eq('posicion_id',row.id).limit(1);
+    if(error)throw error;
+    if(consumed||(Array.isArray(data)&&data.length)){
+      const traceError=new Error(TRACE_MESSAGE);traceError.code='COI_POSITION_TRACEABILITY';traceError.posicionId=row.id;traceError.posicion=row.posicion;throw traceError;
+    }
+    return row;
+  }
+  async function validateMany(ids,access=null){
+    const currentAccess=access||await requireAdmin();
+    const unique=[...new Set((Array.isArray(ids)?ids:[ids]).map(text).filter(Boolean))];
+    if(!unique.length)throw new Error('No hay posiciones seleccionadas para eliminar.');
+    const rows=[];
+    for(const id of unique)rows.push(await assertTraceability(currentAccess.client,await readRemotePosition(currentAccess.client,id)));
+    return {access:currentAccess,rows};
+  }
+  function purgeCache(id){
+    const raw=localStorage.getItem(CACHE_KEY);if(!raw)return false;
+    const cache=JSON.parse(raw);if(!cache||!Array.isArray(cache.rows))return false;
+    cache.rows=cache.rows.filter(row=>String(row?.id)!==String(id));cache.savedAt=new Date().toISOString();
+    localStorage.setItem(CACHE_KEY,JSON.stringify(cache));return true;
+  }
+  function purgeMemory(id){
+    const filter=rows=>(Array.isArray(rows)?rows:[]).filter(row=>String(row?.id||row?.idPosicionFinanciera)!==String(id));
+    window.posicionesFinancieras=filter(window.posicionesFinancieras);
+    try{posicionesFinancieras=window.posicionesFinancieras;}catch(error){}
+  }
+  async function deleteVerified(client,row){
+    console.info('[COI][FINANZAS][DELETE_POSICION]',{etapa:'inicio',id:row.id,nro_oc:row.nro_oc,posicion:row.posicion});
+    const {data,error}=await client.from(POSITIONS_TABLE).delete().eq('id',row.id).select('id,nro_oc,posicion');
+    if(error)throw error;
+    if(!Array.isArray(data)||data.length!==1||String(data[0]?.id)!==String(row.id))throw new Error(`Supabase no confirmó la eliminación de la posición ${row.posicion||row.id}.`);
+    const verification=await client.from(POSITIONS_TABLE).select('id').eq('id',row.id);
+    if(verification.error)throw verification.error;
+    if(Array.isArray(verification.data)&&verification.data.length)throw new Error(`La posición ${row.posicion||row.id} todavía existe después del DELETE.`);
+    console.info('[COI][FINANZAS][DELETE_POSICION]',{etapa:'verificado',id:row.id,nro_oc:row.nro_oc,posicion:row.posicion});
+    return data[0];
+  }
+  async function eliminarPosiciones(ids){
+    if(operationPromise)return operationPromise;
+    operationPromise=(async()=>{
+      const access=await requireAdmin();
+      const unique=[...new Set((Array.isArray(ids)?ids:[ids]).map(text).filter(Boolean))];
+      if(!unique.length)throw new Error('No hay posiciones seleccionadas para eliminar.');
+      const deleted=[],failures=[];
+      for(const id of unique){
+        try{
+          const row=await assertTraceability(access.client,await readRemotePosition(access.client,id));
+          const remote=await deleteVerified(access.client,row);
+          purgeMemory(row.id);purgeCache(row.id);deleted.push({row,remote});
+        }catch(error){console.error('[COI][FINANZAS][DELETE_POSICION][ERROR]',{id,error});failures.push({id,error});}
+      }
+      if(deleted.length){try{await canonicalApi().recargarCache({render:true});}catch(error){failures.push({id:'recargarCache',error});}}
+      if(failures.length){const detail=failures.map(item=>`${item.id}: ${item.error?.message||item.error}`).join(' | ');const aggregate=new Error(`No se eliminaron todas las posiciones. ${detail}`);aggregate.deleted=deleted;aggregate.failures=failures;throw aggregate;}
+      return {ok:true,deleted};
+    })();
+    try{return await operationPromise;}finally{operationPromise=null;}
+  }
+  async function eliminarPosicion(id){const result=await eliminarPosiciones([id]);return result.deleted[0]?.remote||null;}
+  async function validarEliminacionPosiciones(ids){const result=await validateMany(ids);return result.rows;}
+
+  const api=canonicalApi();
+  Object.assign(api,{eliminarPosicion,eliminarPosiciones,validarEliminacionPosiciones});
+
+  function authenticatedAdmin(){try{return text(api.diagnostico?.().usuarioEmail).toLowerCase()===ADMIN_EMAIL&&navigator.onLine!==false;}catch(error){return false;}}
+  function positionId(row){return text(row?.id||row?.idPosicionFinanciera);}
+  function consumeCheckbox(row,safeId){return `<input type="checkbox" class="finance-check chk-fin-pos-oc" data-oc-safe="${html(safeId)}" data-pos-id="${html(positionId(row))}">`;}
+  function deleteCheckbox(row){const id=positionId(row);return `<input type="checkbox" class="finance-check chk-fin-delete-position-v60" data-fin-delete-id-v60="${html(id)}" ${UUID_RE.test(id)?'':'disabled'}>`;}
+  function deleteToolbar(safeId){return `<div class="finance-delete-bar-v60" data-fin-delete-toolbar-v60="${html(safeId)}"><b data-fin-delete-count-v60>0 posiciones seleccionadas</b><button type="button" class="btn-danger-soft" data-fin-delete-selected-v60 disabled>Eliminar seleccionadas (0)</button><span class="muted">Sólo posiciones sin consumos ni certificaciones.</span></div>`;}
+  if(typeof finV56TablaOC==='function'){
+    finV56TablaOC=function(r,safeId){
+      const admin=authenticatedAdmin();
+      const rows=(r.posOC||[]).map(p=>{const sem=finV56SemOC(p,r.cert||[]),saldo=finV56SaldoPosicion(p,r.cert||[]);return `<tr data-fin-row-id="${html(positionId(p))}"><td>${consumeCheckbox(p,safeId)}</td>${admin?`<td>${deleteCheckbox(p)}</td>`:''}<td>${finV56Badge(sem)}</td><td>${html(p.ocNro)}</td><td>${html(p.remito)}</td><td>${html(p.posicion)}</td><td>${html(p.descripcion)}</td><td>${html(p.cantidad)}</td><td>${finV56Money(p.precioUnitario)}</td><td>${finV56Money(p.precioTotal)}</td><td>${html(p.periodo)}</td><td>${finV56Money(saldo.saldoMonto)}</td><td>${html(p.observaciones||'')}</td></tr>`;}).join('');
+      const toolbar=admin?deleteToolbar(safeId):'';
+      const headers=`<th>Consumir</th>${admin?'<th>Eliminar</th>':''}<th>Semáforo</th><th>OC</th><th>REMITO</th><th>POS</th><th>DESCRIPCIÓN</th><th>CANTIDAD</th><th>PRECIO UNITARIO</th><th>PRECIO TOTAL</th><th>PERIODO</th><th>SALDO</th><th>OBSERVACIONES</th>`;
+      const colspan=admin?13:12;
+      return `${toolbar}<div class="finance-consume-bar"><span class="finance-consume-count" id="finSelCount_${html(safeId)}">0 seleccionadas</span><label>Cantidad a consumir<input id="finCantidadConsumir_${html(safeId)}" type="text" placeholder="Opcional"></label><label>Monto a consumir<input id="finMontoConsumir_${html(safeId)}" type="text" placeholder="Opcional"></label><button type="button" class="primary" data-fin-consumir="${html(safeId)}" data-oc-nro="${html(r.ocNro)}">Consumir seleccionadas</button></div><div class="finance-table-wrap"><table class="finance-table v56"><thead><tr>${headers}</tr></thead><tbody>${rows||`<tr><td colspan="${colspan}">Sin posiciones OC cargadas.</td></tr>`}</tbody></table></div>`;
+    };
+  }
+  function selectedIds(section){return [...new Set([...section.querySelectorAll('.chk-fin-delete-position-v60:checked')].map(input=>input.dataset.finDeleteIdV60).filter(Boolean))];}
+  function updateSelection(section){if(!section)return;const ids=selectedIds(section),button=section.querySelector('[data-fin-delete-selected-v60]'),count=section.querySelector('[data-fin-delete-count-v60]');if(count)count.textContent=`${ids.length} posición${ids.length===1?'':'es'} seleccionada${ids.length===1?'':'s'}`;if(button){button.disabled=!ids.length||operationPromise!==null;button.textContent=`Eliminar seleccionadas (${ids.length})`;}}
+  function ensureModal(){
+    let modal=document.getElementById('coiFinDeleteModalV60');if(modal)return modal;
+    const style=document.createElement('style');style.id='coiFinDeleteStylesV60';style.textContent='.finance-delete-bar-v60{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0;padding:12px;border:1px solid #fecaca;border-radius:14px;background:#fff7f7}.finance-delete-bar-v60 .btn-danger-soft{background:#991b1b;color:#fff;border-color:#7f1d1d}.coi-fin-delete-modal{position:fixed;inset:0;z-index:130000;background:#0f172acc;display:flex;align-items:center;justify-content:center;padding:20px}.coi-fin-delete-modal[hidden]{display:none!important}.coi-fin-delete-card{width:min(820px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:18px;padding:22px;box-shadow:0 30px 90px #0006}.coi-fin-delete-list{display:grid;gap:8px;margin:12px 0}.coi-fin-delete-row{border:1px solid #e5e7eb;border-radius:10px;padding:10px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.coi-fin-delete-warning{background:#fff1f2;color:#881337;border:1px solid #fecdd3;border-radius:10px;padding:12px;font-weight:800}.coi-fin-delete-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.coi-fin-delete-error{color:#b42318;font-weight:800;min-height:22px}';document.head.appendChild(style);
+    modal=document.createElement('div');modal.id='coiFinDeleteModalV60';modal.className='coi-fin-delete-modal';modal.hidden=true;modal.innerHTML='<div class="coi-fin-delete-card" role="dialog" aria-modal="true" aria-labelledby="coiFinDeleteTitleV60"><h2 id="coiFinDeleteTitleV60">Eliminar posiciones OC</h2><p id="coiFinDeleteCountV60"></p><div id="coiFinDeleteListV60" class="coi-fin-delete-list"></div><div class="coi-fin-delete-warning">Eliminación definitiva. Las posiciones con consumos o certificaciones deben conservarse por trazabilidad.</div><label for="coiFinDeleteInputV60">Escribí ELIMINAR para continuar</label><input id="coiFinDeleteInputV60" autocomplete="off"><div id="coiFinDeleteErrorV60" class="coi-fin-delete-error" aria-live="polite"></div><div class="coi-fin-delete-actions"><button type="button" id="coiFinDeleteCancelV60">Cancelar</button><button type="button" id="coiFinDeleteConfirmV60" class="btn-danger-soft" disabled>Eliminar definitivamente</button></div></div>';document.body.appendChild(modal);return modal;
+  }
+  function openModal(rows,section){
+    const modal=ensureModal(),list=modal.querySelector('#coiFinDeleteListV60'),input=modal.querySelector('#coiFinDeleteInputV60'),confirmButton=modal.querySelector('#coiFinDeleteConfirmV60'),cancelButton=modal.querySelector('#coiFinDeleteCancelV60'),errorBox=modal.querySelector('#coiFinDeleteErrorV60');
+    modal.querySelector('#coiFinDeleteCountV60').textContent=`Filas seleccionadas: ${rows.length}`;list.replaceChildren();
+    rows.forEach(row=>{const card=document.createElement('div');card.className='coi-fin-delete-row';[['N.º OC',row.nro_oc],['Posición',row.posicion],['Descripción',row.descripcion],['Cantidad',row.cantidad_total],['Monto total',money(row.monto_total)],['Estado',row.estado||'LIBRE']].forEach(([label,value])=>{const item=document.createElement('span');item.textContent=`${label}: ${value??'—'}`;card.appendChild(item);});list.appendChild(card);});
+    input.value='';input.disabled=false;confirmButton.disabled=true;cancelButton.disabled=false;errorBox.textContent='';modal.hidden=false;setTimeout(()=>input.focus(),0);
+    const onInput=()=>{confirmButton.disabled=input.value.trim().toUpperCase()!=='ELIMINAR'||operationPromise!==null;};
+    const cleanup=()=>{input.removeEventListener('input',onInput);cancelButton.removeEventListener('click',onCancel);confirmButton.removeEventListener('click',onConfirm);};
+    const close=()=>{cleanup();modal.hidden=true;updateSelection(section);};
+    const onCancel=()=>{if(!operationPromise)close();};
+    const onConfirm=async()=>{if(input.value.trim().toUpperCase()!=='ELIMINAR'||operationPromise)return;input.disabled=true;cancelButton.disabled=true;confirmButton.disabled=true;confirmButton.textContent='Eliminando…';errorBox.textContent='Validando, eliminando y verificando Supabase…';try{await eliminarPosiciones(rows.map(row=>row.id));close();if(typeof window.coiToast==='function')window.coiToast('Posiciones eliminadas y verificadas en Supabase.','ok');}catch(error){console.error('[COI][FINANZAS][DELETE_POSICION][ERROR]',error);errorBox.textContent=error?.message||String(error);}finally{input.disabled=false;cancelButton.disabled=false;confirmButton.textContent='Eliminar definitivamente';confirmButton.disabled=input.value.trim().toUpperCase()!=='ELIMINAR';updateSelection(section);}};
+    input.addEventListener('input',onInput);cancelButton.addEventListener('click',onCancel);confirmButton.addEventListener('click',onConfirm);
+  }
+  if(!window.__COI_FIN_DELETE_UI_V60_BOUND__){
+    window.__COI_FIN_DELETE_UI_V60_BOUND__=true;
+    document.addEventListener('change',event=>{const checkbox=event.target?.closest?.('.chk-fin-delete-position-v60');if(checkbox)updateSelection(checkbox.closest('[data-fin-oc]'));});
+    document.addEventListener('click',async event=>{const button=event.target?.closest?.('[data-fin-delete-selected-v60]');if(!button)return;event.preventDefault();const section=button.closest('[data-fin-oc]'),ids=selectedIds(section);if(!ids.length)return;button.disabled=true;button.textContent='Validando…';try{const rows=await validarEliminacionPosiciones(ids);openModal(rows,section);}catch(error){console.error('[COI][FINANZAS][DELETE_POSICION][ERROR]',error);if(typeof window.coiToast==='function')window.coiToast(error?.message||String(error),'error');else alert(error?.message||String(error));}finally{updateSelection(section);}});
+  }
+  window.COI_POSICIONES_DELETE_V60=Object.freeze({version:'V60.0-POSICIONES-DELETE-A',traceMessage:TRACE_MESSAGE});
+})();
+</script>
+<script id="coi-v60-editar-oc">
+/* V60 Fase A · Edición remota verificada del Expediente Digital OC. */
+(function(){
+  'use strict';
+  const TABLE='coi_ordenes';
+  const STATIONS_TABLE='coi_ordenes_estaciones';
+  const CACHE_KEY='coi_supabase_ordenes_cache_v2';
+  const RENUMBER_RPC_INSTALLED=false;
+  const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const ALLOWED=Object.freeze(['id_obra','tipo','tipo_trabajo','especialidad','descripcion','proveedor','estacion','ramal','sector','expediente','monto_total','moneda','fecha_acta_inicio','plazo_dias','fecha_vencimiento','proxima_certificacion','fecha_recepcion_documentacion','fecha_envio_planificacion','estado_coi','estado_documental','estado_registro','observaciones','certificable_con_saldo','justificacion_administrativa','link_documental_principal','estado_link_documental','calidad_datos_estado','calidad_datos_score','prioridad_operativa','responsable_coi','fecha_ultimo_control','requiere_accion','motivo_requiere_accion','estado_envio_pyc','fecha_cierre_operativo','observacion_cierre','control_terceros_hasta','control_terceros_estado']);
+  const PROTECTED=Object.freeze(['id','nro_oc','creado_por','fecha_creacion','actualizado_por','fecha_actualizacion','saldo_remanente']);
+  const DATE_FIELDS=new Set(['fecha_acta_inicio','fecha_vencimiento','proxima_certificacion','fecha_recepcion_documentacion','fecha_envio_planificacion','fecha_ultimo_control','fecha_cierre_operativo','control_terceros_hasta']);
+  const BOOLEAN_FIELDS=new Set(['certificable_con_saldo','requiere_accion']);
+  const NUMBER_FIELDS=new Set(['monto_total','plazo_dias','calidad_datos_score']);
+  const ALIASES={
+    id:['id','supabaseId'],nro_oc:['nro_oc','numeroOC','oc','ocNro','OC_NRO'],id_obra:['id_obra','idObra','idOC'],tipo_trabajo:['tipo_trabajo','tipoTrabajo'],monto_total:['monto_total','monto','montoTotal','montoOC'],fecha_acta_inicio:['fecha_acta_inicio','actaInicio','fechaInicio'],plazo_dias:['plazo_dias','plazoDias','plazo'],fecha_vencimiento:['fecha_vencimiento','vencimiento','fechaFin'],proxima_certificacion:['proxima_certificacion','proximaCertificacion','proxCertificacion'],fecha_recepcion_documentacion:['fecha_recepcion_documentacion','fechaRecepcionDocumentacion'],fecha_envio_planificacion:['fecha_envio_planificacion','fechaEnvioPlanificacion','fechaEnvioPyC'],estado_coi:['estado_coi','estadoCOI','estado'],estado_documental:['estado_documental','estadoDocumental'],estado_registro:['estado_registro','estadoRegistro'],certificable_con_saldo:['certificable_con_saldo','certificableConSaldo'],justificacion_administrativa:['justificacion_administrativa','justificacionAdministrativa'],link_documental_principal:['link_documental_principal','linkDocumentalPrincipal'],estado_link_documental:['estado_link_documental','estadoLinkDocumental'],calidad_datos_estado:['calidad_datos_estado','calidadDatosEstado'],calidad_datos_score:['calidad_datos_score','calidadDatosScore'],prioridad_operativa:['prioridad_operativa','prioridadOperativa'],responsable_coi:['responsable_coi','responsableCOI'],fecha_ultimo_control:['fecha_ultimo_control','fechaUltimoControl'],requiere_accion:['requiere_accion','requiereAccion'],motivo_requiere_accion:['motivo_requiere_accion','motivoRequiereAccion'],estado_envio_pyc:['estado_envio_pyc','estadoEnvioPyC'],fecha_cierre_operativo:['fecha_cierre_operativo','fechaCierreOperativo'],observacion_cierre:['observacion_cierre','observacionCierre'],control_terceros_hasta:['control_terceros_hasta','controlTercerosHasta'],control_terceros_estado:['control_terceros_estado','controlTercerosEstado'],fecha_creacion:['fecha_creacion','fechaCreacion','created_at'],fecha_actualizacion:['fecha_actualizacion','fechaUltimaModificacion','updated_at'],creado_por:['creado_por'],actualizado_por:['actualizado_por'],saldo_remanente:['saldo_remanente','saldoRemanente']
+  };
+  const SECTIONS=[
+    ['Identificación',['id_obra','tipo','tipo_trabajo','especialidad','descripcion','proveedor']],
+    ['Contractual',['expediente','fecha_acta_inicio','plazo_dias','fecha_vencimiento','proxima_certificacion']],
+    ['Ubicación y alcance',['estacion','ramal','sector']],
+    ['Financiero general',['monto_total','moneda','certificable_con_saldo','justificacion_administrativa']],
+    ['Documentación',['fecha_recepcion_documentacion','estado_documental','link_documental_principal','estado_link_documental']],
+    ['Gestión COI',['estado_coi','estado_registro','observaciones','responsable_coi','requiere_accion','motivo_requiere_accion']],
+    ['Planificación y Control',['fecha_envio_planificacion','estado_envio_pyc','fecha_ultimo_control']],
+    ['Control de Terceros',['control_terceros_hasta','control_terceros_estado']],
+    ['Cierre',['fecha_cierre_operativo','observacion_cierre']],
+    ['Calidad y prioridad',['calidad_datos_estado','calidad_datos_score','prioridad_operativa']]
+  ];
+  const LABELS={id_obra:'ID obra',tipo:'Tipo',tipo_trabajo:'Tipo de trabajo',especialidad:'Especialidad',descripcion:'Descripción',proveedor:'Proveedor',estacion:'Estación principal',ramal:'Ramal',sector:'Sector',expediente:'Expediente',monto_total:'Monto total',moneda:'Moneda',fecha_acta_inicio:'Acta de inicio',plazo_dias:'Plazo en días',fecha_vencimiento:'Vencimiento',proxima_certificacion:'Próxima certificación',fecha_recepcion_documentacion:'Recepción documentación',fecha_envio_planificacion:'Envío a Planificación',estado_coi:'Estado COI',estado_documental:'Estado documental',estado_registro:'Estado del registro',observaciones:'Observaciones',certificable_con_saldo:'Certificable con saldo',justificacion_administrativa:'Justificación administrativa',link_documental_principal:'Link documental principal',estado_link_documental:'Estado del link',calidad_datos_estado:'Estado calidad',calidad_datos_score:'Puntaje calidad',prioridad_operativa:'Prioridad operativa',responsable_coi:'Responsable COI',fecha_ultimo_control:'Último control',requiere_accion:'Requiere acción',motivo_requiere_accion:'Motivo de acción',estado_envio_pyc:'Estado envío PyC',fecha_cierre_operativo:'Cierre operativo',observacion_cierre:'Observación de cierre',control_terceros_hasta:'Control de Terceros hasta',control_terceros_estado:'Estado Control de Terceros'};
+  const text=value=>String(value??'').trim();
+  const esc=value=>text(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const has=(object,key)=>Object.prototype.hasOwnProperty.call(object||{},key);
+  let editState=null;
+  let savePromise=null;
+
+  function fieldValue(order,name){
+    const raw=order?._supabaseRaw||{};
+    const names=ALIASES[name]||[name];
+    for(const source of [raw,order||{}])for(const key of names)if(has(source,key)&&source[key]!==undefined)return source[key];
+    return '';
+  }
+  function parseAmount(value){const parser=window.coiParseMontoAR;if(typeof parser!=='function')throw new Error('El parser argentino window.coiParseMontoAR no está disponible.');const result=parser(value);if(!Number.isFinite(Number(result)))throw new Error('Monto total inválido.');return Number(result);}
+  function normalizeDate(value,field){
+    const clean=text(value);if(!clean)return null;
+    const iso=/^\d{4}-\d{2}-\d{2}$/.test(clean)?clean:(/^\d{4}-\d{2}-\d{2}T/.test(clean)?clean.slice(0,10):'');
+    const date=iso?new Date(`${iso}T12:00:00`):null;
+    if(!iso||!date||Number.isNaN(date.getTime())||date.getFullYear()<2000)throw fieldError(field,'Ingrese una fecha válida con año mayor o igual a 2000.');
+    return iso;
+  }
+  function fieldError(field,message){const error=new Error(message);error.fieldErrors={[field]:message};return error;}
+  function normalizeField(name,value){
+    if(DATE_FIELDS.has(name))return normalizeDate(value,name);
+    if(BOOLEAN_FIELDS.has(name)){if(typeof value!=='boolean')throw fieldError(name,'Debe ser un valor booleano real.');return value;}
+    if(name==='monto_total'){const amount=parseAmount(value);if(amount<0)throw fieldError(name,'El monto total debe ser mayor o igual a cero.');return amount;}
+    if(name==='plazo_dias'){const amount=Number(value);if(!Number.isInteger(amount)||amount<0)throw fieldError(name,'El plazo debe ser un entero mayor o igual a cero.');return amount;}
+    if(name==='calidad_datos_score'){const amount=Number(value);if(!Number.isFinite(amount)||amount<0||amount>100)throw fieldError(name,'El puntaje debe estar entre 0 y 100.');return amount;}
+    if(name==='tipo'){const type=text(value).toUpperCase();if(!['OBRA','SERVICIO'].includes(type))throw fieldError(name,'Tipo permitido: Obra o Servicio.');return type==='OBRA'?'Obra':'Servicio';}
+    if(name==='moneda'){const currency=text(value).toUpperCase();if(!currency)throw fieldError(name,'La moneda no puede quedar vacía.');return currency;}
+    const clean=text(value);return clean||null;
+  }
+  function comparable(name,value){if(value===null||value===undefined||value==='')return null;if(BOOLEAN_FIELDS.has(name))return Boolean(value);if(NUMBER_FIELDS.has(name))return Number(value);if(DATE_FIELDS.has(name))return text(value).slice(0,10);return text(value);}
+  function equalValue(name,left,right){return comparable(name,left)===comparable(name,right);}
+  function normalizeChanges(changes,current){
+    const patch={},errors={};
+    for(const [name,value] of Object.entries(changes||{})){
+      if(!ALLOWED.includes(name)){errors[name]=`El campo ${name} no está permitido.`;continue;}
+      try{const normalized=normalizeField(name,value);if(!equalValue(name,normalized,current?.[name]))patch[name]=normalized;}catch(error){Object.assign(errors,error.fieldErrors||{[name]:error.message});}
+    }
+    const candidate={...(current||{}),...patch};
+    try{
+      if(candidate.fecha_acta_inicio&&candidate.fecha_vencimiento&&candidate.fecha_vencimiento<candidate.fecha_acta_inicio)throw fieldError('fecha_vencimiento','El vencimiento no puede ser anterior al Acta de Inicio.');
+      if(!text(candidate.moneda))throw fieldError('moneda','La moneda no puede quedar vacía.');
+      if(!text(candidate.id_obra))throw fieldError('id_obra','ID obra no puede quedar vacío.');
+    }catch(error){Object.assign(errors,error.fieldErrors||{});}
+    if(Object.keys(errors).length){const error=new Error(Object.values(errors).join(' '));error.fieldErrors=errors;throw error;}
+    return patch;
+  }
+  async function requireSession(){
+    if(navigator.onLine===false)throw new Error('Modo solo lectura: no se puede guardar sin conexión.');
+    const client=typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;
+    if(!client)throw new Error('Cliente Supabase no disponible.');
+    const {data:{session}={},error}=await client.auth.getSession();if(error)throw error;if(!session?.user)throw new Error('Debe iniciar sesión en Supabase para editar la OC.');
+    return {client,session};
+  }
+  async function readRemote(client,id){
+    if(!UUID_RE.test(text(id)))throw new Error('La OC no tiene un UUID remoto válido.');
+    const {data,error}=await client.from(TABLE).select('*').eq('id',id).single();if(error)throw error;if(!data?.id)throw new Error('La OC no existe en Supabase.');return data;
+  }
+  async function updatePrincipalStation(client,orderId,patch){
+    if(!has(patch,'estacion'))return [];
+    const warnings=[];
+    try{
+      const lookup=await client.from(STATIONS_TABLE).select('id,es_principal,estacion,ramal,sector').eq('orden_id',orderId).eq('es_principal',true).limit(2);
+      if(lookup.error)throw lookup.error;
+      const rows=Array.isArray(lookup.data)?lookup.data:[];
+      if(rows.length!==1){warnings.push(rows.length?'Hay más de una asociación principal; no se modificaron asociaciones.':'No existe una asociación principal en coi_ordenes_estaciones.');return warnings;}
+      const stationPatch={estacion:patch.estacion};if(has(patch,'ramal'))stationPatch.ramal=patch.ramal;if(has(patch,'sector'))stationPatch.sector=patch.sector;
+      const result=await client.from(STATIONS_TABLE).update(stationPatch).eq('id',rows[0].id).select('id').single();if(result.error)throw result.error;
+    }catch(error){warnings.push(`No se pudo actualizar la asociación principal: ${error?.message||error}`);}
+    return warnings;
+  }
+  async function registerHistory(row,before,fields,session){
+    const warnings=[];
+    if(typeof window.registrarHistorialOC!=='function')return warnings;
+    for(const field of fields){try{await window.registrarHistorialOC(row,{tipo_evento:'Edición remota OC',campo_modificado:field,valor_anterior:before[field]??null,valor_nuevo:row[field]??null,motivo:'Edición desde Expediente Digital OC',usuario_email:session.user.email||null,fecha_evento:new Date().toISOString()});}catch(error){warnings.push(`Historial ${field}: ${error?.message||error}`);}}
+    return warnings;
+  }
+  async function refreshApplication(row){
+    if(typeof window.recargarDatosDesdeSupabase!=='function')throw new Error('No se pudo actualizar memoria y caché: recargarDatosDesdeSupabase no está disponible.');
+    await window.recargarDatosDesdeSupabase({silencioso:true});
+    const reference=row.id_obra||row.nro_oc||row.id;
+    for(const name of ['renderOrdenes','updateKpis','renderMap','renderCalendarioCOIUnificado','renderCentroAlertas','renderBuscador']){try{if(typeof window[name]==='function')window[name]();}catch(error){console.warn(`COI edición V60: no se pudo ejecutar ${name}.`,error);}}
+    try{window.renderFichaOC?.(reference);}catch(error){console.warn('COI edición V60: no se pudo renderizar la ficha.',error);}
+  }
+  async function actualizar(ordenId,changes){
+    if(savePromise)return savePromise;
+    savePromise=(async()=>{
+      const access=await requireSession();
+      const before=await readRemote(access.client,ordenId);
+      const patch=normalizeChanges(changes,before);
+      const fields=Object.keys(patch);if(!fields.length)return {ok:true,noChanges:true,row:before,fields:[],warnings:[]};
+      patch.actualizado_por=access.session.user.id;
+      const update=await access.client.from(TABLE).update(patch).eq('id',ordenId).select('*').single();if(update.error)throw update.error;if(!update.data?.id)throw new Error('Supabase no confirmó el UPDATE.');
+      const verifiedResult=await access.client.from(TABLE).select('*').eq('id',ordenId).single();if(verifiedResult.error)throw verifiedResult.error;const verified=verifiedResult.data;
+      const mismatches=Object.keys(patch).filter(field=>!equalValue(field,patch[field],verified?.[field]));if(mismatches.length){const error=new Error(`Verificación remota fallida para: ${mismatches.join(', ')}.`);error.code='COI_UPDATE_VERIFY';throw error;}
+      const warnings=await updatePrincipalStation(access.client,ordenId,patch);
+      await refreshApplication(verified);
+      warnings.push(...await registerHistory(verified,before,fields,access.session));
+      return {ok:true,row:verified,fields,warnings};
+    })();
+    try{return await savePromise;}finally{savePromise=null;}
+  }
+  const repository=Object.freeze({actualizar,camposEditables:ALLOWED,camposProtegidos:PROTECTED});
+  window.COI_REPOSITORY=window.COI_REPOSITORY||{};window.COI_REPOSITORY.ordenes=repository;
+
+  function resolveLocal(reference){
+    try{const found=typeof window.resolverOrdenActual==='function'?window.resolverOrdenActual(reference):null;if(found)return found.item||found;}catch(error){}
+    try{const found=typeof window.obtenerOC==='function'?window.obtenerOC(reference):null;if(found)return found.item||found;}catch(error){}
+    const wanted=text(reference).toUpperCase();
+    try{for(const station of (typeof estaciones!=='undefined'&&Array.isArray(estaciones)?estaciones:[]))for(const list of [station.obras||[],station.servicios||[]]){const found=list.find(item=>[fieldValue(item,'id'),fieldValue(item,'id_obra'),fieldValue(item,'nro_oc')].some(value=>text(value).toUpperCase()===wanted));if(found)return found;}}catch(error){}
+    return null;
+  }
+  function fieldInput(name,value){
+    const label=LABELS[name]||name,display=DATE_FIELDS.has(name)?text(value).slice(0,10):value;
+    if(BOOLEAN_FIELDS.has(name))return `<label class="coi-edit-v60-field"><span>${esc(label)}</span><input type="checkbox" data-coi-edit-field="${name}" ${value===true||text(value).toLowerCase()==='true'?'checked':''}><small data-coi-edit-error="${name}"></small></label>`;
+    if(name==='tipo')return `<label class="coi-edit-v60-field"><span>${esc(label)}</span><select data-coi-edit-field="${name}"><option value="Obra" ${text(value).toLowerCase()==='obra'?'selected':''}>Obra</option><option value="Servicio" ${text(value).toLowerCase()==='servicio'?'selected':''}>Servicio</option></select><small data-coi-edit-error="${name}"></small></label>`;
+    if(['descripcion','observaciones','justificacion_administrativa','motivo_requiere_accion','observacion_cierre'].includes(name))return `<label class="coi-edit-v60-field full"><span>${esc(label)}</span><textarea data-coi-edit-field="${name}">${esc(display)}</textarea><small data-coi-edit-error="${name}"></small></label>`;
+    const type=DATE_FIELDS.has(name)?'date':(name==='plazo_dias'||name==='calidad_datos_score'?'number':'text');
+    return `<label class="coi-edit-v60-field"><span>${esc(label)}</span><input type="${type}" data-coi-edit-field="${name}" value="${esc(display)}" ${name==='plazo_dias'?'min="0" step="1"':name==='calidad_datos_score'?'min="0" max="100" step="1"':''}><small data-coi-edit-error="${name}"></small></label>`;
+  }
+  function protectedInput(name,order){return `<label class="coi-edit-v60-field protected"><span>${esc(name)}</span><input value="${esc(DATE_FIELDS.has(name)?text(fieldValue(order,name)).slice(0,10):fieldValue(order,name))}" readonly data-coi-protected="${name}"></label>`;}
+  function ensureModal(){
+    let modal=document.getElementById('coiEditOCModalV60');if(modal)return modal;
+    const style=document.createElement('style');style.id='coiEditOCStylesV60';style.textContent='.coi-edit-v60-modal{position:fixed;inset:0;z-index:140000;background:#0f172acc;display:flex;align-items:center;justify-content:center;padding:16px}.coi-edit-v60-modal[hidden]{display:none!important}.coi-edit-v60-card{width:min(1180px,98vw);max-height:95vh;overflow:auto;background:#fff;border-radius:20px;padding:22px;box-shadow:0 35px 100px #0006}.coi-edit-v60-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.coi-edit-v60-section{border:1px solid #dbe5ee;border-radius:14px;padding:14px;margin:12px 0}.coi-edit-v60-section h3{margin:0 0 10px}.coi-edit-v60-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.coi-edit-v60-field{display:flex;flex-direction:column;gap:4px;font-weight:800}.coi-edit-v60-field.full{grid-column:1/-1}.coi-edit-v60-field small{color:#b42318;min-height:16px}.coi-edit-v60-field.protected input{background:#eef2f6;color:#667085}.coi-edit-v60-actions{position:sticky;bottom:-22px;background:#fff;border-top:1px solid #dbe5ee;padding:14px 0 2px;display:flex;gap:8px;justify-content:flex-end;align-items:center}.coi-edit-v60-dirty{margin-right:auto;font-weight:900;color:#9a6700}.coi-edit-v60-error{color:#b42318;font-weight:800;min-height:22px}.coi-edit-v60-readonly{padding:10px;border-radius:10px;background:#fff7e6;color:#8a5a00;font-weight:800}.ficha-oc-edit-v60{background:#1768a9!important;color:#fff!important}@media(max-width:800px){.coi-edit-v60-grid{grid-template-columns:1fr}}';document.head.appendChild(style);
+    modal=document.createElement('div');modal.id='coiEditOCModalV60';modal.className='coi-edit-v60-modal';modal.hidden=true;document.body.appendChild(modal);return modal;
+  }
+  function collectForm(modal){const values={};modal.querySelectorAll('[data-coi-edit-field]').forEach(input=>{values[input.dataset.coiEditField]=input.type==='checkbox'?input.checked:input.value;});return values;}
+  function serialize(values){return JSON.stringify(Object.fromEntries(Object.entries(values).map(([key,value])=>[key,typeof value==='string'?value.trim():value])));}
+  function updateDirty(){if(!editState)return;const values=collectForm(editState.modal),dirty=serialize(values)!==editState.baseline;editState.dirty=dirty;const badge=editState.modal.querySelector('#coiEditDirtyV60');if(badge)badge.textContent=dirty?'Cambios pendientes':'Sin cambios pendientes';const save=editState.modal.querySelector('#coiEditSaveV60');if(save)save.disabled=!dirty||navigator.onLine===false||savePromise!==null;return dirty;}
+  function showFieldErrors(errors={}){if(!editState)return;editState.modal.querySelectorAll('[data-coi-edit-error]').forEach(node=>{node.textContent=errors[node.dataset.coiEditError]||'';});}
+  function closeEditor(force=false){if(!editState)return true;if(editState.dirty&&!force&&!confirm('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))return false;editState.modal.hidden=true;editState=null;return true;}
+  function recalcDue(){if(!editState)return;const start=editState.modal.querySelector('[data-coi-edit-field="fecha_acta_inicio"]')?.value,days=Number(editState.modal.querySelector('[data-coi-edit-field="plazo_dias"]')?.value);if(!start||!Number.isFinite(days)||days<0)return;const date=new Date(`${start}T12:00:00`);date.setDate(date.getDate()+days);const calculated=date.toISOString().slice(0,10),input=editState.modal.querySelector('[data-coi-edit-field="fecha_vencimiento"]');if(input.value&&input.value!==calculated&&!confirm(`El vencimiento actual es ${input.value}. ¿Reemplazarlo por ${calculated}?`))return;input.value=calculated;input.dispatchEvent(new Event('input',{bubbles:true}));}
+  async function openEditor(reference){
+    const order=resolveLocal(reference||window.ocActualId||window.__coiFichaOCActiva);if(!order){if(typeof window.coiToast==='function')window.coiToast('No se pudo identificar la OC abierta.','error');return false;}
+    const modal=ensureModal(),sections=SECTIONS.map(([title,fields],index)=>`<section class="coi-edit-v60-section" data-section-index="${index+1}"><h3>${index+1}. ${esc(title)}</h3><div class="coi-edit-v60-grid">${fields.map(name=>fieldInput(name,fieldValue(order,name))).join('')}</div>${title==='Contractual'?'<div class="admin-actions"><button type="button" data-coi-recalc-venc>Recalcular vencimiento</button><button type="button" data-coi-recalc-cert>Recalcular próxima certificación</button></div>':''}</section>`).join('');
+    modal.innerHTML=`<div class="coi-edit-v60-card" role="dialog" aria-modal="true" aria-labelledby="coiEditTitleV60"><div class="coi-edit-v60-head"><div><h2 id="coiEditTitleV60">Editar OC · Expediente Digital</h2><p>OC ${esc(fieldValue(order,'nro_oc'))}</p></div><button type="button" data-coi-edit-close>×</button></div><div id="coiEditReadonlyV60" class="coi-edit-v60-readonly" hidden>Modo solo lectura</div><section class="coi-edit-v60-section"><h3>Campos protegidos</h3><div class="coi-edit-v60-grid">${PROTECTED.map(name=>protectedInput(name,order)).join('')}<label class="coi-edit-v60-field protected"><span>Cambiar N.º OC</span><button type="button" data-coi-renumber disabled title="Requiere instalar manualmente public.coi_renumerar_oc">RPC no instalada</button></label></div></section>${sections}<div id="coiEditErrorV60" class="coi-edit-v60-error" aria-live="polite"></div><div class="coi-edit-v60-actions"><span id="coiEditDirtyV60" class="coi-edit-v60-dirty">Sin cambios pendientes</span><button type="button" data-coi-edit-cancel>Cancelar</button><button type="button" class="primary" id="coiEditSaveV60" disabled>Guardar cambios</button></div></div>`;
+    modal.hidden=false;const values=collectForm(modal);editState={modal,order,orderId:text(fieldValue(order,'id')),baseline:serialize(values),dirty:false};
+    const readonly=modal.querySelector('#coiEditReadonlyV60'),save=modal.querySelector('#coiEditSaveV60');
+    if(navigator.onLine===false){readonly.hidden=false;readonly.textContent='Modo solo lectura · sin conexión';save.disabled=true;}else{try{await requireSession();save.disabled=true;}catch(error){readonly.hidden=false;readonly.textContent=error?.message||'Debe iniciar sesión.';save.disabled=true;}}
+    return true;
+  }
+  async function saveEditor(){
+    if(!editState||savePromise)return;const modal=editState.modal,button=modal.querySelector('#coiEditSaveV60'),errorBox=modal.querySelector('#coiEditErrorV60');showFieldErrors();errorBox.textContent='';button.disabled=true;button.textContent='Guardando…';
+    try{
+      const current=collectForm(modal),baseline=JSON.parse(editState.baseline),changes={};for(const name of ALLOWED)if(comparable(name,current[name])!==comparable(name,baseline[name]))changes[name]=current[name];
+      const result=await actualizar(editState.orderId,changes);editState.dirty=false;modal.hidden=true;editState=null;
+      const warning=result.warnings?.length?` Advertencias: ${result.warnings.join(' | ')}`:'';if(typeof window.coiToast==='function')window.coiToast(`OC actualizada correctamente en Supabase.${warning}`,result.warnings?.length?'warning':'ok');
+    }catch(error){console.error('[COI][ORDENES][UPDATE][ERROR]',error);errorBox.textContent=error?.message||String(error);showFieldErrors(error.fieldErrors||{});}
+    finally{if(button.isConnected){button.textContent='Guardar cambios';updateDirty();}}
+  }
+  function ensureEditButton(reference){
+    const host=document.getElementById('fichaOCBody')||document.querySelector('#vistaFichaOC .view-body');if(!host)return;
+    ['execBtnEditar','btnEditarFichaOC','btnEditarOC'].forEach(id=>{const old=document.getElementById(id);if(old)old.hidden=true;});
+    let button=document.getElementById('btnEditarOCV60');if(!button){button=document.createElement('button');button.type='button';button.id='btnEditarOCV60';button.className='primary ficha-oc-edit-v60';button.textContent='Editar OC';const actions=host.querySelector('.ficha-oc-top-actions,.exec-top-actions,.oc-header .actions')||host.querySelector('.oc-header')||host;actions.appendChild(button);}button.dataset.ocReference=text(reference||window.ocActualId||window.__coiFichaOCActiva);
+  }
+  function wrapRender(){const base=window.renderFichaOC;if(typeof base!=='function'||base.__coiEditV60Wrapped)return;const wrapped=function(reference,...rest){const result=base.apply(this,[reference,...rest]);setTimeout(()=>ensureEditButton(reference),0);return result;};wrapped.__coiEditV60Wrapped=true;wrapped.__coiEditV60Base=base;window.renderFichaOC=wrapped;}
+  if(!window.__COI_EDIT_OC_V60_BOUND__){window.__COI_EDIT_OC_V60_BOUND__=true;
+    document.addEventListener('input',event=>{if(event.target?.closest?.('#coiEditOCModalV60'))updateDirty();});
+    document.addEventListener('change',event=>{if(event.target?.closest?.('#coiEditOCModalV60'))updateDirty();});
+    document.addEventListener('click',event=>{const edit=event.target?.closest?.('#btnEditarOCV60');if(edit){event.preventDefault();openEditor(edit.dataset.ocReference);return;}if(event.target?.closest?.('[data-coi-edit-close],[data-coi-edit-cancel]')){event.preventDefault();closeEditor();return;}if(event.target?.closest?.('#coiEditSaveV60')){event.preventDefault();saveEditor();return;}if(event.target?.closest?.('[data-coi-recalc-venc]')){event.preventDefault();recalcDue();return;}if(event.target?.closest?.('[data-coi-recalc-cert]')){event.preventDefault();if(typeof window.calcularProximaCertificacionOC==='function')window.calcularProximaCertificacionOC(editState?.order);else{const box=editState?.modal.querySelector('#coiEditErrorV60');if(box)box.textContent='No hay una regla automática configurada; la fecha no fue modificada.';}}});
+    window.addEventListener('beforeunload',event=>{if(editState?.dirty){event.preventDefault();event.returnValue='';}});
+  }
+  wrapRender();if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{wrapRender();setTimeout(()=>ensureEditButton(),300)},{once:true});else setTimeout(()=>ensureEditButton(),300);
+  window.activarModoEdicionOC=openEditor;
+  window.renderFichaOCEdicion=openEditor;
+  window.abrirEdicionFichaOC=openEditor;
+  window.guardarEdicionIntegralOC=saveEditor;
+  window.cancelarModoEdicionOC=closeEditor;
+  window.COI_ORDENES_EDIT_V60=Object.freeze({version:'V60.0-EDITAR-OC-A',abrir:openEditor,cerrar:closeEditor,actualizar,parseAmount,normalizarCambios:normalizeChanges,camposEditables:ALLOWED,camposProtegidos:PROTECTED,rpcRenumerarInstalada:RENUMBER_RPC_INSTALLED,cacheKey:CACHE_KEY});
+})();
+</script></body></html>
