@@ -1,21 +1,4 @@
-'use strict';
-const assert = require('assert');
-const fs = require('fs');
-const html = fs.readFileSync('index.html', 'utf8');
-const deleteBlock = html.match(/\/\* coi-delete-supabase:[\s\S]*?<\/script>/)?.[0] || '';
-const deleteFunction = html.match(/async function eliminarOrdenEnSupabase\s*\([\s\S]*?async function recargarDatosDesdeSupabase/)?.[0] || '';
-assert.strictEqual((html.match(/id="btnBorrarSeleccionadas"/g) || []).length, 1, 'El ID del botón debe ser único');
-assert.ok(deleteBlock, 'No se encontró el bloque coi-delete-supabase');
-assert.ok(deleteFunction, 'No se encontró el borrado remoto canónico');
-assert.match(deleteBlock, /eliminarOrdenEnSupabase/);
-assert.match(deleteFunction, /from\(SUPABASE_TABLE\)\.delete\(\)/);
-assert.match(html, /const SUPABASE_TABLE\s*=\s*['"]coi_ordenes['"]/);
-assert.match(deleteFunction, /await recargarDatosDesdeSupabase\(/);
-assert.match(deleteBlock, /errores\.push[\s\S]*?(?:toastOrdenes|alert)\(/, 'Los errores Supabase deben mostrarse al usuario');
-assert.match(deleteFunction, /await requireSupabaseWriteAccess\(\)/, 'El borrado debe exigir acceso de escritura');
-assert.ok(!/localStorage\.clear\s*\(/.test(deleteBlock + deleteFunction));
-assert.ok(!/crudOcDeleteModal|confirmDeletion|data-crud-confirm|data-crud-cancel/.test(html));
-console.log('CRUD Órdenes: bloque coi-delete-supabase y borrado remoto administrador verificados.');
+
 'use strict';
 
 const assert = require('assert');
