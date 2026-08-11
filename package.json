@@ -1,0 +1,18 @@
+{
+  "name": "coi-linea-roca",
+  "version": "60.0.1",
+  "private": true,
+  "description": "Controles reproducibles del Sistema Integrado COI Línea Roca",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "npm run test:static",
+    "test:static": "node tests/check_baseline.js && node tests/check_p0_containment.js && node tests/check_crud_ordenes.js && node tests/check_control_terceros_static.js && node test_imputacion_posiciones.js",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}
