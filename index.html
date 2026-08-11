@@ -15126,9 +15126,9 @@ const APP_DATA_MODE = "supabase_first";
 
   async function consolidarDuplicadosSupabase(nroOC, canonicalRow = null) {
     const client = getSupabaseClient();
-    if (!client) return { eliminadas: 0, errores: [] };
+    if (!client) return { eliminadas: 0, detectadas: 0, errores: [] };
     const rows = await buscarFilasSupabasePorNroOC({ nro_oc: nroOC });
-    if (rows.length <= 1) return { eliminadas: 0, errores: [] };
+    if (rows.length <= 1) return { eliminadas: 0, detectadas: 0, errores: [] };
 
     const canonical = canonicalRow || rows[0];
     const canonicalId = canonical?.id;
@@ -15137,25 +15137,31 @@ const APP_DATA_MODE = "supabase_first";
       if (canonicalId !== undefined && canonicalId !== null) return row?.id !== canonicalId;
       return clean(row?.id_obra) !== canonicalIdObra;
     });
-    let eliminadas = 0;
-    const errores = [];
-    for (const row of extras) {
+    const detalle = extras.map((row) => ({
+      id: row?.id ?? null,
+      id_obra: clean(row?.id_obra) || null,
+      nro_oc: normalizeNroOC(row?.nro_oc || nroOC),
+      updated_at: row?.updated_at || null
+    }));
+    if (extras.length) {
+      console.warn('COI Supabase: duplicados detectados; la eliminación automática está bloqueada.', {
+        nro_oc: normalizeNroOC(nroOC),
+        canonical_id: canonicalId ?? null,
+        duplicados: detalle
+      });
       try {
-        let query = client.from(SUPABASE_TABLE).delete();
-        if (row?.id !== undefined && row?.id !== null) query = query.eq('id', row.id);
-        else if (clean(row?.id_obra)) query = query.eq('id_obra', row.id_obra);
-        else {
-          errores.push('Fila duplicada sin identificador eliminable.');
-          continue;
+        if (typeof registrarLogSistema === 'function') {
+          registrarLogSistema(
+            'DUPLICADOS_OC_DETECTADOS',
+            'Se detectaron filas duplicadas y no se eliminaron automáticamente',
+            JSON.stringify({ nro_oc: normalizeNroOC(nroOC), canonical_id: canonicalId ?? null, duplicados: detalle })
+          );
         }
-        const { error } = await query;
-        if (error) throw error;
-        eliminadas += 1;
       } catch (error) {
-        errores.push(error?.message || String(error));
+        console.warn('COI Supabase: no se pudo registrar el diagnóstico local de duplicados.', error);
       }
     }
-    return { eliminadas, errores };
+    return { eliminadas: 0, detectadas: extras.length, errores: [], duplicados: detalle };
   }
 
   async function upsertOrdenSupabase(orden, options = {}) {
@@ -15199,7 +15205,10 @@ const APP_DATA_MODE = "supabase_first";
     if (result.error) throw result.error;
     const canonicalRow = Array.isArray(result.data) && result.data.length ? result.data[0] : existente;
     const cleanup = await consolidarDuplicadosSupabase(payload.nro_oc, canonicalRow);
-    if (cleanup.errores.length) console.warn('COI Supabase: no se pudieron eliminar todos los duplicados', cleanup.errores);
+    if (cleanup.detectadas) {
+      const duplicateWarning = `Se detectaron ${cleanup.detectadas} fila(s) duplicada(s). No se eliminaron automáticamente; requieren revisión administrativa.`;
+      stationWarning = [stationWarning, duplicateWarning].filter(Boolean).join(' ');
+    }
     if (options.refresh !== false) await recargarDatosDesdeSupabase({ silencioso: true });
     if (stationWarning) toast(stationWarning, 'warning');
     if (options.notify === true) {
@@ -15759,7 +15768,7 @@ const APP_DATA_MODE = "supabase_first";
 
     for (const nroOC of duplicateNros) {
       const cleanup = await consolidarDuplicadosSupabase(nroOC, existingByNro.get(nroOC));
-      if (cleanup.errores.length) errores.push(...cleanup.errores.map((msg) => `OC ${nroOC}: ${msg}`));
+      if (cleanup.detectadas) advertenciasEstacion.push(`OC ${nroOC}: ${cleanup.detectadas} duplicado(s) detectado(s), sin eliminación automática.`);
     }
 
     await recargarDatosDesdeSupabase({ silencioso: true });
@@ -24856,5 +24865,84 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   window.guardarEdicionIntegralOC=saveEditor;
   window.cancelarModoEdicionOC=closeEditor;
   window.COI_ORDENES_EDIT_V60=Object.freeze({version:'V60.0-EDITAR-OC-A',abrir:openEditor,cerrar:closeEditor,actualizar,parseAmount,normalizarCambios:normalizeChanges,camposEditables:ALLOWED,camposProtegidos:PROTECTED,rpcRenumerarInstalada:RENUMBER_RPC_INSTALLED,cacheKey:CACHE_KEY});
+})();
+</script>
+
+<style id="coi-p0-containment-styles">
+.coi-p0-maintenance{margin:10px 0;padding:10px 12px;border:1px solid #f1c27d;border-radius:10px;background:#fff8e7;color:#7a4b00;font-weight:800;line-height:1.4}
+[data-coi-p0-blocked="true"]{cursor:not-allowed!important;opacity:.55!important}
+</style>
+<script id="coi-p0-containment">
+(function(){
+  'use strict';
+  const MESSAGE='Movimiento financiero temporalmente bloqueado: la versión publicada no puede confirmar persistencia segura. Consulte Posiciones OC en modo lectura hasta instalar la transacción Supabase.';
+  const BLOCKED_SELECTOR='[data-fin-consumir],[data-fin-cert-edit],[data-fin-cert-save],[data-fin-cert-delete]';
+
+  function notify(){
+    try{
+      if(typeof window.coiToast==='function')window.coiToast(MESSAGE,'warning');
+      else if(typeof window.mostrarAviso==='function')window.mostrarAviso(MESSAGE,'warning');
+      else window.alert(MESSAGE);
+    }catch(error){console.warn('[COI][P0][CONTENCION]',MESSAGE,error);}
+    return false;
+  }
+
+  function blockedFinancialMutation(){return notify();}
+  blockedFinancialMutation.__coiP0Blocked=true;
+
+  window.consumirPosicionesOC=blockedFinancialMutation;
+  window.finV56GuardarCertificacion=blockedFinancialMutation;
+  window.finV56EliminarCertificacion=blockedFinancialMutation;
+  try{consumirPosicionesOC=blockedFinancialMutation;}catch(error){}
+  try{finV56GuardarCertificacion=blockedFinancialMutation;}catch(error){}
+  try{finV56EliminarCertificacion=blockedFinancialMutation;}catch(error){}
+
+  function guardFinancialUI(root=document){
+    root.querySelectorAll?.(BLOCKED_SELECTOR).forEach(button=>{
+      button.disabled=true;
+      button.dataset.coiP0Blocked='true';
+      button.setAttribute('aria-disabled','true');
+      button.title=MESSAGE;
+    });
+    root.querySelectorAll?.('[data-fin-oc]').forEach(section=>{
+      if(section.querySelector(':scope > .coi-p0-maintenance'))return;
+      const note=document.createElement('div');
+      note.className='coi-p0-maintenance';
+      note.setAttribute('role','status');
+      note.textContent=MESSAGE;
+      section.prepend(note);
+    });
+  }
+
+  document.addEventListener('click',event=>{
+    const blocked=event.target?.closest?.(BLOCKED_SELECTOR);
+    if(!blocked)return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    notify();
+  },true);
+
+  const baseRender=window.renderFichaOC;
+  if(typeof baseRender==='function'&&!baseRender.__coiP0Contained){
+    const wrapped=function(...args){
+      const result=baseRender.apply(this,args);
+      setTimeout(()=>guardFinancialUI(document),0);
+      return result;
+    };
+    wrapped.__coiP0Contained=true;
+    wrapped.__coiP0Base=baseRender;
+    window.renderFichaOC=wrapped;
+    try{renderFichaOC=wrapped;}catch(error){}
+  }
+
+  window.COI_OPERATIONAL_GUARDS=Object.freeze({
+    version:'P0-CONTAINMENT-1',
+    financialMutations:false,
+    automaticDuplicateDeletion:false,
+    message:MESSAGE,
+    refresh:guardFinancialUI
+  });
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>guardFinancialUI(document),{once:true});
+  else guardFinancialUI(document);
 })();
 </script></body></html>
