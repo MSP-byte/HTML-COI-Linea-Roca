@@ -36,8 +36,8 @@ assert.match(
 
 assert.match(
   canonicalBlock,
-  /DELETE_ADMIN_EMAIL_V60\s*=\s*['"]admin@coiroca\.com['"]/,
-  'Debe limitar el borrado al administrador autorizado'
+  /from\('profiles'\)\.select\('rol,activo'\)/,
+  'Debe validar el rol administrador activo contra profiles'
 );
 
 assert.match(
@@ -54,14 +54,14 @@ assert.match(
 
 assert.match(
   canonicalBlock,
-  /from\(SUPABASE_TABLE\)\.delete\(\)\.eq\('id',\s*row\.id\)/,
-  'El DELETE debe realizarse por UUID'
+  /client\.rpc\('coi_eliminar_orden_integral',\s*\{\s*p_orden_id:\s*row\.id\s*\}\)/,
+  'El DELETE debe delegarse a la RPC transaccional por UUID'
 );
 
-assert.match(
+assert.doesNotMatch(
   canonicalBlock,
-  /select\('id,nro_oc'\)\.eq\('id',\s*row\.id\)/,
-  'Debe existir un SELECT posterior de verificación'
+  /from\(SUPABASE_TABLE\)\.delete\(/,
+  'El navegador no debe ejecutar DELETE directo sobre la OC'
 );
 
 assert.match(
@@ -110,5 +110,5 @@ assert.ok(
 );
 
 console.log(
-  'CRUD Órdenes V60: sesión admin, DELETE por UUID, verificación remota, modal ELIMINAR y limpieza posterior verificados.'
+  'CRUD Órdenes V60: sesión, perfil admin, RPC atómica, modal ELIMINAR y limpieza posterior verificados.'
 );

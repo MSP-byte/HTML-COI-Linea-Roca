@@ -24,36 +24,47 @@ test('los módulos principales mantienen una única vista activa', async ({ page
   }
 });
 
-test('la contención P0 impide confirmar una mutación financiera legacy', async ({ page }) => {
+test('sin sesión la RPC financiera rechaza la mutación sin éxito falso', async ({ page }) => {
   await openIsolated(page);
-  const dialogs = [];
-  page.on('dialog', async dialog => {
-    dialogs.push(dialog.message());
-    await dialog.dismiss();
+  await page.waitForFunction(() => Boolean(window.COI_FINANZAS_SUPABASE?.certificarPosiciones));
+  const result = await page.evaluate(async () => {
+    try {
+      await window.COI_FINANZAS_SUPABASE.certificarPosiciones([{
+        posicion_id: '11111111-1111-4111-8111-111111111111',
+        cantidad: 1,
+        monto: 100
+      }], '22222222-2222-4222-8222-222222222222', { origen: 'e2e' });
+      return { ok: true, message: '' };
+    } catch (error) {
+      return { ok: false, message: error?.message || String(error) };
+    }
   });
-  const result = await page.evaluate(() => window.consumirPosicionesOC('4530008964'));
-  expect(result).toBe(false);
-  await expect.poll(() => dialogs.length).toBe(1);
-  expect(dialogs[0]).toContain('Movimiento financiero temporalmente bloqueado');
+  expect(result.ok).toBe(false);
+  expect(result.message).toMatch(/sesión|Supabase|cliente/i);
   const guards = await page.evaluate(() => window.COI_OPERATIONAL_GUARDS);
-  expect(guards.financialMutations).toBe(false);
+  expect(guards.financialMutations).toBe('supabase-rpc-only');
   expect(guards.automaticDuplicateDeletion).toBe(false);
 });
 
 test('sin sesión Supabase el borrado no elimina filas locales', async ({ page }) => {
   await openIsolated(page);
-  await page.locator('#btnOrdenes').click();
-  const rows = page.locator('#ordenesTbody tr');
-  const before = await rows.count();
-  expect(before).toBeGreaterThan(0);
-  const checkbox = page.locator('.chk-orden-row').first();
-  await checkbox.check();
-  const button = page.locator('#btnBorrarSeleccionadas');
-  if (await button.isEnabled()) {
-    page.on('dialog', dialog => dialog.dismiss());
-    await button.click();
-  }
-  await expect(rows).toHaveCount(before);
+  await page.waitForFunction(() => typeof window.eliminarOrdenesPersistentesV60 === 'function');
+  const result = await page.evaluate(async () => {
+    const before = typeof window.todasLasOC === 'function' ? window.todasLasOC().length : -1;
+    try {
+      await window.eliminarOrdenesPersistentesV60([{
+        id: '11111111-1111-4111-8111-111111111111',
+        nro_oc: '4530008000',
+        numeroOC: '4530008000'
+      }]);
+      return { ok: true, before, after: typeof window.todasLasOC === 'function' ? window.todasLasOC().length : -1, message: '' };
+    } catch (error) {
+      return { ok: false, before, after: typeof window.todasLasOC === 'function' ? window.todasLasOC().length : -1, message: error?.message || String(error) };
+    }
+  });
+  expect(result.ok).toBe(false);
+  expect(result.message).toMatch(/sesión|Supabase|cliente/i);
+  expect(result.after).toBe(result.before);
 });
 
 test('sin sesión no se exponen órdenes ni posiciones sembradas en caché', async ({ page }) => {
@@ -64,8 +75,10 @@ test('sin sesión no se exponen órdenes ni posiciones sembradas en caché', asy
       orders: [{ id: '11111111-1111-4111-8111-111111111111', nro_oc: 'CACHE-OC-1', id_obra: 'CACHE-1', tipo: 'Obra', estacion: 'Temperley', proveedor: 'Dato sensible' }]
     }));
     localStorage.setItem('coi_cache_posiciones_oc_supabase_v1', JSON.stringify({
-      version: 1,
+      version: 2,
       source: 'Supabase',
+      positions: [{ id: '22222222-2222-4222-8222-222222222222', nro_oc: 'CACHE-OC-1', posicion: '10.00', cantidad_total: 1, monto_total: 100 }],
+      consumptions: [],
       rows: [{ id: '22222222-2222-4222-8222-222222222222', nro_oc: 'CACHE-OC-1', posicion: '10.00', cantidad_total: 1, monto_total: 100 }]
     }));
   });
