@@ -55,3 +55,26 @@ test('sin sesión Supabase el borrado no elimina filas locales', async ({ page }
   }
   await expect(rows).toHaveCount(before);
 });
+
+test('sin sesión no se exponen órdenes ni posiciones sembradas en caché', async ({ page }) => {
+  await page.route(/^https?:\/(?!\/127\.0\.0\.1)/, route => route.abort());
+  await page.addInitScript(() => {
+    localStorage.setItem('coi_supabase_ordenes_cache_v2', JSON.stringify({
+      savedAt: new Date().toISOString(),
+      orders: [{ id: '11111111-1111-4111-8111-111111111111', nro_oc: 'CACHE-OC-1', id_obra: 'CACHE-1', tipo: 'Obra', estacion: 'Temperley', proveedor: 'Dato sensible' }]
+    }));
+    localStorage.setItem('coi_cache_posiciones_oc_supabase_v1', JSON.stringify({
+      version: 1,
+      source: 'Supabase',
+      rows: [{ id: '22222222-2222-4222-8222-222222222222', nro_oc: 'CACHE-OC-1', posicion: '10.00', cantidad_total: 1, monto_total: 100 }]
+    }));
+  });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => typeof window.verificarSesionSupabase === 'function');
+  await page.evaluate(() => window.verificarSesionSupabase());
+  await expect.poll(() => page.evaluate(() => (typeof window.todasLasOC === 'function' ? window.todasLasOC().length : -1))).toBe(0);
+  await expect.poll(() => page.evaluate(() => (window.posicionesFinancieras || []).length)).toBe(0);
+  await page.evaluate(() => window.logoutSupabase());
+  expect(await page.evaluate(() => localStorage.getItem('coi_supabase_ordenes_cache_v2'))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem('coi_cache_posiciones_oc_supabase_v1'))).toBeNull();
+});
