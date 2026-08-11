@@ -3476,6 +3476,15 @@ function obtenerOC(idOC){
   }
   return null;
 }
+function fechaProximaCertificacionPersistida(item){
+  const raw=[
+    item?.proximaCertificacion,
+    item?.proxCertificacion,
+    item?.PROX_CERTIFICACION,
+    item?._supabaseRaw?.proxima_certificacion
+  ].find(value=>value!==null&&value!==undefined&&String(value).trim()!=='');
+  return raw ? parseFecha(raw) : null;
+}
 function calcularFichaOC(item){
   const inicio=parseFecha(item.actaInicio || item.fechaInicio || item.inicio);
   const plazo=Number(item.plazoDias || item.plazo || 0);
@@ -3484,7 +3493,7 @@ function calcularFichaOC(item){
   const actas=(Array.isArray(item.actas)?item.actas:[]).slice().sort((a,b)=>(parseFecha(a.fecha)||0)-(parseFecha(b.fecha)||0) || Number(a.numero||0)-Number(b.numero||0));
   const ultima=actas.length ? actas.at(-1) : null;
   const base=ultima?.fecha || inicio;
-  const prox=base ? addMeses(base,1) : null;
+  const prox=fechaProximaCertificacionPersistida(item) || (base ? addMeses(base,1) : null);
   const proxNro=(Number(ultima?.numero||0))+1 || 1;
   const fuera=venc && prox ? prox>venc : false;
   return {inicio,plazo,venc,dias,actas,ultima,prox,proxNro,fuera,cerrada:esCerradaPyC(item)};
@@ -4656,7 +4665,7 @@ function todasLasOC(){
       const actas=inferirActas(item).filter(a=>a.fecha || a.numero);
       const ultimaActa=actas.length ? actas.slice().sort((a,b)=>(parseFecha(a.fecha)||0)-(parseFecha(b.fecha)||0) || (a.numero||0)-(b.numero||0)).at(-1) : null;
       const proximaBase=ultimaActa && ultimaActa.fecha ? ultimaActa.fecha : inicio;
-      const proximaCert=proximaBase ? addMeses(proximaBase,1) : null;
+      const proximaCert=fechaProximaCertificacionPersistida(item) || (proximaBase ? addMeses(proximaBase,1) : null);
       const proximoNro=(ultimaActa && ultimaActa.numero ? ultimaActa.numero : 0)+1;
       const diasExcel=Number(item.diasRestantesCSV);
       const diasRestantes=Number.isFinite(diasExcel) ? diasExcel : (fin ? diffDias(fin,COI_TODAY) : null);
@@ -13567,7 +13576,7 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
     return panel;
   }
 
-  function actualizarVisibilidadCargaCertificacion(){
+  function actualizarVisibilidadCargaCertificacion({revalidar=true}={}){
     const tabs=byId('cargaCertSubtabsR18'),panel=byId('panelCargaCertificacionR18');
     if(!tabs||!panel)return;
     const type=tipoCargaActivo();
@@ -13583,7 +13592,7 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
     });
     const label=byId('cargaRapidaTipoActivo');
     if(label)label.textContent=`Carga activa: ${type}${certificationActive?' / Carga Certificación':''}`;
-    if(certificationActive)setTimeout(validarFilasCargaCertificacion,0);
+    if(certificationActive&&revalidar)setTimeout(validarFilasCargaCertificacion,0);
   }
 
   function aplicarFiltroClave(query,field,value){
@@ -13685,10 +13694,31 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
     certificacionesCacheOC.delete(nroOC);
     const source=await cargarCertificacionesPorOC(nroOC);
     const dates=source.map(row=>normalizarFechaCertificacion(row.proxima_acta_medicion_fecha)).filter(Boolean).sort();
-    if(!dates.length)return;
+    if(!dates.length)return {updated:false,reason:'sin_fecha'};
     const {client}=await usuarioEscritorCertificacion();
-    const result=await client.from(ORDENES_TABLE).update({proxima_certificacion:dates[0]}).eq('nro_oc',nroOC).select('id,nro_oc').limit(1);
-    if(result.error)throw crearErrorSupabase(result.error,'actualizar próxima certificación',{nro_oc:nroOC,proxima_certificacion:dates[0]});
+    const order=await resolverOrdenCertificacionPorNroOC(nroOC,client);
+    if(!order?.orden_id){const error=new Error(`La OC ${nroOC} no tiene un UUID remoto válido.`);error.code='OC_NOT_FOUND';throw error;}
+    const target=dates[0];
+    const payload={proxima_certificacion:target};
+    const result=await client.rpc('coi_actualizar_orden_integral',{p_orden_id:order.orden_id,p_cambios:payload});
+    if(result.error)throw crearErrorSupabase(result.error,'actualizar próxima certificación por RPC',{nro_oc:nroOC,orden_id:order.orden_id,...payload});
+    const confirmed=result.data?.orden;
+    if(!confirmed?.id||String(confirmed.id)!==String(order.orden_id)||normalizarFechaCertificacion(confirmed.proxima_certificacion)!==target){
+      const error=new Error('Supabase no confirmó la próxima certificación solicitada.');
+      error.code='COI_NEXT_CERT_NOT_CONFIRMED';
+      error.payload={nro_oc:nroOC,orden_id:order.orden_id,...payload};
+      throw error;
+    }
+    const verification=await client.from(ORDENES_TABLE).select('id,nro_oc,proxima_certificacion').eq('id',order.orden_id).limit(1);
+    if(verification.error)throw crearErrorSupabase(verification.error,'verificar próxima certificación',{nro_oc:nroOC,orden_id:order.orden_id,...payload});
+    const persisted=Array.isArray(verification.data)?verification.data[0]:null;
+    if(!persisted?.id||normalizarFechaCertificacion(persisted.proxima_certificacion)!==target){
+      const error=new Error('La verificación posterior no encontró la próxima certificación persistida en Supabase.');
+      error.code='COI_NEXT_CERT_VERIFY_FAILED';
+      error.payload={nro_oc:nroOC,orden_id:order.orden_id,...payload};
+      throw error;
+    }
+    return {updated:true,nro_oc:normalizarNroOCCertificacion(persisted.nro_oc||nroOC),proxima_certificacion:target,orden:persisted};
   }
 
   async function refrescarModulosTrasCertificacion(nrosOC=[]){
@@ -13721,9 +13751,10 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
     guardandoCargaCertificaciones=true;
     const button=byId('btnCertificacionGuardar');
     if(button)button.disabled=true;
-    const summary={detectadas:candidates.length,procesadas:0,nuevas:0,actualizadas:0,omitidas:0,errores:0};
+    const summary={detectadas:candidates.length,procesadas:0,nuevas:0,actualizadas:0,omitidas:0,errores:0,erroresFechaOC:0};
     const errors=[];
     const savedOC=new Set();
+    const savedRowsByOC=new Map();
     const seen=new Set();
     actualizarEstadoCargaCertificacion(`Validando ${candidates.length} registro(s) y guardando únicamente las filas válidas…`);
     try{
@@ -13751,7 +13782,10 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
           const result=await upsertCertificacionSupabase(validation.data);
           summary.procesadas+=1;
           if(result.action==='inserted')summary.nuevas+=1;else summary.actualizadas+=1;
-          savedOC.add(result.data.nro_oc);
+          const savedNro=normalizarNroOCCertificacion(result.data.nro_oc);
+          savedOC.add(savedNro);
+          if(!savedRowsByOC.has(savedNro))savedRowsByOC.set(savedNro,[]);
+          savedRowsByOC.get(savedNro).push({row:entry.row,action:result.action});
           marcarResultadoFila(entry.row,result.action==='inserted'?'Creada en Supabase':'Actualizada en Supabase','ok');
         }catch(error){
           summary.errores+=1;
@@ -13762,14 +13796,22 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
         }
       }
       for(const nroOC of savedOC){
-        try{await actualizarProximaCertificacionOrden(nroOC);}catch(error){errors.push(`OC ${nroOC}: ${detalleErrorEsquema(error)}`);}
+        try{
+          const sync=await actualizarProximaCertificacionOrden(nroOC);
+          if(sync?.updated)(savedRowsByOC.get(nroOC)||[]).forEach(entry=>marcarResultadoFila(entry.row,entry.action==='inserted'?'Creada y próxima fecha confirmada en Supabase':'Actualizada y próxima fecha confirmada en Supabase','ok'));
+        }catch(error){
+          summary.erroresFechaOC+=1;
+          const message=detalleErrorEsquema(error);
+          errors.push(`OC ${nroOC}: certificación guardada, pero próxima fecha no actualizada · ${message}`);
+          (savedRowsByOC.get(nroOC)||[]).forEach(entry=>marcarResultadoFila(entry.row,`Certificación guardada; próxima fecha NO actualizada: ${message}`,'warning'));
+        }
       }
-      const report=`Filas detectadas: <b>${summary.detectadas}</b> · Procesadas: <b>${summary.procesadas}</b> · Nuevas: <b>${summary.nuevas}</b> · Actualizadas: <b>${summary.actualizadas}</b> · Omitidas: <b>${summary.omitidas}</b> · Con error: <b>${summary.errores}</b>`;
-      actualizarEstadoCargaCertificacion(report+(errors.length?`<ul class="certificacion-error-list">${errors.slice(0,20).map(error=>`<li>${escapeHTML(error)}</li>`).join('')}</ul>`:''),summary.errores?'warning':'ok');
+      const report=`Filas detectadas: <b>${summary.detectadas}</b> · Procesadas: <b>${summary.procesadas}</b> · Nuevas: <b>${summary.nuevas}</b> · Actualizadas: <b>${summary.actualizadas}</b> · Omitidas: <b>${summary.omitidas}</b> · Filas con error: <b>${summary.errores}</b> · OCs sin fecha sincronizada: <b>${summary.erroresFechaOC}</b>`;
+      actualizarEstadoCargaCertificacion(report+(errors.length?`<ul class="certificacion-error-list">${errors.slice(0,20).map(error=>`<li>${escapeHTML(error)}</li>`).join('')}</ul>`:''),errors.length?'warning':'ok');
       if(summary.procesadas){
         await refrescarModulosTrasCertificacion([...savedOC]);
         submodoCargaCertificacion='certificacion';
-        actualizarVisibilidadCargaCertificacion();
+        actualizarVisibilidadCargaCertificacion({revalidar:false});
       }
     }finally{
       guardandoCargaCertificaciones=false;
@@ -13870,6 +13912,7 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
   window.validarFilaCertificacion=validarFilaCertificacion;
   window.buscarOrdenPorNroOC=buscarOrdenPorNroOC;
   window.cargarCertificacionesPorOC=cargarCertificacionesPorOC;
+  window.actualizarProximaCertificacionOrden=actualizarProximaCertificacionOrden;
   window.guardarCertificacionSupabase=guardarCertificacionSupabase;
   window.upsertCertificacionSupabase=upsertCertificacionSupabase;
   window.guardarCargaCertificaciones=guardarCargaCertificaciones;
@@ -14440,6 +14483,7 @@ const APP_DATA_MODE = "supabase_first";
       station[collection] = Array.isArray(station[collection]) ? station[collection] : [];
       station[collection].push({ ...order, origenDatos: source, _supabase: source !== 'Caché Supabase' || order._supabase });
     });
+    try { window.todasLasOC?.invalidarCache?.(); } catch (error) {}
     refreshCOIViews();
     return normalized;
   }
@@ -16395,7 +16439,7 @@ const APP_DATA_MODE = "supabase_first";
   function localOrders(){let rows=[];try{rows=typeof window.todasLasOC==='function'?window.todasLasOC():[]}catch(e){}const out=[],seen=new Set();rows.forEach(r=>{const item=r?.item||r;const key=nro(item)||clean(item?.idObra||item?.idOC);if(!key||seen.has(key))return;seen.add(key);const meta=metaByOC.get(key);if(meta)Object.assign(item,mapRowToItem(meta));out.push(item)});return out}
   function resolveOrder(value){if(value&&typeof value==='object'){const key=nro(value);return Object.assign(value,mapRowToItem(metaByOC.get(key)||{}))}const key=clean(value);try{const f=typeof window.obtenerOC==='function'?window.obtenerOC(key):null;if(f?.item)return Object.assign(f.item,mapRowToItem(metaByOC.get(nro(f.item))||{}))}catch(e){}return localOrders().find(o=>[nro(o),clean(o.idObra),clean(o.idOC)].some(x=>norm(x)===norm(key)))||null}
   function mapRowToItem(r){if(!r)return{};return{_supabaseRaw:r,supabaseId:r.id,idObra:r.id_obra||'',idOC:r.id_obra||'',numeroOC:r.nro_oc||'',oc:r.nro_oc||'',tipo:r.tipo||'',tipoTrabajo:r.tipo_trabajo||'',especialidad:r.especialidad||'',descripcion:r.descripcion||'',proveedor:r.proveedor||'',estacion:r.estacion||'',ramal:r.ramal||'',sector:r.sector||'',expediente:r.expediente||'',monto:Number(r.monto_total||0),montoTotal:Number(r.monto_total||0),moneda:r.moneda||'ARS',actaInicio:r.fecha_acta_inicio||'',fechaInicio:r.fecha_acta_inicio||'',plazoDias:Number(r.plazo_dias||0),vencimiento:r.fecha_vencimiento||'',fechaFin:r.fecha_vencimiento||'',proximaCertificacion:r.proxima_certificacion||'',fechaRecepcionDocumentacion:r.fecha_recepcion_documentacion||'',fechaEnvioPlanificacion:r.fecha_envio_planificacion||'',fechaEnvioPyC:r.fecha_envio_planificacion||'',estado:r.estado_coi||'',estadoCOI:r.estado_coi||'',estadoDocumental:r.estado_documental||'',estadoRegistro:r.estado_registro||'',observaciones:r.observaciones||'',saldoRemanente:Number(r.saldo_remanente||0),certificableConSaldo:bool(r.certificable_con_saldo),justificacionAdministrativa:r.justificacion_administrativa||'',linkDocumentalPrincipal:r.link_documental_principal||'',estadoLinkDocumental:r.estado_link_documental||'Sin link',calidadDatosEstado:r.calidad_datos_estado||'Sin auditar',calidadDatosScore:Number(r.calidad_datos_score||0),prioridadOperativa:r.prioridad_operativa||'Normal',responsableCOI:r.responsable_coi||'',fechaUltimoControl:r.fecha_ultimo_control||'',requiereAccion:bool(r.requiere_accion),motivoRequiereAccion:r.motivo_requiere_accion||'',estadoEnvioPyC:r.estado_envio_pyc||'No enviado',fechaCierreOperativo:r.fecha_cierre_operativo||'',observacionCierre:r.observacion_cierre||''}}
-  function mergeRows(rows){(rows||[]).forEach(r=>{const k=clean(r.nro_oc).replace(/\s+/g,'');if(k)metaByOC.set(k,r)});localOrders().forEach(o=>{const m=metaByOC.get(nro(o));if(m)Object.assign(o,mapRowToItem(m))});window.__coiExecutiveRows=[...metaByOC.values()];return rows||[]}
+  function mergeRows(rows){(rows||[]).forEach(r=>{const k=clean(r.nro_oc).replace(/\s+/g,'');if(k)metaByOC.set(k,r)});localOrders().forEach(o=>{const m=metaByOC.get(nro(o));if(m)Object.assign(o,mapRowToItem(m))});window.todasLasOC?.invalidarCache?.();window.__coiExecutiveRows=[...metaByOC.values()];return rows||[]}
   async function syncExecutiveMetadata(){const c=client(),u=await user();if(!c||!u||!navigator.onLine)return[];const {data,error}=await c.from(T_ORDENES).select(META_FIELDS.join(',')).limit(10000);if(error)throw error;mergeRows(data||[]);renderDashboardEjecutivo();enhanceOrders();renderAlertsExecutive();return data||[]}
   function normalizeExtraPayload(o){return{link_documental_principal:clean(o?.link_documental_principal??o?.linkDocumentalPrincipal)||null,estado_link_documental:clean(o?.estado_link_documental??o?.estadoLinkDocumental)||'Sin link',calidad_datos_estado:clean(o?.calidad_datos_estado??o?.calidadDatosEstado)||'Sin auditar',calidad_datos_score:Number(o?.calidad_datos_score??o?.calidadDatosScore??0)||0,prioridad_operativa:clean(o?.prioridad_operativa??o?.prioridadOperativa)||'Normal',responsable_coi:clean(o?.responsable_coi??o?.responsableCOI)||null,fecha_ultimo_control:o?.fecha_ultimo_control??o?.fechaUltimoControl??null,requiere_accion:bool(o?.requiere_accion??o?.requiereAccion),motivo_requiere_accion:clean(o?.motivo_requiere_accion??o?.motivoRequiereAccion)||null,estado_envio_pyc:clean(o?.estado_envio_pyc??o?.estadoEnvioPyC)||'No enviado',fecha_cierre_operativo:o?.fecha_cierre_operativo??o?.fechaCierreOperativo??null,observacion_cierre:clean(o?.observacion_cierre??o?.observacionCierre)||null}}
   async function updateOrder(orden,changes,{history=true,motivo='Actualización desde Ficha OC'}={}){const u=await requireWrite(),o=resolveOrder(orden),n=nro(o||orden);if(!n)throw new Error('No se pudo identificar el nro_oc.');const before={...(metaByOC.get(n)||{})};const {data,error}=await client().from(T_ORDENES).update(changes).eq('nro_oc',n).select();if(error)throw error;const row=Array.isArray(data)?data[0]:data;if(row)mergeRows([row]);if(history){const after=row||{...before,...changes};for(const ch of compararCambiosOC(before,after))await registrarCambioCampo(o||{nro_oc:n},ch.campo,ch.anterior,ch.nuevo,motivo)}refreshAll();return row}
@@ -16691,7 +16735,7 @@ const APP_DATA_MODE = "supabase_first";
   function exportarReporteCalidadCSV(){csvDownload('reporte_calidad_coi.csv',normalizedRows().map(o=>({nro_oc:o.nro_oc,proveedor:o.proveedor,estacion:o.estacion,calidad:o.calidad_datos_estado,score:o.calidad_datos_score,requiere_accion:o.requiere_accion,motivo:o.motivo_requiere_accion,fecha_ultimo_control:o.fecha_ultimo_control})))}
   function exportarReporteDocumentalCSV(){csvDownload('reporte_documental_coi.csv',normalizedRows().map(o=>({nro_oc:o.nro_oc,proveedor:o.proveedor,estacion:o.estacion,estado_link_documental:o.estado_link_documental,link_documental_principal:o.link_documental_principal,estado_documental:o.estado_documental,fecha_envio_pyc:o.fecha_envio_planificacion})))}
   function injectAdmin(){const host=$('adminTabDatos')||document.querySelector('#vistaAdministracionSistema .view-body');if(!host||$('execAdminPanel'))return;const p=document.createElement('section');p.id='execAdminPanel';p.className='exec-admin-panel';p.innerHTML=`<h3>Calidad, documental y auditoría</h3><div class="muted">Controles ejecutivos sobre public.coi_ordenes y tablas de trazabilidad.</div><div class="admin-actions"><button type="button" id="execAuditRun" class="primary">Ejecutar auditoría de calidad</button><button type="button" id="execAuditLast">Ver último resultado</button><button type="button" id="execReload">Recargar datos desde Supabase</button><button type="button" id="execDuplicates">Verificar duplicados por nro_oc</button><button type="button" id="execNoLinks">Verificar OCs sin link documental</button><button type="button" id="execExportQuality">Exportar reporte calidad CSV</button><button type="button" id="execExportDocs">Exportar reporte documental CSV</button></div><div id="execAuditResult"></div>`;host.prepend(p);if(lastAudit)renderResumenAuditoriaCalidad(lastAudit)}
-  function wrap(name,after){const base=window[name];if(typeof base!=='function'||base.__execWrapped)return;const fn=function(...args){const r=base.apply(this,args);Promise.resolve(r).finally(()=>after(...args));return r};fn.__execWrapped=true;window[name]=fn}
+  function wrap(name,after){const base=window[name];if(typeof base!=='function'||base.__execWrapped)return;const fn=function(...args){const r=base.apply(this,args),completed=Promise.resolve(r).finally(()=>after(...args));return r&&typeof r.then==='function'?completed:r};fn.__execWrapped=true;window[name]=fn}
   function renderExecutiveAfterFicha(key){const o=resolveOrder(key||window.ocActualId);if(!o)return;currentOrder=o;renderExecutiveFicha(o);$('execBtnEditar')?.remove();$('execBtnGuardar')?.remove();const linksRequest=renderLinksDocumentalesOC(o);prepararFuenteLinksDocumentales();Promise.resolve(linksRequest).finally(prepararFuenteLinksDocumentales);const documentosRequest=cargarYRenderDocumentosStorageOC(o);Promise.resolve(documentosRequest).then(documentos=>renderActasMedicionDocumentalesOC(o,documentos)).catch(error=>console.warn('COI: actas documentales no disponibles.',error));renderHistorialOC(o)}
   function installDocumentosStorageEvents(){
     if(eventosDocumentosStorageInicializados)return;

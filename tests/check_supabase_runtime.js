@@ -165,6 +165,10 @@ async function main() {
       /permission denied/i
     );
     await assert.rejects(
+      db.query("update public.coi_ordenes set proxima_certificacion='2026-09-30' where id=$1", [ORDER_ID]),
+      /permission denied/i
+    );
+    await assert.rejects(
       db.query("update public.coi_ordenes_estaciones set estacion='BYPASS' where id=$1", [STATION_ID]),
       /permission denied/i
     );
@@ -253,6 +257,30 @@ async function main() {
       select estacion,ramal from public.coi_ordenes_estaciones
        where orden_id=$1 and es_principal
     `, [ORDER_ID])).rows[0], { estacion: 'Lomas de Zamora', ramal: 'Roca Sur' });
+
+    // La próxima certificación es editable únicamente mediante la RPC allowlisted.
+    const nextCertification = (await db.query(
+      'select public.coi_actualizar_orden_integral($1::uuid,$2::jsonb) as result',
+      [ORDER_ID, JSON.stringify({ proxima_certificacion: '2026-09-15' })]
+    )).rows[0].result;
+    assert.equal(nextCertification.orden.proxima_certificacion, '2026-09-15');
+    assert.equal((await db.query(
+      'select proxima_certificacion::text as fecha from public.coi_ordenes where id=$1',
+      [ORDER_ID]
+    )).rows[0].fecha, '2026-09-15');
+    await setUser(db, 'consulta');
+    await expectDenied(
+      db.query(
+        'select public.coi_actualizar_orden_integral($1::uuid,$2::jsonb)',
+        [ORDER_ID, JSON.stringify({ proxima_certificacion: '2026-09-30' })]
+      ),
+      'consulta no debe actualizar proxima_certificacion'
+    );
+    assert.equal((await db.query(
+      'select proxima_certificacion::text as fecha from public.coi_ordenes where id=$1',
+      [ORDER_ID]
+    )).rows[0].fecha, '2026-09-15');
+    await setUser(db, 'administrador');
 
     // Identidad de posiciones: nro_oc autoritativo y campos clave inmutables.
     const freePositionId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';

@@ -101,7 +101,12 @@ assert.doesNotMatch(html, /\.rpc\('coi_certificar_posiciones'/, 'El frontend no 
 assert.doesNotMatch(html, /\.rpc\('coi_confirmar_etapa_circuito'/, 'El frontend no debe invocar la RPC de circuito sustituida');
 assert.doesNotMatch(
   html,
-  /\.from\((?:SUPABASE_TABLE|SUPABASE_STATIONS_TABLE|'coi_ordenes'|'coi_ordenes_estaciones')\)[\s\S]{0,220}?\.(?:insert|upsert|update|delete)\(/,
+  /\.from\(ORDENES_TABLE\)\.update\(\{proxima_certificacion:/,
+  'La carga de certificaciones no puede saltar la RPC para actualizar la OC'
+);
+assert.doesNotMatch(
+  html,
+  /\.from\((?:SUPABASE_TABLE|SUPABASE_STATIONS_TABLE|ORDENES_TABLE|'coi_ordenes'|'coi_ordenes_estaciones')\)[\s\S]{0,220}?\.(?:insert|upsert|update|delete)\(/,
   'Ordenes y estaciones no pueden mutarse por DML directo desde el frontend'
 );
 assert.match(html, /const CACHE_VERSION=2/);
