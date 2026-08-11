@@ -8,20 +8,55 @@ async function openIsolated(page) {
 }
 
 test('los módulos principales mantienen una única vista activa', async ({ page }) => {
+  const runtimeErrors = [];
+  page.on('pageerror', error => runtimeErrors.push(error.message));
+  page.on('console', message => {
+    if (message.type() === 'error' && !/Failed to load resource|ERR_FAILED/i.test(message.text())) {
+      runtimeErrors.push(message.text());
+    }
+  });
   await openIsolated(page);
   const routes = [
-    ['#btnDashboard', '#vistaDashboard'],
-    ['#btnRed', '#vistaRed'],
-    ['#btnCalendarioCOI', '#vistaCalendarioCOI'],
-    ['#btnOrdenes', '#vistaOrdenes'],
-    ['#btnCarga', '#vistaCarga'],
-    ['#btnAcercaSistema', '#vistaAcercaSistema'],
+    ['btnDashboard', '#vistaDashboard'],
+    ['btnRed', '#vistaRed'],
+    ['btnCalendarioCOI', '#vistaCalendarioCOI'],
+    ['btnOrdenes', '#vistaOrdenes'],
+    ['btnCarga', '#vistaCarga'],
+    ['btnAcercaSistema', '#vistaAcercaSistema'],
   ];
   for (const [button, view] of routes) {
-    await page.locator(button).click();
+    const nav = page.locator(`[data-v2-nav="${button}"]`);
+    const mobile = (page.viewportSize()?.width || 0) <= 760;
+    if (mobile || !await nav.isVisible()) {
+      await page.locator('#coiV2Menu').click();
+    }
+    await expect(nav).toBeVisible();
+    if (mobile) {
+      await expect(page.locator('body')).toHaveClass(/\bcoi-v2-mobile-open\b/);
+      await nav.click({ force: true });
+    } else {
+      await nav.click();
+    }
     await expect(page.locator(view)).toHaveClass(/\bactive\b/);
     await expect(page.locator('section.view.active')).toHaveCount(1);
   }
+
+  const dashboardNav = page.locator('[data-v2-nav="btnDashboard"]');
+  const mobile = (page.viewportSize()?.width || 0) <= 760;
+  if (mobile || !await dashboardNav.isVisible()) {
+    await page.locator('#coiV2Menu').click();
+  }
+  if (mobile) {
+    await expect(page.locator('body')).toHaveClass(/\bcoi-v2-mobile-open\b/);
+    await dashboardNav.click({ force: true });
+  } else {
+    await dashboardNav.click();
+  }
+  const periodFilter = page.getByRole('combobox', { name: 'Período' });
+  await expect(periodFilter).toBeVisible();
+  await periodFilter.selectOption({ label: 'Todo' });
+  await expect(periodFilter).toHaveValue('all');
+  expect(runtimeErrors).toEqual([]);
 });
 
 test('sin sesión la RPC financiera rechaza la mutación sin éxito falso', async ({ page }) => {

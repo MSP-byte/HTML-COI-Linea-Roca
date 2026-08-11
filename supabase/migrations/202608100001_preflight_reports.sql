@@ -25,6 +25,34 @@ alter table public.profiles add column if not exists fecha_alta timestamptz not 
 alter table public.profiles add column if not exists ultimo_login timestamptz;
 alter table public.profiles add column if not exists observaciones text;
 
+-- La normalizacion debe ser identica a la que usa el frontend. Declararla en
+-- el preflight permite detectar variantes como "OC-453..." y "453..." antes
+-- de que la migracion de endurecimiento cree el indice unico canonico.
+create or replace function public.coi_normalize_order_number(p_value text)
+returns text
+language sql
+immutable
+strict
+set search_path = public, pg_temp
+as $$
+  select nullif(
+    upper(
+      regexp_replace(
+        regexp_replace(
+          trim(p_value),
+          '^(O(RDEN)?[[:space:]]*(DE[[:space:]]*)?C(OMPRA)?|OC)[[:space:]]*[:#-]?[[:space:]]*',
+          '',
+          'i'
+        ),
+        '[^A-Z0-9]',
+        '',
+        'g'
+      )
+    ),
+    ''
+  )
+$$;
+
 create or replace function public.coi_preflight_integridad()
 returns jsonb
 language plpgsql
@@ -73,10 +101,10 @@ begin
     'ordenes_nro_oc_duplicado', (
       select count(*)
         from (
-          select upper(trim(nro_oc))
+          select public.coi_normalize_order_number(nro_oc)
             from public.coi_ordenes
-           where nullif(trim(nro_oc), '') is not null
-           group by upper(trim(nro_oc))
+           where public.coi_normalize_order_number(nro_oc) is not null
+           group by public.coi_normalize_order_number(nro_oc)
           having count(*) > 1
         ) duplicados
     ),
@@ -109,6 +137,21 @@ begin
             and oe.es_principal is true
        )
     ),
+    'estaciones_asociadas_duplicadas', (
+      select count(*)
+        from (
+          select
+            orden_id,
+            upper(trim(coalesce(estacion, ''))),
+            upper(trim(coalesce(sector, '')))
+            from public.coi_ordenes_estaciones
+           group by
+             orden_id,
+             upper(trim(coalesce(estacion, ''))),
+             upper(trim(coalesce(sector, '')))
+          having count(*) > 1
+        ) duplicados
+    ),
     'links_principales_duplicados', v_links_principales_duplicados,
     'perfiles_inactivos', (
       select count(*) from public.profiles where coalesce(activo, false) is false
@@ -120,6 +163,7 @@ end;
 $$;
 
 revoke all on function public.coi_preflight_integridad() from public, anon;
+revoke all on function public.coi_normalize_order_number(text) from public, anon, authenticated;
 grant execute on function public.coi_preflight_integridad() to authenticated;
 
 comment on function public.coi_preflight_integridad() is

@@ -49,6 +49,7 @@ Aplicar primero en un proyecto de staging y con backup verificado.
    - `202608100003_atomic_order_update.sql`
    - `202608100004_rls_policies.sql`
    - `202608100005_operational_integrity.sql`
+   - `202608110006_release_candidate_hardening.sql`
 
 5. Pedir a PostgREST que recargue el esquema:
 
@@ -56,7 +57,8 @@ Aplicar primero en un proyecto de staging y con backup verificado.
    notify pgrst, 'reload schema';
    ```
 
-6. Ejecutar `npm test` y luego la matriz manual en staging.
+6. Ejecutar `npm test`, el smoke autenticado por rol y la validación posterior
+   en staging.
 
 Los índices únicos abortan la migración si todavía existen duplicados. Ese
 fallo es deliberado y no elimina ni fusiona registros.
@@ -76,22 +78,29 @@ mayor. No deben escribirse desde el navegador.
 
 | RPC | Roles | Garantía |
 | --- | --- | --- |
-| `coi_certificar_posiciones` | administrador, jefatura | Lote atómico, locks e idempotencia |
+| `coi_guardar_orden_integral` | alta: administrador, jefatura, editor; edición: roles operativos | Alta con principal o edición integral bajo un commit |
+| `coi_guardar_estacion_asociada` | alta: administrador, jefatura, editor; edición: roles operativos | Asociación y auditoría atómicas |
+| `coi_marcar_estacion_principal` | roles operativos | Conserva exactamente una principal y sincroniza la OC |
+| `coi_eliminar_estacion_asociada` | administrador | Impide eliminar la principal y conserva auditoría |
+| `coi_certificar_posiciones_v2` | administrador, jefatura | Lote atómico, locks e idempotencia ligada a usuario y operación |
 | `coi_actualizar_consumo_posicion` | administrador, jefatura, editor | Sólo metadatos; importes inmutables |
 | `coi_anular_consumo_posicion` | administrador, jefatura | Conserva trazabilidad y devuelve saldo |
 | `coi_eliminar_posiciones_sin_movimientos` | administrador | Lote atómico sólo sin historial |
 | `coi_actualizar_orden_integral` | roles con edición de OC | OC y estación principal bajo un commit |
-| `coi_confirmar_etapa_circuito` | roles con edición de OC | Estado e historial atómicos; reintento sin duplicar etapa |
+| `coi_confirmar_etapa_circuito_v2` | roles operativos | Reintento inmediato idempotente y reingreso histórico trazado |
 | `coi_guardar_link_documental` | administrador, jefatura, editor | Link, principal, resumen de OC e historial bajo un commit |
 | `coi_eliminar_link_documental` | administrador, jefatura, editor | Borrado del link y recálculo documental atómicos |
 | `coi_eliminar_orden_integral` | administrador | Sólo elimina una OC sin dependencias trazables |
 
 RLS exige un registro activo en `public.profiles`. Las mutaciones directas del
-libro mayor y de la auditoría están revocadas para `authenticated` y `anon`.
+libro mayor y de la auditoría están revocadas. La migración 006 revoca además
+todo DML directo de `authenticated` sobre órdenes y estaciones: esas escrituras
+sólo pueden entrar por las RPC públicas. Las versiones anteriores de
+certificación y circuito también quedan sin permiso de ejecución.
 
 ## Validación
 
-`tests/check_supabase_runtime.js` levanta PostgreSQL embebido, aplica las cinco
+`tests/check_supabase_runtime.js` levanta PostgreSQL embebido, aplica las seis
 migraciones y prueba:
 
 - consumo y recálculo de saldo;
@@ -105,6 +114,10 @@ migraciones y prueba:
 - bloqueo del borrado de una OC con dependencias y eliminación de una OC libre;
 - permisos RLS y rechazo por rol.
 
+La cadena completa también se reaplica sobre la misma base de prueba para
+comprobar su comportamiento repetible. Esto valida el contrato PostgreSQL, no
+reemplaza una prueba con Auth, PostgREST, Storage y datos reales de staging.
+
 ## Recuperación
 
 Las migraciones son aditivas, pero la captura del baseline y los índices forman
@@ -113,13 +126,16 @@ producción: detener escrituras, conservar el error, restaurar el backup probado
 y repetir primero en staging. Nunca borrar filas del libro mayor para “corregir”
 un saldo; usar la RPC de anulación.
 
+El procedimiento operativo completo PRECHECK → BACKUP → MIGRACIÓN → VALIDACIÓN
+→ SMOKE TEST → ROLLBACK está en `PREPRODUCCION.md`.
+
 ## Troubleshooting
 
 | Síntoma | Comprobación | Acción segura |
 | --- | --- | --- |
 | El preflight informa duplicados | Revisar las colecciones del JSON por OC/posición/estación | Resolver cada caso manualmente y repetir; no desactivar índices |
 | Una migración falla al crear un índice | Confirmar el detalle del preflight y conservar el error SQL | Restaurar staging si corresponde; no borrar filas automáticamente |
-| La RPC no aparece en el cliente | Verificar que las cinco migraciones terminaron en orden | Ejecutar `notify pgrst, 'reload schema';` y volver a autenticar |
+| La RPC no aparece en el cliente | Verificar que las seis migraciones terminaron en orden | Ejecutar `notify pgrst, 'reload schema';` y volver a autenticar |
 | La UI responde “perfil no autorizado” | Revisar `profiles.id`, `activo` y `rol` para el UUID de Auth | Corregir el perfil mediante un procedimiento administrativo auditado |
 | Un reintento financiero queda pendiente | Comparar usuario, operación y payload original | Reintentar la misma intención con la misma clave; no iniciar otro lote |
 | Los datos no cargan después del logout | Es el aislamiento esperado de caché | Iniciar sesión y usar “Actualizar datos Supabase” |

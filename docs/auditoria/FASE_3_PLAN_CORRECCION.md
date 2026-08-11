@@ -34,3 +34,17 @@ estática y no se realizaron escrituras contra Supabase productivo.
 El quality gate quedó disponible antes de la refactorización transaccional. Las
 RPC se implementaron antes de reactivar los botones que mutan datos. La segunda
 auditoría se ejecutó sobre el resultado integrado y no sobre parches aislados.
+
+## Rectificación de cierre — Fase 9
+
+La inspección Git y del código real realizada en Fase 9 determinó que los ítems
+5, 6 y 8 habían quedado cerrados con un alcance demasiado amplio. Aunque las
+RPC y RLS existían, `authenticated` todavía conservaba DML directo sobre
+`coi_ordenes` y `coi_ordenes_estaciones`; el cambio de estación principal seguía
+repartido en tres requests; la idempotencia financiera original no validaba
+usuario y operación; y las 8 pruebas Playwright sólo habían sido descubiertas.
+
+Esos puntos se corrigen y prueban en
+`FASE_9_ESTABILIZACION_PREPRODUCCION.md`. Esta rectificación no altera el orden
+histórico del plan: distingue el trabajo que estaba implementado del que sólo
+había quedado afirmado en el informe.

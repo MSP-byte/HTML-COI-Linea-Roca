@@ -29,9 +29,10 @@ Toma de decisiones basada en indicadores visuales
 3. Estado del sistema
 
 Versión del repositorio: 60.0.1
-Estado: 🟡 Estable con observaciones
-Condición pendiente: aplicar y validar las migraciones de `supabase/migrations`
-en staging y producción antes de habilitar mutaciones financieras.
+Estado del código: candidato RC1 validado localmente en Fase 9
+Condición pendiente para producción: aplicar y validar las seis migraciones de
+`supabase/migrations` primero en staging, con backup y smoke autenticado por
+rol. RC1 no equivale a autorización de producción.
 
 
 4. Alcance funcional
@@ -166,8 +167,9 @@ npm run test:e2e
 ```
 
 La guía de despliegue y recuperación de base está en
-`supabase/README.md`. La corrección transaccional se documenta en
-`docs/auditoria/FASE_4_CORRECCION_SUPABASE.md`.
+`supabase/README.md` y el runbook ejecutable en
+`supabase/PREPRODUCCION.md`. La evidencia RC1 y las limitaciones del entorno
+están en `docs/auditoria/FASE_9_ESTABILIZACION_PREPRODUCCION.md`.
 
 
 8. Evolución del sistema (Roadmap)

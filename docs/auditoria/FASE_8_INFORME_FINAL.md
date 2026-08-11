@@ -1,5 +1,13 @@
 # Fase 8 — Informe final de auditoría
 
+> **Rectificación posterior:** Fase 9 verificó el código y encontró P1
+> corregibles que este informe había dado por cerrados: DML directo de órdenes
+> y estaciones, estación principal no atómica, alcance incompleto de
+> idempotencia, helpers ejecutables y reingreso de circuito sin nueva traza.
+> También confirmó que las 8 pruebas Playwright habían sido sólo descubiertas.
+> El estado vigente y la evidencia ejecutada están en
+> `FASE_9_ESTABILIZACION_PREPRODUCCION.md`.
+
 - **Fecha:** 2026-08-11
 - **Base auditada:** `main` (`faa4fc9`)
 - **Rama de entrega:** `agent/supabase-atomic-contract`
@@ -140,8 +148,9 @@ contrato; no prueba la configuración efectiva del proyecto Supabase remoto.
 ## G. Pruebas que requieren intervención humana
 
 1. Restaurar un backup reciente en staging y ejecutar el preflight.
-2. Resolver manualmente duplicados reportados y aplicar las cinco migraciones en
-   orden, verificando la recarga de esquema PostgREST.
+2. Resolver manualmente duplicados reportados. En este corte eran cinco
+   migraciones; el procedimiento vigente de Fase 9 aplica seis, en orden, y
+   verifica la recarga de esquema PostgREST.
 3. Probar con usuarios reales activos de cada rol: consulta, editor, jefatura y
    administrador; confirmar también el rechazo de permisos insuficientes.
 4. Ejecutar en Chrome y Edge: login/logout, OC, estación principal, posiciones,

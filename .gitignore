@@ -1,3 +1,20 @@
 node_modules/
 playwright-report/
 test-results/
+
+# Configuracion y credenciales locales
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+
+# Backups de base generados por el runbook de preproduccion
+*.dump
+*.dump.sha256
+
+# Estado temporal de Supabase CLI
+supabase/.temp/

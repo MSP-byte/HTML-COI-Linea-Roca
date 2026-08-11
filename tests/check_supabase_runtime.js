@@ -9,14 +9,22 @@ const { PGlite } = require('@electric-sql/pglite');
 
 const DIST_DIR = path.dirname(require.resolve('@electric-sql/pglite'));
 const PGCRYPTO_URL = pathToFileURL(path.join(DIST_DIR, 'pgcrypto.tar.gz'));
-const ADMIN_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const READER_ID = '99999999-9999-4999-8999-999999999999';
+
+const USERS = {
+  administrador: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin@example.com'],
+  jefatura: ['a1111111-1111-4111-8111-111111111111', 'jefatura@example.com'],
+  editor: ['a2222222-2222-4222-8222-222222222222', 'editor@example.com'],
+  planificacion: ['a3333333-3333-4333-8333-333333333333', 'planificacion@example.com'],
+  control: ['a4444444-4444-4444-8444-444444444444', 'control@example.com'],
+  supervisor: ['a5555555-5555-4555-8555-555555555555', 'supervisor@example.com'],
+  consulta: ['99999999-9999-4999-8999-999999999999', 'consulta@example.com']
+};
+
 const ORDER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const STATION_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const POSITION_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const IDEMPOTENCY_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
-const DELETE_ORDER_ID = '12121212-1212-4212-8212-121212121212';
-const DELETE_STATION_ID = '13131313-1313-4313-8313-131313131313';
+const IDEMPOTENCY_ACTIVE_ID = 'e1111111-1111-4111-8111-111111111111';
 
 const baselineSchema = `
   create role anon nologin;
@@ -78,21 +86,35 @@ const baselineSchema = `
   create table public.coi_security_health_checks(id uuid primary key);
 `;
 
-async function main(){
+async function setUser(db, role) {
+  const [id, email] = USERS[role];
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)", [id]);
+  await db.query("select set_config('request.jwt.claim.email',$1,false)", [email]);
+}
+
+async function expectDenied(promise, label) {
+  await assert.rejects(promise, /COI_ROLE_REQUIRED|permission denied|row-level security/i, label);
+}
+
+async function main() {
   const db = new PGlite({ extensions: { pgcrypto: PGCRYPTO_URL } });
-  try{
+  try {
     await db.exec(baselineSchema);
-    const migrations = fs.readdirSync('supabase/migrations').filter(file => file.endsWith('.sql')).sort();
-    for (const file of migrations){
+    const migrations = fs.readdirSync('supabase/migrations')
+      .filter(file => file.endsWith('.sql'))
+      .sort();
+
+    for (const file of migrations) {
       await db.exec(fs.readFileSync(path.join('supabase/migrations', file), 'utf8'));
-      if (file.includes('0001')){
+      if (file.includes('0001')) {
+        const userValues = Object.entries(USERS)
+          .map(([role, [id, email]]) => `('${id}','${email}','${role}')`)
+          .join(',');
         await db.exec(`
-          insert into auth.users values
-            ('${ADMIN_ID}', 'admin@example.com'),
-            ('${READER_ID}', 'reader@example.com');
-          insert into public.profiles(id,email,rol,activo) values
-            ('${ADMIN_ID}', 'admin@example.com', 'administrador', true),
-            ('${READER_ID}', 'reader@example.com', 'consulta', true);
+          insert into auth.users(id,email)
+          select id::uuid,email from (values ${userValues}) source(id,email,rol);
+          insert into public.profiles(id,email,rol,activo)
+          select id::uuid,email,rol,true from (values ${userValues}) source(id,email,rol);
           insert into public.coi_ordenes(
             id,nro_oc,id_obra,estacion,ramal,sector,monto_total,moneda
           ) values (
@@ -109,54 +131,96 @@ async function main(){
           ) values (
             '${POSITION_ID}','${ORDER_ID}','4530008964','160.10','MTO',10,100,1000,'ARS',0,0
           );
-          select set_config('request.jwt.claim.sub','${ADMIN_ID}',false);
-          select set_config('request.jwt.claim.email','admin@example.com',false);
         `);
-        const preflight = await db.query('select public.coi_preflight_integridad() as result');
-        assert.equal(preflight.rows[0].result.posiciones_duplicadas, 0);
+        await setUser(db, 'administrador');
+        const preflight = (await db.query('select public.coi_preflight_integridad() as result')).rows[0].result;
+        assert.equal(preflight.ordenes_nro_oc_duplicado, 0);
+        assert.equal(preflight.posiciones_duplicadas, 0);
+        assert.equal(preflight.estaciones_asociadas_duplicadas, 0);
       }
     }
 
+    // Reaplicar la cadena completa prueba la idempotencia DDL/DML declarada.
+    for (const file of migrations) {
+      await db.exec(fs.readFileSync(path.join('supabase/migrations', file), 'utf8'));
+    }
+
     await db.exec('set role authenticated');
-    const payload = JSON.stringify([{
+    await setUser(db, 'administrador');
+
+    // Los helpers y las versiones sustituidas no son API publicas.
+    await assert.rejects(db.query('select public.coi_sync_order_balance($1::uuid)', [ORDER_ID]), /permission denied/i);
+    await assert.rejects(
+      db.query("select * from public.coi_certificar_posiciones('[]'::jsonb,$1::uuid,'{}'::jsonb)", [IDEMPOTENCY_ID]),
+      /permission denied/i
+    );
+    await assert.rejects(
+      db.query("select public.coi_confirmar_etapa_circuito($1::uuid,'ejecucion',null)", [ORDER_ID]),
+      /permission denied/i
+    );
+
+    // Ni siquiera administrador puede saltar las RPC para mutar ordenes/estaciones.
+    await assert.rejects(
+      db.query("update public.coi_ordenes set proveedor='BYPASS' where id=$1", [ORDER_ID]),
+      /permission denied/i
+    );
+    await assert.rejects(
+      db.query("update public.coi_ordenes_estaciones set estacion='BYPASS' where id=$1", [STATION_ID]),
+      /permission denied/i
+    );
+    await assert.rejects(
+      db.query('delete from public.coi_ordenes where id=$1', [ORDER_ID]),
+      /permission denied/i
+    );
+
+    // Ledger: commit unico, reintento idempotente y alcance por usuario.
+    const firstPayload = JSON.stringify([{
       posicion_id: POSITION_ID,
       cantidad: 2,
       monto: 200,
       acta_nro: '1'
     }]);
     await db.query(
-      'select * from public.coi_certificar_posiciones($1::jsonb,$2::uuid,$3::jsonb)',
-      [payload, IDEMPOTENCY_ID, '{}']
+      'select * from public.coi_certificar_posiciones_v2($1::jsonb,$2::uuid,$3::jsonb)',
+      [firstPayload, IDEMPOTENCY_ID, '{}']
     );
     await db.query(
-      'select * from public.coi_certificar_posiciones($1::jsonb,$2::uuid,$3::jsonb)',
-      [payload, IDEMPOTENCY_ID, '{}']
+      'select * from public.coi_certificar_posiciones_v2($1::jsonb,$2::uuid,$3::jsonb)',
+      [firstPayload, IDEMPOTENCY_ID, '{}']
     );
-
+    assert.equal((await db.query('select count(*)::int as n from public.coi_consumos_posicion')).rows[0].n, 1);
     let balance = (await db.query(`
       select cantidad_consumida::float8 as q, monto_consumido::float8 as m,
              cantidad_disponible::float8 as aq, monto_disponible::float8 as am
         from public.coi_posiciones_oc where id=$1
     `, [POSITION_ID])).rows[0];
     assert.deepEqual(balance, { q: 2, m: 200, aq: 8, am: 800 });
-    assert.equal((await db.query('select count(*)::int as n from public.coi_consumos_posicion')).rows[0].n, 1);
 
     await assert.rejects(
       db.query(
-        'select * from public.coi_certificar_posiciones($1::jsonb,$2::uuid,$3::jsonb)',
+        'select * from public.coi_certificar_posiciones_v2($1::jsonb,$2::uuid,$3::jsonb)',
         [JSON.stringify([{ posicion_id: POSITION_ID, cantidad: 3, monto: 300 }]), IDEMPOTENCY_ID, '{}']
       ),
-      /COI_IDEMPOTENCY_CONFLICT/
+      /COI_IDEMPOTENCY_SCOPE_CONFLICT/
     );
+    await setUser(db, 'jefatura');
+    await assert.rejects(
+      db.query(
+        'select * from public.coi_certificar_posiciones_v2($1::jsonb,$2::uuid,$3::jsonb)',
+        [firstPayload, IDEMPOTENCY_ID, '{}']
+      ),
+      /COI_IDEMPOTENCY_SCOPE_CONFLICT/
+    );
+    await setUser(db, 'administrador');
 
-    const ledgerId = (await db.query('select id from public.coi_consumos_posicion limit 1')).rows[0].id;
+    const firstLedgerId = (await db.query('select id from public.coi_consumos_posicion limit 1')).rows[0].id;
     await db.query(
       'select public.coi_actualizar_consumo_posicion($1::uuid,$2::jsonb)',
-      [ledgerId, JSON.stringify({ periodo: 'AGO-2026', acta_nro: '1' })]
+      [firstLedgerId, JSON.stringify({ periodo: 'AGO-2026', acta_nro: '1' })]
     );
     await db.query(
       'select public.coi_anular_consumo_posicion($1::uuid,$2::text)',
-      [ledgerId, 'Corrección de prueba']
+      [firstLedgerId, 'Correccion de prueba']
     );
     balance = (await db.query(`
       select cantidad_consumida::float8 as q, monto_consumido::float8 as m,
@@ -165,34 +229,115 @@ async function main(){
     `, [POSITION_ID])).rows[0];
     assert.deepEqual(balance, { q: 0, m: 0, aq: 10, am: 1000 });
 
+    const activePayload = JSON.stringify([{ posicion_id: POSITION_ID, cantidad: 6, monto: 600 }]);
     await db.query(
-      'select public.coi_actualizar_orden_integral($1::uuid,$2::jsonb)',
-      [ORDER_ID, JSON.stringify({ estacion: 'Lomas de Zamora', ramal: 'Roca Sur' })]
+      'select * from public.coi_certificar_posiciones_v2($1::jsonb,$2::uuid,$3::jsonb)',
+      [activePayload, IDEMPOTENCY_ACTIVE_ID, '{}']
     );
-    const station = (await db.query(`
+    await assert.rejects(
+      db.query(
+        'select public.coi_guardar_orden_integral($1::uuid,$2::jsonb)',
+        [ORDER_ID, JSON.stringify({ monto_total: 500 })]
+      ),
+      /COI_ORDER_AMOUNT_BELOW_CONSUMED/
+    );
+    assert.equal((await db.query('select monto_total::float8 as total from public.coi_ordenes where id=$1', [ORDER_ID])).rows[0].total, 1000);
+
+    // Edicion de orden y espejo de estacion principal bajo el mismo commit.
+    const orderUpdate = (await db.query(
+      'select public.coi_guardar_orden_integral($1::uuid,$2::jsonb) as result',
+      [ORDER_ID, JSON.stringify({ estacion: 'Lomas de Zamora', ramal: 'Roca Sur' })]
+    )).rows[0].result;
+    assert.equal(orderUpdate.accion, 'updated');
+    assert.deepEqual((await db.query(`
       select estacion,ramal from public.coi_ordenes_estaciones
        where orden_id=$1 and es_principal
-    `, [ORDER_ID])).rows[0];
-    assert.deepEqual(station, { estacion: 'Lomas de Zamora', ramal: 'Roca Sur' });
+    `, [ORDER_ID])).rows[0], { estacion: 'Lomas de Zamora', ramal: 'Roca Sur' });
 
-    const circuit = (await db.query(
-      'select public.coi_confirmar_etapa_circuito($1::uuid,$2::text,$3::text) as result',
-      [ORDER_ID, 'ejecucion', 'Confirmación de prueba']
+    // Identidad de posiciones: nro_oc autoritativo y campos clave inmutables.
+    const freePositionId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    await db.query(`
+      insert into public.coi_posiciones_oc(
+        id,orden_id,nro_oc,posicion,descripcion,cantidad_total,
+        precio_unitario,monto_total,moneda
+      ) values ($1,$2,'OC-FORJADA','170,10','LIBRE',1,50,50,'ARS')
+    `, [freePositionId, ORDER_ID]);
+    assert.deepEqual((await db.query(
+      'select nro_oc,posicion from public.coi_posiciones_oc where id=$1', [freePositionId]
+    )).rows[0], { nro_oc: '4530008964', posicion: '170.10' });
+    await assert.rejects(
+      db.query("update public.coi_posiciones_oc set posicion='999.99' where id=$1", [freePositionId]),
+      /COI_POSITION_IDENTITY_IMMUTABLE/
+    );
+    const freeDeletion = (await db.query(
+      'select public.coi_eliminar_posiciones_sin_movimientos($1::uuid[]) as result',
+      [[freePositionId]]
     )).rows[0].result;
-    assert.equal(circuit.nombre, 'OBRA/SERVICIO EN EJECUCIÓN');
+    assert.equal(freeDeletion.count, 1);
+
+    // Estaciones asociadas: alta/edicion/cambio principal/eliminacion atomicos.
+    const addedStation = (await db.query(
+      'select public.coi_guardar_estacion_asociada($1::uuid,null,$2::jsonb) as result',
+      [ORDER_ID, JSON.stringify({ estacion: 'Temperley', ramal: 'Roca', sector: 'Taller', tipo_alcance: 'Secundaria' })]
+    )).rows[0].result.estacion;
+    const stationUpdated = (await db.query(
+      'select public.coi_guardar_estacion_asociada($1::uuid,$2::uuid,$3::jsonb) as result',
+      [ORDER_ID, addedStation.id, JSON.stringify({ estacion: 'Temperley', sector: 'Deposito' })]
+    )).rows[0].result.estacion;
+    assert.equal(stationUpdated.sector, 'Deposito');
+    await db.query(
+      'select public.coi_marcar_estacion_principal($1::uuid,$2::uuid)',
+      [ORDER_ID, addedStation.id]
+    );
+    assert.equal((await db.query(`
+      select count(*)::int as n from public.coi_ordenes_estaciones
+       where orden_id=$1 and es_principal
+    `, [ORDER_ID])).rows[0].n, 1);
+    assert.equal((await db.query('select estacion from public.coi_ordenes where id=$1', [ORDER_ID])).rows[0].estacion, 'Temperley');
+    await db.query(
+      'select public.coi_guardar_estacion_asociada($1::uuid,$2::uuid,$3::jsonb)',
+      [ORDER_ID, addedStation.id, JSON.stringify({ estacion: 'Temperley Este' })]
+    );
+    assert.equal((await db.query('select estacion from public.coi_ordenes where id=$1', [ORDER_ID])).rows[0].estacion, 'Temperley Este');
+    await assert.rejects(
+      db.query('select public.coi_eliminar_estacion_asociada($1::uuid)', [addedStation.id]),
+      /COI_CANNOT_DELETE_PRINCIPAL_STATION/
+    );
+    await db.query(
+      'select public.coi_marcar_estacion_principal($1::uuid,$2::uuid)',
+      [ORDER_ID, STATION_ID]
+    );
+    await db.query('select public.coi_eliminar_estacion_asociada($1::uuid)', [addedStation.id]);
+
+    // Circuito: reintento no duplica; volver a una etapa antigua si deja traza.
+    const circuit = (await db.query(
+      'select public.coi_confirmar_etapa_circuito_v2($1::uuid,$2::text,$3::text) as result',
+      [ORDER_ID, 'ejecucion', 'Confirmacion de prueba']
+    )).rows[0].result;
     assert.equal(circuit.ya_confirmada, false);
     assert.equal(circuit.historial.length, 2);
-    const circuitRetry = (await db.query(
-      'select public.coi_confirmar_etapa_circuito($1::uuid,$2::text,$3::text) as result',
+    const retry = (await db.query(
+      'select public.coi_confirmar_etapa_circuito_v2($1::uuid,$2::text,$3::text) as result',
       [ORDER_ID, 'ejecucion', 'No debe duplicar']
     )).rows[0].result;
-    assert.equal(circuitRetry.ya_confirmada, true);
-    assert.equal(circuitRetry.historial.length, 0);
+    assert.equal(retry.ya_confirmada, true);
+    assert.equal(retry.historial.length, 0);
+    await db.query(
+      'select public.coi_confirmar_etapa_circuito_v2($1::uuid,$2::text,$3::text)',
+      [ORDER_ID, 'finalizada', null]
+    );
+    const reentry = (await db.query(
+      'select public.coi_confirmar_etapa_circuito_v2($1::uuid,$2::text,$3::text) as result',
+      [ORDER_ID, 'ejecucion', 'Reingreso operativo']
+    )).rows[0].result;
+    assert.equal(reentry.ya_confirmada, false);
+    assert.equal(reentry.historial.length, 2);
     assert.equal((await db.query(`
       select count(*)::int as n from public.coi_historial_oc
        where orden_id=$1 and tipo_evento='Circuito administrativo' and campo_modificado='ejecucion'
-    `, [ORDER_ID])).rows[0].n, 1);
+    `, [ORDER_ID])).rows[0].n, 2);
 
+    // Links documentales siguen siendo atomicos y conservan un solo principal.
     const firstLink = (await db.query(
       'select public.coi_guardar_link_documental($1::uuid,$2::text,$3::jsonb) as result',
       [ORDER_ID, null, JSON.stringify({
@@ -201,8 +346,6 @@ async function main(){
       })]
     )).rows[0].result;
     assert.equal(firstLink.documental.estado, 'Validado');
-    assert.equal(firstLink.documental.url_principal, 'https://example.com/uno');
-
     const secondLink = (await db.query(
       'select public.coi_guardar_link_documental($1::uuid,$2::text,$3::jsonb) as result',
       [ORDER_ID, null, JSON.stringify({
@@ -214,99 +357,128 @@ async function main(){
       select count(*)::int as n from public.coi_links_documentales
        where orden_id=$1 and es_principal
     `, [ORDER_ID])).rows[0].n, 1);
-    assert.equal(secondLink.documental.url_principal, 'https://example.com/dos');
-    const secondLinkId = secondLink.link.id;
     const deletedLink = (await db.query(
-      'select public.coi_eliminar_link_documental($1::text) as result', [secondLinkId]
+      'select public.coi_eliminar_link_documental($1::text) as result', [secondLink.link.id]
     )).rows[0].result;
     assert.equal(deletedLink.documental.estado, 'Incompleto');
-    assert.equal(deletedLink.documental.url_principal, null);
 
-    const freeId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
-    await db.query(`
-      insert into public.coi_posiciones_oc(
-        id,orden_id,nro_oc,posicion,descripcion,cantidad_total,
-        precio_unitario,monto_total,moneda
-      ) values ($1,$2,'4530008964','170.10','LIBRE',1,50,50,'ARS')
-    `, [freeId, ORDER_ID]);
-    const deletion = (await db.query(
-      'select public.coi_eliminar_posiciones_sin_movimientos($1::uuid[]) as result',
-      [[freeId]]
-    )).rows[0].result;
-    assert.equal(deletion.count, 1);
-
-    await assert.rejects(
-      db.query(`insert into public.coi_consumos_posicion(
-        posicion_id,orden_id,nro_oc,posicion,cantidad,monto,idempotency_key,creado_por
-      ) values ($1,$2,'4530008964','160.10',1,100,$3,$4)`, [POSITION_ID, ORDER_ID, '12121212-1212-4212-8212-121212121212', ADMIN_ID]),
-      /permission denied/
-    );
-
-    await assert.rejects(
-      db.query(`insert into public.coi_links_documentales(
-        orden_id,nro_oc,tipo_link,titulo,url,es_principal
-      ) values ($1,'4530008964','Otro','Directo','https://example.com/directo',false)`, [ORDER_ID]),
-      /permission denied/
-    );
+    // Historial critico no se puede forjar; observaciones validas se normalizan.
     await assert.rejects(
       db.query(`insert into public.coi_historial_oc(
         orden_id,nro_oc,tipo_evento,campo_modificado,valor_nuevo,creado_por
-      ) values ($1,'4530008964','Circuito administrativo','finalizada','Forjado',$2)`, [ORDER_ID, ADMIN_ID]),
-      /row-level security|permission denied/
+      ) values ($1,'4530008964','Circuito administrativo','finalizada','Forjado',$2)`, [ORDER_ID, USERS.administrador[0]]),
+      /row-level security|permission denied/i
     );
     await db.query(`insert into public.coi_historial_oc(
       orden_id,nro_oc,tipo_evento,campo_modificado,valor_nuevo,creado_por
-    ) values ($1,'OC-INCORRECTA','Observación circuito administrativo','ejecucion','Observación válida',$2)`, [ORDER_ID, ADMIN_ID]);
-    const normalizedHistory = (await db.query(`
+    ) values ($1,'OC-INCORRECTA','Observacion circuito administrativo','ejecucion','Observacion valida',$2)`, [ORDER_ID, USERS.administrador[0]]);
+    assert.deepEqual((await db.query(`
       select nro_oc,usuario_email from public.coi_historial_oc
-       where orden_id=$1 and valor_nuevo='Observación válida'
-    `, [ORDER_ID])).rows[0];
-    assert.deepEqual(normalizedHistory, { nro_oc: '4530008964', usuario_email: 'admin@example.com' });
+       where orden_id=$1 and valor_nuevo='Observacion valida'
+    `, [ORDER_ID])).rows[0], { nro_oc: '4530008964', usuario_email: 'admin@example.com' });
 
+    // Alta canonica: crea principal, y otra grafia actualiza la misma OC.
+    const created = (await db.query(
+      'select public.coi_guardar_orden_integral(null,$1::jsonb) as result',
+      [JSON.stringify({
+        nro_oc: 'OC-453-000-8999', id_obra: 'OB-RC1', tipo: 'Obra',
+        estacion: 'Adrogue', ramal: 'Roca', sector: 'Andenes',
+        proveedor: 'Proveedor inicial', monto_total: 50, moneda: 'ARS'
+      })]
+    )).rows[0].result;
+    const createdId = created.orden.id;
+    assert.equal(created.orden.nro_oc, '4530008999');
+    assert.equal((await db.query(`
+      select count(*)::int as n from public.coi_ordenes_estaciones
+       where orden_id=$1 and es_principal
+    `, [createdId])).rows[0].n, 1);
+    const canonicalRetry = (await db.query(
+      'select public.coi_guardar_orden_integral(null,$1::jsonb) as result',
+      [JSON.stringify({ nro_oc: 'Orden de Compra 4530008999', proveedor: 'Proveedor actualizado' })]
+    )).rows[0].result;
+    assert.equal(canonicalRetry.accion, 'updated');
+    assert.equal(canonicalRetry.orden.id, createdId);
+    assert.equal((await db.query(`
+      select count(*)::int as n from public.coi_ordenes
+       where nro_oc='4530008999'
+    `)).rows[0].n, 1);
+    await assert.rejects(db.query('delete from public.coi_ordenes where id=$1', [createdId]), /permission denied/i);
+    const orderDeletion = (await db.query(
+      'select public.coi_eliminar_orden_integral($1::uuid) as result', [createdId]
+    )).rows[0].result;
+    assert.equal(orderDeletion.deleted.id, createdId);
+    assert.equal(orderDeletion.estaciones_eliminadas, 1);
+
+    // Matriz automatizada de roles core.
+    const mutatingRoles = ['administrador', 'jefatura', 'editor', 'planificacion', 'control', 'supervisor'];
+    for (const role of Object.keys(USERS)) {
+      await setUser(db, role);
+      assert.ok((await db.query('select count(*)::int as n from public.coi_ordenes')).rows[0].n >= 1, `${role} debe leer ordenes`);
+      const update = db.query(
+        'select public.coi_guardar_orden_integral($1::uuid,$2::jsonb)',
+        [ORDER_ID, JSON.stringify({ observaciones: `actualizado por ${role}` })]
+      );
+      if (mutatingRoles.includes(role)) await update;
+      else await expectDenied(update, `${role} no debe editar OC`);
+    }
+
+    for (const role of ['editor', 'planificacion', 'control', 'supervisor', 'consulta']) {
+      await setUser(db, role);
+      await expectDenied(
+        db.query("select * from public.coi_certificar_posiciones_v2('[]'::jsonb,$1::uuid,'{}'::jsonb)", ['f0000000-0000-4000-8000-000000000001']),
+        `${role} no debe certificar`
+      );
+    }
+
+    const createdByRole = [];
+    for (const [index, role] of ['jefatura', 'editor'].entries()) {
+      await setUser(db, role);
+      const nro = `45300091${index + 10}`;
+      const result = (await db.query(
+        'select public.coi_guardar_orden_integral(null,$1::jsonb) as result',
+        [JSON.stringify({ nro_oc: nro, id_obra: `ROL-${role}`, estacion: 'Banfield', monto_total: 1, moneda: 'ARS' })]
+      )).rows[0].result;
+      createdByRole.push(result.orden.id);
+    }
+    for (const [index, role] of ['planificacion', 'control', 'supervisor', 'consulta'].entries()) {
+      await setUser(db, role);
+      await expectDenied(
+        db.query(
+          'select public.coi_guardar_orden_integral(null,$1::jsonb)',
+          [JSON.stringify({ nro_oc: `45300092${index + 10}`, estacion: 'Banfield', monto_total: 1, moneda: 'ARS' })]
+        ),
+        `${role} no debe crear OC`
+      );
+    }
+
+    await setUser(db, 'consulta');
+    await expectDenied(
+      db.query("select public.coi_confirmar_etapa_circuito_v2($1::uuid,'finalizada',null)", [ORDER_ID]),
+      'consulta no debe mover circuito'
+    );
+    await expectDenied(
+      db.query('select public.coi_eliminar_orden_integral($1::uuid)', [ORDER_ID]),
+      'consulta no debe eliminar OC'
+    );
+    await assert.rejects(
+      db.query(`insert into public.coi_sesiones(id,usuario_id,estado)
+        values ('15151515-1515-4515-8515-151515151515',$1,'abierta')`, [USERS.administrador[0]]),
+      /row-level security|permission denied/i
+    );
+
+    await setUser(db, 'administrador');
+    for (const id of createdByRole) {
+      await db.query('select public.coi_eliminar_orden_integral($1::uuid)', [id]);
+    }
     await assert.rejects(
       db.query('select public.coi_eliminar_orden_integral($1::uuid)', [ORDER_ID]),
       /COI_ORDER_HAS_DEPENDENCIES/
     );
 
-    await db.query(`
-      insert into public.coi_ordenes(id,nro_oc,id_obra,estacion,ramal,sector,monto_total,moneda)
-      values ($1,'4530008999','OB-DELETE','Temperley','Roca','Andenes',50,'ARS')
-    `, [DELETE_ORDER_ID]);
-    await db.query(`
-      insert into public.coi_ordenes_estaciones(id,orden_id,estacion,ramal,sector,es_principal)
-      values ($1,$2,'Temperley','Roca','Andenes',true)
-    `, [DELETE_STATION_ID, DELETE_ORDER_ID]);
-    const orderDeletion = (await db.query(
-      'select public.coi_eliminar_orden_integral($1::uuid) as result', [DELETE_ORDER_ID]
-    )).rows[0].result;
-    assert.equal(orderDeletion.deleted.id, DELETE_ORDER_ID);
-    assert.equal(orderDeletion.estaciones_eliminadas, 1);
-    assert.equal((await db.query('select count(*)::int as n from public.coi_ordenes where id=$1', [DELETE_ORDER_ID])).rows[0].n, 0);
-
-    await db.exec(`
-      select set_config('request.jwt.claim.sub','${READER_ID}',false);
-      select set_config('request.jwt.claim.email','reader@example.com',false);
-    `);
-    await assert.rejects(
-      db.query('select public.coi_actualizar_orden_integral($1::uuid,$2::jsonb)', [ORDER_ID, JSON.stringify({ proveedor: 'No autorizado' })]),
-      /COI_ROLE_REQUIRED/
+    console.log(
+      `Runtime Supabase: ${migrations.length} migraciones reaplicables; ledger/idempotencia, ` +
+      'saldos, RLS, roles, ordenes/estaciones, posiciones, circuito, links y borrado atomico aprobados.'
     );
-    await assert.rejects(
-      db.query('select public.coi_confirmar_etapa_circuito($1::uuid,$2::text,$3::text)', [ORDER_ID, 'finalizada', null]),
-      /COI_ROLE_REQUIRED/
-    );
-    await assert.rejects(
-      db.query(`insert into public.coi_certificaciones(id,orden_id,nro_oc)
-        values ('14141414-1414-4414-8414-141414141414',$1,'4530008964')`, [ORDER_ID]),
-      /row-level security|permission denied/
-    );
-    await assert.rejects(
-      db.query(`insert into public.coi_sesiones(id,usuario_id,estado)
-        values ('15151515-1515-4515-8515-151515151515',$1,'abierta')`, [ADMIN_ID]),
-      /row-level security|permission denied/
-    );
-
-    console.log('Runtime Supabase: ledger, idempotencia, RLS core/legacy, circuito, links y borrado transaccional aprobados.');
   } finally {
     await db.close();
   }

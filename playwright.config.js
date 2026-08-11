@@ -1,4 +1,5 @@
 const { defineConfig, devices } = require('@playwright/test');
+const chromiumExecutable = process.env.COI_CHROMIUM_EXECUTABLE || undefined;
 
 module.exports = defineConfig({
   testDir: './tests',
@@ -12,6 +13,7 @@ module.exports = defineConfig({
     headless: true,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
+    launchOptions: chromiumExecutable ? { executablePath: chromiumExecutable } : undefined,
   },
   webServer: {
     command: 'python3 -m http.server 4173 --bind 127.0.0.1',

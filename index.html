@@ -1,8 +1,8 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Plano Interactivo de Obras y Servicios – Línea Roca</title>
 <style>
 :root{--azul:#2f6fa3;--gris:#3f3f3f;--bg:#f5f6f8;--card:#fff;--line:#333;--ok:#2e9d55;--warn:#f2b705;--bad:#d64545;--done:#2f80ed}
@@ -1476,7 +1476,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
 </head>
 <body>
 <header class="main-header">
-  <div class="brand brand-logo" aria-label="Trenes Argentinos Linea Roca">
+  <div class="brand brand-logo" role="img" aria-label="Trenes Argentinos Linea Roca">
     <span class="brand-logo-mark" data-logo-fallback="Linea Roca">
       <img class="brand-logo-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='70' viewBox='0 0 180 70'%3E%3Crect width='180' height='70' rx='12' fill='%23172f45'/%3E%3Ctext x='18' y='31' fill='white' font-family='Arial' font-size='17' font-weight='700'%3ELINEA%3C/text%3E%3Ctext x='18' y='52' fill='white' font-family='Arial' font-size='22' font-weight='900'%3EROCA%3C/text%3E%3C/svg%3E" alt="Linea Roca">
       <span class="brand-logo-fallback">Linea Roca</span>
@@ -1540,7 +1540,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
 
 <section id="vistaRed" class="view">
 <section class="toolbar">
-<input id="q" placeholder="Buscar estación, proveedor, OC o tipo de intervención…" />
+<input id="q" type="search" placeholder="Buscar estación, proveedor, OC o tipo de intervención…">
 <select id="estado"><option value="">Estado</option><option>PLIEGOS EN PREPARACION</option><option>PLIEGOS TERMINADO SIN SOLPED</option><option>PLIEGO CON SOLPED SIN EXPTE</option><option>PLIEGO CON OC</option><option>PLIEGO CON EXPTE</option><option>PLIEGO CON EXPTE Y CON OC EMITIDA, PERO SIN CONTROL DE 3</option><option>PLIEGO CON OC CON CONTROL DE 3º SIN ACTA DE INICIO</option><option>PLIEGO CON OC Y CONTROL DE 3º CON ACTA DE INICIO</option><option>OBRA/SERVICIO EN EJECUCION</option><option>OBRA/SERVICIO CANCELADA O SUSPENDIDA</option><option>OBRA/SERVICIO FINALIZADA</option><option>OBRA/SERV. FINALIZADA CON ACTA PROVISORIA Y DEFINITIVA</option></select>
 <select id="tipo"><option value="">Tipo</option><option>Obra</option><option>Servicio</option></select>
 <select id="especialidad"><option value="">Especialidad</option><option>Civil</option><option>Ascensores</option><option>Escaleras mecánicas</option><option>Grupo electrógeno</option><option>Incendio</option><option>Señalamiento</option><option>Vía</option><option>Energía</option></select>
@@ -1783,7 +1783,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
         <select id="alertFiltroEstacion"><option value="">Estación</option></select>
         <select id="alertFiltroProveedor"><option value="">Proveedor</option></select>
         <select id="alertFiltroCategoria"><option value="">Todas las categorías</option><option>Crítica</option><option>Próxima</option><option>Documental</option><option>Informativa</option></select>
-        <input id="alertFiltroTexto" placeholder="Buscar OC, ID, proveedor, mensaje..." />
+        <input id="alertFiltroTexto" type="search" placeholder="Buscar OC, ID, proveedor, mensaje...">
         <button type="button" id="btnLimpiarAlertas">Limpiar</button>
       </div>
       <div class="table-wrap">
@@ -1805,9 +1805,9 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
       <div class="muted">Centro operativo principal: búsqueda global, filtros combinables, tabla maestra y acceso a expediente digital OC.</div>
     </div>
     <div class="view-body">
-      <div class="ordenes-toolbar" aria-label="Filtros de Órdenes de Compra">
+      <div class="ordenes-toolbar" role="search" aria-label="Filtros de Órdenes de Compra">
         <div class="ordenes-filtros-principales">
-          <div class="ordenes-filtro-group"><label for="ordenesBusqueda">Buscar</label><input id="ordenesBusqueda" placeholder="ID, OC, proveedor, estación, tipo, estado, sector o UM" /></div>
+          <div class="ordenes-filtro-group"><label for="ordenesBusqueda">Buscar</label><input id="ordenesBusqueda" type="search" placeholder="ID, OC, proveedor, estación, tipo, estado, sector o UM"></div>
           <div class="ordenes-filtro-group"><label for="ordenesFiltroTipo">Tipo</label><select id="ordenesFiltroTipo"><option value="">Todos los tipos</option><option>Obra</option><option>Servicio</option></select></div>
           <div class="ordenes-filtro-group"><label for="ordenesFiltroEstacion">Estación</label><select id="ordenesFiltroEstacion"><option value="">Todas las estaciones</option></select></div>
           <div class="ordenes-filtro-group"><label for="ordenesFiltroProveedor">Proveedor</label><select id="ordenesFiltroProveedor"><option value="">Todos los proveedores</option></select></div>
@@ -1897,7 +1897,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
   <section class="view-card">
     <div class="view-head"><h2>Buscador COI</h2><div class="muted">Búsqueda rápida por estación, proveedor, OC, especialidad o estado.</div></div>
     <div class="view-body">
-      <input id="buscadorGlobal" placeholder="Buscar en todas las OC…" style="width:100%;margin-bottom:12px" />
+      <input id="buscadorGlobal" type="search" placeholder="Buscar en todas las OC…" style="width:100%;margin-bottom:12px">
       <div class="table-wrap"><table class="coi-table"><thead><tr><th>ID_OBRA</th><th>N° OC</th><th>Tipo</th><th>Estación</th><th>Proveedor</th><th>Tipo de trabajo</th><th>Estado COI</th><th>Próx. certificación</th><th>Vencimiento</th></tr></thead><tbody id="buscadorTbody"></tbody></table></div>
     </div>
   </section>
@@ -1967,7 +1967,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
     <div class="view-head"><h2>Repositorio de Unidades de Mantenimiento</h2><div class="muted">Inventario maestro de activos mantenibles de Línea Roca. Independiente de las OC.</div></div>
     <div class="view-body">
       <div class="um-kpis"><div class="um-kpi"><b id="umKTotal">0</b><span>Total UM</span></div><div class="um-kpi"><b id="umKAsc">0</b><span>Ascensores</span></div><div class="um-kpi"><b id="umKEsc">0</b><span>Escaleras mecánicas</span></div><div class="um-kpi"><b id="umKActivas">0</b><span>UM activas</span></div><div class="um-kpi"><b id="umKFuera">0</b><span>Fuera de servicio</span></div><div class="um-kpi"><b id="umKSinFoto">0</b><span>Sin foto</span></div></div>
-      <div class="um-toolbar"><input id="umBuscar" placeholder="Buscar UM, estación, ubicación, proveedor, OC u observaciones..." /><select id="umFiltroTipo"><option value="">Tipo UM</option></select><select id="umFiltroEstacion"><option value="">Estación</option></select><select id="umFiltroEstado"><option value="">Estado operativo</option></select><select id="umFiltroCriticidad"><option value="">Criticidad</option></select><select id="umFiltroProveedor"><option value="">Proveedor actual</option></select><button type="button" id="btnLimpiarUM">Limpiar</button><button type="button" id="btnExportUMCSV" class="primary">Exportar UM CSV</button></div>
+      <div class="um-toolbar"><input id="umBuscar" type="search" placeholder="Buscar UM, estación, ubicación, proveedor, OC u observaciones..."><select id="umFiltroTipo"><option value="">Tipo UM</option></select><select id="umFiltroEstacion"><option value="">Estación</option></select><select id="umFiltroEstado"><option value="">Estado operativo</option></select><select id="umFiltroCriticidad"><option value="">Criticidad</option></select><select id="umFiltroProveedor"><option value="">Proveedor actual</option></select><button type="button" id="btnLimpiarUM">Limpiar</button><button type="button" id="btnExportUMCSV" class="primary">Exportar UM CSV</button></div>
       <div class="table-wrap"><table class="coi-table"><thead><tr><th>ID UM</th><th>Tipo</th><th>Estación</th><th>Sector</th><th>Ubicación técnica</th><th>Estado</th><th>Criticidad</th><th>Proveedor</th><th>OC actual</th><th>Ficha</th></tr></thead><tbody id="umTbody"></tbody></table></div>
       <section class="view-card" style="margin:18px 0 0"><div class="view-head"><h2>Carga manual de UM</h2><div class="muted">Crear o editar unidad de mantenimiento fija.</div></div><div class="view-body"><div class="um-actions"><button type="button" id="btnNuevaUM" class="primary">Nueva UM</button><button type="button" id="btnGuardarUM" class="primary">Guardar / Actualizar UM</button></div><div id="umFormMsg" class="notice">Complete los campos obligatorios: idUM, tipoUM, estación, ubicación técnica y estado operativo.</div><div class="um-form"><div><label>ID UM *</label><input id="um_idUM" placeholder="ASC-001"></div><div><label>Tipo UM *</label><select id="um_tipoUM"><option value="">Seleccionar</option><option>Ascensor</option><option>Escalera mecánica</option><option>Otro</option></select></div><div><label>Estación *</label><select id="um_estacion"><option value="">Estación</option></select></div><div><label>Estado operativo *</label><select id="um_estadoOperativo"><option value="">Seleccionar</option><option>Activo</option><option>Fuera de servicio</option><option>En mantenimiento</option><option>Sin datos</option><option>Baja</option></select></div><div><label>Sector</label><input id="um_sector"></div><div><label>Ubicación técnica *</label><input id="um_ubicacionTecnica"></div><div><label>Criticidad</label><select id="um_criticidad"><option>Media</option><option>Alta</option><option>Baja</option></select></div><div><label>Proveedor actual</label><input id="um_proveedorActual"></div><div><label>OC actual</label><input id="um_ocActual"></div><div class="full"><label>Descripción</label><textarea id="um_descripcion"></textarea></div><div class="full"><label>Fotos UM (base64 o rutas)</label><input id="um_fotoArchivo" type="file" accept="image/*"><textarea id="um_fotos" placeholder="img/um/ASC-001/01.jpg\nimg/um/ASC-001/02.jpg"></textarea></div><div class="full"><label>Observaciones</label><textarea id="um_observaciones"></textarea></div></div></div></section>
     </div>
@@ -14697,12 +14697,9 @@ const APP_DATA_MODE = "supabase_first";
     });
     if (!principalData.estacion || norm(principalData.estacion) === 'SIN DEFINIR') return null;
     const rows = await cargarEstacionesAsociadasOC(orden);
-    const existing = rows.find((row) => stationAssociationKey(row) === stationAssociationKey(principalData));
+    const existing = rows.find((row) => normalizeBoolean(row?.es_principal));
     if (existing) return existing;
-    const client = getSupabaseClient();
-    const { data, error } = await client.from(SUPABASE_STATIONS_TABLE).insert(principalData).select().single();
-    if (error) throw error;
-    return data;
+    throw new Error('La OC no tiene una estación principal válida. Ejecute el preflight y repare la integridad antes de editar asociaciones.');
   }
 
   async function agregarEstacionAsociadaOC(orden, estacionData) {
@@ -14717,10 +14714,16 @@ const APP_DATA_MODE = "supabase_first";
     if (existingRows.some((row) => stationAssociationKey(row) === stationAssociationKey(payload))) {
       throw new Error('La misma estación y sector ya están asociados a esta OC.');
     }
-    const { data, error } = await client.from(SUPABASE_STATIONS_TABLE).insert(payload).select().single();
+    const orderId = getOrderSupabaseId(orden);
+    if (!orderId) throw new Error('La OC no tiene un UUID remoto válido.');
+    const { data, error } = await client.rpc('coi_guardar_estacion_asociada', {
+      p_orden_id: orderId,
+      p_estacion_id: null,
+      p_datos: payload
+    });
     if (error) throw error;
     await cargarTodasEstacionesAsociadasSupabase({ silencioso: true });
-    return data;
+    return data?.estacion || null;
   }
 
   async function actualizarEstacionAsociadaOC(id, cambios) {
@@ -14737,10 +14740,14 @@ const APP_DATA_MODE = "supabase_first";
     if (rows.some((row) => String(row.id) !== String(id) && stationAssociationKey(row) === stationAssociationKey(payload))) {
       throw new Error('La misma estación y sector ya están asociados a esta OC.');
     }
-    const { data, error } = await client.from(SUPABASE_STATIONS_TABLE).update(payload).eq('id', id).select().single();
+    const { data, error } = await client.rpc('coi_guardar_estacion_asociada', {
+      p_orden_id: current.orden_id,
+      p_estacion_id: id,
+      p_datos: payload
+    });
     if (error) throw error;
     await cargarTodasEstacionesAsociadasSupabase({ silencioso: true });
-    return data;
+    return data?.estacion || null;
   }
 
   async function eliminarEstacionAsociadaOC(id) {
@@ -14749,7 +14756,7 @@ const APP_DATA_MODE = "supabase_first";
     if (!row) throw new Error('No se encontró la asociación.');
     if (normalizeBoolean(row.es_principal)) throw new Error('No se puede eliminar la estación principal. Primero marque otra como principal.');
     const client = getSupabaseClient();
-    const { error } = await client.from(SUPABASE_STATIONS_TABLE).delete().eq('id', id);
+    const { error } = await client.rpc('coi_eliminar_estacion_asociada', { p_estacion_id: id });
     if (error) throw error;
     await cargarTodasEstacionesAsociadasSupabase({ silencioso: true });
     return true;
@@ -14759,7 +14766,8 @@ const APP_DATA_MODE = "supabase_first";
     await requireSupabaseWriteAccess();
     const client = getSupabaseClient();
     const nroOC = getNroOCFromOrder(orden) || normalizeNroOC(estacionAsociada?.nro_oc);
-    if (!nroOC) throw new Error('La OC no tiene nro_oc.');
+    const orderId = getOrderSupabaseId(orden) || estacionAsociada?.orden_id;
+    if (!nroOC || !orderId) throw new Error('La OC no tiene nro_oc o UUID remoto válido.');
     await asegurarAsociacionPrincipalOC(orden);
     let target = estacionAsociada;
     if (!target?.id) {
@@ -14768,28 +14776,11 @@ const APP_DATA_MODE = "supabase_first";
     }
     if (!target?.id) throw new Error('No se encontró la asociación que se marcará como principal.');
 
-    const { error: clearError } = await client
-      .from(SUPABASE_STATIONS_TABLE)
-      .update({ es_principal: false, fecha_actualizacion: nowISO() })
-      .eq('nro_oc', nroOC);
-    if (clearError) throw clearError;
-
-    const { error: principalError } = await client
-      .from(SUPABASE_STATIONS_TABLE)
-      .update({ es_principal: true, fecha_actualizacion: nowISO() })
-      .eq('id', target.id);
-    if (principalError) throw principalError;
-
-    const orderUpdate = {
-      estacion: normalizeStationValue(target.estacion),
-      ramal: normalizeStationValue(target.ramal),
-      sector: normalizeStationValue(target.sector)
-    };
-    const { error: orderError } = await client
-      .from(SUPABASE_TABLE)
-      .update(orderUpdate)
-      .eq('nro_oc', nroOC);
-    if (orderError) throw orderError;
+    const { error } = await client.rpc('coi_marcar_estacion_principal', {
+      p_orden_id: orderId,
+      p_estacion_id: target.id
+    });
+    if (error) throw error;
 
     await recargarDatosDesdeSupabase({ silencioso: true });
     await cargarTodasEstacionesAsociadasSupabase({ silencioso: true });
@@ -15266,24 +15257,18 @@ const APP_DATA_MODE = "supabase_first";
         payload.ramal = clean(existente.ramal || payload.ramal);
         payload.sector = clean(existente.sector || payload.sector);
       }
-      let query = client.from(SUPABASE_TABLE).update(payload);
-      if (existente.id !== undefined && existente.id !== null) query = query.eq('id', existente.id);
-      else query = query.eq('nro_oc', existente.nro_oc);
-      result = await query.select();
-      action = 'updated';
-    } else {
-      result = await client
-        .from(SUPABASE_TABLE)
-        .upsert(payload, { onConflict: 'nro_oc' })
-        .select();
-      action = 'inserted';
-      if (result.error && String(result.error.code || '') === '42P10') {
-        result = await client.from(SUPABASE_TABLE).insert(payload).select();
-      }
     }
 
+    // saldo_remanente es derivado por el ledger y nunca se acepta desde el cliente.
+    delete payload.saldo_remanente;
+    result = await client.rpc('coi_guardar_orden_integral', {
+      p_orden_id: existente?.id || null,
+      p_datos: payload
+    });
+
     if (result.error) throw result.error;
-    const canonicalRow = Array.isArray(result.data) && result.data.length ? result.data[0] : existente;
+    action = result.data?.accion || (existente ? 'updated' : 'inserted');
+    const canonicalRow = result.data?.orden || existente;
     const cleanup = await consolidarDuplicadosSupabase(payload.nro_oc, canonicalRow);
     if (cleanup.detectadas) {
       const duplicateWarning = `Se detectaron ${cleanup.detectadas} fila(s) duplicada(s). No se eliminaron automáticamente; requieren revisión administrativa.`;
@@ -15297,7 +15282,7 @@ const APP_DATA_MODE = "supabase_first";
         : 'OC nueva creada en Supabase', 'ok');
     }
     return {
-      data: Array.isArray(result.data) ? result.data : [],
+      data: canonicalRow ? [canonicalRow] : [],
       action,
       warning: stationWarning,
       error: null
@@ -15329,14 +15314,26 @@ const APP_DATA_MODE = "supabase_first";
     const payload = normalizarCambiosParaSupabase(cambios);
     if (!Object.keys(payload).length) throw new Error('No hay cambios válidos para guardar en Supabase.');
 
-    let query = client.from(SUPABASE_TABLE).update(payload);
-    if (current?.supabaseId !== undefined && current?.supabaseId !== null && clean(current.supabaseId) !== '') query = query.eq('id', current.supabaseId);
-    else query = query.eq('id_obra', current?.idObra || id);
-
-    const { data, error } = await query.select();
+    delete payload.nro_oc;
+    delete payload.saldo_remanente;
+    let orderId = clean(current?.supabaseId);
+    if (!orderId) {
+      const lookup = await client
+        .from(SUPABASE_TABLE)
+        .select('id')
+        .eq('id_obra', current?.idObra || id)
+        .limit(2);
+      if (lookup.error) throw lookup.error;
+      if (lookup.data?.length !== 1) throw new Error('No se pudo resolver un UUID único para la OC.');
+      orderId = lookup.data[0].id;
+    }
+    const { data, error } = await client.rpc('coi_guardar_orden_integral', {
+      p_orden_id: orderId,
+      p_datos: payload
+    });
     if (error) throw error;
     await recargarDatosDesdeSupabase({ silencioso: true });
-    return { data, error: null };
+    return { data: data?.orden ? [data.orden] : [], error: null };
   }
 
   /* coi-delete-v60-canonical: único propietario del borrado persistente de OCs. */
@@ -15718,123 +15715,37 @@ const APP_DATA_MODE = "supabase_first";
 
   async function upsertMasivoSupabase(orders) {
     await requireSupabaseWriteAccess();
-    const client = getSupabaseClient();
-    const { data: existingRows, error: existingError } = await client
-      .from(SUPABASE_TABLE)
-      .select('id,id_obra,nro_oc,estacion,ramal,sector');
-    if (existingError) throw existingError;
-
-    const existingByNro = new Map();
-    const duplicateNros = new Set();
-    (existingRows || []).forEach((row) => {
-      const key = normalizeNroOC(row.nro_oc);
-      if (!key) return;
-      if (existingByNro.has(key)) duplicateNros.add(key);
-      else existingByNro.set(key, row);
-    });
-
-    const uniquePayloads = new Map();
+    const uniqueOrders = new Map();
     let omitidas = 0;
     const errores = [];
     const advertenciasEstacion = [];
+    let insertadas = 0;
+    let actualizadas = 0;
 
     (Array.isArray(orders) ? orders : []).forEach((order, index) => {
       try {
         const payload = normalizarOrdenParaSupabase(order);
         if (!payload.nro_oc) throw new Error('falta nro_oc');
-        if (!payload.id_obra) payload.id_obra = `OC-${payload.nro_oc}`.toUpperCase();
         const key = normalizeNroOC(payload.nro_oc);
-        if (uniquePayloads.has(key)) omitidas += 1;
-        uniquePayloads.set(key, { payload, sourceIndex: index });
+        if (uniqueOrders.has(key)) omitidas += 1;
+        uniqueOrders.set(key, { order, sourceIndex: index });
       } catch (error) {
         errores.push(`Fila ${index + 1}: ${error.message || error}`);
       }
     });
 
-    const payloads = [];
-    const actionByNro = new Map();
-    let insertadas = 0;
-    let actualizadas = 0;
-
-    uniquePayloads.forEach(({ payload }) => {
-      const key = normalizeNroOC(payload.nro_oc);
-      const existing = existingByNro.get(key);
-      if (existing?.id_obra) payload.id_obra = clean(existing.id_obra).toUpperCase();
-      else if (!payload.id_obra) payload.id_obra = `OC-${key}`.toUpperCase();
-      if (existing) {
-        const incomingStation = normalizeStationValue(payload.estacion);
-        const currentStation = normalizeStationValue(existing.estacion);
-        if (incomingStation && currentStation && norm(incomingStation) !== norm(currentStation)) {
-          advertenciasEstacion.push(`OC ${key}: La OC ya existe con otra estación. Para agregar estaciones adicionales, editar la ficha OC.`);
-          payload.estacion = currentStation;
-          payload.ramal = clean(existing.ramal || payload.ramal);
-          payload.sector = clean(existing.sector || payload.sector);
-        }
+    for (const [nroOC, { order, sourceIndex }] of uniqueOrders) {
+      try {
+        const result = await upsertOrdenSupabase(order, { refresh: false, notify: false });
+        if (result.action === 'inserted') insertadas += 1;
+        else actualizadas += 1;
+        if (result.warning) advertenciasEstacion.push(`OC ${nroOC}: ${result.warning}`);
+      } catch (error) {
+        errores.push(`Fila ${sourceIndex + 1} · OC ${nroOC}: ${error.message || error}`);
       }
-      const action = existing ? 'updated' : 'inserted';
-      actionByNro.set(key, action);
-      if (existing) actualizadas += 1;
-      else insertadas += 1;
-      payloads.push(payload);
-    });
-
-    if (!payloads.length) {
-      return {
-        totalProcesadas: Array.isArray(orders) ? orders.length : 0,
-        insertadas: 0,
-        actualizadas: 0,
-        omitidas,
-        advertenciasEstacion,
-        errores
-      };
     }
 
-    let result = await client
-      .from(SUPABASE_TABLE)
-      .upsert(payloads, { onConflict: 'nro_oc' })
-      .select();
-
-    if (result.error) {
-      let insertedOk = 0;
-      let updatedOk = 0;
-      const sequentialErrors = [];
-      for (const payload of payloads) {
-        const key = normalizeNroOC(payload.nro_oc);
-        const existing = existingByNro.get(key);
-        try {
-          let operation;
-          if (existing) {
-            let query = client.from(SUPABASE_TABLE).update(payload);
-            if (existing.id !== undefined && existing.id !== null) query = query.eq('id', existing.id);
-            else query = query.eq('nro_oc', existing.nro_oc);
-            operation = await query.select();
-          } else {
-            operation = await client
-              .from(SUPABASE_TABLE)
-              .upsert(payload, { onConflict: 'nro_oc' })
-              .select();
-            if (operation.error && String(operation.error.code || '') === '42P10') {
-              operation = await client.from(SUPABASE_TABLE).insert(payload).select();
-            }
-          }
-          if (operation.error) throw operation.error;
-          if (actionByNro.get(key) === 'updated') updatedOk += 1;
-          else insertedOk += 1;
-        } catch (error) {
-          sequentialErrors.push(`OC ${payload.nro_oc}: ${error.message || error}`);
-        }
-      }
-      insertadas = insertedOk;
-      actualizadas = updatedOk;
-      if (sequentialErrors.length) errores.push(...sequentialErrors);
-    }
-
-    for (const nroOC of duplicateNros) {
-      const cleanup = await consolidarDuplicadosSupabase(nroOC, existingByNro.get(nroOC));
-      if (cleanup.detectadas) advertenciasEstacion.push(`OC ${nroOC}: ${cleanup.detectadas} duplicado(s) detectado(s), sin eliminación automática.`);
-    }
-
-    await recargarDatosDesdeSupabase({ silencioso: true });
+    if (uniqueOrders.size) await recargarDatosDesdeSupabase({ silencioso: true });
     return {
       totalProcesadas: Array.isArray(orders) ? orders.length : 0,
       insertadas,
@@ -19428,7 +19339,7 @@ async function actualizarEstadoDocumentalDesdePasoContractual(ocNro,paso,options
   if(options.skipSupabase===true)throw new Error('El circuito contractual requiere confirmación de Supabase.');
   const {client}=await validarEscrituraCircuito();
   const ordenId=await resolverOrdenIdCircuito(client,resolved,nro);
-  const result=await client.rpc('coi_confirmar_etapa_circuito',{
+  const result=await client.rpc('coi_confirmar_etapa_circuito_v2',{
     p_orden_id:ordenId,
     p_codigo:stage.codigo,
     p_observacion:clean(options.observacion)||null
@@ -21939,7 +21850,10 @@ if(document.readyState==='loading'){
   async function updateSupabaseFields(nro,payload){
     const c=client();
     if(!c||!nro)return{synced:false,reason:'no-client'};
-    const {error}=await c.from('coi_ordenes').update(payload).eq('nro_oc',nro);
+    const lookup=await c.from('coi_ordenes').select('id,nro_oc').eq('nro_oc',nro).limit(2);
+    if(lookup.error)throw lookup.error;
+    if(lookup.data?.length!==1)throw new Error('No se pudo resolver un UUID único para la OC.');
+    const {error}=await c.rpc('coi_guardar_orden_integral',{p_orden_id:lookup.data[0].id,p_datos:payload});
     if(error)throw error;
     return{synced:true};
   }
@@ -22003,7 +21917,7 @@ if(document.readyState==='loading'){
       if(lookup.data?.length!==1)throw new Error('No se pudo resolver un UUID único para la OC.');
       orderId=lookup.data[0].id;
     }
-    const result=await c.rpc('coi_confirmar_etapa_circuito',{p_orden_id:orderId,p_codigo:stage.codigo,p_observacion:clean(options.observacion)||null});
+    const result=await c.rpc('coi_confirmar_etapa_circuito_v2',{p_orden_id:orderId,p_codigo:stage.codigo,p_observacion:clean(options.observacion)||null});
     if(result.error)throw result.error;
     if(!result.data?.orden)throw new Error('Supabase no confirmó la actualización del circuito.');
     setEstadoDocumentalLocal(oc,result.data.nombre||estado);
@@ -24249,7 +24163,7 @@ body.coi-v2-light input,body.coi-v2-light select,body.coi-v2-light textarea{back
     });
     document.addEventListener('keydown',event=>{const oc=event.target.closest?.('[data-v2-open-oc],[data-v2-open-module]');if(oc&&(event.key==='Enter'||event.key===' ')){event.preventDefault();oc.click();return}if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName||'')){event.preventDefault();$('coiV2GlobalSearch')?.focus()}if(event.key==='Escape'){$('coiV2SearchPanel')?.classList.remove('open');document.body.classList.remove('coi-v2-mobile-open')}});
     $('coiV2GlobalSearch')?.addEventListener('input',event=>renderSearch(event.target.value));
-    $('coiV2Menu')?.addEventListener('click',()=>{if(innerWidth<=760){document.body.classList.toggle('coi-v2-mobile-open')}else{const collapsed=document.body.classList.toggle('coi-v2-sidebar-collapsed');localStorage.setItem('coi_v2_sidebar_collapsed',collapsed?'1':'0')}});
+    $('coiV2Menu')?.addEventListener('click',()=>{if(matchMedia('(max-width: 760px)').matches){document.body.classList.toggle('coi-v2-mobile-open')}else{const collapsed=document.body.classList.toggle('coi-v2-sidebar-collapsed');localStorage.setItem('coi_v2_sidebar_collapsed',collapsed?'1':'0')}});
     $('coiV2Theme')?.addEventListener('click',()=>{const light=document.body.classList.toggle('coi-v2-light');localStorage.setItem('coi_v2_theme',light?'light':'dark')});
     $('coiV2AuthButton')?.addEventListener('click',handleV2Auth);
     $('coiV2Refresh')?.addEventListener('click',async()=>{const btn=$('coiV2Refresh');btn.disabled=true;try{if(typeof window.recargarDatosDesdeSupabase==='function')await window.recargarDatosDesdeSupabase();if(typeof window.renderOrdenes==='function')window.renderOrdenes();if(typeof window.renderCalendarioCOIUnificado==='function')window.renderCalendarioCOIUnificado();renderHome();syncNav()}catch(error){console.warn('[COI V2] actualización',error)}finally{btn.disabled=false}});
@@ -24523,7 +24437,7 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   async function guardarPosiciones(records){if(!Array.isArray(records)||!records.length)throw new Error('No hay Posiciones OC válidas para guardar.');const access=await verificarAcceso({escritura:true}),payload=[],orderCache=new Map();for(const record of records)payload.push(await toPayload(record,access.client,orderCache,access.user?.email));for(let from=0;from<payload.length;from+=PAGE_SIZE){const batch=payload.slice(from,from+PAGE_SIZE);const {data,error}=await access.client.from(TABLE).upsert(batch,{onConflict:'orden_id,posicion'}).select('*');if(error)throw error;if(!Array.isArray(data)||data.length!==batch.length)throw new Error('Supabase no confirmó todas las Posiciones OC guardadas.');}return recargarCache();}
   async function actualizarPosicion(id,changes={}){const access=await verificarAcceso({escritura:true}),patch={};for(const key of ['descripcion','unidad_medida','moneda','remito','observaciones','origen_carga'])if(Object.prototype.hasOwnProperty.call(changes,key))patch[key]=text(changes[key])||null;for(const key of ['cantidad_total','precio_unitario','monto_total'])if(Object.prototype.hasOwnProperty.call(changes,key))patch[key]=parseNumber(changes[key]);if(!Object.keys(patch).length)throw new Error('No hay campos editables para actualizar.');if(access.user?.email)patch.usuario_email=access.user.email;const {data,error}=await access.client.from(TABLE).update(patch).eq('id',id).select('*').single();if(error)throw error;if(!data?.id)throw new Error('Supabase no confirmó la actualización.');await recargarCache();return fromRemote(data);}
   function rpcError(error){const value=`${error?.code||''} ${error?.message||''} ${error?.details||''}`;if(/PGRST202|42883|coi_(certificar|actualizar|anular|eliminar)_/i.test(value)){const wrapped=new Error('El contrato transaccional de Supabase no está instalado o la API todavía no recargó el esquema. Aplique supabase/migrations en orden y reintente.');wrapped.code='COI_RPC_NOT_INSTALLED';wrapped.cause=error;return wrapped;}return error instanceof Error?error:Object.assign(new Error(error?.message||String(error)),error||{});}
-  async function certificarPosiciones(movimientos,idempotencyKey,contexto={}){if(!Array.isArray(movimientos)||!movimientos.length)throw new Error('No hay posiciones seleccionadas para certificar.');if(!text(idempotencyKey))throw new Error('Falta la clave de idempotencia del movimiento.');const access=await verificarAcceso({escritura:true});const {data,error}=await access.client.rpc('coi_certificar_posiciones',{p_movimientos:movimientos,p_idempotency_key:idempotencyKey,p_contexto:contexto});if(error)throw rpcError(error);if(!Array.isArray(data)||data.length!==movimientos.length)throw new Error('Supabase no confirmó todos los consumos solicitados.');const result=data.map(fromRemoteConsumption);try{await recargarCache();}catch(refreshError){result.refreshWarning=`El movimiento fue confirmado, pero no se pudo refrescar la caché: ${refreshError?.message||refreshError}`;console.warn('[COI][FINANZAS][CACHE_POST_COMMIT]',refreshError);}return result;}
+  async function certificarPosiciones(movimientos,idempotencyKey,contexto={}){if(!Array.isArray(movimientos)||!movimientos.length)throw new Error('No hay posiciones seleccionadas para certificar.');if(!text(idempotencyKey))throw new Error('Falta la clave de idempotencia del movimiento.');const access=await verificarAcceso({escritura:true});const {data,error}=await access.client.rpc('coi_certificar_posiciones_v2',{p_movimientos:movimientos,p_idempotency_key:idempotencyKey,p_contexto:contexto});if(error)throw rpcError(error);if(!Array.isArray(data)||data.length!==movimientos.length)throw new Error('Supabase no confirmó todos los consumos solicitados.');const result=data.map(fromRemoteConsumption);try{await recargarCache();}catch(refreshError){result.refreshWarning=`El movimiento fue confirmado, pero no se pudo refrescar la caché: ${refreshError?.message||refreshError}`;console.warn('[COI][FINANZAS][CACHE_POST_COMMIT]',refreshError);}return result;}
   async function actualizarCertificacion(id,cambios={}){const access=await verificarAcceso({escritura:true});const {data,error}=await access.client.rpc('coi_actualizar_consumo_posicion',{p_consumo_id:id,p_cambios:cambios});if(error)throw rpcError(error);if(!data?.id)throw new Error('Supabase no confirmó la actualización de la certificación.');const result=fromRemoteConsumption(data);try{await recargarCache();}catch(refreshError){result.refreshWarning=`La actualización fue confirmada, pero no se pudo refrescar la caché: ${refreshError?.message||refreshError}`;}return result;}
   async function anularCertificacion(id,motivo){const access=await verificarAcceso({escritura:true});const {data,error}=await access.client.rpc('coi_anular_consumo_posicion',{p_consumo_id:id,p_motivo:text(motivo)});if(error)throw rpcError(error);if(!data?.id||text(data.estado).toUpperCase()!=='ANULADA')throw new Error('Supabase no confirmó la anulación de la certificación.');try{await recargarCache();}catch(refreshError){data.refreshWarning=`La anulación fue confirmada, pero no se pudo refrescar la caché: ${refreshError?.message||refreshError}`;}return data;}
   async function eliminarPosiciones(ids){const unique=[...new Set((Array.isArray(ids)?ids:[ids]).map(text).filter(Boolean))];if(!unique.length)throw new Error('No hay posiciones seleccionadas para eliminar.');const access=await verificarAcceso({escritura:true});const {data,error}=await access.client.rpc('coi_eliminar_posiciones_sin_movimientos',{p_position_ids:unique});if(error)throw rpcError(error);if(Number(data?.count)!==unique.length||!Array.isArray(data?.deleted))throw new Error('Supabase no confirmó la eliminación atómica de todas las posiciones.');try{await recargarCache();}catch(refreshError){data.deleted.refreshWarning=`La eliminación fue confirmada, pero no se pudo refrescar la caché: ${refreshError?.message||refreshError}`;}return data.deleted;}
