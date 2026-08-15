@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
-const html = fs.readFileSync('index.html', 'utf8');
+const html = fs.readFileSync('index.html', 'utf8').replace(/\r\n?/g, '\n');
 const contract = html.match(/<script id="coi-financial-rpc-contract">([\s\S]*?)<\/script>/)?.[1] || '';
 const duplicateGuard = html.match(/async function consolidarDuplicadosSupabase\([\s\S]*?\n  }\n\n  async function upsertOrdenSupabase/)?.[0] || '';
 

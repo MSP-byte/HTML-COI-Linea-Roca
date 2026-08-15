@@ -4,7 +4,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const html = fs.readFileSync('index.html', 'utf8');
+const html = fs.readFileSync('index.html', 'utf8').replace(/\r\n?/g, '\n');
 const updateBlock = html.match(
   /async function actualizarProximaCertificacionOrden\(nroOC\)\{[\s\S]*?\n  \}\n\n  async function refrescarModulosTrasCertificacion/
 )?.[0] || '';
