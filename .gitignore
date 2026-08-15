@@ -18,3 +18,22 @@ credentials*.json
 
 # Estado temporal de Supabase CLI
 supabase/.temp/
+
+# COI QA local - no versionar perfiles/logs/dependencias
+.coi-qa/logs/
+.coi-qa/chrome-profile/
+.coi-qa/node_modules/
+.coi-qa/package-lock.json
+.coi-qa/package.json
+.coi-qa/screenshots/
+.coi-qa/reports/
+.coi-qa/runtime/
+.coi-qa/*.bak
+.coi-qa/*.pre-*
+.coi-qa/auth-diagnostic.mjs
+.coi-qa/admin-state-diagnostic.mjs
+
+# Backups y parches locales de estabilizacion (conservar en disco, no versionar)
+index.STAGING.pre-*.html
+patch_*.py
+CODEX_HANDOFF_COI.md
