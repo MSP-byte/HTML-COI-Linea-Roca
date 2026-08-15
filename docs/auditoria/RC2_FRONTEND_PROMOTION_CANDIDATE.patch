@@ -1,112 +1,189 @@
 diff --git a/index.html b/index.html
-index fdb2274..72dbea1 100644
+index fdb2274..2bac018 100644
 --- a/index.html
 +++ b/index.html
-@@ -9,7 +9,7 @@
- *{box-sizing:border-box} body{margin:0;font-family:Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:#242424}
- header{height:72px;background:#30343a;color:white;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:0 24px;box-shadow:0 2px 10px #0002;position:sticky;top:0;z-index:10}
- .brand{font-weight:800;letter-spacing:.2px;min-width:180px}.brand small{display:block;font-size:12px;font-weight:600;opacity:.75}
+@@ -12 +12 @@ header{height:72px;background:#30343a;color:white;display:flex;align-items:cente
 -.app-identity{display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right;min-width:0}.app-title-line{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;font-size:18px;font-weight:900}.app-version-badge{display:inline-flex;align-items:center;border:1px solid #8bbbe2;background:#eaf4ff;color:#1f4e79;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:900;letter-spacing:.2px}.app-subtitle{font-size:12px;color:#d8e4ef;font-weight:700}.app-tagline{font-size:11px;color:#b9c7d3;font-weight:700}
 +.app-identity{display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right;min-width:0}.app-title-line{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;font-size:18px;font-weight:900}.app-version-badge,.admin-role-badge{display:inline-flex;align-items:center;border:1px solid #8bbbe2;background:#eaf4ff;color:#1f4e79;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:900;letter-spacing:.2px}.app-subtitle{font-size:12px;color:#d8e4ef;font-weight:700}.app-tagline{font-size:11px;color:#b9c7d3;font-weight:700}
- .toolbar{display:grid;grid-template-columns:2fr repeat(4,1fr) auto;gap:10px;padding:14px 20px;background:white;border-bottom:1px solid #ddd;position:sticky;top:64px;z-index:9}
- input,select,button{border:1px solid #cfd6dd;border-radius:10px;padding:10px 12px;background:white;font-size:14px} button{cursor:pointer;font-weight:700} button.primary{background:#2f6fa3;color:white;border-color:#2f6fa3}
- .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 20px} .kpi{background:white;border-radius:14px;padding:12px 14px;border:1px solid #e2e5e9;box-shadow:0 3px 12px #0000000c} .kpi b{display:block;font-size:22px;color:#2f6fa3} .kpi span{font-size:12px;color:#666;text-transform:uppercase;font-weight:700}
-@@ -1940,7 +1940,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
-     <div class="view-body">
-       <div class="admin-note">Supabase es la fuente oficial de datos operativos. LocalStorage se utiliza únicamente para preferencias, caché y respaldo legacy temporal.</div>
-       <div class="admin-topbar">
+@@ -1943 +1943 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
 -        <div><b>Rol activo:</b> <span id="adminRolActivo" class="app-version-badge">Jefatura</span> <span id="adminModoBadge" class="version-status ok">PRODUCCIÓN</span></div>
 +        <div><b>Rol activo:</b> <span id="adminRolActivo" class="admin-role-badge">Jefatura</span> <span id="adminModoBadge" class="version-status ok">PRODUCCIÓN</span></div>
-         <div class="admin-actions compact"><button type="button" id="btnAdminMode" class="primary">Ingresar como Administrador</button><button type="button" id="btnImportBackupViewer">Importar backup recibido</button><input type="file" id="adminImportFile" accept="application/json,.json" class="admin-hidden"></div>
-       </div>
-       <div class="admin-tabs" role="tablist"><button type="button" class="active" data-admin-tab="estado">Estado</button><button type="button" data-admin-tab="datos">Datos</button><button type="button" data-admin-tab="usuarios" data-admin-only>Usuarios</button><button type="button" data-admin-tab="catalogos" data-admin-only>Catálogos</button><button type="button" data-admin-tab="diagnostico" data-admin-only>Diagnóstico</button><button type="button" data-admin-tab="auditor">Auditor de datos</button><button type="button" data-admin-tab="configuracion" data-admin-only>Configuración</button><button type="button" data-admin-tab="logs" data-admin-only>Logs</button></div>
-@@ -8496,7 +8496,11 @@ function inicializarModoAccesoSeguro(){
-   limpiarSesionAdministrativaPersistidaV573();
-   actualizarUIModoAcceso();
- }
+@@ -5558 +5558 @@ function adminCargarDemoOperativa(){if(!confirm('La demo operativa reemplazará
+-function initAdministracionSistema(){const file=$('adminImportFile');if(!localStorage.getItem(LS_ADMIN_ROLE))adminSetRole(USER_ROLES.JEFE);$('btnAdministracionSistema')?.addEventListener('click',()=>{mostrarVista('vistaAdministracionSistema');renderAdministracionSistema();});$('btnAdminMode')?.addEventListener('click',()=>{if(adminIsEnabled()){adminSetRole(USER_ROLES.JEFE);registrarLogSistema('sesion','Salida de modo Administrador','Vuelve a Jefatura');adminSetMsg('Modo presentación activado.','warn');renderAdministracionSistema();return;}const pin=prompt('Ingrese PIN de Administrador');if(pin===adminPinActual()){adminSetRole(USER_ROLES.ADMIN);registrarLogSistema('sesion','Modo administrador activado','PIN correcto');adminSetMsg('Modo administrador activado','ok');}else if(pin!==null){adminSetMsg('PIN incorrecto','err');registrarLogSistema('error','PIN incorrecto','Intento de acceso administrador');}renderAdministracionSistema();});document.addEventListener('click',ev=>{const tab=ev.target.closest('[data-admin-tab]');if(tab){adminMostrarTab(tab.dataset.adminTab);return;}if(ev.target.closest('#btnImportBackupViewer,#btnImportBackupViewerPanel,#btnImportBaseJson'))file?.click();if(ev.target.closest('#btnExportBaseJson'))adminExportBaseJSON();if(ev.target.closest('#btnExportBaseCsv'))adminExportBaseCSV();if(ev.target.closest('#btnCrearBackupInterno'))adminCrearBackupInterno();if(ev.target.closest('#btnRestaurarBackupInterno'))adminRestaurarBackupInterno();if(ev.target.closest('#btnCargarDemoOperativa'))adminCargarDemoOperativa();if(ev.target.closest('#btnLimpiarBase'))adminLimpiarBase();if(ev.target.closest('#btnIrCargaCSV'))mostrarVista('vistaCarga');if(ev.target.closest('#btnImportExcelPreparado'))adminSetMsg('Excel directo queda preparado para futura etapa. Por ahora exportar la hoja como CSV UTF-8.','warn');if(ev.target.closest('#btnEjecutarDiagnostico')){const res=ejecutarDiagnosticoSistema();renderAdminDiagnostico(res);adminMostrarTab('diagnostico');adminSetMsg('Diagnóstico ejecutado.','ok');}if(ev.target.closest('#btnOptimizarBase'))optimizarBaseSistema();if(ev.target.closest('#btnEjecutarAuditorDatos')){renderAuditorDatos();adminMostrarTab('auditor');adminSetMsg('Auditoría de datos actualizada.','ok');}if(ev.target.closest('#btnExportAuditoriaCsv'))exportarAuditoriaDatosCSV();if(ev.target.closest('#btnCrearUsuarioLocal')){const u=usuariosSistema();u.push({idUsuario:'USR-'+Date.now(),nombre:$('adminUserNombre')?.value||'Usuario local',rol:$('adminUserRol')?.value||USER_ROLES.JEFE,estado:'Activo',observaciones:$('adminUserObs')?.value||''});guardarUsuariosSistema(u);renderAdministracionSistema();}const del=ev.target.closest('[data-del-user]');if(del){guardarUsuariosSistema(usuariosSistema().filter(u=>u.idUsuario!==del.dataset.delUser));renderAdministracionSistema();}if(ev.target.closest('#btnCambiarPinAdmin')){const pin=prompt('Nuevo PIN administrador');if(pin){const c=adminConfig();c.adminPin=pin;saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('configuracion','PIN administrador actualizado','PIN local');adminSetMsg('PIN administrador actualizado.','ok');}}if(ev.target.closest('#btnAgregarCatalogo')){const n=$('adminCatalogoNombre')?.value,v=($('adminCatalogoValor')?.value||'').trim();if(n&&v){setCatalogo(n,[...new Set([...getCatalogo(n),v])].sort());renderAdministracionSistema();}}if(ev.target.closest('#btnEliminarCatalogo')){const n=$('adminCatalogoNombre')?.value,v=($('adminCatalogoValor')?.value||'').trim();if(n&&v){setCatalogo(n,getCatalogo(n).filter(x=>x!==v));renderAdministracionSistema();}}if(ev.target.closest('#btnGuardarAdminConfig')){const c=adminConfig();c.nombreSistema=$('adminCfgNombre')?.value||APP_NAME;c.versionVisible=$('adminCfgVersion')?.value||APP_VERSION;c.build=$('adminCfgBuild')?.value||adminNowStamp();c.fechaVersion=$('adminCfgFecha')?.value||APP_RELEASE_DATE;c.modoSistema=$('adminCfgModo')?.value||'Producción';c.fuenteDatos=$('adminCfgFuente')?.value||'Supabase';c.estadoVersion=$('adminCfgEstado')?.value||APP_STATUS;c.observacionesVersion=$('adminCfgObs')?.value||'';saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('configuracion','Configuración del sistema actualizada',c.versionVisible);renderAdministracionSistema();adminSetMsg('Configuración guardada.','ok');}if(ev.target.closest('#btnLimpiarLogs')){if(confirm('¿Limpiar logs del sistema?')){saveJSON(LS_ADMIN_LOGS,[]);renderAdminLogs();adminSetMsg('Logs limpiados.','ok');}}});file?.addEventListener('change',()=>{adminImportJSONFile(file.files?.[0]);file.value='';});renderAdministracionSistema();}/* ===============================
++function initAdministracionSistema(){const file=$('adminImportFile');if(!localStorage.getItem(LS_ADMIN_ROLE))adminSetRole(USER_ROLES.JEFE);$('btnAdministracionSistema')?.addEventListener('click',()=>{mostrarVista('vistaAdministracionSistema');renderAdministracionSistema();});$('btnAdminMode')?.addEventListener('click',()=>{if(adminIsEnabled()){adminSetRole(USER_ROLES.JEFE);registrarLogSistema('sesion','Salida de modo Administrador','Vuelve a Jefatura');adminSetMsg('Modo presentación activado.','warn');renderAdministracionSistema();return;}iniciarSesionAdministrador();adminSetMsg('La autorizaciÃ³n administrativa depende de la sesiÃ³n Supabase.','warn');renderAdministracionSistema();});document.addEventListener('click',ev=>{const tab=ev.target.closest('[data-admin-tab]');if(tab){adminMostrarTab(tab.dataset.adminTab);return;}if(ev.target.closest('#btnImportBackupViewer,#btnImportBackupViewerPanel,#btnImportBaseJson'))file?.click();if(ev.target.closest('#btnExportBaseJson'))adminExportBaseJSON();if(ev.target.closest('#btnExportBaseCsv'))adminExportBaseCSV();if(ev.target.closest('#btnCrearBackupInterno'))adminCrearBackupInterno();if(ev.target.closest('#btnRestaurarBackupInterno'))adminRestaurarBackupInterno();if(ev.target.closest('#btnCargarDemoOperativa'))adminCargarDemoOperativa();if(ev.target.closest('#btnLimpiarBase'))adminLimpiarBase();if(ev.target.closest('#btnIrCargaCSV'))mostrarVista('vistaCarga');if(ev.target.closest('#btnImportExcelPreparado'))adminSetMsg('Excel directo queda preparado para futura etapa. Por ahora exportar la hoja como CSV UTF-8.','warn');if(ev.target.closest('#btnEjecutarDiagnostico')){const res=ejecutarDiagnosticoSistema();renderAdminDiagnostico(res);adminMostrarTab('diagnostico');adminSetMsg('Diagnóstico ejecutado.','ok');}if(ev.target.closest('#btnOptimizarBase'))optimizarBaseSistema();if(ev.target.closest('#btnEjecutarAuditorDatos')){renderAuditorDatos();adminMostrarTab('auditor');adminSetMsg('Auditoría de datos actualizada.','ok');}if(ev.target.closest('#btnExportAuditoriaCsv'))exportarAuditoriaDatosCSV();if(ev.target.closest('#btnCrearUsuarioLocal')){const u=usuariosSistema();u.push({idUsuario:'USR-'+Date.now(),nombre:$('adminUserNombre')?.value||'Usuario local',rol:$('adminUserRol')?.value||USER_ROLES.JEFE,estado:'Activo',observaciones:$('adminUserObs')?.value||''});guardarUsuariosSistema(u);renderAdministracionSistema();}const del=ev.target.closest('[data-del-user]');if(del){guardarUsuariosSistema(usuariosSistema().filter(u=>u.idUsuario!==del.dataset.delUser));renderAdministracionSistema();}if(ev.target.closest('#btnCambiarPinAdmin')){const pin=prompt('Nuevo PIN administrador');if(pin){const c=adminConfig();c.adminPin=pin;saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('configuracion','PIN administrador actualizado','PIN local');adminSetMsg('PIN administrador actualizado.','ok');}}if(ev.target.closest('#btnAgregarCatalogo')){const n=$('adminCatalogoNombre')?.value,v=($('adminCatalogoValor')?.value||'').trim();if(n&&v){setCatalogo(n,[...new Set([...getCatalogo(n),v])].sort());renderAdministracionSistema();}}if(ev.target.closest('#btnEliminarCatalogo')){const n=$('adminCatalogoNombre')?.value,v=($('adminCatalogoValor')?.value||'').trim();if(n&&v){setCatalogo(n,getCatalogo(n).filter(x=>x!==v));renderAdministracionSistema();}}if(ev.target.closest('#btnGuardarAdminConfig')){const c=adminConfig();c.nombreSistema=$('adminCfgNombre')?.value||APP_NAME;c.versionVisible=$('adminCfgVersion')?.value||APP_VERSION;c.build=$('adminCfgBuild')?.value||adminNowStamp();c.fechaVersion=$('adminCfgFecha')?.value||APP_RELEASE_DATE;c.modoSistema=$('adminCfgModo')?.value||'Producción';c.fuenteDatos=$('adminCfgFuente')?.value||'Supabase';c.estadoVersion=$('adminCfgEstado')?.value||APP_STATUS;c.observacionesVersion=$('adminCfgObs')?.value||'';saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('configuracion','Configuración del sistema actualizada',c.versionVisible);renderAdministracionSistema();adminSetMsg('Configuración guardada.','ok');}if(ev.target.closest('#btnLimpiarLogs')){if(confirm('¿Limpiar logs del sistema?')){saveJSON(LS_ADMIN_LOGS,[]);renderAdminLogs();adminSetMsg('Logs limpiados.','ok');}}});file?.addEventListener('change',()=>{adminImportJSONFile(file.files?.[0]);file.value='';});renderAdministracionSistema();}/* ===============================
+@@ -8499 +8499,7 @@ function inicializarModoAccesoSeguro(){
 -function esModoAdmin(){return modoAccesoActual==="admin";}
 +function esSesionSupabaseAdministradorV573(){
-+  const usuario=window.APP_STATE?.user;
-+  return Boolean(usuario&&typeof window.esUsuarioSupabaseAdministradorR12==="function"&&window.esUsuarioSupabaseAdministradorR12(usuario));
++  const state=window.APP_STATE;
++  const usuario=state?.user;
++  return Boolean(state?.sessionChecked===true&&usuario&&typeof window.esUsuarioSupabaseAdministradorR12==="function"&&window.esUsuarioSupabaseAdministradorR12(usuario));
 +}
-+function esModoAdmin(){return esSesionSupabaseAdministradorV573()||modoAccesoActual==="admin";}
- function esModoConsulta(){return !esModoAdmin();}
- function iniciarSesionAdministrador(){
-   modoAccesoActual="admin";
-@@ -8568,6 +8572,12 @@ function initEventosModoAccesoV573(){
-   btn.addEventListener("click",ev=>{
-     ev.preventDefault();
-     ev.stopImmediatePropagation();
++window.esAutorizacionAdministrativaSupabaseV60=function(){return esSesionSupabaseAdministradorV573();};
++function esModoAdmin(){return window.esAutorizacionAdministrativaSupabaseV60();}
+@@ -8502,2 +8508,2 @@ function iniciarSesionAdministrador(){
+-  modoAccesoActual="admin";
+-  try{sessionStorage.setItem("coi_modo_acceso_actual","admin");}catch(e){}
++  modoAccesoActual=esSesionSupabaseAdministradorV573()?"admin":"consulta";
++  try{sessionStorage.removeItem("coi_modo_acceso_actual");}catch(e){}
+@@ -8504,0 +8511 @@ function iniciarSesionAdministrador(){
++  return esModoAdmin();
+@@ -8571,4 +8578,3 @@ function initEventosModoAccesoV573(){
+-    if(esModoAdmin()){
+-      cerrarSesionAdministrador();
+-      if(typeof registrarLogSistema==="function") registrarLogSistema("sesion","Salida de modo Administrador","Vuelve a Modo Consulta");
+-      if(typeof adminSetMsg==="function") adminSetMsg("Modo Consulta activado.","warn");
 +    if(esSesionSupabaseAdministradorV573()){
 +      actualizarUIModoAcceso();
 +      if(typeof adminSetMsg==="function") adminSetMsg("La sesion Supabase ya posee rol Administrador.","ok");
-+      if(typeof renderAdministracionSistema==="function") renderAdministracionSistema();
-+      return;
-+    }
-     if(esModoAdmin()){
-       cerrarSesionAdministrador();
-       if(typeof registrarLogSistema==="function") registrarLogSistema("sesion","Salida de modo Administrador","Vuelve a Modo Consulta");
-@@ -8598,7 +8608,10 @@ function actualizarUIModoAcceso(){
-   if(modo) modo.textContent=esModoAdmin()?"Modo Administrador":"Modo Consulta";
-   initEventosModoAccesoV573();
-   const btn=document.getElementById("btnAdminMode");
+@@ -8578,10 +8584,2 @@ function initEventosModoAccesoV573(){
+-    const pin=prompt("Ingrese PIN de Administrador");
+-    if(pin===null) return;
+-    if(typeof adminPinActual==="function"&&pin===adminPinActual()){
+-      iniciarSesionAdministrador();
+-      if(typeof registrarLogSistema==="function") registrarLogSistema("sesion","Modo administrador activado","PIN correcto");
+-      if(typeof adminSetMsg==="function") adminSetMsg("Modo administrador activado.","ok");
+-    }else{
+-      if(typeof adminSetMsg==="function") adminSetMsg("PIN incorrecto","err");
+-      if(typeof registrarLogSistema==="function") registrarLogSistema("error","PIN incorrecto","Intento de acceso administrador");
+-    }
++    cerrarSesionAdministrador();
++    if(typeof adminSetMsg==="function") adminSetMsg("La sesion Supabase actual no posee autorizacion administrativa.","err");
+@@ -8601 +8599,4 @@ function actualizarUIModoAcceso(){
 -  if(btn) btn.textContent=esModoAdmin()?"Cerrar sesion de administrador":"Iniciar sesion como administrador";
 +  if(btn){
 +    btn.textContent=esSesionSupabaseAdministradorV573()?"Administrador autenticado":(esModoAdmin()?"Cerrar sesion de administrador":"Iniciar sesion como administrador");
 +    btn.title=esSesionSupabaseAdministradorV573()?"Rol Administrador otorgado por la sesion Supabase activa":"";
 +  }
-   const rol=document.getElementById("adminRolActivo");
-   if(rol) rol.textContent=esModoAdmin()?"Administrador":"Modo Consulta";
-   document.querySelectorAll("[data-admin-only]").forEach(el=>el.classList.toggle("admin-hidden",!esModoAdmin()));
-@@ -10445,7 +10458,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
-     const isAdmin=adminA();
-     const rol=$a('adminRolActivo'); if(rol) rol.textContent=isAdmin?'Administrador':'Modo Consulta';
-     const badge=$a('adminModoBadge'); if(badge){badge.textContent='PRODUCCIÓN'; badge.className='version-status ok';}
+@@ -9863 +9864 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
+-    const modo=(typeof adminIsEnabled==='function' && adminIsEnabled()) || document.body.classList.contains('modo-admin') ? 'Modo Administrador' : 'Modo Consulta';
++    const modo=(typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60())?'Modo Administrador':'Modo Consulta';
+@@ -10254 +10255 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
+-  function esAdminFix(){ try{return (typeof adminIsEnabled==='function' && adminIsEnabled()) || document.body.classList.contains('modo-admin');}catch(e){return false;} }
++  function esAdminFix(){try{return typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();}catch(e){return false;}}
+@@ -10368 +10369 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
+-  const adminA = ()=> typeof esModoAdmin==='function' ? esModoAdmin() : (typeof adminIsEnabled==='function' ? adminIsEnabled() : document.body.classList.contains('modo-admin'));
++  const adminA=()=>typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();
+@@ -10448 +10449 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
 -    const btn=$a('btnAdminMode'); if(btn) btn.textContent=isAdmin?'Cerrar sesion de administrador':'Iniciar sesion como administrador';
 +    const btn=$a('btnAdminMode'); if(btn) btn.textContent=(typeof esSesionSupabaseAdministradorV573==='function'&&esSesionSupabaseAdministradorV573())?'Administrador autenticado':(isAdmin?'Cerrar sesion de administrador':'Iniciar sesion como administrador');
-     document.body.classList.toggle('modo-admin',isAdmin);
-     document.body.classList.toggle('modo-consulta',!isAdmin);
-     document.querySelectorAll('[data-admin-only]').forEach(el=>el.classList.toggle('admin-hidden',!isAdmin));
-@@ -18765,9 +18778,13 @@ async function getUsuarioActualR12(){
-   return null;
- }
- 
+@@ -10532,3 +10533 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
+-    try{ if(typeof adminIsEnabled === 'function' && adminIsEnabled()) return true; }catch(e){}
+-    try{ if(typeof esModoAdmin === 'function' && esModoAdmin()) return true; }catch(e){}
+-    return document.body.classList.contains('modo-admin') || norm(qs('#headerModoSistema')?.textContent).includes('ADMIN');
++    return typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();
+@@ -10909,3 +10908 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
+-    try{ if(typeof esModoAdmin === 'function' && esModoAdmin()) return true; }catch(e){}
+-    try{ if(typeof adminIsEnabled === 'function' && adminIsEnabled()) return true; }catch(e){}
+-    return document.body.classList.contains('modo-admin') || /admin/i.test(String($r8('headerModoSistema')?.textContent||''));
++    return typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();
+@@ -11473,5 +11470 @@ initNavegacionRespaldoCOI();
+-  function esAdminR13(){
+-    try{ if(typeof adminIsEnabled==='function' && adminIsEnabled()) return true; }catch(e){}
+-    try{ if(typeof esModoAdmin==='function' && esModoAdmin()) return true; }catch(e){}
+-    return document.body.classList.contains('modo-admin') || norm(document.body.className).includes('ADMIN') || norm($('footerOperativo')?.textContent).includes('ADMIN');
+-  }
++  function esAdminR13(){return typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();}
+@@ -11693,4 +11686 @@ initNavegacionRespaldoCOI();
+-  function isAdminR14(){
+-    try{return document.body.classList.contains('modo-admin') || (typeof adminIsEnabled==='function' && adminIsEnabled()) || (typeof esAdminFix==='function' && esAdminFix());}
+-    catch(e){return document.body.classList.contains('modo-admin');}
+-  }
++  function isAdminR14(){return typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();}
+@@ -11958,5 +11948 @@ initNavegacionRespaldoCOI();
+-  const isAdmin=()=>{
+-    try{ if(typeof esModoAdmin==='function')return !!esModoAdmin(); }catch(e){}
+-    try{ if(document.body?.classList?.contains('modo-admin'))return true; }catch(e){}
+-    return /admin/i.test(String(localStorage.getItem('coi_modo')||localStorage.getItem('rolActivo')||''));
+-  };
++  const isAdmin=()=>typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();
+@@ -12226,5 +12212 @@ initNavegacionRespaldoCOI();
+-  function isAdmin16(){
+-    try{ if(typeof esModoAdmin==='function')return !!esModoAdmin(); }catch(e){}
+-    try{ if(document.body?.classList?.contains('modo-admin'))return true; }catch(e){}
+-    return /admin/i.test(String(localStorage.getItem('coi_modo')||localStorage.getItem('rolActivo')||localStorage.getItem('coi_admin_role')||''));
+-  }
++  function isAdmin16(){return typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();}
+@@ -12491 +12473 @@ initNavegacionRespaldoCOI();
+-  const isAdmin=()=>{try{return document.body.classList.contains('modo-admin')||document.body.dataset.admin==='true'||(typeof adminIsEnabled==='function'&&adminIsEnabled())||(typeof esModoAdmin==='function'&&esModoAdmin());}catch(e){return false;}};
++  const isAdmin=()=>typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();
+@@ -13952,5 +13934 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
+-  function isAdmin(){
+-    try{ if(typeof adminIsEnabled==='function' && adminIsEnabled()) return true; }catch(e){}
+-    try{ if(typeof esModoAdmin==='function' && esModoAdmin()) return true; }catch(e){}
+-    return document.body.classList.contains('modo-admin') || document.body.dataset.admin==='true' || /ADMIN/i.test(String($('headerModoSistema')?.textContent||$('footerEstado')?.textContent||''));
+-  }
++  function isAdmin(){return typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();}
+@@ -16529,5 +16507 @@ const APP_DATA_MODE = "supabase_first";
+-  function esAdministradorDocumental(){
+-    try{if(typeof window.adminIsEnabled==='function'&&window.adminIsEnabled())return true}catch(e){}
+-    try{if(typeof window.esModoAdmin==='function'&&window.esModoAdmin())return true}catch(e){}
+-    return document.body.classList.contains('modo-admin');
+-  }
++  function esAdministradorDocumental(){return typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();}
+@@ -17845,7 +17819 @@ const APP_DATA_MODE = "supabase_first";
+-  function usuarioEsAdministrador(){
+-    try{if(typeof window.esAdminR13==='function'&&window.esAdminR13())return true;}catch(e){}
+-    try{if(typeof window.esModoAdmin==='function'&&window.esModoAdmin())return true;}catch(e){}
+-    if(document.body.classList.contains('modo-admin'))return true;
+-    const values=[localStorage.getItem('coi_admin_role_v47'),localStorage.getItem('coi_rol_usuario'),localStorage.getItem('rolUsuario'),window.usuarioRol,window.perfilUsuarioActual,window.currentUserRole].filter(Boolean).map(v=>fold(typeof v==='object'?(v.rol||v.role||''):v));
+-    return values.some(v=>v.includes('ADMIN'));
+-  }
++  function usuarioEsAdministrador(){return typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();}
+@@ -18355,11 +18323 @@ function explicitAdminSignal(){
+-  const footer=fold($('headerModoSistema')?.textContent);
+-  const header=fold(document.querySelector('.header-actions')?.textContent);
+-  const body=document.body;
+-  if(body.classList.contains('modo-admin'))return true;
+-  if(footer.includes('ADMIN'))return true;
+-  if(/ADMIN(?:ISTRADOR)?@/.test(header)||header.includes('MODO ADMINISTRADOR'))return true;
+-  const keys=['coi_admin_role_v47','coi_rol_usuario','rolUsuario','coi_perfil_usuario'];
+-  for(const key of keys){try{const v=fold(localStorage.getItem(key));if(v.includes('ADMIN'))return true;}catch(e){}}
+-  try{if(typeof window.esAdminR13==='function'&&window.esAdminR13())return true;}catch(e){}
+-  try{if(typeof window.esModoAdmin==='function'&&window.esModoAdmin())return true;}catch(e){}
+-  return false;
++  return typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();
+@@ -18768 +18726 @@ async function getUsuarioActualR12(){
 -function resolverRolUsuarioExistente(usuario){
 +window.esUsuarioSupabaseAdministradorR12=function(usuario){
-   const email=clean(usuario?.email).toLowerCase();
+@@ -18770,9 +18728,5 @@ function resolverRolUsuarioExistente(usuario){
 -  if(email==='admin@coiroca.com')return'administrador';
+-  try{if(typeof window.esAdminR13==='function'&&window.esAdminR13())return'administrador';}catch(e){}
+-  try{if(typeof window.usuarioEsAdministrador==='function'&&window.usuarioEsAdministrador())return'administrador';}catch(e){}
+-  if(document.body.classList.contains('modo-admin'))return'administrador';
+-  const local=[localStorage.getItem('coi_rol_usuario'),localStorage.getItem('rolUsuario'),localStorage.getItem('coi_modo_usuario')].map(clean).join(' ');
+-  if(/admin/i.test(local))return'administrador';
+-  if(/jef/i.test(local))return'jefatura';
+-  if(/visual/i.test(local))return'visualizador';
+-  return'consulta';
 +  return email==='admin@coiroca.com';
 +};
 +
 +function resolverRolUsuarioExistente(usuario){
-+  if(window.esUsuarioSupabaseAdministradorR12(usuario))return'administrador';
-   try{if(typeof window.esAdminR13==='function'&&window.esAdminR13())return'administrador';}catch(e){}
-   try{if(typeof window.usuarioEsAdministrador==='function'&&window.usuarioEsAdministrador())return'administrador';}catch(e){}
-   if(document.body.classList.contains('modo-admin'))return'administrador';
-@@ -18792,6 +18809,10 @@ async function sincronizarRolVisualDesdeSesion(){
-   try{actualizarPermisosEdicion();}catch(e){}
-   const footer=$('headerModoSistema');
-   if(footer)footer.textContent=esAdmin?'Modo Administrador':(role==='jefatura'?'Modo Jefatura':role==='visualizador'?'Modo Visualizador':'Modo Consulta');
++  return window.esUsuarioSupabaseAdministradorR12(usuario)?'administrador':'consulta';
+@@ -18794,0 +18749,4 @@ async function sincronizarRolVisualDesdeSesion(){
 +  try{
 +    if(typeof actualizarUIModoAcceso==='function')actualizarUIModoAcceso();
 +    if(document.getElementById('vistaAdministracionSistema')?.classList.contains('active')&&typeof renderAdministracionSistema==='function')renderAdministracionSistema();
 +  }catch(error){console.warn('[COI][AUTH][ADMIN-UI]',error);}
-   return role;
- }
- window.sincronizarRolVisualDesdeSesion=sincronizarRolVisualDesdeSesion;
-@@ -24654,7 +24675,7 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
-   'use strict';
-   const TABLE='coi_ordenes';
-   const CACHE_KEY='coi_supabase_ordenes_cache_v2';
+@@ -18800,4 +18758 @@ function usuarioTienePermisoEdicion(){
+-  if(window.APP_STATE?.role==='administrador')return true;
+-  try{if(typeof window.esAdminR13==='function'&&window.esAdminR13())return true;}catch(e){}
+-  try{if(typeof window.usuarioEsAdministrador==='function'&&window.usuarioEsAdministrador())return true;}catch(e){}
+-  return document.body.classList.contains('modo-admin');
++  return window.APP_STATE?.role==='administrador'&&typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();
+@@ -21786,4 +21741 @@ if(document.readyState==='loading'){
+-    try{ if(typeof window.usuarioTienePermisoEdicion==='function')return !!window.usuarioTienePermisoEdicion(); }catch(e){}
+-    try{ if(typeof window.adminIsEnabled==='function')return !!window.adminIsEnabled(); }catch(e){}
+-    try{ if(typeof window.esModoAdmin==='function')return !!window.esModoAdmin(); }catch(e){}
+-    return document.body.classList.contains('modo-admin')||document.getElementById('headerModoSistema')?.textContent?.toLowerCase().includes('admin');
++    try{return typeof window.usuarioTienePermisoEdicion==='function'&&window.usuarioTienePermisoEdicion();}catch(e){return false;}
+@@ -24609 +24561 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
+-  function authenticatedAdmin(){try{return navigator.onLine!==false&&(window.APP_STATE?.role==='administrador'||document.body.classList.contains('modo-administrador')||(typeof window.adminIsEnabled==='function'&&window.adminIsEnabled()));}catch(error){return false;}}
++  function authenticatedAdmin(){try{return navigator.onLine!==false&&typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();}catch(error){return false;}}
+@@ -24657 +24609 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
 -  const RENUMBER_RPC_INSTALLED=false;
 +  const RENUMBER_RPC_INSTALLED=true;
-   const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-   const ALLOWED=Object.freeze(['id_obra','tipo','tipo_trabajo','especialidad','descripcion','proveedor','estacion','ramal','sector','expediente','monto_total','moneda','fecha_acta_inicio','plazo_dias','fecha_vencimiento','proxima_certificacion','fecha_recepcion_documentacion','fecha_envio_planificacion','estado_coi','estado_documental','estado_registro','observaciones','certificable_con_saldo','justificacion_administrativa','link_documental_principal','estado_link_documental','calidad_datos_estado','calidad_datos_score','prioridad_operativa','responsable_coi','fecha_ultimo_control','requiere_accion','motivo_requiere_accion','estado_envio_pyc','fecha_cierre_operativo','observacion_cierre','control_terceros_hasta','control_terceros_estado']);
-   const PROTECTED=Object.freeze(['id','nro_oc','creado_por','fecha_creacion','actualizado_por','fecha_actualizacion','saldo_remanente']);
-@@ -24794,19 +24815,262 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
-   }
-   function collectForm(modal){const values={};modal.querySelectorAll('[data-coi-edit-field]').forEach(input=>{values[input.dataset.coiEditField]=input.type==='checkbox'?input.checked:input.value;});return values;}
-   function serialize(values){return JSON.stringify(Object.fromEntries(Object.entries(values).map(([key,value])=>[key,typeof value==='string'?value.trim():value])));}
+@@ -24797 +24749,72 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
 -  function updateDirty(){if(!editState)return;const values=collectForm(editState.modal),dirty=serialize(values)!==editState.baseline;editState.dirty=dirty;const badge=editState.modal.querySelector('#coiEditDirtyV60');if(badge)badge.textContent=dirty?'Cambios pendientes':'Sin cambios pendientes';const save=editState.modal.querySelector('#coiEditSaveV60');if(save)save.disabled=!dirty||navigator.onLine===false||savePromise!==null;return dirty;}
 +  function updateDirty(){
 +if(!editState)return false;
@@ -180,25 +257,19 @@ index fdb2274..72dbea1 100644
 +
 +return dirty;
 +}
-   function showFieldErrors(errors={}){if(!editState)return;editState.modal.querySelectorAll('[data-coi-edit-error]').forEach(node=>{node.textContent=errors[node.dataset.coiEditError]||'';});}
-   function closeEditor(force=false){if(!editState)return true;if(editState.dirty&&!force&&!confirm('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))return false;editState.modal.hidden=true;editState=null;return true;}
-   function recalcDue(){if(!editState)return;const start=editState.modal.querySelector('[data-coi-edit-field="fecha_acta_inicio"]')?.value,days=Number(editState.modal.querySelector('[data-coi-edit-field="plazo_dias"]')?.value);if(!start||!Number.isFinite(days)||days<0)return;const date=new Date(`${start}T12:00:00`);date.setDate(date.getDate()+days);const calculated=date.toISOString().slice(0,10),input=editState.modal.querySelector('[data-coi-edit-field="fecha_vencimiento"]');if(input.value&&input.value!==calculated&&!confirm(`El vencimiento actual es ${input.value}. ¿Reemplazarlo por ${calculated}?`))return;input.value=calculated;input.dispatchEvent(new Event('input',{bubbles:true}));}
-   async function openEditor(reference){
-     const order=resolveLocal(reference||window.ocActualId||window.__coiFichaOCActiva);if(!order){if(typeof window.coiToast==='function')window.coiToast('No se pudo identificar la OC abierta.','error');return false;}
-     const modal=ensureModal(),sections=SECTIONS.map(([title,fields],index)=>`<section class="coi-edit-v60-section" data-section-index="${index+1}"><h3>${index+1}. ${esc(title)}</h3><div class="coi-edit-v60-grid">${fields.map(name=>fieldInput(name,fieldValue(order,name))).join('')}</div>${title==='Contractual'?'<div class="admin-actions"><button type="button" data-coi-recalc-venc>Recalcular vencimiento</button><button type="button" data-coi-recalc-cert>Recalcular próxima certificación</button></div>':''}</section>`).join('');
+@@ -24804,2 +24827,2 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
 -    modal.innerHTML=`<div class="coi-edit-v60-card" role="dialog" aria-modal="true" aria-labelledby="coiEditTitleV60"><div class="coi-edit-v60-head"><div><h2 id="coiEditTitleV60">Editar OC · Expediente Digital</h2><p>OC ${esc(fieldValue(order,'nro_oc'))}</p></div><button type="button" data-coi-edit-close>×</button></div><div id="coiEditReadonlyV60" class="coi-edit-v60-readonly" hidden>Modo solo lectura</div><section class="coi-edit-v60-section"><h3>Campos protegidos</h3><div class="coi-edit-v60-grid">${PROTECTED.map(name=>protectedInput(name,order)).join('')}<label class="coi-edit-v60-field protected"><span>Cambiar N.º OC</span><button type="button" data-coi-renumber disabled title="Requiere instalar manualmente public.coi_renumerar_oc">RPC no instalada</button></label></div></section>${sections}<div id="coiEditErrorV60" class="coi-edit-v60-error" aria-live="polite"></div><div class="coi-edit-v60-actions"><span id="coiEditDirtyV60" class="coi-edit-v60-dirty">Sin cambios pendientes</span><button type="button" data-coi-edit-cancel>Cancelar</button><button type="button" class="primary" id="coiEditSaveV60" disabled>Guardar cambios</button></div></div>`;
 -    modal.hidden=false;const values=collectForm(modal);editState={modal,order,orderId:text(fieldValue(order,'id')),baseline:serialize(values),dirty:false};
 +    modal.innerHTML=`<div class="coi-edit-v60-card" role="dialog" aria-modal="true" aria-labelledby="coiEditTitleV60"><div class="coi-edit-v60-head"><div><h2 id="coiEditTitleV60">Editar OC · Expediente Digital</h2><p>OC ${esc(fieldValue(order,'nro_oc'))}</p></div><button type="button" data-coi-edit-close>×</button></div><div id="coiEditReadonlyV60" class="coi-edit-v60-readonly" hidden>Modo solo lectura</div><section class="coi-edit-v60-section"><h3>Campos protegidos</h3><div class="coi-edit-v60-grid">${PROTECTED.map(name=>protectedInput(name,order)).join('')}<label class="coi-edit-v60-field protected"><span>Cambiar N.º OC</span><button type="button" data-coi-renumber title="Renumeracion administrativa mediante RPC auditable">Cambiar Nro. OC</button></label></div></section>${sections}<div id="coiEditErrorV60" class="coi-edit-v60-error" aria-live="polite"></div><div class="coi-edit-v60-actions"><span id="coiEditDirtyV60" class="coi-edit-v60-dirty">Sin cambios pendientes</span><button type="button" data-coi-edit-cancel>Cancelar</button><button type="button" class="primary" id="coiEditSaveV60" disabled>Guardar cambios</button></div></div>`;
 +    modal.hidden=false;const values=collectForm(modal);editState={modal,order,orderId:text(fieldValue(order,'id')),baseline:serialize(values),dirty:false,initializing:true};
-     const readonly=modal.querySelector('#coiEditReadonlyV60'),save=modal.querySelector('#coiEditSaveV60');
-     if(navigator.onLine===false){readonly.hidden=false;readonly.textContent='Modo solo lectura · sin conexión';save.disabled=true;}else{try{await requireSession();save.disabled=true;}catch(error){readonly.hidden=false;readonly.textContent=error?.message||'Debe iniciar sesión.';save.disabled=true;}}
+@@ -24808 +24831,5 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
 -    return true;
 +    requestAnimationFrame(()=>{requestAnimationFrame(()=>{if(!editState)return;editState.baseline=serialize(collectForm(editState.modal));editState.dirty=false;editState.initializing=false;updateDirty();});});return true;
 +  }
 +  async function renumberOrder(){
 +  if(!RENUMBER_RPC_INSTALLED){
 +    throw new Error('La RPC coi_renumerar_oc no esta habilitada.');
-+  }
+@@ -24809,0 +24837,168 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
 +
 +  if(!editState || !editState.orderId){
 +    return false;
@@ -361,12 +432,9 @@ index fdb2274..72dbea1 100644
 +
 +  if(!button){
 +    return;
-   }
++  }
 +
 +  event.preventDefault();
 +  renumberOrder();
 +});
 +
-   async function saveEditor(){
-     if(!editState||savePromise)return;const modal=editState.modal,button=modal.querySelector('#coiEditSaveV60'),errorBox=modal.querySelector('#coiEditErrorV60');showFieldErrors();errorBox.textContent='';button.disabled=true;button.textContent='Guardando…';
-     try{
