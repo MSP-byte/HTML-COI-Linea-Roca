@@ -1,0 +1,372 @@
+diff --git a/index.html b/index.html
+index fdb2274..72dbea1 100644
+--- a/index.html
++++ b/index.html
+@@ -9,7 +9,7 @@
+ *{box-sizing:border-box} body{margin:0;font-family:Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:#242424}
+ header{height:72px;background:#30343a;color:white;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:0 24px;box-shadow:0 2px 10px #0002;position:sticky;top:0;z-index:10}
+ .brand{font-weight:800;letter-spacing:.2px;min-width:180px}.brand small{display:block;font-size:12px;font-weight:600;opacity:.75}
+-.app-identity{display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right;min-width:0}.app-title-line{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;font-size:18px;font-weight:900}.app-version-badge{display:inline-flex;align-items:center;border:1px solid #8bbbe2;background:#eaf4ff;color:#1f4e79;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:900;letter-spacing:.2px}.app-subtitle{font-size:12px;color:#d8e4ef;font-weight:700}.app-tagline{font-size:11px;color:#b9c7d3;font-weight:700}
++.app-identity{display:flex;flex-direction:column;align-items:flex-end;gap:4px;text-align:right;min-width:0}.app-title-line{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;font-size:18px;font-weight:900}.app-version-badge,.admin-role-badge{display:inline-flex;align-items:center;border:1px solid #8bbbe2;background:#eaf4ff;color:#1f4e79;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:900;letter-spacing:.2px}.app-subtitle{font-size:12px;color:#d8e4ef;font-weight:700}.app-tagline{font-size:11px;color:#b9c7d3;font-weight:700}
+ .toolbar{display:grid;grid-template-columns:2fr repeat(4,1fr) auto;gap:10px;padding:14px 20px;background:white;border-bottom:1px solid #ddd;position:sticky;top:64px;z-index:9}
+ input,select,button{border:1px solid #cfd6dd;border-radius:10px;padding:10px 12px;background:white;font-size:14px} button{cursor:pointer;font-weight:700} button.primary{background:#2f6fa3;color:white;border-color:#2f6fa3}
+ .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 20px} .kpi{background:white;border-radius:14px;padding:12px 14px;border:1px solid #e2e5e9;box-shadow:0 3px 12px #0000000c} .kpi b{display:block;font-size:22px;color:#2f6fa3} .kpi span{font-size:12px;color:#666;text-transform:uppercase;font-weight:700}
+@@ -1940,7 +1940,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
+     <div class="view-body">
+       <div class="admin-note">Supabase es la fuente oficial de datos operativos. LocalStorage se utiliza únicamente para preferencias, caché y respaldo legacy temporal.</div>
+       <div class="admin-topbar">
+-        <div><b>Rol activo:</b> <span id="adminRolActivo" class="app-version-badge">Jefatura</span> <span id="adminModoBadge" class="version-status ok">PRODUCCIÓN</span></div>
++        <div><b>Rol activo:</b> <span id="adminRolActivo" class="admin-role-badge">Jefatura</span> <span id="adminModoBadge" class="version-status ok">PRODUCCIÓN</span></div>
+         <div class="admin-actions compact"><button type="button" id="btnAdminMode" class="primary">Ingresar como Administrador</button><button type="button" id="btnImportBackupViewer">Importar backup recibido</button><input type="file" id="adminImportFile" accept="application/json,.json" class="admin-hidden"></div>
+       </div>
+       <div class="admin-tabs" role="tablist"><button type="button" class="active" data-admin-tab="estado">Estado</button><button type="button" data-admin-tab="datos">Datos</button><button type="button" data-admin-tab="usuarios" data-admin-only>Usuarios</button><button type="button" data-admin-tab="catalogos" data-admin-only>Catálogos</button><button type="button" data-admin-tab="diagnostico" data-admin-only>Diagnóstico</button><button type="button" data-admin-tab="auditor">Auditor de datos</button><button type="button" data-admin-tab="configuracion" data-admin-only>Configuración</button><button type="button" data-admin-tab="logs" data-admin-only>Logs</button></div>
+@@ -8496,7 +8496,11 @@ function inicializarModoAccesoSeguro(){
+   limpiarSesionAdministrativaPersistidaV573();
+   actualizarUIModoAcceso();
+ }
+-function esModoAdmin(){return modoAccesoActual==="admin";}
++function esSesionSupabaseAdministradorV573(){
++  const usuario=window.APP_STATE?.user;
++  return Boolean(usuario&&typeof window.esUsuarioSupabaseAdministradorR12==="function"&&window.esUsuarioSupabaseAdministradorR12(usuario));
++}
++function esModoAdmin(){return esSesionSupabaseAdministradorV573()||modoAccesoActual==="admin";}
+ function esModoConsulta(){return !esModoAdmin();}
+ function iniciarSesionAdministrador(){
+   modoAccesoActual="admin";
+@@ -8568,6 +8572,12 @@ function initEventosModoAccesoV573(){
+   btn.addEventListener("click",ev=>{
+     ev.preventDefault();
+     ev.stopImmediatePropagation();
++    if(esSesionSupabaseAdministradorV573()){
++      actualizarUIModoAcceso();
++      if(typeof adminSetMsg==="function") adminSetMsg("La sesion Supabase ya posee rol Administrador.","ok");
++      if(typeof renderAdministracionSistema==="function") renderAdministracionSistema();
++      return;
++    }
+     if(esModoAdmin()){
+       cerrarSesionAdministrador();
+       if(typeof registrarLogSistema==="function") registrarLogSistema("sesion","Salida de modo Administrador","Vuelve a Modo Consulta");
+@@ -8598,7 +8608,10 @@ function actualizarUIModoAcceso(){
+   if(modo) modo.textContent=esModoAdmin()?"Modo Administrador":"Modo Consulta";
+   initEventosModoAccesoV573();
+   const btn=document.getElementById("btnAdminMode");
+-  if(btn) btn.textContent=esModoAdmin()?"Cerrar sesion de administrador":"Iniciar sesion como administrador";
++  if(btn){
++    btn.textContent=esSesionSupabaseAdministradorV573()?"Administrador autenticado":(esModoAdmin()?"Cerrar sesion de administrador":"Iniciar sesion como administrador");
++    btn.title=esSesionSupabaseAdministradorV573()?"Rol Administrador otorgado por la sesion Supabase activa":"";
++  }
+   const rol=document.getElementById("adminRolActivo");
+   if(rol) rol.textContent=esModoAdmin()?"Administrador":"Modo Consulta";
+   document.querySelectorAll("[data-admin-only]").forEach(el=>el.classList.toggle("admin-hidden",!esModoAdmin()));
+@@ -10445,7 +10458,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
+     const isAdmin=adminA();
+     const rol=$a('adminRolActivo'); if(rol) rol.textContent=isAdmin?'Administrador':'Modo Consulta';
+     const badge=$a('adminModoBadge'); if(badge){badge.textContent='PRODUCCIÓN'; badge.className='version-status ok';}
+-    const btn=$a('btnAdminMode'); if(btn) btn.textContent=isAdmin?'Cerrar sesion de administrador':'Iniciar sesion como administrador';
++    const btn=$a('btnAdminMode'); if(btn) btn.textContent=(typeof esSesionSupabaseAdministradorV573==='function'&&esSesionSupabaseAdministradorV573())?'Administrador autenticado':(isAdmin?'Cerrar sesion de administrador':'Iniciar sesion como administrador');
+     document.body.classList.toggle('modo-admin',isAdmin);
+     document.body.classList.toggle('modo-consulta',!isAdmin);
+     document.querySelectorAll('[data-admin-only]').forEach(el=>el.classList.toggle('admin-hidden',!isAdmin));
+@@ -18765,9 +18778,13 @@ async function getUsuarioActualR12(){
+   return null;
+ }
+ 
+-function resolverRolUsuarioExistente(usuario){
++window.esUsuarioSupabaseAdministradorR12=function(usuario){
+   const email=clean(usuario?.email).toLowerCase();
+-  if(email==='admin@coiroca.com')return'administrador';
++  return email==='admin@coiroca.com';
++};
++
++function resolverRolUsuarioExistente(usuario){
++  if(window.esUsuarioSupabaseAdministradorR12(usuario))return'administrador';
+   try{if(typeof window.esAdminR13==='function'&&window.esAdminR13())return'administrador';}catch(e){}
+   try{if(typeof window.usuarioEsAdministrador==='function'&&window.usuarioEsAdministrador())return'administrador';}catch(e){}
+   if(document.body.classList.contains('modo-admin'))return'administrador';
+@@ -18792,6 +18809,10 @@ async function sincronizarRolVisualDesdeSesion(){
+   try{actualizarPermisosEdicion();}catch(e){}
+   const footer=$('headerModoSistema');
+   if(footer)footer.textContent=esAdmin?'Modo Administrador':(role==='jefatura'?'Modo Jefatura':role==='visualizador'?'Modo Visualizador':'Modo Consulta');
++  try{
++    if(typeof actualizarUIModoAcceso==='function')actualizarUIModoAcceso();
++    if(document.getElementById('vistaAdministracionSistema')?.classList.contains('active')&&typeof renderAdministracionSistema==='function')renderAdministracionSistema();
++  }catch(error){console.warn('[COI][AUTH][ADMIN-UI]',error);}
+   return role;
+ }
+ window.sincronizarRolVisualDesdeSesion=sincronizarRolVisualDesdeSesion;
+@@ -24654,7 +24675,7 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
+   'use strict';
+   const TABLE='coi_ordenes';
+   const CACHE_KEY='coi_supabase_ordenes_cache_v2';
+-  const RENUMBER_RPC_INSTALLED=false;
++  const RENUMBER_RPC_INSTALLED=true;
+   const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+   const ALLOWED=Object.freeze(['id_obra','tipo','tipo_trabajo','especialidad','descripcion','proveedor','estacion','ramal','sector','expediente','monto_total','moneda','fecha_acta_inicio','plazo_dias','fecha_vencimiento','proxima_certificacion','fecha_recepcion_documentacion','fecha_envio_planificacion','estado_coi','estado_documental','estado_registro','observaciones','certificable_con_saldo','justificacion_administrativa','link_documental_principal','estado_link_documental','calidad_datos_estado','calidad_datos_score','prioridad_operativa','responsable_coi','fecha_ultimo_control','requiere_accion','motivo_requiere_accion','estado_envio_pyc','fecha_cierre_operativo','observacion_cierre','control_terceros_hasta','control_terceros_estado']);
+   const PROTECTED=Object.freeze(['id','nro_oc','creado_por','fecha_creacion','actualizado_por','fecha_actualizacion','saldo_remanente']);
+@@ -24794,19 +24815,262 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
+   }
+   function collectForm(modal){const values={};modal.querySelectorAll('[data-coi-edit-field]').forEach(input=>{values[input.dataset.coiEditField]=input.type==='checkbox'?input.checked:input.value;});return values;}
+   function serialize(values){return JSON.stringify(Object.fromEntries(Object.entries(values).map(([key,value])=>[key,typeof value==='string'?value.trim():value])));}
+-  function updateDirty(){if(!editState)return;const values=collectForm(editState.modal),dirty=serialize(values)!==editState.baseline;editState.dirty=dirty;const badge=editState.modal.querySelector('#coiEditDirtyV60');if(badge)badge.textContent=dirty?'Cambios pendientes':'Sin cambios pendientes';const save=editState.modal.querySelector('#coiEditSaveV60');if(save)save.disabled=!dirty||navigator.onLine===false||savePromise!==null;return dirty;}
++  function updateDirty(){
++if(!editState)return false;
++
++const current=collectForm(editState.modal);
++
++let baseline={};
++try{
++baseline=JSON.parse(editState.baseline||'{}');
++}catch(error){
++console.error('COI dirty: baseline invalido',error);
++baseline={};
++}
++
++const names=new Set([
++...Object.keys(baseline),
++...Object.keys(current)
++]);
++
++const differences=[];
++
++for(const name of names){
++const before=baseline[name];
++const after=current[name];
++
++const beforeComparable=comparable(name,before);
++const afterComparable=comparable(name,after);
++
++if(beforeComparable!==afterComparable){
++differences.push({
++field:name,
++before:before,
++after:after,
++beforeComparable:beforeComparable,
++afterComparable:afterComparable
++});
++}
++}
++
++const dirty=differences.length>0;
++editState.dirty=dirty;
++
++window.__COI_DIRTY_DIAG__={
++timestamp:new Date().toISOString(),
++dirty:dirty,
++differences:differences,
++baseline:baseline,
++current:current
++};
++
++const badge=editState.modal.querySelector('#coiEditDirtyV60');
++
++if(badge){
++if(!dirty){
++badge.textContent='Sin cambios pendientes';
++}else{
++const resumen=differences
++.slice(0,3)
++.map(d=>d.field+': '+String(d.before)+' -> '+String(d.after))
++.join(' | ');
++
++badge.textContent='Cambios pendientes: '+resumen;
++}
++}
++
++const save=editState.modal.querySelector('#coiEditSaveV60');
++
++if(save){
++save.disabled=!dirty||navigator.onLine===false||savePromise!==null;
++}
++
++return dirty;
++}
+   function showFieldErrors(errors={}){if(!editState)return;editState.modal.querySelectorAll('[data-coi-edit-error]').forEach(node=>{node.textContent=errors[node.dataset.coiEditError]||'';});}
+   function closeEditor(force=false){if(!editState)return true;if(editState.dirty&&!force&&!confirm('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))return false;editState.modal.hidden=true;editState=null;return true;}
+   function recalcDue(){if(!editState)return;const start=editState.modal.querySelector('[data-coi-edit-field="fecha_acta_inicio"]')?.value,days=Number(editState.modal.querySelector('[data-coi-edit-field="plazo_dias"]')?.value);if(!start||!Number.isFinite(days)||days<0)return;const date=new Date(`${start}T12:00:00`);date.setDate(date.getDate()+days);const calculated=date.toISOString().slice(0,10),input=editState.modal.querySelector('[data-coi-edit-field="fecha_vencimiento"]');if(input.value&&input.value!==calculated&&!confirm(`El vencimiento actual es ${input.value}. ¿Reemplazarlo por ${calculated}?`))return;input.value=calculated;input.dispatchEvent(new Event('input',{bubbles:true}));}
+   async function openEditor(reference){
+     const order=resolveLocal(reference||window.ocActualId||window.__coiFichaOCActiva);if(!order){if(typeof window.coiToast==='function')window.coiToast('No se pudo identificar la OC abierta.','error');return false;}
+     const modal=ensureModal(),sections=SECTIONS.map(([title,fields],index)=>`<section class="coi-edit-v60-section" data-section-index="${index+1}"><h3>${index+1}. ${esc(title)}</h3><div class="coi-edit-v60-grid">${fields.map(name=>fieldInput(name,fieldValue(order,name))).join('')}</div>${title==='Contractual'?'<div class="admin-actions"><button type="button" data-coi-recalc-venc>Recalcular vencimiento</button><button type="button" data-coi-recalc-cert>Recalcular próxima certificación</button></div>':''}</section>`).join('');
+-    modal.innerHTML=`<div class="coi-edit-v60-card" role="dialog" aria-modal="true" aria-labelledby="coiEditTitleV60"><div class="coi-edit-v60-head"><div><h2 id="coiEditTitleV60">Editar OC · Expediente Digital</h2><p>OC ${esc(fieldValue(order,'nro_oc'))}</p></div><button type="button" data-coi-edit-close>×</button></div><div id="coiEditReadonlyV60" class="coi-edit-v60-readonly" hidden>Modo solo lectura</div><section class="coi-edit-v60-section"><h3>Campos protegidos</h3><div class="coi-edit-v60-grid">${PROTECTED.map(name=>protectedInput(name,order)).join('')}<label class="coi-edit-v60-field protected"><span>Cambiar N.º OC</span><button type="button" data-coi-renumber disabled title="Requiere instalar manualmente public.coi_renumerar_oc">RPC no instalada</button></label></div></section>${sections}<div id="coiEditErrorV60" class="coi-edit-v60-error" aria-live="polite"></div><div class="coi-edit-v60-actions"><span id="coiEditDirtyV60" class="coi-edit-v60-dirty">Sin cambios pendientes</span><button type="button" data-coi-edit-cancel>Cancelar</button><button type="button" class="primary" id="coiEditSaveV60" disabled>Guardar cambios</button></div></div>`;
+-    modal.hidden=false;const values=collectForm(modal);editState={modal,order,orderId:text(fieldValue(order,'id')),baseline:serialize(values),dirty:false};
++    modal.innerHTML=`<div class="coi-edit-v60-card" role="dialog" aria-modal="true" aria-labelledby="coiEditTitleV60"><div class="coi-edit-v60-head"><div><h2 id="coiEditTitleV60">Editar OC · Expediente Digital</h2><p>OC ${esc(fieldValue(order,'nro_oc'))}</p></div><button type="button" data-coi-edit-close>×</button></div><div id="coiEditReadonlyV60" class="coi-edit-v60-readonly" hidden>Modo solo lectura</div><section class="coi-edit-v60-section"><h3>Campos protegidos</h3><div class="coi-edit-v60-grid">${PROTECTED.map(name=>protectedInput(name,order)).join('')}<label class="coi-edit-v60-field protected"><span>Cambiar N.º OC</span><button type="button" data-coi-renumber title="Renumeracion administrativa mediante RPC auditable">Cambiar Nro. OC</button></label></div></section>${sections}<div id="coiEditErrorV60" class="coi-edit-v60-error" aria-live="polite"></div><div class="coi-edit-v60-actions"><span id="coiEditDirtyV60" class="coi-edit-v60-dirty">Sin cambios pendientes</span><button type="button" data-coi-edit-cancel>Cancelar</button><button type="button" class="primary" id="coiEditSaveV60" disabled>Guardar cambios</button></div></div>`;
++    modal.hidden=false;const values=collectForm(modal);editState={modal,order,orderId:text(fieldValue(order,'id')),baseline:serialize(values),dirty:false,initializing:true};
+     const readonly=modal.querySelector('#coiEditReadonlyV60'),save=modal.querySelector('#coiEditSaveV60');
+     if(navigator.onLine===false){readonly.hidden=false;readonly.textContent='Modo solo lectura · sin conexión';save.disabled=true;}else{try{await requireSession();save.disabled=true;}catch(error){readonly.hidden=false;readonly.textContent=error?.message||'Debe iniciar sesión.';save.disabled=true;}}
+-    return true;
++    requestAnimationFrame(()=>{requestAnimationFrame(()=>{if(!editState)return;editState.baseline=serialize(collectForm(editState.modal));editState.dirty=false;editState.initializing=false;updateDirty();});});return true;
++  }
++  async function renumberOrder(){
++  if(!RENUMBER_RPC_INSTALLED){
++    throw new Error('La RPC coi_renumerar_oc no esta habilitada.');
++  }
++
++  if(!editState || !editState.orderId){
++    return false;
++  }
++
++  if(editState.dirty){
++    const msg='Hay cambios pendientes. Guarde o cancele esos cambios antes de renumerar la OC.';
++    if(typeof window.coiToast==='function') window.coiToast(msg,'error');
++    else window.alert(msg);
++    return false;
++  }
++
++  const modal=editState.modal;
++  const button=modal?.querySelector('[data-coi-renumber]');
++  const errorBox=modal?.querySelector('#coiEditErrorV60');
++
++  try{
++    const access=await requireSession();
++
++    // Fuente unica de verdad: releer por UUID desde Supabase.
++    const before=await readRemote(access.client,editState.orderId);
++
++    const actual=text(fieldValue(before,'nro_oc'));
++
++    const nuevoRaw=window.prompt(
++      'Nuevo numero de OC. Actual: ' + actual,
++      actual
++    );
++
++    if(nuevoRaw===null) return false;
++
++    const nuevo=text(nuevoRaw);
++
++    if(!nuevo){
++      throw new Error('Debe ingresar el nuevo numero de OC.');
++    }
++
++    if(nuevo===actual){
++      throw new Error('El nuevo numero coincide con el numero actual.');
++    }
++
++    const motivoRaw=window.prompt(
++      'Motivo administrativo obligatorio de la renumeracion:',
++      ''
++    );
++
++    if(motivoRaw===null) return false;
++
++    const motivo=text(motivoRaw);
++
++    if(!motivo){
++      throw new Error('Debe ingresar el motivo administrativo.');
++    }
++
++    const confirmado=window.confirm(
++      'Confirmar renumeracion de OC ' +
++      actual +
++      ' -> ' +
++      nuevo +
++      '?\n\n' +
++      'El UUID maestro se conservara y la operacion quedara auditada.'
++    );
++
++    if(!confirmado) return false;
++
++    if(button){
++      button.disabled=true;
++      button.textContent='Renumerando...';
++    }
++
++    if(errorBox){
++      errorBox.textContent='';
++    }
++
++    const {data,error}=await access.client.rpc(
++      'coi_renumerar_oc',
++      {
++        p_orden_id: editState.orderId,
++        p_nuevo_nro_oc: nuevo,
++        p_motivo: motivo
++      }
++    );
++
++    if(error){
++      throw error;
++    }
++
++    const payload=Array.isArray(data) ? data[0] : data;
++
++    if(payload?.error){
++      throw new Error(
++        typeof payload.error==='string'
++          ? payload.error
++          : JSON.stringify(payload.error)
++      );
++    }
++
++    // Releer por UUID si la RPC no devuelve la orden completa.
++    const row=payload?.orden
++      || await readRemote(access.client,editState.orderId);
++
++    const confirmadoNro=text(fieldValue(row,'nro_oc'));
++
++    closeEditor(true);
++
++    // Supabase manda. No reconstruimos el estado desde localStorage.
++    await refreshApplication(row);
++
++    const msg=
++      'OC renumerada correctamente: ' +
++      actual +
++      ' -> ' +
++      confirmadoNro;
++
++    if(typeof window.coiToast==='function'){
++      window.coiToast(msg,'ok');
++    }else{
++      window.alert(msg);
++    }
++
++    return {
++      ok:true,
++      row:row,
++      payload:payload
++    };
++
++  }catch(error){
++
++    const message=
++      error?.message
++      || String(error)
++      || 'No se pudo renumerar la OC.';
++
++    if(errorBox){
++      errorBox.textContent=message;
++    }
++
++    if(typeof window.coiToast==='function'){
++      window.coiToast(message,'error');
++    }else{
++      window.alert(message);
++    }
++
++    return {
++      ok:false,
++      error:error
++    };
++
++  }finally{
++
++    if(button?.isConnected){
++      button.disabled=false;
++      button.textContent='Cambiar Nro. OC';
++    }
++  }
++}
++
++document.addEventListener('click',function(event){
++  const button=event.target?.closest?.('[data-coi-renumber]');
++
++  if(!button){
++    return;
+   }
++
++  event.preventDefault();
++  renumberOrder();
++});
++
+   async function saveEditor(){
+     if(!editState||savePromise)return;const modal=editState.modal,button=modal.querySelector('#coiEditSaveV60'),errorBox=modal.querySelector('#coiEditErrorV60');showFieldErrors();errorBox.textContent='';button.disabled=true;button.textContent='Guardando…';
+     try{
