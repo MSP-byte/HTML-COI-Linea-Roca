@@ -17,12 +17,16 @@
     "test:static": "npm run test:unit && npm run test:sql",
     "audit:high": "npm audit --audit-level=high",
     "test:e2e": "playwright test",
-    "test:e2e:install": "playwright install --with-deps chromium"
+    "test:e2e:install": "playwright install --with-deps chromium",
+    "qa:doctor": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .coi-qa/COI-Staging-Doctor.ps1 -Mode Doctor",
+    "qa:dirty": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .coi-qa/COI-Staging-Doctor.ps1 -Mode UiDirty",
+    "qa:admin": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .coi-qa/COI-Staging-Doctor.ps1 -Mode AdminState"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.4",
     "@playwright/test": "1.62.1",
     "css-tree": "3.1.0",
-    "html-validate": "11.6.2"
+    "html-validate": "11.6.2",
+    "playwright-core": "1.62.1"
   }
 }
