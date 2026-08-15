@@ -17,6 +17,22 @@ const repo = path.resolve(arg('--repo', process.cwd()));
 const qaDir = path.join(repo, '.coi-qa');
 const cfgPath = path.join(qaDir, 'coi-qa.config.json');
 const config = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+const targetHtml = arg('--html', config.stagingHtml);
+if (path.basename(targetHtml) !== targetHtml || !targetHtml.toLowerCase().endsWith('.html')) {
+  throw new Error('El HTML bajo prueba debe estar en la raiz del repo.');
+}
+config.stagingHtml = targetHtml;
+const stagingSource = fs.readFileSync(path.join(repo,config.stagingHtml),'utf8');
+const adminResolverSource = stagingSource.match(
+  /function resolverRolUsuarioExistente\(usuario\)\{[\s\S]*?\r?\n\}/
+)?.[0] || '';
+const adminPermissionSource = stagingSource.match(
+  /function usuarioTienePermisoEdicion\(\)\{[\s\S]*?\r?\n\}/
+)?.[0] || '';
+const legacyGrantFindings = [
+  ...stagingSource.matchAll(/return[^;\r\n]*(?:classList\.contains\(['"]modo-admin|dataset\.admin|headerModoSistema[^;\r\n]*admin)/gi),
+  ...stagingSource.matchAll(/prompt\(['"]Ingrese PIN de Administrador['"]\)/gi)
+].map(match => match[0].slice(0,240));
 const logs = path.join(qaDir, 'logs');
 fs.mkdirSync(logs, {recursive:true});
 const stamp = new Date().toISOString().replace(/[:.]/g,'-');
@@ -25,6 +41,7 @@ const shot = name => path.join(logs, `${stamp}-${name}.png`);
 
 const report = {
   mode,
+  targetHtml,
   timestamp:new Date().toISOString(),
   steps:[],
   success:false,
@@ -92,6 +109,167 @@ async function readDbSnapshot(page) {
 
   if (!snapshot?.ok) throw new Error(`No se pudo leer la fixture en STAGING: ${snapshot?.reason || 'error desconocido'}`);
   return snapshot;
+}
+
+const RELATED_ORDER_TABLES = Object.freeze([
+  'coi_ordenes_estaciones',
+  'coi_posiciones_oc',
+  'coi_certificaciones',
+  'coi_consumos_posicion',
+  'coi_documentos_oc',
+  'coi_links_documentales',
+  'coi_observaciones_oc',
+  'coi_alertas',
+  'coi_historial_oc'
+]);
+const LEGACY_OC_TABLES = Object.freeze(['coi_servicios_tecnicos_um']);
+const TEMP_OBSERVATION = 'QA RC2 E2E - TEMPORAL';
+
+function stableValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(stableValue).sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableValue(value[key])]));
+  }
+  return value;
+}
+
+function valueHash(value) {
+  return crypto.createHash('sha256').update(JSON.stringify(stableValue(value))).digest('hex');
+}
+
+function fixtureSummary(snapshot) {
+  return {
+    projectRef:snapshot.projectRef,
+    master:{
+      count:snapshot.master.length,
+      id:snapshot.master[0]?.id || null,
+      nro_oc:snapshot.master[0]?.nro_oc || null,
+      sha256:valueHash(snapshot.master)
+    },
+    tables:Object.fromEntries(Object.entries(snapshot.tables).map(([table,rows]) => [table,{
+      count:rows.length,
+      sha256:valueHash(rows),
+      nroOcCounts:rows.reduce((acc,row) => {
+        const key=String(row?.nro_oc ?? '<null>');
+        acc[key]=(acc[key]||0)+1;
+        return acc;
+      },{})
+    }])),
+    audit:snapshot.audit.error
+      ? {readable:false,error:snapshot.audit.error}
+      : {readable:true,count:snapshot.audit.rows.length,sha256:valueHash(snapshot.audit.rows)}
+  };
+}
+
+function businessSnapshot(snapshot) {
+  const volatile = new Set(['fecha_actualizacion','actualizado_por','updated_at']);
+  const cleanRows = rows => rows.map(row => Object.fromEntries(
+    Object.entries(row)
+      .filter(([key]) => !volatile.has(key))
+      .map(([key,value]) => [key,key === 'observaciones' && (value == null || value === '') ? null : value])
+  ));
+  return {
+    master:cleanRows(snapshot.master),
+    tables:Object.fromEntries(Object.entries(snapshot.tables)
+      .filter(([table]) => table !== 'coi_historial_oc')
+      .map(([table,rows]) => [table,cleanRows(rows)]))
+  };
+}
+
+async function verifyStagingProjectRef(page) {
+  const result = await page.evaluate(() => {
+    const client = window.__COI_SUPABASE_CLIENT__ ||
+      (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+    if (!client) return {ok:false,reason:'Cliente Supabase no disponible.'};
+    const candidates=[client.supabaseUrl,client.rest?.url,client.auth?.url].filter(Boolean);
+    let host='';
+    for(const candidate of candidates){
+      try{host=new URL(candidate).hostname;if(host)break;}catch{}
+    }
+    const projectRef=host.endsWith('.supabase.co')?host.split('.')[0]:null;
+    return {ok:Boolean(projectRef),projectRef,host};
+  });
+  if (!result?.ok || result.projectRef !== config.stagingProjectRef) {
+    throw new Error(`WRITE BLOQUEADO: project-ref=${result?.projectRef || '<desconocido>'}; esperado=${config.stagingProjectRef}.`);
+  }
+  step('Guard rail project-ref STAGING','PASS',{projectRef:result.projectRef});
+  return result.projectRef;
+}
+
+async function readFixtureState(page) {
+  const snapshot = await page.evaluate(async ({id,originalOc,temporaryOc,relatedTables,legacyTables}) => {
+    const client = window.__COI_SUPABASE_CLIENT__ ||
+      (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+    if (!client) return {ok:false,reason:'Cliente Supabase no disponible.'};
+    const candidates=[client.supabaseUrl,client.rest?.url,client.auth?.url].filter(Boolean);
+    let host='';
+    for(const candidate of candidates){try{host=new URL(candidate).hostname;if(host)break;}catch{}}
+    const projectRef=host.endsWith('.supabase.co')?host.split('.')[0]:null;
+    const masterResult=await client.from('coi_ordenes').select('*').eq('id',id).limit(2);
+    if(masterResult.error)return {ok:false,reason:`coi_ordenes: ${masterResult.error.message || masterResult.error}`};
+    const tables={};
+    for(const table of relatedTables){
+      const result=await client.from(table).select('*').eq('orden_id',id).limit(1000);
+      if(result.error)return {ok:false,reason:`${table}: ${result.error.message || result.error}`};
+      tables[table]=result.data || [];
+    }
+    for(const table of legacyTables){
+      const result=await client.from(table).select('*').in('nro_oc',[originalOc,temporaryOc]).limit(1000);
+      if(result.error)return {ok:false,reason:`${table}: ${result.error.message || result.error}`};
+      tables[table]=result.data || [];
+    }
+    const auditResult=await client.from('coi_operaciones_auditoria').select('*').eq('registro_id',id).limit(1000);
+    return {
+      ok:true,
+      projectRef,
+      master:masterResult.data || [],
+      tables,
+      audit:auditResult.error
+        ? {rows:[],error:auditResult.error.message || String(auditResult.error)}
+        : {rows:auditResult.data || [],error:null}
+    };
+  },{
+    id:config.testOcUuid,
+    originalOc:config.testOcOriginal,
+    temporaryOc:config.testOcTemporary,
+    relatedTables:RELATED_ORDER_TABLES,
+    legacyTables:LEGACY_OC_TABLES
+  });
+  if(!snapshot?.ok)throw new Error(`Snapshot Supabase incompleto: ${snapshot?.reason || 'error desconocido'}`);
+  if(snapshot.projectRef!==config.stagingProjectRef)throw new Error(`Snapshot proviene de project-ref inesperado: ${snapshot.projectRef || '<desconocido>'}.`);
+  return snapshot;
+}
+
+function validateFixtureNumber(snapshot,expectedOc,baseline=null) {
+  const errors=[];
+  const master=snapshot.master;
+  if(master.length!==1)errors.push(`coi_ordenes count=${master.length}`);
+  if(String(master[0]?.id||'')!==config.testOcUuid)errors.push(`UUID maestro=${master[0]?.id || '<null>'}`);
+  if(String(master[0]?.nro_oc||'')!==expectedOc)errors.push(`nro_oc maestro=${master[0]?.nro_oc || '<null>'}`);
+  for(const table of RELATED_ORDER_TABLES){
+    const rows=snapshot.tables[table] || [];
+    const mismatches=rows.filter(row => row.nro_oc != null && String(row.nro_oc)!==expectedOc);
+    if(mismatches.length)errors.push(`${table}: ${mismatches.length} referencia(s) fuera de ${expectedOc}`);
+  }
+  for(const table of LEGACY_OC_TABLES){
+    const rows=snapshot.tables[table] || [];
+    const otherOc=expectedOc===config.testOcOriginal?config.testOcTemporary:config.testOcOriginal;
+    const residues=rows.filter(row => String(row?.nro_oc||'')===otherOc).length;
+    if(residues)errors.push(`${table}: ${residues} residuo(s) en ${otherOc}`);
+    if(baseline){
+      const baselineCount=(baseline.tables[table]||[]).filter(row => String(row?.nro_oc||'')===config.testOcOriginal).length;
+      const expectedCount=rows.filter(row => String(row?.nro_oc||'')===expectedOc).length;
+      if(expectedCount!==baselineCount)errors.push(`${table}: count ${expectedCount}; baseline ${baselineCount}`);
+    }
+  }
+  return {ok:errors.length===0,errors};
+}
+
+function newHistoryRows(baseline,current) {
+  const before=new Set((baseline.tables.coi_historial_oc||[]).map(row => JSON.stringify(stableValue(row))));
+  return (current.tables.coi_historial_oc||[]).filter(row => !before.has(JSON.stringify(stableValue(row))));
 }
 
 async function hasAuthenticatedSession(page) {
@@ -252,6 +430,13 @@ async function inspectAdminState(page, dialogs) {
 }
 
 async function openOc(page, oc) {
+  const fichaVisible = () => page.evaluate(() => {
+    const view=document.querySelector('#vistaFichaOC');
+    const body=document.querySelector('#fichaOCBody');
+    const vr=view?.getBoundingClientRect();
+    const br=body?.getBoundingClientRect();
+    return Boolean(vr&&br&&vr.width>0&&vr.height>0&&br.width>0&&br.height>0);
+  });
   const search = page.locator(config.ui.searchSelector).first();
   if(await search.count()) {
     await search.fill(oc);
@@ -259,35 +444,60 @@ async function openOc(page, oc) {
   }
 
   // Intento 1: texto exacto visible
-  const exact = page.getByText(oc, {exact:true}).first();
-  if(await exact.count()) {
-    try {
-      await exact.click({timeout:2500});
-      await page.waitForTimeout(800);
-    } catch {}
+  const exactMatches=page.getByText(oc,{exact:true});
+  for(let i=0;i<await exactMatches.count()&&!await fichaVisible();i++){
+    const exact=exactMatches.nth(i);
+    if(!await exact.isVisible().catch(()=>false))continue;
+    try{await exact.click({timeout:2500});await page.waitForTimeout(800);}catch{}
   }
 
   // Intento 2: cualquier elemento que contenga la OC
-  if(!(await page.locator(config.ui.editButtonSelector).count())) {
-    const any = page.getByText(oc, {exact:false}).first();
-    if(await any.count()) {
-      try {
-        await any.click({timeout:2500});
-        await page.waitForTimeout(800);
-      } catch {}
+  if(!await fichaVisible()) {
+    const anyMatches=page.getByText(oc,{exact:false});
+    for(let i=0;i<Math.min(await anyMatches.count(),20)&&!await fichaVisible();i++){
+      const any=anyMatches.nth(i);
+      if(!await any.isVisible().catch(()=>false))continue;
+      try{await any.click({timeout:2500});await page.waitForTimeout(800);}catch{}
     }
   }
 
-  if(!(await page.locator(config.ui.editButtonSelector).count())) {
-    throw new Error(`No pude abrir automaticamente la ficha de OC ${oc}.`);
+  if(!await fichaVisible()){
+    const opened=await page.evaluate(async reference => {
+      if(typeof window.abrirFichaOC!=='function')return {ok:false,reason:'abrirFichaOC no disponible'};
+      try{
+        const result=window.abrirFichaOC(reference);
+        if(result&&typeof result.then==='function')await result;
+        await new Promise(resolve=>setTimeout(resolve,600));
+        return {ok:result!==false};
+      }catch(error){return {ok:false,reason:error?.message || String(error)}}
+    },oc);
+    if(!opened.ok)throw new Error(`No pude abrir la ficha de OC ${oc}: ${opened.reason || 'API devolvio false'}.`);
+  }
+  await page.waitForFunction(() => {
+    const view=document.querySelector('#vistaFichaOC');
+    const body=document.querySelector('#fichaOCBody');
+    const vr=view?.getBoundingClientRect();
+    const br=body?.getBoundingClientRect();
+    return Boolean(vr&&br&&vr.width>0&&vr.height>0&&br.width>0&&br.height>0);
+  },null,{timeout:7000});
+  const edit=page.locator(config.ui.editButtonSelector).first();
+  if(!(await edit.count())||!(await edit.isVisible().catch(()=>false))){
+    throw new Error(`La ficha ${oc} esta visible pero Editar OC no esta disponible.`);
   }
 }
 
 async function ensureAuthenticated(page) {
-  await page.waitForTimeout(1200);
-  if (await hasAuthenticatedSession(page)) {
-    step('Sesion STAGING','PASS','Sesion Supabase autenticada en el perfil QA.');
-    return;
+  const deadline=Date.now()+20000;
+  do {
+    if (await hasAuthenticatedSession(page)) {
+      step('Sesion STAGING','PASS','Sesion Supabase autenticada en el perfil QA.');
+      return;
+    }
+    await page.waitForTimeout(500);
+  } while(Date.now()<deadline);
+
+  if(noPause) {
+    throw new Error('El perfil QA no recupero una sesion Supabase valida dentro de 20 segundos.');
   }
   const text = await page.locator('body').innerText().catch(()=> '');
   const looksLogged =
@@ -304,8 +514,14 @@ async function ensureAuthenticated(page) {
   step('Sesion STAGING','WAIT','Se requiere login manual una unica vez en el perfil QA.');
   await waitEnter('Inicia sesion MANUALMENTE en la ventana de Chrome QA. No pegues la contraseÃƒÆ’Ã‚Â±a en PowerShell.');
   await page.reload({waitUntil:'domcontentloaded'});
-  await page.waitForTimeout(1000);
-  if (!(await hasAuthenticatedSession(page))) {
+  const postLoginDeadline=Date.now()+20000;
+  let authenticated=false;
+  do {
+    authenticated=await hasAuthenticatedSession(page);
+    if(authenticated)break;
+    await page.waitForTimeout(500);
+  } while(Date.now()<postLoginDeadline);
+  if (!authenticated) {
     throw new Error('La sesion Supabase no quedo autenticada luego del login manual.');
   }
   step('Sesion STAGING','PASS','Sesion Supabase autenticada luego del login manual.');
@@ -583,7 +799,37 @@ async function closeDirtyEditor(page, state) {
   if (!closed) throw new Error('El editor no se cerro sin guardar.');
 }
 
-async function runRenumber(page, fromOc, toOc, reason) {
+async function pollMaster(page,predicate,{timeout=15000,interval=350}={}) {
+  const started=Date.now();
+  let last=null;
+  while(Date.now()-started<timeout){
+    last=await page.evaluate(async id => {
+      const client=window.__COI_SUPABASE_CLIENT__ ||
+        (typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null);
+      if(!client)return {ok:false,reason:'Cliente Supabase no disponible.'};
+      const {data,error}=await client.from('coi_ordenes').select('*').eq('id',id).single();
+      return error?{ok:false,reason:error.message || String(error)}:{ok:true,row:data};
+    },config.testOcUuid);
+    if(last?.ok&&predicate(last.row))return last.row;
+    await page.waitForTimeout(interval);
+  }
+  throw new Error(`Timeout esperando estado remoto de la OC. Ultimo=${JSON.stringify(last)}`);
+}
+
+async function reloadAndOpen(page,oc) {
+  await page.reload({waitUntil:'domcontentloaded'});
+  await ensureAuthenticated(page);
+  await page.waitForFunction(() => window.APP_STATE?.sessionChecked === true,{timeout:20000});
+  await page.waitForTimeout(700);
+  await openOc(page,oc);
+  const body=await page.locator('body').innerText();
+  const visible=body.includes(oc);
+  step(`Recarga HTML recupera ${oc}`,visible?'PASS':'FAIL',{visible});
+  if(!visible)throw new Error(`La OC ${oc} no quedo visible luego de recargar STAGING.`);
+}
+
+async function runRenumber(page, fromOc, toOc, reason, baseline) {
+  await verifyStagingProjectRef(page);
   const button = page.locator(config.ui.renumberButtonSelector).first();
   if(!(await button.count())) throw new Error('No encontre boton data-coi-renumber.');
   if(await button.isDisabled()) throw new Error('Boton de renumeracion esta deshabilitado.');
@@ -600,29 +846,243 @@ async function runRenumber(page, fromOc, toOc, reason) {
       }
     } catch {}
   };
-  page.on('dialog', handler);
-  await button.click();
-  await page.waitForTimeout(2200);
-  page.off('dialog', handler);
+  page.on('dialog',handler);
+  try{
+    await button.click();
+    await pollMaster(page,row => String(row?.nro_oc||'')===toOc);
+  }finally{
+    page.off('dialog',handler);
+  }
 
-  const body = await page.locator('body').innerText();
-  const ok = body.includes(toOc);
+  const direct=await readFixtureState(page);
+  const integrity=validateFixtureNumber(direct,toOc,baseline);
   await page.screenshot({path:shot(`renumber-${fromOc}-to-${toOc}`), fullPage:true});
-  step(`Renumeracion ${fromOc} -> ${toOc}`, ok ? 'PASS':'FAIL', {visible:ok});
-  if(!ok) throw new Error(`La UI no muestra ${toOc} luego de renumerar.`);
+  step(`Renumeracion ${fromOc} -> ${toOc}`,integrity.ok?'PASS':'FAIL',{
+    uuid:direct.master[0]?.id || null,
+    integrityErrors:integrity.errors,
+    tables:fixtureSummary(direct).tables
+  });
+  if(!integrity.ok)throw new Error(`Integridad de renumeracion fallida: ${integrity.errors.join(' | ')}`);
+  await reloadAndOpen(page,toOc);
+  return direct;
+}
 
-  // Persistencia: reload y volver a buscar
-  await page.reload({waitUntil:'domcontentloaded'});
-  await page.waitForTimeout(1200);
-  await openOc(page, toOc);
-  const persisted = (await page.locator('body').innerText()).includes(toOc);
-  step(`Persistencia tras reload ${toOc}`, persisted ? 'PASS':'FAIL');
-  if(!persisted) throw new Error(`La OC ${toOc} no persistio tras reload.`);
+async function openCleanEditor(page,oc) {
+  await openOc(page,oc);
+  const state=await inspectDirty(page);
+  if(!/sin cambios pendientes/i.test(state.dirtyText))throw new Error(`Editor de ${oc} no abrio limpio: ${state.dirtyText}`);
+  return state;
+}
 
-  // Abrir editor para siguiente operacion
-  await page.locator(config.ui.editButtonSelector).first().click();
-  await page.locator(config.ui.editModalSelector).waitFor({state:'visible', timeout:7000});
-  await page.waitForTimeout(700);
+async function saveObservationViaUi(page,oc,value) {
+  const state=await openCleanEditor(page,oc);
+  const field=state.modal.locator("[data-coi-edit-field='observaciones']").first();
+  if(!(await field.count()))throw new Error('No existe el campo editable observaciones.');
+  await field.fill(value == null ? '' : String(value));
+  await page.waitForFunction(
+    selector => /cambios pendientes/i.test(document.querySelector(selector)?.textContent || '') &&
+      !/sin cambios pendientes/i.test(document.querySelector(selector)?.textContent || ''),
+    config.ui.dirtyBadgeSelector,
+    {timeout:3000}
+  );
+  await verifyStagingProjectRef(page);
+  await state.save.click();
+  const expected=value == null || value===''?null:String(value);
+  try{
+    await pollMaster(page,row => (row?.observaciones ?? null)===expected,{timeout:10000});
+  }catch(error){
+    const uiError=await page.locator('#coiEditErrorV60').innerText().catch(()=> '');
+    throw new Error(`${error.message} UI=${uiError || '<sin mensaje>'}`);
+  }
+  step(`Guardar observaciones via HTML (${expected===TEMP_OBSERVATION?'temporal':'restauracion'})`,'PASS');
+}
+
+async function verifyObservationReload(page,oc,expected) {
+  await reloadAndOpen(page,oc);
+  const state=await inspectDirty(page);
+  const field=state.modal.locator("[data-coi-edit-field='observaciones']").first();
+  const value=await field.inputValue();
+  const wanted=expected == null?'':String(expected);
+  const ok=value===wanted;
+  step('Recarga recupera observaciones desde Supabase',ok?'PASS':'FAIL',{matches:ok,length:value.length});
+  await closeDirtyEditor(page,state);
+  if(!ok)throw new Error('La observacion recargada no coincide con Supabase.');
+}
+
+async function inspectAdminNegative(page) {
+  const result=await page.evaluate(({resolverSource,permissionSource,legacyFindings}) => {
+    const fakeUser={
+      id:'00000000-0000-4000-8000-000000000000',
+      email:'qa-no-admin@example.invalid',
+      app_metadata:{role:'administrador'},
+      user_metadata:{role:'administrador'}
+    };
+    const direct=typeof window.esUsuarioSupabaseAdministradorR12==='function'
+      ? Boolean(window.esUsuarioSupabaseAdministradorR12(fakeUser))
+      : null;
+    if(!resolverSource||!permissionSource)return {ok:false,reason:'No se pudieron extraer los helpers de autorizacion del HTML cargado',direct};
+    const simulate=({bodyAdmin=false,storage={}}={}) => {
+      const fakeWindow={
+        esUsuarioSupabaseAdministradorR12:user => String(user?.email||'').trim().toLowerCase()==='admin@coiroca.com',
+        esAdminR13:()=>false,
+        usuarioEsAdministrador:()=>false
+      };
+      const fakeDocument={body:{classList:{contains:name=>bodyAdmin&&name==='modo-admin'}}};
+      const fakeStorage={getItem:key=>Object.hasOwn(storage,key)?storage[key]:null};
+      const clean=value=>String(value??'').trim();
+      return Function('usuario','window','document','localStorage','clean',`return (${resolverSource})(usuario);`)(fakeUser,fakeWindow,fakeDocument,fakeStorage,clean);
+    };
+    const neutralRole=simulate();
+    const legacyStorageRole=simulate({storage:{coi_rol_usuario:'administrador'}});
+    const legacyBodyRole=simulate({bodyAdmin:true});
+    const protectedControlAllowed=Function('window',`return (${permissionSource})();`)({
+      APP_STATE:{role:'administrador'},
+      esAutorizacionAdministrativaSupabaseV60:()=>false
+    });
+    return {
+      ok:direct===false&&neutralRole==='consulta'&&legacyStorageRole==='consulta'&&legacyBodyRole==='consulta'&&protectedControlAllowed===false&&legacyFindings.length===0,
+      direct,
+      neutralRole,
+      legacyStorageRole,
+      legacyBodyRole,
+      protectedControlAllowed,
+      resolverUsesLegacy:/localStorage|modo-admin|esAdminR13|usuarioEsAdministrador/.test(resolverSource),
+      legacyGrantFindings:legacyFindings
+    };
+  },{resolverSource:adminResolverSource,permissionSource:adminPermissionSource,legacyFindings:legacyGrantFindings});
+  step('Admin negativo aislado',result.ok?'PASS':'FAIL',result);
+  return result;
+}
+
+async function recoverFixture(page,baseline) {
+  const recovery={attempted:true,actions:[],errors:[]};
+  try{
+    await verifyStagingProjectRef(page);
+    const current=await pollMaster(page,()=>true,{timeout:5000});
+    if(String(current.nro_oc||'')!==config.testOcOriginal){
+      const result=await page.evaluate(async ({id,originalOc}) => {
+        const client=window.__COI_SUPABASE_CLIENT__ ||
+          (typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null);
+        const {data,error}=await client.rpc('coi_renumerar_oc',{
+          p_orden_id:id,
+          p_nuevo_nro_oc:originalOc,
+          p_motivo:'Recuperacion automatica QA RC2 E2E'
+        });
+        return error?{ok:false,error:error.message || String(error)}:{ok:true,data};
+      },{id:config.testOcUuid,originalOc:config.testOcOriginal});
+      if(!result.ok)throw new Error(`Recovery renumeracion: ${result.error}`);
+      await pollMaster(page,row=>String(row?.nro_oc||'')===config.testOcOriginal);
+      recovery.actions.push('nro_oc restaurado');
+    }
+    const normalizeObservation=value=>value == null || value === '' ? null : value;
+    const originalObservation=normalizeObservation(baseline.master[0]?.observaciones);
+    const afterNumber=await pollMaster(page,()=>true,{timeout:5000});
+    if(normalizeObservation(afterNumber.observaciones)!==originalObservation){
+      await verifyStagingProjectRef(page);
+      const restored=await page.evaluate(async ({id,value}) => {
+        if(!window.COI_ORDENES_EDIT_V60?.actualizar)return {ok:false,error:'API V60 actualizar no disponible'};
+        try{
+          const result=await window.COI_ORDENES_EDIT_V60.actualizar(id,{observaciones:value});
+          return {ok:Boolean(result?.ok),fields:result?.fields || [],error:result?.ok?null:'actualizar devolvio fallo'};
+        }catch(error){return {ok:false,error:error?.message || String(error)}}
+      },{id:config.testOcUuid,value:originalObservation});
+      if(!restored.ok)throw new Error(`Recovery observaciones: ${restored.error}`);
+      await pollMaster(page,row=>normalizeObservation(row?.observaciones)===originalObservation);
+      recovery.actions.push('observaciones restauradas');
+    }
+  }catch(error){
+    recovery.errors.push(error?.message || String(error));
+  }
+  const finalState=await readFixtureState(page).catch(error => ({error:error?.message || String(error)}));
+  recovery.finalState=finalState.error?{error:finalState.error}:fixtureSummary(finalState);
+  recovery.ok=!recovery.errors.length&&!finalState.error&&validateFixtureNumber(finalState,config.testOcOriginal,baseline).ok&&
+    valueHash(businessSnapshot(finalState))===valueHash(businessSnapshot(baseline));
+  step('Recuperacion final independiente',recovery.ok?'PASS':'FAIL',recovery);
+  return {recovery,finalState};
+}
+
+async function runFullE2E(page,initialEditor,businessWriteRequests) {
+  const failures=[];
+  const baseline=await readFixtureState(page);
+  const baselineValidation=validateFixtureNumber(baseline,config.testOcOriginal,baseline);
+  if(!baselineValidation.ok)throw new Error(`Fixture inicial invalida: ${baselineValidation.errors.join(' | ')}`);
+  report.fullE2E={baseline:fixtureSummary(baseline),tests:{}};
+  step('Snapshot inicial completo OC QA','PASS',report.fullE2E.baseline);
+
+  try{
+    try{
+      const outbound=await runRenumber(page,config.testOcOriginal,config.testOcTemporary,'QA RC2 E2E - ida controlada',baseline);
+      const outboundHistory=newHistoryRows(baseline,outbound).filter(row =>
+        String(row?.campo_modificado||'')==='nro_oc'&&
+        String(row?.valor_anterior||'')===config.testOcOriginal&&
+        String(row?.valor_nuevo||'')===config.testOcTemporary
+      );
+      if(!outboundHistory.length)throw new Error('No se encontro historial funcional de la renumeracion de ida.');
+      const reverseEditor=await openCleanEditor(page,config.testOcTemporary);
+      const reversed=await runRenumber(page,config.testOcTemporary,config.testOcOriginal,'QA RC2 E2E - reversion controlada',baseline);
+      void reverseEditor;
+      const historyDelta=newHistoryRows(baseline,reversed).filter(row => String(row?.campo_modificado||'')==='nro_oc');
+      const hasReturn=historyDelta.some(row =>
+        String(row?.valor_anterior||'')===config.testOcTemporary&&
+        String(row?.valor_nuevo||'')===config.testOcOriginal
+      );
+      if(!hasReturn)throw new Error('No se encontro historial funcional de la renumeracion de vuelta.');
+      await reloadAndOpen(page,config.testOcOriginal);
+      report.fullE2E.tests.renumber={ok:true,historyCreated:historyDelta.length};
+      step('E2E renumeracion/reversion','PASS',{historyCreated:historyDelta.length});
+    }catch(error){
+      failures.push(`Renumeracion: ${error?.message || error}`);
+      report.fullE2E.tests.renumber={ok:false,error:error?.message || String(error)};
+      step('E2E renumeracion/reversion','FAIL',report.fullE2E.tests.renumber);
+    }
+
+    try{
+      const current=await pollMaster(page,()=>true,{timeout:5000});
+      if(String(current.nro_oc||'')!==config.testOcOriginal)throw new Error('La OC no esta restaurada antes de Test B.');
+      const originalObservation=baseline.master[0]?.observaciones ?? null;
+      await saveObservationViaUi(page,config.testOcOriginal,TEMP_OBSERVATION);
+      await verifyObservationReload(page,config.testOcOriginal,TEMP_OBSERVATION);
+      await saveObservationViaUi(page,config.testOcOriginal,originalObservation);
+      await verifyObservationReload(page,config.testOcOriginal,originalObservation);
+      report.fullE2E.tests.ordinaryEdit={ok:true};
+      step('E2E edicion ordinaria persistente','PASS');
+    }catch(error){
+      failures.push(`Edicion ordinaria: ${error?.message || error}`);
+      report.fullE2E.tests.ordinaryEdit={ok:false,error:error?.message || String(error)};
+      step('E2E edicion ordinaria persistente','FAIL',report.fullE2E.tests.ordinaryEdit);
+    }
+
+    try{
+      const negative=await inspectAdminNegative(page);
+      report.fullE2E.tests.adminNegative=negative;
+      if(!negative.ok)throw new Error('La resolucion de rol admite autoridad administrativa legacy fuera de Supabase.');
+    }catch(error){
+      failures.push(`Admin negativo: ${error?.message || error}`);
+      report.fullE2E.tests.adminNegative={...(report.fullE2E.tests.adminNegative||{}),ok:false,error:error?.message || String(error)};
+    }
+  }finally{
+    const {recovery,finalState}=await recoverFixture(page,baseline);
+    report.fullE2E.recovery=recovery;
+    if(!recovery.ok)failures.push(`Recovery: ${recovery.errors.join(' | ') || 'estado final no equivalente'}`);
+    if(!finalState.error){
+      const historyDelta=newHistoryRows(baseline,finalState).filter(row => String(row?.campo_modificado||'')==='nro_oc');
+      report.fullE2E.historyGenerated=historyDelta.map(row => ({
+        tipo_evento:row.tipo_evento || null,
+        campo_modificado:row.campo_modificado || null,
+        valor_anterior:row.valor_anterior ?? null,
+        valor_nuevo:row.valor_nuevo ?? null,
+        nro_oc:row.nro_oc || null,
+        fecha_evento:row.fecha_evento || row.created_at || null
+      }));
+    }
+  }
+
+  report.businessWriteRequests=businessWriteRequests;
+  step('Writes limitados a STAGING',businessWriteRequests.every(req => req.host===`${config.stagingProjectRef}.supabase.co`)?'PASS':'FAIL',{
+    count:businessWriteRequests.length,
+    requests:businessWriteRequests
+  });
+  if(failures.length)throw new Error(failures.join(' || '));
 }
 
 let context;
@@ -661,7 +1121,9 @@ try {
       catch { return requestUrl; }
     })();
     if (!pathname.startsWith('/rest/v1/') && !pathname.startsWith('/storage/v1/')) return;
-    businessWriteRequests.push({method, pathname});
+    let host=null;
+    try{host=new URL(requestUrl).hostname;}catch{}
+    businessWriteRequests.push({method,host,pathname});
   });
   if (mode !== 'full') {
     await context.route(`https://${config.stagingProjectRef}.supabase.co/**`, async route => {
@@ -774,22 +1236,7 @@ try {
         throw new Error('No ejecuto E2E: el editor sigue dirty antes de renumerar.');
       }
 
-      await runRenumber(
-        page,
-        config.testOcOriginal,
-        config.testOcTemporary,
-        'Prueba automatizada COI STAGING DOCTOR'
-      );
-
-      // El modal ya queda abierto tras runRenumber
-      await runRenumber(
-        page,
-        config.testOcTemporary,
-        config.testOcOriginal,
-        'Reversion automatizada COI STAGING DOCTOR'
-      );
-
-      step('Estado final OC original','PASS',config.testOcOriginal);
+      await runFullE2E(page,state,businessWriteRequests);
     }
 
     report.success = report.steps.every(s => !['FAIL'].includes(s.status));

@@ -5,7 +5,8 @@
     [switch]$BootstrapUi,
     [switch]$AllowStagingWrite,
 
-    [string]$Repo = (Get-Location).Path
+    [string]$Repo = (Get-Location).Path,
+    [string]$TargetHtml = ""
 )
 
 Set-StrictMode -Version 2.0
@@ -121,6 +122,10 @@ $configPathCandidates = @(
 $configPath = $configPathCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 if(-not $configPath) { throw "No encuentro coi-qa.config.json." }
 $config = Get-Content $configPath -Raw | ConvertFrom-Json
+$effectiveHtml = if([string]::IsNullOrWhiteSpace($TargetHtml)) { [string]$config.stagingHtml } else { $TargetHtml.Trim() }
+if([System.IO.Path]::GetFileName($effectiveHtml) -ne $effectiveHtml -or -not $effectiveHtml.EndsWith('.html',[System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "TargetHtml debe ser un archivo HTML ubicado en la raiz del repo."
+}
 
 $logDir = Join-Path $Repo ".coi-qa\logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
@@ -132,10 +137,11 @@ try {
     Write-Section "COI LINEA ROCA - STAGING DOCTOR | modo: $Mode"
     Write-Host "Repo: $Repo"
     Write-Host "Config: $configPath"
+    Write-Host "HTML bajo prueba: $effectiveHtml"
     Write-Host "Log: $transcript"
 
     $prodPath  = Join-Path $Repo $config.productionHtml
-    $stagePath = Join-Path $Repo $config.stagingHtml
+    $stagePath = Join-Path $Repo $effectiveHtml
     $gitPath   = Join-Path $Repo ".git"
     $linkRefPath = Join-Path $Repo "supabase\.temp\project-ref"
 
@@ -147,8 +153,8 @@ try {
     if(Test-Path $prodPath) { Add-Result "index.html produccion" "PASS" $prodPath }
     else { Add-Result "index.html produccion" "FAIL" "No existe." }
 
-    if(Test-Path $stagePath) { Add-Result "index.STAGING.html" "PASS" $stagePath }
-    else { Add-Result "index.STAGING.html" "FAIL" "No existe." }
+    if(Test-Path $stagePath) { Add-Result "HTML bajo prueba ($effectiveHtml)" "PASS" $stagePath }
+    else { Add-Result "HTML bajo prueba ($effectiveHtml)" "FAIL" "No existe." }
 
     if(-not (Test-Path $prodPath) -or -not (Test-Path $stagePath)) {
         throw "Faltan artefactos HTML obligatorios."
@@ -288,14 +294,14 @@ try {
         }
 
         if($Mode -eq "UiDirty") {
-            & node $uiScript --mode dirty --repo "$Repo" --no-pause
+            & node $uiScript --mode dirty --repo "$Repo" --html "$effectiveHtml" --no-pause
             $uiExit = $LASTEXITCODE
             if($uiExit -eq 0) { Add-Result "UI dirty smoke test" "PASS" "Ver reporte/screenshot en .coi-qa." }
             else { Add-Result "UI dirty smoke test" "FAIL" "ExitCode=$uiExit. Ver reporte/screenshot." }
         }
 
         if($Mode -eq "AdminState") {
-            & node $uiScript --mode admin-state --repo "$Repo" --no-pause
+            & node $uiScript --mode admin-state --repo "$Repo" --html "$effectiveHtml" --no-pause
             $uiExit = $LASTEXITCODE
             if($uiExit -eq 0) { Add-Result "UI Admin State" "PASS" "Sesion, rol y modulo Administracion consistentes." }
             else { Add-Result "UI Admin State" "FAIL" "ExitCode=$uiExit. Ver reporte/screenshot." }
@@ -307,9 +313,9 @@ try {
                 throw "UiFullE2E requiere -AllowStagingWrite."
             }
             Add-Result "Permiso E2E escritura STAGING" "PASS" "Autorizado explicitamente."
-            & node $uiScript --mode full --repo "$Repo"
+            & node $uiScript --mode full --repo "$Repo" --html "$effectiveHtml" --no-pause
             $uiExit = $LASTEXITCODE
-            if($uiExit -eq 0) { Add-Result "UI Full E2E renumeracion/reversion" "PASS" }
+            if($uiExit -eq 0) { Add-Result "UI Full E2E renumeracion/edicion/Admin negativo" "PASS" }
             else { Add-Result "UI Full E2E renumeracion/reversion" "FAIL" "ExitCode=$uiExit. Revisar reporte." }
         }
     }
