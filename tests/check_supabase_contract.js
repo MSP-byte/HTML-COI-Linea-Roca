@@ -12,7 +12,8 @@ const files = [
   '202608100003_atomic_order_update.sql',
   '202608100004_rls_policies.sql',
   '202608100005_operational_integrity.sql',
-  '202608110006_release_candidate_hardening.sql'
+  '202608110006_release_candidate_hardening.sql',
+  '202608160001_rc2_review_hardening.sql'
 ];
 for (const file of files) assert.ok(fs.existsSync(path.join(root, file)), `Falta ${file}`);
 
@@ -22,6 +23,7 @@ const orders = fs.readFileSync(path.join(root, files[2]), 'utf8');
 const rls = fs.readFileSync(path.join(root, files[3]), 'utf8');
 const operations = fs.readFileSync(path.join(root, files[4]), 'utf8');
 const hardening = fs.readFileSync(path.join(root, files[5]), 'utf8');
+const reviewHardening = fs.readFileSync(path.join(root, files[6]), 'utf8');
 const html = fs.readFileSync('index.html', 'utf8');
 
 assert.doesNotMatch(preflight, /\bdelete\s+from\b/i, 'El preflight no puede borrar datos');
@@ -84,6 +86,18 @@ assert.match(hardening, /revoke insert, update, delete on public\.coi_ordenes fr
 assert.match(hardening, /revoke insert, update, delete on public\.coi_ordenes_estaciones from authenticated/i);
 assert.match(hardening, /revoke all on function public\.coi_sync_order_balance\(uuid\) from public, anon, authenticated/i);
 
+// Findings PR #27: el hardening forward-only debe permanecer versionado.
+assert.match(reviewHardening, /coi_child_order_number_guard/);
+assert.match(reviewHardening, /for key share/i, 'Los hijos deben serializar con la renumeracion maestra');
+assert.match(reviewHardening, /coi_order_number_dependency_guard/);
+assert.match(reviewHardening, /COI_ORDER_NUMBER_DEPENDENCY_COLLISION/);
+assert.match(reviewHardening, /coi_servicios_tecnicos_um/);
+assert.match(reviewHardening, /coi_eliminar_orden_integral/);
+assert.match(reviewHardening, /'renumeracion de oc'/i, 'El historial de renumeracion debe estar protegido');
+assert.match(reviewHardening, /coi_actualizar_orden_integral/);
+const genericUpdaterSection = reviewHardening.slice(reviewHardening.indexOf('create or replace function public.coi_actualizar_orden_integral'));
+assert.doesNotMatch(genericUpdaterSection, /'link_documental_principal'|'estado_link_documental'/, 'La RPC generica no puede administrar campos resumen de links');
+
 assert.match(html, /client\.rpc\('coi_certificar_posiciones_v2'/);
 assert.match(html, /client\.rpc\('coi_actualizar_consumo_posicion'/);
 assert.match(html, /client\.rpc\('coi_anular_consumo_posicion'/);
@@ -112,11 +126,14 @@ assert.doesNotMatch(
 assert.match(html, /const CACHE_VERSION=2/);
 assert.match(html, /financialMutations:'supabase-rpc-only'/);
 
-for (const [name, sql] of [['preflight', preflight], ['ledger', ledger], ['orders', orders], ['rls', rls], ['operations', operations], ['hardening', hardening]]) {
+for (const [name, sql] of [
+  ['preflight', preflight], ['ledger', ledger], ['orders', orders], ['rls', rls],
+  ['operations', operations], ['hardening', hardening], ['review-hardening', reviewHardening]
+]) {
   assert.equal((sql.match(/\$\$/g) || []).length % 2, 0, `${name}: delimitadores $$ desbalanceados`);
   assert.match(sql, /^begin;/m, `${name}: falta BEGIN`);
   assert.match(sql, /commit;\s*$/i, `${name}: falta COMMIT final`);
   assert.doesNotMatch(sql, /service_role|password\s*=|secret\s*=/i, `${name}: posible secreto`);
 }
 
-console.log('Contrato Supabase: 6 migraciones, DML core cerrado, RPC v2, roles, ledger y RLS verificados.');
+console.log('Contrato Supabase: 7 migraciones auditadas; hardening PR #27, DML core, RPC v2, roles, ledger y RLS verificados.');
