@@ -9,9 +9,15 @@
 -- - si una OC ya tiene asociaciones, no se elige ninguna de oficio;
 -- - si una OC tiene mas de una principal, se aborta;
 -- - solo se crea la principal cuando la OC no tiene NINGUNA asociacion;
--- - la estacion se copia del maestro; no se inventan ramal ni sector.
+-- - la estacion se copia del maestro; no se inventan ramal ni sector;
+-- - las columnas legacy necesarias se agregan de forma compatible antes del backfill.
 
 begin;
+
+alter table public.coi_ordenes_estaciones add column if not exists nro_oc text;
+alter table public.coi_ordenes_estaciones add column if not exists tipo_alcance text not null default 'General';
+alter table public.coi_ordenes_estaciones add column if not exists descripcion_alcance text;
+alter table public.coi_ordenes_estaciones add column if not exists estado text not null default 'Activa';
 
 do $$
 declare
