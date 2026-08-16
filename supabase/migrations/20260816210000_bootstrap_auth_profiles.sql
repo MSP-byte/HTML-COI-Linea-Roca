@@ -11,6 +11,7 @@
 -- - si existe cualquier usuario real, exige exactamente un admin@coiroca.com;
 -- - sincroniza ese admin como administrador activo;
 -- - si existe consulta@coiroca.com, la sincroniza como consulta activa;
+-- - depende sólo de auth.users(id,email), contrato mínimo necesario;
 -- - no toca OCs, estaciones, posiciones, certificaciones ni ledger;
 -- - es idempotente y portable entre STAGING y PROD.
 
@@ -56,46 +57,40 @@ insert into public.profiles (
   email,
   rol,
   activo,
-  fecha_alta,
-  ultimo_login
+  fecha_alta
 )
 select
   u.id,
   lower(u.email),
   'administrador',
   true,
-  coalesce(u.created_at, now()),
-  u.last_sign_in_at
+  now()
 from auth.users u
 where lower(u.email) = 'admin@coiroca.com'
 on conflict (id) do update
 set email = excluded.email,
     rol = 'administrador',
-    activo = true,
-    ultimo_login = coalesce(excluded.ultimo_login, public.profiles.ultimo_login);
+    activo = true;
 
 insert into public.profiles (
   id,
   email,
   rol,
   activo,
-  fecha_alta,
-  ultimo_login
+  fecha_alta
 )
 select
   u.id,
   lower(u.email),
   'consulta',
   true,
-  coalesce(u.created_at, now()),
-  u.last_sign_in_at
+  now()
 from auth.users u
 where lower(u.email) = 'consulta@coiroca.com'
 on conflict (id) do update
 set email = excluded.email,
     rol = 'consulta',
-    activo = true,
-    ultimo_login = coalesce(excluded.ultimo_login, public.profiles.ultimo_login);
+    activo = true;
 
 do $$
 declare
