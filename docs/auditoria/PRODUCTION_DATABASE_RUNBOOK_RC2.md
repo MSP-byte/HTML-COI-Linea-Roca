@@ -1,144 +1,133 @@
 # RC2 — Runbook final de salida a producción
 
-**Estado:** rollout productivo iniciado de forma controlada el 16/08/2026. Backup y preflight aprobados. Migraciones `202608100001` a `202608100005` aplicadas correctamente; la migración `202608110006` se detuvo y revirtió al detectar que la instalación histórica tenía OCs sin filas materializadas en `coi_ordenes_estaciones`. Se incorporó el backfill forward-only `202608110005_backfill_principal_stations.sql`; no continuar con `006` hasta que ese backfill tenga Quality Gate verde y haya sido validado en producción.
+**Estado al 16/08/2026:** etapa de base de datos productiva completada y validada. Backup, preflight, 12/12 migraciones y smoke DB: **PASS**. Frontend aún pendiente de merge/deploy al momento de este commit.
 
-Este documento es la secuencia operativa final para llevar RC2 a Supabase producción y luego promover el frontend.
+## 1. Entornos y guardrails
 
-## 1. Guardrails obligatorios
+- Producción Supabase: `ooepgbzqlpjrtpaoqawc`.
+- STAGING Supabase: `brmrroikctfbtzwfewan`.
+- Supabase continúa siendo la fuente única de verdad.
+- No usar `service_role` en frontend.
+- No ejecutar `db reset`, force push ni limpiezas destructivas.
+- La secuencia de salida es **DB primero → frontend después**.
 
-- Project-ref productivo esperado: `ooepgbzqlpjrtpaoqawc`.
-- Project-ref STAGING conocido: `brmrroikctfbtzwfewan`.
-- Antes de cualquier escritura, confirmar el project-ref.
-- No ejecutar `supabase db reset --linked`.
-- No usar `service_role` en frontend ni registrar secretos.
-- No hacer `git push --force`, `git reset --hard` ni limpieza destructiva.
-- Si una consulta preflight devuelve una inconsistencia inesperada: **STOP**.
-- La base de datos debe promoverse **antes** que el frontend productivo, porque RC2 consume contratos/RPC nuevos.
+## 2. Backup productivo
 
-## 2. Estado técnico certificado en rama RC2
+Backup lógico generado y verificado fuera del repositorio en:
 
-Rama: `release/rc2-estabilizacion`.
+`C:\Users\Casa\Documents\COI-PROD-BACKUP-2026-08-16`
 
-El Quality Gate del PR valida sintaxis HTML/CSS/JS, tests estáticos y de regresión, migraciones PostgreSQL en PGlite, idempotencia financiera, compatibilidad controlada de writers legacy, guards de renumeración y Chromium E2E.
+Artefactos verificados con tamaño mayor a cero y SHA256 calculado localmente:
 
-La revisión del PR incorporó hardening forward-only para canonicalización de `nro_oc`, colisiones modernas/legacy, sincronización concurrente de hijos, UM legacy, historial de renumeración, deadlocks financieros, reconciliación idempotente tras logout/red, writers ejecutivos legacy bajo RLS y aislamiento STAGING/PROD.
+- `roles.sql`
+- `schema.sql`
+- `data.sql`
+- `COI-PROD-BACKUP-2026-08-16.zip`
 
-Durante el preflight productivo se observó una particularidad histórica adicional: las 34 OCs tenían `estacion` informada en `coi_ordenes`, pero `coi_ordenes_estaciones` estaba vacía. El backfill `202608110005_backfill_principal_stations.sql` materializa exclusivamente la estación principal faltante desde esos datos canónicos y aborta ante cualquier caso ambiguo.
+No subir estos archivos a GitHub.
 
-## 3. Orden completo de migraciones RC2
+## 3. Preflight productivo
 
-La instalación productiva debe respetar **estrictamente este orden**:
-
-1. `202608100001_preflight_reports.sql`
-2. `202608100002_financial_ledger.sql`
-3. `202608100003_atomic_order_update.sql`
-4. `202608100004_rls_policies.sql`
-5. `202608100005_operational_integrity.sql`
-6. `202608110005_backfill_principal_stations.sql`
-7. `202608110006_release_candidate_hardening.sql`
-8. `20260813024545_renumerar_oc.sql`
-9. `20260813033959_fix_renumerar_oc_servicios_um.sql`
-10. `202608160010_rc2_review_hardening.sql`
-11. `202608160020_rc2_concurrency_and_legacy.sql`
-12. `202608160030_rc2_legacy_writers_and_recovery.sql`
-
-**No aplicar sólo una migración intermedia.** La definición final del contrato RC2 resulta de la secuencia completa.
-
-## 4. Preflight productivo — sólo lectura
-
-Antes del rollout se verificó:
+Resultado previo al rollout:
 
 - 34 OCs productivas;
 - 0 duplicados por `nro_oc` normalizado;
 - 0 OCs con número inválido/no canónico;
 - 0 dependencias huérfanas en estaciones/posiciones;
 - `coi_servicios_tecnicos_um` legacy posee `nro_oc` y no `orden_id`;
-- 34/34 OCs poseen `estacion` no vacía;
-- `ramal` y `sector` pueden ser nulos sin bloquear el backfill.
+- 34/34 OCs con `estacion` informada.
 
-Consultas base de referencia:
+Se detectó una particularidad histórica: `coi_ordenes_estaciones` estaba vacía aunque las 34 OCs tenían estación en el maestro. El primer intento de `202608110006_release_candidate_hardening.sql` abortó por su precondición de una estación principal por OC y PostgreSQL revirtió íntegramente esa transacción.
 
-```sql
-select count(*) as ordenes from public.coi_ordenes;
-select count(*) as estaciones from public.coi_ordenes_estaciones;
-select count(*) as posiciones from public.coi_posiciones_oc;
+Se incorporó y certificó por CI la migración forward-only `202608110005_backfill_principal_stations.sql`, que sólo materializa asociaciones faltantes desde `coi_ordenes`, no inventa ramal/sector y aborta casos ambiguos.
 
-select regexp_replace(upper(trim(nro_oc)), '[^0-9A-Z]', '', 'g') as nro_normalizado,
-       count(*)
-from public.coi_ordenes
-group by 1
-having count(*) > 1;
+Resultado del backfill productivo:
 
-select id, nro_oc
-from public.coi_ordenes
-where nro_oc is null
-   or trim(nro_oc) = ''
-   or nro_oc ~ '[^0-9]'
-order by nro_oc;
-```
+- 34 OCs;
+- 34 asociaciones de estación;
+- 34 estaciones principales;
+- 0 OCs con cantidad inválida de principales;
+- 0 inconsistencias `nro_oc` entre maestro y asociación.
 
-Si el esquema productivo difiere de lo esperado, no improvisar reparación en caliente: registrar el resultado y detener el despliegue.
+## 4. Orden final de migraciones RC2
 
-## 5. Backup previo
+Secuencia productiva aplicada:
 
-Backup lógico productivo generado y verificado fuera del repositorio en:
+1. `202608100001_preflight_reports.sql` — PASS
+2. `202608100002_financial_ledger.sql` — PASS
+3. `202608100003_atomic_order_update.sql` — PASS
+4. `202608100004_rls_policies.sql` — PASS
+5. `202608100005_operational_integrity.sql` — PASS
+6. `202608110005_backfill_principal_stations.sql` — PASS
+7. `202608110006_release_candidate_hardening.sql` — PASS en reintento posterior al backfill
+8. `20260813024545_renumerar_oc.sql` — PASS
+9. `20260813033959_fix_renumerar_oc_servicios_um.sql` — PASS
+10. `202608160010_rc2_review_hardening.sql` — PASS
+11. `202608160020_rc2_concurrency_and_legacy.sql` — PASS
+12. `202608160030_rc2_legacy_writers_and_recovery.sql` — PASS
 
-`C:\Users\Casa\Documents\COI-PROD-BACKUP-2026-08-16`
+El ledger remoto de Supabase registra las 12 migraciones.
 
-Contiene `roles.sql`, `schema.sql`, `data.sql` y ZIP, todos con tamaño mayor a cero y checksums SHA256 calculados localmente. No subir estos archivos a GitHub.
+## 5. Smoke DB productivo
 
-## 6. Aplicación de migraciones
+Contratos confirmados:
 
-Estado del rollout:
+- `public.coi_renumerar_oc(uuid,text,text)`
+- `public.coi_actualizar_orden_integral(uuid,jsonb)`
+- `public.coi_certificar_posiciones_v2(jsonb,uuid,jsonb)`
+- `public.coi_eliminar_orden_integral(uuid)`
+- `public.coi_child_order_number_guard()`
+- `public.coi_order_number_dependency_guard()`
+- `public.coi_direct_order_update_guard()`
 
-- `202608100001` — PASS
-- `202608100002` — PASS
-- `202608100003` — PASS
-- `202608100004` — PASS
-- `202608100005` — PASS
-- `202608110005_backfill_principal_stations` — pendiente de Quality Gate/aplicación
-- `202608110006` — intento previo NO aplicado: abortó por precondición y la transacción se revirtió
-- restantes — pendientes
+Consistencia posterior:
 
-Después del backfill comprobar exactamente una asociación principal por OC antes de reintentar `006`.
+- estaciones con `nro_oc` distinto al maestro: 0;
+- posiciones con `nro_oc` distinto al maestro: 0;
+- certificaciones con `nro_oc` distinto al maestro: 0;
+- OCs: 34;
+- asociaciones de estación: 34;
+- estaciones principales: 34;
+- certificaciones: 5;
+- posiciones financieras cargadas actualmente: 0;
+- OCs con principal inválida: 0.
 
-## 7. Smoke de base inmediatamente posterior
+**SMOKE DB = PASS.**
 
-Validar antes de tocar `main`:
+## 6. Advisors Supabase
 
-```sql
-select to_regprocedure('public.coi_renumerar_oc(uuid,text,text)');
-select to_regprocedure('public.coi_actualizar_orden_integral(uuid,jsonb)');
-select to_regprocedure('public.coi_certificar_posiciones_v2(jsonb,uuid,jsonb)');
-select to_regprocedure('public.coi_eliminar_orden_integral(uuid)');
-select to_regprocedure('public.coi_child_order_number_guard()');
-select to_regprocedure('public.coi_order_number_dependency_guard()');
-select to_regprocedure('public.coi_direct_order_update_guard()');
+Los advisors posteriores no detectaron una pérdida de integridad del rollout.
 
-select 'posiciones' tabla, count(*) inconsistencias
-from public.coi_posiciones_oc x
-join public.coi_ordenes o on o.id=x.orden_id
-where x.nro_oc is distinct from o.nro_oc
-union all
-select 'certificaciones', count(*)
-from public.coi_certificaciones x
-join public.coi_ordenes o on o.id=x.orden_id
-where x.nro_oc is distinct from o.nro_oc;
-```
+Quedan como backlog posterior al release:
 
-No usar una OC real para una prueba destructiva si puede evitarse.
+- optimización de índices/FKs y policies RLS;
+- consolidación de políticas permisivas duplicadas;
+- optimización `auth()`/initplan;
+- evaluación de protección de contraseñas filtradas en Supabase Auth;
+- revisión de tablas históricas de backup con RLS sin políticas.
 
-## 8. Promoción del frontend
+Las advertencias genéricas sobre RPC `SECURITY DEFINER` invocables por `authenticated` no se tratan como blocker de RC2: son parte de la superficie RPC intencional y las funciones funcionales aplican validación de rol server-side.
 
-Sólo si preflight y backup están aprobados, las 12 migraciones terminan sin error, smoke DB aprobado, no existen findings críticos abiertos y el Quality Gate está verde en el HEAD exacto a mergear.
+No introducir estas optimizaciones durante la promoción RC2 salvo evidencia de un fallo funcional o de seguridad específico.
 
-Entonces:
+## 7. Gate GitHub previo a frontend
 
-1. confirmar HEAD de `release/rc2-estabilizacion`;
-2. mergear PR #27 a `main` sin force;
-3. esperar workflow/deploy;
-4. validar URL productiva;
-5. comprobar login, consulta, edición, certificación, calendario y recarga desde Supabase;
+Antes del merge se exige:
+
+- PR #27 sin findings P1/P2 abiertos;
+- HEAD exacto de `release/rc2-estabilizacion` con Quality Gate verde;
+- `main` no modificado fuera del merge normal;
+- ninguna migración pendiente en la secuencia RC2.
+
+## 8. Promoción frontend
+
+Con DB y CI verdes:
+
+1. confirmar HEAD exacto del PR #27;
+2. mergear a `main` sin force;
+3. esperar el workflow/deploy correspondiente;
+4. validar la URL productiva;
+5. ejecutar smoke funcional autenticado;
 6. no realizar una renumeración real sólo para probar producción.
 
 ## 9. Smoke funcional productivo mínimo
@@ -146,28 +135,18 @@ Entonces:
 - [ ] Login Supabase correcto.
 - [ ] Dashboard carga datos remotos.
 - [ ] Abrir ficha OC.
-- [ ] Editar un campo no crítico autorizado y recargar: persiste en Supabase.
-- [ ] Próxima certificación persiste y recarga correctamente.
-- [ ] Roles sin permiso no pueden editar.
-- [ ] Links documentales respetan roles.
-- [ ] Writer ejecutivo legacy no devuelve `permission denied`.
-- [ ] Renumeración directa por PostgREST queda bloqueada; sólo RPC administradora.
-- [ ] Certificación financiera no duplica movimientos ante reintento.
+- [ ] Rol/controles administrativos correctos.
+- [ ] Edición no crítica autorizada persiste tras recarga, usando un caso controlado cuando sea posible.
+- [ ] Próxima certificación persiste/recarga correctamente cuando corresponda.
+- [ ] Writer ejecutivo esperado no devuelve `permission denied`.
+- [ ] Renumeración directa queda bloqueada; la operación administrativa usa RPC.
 - [ ] Calendario/alertas reflejan datos persistidos.
-- [ ] Eliminación integral respeta dependencias y UM legacy.
+- [ ] Borrado integral respeta dependencias y UM legacy.
 
-## 10. Criterio de GO / NO-GO
+## 10. Criterio final
 
-**GO** únicamente si todos los puntos anteriores son verdes.
+**GO frontend:** DB productiva PASS + smoke DB PASS + PR limpio + Quality Gate verde en HEAD exacto.
 
-**NO-GO** ante project-ref no confirmado, backup no verificable, migración inesperada, inconsistencia UUID/`nro_oc`, Quality Gate rojo, review crítico abierto, `permission denied` en flujo esperado, discrepancia entre UI y Supabase o indicio de doble consumo financiero.
+**100% RC2:** merge/deploy terminado + smoke funcional productivo autenticado PASS.
 
-## 11. Rollback / contingencia
-
-No intentar deshacer RC2 mediante ediciones manuales improvisadas. Ante falla antes del merge frontend, detener promoción, conservar evidencia y evaluar restauración con backup o migración forward correctiva. Ante falla después del merge, priorizar contención del frontend y preservación de datos; no borrar ledger ni historial.
-
----
-
-### Regla final
-
-La salida productiva es una maniobra de dos etapas: **DB primero, frontend después**. RC2 no se considera 100% productivo hasta completar migraciones, merge/deploy y smoke real sobre producción.
+Ante una anomalía post-merge, preservar datos y trazabilidad, evitar cambios manuales improvisados y usar el backup o una migración forward correctiva según el caso.
