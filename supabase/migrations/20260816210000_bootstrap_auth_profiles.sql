@@ -7,8 +7,9 @@
 -- efectivo y ocultando las OCs bajo las políticas restrictivas.
 --
 -- Reglas de seguridad:
--- - exige exactamente una cuenta admin@coiroca.com en auth.users;
--- - la sincroniza como administrador activo;
+-- - si auth.users está vacío (fixture CI), la migración es no-op;
+-- - si existe cualquier usuario real, exige exactamente un admin@coiroca.com;
+-- - sincroniza ese admin como administrador activo;
 -- - si existe consulta@coiroca.com, la sincroniza como consulta activa;
 -- - no toca OCs, estaciones, posiciones, certificaciones ni ledger;
 -- - es idempotente y portable entre STAGING y PROD.
@@ -17,9 +18,15 @@ begin;
 
 do $$
 declare
+  v_auth_count integer;
   v_admin_count integer;
   v_consulta_count integer;
 begin
+  select count(*) into v_auth_count from auth.users;
+  if v_auth_count = 0 then
+    return;
+  end if;
+
   select count(*) into v_admin_count
   from auth.users
   where lower(email) = 'admin@coiroca.com';
@@ -96,6 +103,10 @@ declare
   v_consulta_exists boolean;
   v_consulta_ok boolean;
 begin
+  if not exists (select 1 from auth.users) then
+    return;
+  end if;
+
   select exists (
     select 1
     from public.profiles p
