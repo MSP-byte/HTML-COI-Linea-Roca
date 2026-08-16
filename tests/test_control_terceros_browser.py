@@ -30,9 +30,15 @@ def fixture(driver, nro="4500000001", editable=True):
         window.resolverOrdenActual=ref=>String(ref).replace(/^OC[-_ ]*/i,'')===nro?window.__ctTestOC:null;
         window.guardarBaseLocal=()=>localStorage.setItem('ct-test-oc',JSON.stringify(window.__ctTestOC));
         window.guardarOrdenesSupabaseCache=()=>{};
-        window.getSupabaseClient=()=>({from:table=>({update:payload=>({eq:(column,value)=>{
-          window.__ctWrites.push({table,payload,column,value}); return Promise.resolve({error:null});
-        }})})});
+        window.getSupabaseClient=()=>({
+          from:table=>({select:columns=>({eq:(column,value)=>({limit:limit=>Promise.resolve({
+            data:[{id:'11111111-1111-4111-8111-111111111111',nro_oc:value}],error:null
+          })})})}),
+          rpc:(name,args)=>{
+            window.__ctWrites.push({name,args});
+            return Promise.resolve({data:{orden:{id:args.p_orden_id}},error:null});
+          }
+        });
         window.__coiFichaOCActiva=nro;
         document.body.classList.toggle('modo-admin',editable);
         document.body.insertAdjacentHTML('beforeend',`<main id="fichaOCBody"><div class="oc-kpis">
@@ -55,6 +61,9 @@ def run():
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     options = webdriver.ChromeOptions()
+    chromium_executable = os.environ.get("COI_CHROMIUM_EXECUTABLE")
+    if chromium_executable:
+        options.binary_location = chromium_executable
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
@@ -81,15 +90,16 @@ def run():
         assert driver.execute_script("return window.__ctWrites.length") == 0
         results["cancelar"] = "pass"
 
-        # Guardar: exactamente un UPDATE filtrado por la OC abierta.
+        # Guardar: exactamente una RPC atomica sobre la OC abierta.
         click(driver, f"{card} [data-r28-ct-edit]")
         field = driver.find_element(By.CSS_SELECTOR, f"{card} [data-r28-ct-input]")
         driver.execute_script("arguments[0].value='2026-10-15'", field)
         click(driver, f"{card} [data-r28-ct-save]")
         WebDriverWait(driver, 5).until(lambda d: d.execute_script("return window.__ctWrites.length===1"))
         write = driver.execute_script("return window.__ctWrites[0]")
-        assert write["table"] == "coi_ordenes" and write["column"] == "nro_oc" and write["value"] == "4500000001"
-        assert write["payload"]["control_terceros_hasta"] == "2026-10-15"
+        assert write["name"] == "coi_guardar_orden_integral"
+        assert write["args"]["p_orden_id"] == "11111111-1111-4111-8111-111111111111"
+        assert write["args"]["p_datos"]["control_terceros_hasta"] == "2026-10-15"
         assert driver.find_element(By.CSS_SELECTOR, f"{card} .ct-date").text == "2026-10-15"
         results["guardar_unico"] = "pass"
 

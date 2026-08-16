@@ -4,15 +4,19 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches-ignore: [main]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: quality-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   baseline:
-    name: Baseline estatica
+    name: Calidad estatica
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -25,12 +29,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
-      - name: Ejecutar controles de linea base
-        run: node tests/check_baseline.js
+      - name: Instalar dependencias bloqueadas
+        run: npm ci
 
-      - name: Ejecutar CRUD seguro de Ordenes con mocks
-        run: node tests/check_crud_ordenes.js
+      - name: Auditar dependencias (alta o critica)
+        run: npm audit --audit-level=high
+
+      - name: Ejecutar controles estaticos y de regresion
+        run: npm test
 
       - name: Validar espacios y fin de linea
         run: git diff --check
@@ -47,3 +55,38 @@ jobs:
           count=$(grep -Eio '<!doctype[[:space:]]+html[[:space:]]*>' index.html | wc -l)
           echo "DOCTYPE encontrados: $count"
           test "$count" -eq 1
+
+  interaction-smoke:
+    name: Interaccion Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: baseline
+    steps:
+      - name: Checkout sin credenciales persistentes
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configurar Node estable
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias bloqueadas
+        run: npm ci
+
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Ejecutar smoke de interaccion
+        run: npm run test:e2e
+
+      - name: Publicar evidencia ante fallos
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

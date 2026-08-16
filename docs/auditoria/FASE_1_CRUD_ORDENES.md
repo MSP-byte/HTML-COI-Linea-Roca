@@ -1,5 +1,11 @@
 # Fase 1 — Auditoría del borrado de Órdenes de Compra
 
+> **Documento histórico.** La corrección transitoria descrita aquí fue
+> reemplazada en la fase 4 por `coi_eliminar_orden_integral`, que ejecuta la
+> validación de dependencias y el borrado dentro de una única transacción de
+> PostgreSQL. Consultar `FASE_4_CORRECCION_SUPABASE.md` y
+> `FASE_8_INFORME_FINAL.md` para el contrato vigente.
+
 **Fecha:** 2026-07-29  
 **Versión:** `V60.1-CRUD-OC-PERSISTENTE`
 

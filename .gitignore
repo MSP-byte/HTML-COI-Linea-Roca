@@ -1,0 +1,41 @@
+node_modules/
+playwright-report/
+test-results/
+
+# Configuracion y credenciales locales
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+
+# Backups de base generados por el runbook de preproduccion
+*.dump
+*.dump.sha256
+
+# Estado temporal de Supabase CLI
+supabase/.temp/
+
+# COI QA local - no versionar perfiles/logs/dependencias
+.coi-qa/logs/
+.coi-qa/chrome-profile/
+.coi-qa/node_modules/
+.coi-qa/package-lock.json
+.coi-qa/package.json
+.coi-qa/screenshots/
+.coi-qa/reports/
+.coi-qa/runtime/
+.coi-qa/*.bak
+.coi-qa/*.pre-*
+.coi-qa/auth-diagnostic.mjs
+.coi-qa/admin-state-diagnostic.mjs
+
+# Backups y parches locales de estabilizacion (conservar en disco, no versionar)
+index.STAGING.pre-*.html
+/index.RC2.CANDIDATE.html
+/index.RC2.CANDIDATE.STAGING.html
+patch_*.py
+CODEX_HANDOFF_COI.md

@@ -1,0 +1,32 @@
+{
+  "name": "coi-linea-roca",
+  "version": "60.0.1",
+  "private": true,
+  "description": "Controles reproducibles del Sistema Integrado COI Línea Roca",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "npm run test:unit && npm run test:integration",
+    "validate:html": "html-validate index.html",
+    "validate:css": "node tests/check_css_syntax.js",
+    "validate:web": "npm run validate:html && npm run validate:css",
+    "test:unit": "npm run validate:web && node tests/check_baseline.js && node tests/check_p0_containment.js && node tests/check_crud_ordenes.js && node tests/check_control_terceros_static.js && node tests/check_integrity_guards.js && node tests/check_proxima_certificacion.js && node test_imputacion_posiciones.js",
+    "test:sql": "node tests/check_supabase_contract.js",
+    "test:integration": "npm run test:sql && node tests/check_supabase_runtime.js",
+    "test:static": "npm run test:unit && npm run test:sql",
+    "audit:high": "npm audit --audit-level=high",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium",
+    "qa:doctor": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .coi-qa/COI-Staging-Doctor.ps1 -Mode Doctor",
+    "qa:dirty": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .coi-qa/COI-Staging-Doctor.ps1 -Mode UiDirty",
+    "qa:admin": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .coi-qa/COI-Staging-Doctor.ps1 -Mode AdminState"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.4",
+    "@playwright/test": "1.62.1",
+    "css-tree": "3.1.0",
+    "html-validate": "11.6.2",
+    "playwright-core": "1.62.1"
+  }
+}

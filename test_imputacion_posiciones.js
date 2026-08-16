@@ -29,7 +29,10 @@ let state=ledger(master,moves);assert.deepEqual(state,{consumed:4,available:1,re
 result=impute(master,moves,1);assert.equal(result.writes,1);state=ledger(master,moves);assert.equal(state.available,0);assert.equal(state.remainingAmount,0);assert.equal(state.status,'CONSUMIDA');
 const reloaded=JSON.parse(JSON.stringify(moves));assert.equal(ledger(master,reloaded).available,0,'persistencia tras recarga');
 const master2={id:'MASTER-2',nro_oc:'4530008964',POS:'170,20',cantidad:10,precioUnitario:100};const multi=[];impute(master,multi,2);impute(master2,multi,3);assert.equal(multi[0].cantidadImputada,2);assert.equal(multi[1].cantidadImputada,3);assert.equal(multi.length,2);
-assert.match(html,/sourcePositionId:o\.idPosicionFinanciera/);assert.match(html,/cantidadRemanente:x\.cantidadRemanente/);assert.doesNotMatch(html,/function normalizarPOS\(value\)[\s\S]{0,500}parseFloat/);
-const report={version:'V58.1R38.3-IMPUTACION-POSICIONES-CANTIDADES',fixture:{oc:master.nro_oc,posOriginal:master.POS,posCanonica:normalizarPOS(master.POS),descripcion:master.descripcion,cantidadOriginal:5,cantidadImputada:4,precioUnitario:356126.40,montoImputado:1424505.60,cantidadRemanente:1,montoRemanente:356126.40,estado:'PARCIAL'},tests:13,status:'PASS',productiveWrites:0,timestamp:'2026-07-22T00:00:00Z'};
-fs.writeFileSync('TEST_IMPUTACION_POSICIONES_RESULTS.json',JSON.stringify(report,null,2)+'\n');
+assert.match(html,/idPosicionOrigen:origen\.idPosicionFinanciera/,'la certificación conserva el vínculo con la posición maestra');
+assert.match(html,/function finV56SaldoPosicion\s*\(/,'el saldo se calcula desde maestro y movimientos');
+assert.match(html,/financialMutations:'supabase-rpc-only'/,'la mutación productiva utiliza exclusivamente la transacción remota');
+assert.match(html,/coi_pending_financial_rpc_v1/,'los reintentos ambiguos conservan la clave de idempotencia');
+assert.doesNotMatch(html,/function normalizarPOS\(value\)[\s\S]{0,500}parseFloat/);
+const report={version:'SUPABASE-RPC-1',fixture:{oc:master.nro_oc,posOriginal:master.POS,posCanonica:normalizarPOS(master.POS),descripcion:master.descripcion,cantidadOriginal:5,cantidadImputada:4,precioUnitario:356126.40,montoImputado:1424505.60,cantidadRemanente:1,montoRemanente:356126.40,estado:'PARCIAL'},tests:15,status:'PASS',productiveWrites:0,timestamp:new Date().toISOString()};
 console.log(JSON.stringify(report));

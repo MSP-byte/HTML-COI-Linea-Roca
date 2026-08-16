@@ -1,46 +1,128 @@
 const { test, expect } = require('@playwright/test');
 
-test('selección → click real → confirmación nativa muestra la OC visual; cancelar conserva la fila', async ({ page }) => {
-  const clickLogs=[];
-  page.on('console',message=>{if(message.text().includes('[COI DELETE] CLICK RECIBIDO'))clickLogs.push(message.text());});
-  await page.goto('/index.html');
-  await page.locator('#btnOrdenes').click();
-  const checkbox=page.locator('.chk-orden-row').first();
-  await expect(checkbox).toBeVisible();
-  await checkbox.check();
-  await expect(page.locator('#ordenesSeleccionadasCount')).toContainText('1 seleccionada');
-  await expect(page.locator('#btnBorrarSeleccionadas')).toHaveText('Borrar seleccionadas (1)');
-  const rowsBefore=await page.locator('#ordenesTbody tr').count();
+async function openIsolated(page) {
+  await page.route(/^https?:\/(?!\/127\.0\.0\.1)/, route => route.abort());
+  await page.addInitScript(() => localStorage.clear());
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('body')).toBeVisible();
+}
 
-  let message='';
-  page.once('dialog',async dialog=>{message=dialog.message();await dialog.dismiss();});
-  await page.locator('#btnBorrarSeleccionadas').click();
-  await expect.poll(()=>message).toContain(await checkbox.getAttribute('aria-label').then(label=>label.replace(/^Seleccionar OC\s+/i,'')));
-  expect(clickLogs).toHaveLength(1);
-  await expect(page.locator('#ordenesTbody tr')).toHaveCount(rowsBefore);
+test('los módulos principales mantienen una única vista activa', async ({ page }) => {
+  const runtimeErrors = [];
+  page.on('pageerror', error => runtimeErrors.push(error.message));
+  page.on('console', message => {
+    if (message.type() === 'error' && !/Failed to load resource|ERR_FAILED/i.test(message.text())) {
+      runtimeErrors.push(message.text());
+    }
+  });
+  await openIsolated(page);
+  const routes = [
+    ['btnDashboard', '#vistaDashboard'],
+    ['btnRed', '#vistaRed'],
+    ['btnCalendarioCOI', '#vistaCalendarioCOI'],
+    ['btnOrdenes', '#vistaOrdenes'],
+    ['btnCarga', '#vistaCarga'],
+    ['btnAcercaSistema', '#vistaAcercaSistema'],
+  ];
+  for (const [button, view] of routes) {
+    const nav = page.locator(`[data-v2-nav="${button}"]`);
+    const mobile = (page.viewportSize()?.width || 0) <= 760;
+    if (mobile || !await nav.isVisible()) {
+      await page.locator('#coiV2Menu').click();
+    }
+    await expect(nav).toBeVisible();
+    if (mobile) {
+      await expect(page.locator('body')).toHaveClass(/\bcoi-v2-mobile-open\b/);
+      await nav.click({ force: true });
+    } else {
+      await nav.click();
+    }
+    await expect(page.locator(view)).toHaveClass(/\bactive\b/);
+    await expect(page.locator('section.view.active')).toHaveCount(1);
+  }
+
+  const dashboardNav = page.locator('[data-v2-nav="btnDashboard"]');
+  const mobile = (page.viewportSize()?.width || 0) <= 760;
+  if (mobile || !await dashboardNav.isVisible()) {
+    await page.locator('#coiV2Menu').click();
+  }
+  if (mobile) {
+    await expect(page.locator('body')).toHaveClass(/\bcoi-v2-mobile-open\b/);
+    await dashboardNav.click({ force: true });
+  } else {
+    await dashboardNav.click();
+  }
+  const periodFilter = page.getByRole('combobox', { name: 'Período' });
+  await expect(periodFilter).toBeVisible();
+  await periodFilter.selectOption({ label: 'Todo' });
+  await expect(periodFilter).toHaveValue('all');
+  expect(runtimeErrors).toEqual([]);
 });
 
-test('error Supabase posterior a confirmar mantiene la fila y es visible', async ({ page }) => {
-  await page.goto('/index.html');
-  await page.locator('#btnOrdenes').click();
-  const checkbox=page.locator('.chk-orden-row').first();
-  await checkbox.check();
-  const rowsBefore=await page.locator('#ordenesTbody tr').count();
-  page.on('dialog',async dialog=>{if(dialog.type()==='confirm')await dialog.accept();else if(dialog.message().includes('ELIMINAR'))await dialog.accept('ELIMINAR');else await dialog.accept('1234');});
-  await page.locator('#btnBorrarSeleccionadas').click();
-  await expect(page.locator('.coi-toast')).toContainText('No se pudo eliminar la OC en Supabase:');
-  await expect(page.locator('#ordenesTbody tr')).toHaveCount(rowsBefore);
-  await expect(page.locator('#btnBorrarSeleccionadas')).toBeEnabled();
+test('sin sesión la RPC financiera rechaza la mutación sin éxito falso', async ({ page }) => {
+  await openIsolated(page);
+  await page.waitForFunction(() => Boolean(window.COI_FINANZAS_SUPABASE?.certificarPosiciones));
+  const result = await page.evaluate(async () => {
+    try {
+      await window.COI_FINANZAS_SUPABASE.certificarPosiciones([{
+        posicion_id: '11111111-1111-4111-8111-111111111111',
+        cantidad: 1,
+        monto: 100
+      }], '22222222-2222-4222-8222-222222222222', { origen: 'e2e' });
+      return { ok: true, message: '' };
+    } catch (error) {
+      return { ok: false, message: error?.message || String(error) };
+    }
+  });
+  expect(result.ok).toBe(false);
+  expect(result.message).toMatch(/sesión|Supabase|cliente/i);
+  const guards = await page.evaluate(() => window.COI_OPERATIONAL_GUARDS);
+  expect(guards.financialMutations).toBe('supabase-rpc-only');
+  expect(guards.automaticDuplicateDeletion).toBe(false);
 });
 
-test('el binding idempotente sobrevive re-render y no duplica el handler', async ({ page }) => {
-  const logs=[];
-  page.on('console',message=>{if(message.text().includes('[COI DELETE] CLICK RECIBIDO'))logs.push(message.text());});
-  await page.goto('/index.html');
-  await page.locator('#btnOrdenes').click();
-  await page.evaluate(()=>{ window.bindCrudOrdenesUI(); window.renderOrdenes(); });
-  await page.locator('.chk-orden-row').first().check();
-  page.once('dialog',dialog=>dialog.dismiss());
-  await page.locator('#btnBorrarSeleccionadas').click();
-  expect(logs).toHaveLength(1);
+test('sin sesión Supabase el borrado no elimina filas locales', async ({ page }) => {
+  await openIsolated(page);
+  await page.waitForFunction(() => typeof window.eliminarOrdenesPersistentesV60 === 'function');
+  const result = await page.evaluate(async () => {
+    const before = typeof window.todasLasOC === 'function' ? window.todasLasOC().length : -1;
+    try {
+      await window.eliminarOrdenesPersistentesV60([{
+        id: '11111111-1111-4111-8111-111111111111',
+        nro_oc: '4530008000',
+        numeroOC: '4530008000'
+      }]);
+      return { ok: true, before, after: typeof window.todasLasOC === 'function' ? window.todasLasOC().length : -1, message: '' };
+    } catch (error) {
+      return { ok: false, before, after: typeof window.todasLasOC === 'function' ? window.todasLasOC().length : -1, message: error?.message || String(error) };
+    }
+  });
+  expect(result.ok).toBe(false);
+  expect(result.message).toMatch(/sesión|Supabase|cliente/i);
+  expect(result.after).toBe(result.before);
+});
+
+test('sin sesión no se exponen órdenes ni posiciones sembradas en caché', async ({ page }) => {
+  await page.route(/^https?:\/(?!\/127\.0\.0\.1)/, route => route.abort());
+  await page.addInitScript(() => {
+    localStorage.setItem('coi_supabase_ordenes_cache_v2', JSON.stringify({
+      savedAt: new Date().toISOString(),
+      orders: [{ id: '11111111-1111-4111-8111-111111111111', nro_oc: 'CACHE-OC-1', id_obra: 'CACHE-1', tipo: 'Obra', estacion: 'Temperley', proveedor: 'Dato sensible' }]
+    }));
+    localStorage.setItem('coi_cache_posiciones_oc_supabase_v1', JSON.stringify({
+      version: 2,
+      source: 'Supabase',
+      positions: [{ id: '22222222-2222-4222-8222-222222222222', nro_oc: 'CACHE-OC-1', posicion: '10.00', cantidad_total: 1, monto_total: 100 }],
+      consumptions: [],
+      rows: [{ id: '22222222-2222-4222-8222-222222222222', nro_oc: 'CACHE-OC-1', posicion: '10.00', cantidad_total: 1, monto_total: 100 }]
+    }));
+  });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => typeof window.verificarSesionSupabase === 'function');
+  await page.evaluate(() => window.verificarSesionSupabase());
+  await expect.poll(() => page.evaluate(() => (typeof window.todasLasOC === 'function' ? window.todasLasOC().length : -1))).toBe(0);
+  await expect.poll(() => page.evaluate(() => (window.posicionesFinancieras || []).length)).toBe(0);
+  await page.evaluate(() => window.logoutSupabase());
+  expect(await page.evaluate(() => localStorage.getItem('coi_supabase_ordenes_cache_v2'))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem('coi_cache_posiciones_oc_supabase_v1'))).toBeNull();
 });

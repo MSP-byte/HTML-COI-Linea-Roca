@@ -28,9 +28,11 @@ Toma de decisiones basada en indicadores visuales
 
 3. Estado del sistema
 
-Versión actual: V45 CONSOLIDADA
-Estado: ✅ Operativo
-Evolución: 🛠️ Desarrollo continuo (mejoras incrementales)
+Versión del repositorio: 60.0.1
+Estado del código: candidato RC1 validado localmente en Fase 9
+Condición pendiente para producción: aplicar y validar las seis migraciones de
+`supabase/migrations` primero en staging, con backup y smoke autenticado por
+rol. RC1 no equivale a autorización de producción.
 
 
 4. Alcance funcional
@@ -135,15 +137,39 @@ Número de OC
 HTML5
 CSS3
 JavaScript (ES6)
-LocalStorage (almacenamiento local del navegador)
-
+Supabase (PostgreSQL, Auth, RLS, RPC y Storage)
+LocalStorage (preferencias, caché autenticada y respaldo legacy controlado)
+Node.js para controles reproducibles
+Playwright para pruebas de navegador
 
 7. Consideraciones operativas
 
-El sistema funciona sin conexión a base de datos externa
-La información se guarda en el navegador del usuario
-No requiere instalación
-Recomendado para uso en entorno de escritorio
+Supabase es la fuente de verdad de los datos operativos.
+Sin sesión, la aplicación no muestra caché operativa.
+Sin conexión, sólo se admite lectura de caché para una sesión autenticada.
+Las operaciones financieras requieren las RPC versionadas del repositorio.
+Las etapas contractuales, los links documentales y el borrado de OCs también
+se confirman mediante RPC transaccionales del servidor.
+GitHub Pages publica el frontend estático; no contiene secretos privados.
+El cargador CDN usa `@supabase/supabase-js` 2.112.2 fijado y un proveedor de
+respaldo para evitar cambios de runtime no revisados.
+Recomendado para Chrome o Edge modernos en entorno de escritorio.
+
+7.1 Desarrollo y pruebas
+
+Requisitos: Node.js 22 o superior.
+
+```bash
+npm ci
+npm test
+npm run test:e2e:install
+npm run test:e2e
+```
+
+La guía de despliegue y recuperación de base está en
+`supabase/README.md` y el runbook ejecutable en
+`supabase/PREPRODUCCION.md`. La evidencia RC1 y las limitaciones del entorno
+están en `docs/auditoria/FASE_9_ESTABILIZACION_PREPRODUCCION.md`.
 
 
 8. Evolución del sistema (Roadmap)

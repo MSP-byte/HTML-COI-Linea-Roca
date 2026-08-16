@@ -1,0 +1,112 @@
+#!/usr/bin/env node
+'use strict';
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const root = 'supabase/migrations';
+const names = {
+  preflight: '202608100001_preflight_reports.sql',
+  ledger: '202608100002_financial_ledger.sql',
+  orders: '202608100003_atomic_order_update.sql',
+  rls: '202608100004_rls_policies.sql',
+  operations: '202608100005_operational_integrity.sql',
+  hardening: '202608110006_release_candidate_hardening.sql',
+  review: '202608160010_rc2_review_hardening.sql'
+};
+
+const sql = {};
+for (const [key, file] of Object.entries(names)) {
+  const target = path.join(root, file);
+  assert.ok(fs.existsSync(target), `Falta ${file}`);
+  sql[key] = fs.readFileSync(target, 'utf8');
+}
+const html = fs.readFileSync('index.html', 'utf8');
+
+// Preflight: solo lectura.
+assert.doesNotMatch(sql.preflight, /\bdelete\s+from\b/i);
+assert.doesNotMatch(sql.preflight, /\bupdate\s+public\.coi_/i);
+assert.match(sql.preflight, /coi_preflight_integridad/);
+assert.match(sql.preflight, /coi_normalize_order_number/);
+
+// Ledger: idempotencia, inmutabilidad y anulacion trazada.
+for (const pattern of [
+  /coi_consumos_posicion/i, /idempotency_key/i, /coi_idempotency_requests/i,
+  /COI_IDEMPOTENCY_CONFLICT/, /COI_DUPLICATE_POSITION_IN_BATCH/,
+  /coi_anular_consumo_posicion/, /set estado = 'ANULADA'/,
+  /coi_eliminar_posiciones_sin_movimientos/, /COI_POSITION_AMOUNT_BELOW_CONSUMED/
+]) assert.match(sql.ledger, pattern);
+assert.doesNotMatch(sql.ledger, /delete\s+from\s+public\.coi_consumos_posicion/i);
+
+// Edicion de orden: RPC allowlisted y estacion principal atomica.
+for (const pattern of [
+  /coi_actualizar_orden_integral/, /jsonb_populate_record/,
+  /COI_PROTECTED_OR_UNKNOWN_ORDER_FIELD/, /coi_ordenes_sync_principal_station/,
+  /COI_ORDER_REQUIRES_ONE_PRINCIPAL_STATION/
+]) assert.match(sql.orders, pattern);
+
+// RLS y privilegios core.
+for (const table of ['profiles','coi_ordenes','coi_ordenes_estaciones','coi_posiciones_oc','coi_consumos_posicion','coi_operaciones_auditoria','coi_idempotency_requests']) {
+  assert.match(sql.rls, new RegExp(`alter table public\\.${table} enable row level security`, 'i'), `Falta RLS para ${table}`);
+}
+assert.match(sql.rls, /as restrictive/i);
+assert.match(sql.rls, /revoke insert, update, delete on public\.coi_consumos_posicion from authenticated/i);
+
+// Operaciones administrativas y trazabilidad.
+for (const pattern of [
+  /coi_confirmar_etapa_circuito/, /coi_guardar_link_documental/,
+  /coi_eliminar_link_documental/, /coi_eliminar_orden_integral/,
+  /COI_ORDER_HAS_DEPENDENCIES/, /coi_links_documentales_principal_uq/,
+  /coi_historial_enforce_order/
+]) assert.match(sql.operations, pattern);
+assert.doesNotMatch(sql.operations, /delete\s+from\s+public\.coi_consumos_posicion/i);
+
+// RC1/RC2 hardening base.
+for (const pattern of [
+  /coi_ordenes_nro_oc_normalizado_uq/, /COI_ORDER_AMOUNT_BELOW_CONSUMED/,
+  /COI_POSITION_IDENTITY_IMMUTABLE/, /coi_guardar_orden_integral/,
+  /coi_certificar_posiciones_v2/, /COI_IDEMPOTENCY_SCOPE_CONFLICT/,
+  /coi_confirmar_etapa_circuito_v2/, /REINGRESAR_ETAPA_CIRCUITO/
+]) assert.match(sql.hardening, pattern);
+assert.match(sql.hardening, /revoke insert, update, delete on public\.coi_ordenes from authenticated/i);
+
+// Findings PR #27: hardening forward-only.
+for (const pattern of [
+  /coi_child_order_number_guard/,
+  /for key share/i,
+  /coi_order_number_dependency_guard/,
+  /COI_ORDER_NUMBER_DEPENDENCY_COLLISION/,
+  /coi_servicios_tecnicos_um/,
+  /coi_eliminar_orden_integral/,
+  /'renumeracion de oc'/i,
+  /coi_actualizar_orden_integral/
+]) assert.match(sql.review, pattern);
+const updater = sql.review.slice(sql.review.indexOf('create or replace function public.coi_actualizar_orden_integral'));
+assert.doesNotMatch(updater, /'link_documental_principal'|'estado_link_documental'/);
+
+// El frontend debe consumir las APIs sustitutas y no reabrir el DML financiero.
+for (const pattern of [
+  /client\.rpc\('coi_certificar_posiciones_v2'/,
+  /client\.rpc\('coi_actualizar_consumo_posicion'/,
+  /client\.rpc\('coi_anular_consumo_posicion'/,
+  /client\.rpc\('coi_actualizar_orden_integral'/,
+  /client\.rpc\('coi_eliminar_orden_integral'/,
+  /\.rpc\('coi_confirmar_etapa_circuito_v2'/,
+  /\.rpc\('coi_guardar_link_documental'/,
+  /\.rpc\('coi_eliminar_link_documental'/
+]) assert.match(html, pattern);
+assert.doesNotMatch(html, /\.rpc\('coi_certificar_posiciones'/);
+assert.doesNotMatch(html, /\.rpc\('coi_confirmar_etapa_circuito'/);
+assert.doesNotMatch(html, /\.from\(ORDENES_TABLE\)\.update\(\{proxima_certificacion:/);
+assert.match(html, /const CACHE_VERSION=2/);
+assert.match(html, /financialMutations:'supabase-rpc-only'/);
+
+for (const [name, body] of Object.entries(sql)) {
+  assert.equal((body.match(/\$\$/g) || []).length % 2, 0, `${name}: delimitadores $$ desbalanceados`);
+  assert.match(body, /^begin;/m, `${name}: falta BEGIN`);
+  assert.match(body, /commit;\s*$/i, `${name}: falta COMMIT final`);
+  assert.doesNotMatch(body, /service_role|password\s*=|secret\s*=/i, `${name}: posible secreto`);
+}
+
+console.log('Contrato Supabase: 7 migraciones auditadas; hardening PR #27, RPC, RLS e integridad verificados.');
