@@ -11,13 +11,13 @@ const DIST_DIR = path.dirname(require.resolve('@electric-sql/pglite'));
 const PGCRYPTO_URL = pathToFileURL(path.join(DIST_DIR, 'pgcrypto.tar.gz'));
 
 const USERS = {
-  administrador: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin@example.com'],
+  administrador: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin@coiroca.com'],
   jefatura: ['a1111111-1111-4111-8111-111111111111', 'jefatura@example.com'],
   editor: ['a2222222-2222-4222-8222-222222222222', 'editor@example.com'],
   planificacion: ['a3333333-3333-4333-8333-333333333333', 'planificacion@example.com'],
   control: ['a4444444-4444-4444-8444-444444444444', 'control@example.com'],
   supervisor: ['a5555555-5555-4555-8555-555555555555', 'supervisor@example.com'],
-  consulta: ['99999999-9999-4999-8999-999999999999', 'consulta@example.com']
+  consulta: ['99999999-9999-4999-8999-999999999999', 'consulta@coiroca.com']
 };
 const ORDER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const STATION_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
