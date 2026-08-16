@@ -35,5 +35,7 @@ supabase/.temp/
 
 # Backups y parches locales de estabilizacion (conservar en disco, no versionar)
 index.STAGING.pre-*.html
+/index.RC2.CANDIDATE.html
+/index.RC2.CANDIDATE.STAGING.html
 patch_*.py
 CODEX_HANDOFF_COI.md
