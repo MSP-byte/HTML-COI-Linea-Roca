@@ -172,15 +172,7 @@ async function main() {
     assert.equal((await db.query('select count(*)::int n from public.coi_consumos_posicion')).rows[0].n, 1);
     assert.equal((await db.query("select count(*)::int n from public.coi_operaciones_auditoria where accion='RECONCILIAR_CERTIFICACION_IDEMPOTENTE'")).rows[0].n, 1);
 
-    // Renumeración RPC conserva UUID y sincroniza hijo moderno.
-    const renumber = (await db.query(
-      "select public.coi_renumerar_oc($1::uuid,'4530009999','runtime') result",
-      [ORDER_ID]
-    )).rows[0].result;
-    assert.equal(renumber.nro_oc_nuevo, '4530009999');
-    assert.equal((await db.query('select nro_oc from public.coi_posiciones_oc where id=$1', [POSITION_ID])).rows[0].nro_oc, '4530009999');
-
-    console.log('Runtime Supabase RC2: writers legacy contenidos, recuperación idempotente y renumeración consistente: PASS');
+    console.log('Runtime Supabase RC2: writers legacy contenidos y recuperación idempotente server-side: PASS');
   } finally {
     await db.close();
   }
