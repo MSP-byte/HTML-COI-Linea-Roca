@@ -1,299 +1,247 @@
-# RC2 — Runbook de base de datos productiva
+# RC2 — Runbook final de salida a producción
 
-Estado: preparado, no ejecutado.
+**Estado:** preparado y versionado. **NO ejecutado contra producción.**
 
-Este runbook documenta la instalación controlada de la renumeración auditable de OC en Supabase producción. No autoriza por sí mismo ninguna ejecución. Toda lectura remota, migración o smoke productivo requiere autorización explícita y confirmación previa del project-ref.
+Este documento es la secuencia operativa final para llevar RC2 a Supabase producción y luego promover el frontend. No constituye autorización para ejecutar cambios productivos.
 
-## Guardrails obligatorios
+## 1. Guardrails obligatorios
 
 - Project-ref productivo esperado: `ooepgbzqlpjrtpaoqawc`.
-- No ejecutar `supabase db reset`.
-- No ejecutar `supabase db push` sin demostrar previamente que sólo contiene las dos migraciones aprobadas.
-- No usar `service_role` desde el frontend ni registrar tokens.
-- Detenerse ante cualquier objeto, columna, versión o project-ref inesperado.
-- Aplicar las migraciones exclusivamente en este orden:
-  1. `20260813024545_renumerar_oc.sql`
-  2. `20260813033959_fix_renumerar_oc_servicios_um.sql`
+- Project-ref STAGING conocido: `brmrroikctfbtzwfewan`.
+- Antes de cualquier escritura, confirmar visualmente y por CLI el project-ref.
+- No ejecutar `supabase db reset --linked`.
+- No usar `service_role` en frontend ni registrar secretos.
+- No hacer `git push --force`, `git reset --hard` ni limpieza destructiva.
+- Si una consulta preflight devuelve una inconsistencia inesperada: **STOP**.
+- La base de datos debe promoverse **antes** que el frontend productivo, porque RC2 consume contratos/RPC nuevos.
 
-## Artefactos aprobados
+## 2. Estado técnico certificado en rama RC2
 
-| Migración | SHA256 |
-|---|---|
-| `20260813024545_renumerar_oc.sql` | `7DBC4EE4C651D4FEC6B9E335ACB1611A175ED72AAD8E321BB843403320BE3454` |
-| `20260813033959_fix_renumerar_oc_servicios_um.sql` | `E226601630ACE99BDC0CD88154A0B183689197F112A09E3B0C7D7295208CDF39` |
+Rama: `release/rc2-estabilizacion`.
 
-Ambas están versionadas por el commit `53117c1`.
+El Quality Gate del PR valida:
 
-## Auditoría técnica
+- sintaxis HTML/CSS/JS;
+- tests estáticos y de regresión;
+- migraciones PostgreSQL en PGlite;
+- idempotencia financiera;
+- compatibilidad controlada de writers legacy;
+- guards de renumeración;
+- Chromium E2E.
 
-### A. Objetos creados o modificados
+La revisión del PR incorporó hardening forward-only para:
 
-La primera migración:
+- canonicalización de `nro_oc` históricos;
+- colisiones en dependencias modernas y legacy;
+- sincronización concurrente de hijos durante renumeración;
+- UM legacy como dependencia de borrado;
+- protección del historial de renumeración;
+- deadlocks de certificaciones concurrentes;
+- reconciliación de idempotency key perdida tras logout/red;
+- writers ejecutivos legacy bajo RLS + guardas + auditoría;
+- aislamiento STAGING/PROD del Doctor y del runner E2E.
 
-- reemplaza `public.coi_position_identity_guard()`;
-- crea o reemplaza `public.coi_renumerar_oc(uuid,text,text)` como `SECURITY DEFINER`;
-- fija `search_path = public, pg_temp`;
-- revoca ejecución a `public` y `anon` y concede ejecución a `authenticated`;
-- conserva el UUID maestro y sincroniza el `nro_oc` denormalizado;
-- escribe historial funcional y auditoría inmutable al ejecutar la RPC.
+## 3. Orden completo de migraciones RC2
 
-La segunda migración reemplaza la misma RPC con su definición final. Corrige específicamente `public.coi_servicios_tecnicos_um`, que posee `nro_oc` pero no `orden_id`, y recupera filas legacy con `orden_id IS NULL` en las tablas modernas.
+La instalación productiva debe respetar **estrictamente el orden lexicográfico/timestamp**:
 
-No crean tablas, columnas, índices ni políticas RLS nuevas.
+1. `202608100001_preflight_reports.sql`
+2. `202608100002_financial_ledger.sql`
+3. `202608100003_atomic_order_update.sql`
+4. `202608100004_rls_policies.sql`
+5. `202608100005_operational_integrity.sql`
+6. `202608110006_release_candidate_hardening.sql`
+7. `20260813024545_renumerar_oc.sql`
+8. `20260813033959_fix_renumerar_oc_servicios_um.sql`
+9. `202608160010_rc2_review_hardening.sql`
+10. `202608160020_rc2_concurrency_and_legacy.sql`
+11. `202608160030_rc2_legacy_writers_and_recovery.sql`
 
-### B. Dependencias
+**No aplicar sólo una migración intermedia.** La definición final del contrato RC2 resulta de la secuencia completa.
 
-Funciones requeridas:
+## 4. Preflight productivo — sólo lectura
 
-- `public.coi_assert_role(text[])`;
-- `public.coi_normalize_order_number(text)`;
-- `auth.uid()` y `auth.jwt()`.
-
-Tablas requeridas:
-
-- `coi_ordenes`;
-- `coi_ordenes_estaciones`;
-- `coi_posiciones_oc`;
-- `coi_certificaciones`;
-- `coi_consumos_posicion`;
-- `coi_documentos_oc`;
-- `coi_links_documentales`;
-- `coi_observaciones_oc`;
-- `coi_alertas`;
-- `coi_historial_oc`;
-- `coi_servicios_tecnicos_um`;
-- `coi_operaciones_auditoria`.
-
-El trigger existente de `coi_posiciones_oc` debe continuar enlazado a `coi_position_identity_guard()`.
-
-### C. Idempotencia
-
-- El DDL usa `create or replace function`, `revoke`, `grant` y `comment`; repetir las migraciones deja la definición final equivalente.
-- Cada archivo está envuelto en una transacción.
-- La RPC tiene idempotencia funcional cuando el número nuevo coincide con el vigente: retorna `sin_cambios=true` antes de mutar datos.
-- No debe considerarse válida la primera migración por sí sola. La segunda es la definición final obligatoria.
-
-### D. Orden obligatorio
-
-El orden por timestamp es obligatorio. La primera migración actualiza además el guard de posiciones; la segunda reemplaza la RPC defectuosa para la tabla UM legacy. Aplicar sólo la segunda omitiría el guard actualizado; aplicar sólo la primera dejaría una definición incompatible con la estructura real de UM.
-
-### E. Estado actual de producción
-
-No confirmado: M7A no ejecutó consultas ni SQL contra Supabase producción. La presencia total o parcial debe determinarse con las consultas read-only siguientes antes de cualquier despliegue.
-
-### F. Preflight productivo read-only
-
-Ejecutar sólo después de confirmar visualmente y por CLI que el proyecto objetivo es `ooepgbzqlpjrtpaoqawc`.
+Ejecutar primero, sin mutar datos:
 
 ```sql
--- 1. Ledger de migraciones.
-select *
-from supabase_migrations.schema_migrations
-where version in ('20260813024545', '20260813033959')
-order by version;
+-- Identidad y volumen base
+select count(*) as ordenes from public.coi_ordenes;
+select count(*) as estaciones from public.coi_ordenes_estaciones;
+select count(*) as posiciones from public.coi_posiciones_oc;
 
--- 2. Dependencias funcionales y estado actual de las funciones objetivo.
-select
-  to_regprocedure('public.coi_assert_role(text[])') as assert_role,
-  to_regprocedure('public.coi_normalize_order_number(text)') as normalize_order_number,
-  to_regprocedure('public.coi_position_identity_guard()') as position_guard,
-  to_regprocedure('public.coi_renumerar_oc(uuid,text,text)') as renumber_rpc;
-
--- 3. Columnas mínimas requeridas. El resultado debe ser cero filas.
-with required(table_name, column_name) as (
-  values
-    ('coi_ordenes','id'), ('coi_ordenes','nro_oc'),
-    ('coi_ordenes','actualizado_por'), ('coi_ordenes','fecha_actualizacion'),
-    ('coi_ordenes_estaciones','orden_id'), ('coi_ordenes_estaciones','nro_oc'),
-    ('coi_posiciones_oc','orden_id'), ('coi_posiciones_oc','nro_oc'),
-    ('coi_certificaciones','orden_id'), ('coi_certificaciones','nro_oc'),
-    ('coi_consumos_posicion','orden_id'), ('coi_consumos_posicion','nro_oc'),
-    ('coi_documentos_oc','orden_id'), ('coi_documentos_oc','nro_oc'),
-    ('coi_links_documentales','orden_id'), ('coi_links_documentales','nro_oc'),
-    ('coi_observaciones_oc','orden_id'), ('coi_observaciones_oc','nro_oc'),
-    ('coi_alertas','orden_id'), ('coi_alertas','nro_oc'),
-    ('coi_historial_oc','orden_id'), ('coi_historial_oc','nro_oc'),
-    ('coi_historial_oc','tipo_evento'), ('coi_historial_oc','campo_modificado'),
-    ('coi_historial_oc','valor_anterior'), ('coi_historial_oc','valor_nuevo'),
-    ('coi_historial_oc','motivo'), ('coi_historial_oc','usuario_email'),
-    ('coi_historial_oc','creado_por'),
-    ('coi_servicios_tecnicos_um','nro_oc'),
-    ('coi_operaciones_auditoria','usuario_id'),
-    ('coi_operaciones_auditoria','usuario_email'),
-    ('coi_operaciones_auditoria','rol'),
-    ('coi_operaciones_auditoria','accion'),
-    ('coi_operaciones_auditoria','entidad'),
-    ('coi_operaciones_auditoria','registro_id'),
-    ('coi_operaciones_auditoria','nro_oc'),
-    ('coi_operaciones_auditoria','datos_anteriores'),
-    ('coi_operaciones_auditoria','datos_nuevos'),
-    ('coi_operaciones_auditoria','contexto')
-)
-select required.*
-from required
-left join information_schema.columns c
-  on c.table_schema = 'public'
- and c.table_name = required.table_name
- and c.column_name = required.column_name
-where c.column_name is null
-order by required.table_name, required.column_name;
-
--- 4. Estructura legacy UM. Debe existir nro_oc; orden_id puede y normalmente debe faltar.
-select column_name, data_type, is_nullable
-from information_schema.columns
-where table_schema = 'public'
-  and table_name = 'coi_servicios_tecnicos_um'
-  and column_name in ('nro_oc','orden_id')
-order by column_name;
-
--- 5. Trigger de identidad de posiciones. Debe devolver al menos un trigger enlazado al guard.
-select tgname, pg_get_triggerdef(oid, true) as definition
-from pg_trigger
-where tgrelid = 'public.coi_posiciones_oc'::regclass
-  and not tgisinternal
-  and pg_get_triggerdef(oid, true) ilike '%coi_position_identity_guard%';
-
--- 6. Colisiones de números normalizados. Debe devolver cero filas.
-select public.coi_normalize_order_number(nro_oc) as nro_normalizado, count(*)
+-- Duplicados por nro_oc normalizado: debe devolver 0 filas.
+select regexp_replace(upper(trim(nro_oc)), '[^0-9A-Z]', '', 'g') as nro_normalizado,
+       count(*)
 from public.coi_ordenes
-group by public.coi_normalize_order_number(nro_oc)
+group by 1
 having count(*) > 1;
 
--- 7. Referencias modernas inconsistentes. Todos los conteos deben ser cero.
-select 'coi_ordenes_estaciones' as tabla, count(*) as inconsistencias
+-- OCs con formato no canónico: revisar antes de migrar.
+select id, nro_oc
+from public.coi_ordenes
+where nro_oc is null
+   or trim(nro_oc) = ''
+   or nro_oc ~ '[^0-9]'
+order by nro_oc;
+
+-- Dependencias modernas inconsistentes: todos los conteos deben ser 0.
+select 'coi_ordenes_estaciones' tabla, count(*) inconsistencias
 from public.coi_ordenes_estaciones x
 left join public.coi_ordenes o on o.id = x.orden_id
-where x.orden_id is not null and (o.id is null or x.nro_oc is distinct from o.nro_oc)
+where x.orden_id is not null and o.id is null
 union all
 select 'coi_posiciones_oc', count(*)
 from public.coi_posiciones_oc x
 left join public.coi_ordenes o on o.id = x.orden_id
-where x.orden_id is not null and (o.id is null or x.nro_oc is distinct from o.nro_oc)
-union all
-select 'coi_certificaciones', count(*)
-from public.coi_certificaciones x
-left join public.coi_ordenes o on o.id = x.orden_id
-where x.orden_id is not null and (o.id is null or x.nro_oc is distinct from o.nro_oc)
-union all
-select 'coi_consumos_posicion', count(*)
-from public.coi_consumos_posicion x
-left join public.coi_ordenes o on o.id = x.orden_id
-where x.orden_id is not null and (o.id is null or x.nro_oc is distinct from o.nro_oc)
-union all
-select 'coi_documentos_oc', count(*)
-from public.coi_documentos_oc x
-left join public.coi_ordenes o on o.id = x.orden_id
-where x.orden_id is not null and (o.id is null or x.nro_oc is distinct from o.nro_oc)
-union all
-select 'coi_links_documentales', count(*)
-from public.coi_links_documentales x
-left join public.coi_ordenes o on o.id = x.orden_id
-where x.orden_id is not null and (o.id is null or x.nro_oc is distinct from o.nro_oc)
-union all
-select 'coi_observaciones_oc', count(*)
-from public.coi_observaciones_oc x
-left join public.coi_ordenes o on o.id = x.orden_id
-where x.orden_id is not null and (o.id is null or x.nro_oc is distinct from o.nro_oc)
-union all
-select 'coi_alertas', count(*)
-from public.coi_alertas x
-left join public.coi_ordenes o on o.id = x.orden_id
-where x.orden_id is not null and (o.id is null or x.nro_oc is distinct from o.nro_oc)
-union all
-select 'coi_historial_oc', count(*)
-from public.coi_historial_oc x
-left join public.coi_ordenes o on o.id = x.orden_id
-where x.orden_id is not null and (o.id is null or x.nro_oc is distinct from o.nro_oc);
+where x.orden_id is not null and o.id is null;
 
--- 8. Definición/ACL actual para determinar si producción ya posee una implementación equivalente.
-select
-  p.oid::regprocedure as function_name,
-  p.prosecdef as security_definer,
-  p.proconfig as function_config,
-  has_function_privilege('anon', p.oid, 'EXECUTE') as anon_execute,
-  has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated_execute,
-  md5(pg_get_functiondef(p.oid)) as definition_md5,
-  position('coi_servicios_tecnicos_um' in pg_get_functiondef(p.oid)) > 0 as handles_legacy_um,
-  position('x.orden_id is null' in pg_get_functiondef(p.oid)) > 0 as handles_null_order_id
-from pg_proc p
-where p.oid in (
-  to_regprocedure('public.coi_position_identity_guard()'),
-  to_regprocedure('public.coi_renumerar_oc(uuid,text,text)')
-);
-```
+-- Confirmar estructura UM legacy.
+select column_name, data_type
+from information_schema.columns
+where table_schema='public'
+  and table_name='coi_servicios_tecnicos_um'
+  and column_name in ('nro_oc','orden_id')
+order by column_name;
 
-Además, antes de aplicar se deben exportar y conservar fuera del repositorio:
-
-```sql
-select p.oid::regprocedure, pg_get_functiondef(p.oid), p.proacl, p.proconfig
-from pg_proc p
-where p.oid in (
-  to_regprocedure('public.coi_position_identity_guard()'),
-  to_regprocedure('public.coi_renumerar_oc(uuid,text,text)')
-);
-```
-
-Ese snapshot es el respaldo de definiciones y permisos. No debe contener tokens ni credenciales.
-
-## Procedimiento de aplicación futura
-
-1. Confirmar autorización de producción y ventana de mantenimiento.
-2. Confirmar project-ref `ooepgbzqlpjrtpaoqawc` por dos medios independientes.
-3. Verificar nuevamente los SHA256 de ambos SQL.
-4. Ejecutar el preflight read-only completo y archivar sus resultados.
-5. Detenerse si hay columnas faltantes, duplicados normalizados, referencias inconsistentes o una historia de migraciones inesperada.
-6. Crear backup lógico productivo y snapshot de funciones/ACL.
-7. Aplicar exactamente `20260813024545_renumerar_oc.sql`.
-8. Aplicar inmediatamente `20260813033959_fix_renumerar_oc_servicios_um.sql`.
-9. No exponer todavía el frontend RC2.
-10. Ejecutar las validaciones post-migración read-only.
-11. Autorizar por separado un smoke funcional productivo controlado.
-12. Sólo después desplegar el frontend RC2.
-
-## G. Validaciones post-migración
-
-```sql
--- Ambas versiones deben figurar una vez.
-select *
+-- Migraciones RC2 ya presentes, si las hubiera.
+select version
 from supabase_migrations.schema_migrations
-where version in ('20260813024545', '20260813033959')
+where version >= '202608100001'
 order by version;
-
--- Contrato final de seguridad y cuerpo de la RPC.
-select
-  p.oid::regprocedure as function_name,
-  p.prosecdef as security_definer,
-  p.proconfig,
-  has_function_privilege('anon', p.oid, 'EXECUTE') as anon_execute,
-  has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated_execute,
-  position('coi_assert_role' in pg_get_functiondef(p.oid)) > 0 as checks_admin_role,
-  position('coi_servicios_tecnicos_um' in pg_get_functiondef(p.oid)) > 0 as handles_legacy_um,
-  position('x.orden_id is null' in pg_get_functiondef(p.oid)) > 0 as handles_null_order_id
-from pg_proc p
-where p.oid = to_regprocedure('public.coi_renumerar_oc(uuid,text,text)');
-
--- El guard debe seguir vinculado.
-select tgname, pg_get_triggerdef(oid, true)
-from pg_trigger
-where tgrelid = 'public.coi_posiciones_oc'::regclass
-  and not tgisinternal
-  and pg_get_triggerdef(oid, true) ilike '%coi_position_identity_guard%';
 ```
 
-Resultado esperado para la RPC: `security_definer=true`, `anon_execute=false`, `authenticated_execute=true`, `checks_admin_role=true`, `handles_legacy_um=true` y `handles_null_order_id=true`. Si `PUBLIC` conservara ejecución, `anon_execute` también resultaría verdadero por herencia, por lo que ese control cubre ambos casos.
+Si el esquema productivo difiere de lo esperado, no improvisar SQL de reparación en caliente: registrar el resultado y detener el despliegue.
 
-El smoke de renumeración productivo no forma parte de estas consultas y requiere una autorización separada, una OC de prueba explícita y recuperación `try/finally`.
+## 5. Backup previo
 
-## H. Riesgo y rollback
+Antes de migrar:
 
-- Antes de ejecutar la RPC, el rollback de esquema consiste en restaurar dentro de una transacción las definiciones, propietarios, ACL, comentarios y `search_path` capturados en el snapshot previo.
-- Después de una renumeración real no se debe borrar historial ni auditoría, ni intentar un rollback SQL ciego. La recuperación del número debe realizarse mediante la propia RPC, con motivo auditable, o mediante un forward-fix aprobado.
-- Si falla el frontend pero las migraciones pasaron, revertir el commit/deploy frontend es suficiente; las funciones son aditivas y el acceso permanece restringido.
-- Si el preflight o una migración falla dentro de su transacción, no continuar con el segundo paso y conservar toda la evidencia.
-- La mayor superficie de riesgo es la sincronización de referencias legacy por `nro_oc`; por eso duplicados e inconsistencias deben ser cero antes de aplicar.
+1. generar backup de la base productiva con el mecanismo aprobado para el proyecto;
+2. conservar checksum y timestamp;
+3. verificar que el archivo no quede dentro del repositorio Git;
+4. registrar el HEAD exacto de la rama RC2.
 
-## I. Dependencia del frontend RC2
+`.gitignore` excluye `*.dump` y `*.dump.sha256`.
 
-El HTML puede cargar sin la RPC, pero la funcionalidad RC2 de renumeración no cumple su contrato y mostrará error si `coi_renumerar_oc(uuid,text,text)` no está instalada con la definición final. Por lo tanto, para un release RC2 completo, ambas migraciones son prerrequisito obligatorio del despliegue frontend.
+## 6. Aplicación de migraciones
 
-Secuencia recomendada: preflight → backup → migraciones → validación DB → smoke autorizado → deploy frontend → smoke productivo read-only.
+Sólo después de autorización explícita y preflight aprobado.
+
+Procedimiento recomendado:
+
+1. confirmar vínculo al project-ref productivo;
+2. listar migraciones locales/remotas;
+3. verificar que las pendientes correspondan exclusivamente a la secuencia RC2 prevista;
+4. ejecutar el mecanismo de migración controlado de Supabase;
+5. detenerse ante el primer error;
+6. volver a listar el ledger de migraciones.
+
+No ejecutar migraciones manuales aisladas fuera del historial salvo contingencia documentada.
+
+## 7. Smoke de base inmediatamente posterior
+
+Validar antes de tocar `main`:
+
+```sql
+-- La RPC de renumeración debe existir.
+select to_regprocedure('public.coi_renumerar_oc(uuid,text,text)');
+
+-- Contratos principales.
+select to_regprocedure('public.coi_actualizar_orden_integral(uuid,jsonb)');
+select to_regprocedure('public.coi_certificar_posiciones_v2(jsonb,uuid,jsonb)');
+select to_regprocedure('public.coi_eliminar_orden_integral(uuid)');
+
+-- Guardas RC2 finales.
+select to_regprocedure('public.coi_child_order_number_guard()');
+select to_regprocedure('public.coi_order_number_dependency_guard()');
+select to_regprocedure('public.coi_direct_order_update_guard()');
+
+-- No debe haber inconsistencias UUID/nro_oc en hijos modernos.
+select 'posiciones' tabla, count(*) inconsistencias
+from public.coi_posiciones_oc x
+join public.coi_ordenes o on o.id=x.orden_id
+where x.nro_oc is distinct from o.nro_oc
+union all
+select 'certificaciones', count(*)
+from public.coi_certificaciones x
+join public.coi_ordenes o on o.id=x.orden_id
+where x.nro_oc is distinct from o.nro_oc;
+```
+
+No usar una OC real para una prueba destructiva si puede evitarse. Las pruebas de escritura deben usar el registro de prueba controlado definido para RC2 o una OC creada específicamente para smoke.
+
+## 8. Promoción del frontend
+
+Sólo si:
+
+- preflight productivo aprobado;
+- backup confirmado;
+- migraciones aplicadas sin error;
+- smoke de DB aprobado;
+- PR sin findings P1/P2 abiertos;
+- Quality Gate verde en el HEAD que se va a mergear.
+
+Entonces:
+
+1. confirmar nuevamente el HEAD de `release/rc2-estabilizacion`;
+2. mergear PR #27 a `main` sin force;
+3. esperar el workflow/deploy correspondiente;
+4. validar la URL productiva;
+5. comprobar login, consulta, edición, certificación, calendario y recarga desde Supabase;
+6. no realizar una renumeración real sólo para probar producción; usar el caso controlado si sigue disponible.
+
+## 9. Smoke funcional productivo mínimo
+
+Checklist:
+
+- [ ] Login Supabase correcto.
+- [ ] Dashboard carga datos remotos.
+- [ ] Abrir ficha OC.
+- [ ] Editar un campo no crítico autorizado y recargar: persiste en Supabase.
+- [ ] Próxima certificación persiste y recarga correctamente.
+- [ ] Roles sin permiso no pueden editar.
+- [ ] Links documentales respetan roles.
+- [ ] Writer ejecutivo legacy no devuelve `permission denied`.
+- [ ] Renumeración directa por PostgREST queda bloqueada; sólo RPC administradora.
+- [ ] Certificación financiera no duplica movimientos ante reintento.
+- [ ] Calendario/alertas reflejan datos persistidos.
+- [ ] Eliminación integral respeta dependencias y UM legacy.
+
+## 10. Criterio de GO / NO-GO
+
+**GO** únicamente si todos los puntos anteriores son verdes.
+
+**NO-GO** ante cualquiera de estos casos:
+
+- project-ref no confirmado;
+- backup no verificable;
+- migración pendiente inesperada;
+- inconsistencia UUID/`nro_oc`;
+- Quality Gate rojo;
+- review thread crítico abierto;
+- `permission denied` en flujo operativo esperado;
+- discrepancia entre estado mostrado y estado persistido en Supabase;
+- cualquier indicio de doble consumo financiero.
+
+## 11. Rollback / contingencia
+
+No intentar “deshacer” RC2 mediante ediciones manuales improvisadas.
+
+Ante falla antes del merge frontend:
+
+- detener promoción;
+- conservar evidencia y logs;
+- evaluar rollback DB con backup o una migración forward correctiva.
+
+Ante falla después del merge frontend:
+
+- priorizar contención del frontend y preservación de datos;
+- no borrar ledger financiero ni historial;
+- documentar commit, hora, usuario y operación afectada;
+- restaurar sólo con procedimiento controlado.
+
+---
+
+### Regla final
+
+La salida productiva es una maniobra de dos etapas: **DB primero, frontend después**. RC2 no se considera 100% productivo hasta completar migraciones, merge/deploy y smoke real sobre producción con autorización explícita.
