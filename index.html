@@ -19181,7 +19181,7 @@ function instalarEventosEdicionIntegral(){
     const edit=e.target.closest('#btnEditarFichaOC,#btnEditarOC,#execBtnEditar');
     if(edit){
       e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
-      activarModoEdicionOC(currentOCKeyFromGlobals());
+      window.activarModoEdicionOC(currentOCKeyFromGlobals());
       return;
     }
     const save=e.target.closest('#btnGuardarEdicionIntegralOC');
