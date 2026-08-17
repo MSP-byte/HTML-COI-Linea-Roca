@@ -105,8 +105,8 @@ async function main() {
           select id::uuid,email from (values ${values}) source(id,email,rol);
           insert into public.profiles(id,email,rol,activo)
           select id::uuid,email,rol,true from (values ${values}) source(id,email,rol);
-          insert into public.coi_ordenes(id,nro_oc,id_obra,estacion,ramal,sector,monto_total,moneda)
-          values ('${ORDER_ID}','4530008964','OB-1','Banfield','Roca','Andenes',1000,'ARS');
+          insert into public.coi_ordenes(id,nro_oc,id_obra,estacion,ramal,sector,monto_total,moneda,estado_coi)
+          values ('${ORDER_ID}','4530008964','OB-1','Banfield','Roca','Andenes',1000,'ARS','OBRA/SERVICIO EN EJECUCIÓN');
           insert into public.coi_ordenes_estaciones(id,orden_id,estacion,ramal,sector,es_principal)
           values ('${STATION_ID}','${ORDER_ID}','Banfield','Roca','Andenes',true);
           insert into public.coi_posiciones_oc(
