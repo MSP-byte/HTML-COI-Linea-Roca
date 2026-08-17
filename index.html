@@ -24759,10 +24759,8 @@ console.error('COI dirty: baseline invalido',error);
 baseline={};
 }
 
-const names=new Set([
-...Object.keys(baseline),
-...Object.keys(current)
-]);
+const missingFields=Object.keys(baseline).filter(name=>!has(current,name));
+const names=new Set(Object.keys(current));
 
 const differences=[];
 
@@ -24792,7 +24790,8 @@ timestamp:new Date().toISOString(),
 dirty:dirty,
 differences:differences,
 baseline:baseline,
-current:current
+current:current,
+missingFields:missingFields
 };
 
 const badge=editState.modal.querySelector('#coiEditDirtyV60');
@@ -24822,12 +24821,20 @@ return dirty;
   function closeEditor(force=false){if(!editState)return true;if(editState.dirty&&!force&&!confirm('Hay cambios sin guardar. ¿Cerrar y descartarlos?'))return false;editState.modal.hidden=true;editState=null;return true;}
   function recalcDue(){if(!editState)return;const start=editState.modal.querySelector('[data-coi-edit-field="fecha_acta_inicio"]')?.value,days=Number(editState.modal.querySelector('[data-coi-edit-field="plazo_dias"]')?.value);if(!start||!Number.isFinite(days)||days<0)return;const date=new Date(`${start}T12:00:00`);date.setDate(date.getDate()+days);const calculated=date.toISOString().slice(0,10),input=editState.modal.querySelector('[data-coi-edit-field="fecha_vencimiento"]');if(input.value&&input.value!==calculated&&!confirm(`El vencimiento actual es ${input.value}. ¿Reemplazarlo por ${calculated}?`))return;input.value=calculated;input.dispatchEvent(new Event('input',{bubbles:true}));}
   async function openEditor(reference){
-    const order=resolveLocal(reference||window.ocActualId||window.__coiFichaOCActiva);if(!order){if(typeof window.coiToast==='function')window.coiToast('No se pudo identificar la OC abierta.','error');return false;}
+    const localOrder=resolveLocal(reference||window.ocActualId||window.__coiFichaOCActiva);if(!localOrder){if(typeof window.coiToast==='function')window.coiToast('No se pudo identificar la OC abierta.','error');return false;}
+    let order=localOrder,sessionError=null;
+    if(navigator.onLine!==false){
+      try{
+        const access=await requireSession();
+        const remoteId=text(fieldValue(localOrder,'id'));
+        if(UUID_RE.test(remoteId))order=await readRemote(access.client,remoteId);
+      }catch(error){sessionError=error;}
+    }
     const modal=ensureModal(),sections=SECTIONS.map(([title,fields],index)=>`<section class="coi-edit-v60-section" data-section-index="${index+1}"><h3>${index+1}. ${esc(title)}</h3><div class="coi-edit-v60-grid">${fields.map(name=>fieldInput(name,fieldValue(order,name))).join('')}</div>${title==='Contractual'?'<div class="admin-actions"><button type="button" data-coi-recalc-venc>Recalcular vencimiento</button><button type="button" data-coi-recalc-cert>Recalcular próxima certificación</button></div>':''}</section>`).join('');
     modal.innerHTML=`<div class="coi-edit-v60-card" role="dialog" aria-modal="true" aria-labelledby="coiEditTitleV60"><div class="coi-edit-v60-head"><div><h2 id="coiEditTitleV60">Editar OC · Expediente Digital</h2><p>OC ${esc(fieldValue(order,'nro_oc'))}</p></div><button type="button" data-coi-edit-close>×</button></div><div id="coiEditReadonlyV60" class="coi-edit-v60-readonly" hidden>Modo solo lectura</div><section class="coi-edit-v60-section"><h3>Campos protegidos</h3><div class="coi-edit-v60-grid">${PROTECTED.map(name=>protectedInput(name,order)).join('')}<label class="coi-edit-v60-field protected"><span>Cambiar N.º OC</span><button type="button" data-coi-renumber title="Renumeracion administrativa mediante RPC auditable">Cambiar Nro. OC</button></label></div></section>${sections}<div id="coiEditErrorV60" class="coi-edit-v60-error" aria-live="polite"></div><div class="coi-edit-v60-actions"><span id="coiEditDirtyV60" class="coi-edit-v60-dirty">Sin cambios pendientes</span><button type="button" data-coi-edit-cancel>Cancelar</button><button type="button" class="primary" id="coiEditSaveV60" disabled>Guardar cambios</button></div></div>`;
     modal.hidden=false;const values=collectForm(modal);editState={modal,order,orderId:text(fieldValue(order,'id')),baseline:serialize(values),dirty:false,initializing:true};
     const readonly=modal.querySelector('#coiEditReadonlyV60'),save=modal.querySelector('#coiEditSaveV60');
-    if(navigator.onLine===false){readonly.hidden=false;readonly.textContent='Modo solo lectura · sin conexión';save.disabled=true;}else{try{await requireSession();save.disabled=true;}catch(error){readonly.hidden=false;readonly.textContent=error?.message||'Debe iniciar sesión.';save.disabled=true;}}
+    if(navigator.onLine===false){readonly.hidden=false;readonly.textContent='Modo solo lectura · sin conexión';save.disabled=true;}else if(sessionError){readonly.hidden=false;readonly.textContent=sessionError?.message||'Debe iniciar sesión.';save.disabled=true;}else{save.disabled=true;}
     requestAnimationFrame(()=>{requestAnimationFrame(()=>{if(!editState)return;editState.baseline=serialize(collectForm(editState.modal));editState.dirty=false;editState.initializing=false;updateDirty();});});return true;
   }
   async function renumberOrder(){
@@ -25005,7 +25012,7 @@ document.addEventListener('click',function(event){
   async function saveEditor(){
     if(!editState||savePromise)return;const modal=editState.modal,button=modal.querySelector('#coiEditSaveV60'),errorBox=modal.querySelector('#coiEditErrorV60');showFieldErrors();errorBox.textContent='';button.disabled=true;button.textContent='Guardando…';
     try{
-      const current=collectForm(modal),baseline=JSON.parse(editState.baseline),changes={};for(const name of ALLOWED)if(comparable(name,current[name])!==comparable(name,baseline[name]))changes[name]=current[name];
+      const current=collectForm(modal),baseline=JSON.parse(editState.baseline),changes={};for(const name of ALLOWED)if(has(current,name)&&comparable(name,current[name])!==comparable(name,baseline[name]))changes[name]=current[name];
       const result=await actualizar(editState.orderId,changes);editState.dirty=false;modal.hidden=true;editState=null;
       const warning=result.warnings?.length?` Advertencias: ${result.warnings.join(' | ')}`:'';if(typeof window.coiToast==='function')window.coiToast(`OC actualizada correctamente en Supabase.${warning}`,result.warnings?.length?'warning':'ok');
     }catch(error){console.error('[COI][ORDENES][UPDATE][ERROR]',error);errorBox.textContent=error?.message||String(error);showFieldErrors(error.fieldErrors||{});}
