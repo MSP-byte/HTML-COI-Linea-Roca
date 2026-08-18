@@ -25407,6 +25407,18 @@ document.addEventListener('click',function(event){
     `;document.head.appendChild(style);
   }
 
+  /* COI_OBRA_RESUMEN_QA_HOOK_V1: usa exactamente el mismo decorador productivo, sin persistir datos. */
+  window.COI_OBRA_RESUMEN_SUPABASE_V1=Object.freeze({
+    async decorateForQA(reference,item){
+      const seq=++renderSeq;
+      const ui=item?patchResumenObra(item):null;
+      const repoSpan=patchRepositorioBase();
+      if(ui||repoSpan) await enrichFromSupabase(reference,item,ui,repoSpan,seq);
+      return {obra:Boolean(ui),repositorio:Boolean(repoSpan)};
+    },
+    latestCertification
+  });
+
   installAlertStyles();
   const previous=window.renderFichaOC;
   if(typeof previous==='function'){
