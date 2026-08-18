@@ -1,4 +1,5 @@
 name: TMP apply QA hook obra summary
+# retrigger 2026-08-18
 on:
   push:
     branches:
