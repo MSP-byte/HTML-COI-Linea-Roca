@@ -5742,7 +5742,6 @@ function renderFichaOC(idObra){
           <div><b>Recepción documentación</b>${fmtFecha(item.fechaRecepcionDocumentacion || item.recepcionDocumentacion || item.fechaRecepcionFactura) || '—'}</div>
           <div><b>Envío a Planificación y Control</b>${fmtFecha(item.fechaEnvioPyC || item.fechaEnvioPlanificacion || item.fechaEnvioPlanificacionControl) || '—'}</div>
           <div><b>Estado documental</b>${esc(estadoDoc)}</div>
-          <div><b>Repositorio documental</b><span data-coi-repo-supabase>Supabase Storage</span></div>
         </div>
         ${typeof renderBloqueEstadoDocumental==='function'?renderBloqueEstadoDocumental(item):''}
       </section>
@@ -16519,7 +16518,7 @@ const APP_DATA_MODE = "supabase_first";
     }).join('');
     return`<div class="exec-primary-link"><div><b>Link principal</b><br>${principalSeguro?`<a href="${esc(principalSeguro)}" target="_blank" rel="noopener noreferrer">${esc(principalSeguro)}</a>`:'Sin carpeta principal válida configurada'}</div>${principalSeguro?`<button type="button" data-exec-open-link="${esc(principalSeguro)}">Abrir vínculo</button>`:''}</div><div class="table-wrap"><table class="coi-table tabla-operativa exec-table"><thead><tr><th>Tipo</th><th>Título</th><th>URL</th><th>Estado</th><th>Principal</th><th>Observaciones</th><th>Actualización</th><th>Acciones</th></tr></thead><tbody>${body||'<tr><td colspan="8">Sin links documentales.</td></tr>'}</tbody></table></div>`;
   }
-  async function renderLinksDocumentalesOC(orden){const o=resolveOrder(orden);if(!o)return[];currentOrder=o;let card=$('execDocumentCard');if(card)card.remove();const host=$('fichaOCBody');if(!host)return[];card=document.createElement('section');card.id='execDocumentCard';card.className='exec-document-card ficha-oc-panel';card.innerHTML='<h3>Expediente documental</h3><div class="exec-empty">Cargando links desde Supabase…</div>';host.appendChild(card);try{const rows=await cargarLinksDocumentalesOC(o);card.innerHTML=`<div class="exec-card-head"><div><h3>Expediente documental</h3><div class="muted">Vínculos documentales registrados en Supabase para la OC ${esc(nro(o))}.</div></div><div class="exec-actions"><button type="button" class="primary" data-exec-link-add>Agregar link documental</button>${o.linkDocumentalPrincipal?`<button type="button" data-exec-open-link="${esc(o.linkDocumentalPrincipal)}">Abrir principal</button>`:''}</div></div>${renderLinksTable(o,rows)}`;return rows}catch(e){card.innerHTML=`<h3>Expediente documental</h3><div class="coi-error-box">${esc(e.message||e)}</div>`;return[]}}
+  async function renderLinksDocumentalesOC(orden){const o=resolveOrder(orden);if(!o)return[];currentOrder=o;let card=$('execDocumentCard');if(card)card.remove();const host=$('fichaOCBody');if(!host)return[];card=document.createElement('section');card.id='execDocumentCard';card.className='exec-document-card ficha-oc-panel';card.innerHTML='<h3>Expediente documental</h3><div class="exec-empty">Cargando links desde Supabase…</div>';host.appendChild(card);try{const rows=await cargarLinksDocumentalesOC(o);card.innerHTML=`<div class="exec-card-head"><div><h3>Expediente documental</h3><div class="muted">Vínculos documentales registrados en Supabase para la OC ${esc(nro(o))}.</div></div><div class="exec-actions">${o.linkDocumentalPrincipal?`<button type="button" data-exec-open-link="${esc(o.linkDocumentalPrincipal)}">Abrir principal</button>`:''}</div></div>${renderLinksTable(o,rows)}`;return rows}catch(e){card.innerHTML=`<h3>Expediente documental</h3><div class="coi-error-box">${esc(e.message||e)}</div>`;return[]}}
   function normalizarNroOCStorage(orden){const o=resolveOrder(orden)||orden;return (nro(o)||clean(typeof orden==='string'?orden:'')).replace(/\s+/g,'')}
   function campoDocumentoStorage(documento,nombres,fallback=''){
     for(const nombre of nombres){
@@ -16774,7 +16773,7 @@ const APP_DATA_MODE = "supabase_first";
   function enhanceOrders(){const table=document.querySelector('#vistaOrdenes table.ordenes-table'),tbody=$('ordenesTbody');if(!table||!tbody)return;const head=table.tHead?.rows?.[0];if(head&&!head.querySelector('[data-exec-col]')){const action=head.lastElementChild;['Calidad','Documental','PyC','Prioridad','Requiere acción'].forEach(l=>{const th=document.createElement('th');th.dataset.execCol='1';th.textContent=l;head.insertBefore(th,action)})}[...tbody.rows].forEach(tr=>{if(tr.cells.length<2)return;[...tr.querySelectorAll('[data-exec-cell]')].forEach(x=>x.remove());const key=tr.dataset.openOc||tr.querySelector('[data-open-oc]')?.dataset.openOc;const o=resolveOrder(key);if(!o)return;const meta=metaByOC.get(nro(o));if(meta)Object.assign(o,mapRowToItem(meta));const action=tr.lastElementChild;const vals=[qualityBadge(o),docBadge(o),pycBadge(o),priorityBadge(o),bool(o.requiere_accion||o.requiereAccion)?`<span class="exec-action-yes">Sí<br><small>${esc(o.motivo_requiere_accion||o.motivoRequiereAccion||'')}</small></span>`:'<span class="exec-action-no">No</span>'];vals.forEach(v=>{const td=document.createElement('td');td.dataset.execCell='1';td.innerHTML=v;tr.insertBefore(td,action)});tr.hidden=false})}
   function generarAlertasCalidadYDocumentales(){const out=[];normalizedRows().forEach(o=>{const n=o.nro_oc,d=daysTo(o.fecha_vencimiento);if(!clean(o.link_documental_principal))out.push({sev:'Alta',tipo:'Sin link documental',oc:n,est:o.estacion,msg:'La OC no posee link documental principal.',accion:'Cargar carpeta OneDrive desde Ficha OC'});if(norm(o.calidad_datos_estado)==='ROJO')out.push({sev:'Crítica',tipo:'Calidad roja',oc:n,est:o.estacion,msg:o.motivo_requiere_accion||'Datos críticos incompletos.',accion:'Ejecutar control de calidad y completar datos'});if(d!==null&&d<0&&!clean(o.justificacion_administrativa))out.push({sev:'Crítica',tipo:'Vencida sin justificación',oc:n,est:o.estacion,msg:'OC vencida sin justificación administrativa.',accion:'Registrar justificación o cerrar operativamente'});if(!clean(o.proxima_certificacion)&&!isClosed(o))out.push({sev:'Media',tipo:'Sin próxima certificación',oc:n,est:o.estacion,msg:'No se informó próxima certificación.',accion:'Completar fecha de certificación'});if(!clean(o.fecha_acta_inicio)&&!isClosed(o))out.push({sev:'Media',tipo:'Sin acta de inicio',oc:n,est:o.estacion,msg:'No se informó acta de inicio.',accion:'Completar datos contractuales'});if(!clean(o.fecha_envio_planificacion)&&norm(o.estado_envio_pyc)!=='ENVIADO'&&!isClosed(o))out.push({sev:'Media',tipo:'No enviada a PyC',oc:n,est:o.estacion,msg:'Pendiente de envío a Planificación y Control.',accion:'Marcar enviada a PyC'});if(d!==null&&d>=0&&d<=30)out.push({sev:d<=7?'Alta':'Media',tipo:'Próxima a vencer',oc:n,est:o.estacion,msg:`Vence en ${d} día(s).`,accion:'Revisar vigencia y certificaciones'});if(norm(o.estado_link_documental)==='INCOMPLETO')out.push({sev:'Media',tipo:'Documentación incompleta',oc:n,est:o.estacion,msg:'Hay links, pero falta carpeta principal.',accion:'Marcar carpeta OneDrive como principal'})});return out}
   function renderAlertsExecutive(){const host=document.querySelector('#vistaCentroAlertas .view-body');if(!host)return;let card=$('execAlertsCard');if(card)card.remove();const rows=generarAlertasCalidadYDocumentales();card=document.createElement('section');card.id='execAlertsCard';card.className='exec-alert-card';card.innerHTML=`<div class="exec-card-head"><div><h3>Alertas de calidad y documentación</h3><div class="muted">${rows.length} alerta(s) calculadas desde Supabase.</div></div></div><div class="table-wrap"><table class="coi-table tabla-operativa exec-alert-table"><thead><tr><th>Severidad</th><th>Tipo</th><th>OC</th><th>Estación</th><th>Mensaje</th><th>Acción sugerida</th><th>Ficha</th></tr></thead><tbody>${rows.map(a=>`<tr class="${norm(a.sev)==='CRITICA'?'exec-critical-row':''}"><td>${badge(a.sev,norm(a.sev).includes('CRIT')||norm(a.sev)==='ALTA'?'rojo':norm(a.sev)==='MEDIA'?'amarillo':'gris')}</td><td>${esc(a.tipo)}</td><td>${esc(a.oc)}</td><td>${esc(a.est||'—')}</td><td>${esc(a.msg)}</td><td>${esc(a.accion)}</td><td><button type="button" data-open-oc="${esc(a.oc)}">Ver ficha</button></td></tr>`).join('')||'<tr><td colspan="7">Sin alertas ejecutivas.</td></tr>'}</tbody></table></div>`;host.insertBefore(card,host.firstChild)}
-  function renderExecutiveFicha(orden){const o=resolveOrder(orden);if(!o)return;currentOrder=o;const host=$('fichaOCBody');if(!host)return;let card=$('execHeaderCard');if(card)card.remove();card=document.createElement('section');card.id='execHeaderCard';card.className='exec-header-card';const linkRaw=o.linkDocumentalPrincipal||o.link_documental_principal,link=validarUrlDocumental(linkRaw)?linkRaw:'';card.innerHTML=`<div class="exec-card-head"><div><h3>Cabecera ejecutiva</h3><div class="muted">OC ${esc(nro(o))} · ${esc(o.proveedor||'Sin proveedor')}</div></div><div>${qualityBadge(o)} ${docBadge(o)} ${pycBadge(o)}</div></div><div class="exec-header-grid">${[['N° OC',nro(o)],['Proveedor',o.proveedor],['Tipo',o.tipo],['Estación principal',o.estacion],['Estado COI',o.estado||o.estadoCOI],['Vigencia operativa',daysTo(o.vencimiento)<0?'Vencida':'Vigente'],['Próxima certificación',fmtDate(o.proximaCertificacion)],['Estado documental',o.estadoDocumental||'—'],['Calidad',`${o.calidadDatosEstado||'Sin auditar'} (${Number(o.calidadDatosScore||0)})`],['Link principal',link?`<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">Abrir OneDrive</a>`:'Sin link válido']].map(([l,v])=>`<div class="exec-header-item"><b>${esc(l)}</b><span>${String(v||'—').startsWith('<a ')?v:esc(v||'—')}</span></div>`).join('')}</div><div class="exec-top-actions"><button type="button" id="execBtnEditar">Editar OC</button><button type="button" id="execBtnGuardar" class="primary">Guardar cambios</button><button type="button" data-oc-station-add>Agregar estación asociada</button><button type="button" data-exec-link-add>Agregar link documental</button>${link?`<button type="button" data-exec-open-link="${esc(link)}">Abrir OneDrive</button>`:''}<button type="button" id="execBtnPyc">Marcar enviada a PyC</button><button type="button" id="execBtnQuality">Ejecutar control de calidad</button><button type="button" id="execBtnClose" class="btn-danger-soft">Cerrar OC</button></div>`;host.insertBefore(card,host.firstChild)}
+  function renderExecutiveFicha(orden){const o=resolveOrder(orden);if(!o)return;currentOrder=o;const host=$('fichaOCBody');if(!host)return;let card=$('execHeaderCard');if(card)card.remove();card=document.createElement('section');card.id='execHeaderCard';card.className='exec-header-card';const linkRaw=o.linkDocumentalPrincipal||o.link_documental_principal,link=validarUrlDocumental(linkRaw)?linkRaw:'';card.innerHTML=`<div class="exec-card-head"><div><h3>Cabecera ejecutiva</h3><div class="muted">OC ${esc(nro(o))} · ${esc(o.proveedor||'Sin proveedor')}</div></div><div>${qualityBadge(o)} ${docBadge(o)} ${pycBadge(o)}</div></div><div class="exec-header-grid">${[['N° OC',nro(o)],['Proveedor',o.proveedor],['Tipo',o.tipo],['Estación principal',o.estacion],['Estado COI',o.estado||o.estadoCOI],['Vigencia operativa',daysTo(o.vencimiento)<0?'Vencida':'Vigente'],['Próxima certificación',fmtDate(o.proximaCertificacion)],['Estado documental',o.estadoDocumental||'—'],['Calidad',`${o.calidadDatosEstado||'Sin auditar'} (${Number(o.calidadDatosScore||0)})`],['Link principal',link?`<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">Abrir OneDrive</a>`:'Sin link válido']].map(([l,v])=>`<div class="exec-header-item"><b>${esc(l)}</b><span>${String(v||'—').startsWith('<a ')?v:esc(v||'—')}</span></div>`).join('')}</div><div class="exec-top-actions"><button type="button" id="execBtnEditar">Editar OC</button><button type="button" id="execBtnGuardar" class="primary">Guardar cambios</button><button type="button" data-oc-station-add>Agregar estación asociada</button>${link?`<button type="button" data-exec-open-link="${esc(link)}">Abrir OneDrive</button>`:''}<button type="button" id="execBtnPyc">Marcar enviada a PyC</button><button type="button" id="execBtnQuality">Ejecutar control de calidad</button><button type="button" id="execBtnClose" class="btn-danger-soft">Cerrar OC</button></div>`;host.insertBefore(card,host.firstChild)}
   async function controlQualitySingle(o){const r=evaluarCalidadOrden(metaByOC.get(nro(o))||o);await actualizarCalidadOrdenSupabase(o,r);await registrarHistorialOC(o,{tipo_evento:'Control de calidad',campo_modificado:'calidad_datos_estado',valor_anterior:o.calidadDatosEstado||'',valor_nuevo:r.estado,motivo:r.motivo_requiere_accion});await syncExecutiveMetadata();renderExecutiveFicha(o);toast(`Calidad ${r.estado} · Score ${r.score}`,'ok');return r}
   async function markPyC(o){const before=o.fechaEnvioPlanificacion||'',today=dateOnly(new Date());await updateOrder(o,{estado_envio_pyc:'Enviado',fecha_envio_planificacion:today},{history:false});await registrarHistorialOC(o,{tipo_evento:'Envío a Planificación y Control',campo_modificado:'fecha_envio_planificacion',valor_anterior:before,valor_nuevo:today,motivo:'Marcado desde Ficha OC'});toast('OC marcada como enviada a PyC.','ok')}
   async function closeOrder(o){const obs=prompt('Observación de cierre operativo:','');if(obs===null)return;await updateOrder(o,{fecha_cierre_operativo:isoNow(),observacion_cierre:clean(obs)||null,estado_registro:'Cerrado'},{history:false});await registrarHistorialOC(o,{tipo_evento:'Cierre operativo',campo_modificado:'estado_registro',valor_anterior:o.estadoRegistro||'',valor_nuevo:'Cerrado',motivo:obs});toast('OC cerrada operativamente.','ok')}
@@ -25293,6 +25292,8 @@ document.addEventListener('click',function(event){
     const card=cardByTitle(body,'1. Resumen general');if(!card)return null;
     const grid=card.querySelector('.grid');if(!grid)return null;
     card.dataset.coiObraResumenSource='supabase';
+    const idObra=fieldByLabel(grid,'ID_OBRA')||fieldByLabel(grid,'ID OBRA');
+    if(idObra?.querySelector('b'))idObra.querySelector('b').textContent='ID OBRA';
     let sector=fieldByLabel(grid,'Sector');
     if(!sector)sector=fieldByLabel(grid,'Vencimiento');
     if(sector){
@@ -25307,15 +25308,17 @@ document.addEventListener('click',function(event){
     return {card,ultima,avance};
   }
 
-  function patchRepositorioBase(){
-    const body=document.getElementById('fichaOCBody');if(!body)return null;
-    const div=[...body.querySelectorAll('.grid > div')].find(el=>norm(el.querySelector('b')?.textContent)==='REPOSITORIO DOCUMENTAL');
-    if(!div)return null;
-    div.innerHTML='';
-    const b=document.createElement('b');b.textContent='Repositorio documental';div.appendChild(b);
-    const span=document.createElement('span');span.dataset.coiRepoSupabase='';span.textContent='Supabase Storage · verificando…';div.appendChild(span);
-    return span;
+  function cleanupLegacyFichaControls(){
+    const body=document.getElementById('fichaOCBody');if(!body)return;
+    [...body.querySelectorAll('button')].forEach(btn=>{
+      const text=norm(btn.textContent);
+      if(text.includes('MARCAR ENVIADO A PYC')||text.includes('AGREGAR LINK DOCUMENTAL'))btn.remove();
+    });
+    [...body.querySelectorAll('.grid > div')].forEach(div=>{
+      if(norm(div.querySelector('b')?.textContent)==='REPOSITORIO DOCUMENTAL')div.remove();
+    });
   }
+  function patchRepositorioBase(){cleanupLegacyFichaControls();return null;}
 
   async function waitSupabaseReady(){
     for(let i=0;i<15;i++){
@@ -25341,12 +25344,12 @@ document.addEventListener('click',function(event){
     const fecha=clean(last.fecha_fin||last.fecha_inicio);
     const group=live.filter(r=>acta?clean(r.acta_medicion_nro)===acta:clean(r.fecha_fin||r.fecha_inicio)===fecha);
     const values=group.map(r=>pctNumber(r.aux_porcentaje)).filter(v=>v!==null);
-    let avanceText='—',avanceTitle='';
+    let avanceText='Sin dato',avanceTitle='';
     if(values.length){
       const unique=[...new Set(values.map(v=>v.toFixed(6)))];
       const avg=values.reduce((a,b)=>a+b,0)/values.length;
       if(unique.length===1)avanceText=fmtPct(values[0]);
-      else{avanceText=`Prom. ${fmtPct(avg)}`;avanceTitle=`Promedio simple de AUX % de ${values.length} posiciones de la última acta registrada en Supabase.`;}
+      else{avanceText='Sin dato';avanceTitle='La última certificación contiene porcentajes distintos por posición; no se calcula promedio sin ponderación contractual.';}
     }
     const label=[acta?`Acta N° ${acta}`:'Certificación',fecha?fmtDate(fecha):''].filter(Boolean).join(' · ');
     return {label:label||'Certificación registrada',avanceText,avanceTitle};
@@ -25356,7 +25359,7 @@ document.addEventListener('click',function(event){
     const ready=await waitSupabaseReady();
     if(seq!==renderSeq)return;
     if(!ready){
-      if(ui){ui.ultima.textContent='Supabase no disponible';ui.avance.textContent='—';}
+      if(ui){ui.ultima.textContent='Supabase no disponible';ui.avance.textContent='Sin dato';}
       if(repoSpan)repoSpan.textContent='Supabase Storage · no disponible';
       return;
     }
@@ -25366,8 +25369,8 @@ document.addEventListener('click',function(event){
         if(seq!==renderSeq)return;
         const last=latestCertification(rows);
         if(last){ui.ultima.textContent=last.label;ui.avance.textContent=last.avanceText;ui.avance.title=last.avanceTitle||'';}
-        else{ui.ultima.textContent='Sin certificaciones en Supabase';ui.avance.textContent='—';ui.avance.title='';}
-      }catch(error){if(seq===renderSeq){ui.ultima.textContent='No disponible';ui.ultima.title=error?.message||'';ui.avance.textContent='—';}}
+        else{ui.ultima.textContent='Sin certificación';ui.avance.textContent='Sin dato';ui.avance.title='';}
+      }catch(error){if(seq===renderSeq){ui.ultima.textContent='No disponible';ui.ultima.title=error?.message||'';ui.avance.textContent='Sin dato';}}
     }
     if(repoSpan&&typeof window.cargarDocumentosStorageOC==='function'){
       try{
@@ -25380,6 +25383,7 @@ document.addEventListener('click',function(event){
   }
 
   function enhance(reference){
+    cleanupLegacyFichaControls();
     const seq=++renderSeq;
     const item=resolveItem(reference);
     const ui=item?patchResumenObra(item):null;
@@ -25395,15 +25399,14 @@ document.addEventListener('click',function(event){
       #vistaCentroAlertas th,#vistaCentroAlertas td{vertical-align:top;word-break:normal;overflow-wrap:normal}
       #vistaCentroAlertas th:nth-child(1),#vistaCentroAlertas td:nth-child(1){min-width:110px;white-space:nowrap}
       #vistaCentroAlertas th:nth-child(2),#vistaCentroAlertas td:nth-child(2){min-width:125px}
-      #vistaCentroAlertas th:nth-child(3),#vistaCentroAlertas td:nth-child(3){min-width:145px}
+      #vistaCentroAlertas th:nth-child(3),#vistaCentroAlertas td:nth-child(3){min-width:155px;white-space:normal;word-break:normal;overflow-wrap:normal}
       #vistaCentroAlertas th:nth-child(4),#vistaCentroAlertas td:nth-child(4){min-width:145px}
       #vistaCentroAlertas th:nth-child(5),#vistaCentroAlertas td:nth-child(5){min-width:300px}
-      #vistaCentroAlertas th:nth-child(6),#vistaCentroAlertas td:nth-child(6){min-width:105px;white-space:nowrap}
-      #vistaCentroAlertas th:nth-child(7),#vistaCentroAlertas td:nth-child(7){min-width:70px;white-space:nowrap;text-align:center}
+      #vistaCentroAlertas th:nth-child(6),#vistaCentroAlertas td:nth-child(6){min-width:115px;white-space:nowrap;word-break:keep-all}
+      #vistaCentroAlertas th:nth-child(7),#vistaCentroAlertas td:nth-child(7){min-width:72px;white-space:nowrap;word-break:keep-all;text-align:center}
       #vistaCentroAlertas th:nth-child(8),#vistaCentroAlertas td:nth-child(8){min-width:170px}
       #vistaCentroAlertas th:nth-child(9),#vistaCentroAlertas td:nth-child(9){min-width:205px}
       #vistaCentroAlertas th:nth-child(10),#vistaCentroAlertas td:nth-child(10){min-width:190px}
-      #vistaCentroAlertas th:nth-child(11),#vistaCentroAlertas td:nth-child(11){min-width:155px;white-space:nowrap}
     `;document.head.appendChild(style);
   }
 
@@ -25420,6 +25423,15 @@ document.addEventListener('click',function(event){
   });
 
   installAlertStyles();
+  cleanupLegacyFichaControls();
+  const fichaBody=document.getElementById('fichaOCBody');
+  if(fichaBody){
+    let cleanupQueued=false;
+    new MutationObserver(()=>{
+      if(cleanupQueued)return;cleanupQueued=true;
+      requestAnimationFrame(()=>{cleanupQueued=false;cleanupLegacyFichaControls();});
+    }).observe(fichaBody,{childList:true,subtree:true});
+  }
   const previous=window.renderFichaOC;
   if(typeof previous==='function'){
     window.renderFichaOC=function(reference){

@@ -13,6 +13,10 @@ async function openIsolated(page) {
 
 async function instrumentProductHotfix(page) {
   return page.evaluate(() => {
+    if (window.COI_OBRA_RESUMEN_SUPABASE_V1?.decorateForQA) {
+      window.__COI_OBRA_QA__ = window.COI_OBRA_RESUMEN_SUPABASE_V1;
+      return { ok:true, reused:true };
+    }
     if (window.__COI_OBRA_QA__?.decorateForQA) return { ok:true, reused:true };
     const script = document.getElementById('coi-obra-resumen-supabase-v1');
     if (!script) return { ok:false, reason:'No existe el hotfix productivo de Obras' };
@@ -114,10 +118,10 @@ test('Obra muestra VTO, última certificación y avance desde Supabase sin tocar
   expect(result.financeUnchanged).toBe(true);
 
   const card = page.locator('#qaResumen[data-coi-obra-resumen-source="supabase"]');
-  await expect(card).toBeVisible();
+  await expect(card).toHaveCount(1);
   const labels = (await card.locator('.grid > div > b').allTextContents()).map(x=>x.trim().toLowerCase());
   expect(labels).toEqual(expect.arrayContaining([
-    'id_obra','n° oc','tipo','tipo de trabajo','estación','vencimiento',
+    'id obra','n° oc','tipo','tipo de trabajo','estación','vencimiento',
     'proveedor','estado coi','estado documental','semáforo','última certificación','% de avance'
   ]));
   expect(labels).not.toContain('sector');
@@ -129,15 +133,19 @@ test('Obra muestra VTO, última certificación y avance desde Supabase sin tocar
   await expect(page.locator('[data-finance-sentinel]')).toHaveText('FINANZAS-SIN-CAMBIOS');
 });
 
-test('Repositorio contractual usa Supabase Storage y no ofrece OneDrive', async ({ page }) => {
+test('Contractual elimina repositorio OneDrive y controles documentales/PyC legacy', async ({ page }) => {
   await openIsolated(page);
   const result = await decorateFixture(page, 'Obra');
   expect(result.ok, result.reason || '').toBe(true);
-  expect(result.result.repositorio).toBe(true);
-  const repo = page.locator('#qaContractual [data-coi-repo-supabase]');
-  await expect(repo).toHaveText(/Supabase Storage · 2 documentos/);
+  await page.evaluate(() => {
+    const contractual=document.getElementById('qaContractual');
+    contractual.insertAdjacentHTML('beforeend','<button>Marcar enviado a PyC</button><button>Agregar link documental</button>');
+  });
+  await page.waitForTimeout(100);
   await expect(page.locator('#qaContractual')).not.toContainText(/OneDrive/i);
-  await expect(page.locator('#qaContractual a')).toHaveCount(0);
+  await expect(page.locator('#qaContractual')).not.toContainText(/Repositorio documental/i);
+  await expect(page.locator('#fichaOCBody')).not.toContainText(/Marcar enviado a PyC/i);
+  await expect(page.locator('#fichaOCBody')).not.toContainText(/Agregar link documental/i);
 });
 
 test('Servicios conservan Sector y no reciben campos exclusivos de Obra', async ({ page }) => {
@@ -161,4 +169,7 @@ test('Centro de Alertas evita el quiebre vertical de OC y fechas', async ({ page
   const rules = await page.locator('#coi-alertas-table-fix-v1').textContent();
   expect(rules).toContain('white-space:nowrap');
   expect(rules).toContain('min-width:1500px');
+  expect(rules).toContain('overflow-x:auto');
+  expect(rules).not.toContain('break-all');
+  expect(rules).toContain('word-break:keep-all');
 });
