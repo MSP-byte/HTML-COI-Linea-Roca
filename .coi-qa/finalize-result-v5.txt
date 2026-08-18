@@ -1,0 +1,77 @@
+file:///home/runner/work/HTML-COI-Linea-Roca/HTML-COI-Linea-Roca/.coi-qa/finalize_final_ui_v5.mjs:13
+if(visibleBad.length)throw new Error('Texto OneDrive todavía visible: '+visibleBad.slice(0,10).join(' | '));
+                           ^
+
+Error: Texto OneDrive todavía visible: OneDrive | OneDrive | Repositorio documental OneDrive por OC y UM. | `;
+}
+function fichaV54EsAdmin(){return (typeof adminIsEnabled==='function'&&adminIsEnabled())||(typeof sesionActual==='function'&&sesionActual()?.rol==='Administrador');}
+function fichaV54Key(item){return item?.idObra||item?.idOC||item?.idServicio||item?.ID_SERVICIO||item?.oc||item?.numeroOC||'';}
+function fichaV54Encontrar(id){return typeof obtenerOC==='function'?obtenerOC(id):null;}
+function fichaV54Campo(item,keys){for(const k of keys){if(item[k]!==undefined&&item[k]!==null)return item[k];}return'';}
+const FICHA_V54_FIELDS=[
+  ['idObra','ID_OBRA',['idObra','idOC']],['idServicio','ID_SERVICIO',['idServicio','ID_SERVICIO']],['numeroOC','OC_NRO',['numeroOC','oc','OC_NRO','ocNro']],['tipo','Tipo',['tipo']],['tipoUM','Tipo UM',['tipoUM','tipoUm','unidadMantenimiento','especialidad']],['descripcion','Descripción',['descripcion','tipoTrabajo']],['estacion','Estación',['estacion']],['proveedor','Proveedor',['proveedor']],['expediente','Expediente',['expediente','expte']],['montoOC','Monto OC',['montoOC','montoOc','monto','MONTO_OC']],['plazoDias','Plazo días',['plazoDias','plazo']],['fechaInicio','Fecha inicio',['fechaInicio','actaInicio']],['fechaFin','Fecha fin',['fechaFin','vencimiento']],['diasRestantes','Días restantes',['diasRestantes']],['estado','Estado COI',['estado','estadoCOI']],['estadoDocumental','Estado documental',['estadoDocumental','ESTADO_DOCUMENTAL']],['ultimaActa','Última acta',['ultimaActa','ultimaCertificacion']],['periodoMes','Período mes',['periodoMes','PERIODO_MES']],['periodoInicio','Período inicio',['periodoInicio','PERIODO_INICIO']],['periodoFin','Período fin',['periodoFin','PERIODO_FIN']],['proximaCertificacion','Próxima certificación',['proximaCertificacion','proxCertificacion','PROX_CERTIFICACION']],['observaciones','Observaciones',['observaciones']],['carpetaDocumental','Carpeta documental',['carpetaDocumental']],['rutaDocumental','Ruta documental',['rutaDocumental']],['linkOneDrive','Link OneDrive',['linkOneDrive']]
+];
+function fichaV54InsertarBoton(found,id){
+  if(!fichaV54EsAdmin())return;
+  const head=document.querySelector('#fichaOCBody .oc-header');if(!head||$('btnEditarFichaOC'))return;
+  head.insertAdjacentHTML('beforeend',` | {
+    const val=fichaV54Campo(item,keys),large=['observaciones','linkOneDrive','rutaDocumental'].includes(name);
+    return ` | {const btn=ev.target.closest('[data-ficha-submodulo]');if(!btn)return;ev.preventDefault();activarSubmoduloFichaOC(btn.dataset.fichaSubmodulo);});
+/* ===============================
+   V64 - Ficha OC tabs reales y expediente digital documental
+   Mantiene datos existentes y agrega referencias documentales por OC.
+   =============================== */
+const LS_DOCUMENTACION_OC_V64='coi_documentacion_oc';
+const DOC_TIPOS_OC_V64=['Acta de Inicio','Acta de Medición','Acta Final','Remito','Factura','Declaración Jurada','Constancia SERCAE','Print SERCAE','Póliza / Seguro','Nota / Comunicación','Informe Técnico','Foto / Evidencia','Otro'];
+const DOC_REPOSITORIOS_OC_V64=['SharePoint','OneDrive','Google Drive','Carpeta local','Otro'];
+const DOC_ESTADOS_OC_V64=['Pendiente','Cargado','Revisado','Observado','Enviado a Planificación y Control','Cerrado'];
+var documentacionOC=Array.isArray(window.documentacionOC)?window.documentacionOC:v64CargarDocumentacionOC();
+window.documentacionOC=documentacionOC;
+let fichaOCPanelActivoV64='panelFichaResumen';
+let fichaOCActualKeyV64='';
+let v64DocEditandoId='';
+let v64DocEditandoOC='';
+const FICHA_OC_SUBMODULOS_V64=[
+  {id:'panelFichaResumen',btn:'btnSubFichaResumen',label:'1. Resumen'},
+  {id:'panelFichaContractual',btn:'btnSubFichaContractual',label:'2. Contractual'},
+  {id:'panelFichaCertificaciones',btn:'btnSubFichaCertificaciones',label:'3. Certificaciones'},
+  {id:'panelFichaFinanciero',btn:'btnSubFichaFinanciero',label:'4. Financiero'},
+  {id:'panelFichaDocumentos',btn:'btnSubFichaDocumentos',label:'5. Documentos'},
+  {id:'panelFichaFotos',btn:'btnSubFichaFotos',label:'6. Fotos'}
+];
+function v64Norm(v){return typeof normalizarTexto==='function'?normalizarTexto(v):String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().trim();}
+function v64Esc(v){return typeof esc==='function'?esc(v):String(v??'').replace(/[& | El archivo no se guarda dentro del sistema. Pegue el link de SharePoint, OneDrive o Google Drive. | Los datos del sistema se guardan localmente en el navegador. Para trasladar la base a GitHub Pages, otra PC o OneDrive, exporte un backup JSON completo e importelo en el equipo destino. | {const oc=r.item||{};v575AplicarVencimientoContractual(oc);const fin=v574FechaVencimientoOC(oc);return {...r,fin,fechaVencimientoContractual:oc.fechaVencimientoContractual||'',calc:{...(r.calc||{}),venc:fin}};});};
+  todasLasOC.__v575Wrapped=true;
+}
+const v64NormalizarDocumentoV575Base=typeof v64NormalizarDocumento==='function'?v64NormalizarDocumento:null;
+if(v64NormalizarDocumentoV575Base)v64NormalizarDocumento=function(d={},oc=null){
+  const out=v64NormalizarDocumentoV575Base(d,oc);
+  out.tipoDocumento=normalizarTipoDocumentoOC(out.tipoDocumento||d.tipoDoc||d.tipo);
+  out.numeroDocumento=out.numeroDocumento||out.nroDocumento||out.numero||'';
+  out.nroDocumento=out.nroDocumento||out.numeroDocumento||'';
+  out.repositorio=out.repositorio||d.repositorioDocumental||v64FolderRepo(oc)||'OneDrive';
+  out.rutaOneDrive=out.rutaOneDrive||out.rutaDocumental||d.rutaOneDrive||d.ruta||'';
+  out.rutaDocumental=out.rutaDocumental||out.rutaOneDrive||'';
+  out.linkOneDrive=out.linkOneDrive||out.linkDocumento||d.linkOneDrive||d.link||d.url||'';
+  out.linkDocumento=out.linkDocumento||out.linkOneDrive||'';
+  out.usuarioCarga=out.usuarioCarga||d.usuario||d.usuarioAlta||(typeof APP_AUTHOR!=='undefined'?APP_AUTHOR:'Usuario local');
+  out.fechaCarga=out.fechaCarga||new Date().toISOString();
+  return out;
+};
+if(typeof v64EsDocTipo==='function')v64EsDocTipo=function(d,t){return normalizarTipoDocumentoOC(d?.tipoDocumento||d?.tipoDoc||d?.tipo)===normalizarTipoDocumentoOC(t);};
+if(typeof v64DocLink==='function')v64DocLink=function(d){return d?.linkOneDrive||d?.linkDocumento||d?.link||d?.url||'';};
+if(typeof v64FolderLink==='function')v64FolderLink=function(oc){return oc?.linkCarpetaDocumental||oc?.linkCarpetaOneDrive||oc?.linkCarpeta||oc?.carpetaDocumentalLink||oc?.linkOneDrive||'';};
+if(typeof v64FolderRuta==='function')v64FolderRuta=function(oc){return oc?.rutaDocumental||oc?.rutaDocumentalPrincipal||oc?.carpetaDocumental||'';};
+if(typeof v64FolderRepo==='function')v64FolderRepo=function(oc){return oc?.repositorioDocumental||oc?.repositorioDocumentalPrincipal||'OneDrive';};
+
+function v575CampoDoc(d,key){return d?.[key]??'';}
+function v575RenderCampoDoc(def,d){
+  const [key,label,kind='text']=def,val=v64Esc(v575CampoDoc(d,key));
+  if(kind==='textarea')return ` | El archivo no se guarda dentro del sistema. Pegue ruta y link de OneDrive/SharePoint/Drive.
+    at file:///home/runner/work/HTML-COI-Linea-Roca/HTML-COI-Linea-Roca/.coi-qa/finalize_final_ui_v5.mjs:13:28
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+EXIT_CODE=1
