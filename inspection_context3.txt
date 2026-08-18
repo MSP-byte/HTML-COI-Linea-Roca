@@ -1,0 +1,787 @@
+
+===== CARGA CERTIFICACIONES SUPABASE | 13680-14010 =====
+13680:   async function upsertCertificacionSupabase(data){
+13681:     const basicValidation=validarFilaCertificacion(data,{verificarOC:false});
+13682:     if(!basicValidation.valida)throw new Error(basicValidation.errores.join(' · '));
+13683:     const {user,client}=await usuarioEscritorCertificacion();
+13684:     const order=await resolverOrdenCertificacionPorNroOC(basicValidation.data.nro_oc,client);
+13685:     if(!order?.orden_id){const error=new Error(`La OC ${basicValidation.data.nro_oc} existe, pero no se pudo obtener su UUID de Supabase.`);error.code='OC_NOT_FOUND';throw error;}
+13686:     const payload=normalizarCertificacionParaSupabase(basicValidation.data,order,user);
+13687:     const existing=await buscarCertificacionExistente(client,payload);
+13688:     let result=null;
+13689:     let action=existing?.id?'updated':'inserted';
+13690:     try{
+13691:       if(existing?.id){
+13692:         result=await client.from(CERTIFICACIONES_TABLE).update(payload).eq('id',existing.id).select().limit(1);
+13693:       }else if(payload.item_nro!==null&&payload.posicion!==null){
+13694:         result=await client.from(CERTIFICACIONES_TABLE).upsert(payload,{onConflict:CERTIFICACION_CONFLICT_FIELDS}).select().limit(1);
+13695:         if(result.error&&errorSinIndiceCompatible(result.error))result=null;
+13696:       }
+13697:       if(!result){
+13698:         result=await client.from(CERTIFICACIONES_TABLE).insert(payload).select().limit(1);
+13699:       }
+13700:       if(result.error)throw crearErrorSupabase(result.error,action==='updated'?'actualizar certificación':'crear certificación',payload);
+13701:     }catch(error){
+13702:       const structured=error?.code?error:crearErrorSupabase(error,'guardar certificación',payload);
+13703:       console.error('Error certificación:',{code:structured?.code,message:structured?.message,details:structured?.details,hint:structured?.hint,payload});
+13704:       throw structured;
+13705:     }
+13706:     const raw=Array.isArray(result.data)&&result.data.length?result.data[0]:payload;
+13707:     const saved=normalizarCertificacionDesdeSupabase(raw);
+13708:     certificacionesCacheOC.delete(saved.nro_oc);
+13709:     return {action,data:saved};
+13710:   }
+13711: 
+13712:   async function guardarCertificacionSupabase(data){return upsertCertificacionSupabase(data);}
+13713: 
+13714:   function cargarCertificacionesLegacyPorOC(nroOC){
+13715:     const target=normalizarNroOCCertificacion(nroOC),rows=[];
+13716:     CERTIFICACION_LEGACY_KEYS.forEach(key=>{
+13717:       try{
+13718:         const parsed=JSON.parse(localStorage.getItem(key)||'[]');
+13719:         if(Array.isArray(parsed))parsed.forEach(row=>{if(obtenerNroOCCertificacion(row)===target)rows.push(normalizarCertificacionDesdeSupabase({...row,_legacy:true}));});
+13720:       }catch(error){}
+13721:     });
+13722:     const seen=new Set();
+13723:     return rows.filter(row=>{const key=row.id||construirClaveCertificacion(row);if(seen.has(key))return false;seen.add(key);return true;});
+13724:   }
+13725: 
+13726:   async function cargarCertificacionesPorOC(reference){
+13727:     const order=ordenDesdeReferencia(reference);
+13728:     const nroOC=order?.nro||obtenerNroOCCertificacion(reference);
+13729:     if(!nroOC)return [];
+13730:     const client=clienteSupabaseCertificacion();
+13731:     let user=null;
+13732:     try{user=typeof window.getUsuarioActual==='function'?await window.getUsuarioActual():null;}catch(error){}
+13733:     if(!client||!user||!navigator.onLine){
+13734:       const memory=certificacionesCacheOC.get(nroOC)||[];
+13735:       const legacy=cargarCertificacionesLegacyPorOC(nroOC);
+13736:       return [...memory,...legacy];
+13737:     }
+13738:     let result=await client.from(CERTIFICACIONES_TABLE).select('*').eq('nro_oc',nroOC).order('fecha_fin',{ascending:false,nullsFirst:false}).limit(1000);
+13739:     if(result.error)throw crearErrorSupabase(result.error,'cargar certificaciones',{nro_oc:nroOC});
+13740:     let rows=result.data||[];
+13741:     const orderId=order?.orden_id;
+13742:     if(!rows.length&&orderId){
+13743:       result=await client.from(CERTIFICACIONES_TABLE).select('*').eq('orden_id',orderId).order('fecha_fin',{ascending:false,nullsFirst:false}).limit(1000);
+13744:       if(result.error)throw crearErrorSupabase(result.error,'cargar certificaciones por orden_id',{orden_id:orderId,nro_oc:nroOC});
+13745:       rows=result.data||[];
+13746:     }
+13747:     const normalized=rows.map(normalizarCertificacionDesdeSupabase);
+13748:     certificacionesCacheOC.set(nroOC,normalized);
+13749:     return normalized;
+13750:   }
+13751: 
+13752:   async function actualizarProximaCertificacionOrden(nroOC){
+13753:     certificacionesCacheOC.delete(nroOC);
+13754:     const source=await cargarCertificacionesPorOC(nroOC);
+13755:     const dates=source.map(row=>normalizarFechaCertificacion(row.proxima_acta_medicion_fecha)).filter(Boolean).sort();
+13756:     if(!dates.length)return {updated:false,reason:'sin_fecha'};
+13757:     const {client}=await usuarioEscritorCertificacion();
+13758:     const order=await resolverOrdenCertificacionPorNroOC(nroOC,client);
+13759:     if(!order?.orden_id){const error=new Error(`La OC ${nroOC} no tiene un UUID remoto válido.`);error.code='OC_NOT_FOUND';throw error;}
+13760:     const target=dates[0];
+13761:     const payload={proxima_certificacion:target};
+13762:     const result=await client.rpc('coi_actualizar_orden_integral',{p_orden_id:order.orden_id,p_cambios:payload});
+13763:     if(result.error)throw crearErrorSupabase(result.error,'actualizar próxima certificación por RPC',{nro_oc:nroOC,orden_id:order.orden_id,...payload});
+13764:     const confirmed=result.data?.orden;
+13765:     if(!confirmed?.id||String(confirmed.id)!==String(order.orden_id)||normalizarFechaCertificacion(confirmed.proxima_certificacion)!==target){
+13766:       const error=new Error('Supabase no confirmó la próxima certificación solicitada.');
+13767:       error.code='COI_NEXT_CERT_NOT_CONFIRMED';
+13768:       error.payload={nro_oc:nroOC,orden_id:order.orden_id,...payload};
+13769:       throw error;
+13770:     }
+13771:     const verification=await client.from(ORDENES_TABLE).select('id,nro_oc,proxima_certificacion').eq('id',order.orden_id).limit(1);
+13772:     if(verification.error)throw crearErrorSupabase(verification.error,'verificar próxima certificación',{nro_oc:nroOC,orden_id:order.orden_id,...payload});
+13773:     const persisted=Array.isArray(verification.data)?verification.data[0]:null;
+13774:     if(!persisted?.id||normalizarFechaCertificacion(persisted.proxima_certificacion)!==target){
+13775:       const error=new Error('La verificación posterior no encontró la próxima certificación persistida en Supabase.');
+13776:       error.code='COI_NEXT_CERT_VERIFY_FAILED';
+13777:       error.payload={nro_oc:nroOC,orden_id:order.orden_id,...payload};
+13778:       throw error;
+13779:     }
+13780:     return {updated:true,nro_oc:normalizarNroOCCertificacion(persisted.nro_oc||nroOC),proxima_certificacion:target,orden:persisted};
+13781:   }
+13782: 
+13783:   async function refrescarModulosTrasCertificacion(nrosOC=[]){
+13784:     const list=[...new Set((Array.isArray(nrosOC)?nrosOC:[nrosOC]).map(normalizarNroOCCertificacion).filter(Boolean))];
+13785:     list.forEach(nro=>certificacionesCacheOC.delete(nro));
+13786:     try{if(typeof window.cargarOrdenesPrincipal==='function')await window.cargarOrdenesPrincipal();}catch(error){console.warn('COI: no se pudo refrescar Órdenes después de certificar.',error);}
+13787:     const renders=['updateKpis','renderDashboard','renderDashboardInteractivoExtra','renderOrdenes','renderCalendarioCOIUnificado','renderCalendario','renderCentroAlertas','renderRed'];
+13788:     renders.forEach(name=>{try{if(typeof window[name]==='function')window[name]();}catch(error){console.warn(`COI: ${name} no pudo refrescarse.`,error);}});
+13789:     try{
+13790:       const active=window.__coiFichaOCActiva||window.ocActualId||list[0]||'';
+13791:       if(active&&typeof window.renderFichaOC==='function')window.renderFichaOC(active);
+13792:       if(list[0])setTimeout(()=>renderCertificacionesSupabaseEnFicha(list[0]).catch(error=>console.warn('COI: no se pudo refrescar la ficha de certificaciones.',error)),120);
+13793:     }catch(error){console.warn('COI: la Ficha OC no pudo refrescarse.',error);}
+13794:   }
+13795: 
+13796:   async function guardarCargaCertificaciones(){
+13797:     if(guardandoCargaCertificaciones)return;
+13798:     const body=byId('cargaCertificacionBodyR18');
+13799:     const allRows=body?[...body.querySelectorAll('tr')]:[];
+13800:     const candidates=allRows.map((row,index)=>({row,index,data:leerFilaCertificacion(row)})).filter(entry=>!filaCertificacionVacia(entry.data));
+13801:     if(!candidates.length){actualizarEstadoCargaCertificacion('No hay filas con datos para guardar.','warning');return;}
+13802: 
+13803:     const groupCounts=new Map();
+13804:     candidates.forEach(entry=>{
+13805:       const n=normalizarCertificacionDesdeSupabase(entry.data);
+13806:       const key=[n.nro_oc,n.acta_medicion_nro,n.fecha_inicio,n.fecha_fin].map(fold).join('|');
+13807:       groupCounts.set(key,(groupCounts.get(key)||0)+1);
+13808:     });
+13809: 
+13810:     guardandoCargaCertificaciones=true;
+13811:     const button=byId('btnCertificacionGuardar');
+13812:     if(button)button.disabled=true;
+13813:     const summary={detectadas:candidates.length,procesadas:0,nuevas:0,actualizadas:0,omitidas:0,errores:0,erroresFechaOC:0};
+13814:     const errors=[];
+13815:     const savedOC=new Set();
+13816:     const savedRowsByOC=new Map();
+13817:     const seen=new Set();
+13818:     actualizarEstadoCargaCertificacion(`Validando ${candidates.length} registro(s) y guardando únicamente las filas válidas…`);
+13819:     try{
+13820:       for(const entry of candidates){
+13821:         marcarResultadoFila(entry.row);
+13822:         const normalized=normalizarCertificacionDesdeSupabase(entry.data);
+13823:         const groupKey=[normalized.nro_oc,normalized.acta_medicion_nro,normalized.fecha_inicio,normalized.fecha_fin].map(fold).join('|');
+13824:         const logicalKey=construirClaveCertificacion(entry.data);
+13825:         if(seen.has(logicalKey)){
+13826:           summary.omitidas+=1;
+13827:           const message='Duplicado dentro del bloque pegado.';
+13828:           marcarResultadoFila(entry.row,message,'warning');
+13829:           continue;
+13830:         }
+13831:         seen.add(logicalKey);
+13832:         const validation=validarFilaCertificacion(entry.data,{verificarOC:false,requiereItem:(groupCounts.get(groupKey)||0)>1});
+13833:         if(!validation.valida){
+13834:           summary.errores+=1;
+13835:           const message=validation.errores.join(' · ');
+13836:           errors.push(`Fila ${entry.index+1}: ${message}`);
+13837:           marcarResultadoFila(entry.row,message,'error');
+13838:           continue;
+13839:         }
+13840:         try{
+13841:           const result=await upsertCertificacionSupabase(validation.data);
+13842:           summary.procesadas+=1;
+13843:           if(result.action==='inserted')summary.nuevas+=1;else summary.actualizadas+=1;
+13844:           const savedNro=normalizarNroOCCertificacion(result.data.nro_oc);
+13845:           savedOC.add(savedNro);
+13846:           if(!savedRowsByOC.has(savedNro))savedRowsByOC.set(savedNro,[]);
+13847:           savedRowsByOC.get(savedNro).push({row:entry.row,action:result.action});
+13848:           marcarResultadoFila(entry.row,result.action==='inserted'?'Creada en Supabase':'Actualizada en Supabase','ok');
+13849:         }catch(error){
+13850:           summary.errores+=1;
+13851:           const message=detalleErrorEsquema(error);
+13852:           errors.push(`Fila ${entry.index+1}: ${message}`);
+13853:           marcarResultadoFila(entry.row,message,'error');
+13854:           console.error('Error certificación:',{code:error?.code,message:error?.message,details:error?.details,hint:error?.hint,payload:error?.payload||validation.data});
+13855:         }
+13856:       }
+13857:       for(const nroOC of savedOC){
+13858:         try{
+13859:           const sync=await actualizarProximaCertificacionOrden(nroOC);
+13860:           if(sync?.updated)(savedRowsByOC.get(nroOC)||[]).forEach(entry=>marcarResultadoFila(entry.row,entry.action==='inserted'?'Creada y próxima fecha confirmada en Supabase':'Actualizada y próxima fecha confirmada en Supabase','ok'));
+13861:         }catch(error){
+13862:           summary.erroresFechaOC+=1;
+13863:           const message=detalleErrorEsquema(error);
+13864:           errors.push(`OC ${nroOC}: certificación guardada, pero próxima fecha no actualizada · ${message}`);
+13865:           (savedRowsByOC.get(nroOC)||[]).forEach(entry=>marcarResultadoFila(entry.row,`Certificación guardada; próxima fecha NO actualizada: ${message}`,'warning'));
+13866:         }
+13867:       }
+13868:       const report=`Filas detectadas: <b>${summary.detectadas}</b> · Procesadas: <b>${summary.procesadas}</b> · Nuevas: <b>${summary.nuevas}</b> · Actualizadas: <b>${summary.actualizadas}</b> · Omitidas: <b>${summary.omitidas}</b> · Filas con error: <b>${summary.errores}</b> · OCs sin fecha sincronizada: <b>${summary.erroresFechaOC}</b>`;
+13869:       actualizarEstadoCargaCertificacion(report+(errors.length?`<ul class="certificacion-error-list">${errors.slice(0,20).map(error=>`<li>${escapeHTML(error)}</li>`).join('')}</ul>`:''),errors.length?'warning':'ok');
+13870:       if(summary.procesadas){
+13871:         await refrescarModulosTrasCertificacion([...savedOC]);
+13872:         submodoCargaCertificacion='certificacion';
+13873:         actualizarVisibilidadCargaCertificacion({revalidar:false});
+13874:       }
+13875:     }finally{
+13876:       guardandoCargaCertificaciones=false;
+13877:       if(button)button.disabled=false;
+13878:     }
+13879:   }
+13880: 
+13881:   function csvValue(value){return coiCSVCell(value);}
+13882:   function descargarArchivoCertificacion(name,content,type){
+13883:     const blob=new Blob(['\ufeff',content],{type});
+13884:     const url=URL.createObjectURL(blob);const link=document.createElement('a');
+13885:     link.href=url;link.download=name;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+13886:   }
+13887:   function exportarCargaCertificacionesCSV(){
+13888:     const body=byId('cargaCertificacionBodyR18');
+13889:     const rows=body?[...body.querySelectorAll('tr')].map(leerFilaCertificacion).filter(row=>!filaCertificacionVacia(row)):[];
+13890:     if(!rows.length){actualizarEstadoCargaCertificacion('No hay registros en la grilla para exportar.','warning');return;}
+13891:     const lines=[CERTIFICACION_HEADERS.map(csvValue).join(';')];
+13892:     rows.forEach(row=>lines.push(CERTIFICACION_FIELDS.map(field=>csvValue(row[field])).join(';')));
+13893:     descargarArchivoCertificacion(`certificaciones_coi_${new Date().toISOString().slice(0,10)}.csv`,lines.join('\r\n'),'text/csv;charset=utf-8');
+13894:     actualizarEstadoCargaCertificacion(`${rows.length} registro(s) exportados a CSV.`,'ok');
+13895:   }
+13896: 
+13897:   function tablaCertificacionesFicha(rows){
+13898:     if(!rows.length)return '<div class="empty-state">La OC todavía no posee certificaciones registradas en Supabase.</div>';
+13899:     return `<div class="table-wrap"><table><thead><tr><th>Acta</th><th>Ítem</th><th>Período</th><th>Descripción</th><th>Ejecutado período</th><th>Acumulado</th><th>Avance</th><th>100%</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${escapeHTML(row.acta_medicion_nro||'—')}</td><td>${escapeHTML(row.item_nro||'—')}</td><td>${escapeHTML(fechaVisible(row.fecha_inicio))} al ${escapeHTML(fechaVisible(row.fecha_fin))}</td><td>${escapeHTML(row.descripcion||row.tipo_servicio||'—')}</td><td>${escapeHTML(row.servicio_ejecutado_periodo)}</td><td>${escapeHTML(row.servicio_ejecutado_acumulado)}</td><td>${escapeHTML(Number(row.aux_porcentaje||0).toFixed(2))}%</td><td>${row.ejecutado_100?'Sí':'No'}</td></tr>`).join('')}</tbody></table></div>`;
+13900:   }
+13901: 
+13902:   async function renderCertificacionesSupabaseEnFicha(reference){
+13903:     const host=byId('panelFichaCertificaciones');
+13904:     if(!host)return;
+13905:     let section=byId('certificacionesSupabaseFichaR18');
+13906:     if(!section){
+13907:       section=document.createElement('div');section.id='certificacionesSupabaseFichaR18';section.className='certificaciones-supabase-ficha';
+13908:       host.appendChild(section);
+13909:     }
+13910:     section.innerHTML='<h4>Certificaciones registradas</h4><p>Consultando Supabase…</p>';
+13911:     try{
+13912:       const rows=await cargarCertificacionesPorOC(reference);
+13913:       if(!section.isConnected)return;
+13914:       const sourceNote=rows.some(row=>row._legacy)?' Lectura histórica local de respaldo; no mezclada con registros Supabase en línea.':'';
+13915:       section.innerHTML=`<h4>Certificaciones registradas</h4><p>${rows.length} movimiento(s) vinculados a esta OC.${escapeHTML(sourceNote)}</p>${tablaCertificacionesFicha(rows)}`;
+13916:     }catch(error){
+13917:       if(!section.isConnected)return;
+13918:       section.innerHTML=`<h4>Certificaciones registradas</h4><div class="carga-certificacion-status error">${escapeHTML(detalleErrorEsquema(error))}</div>`;
+13919:     }
+13920:   }
+13921: 
+13922:   function inicializarEventosCargaCertificacion(){
+13923:     asegurarCargaCertificacion();
+13924:     if(eventosCargaCertificacionInicializados)return;
+13925:     eventosCargaCertificacionInicializados=true;
+13926:     document.addEventListener('click',event=>{
+13927:       const tab=event.target.closest('[data-carga-cert-tab]');
+13928:       if(tab){submodoCargaCertificacion=tab.dataset.cargaCertTab||'principal';actualizarVisibilidadCargaCertificacion();return;}
+13929:       if(event.target.closest('#btnCertificacionNuevaFila')){agregarFilasCertificacion(1);return;}
+13930:       if(event.target.closest('#btnCertificacionAgregarCinco')){agregarFilasCertificacion(5);return;}
+13931:       if(event.target.closest('#btnCertificacionLimpiar')){limpiarFilasCertificacion();return;}
+13932:       if(event.target.closest('#btnCertificacionGuardar')){guardarCargaCertificaciones().catch(error=>actualizarEstadoCargaCertificacion(escapeHTML(detalleErrorEsquema(error)),'error'));return;}
+13933:       if(event.target.closest('#btnCertificacionExportarCSV')){exportarCargaCertificacionesCSV();return;}
+13934:       if(event.target.closest('[data-carga-tipo],.quick-type-card')){submodoCargaCertificacion='principal';asegurarCargaCertificacion();}
+13935:     });
+13936:     document.addEventListener('input',event=>{
+13937:       const control=event.target.closest('#panelCargaCertificacionR18 [data-cert-field]');
+13938:       if(!control)return;
+13939:       delete control.dataset.rawInvalid;
+13940:       if(control.dataset.certField==='anio')control.dataset.autoYear='false';
+13941:       recalcularFilaCertificacion(control.closest('tr'),{actualizarAnio:false});
+13942:       validarFilasCargaCertificacion();
+13943:       actualizarEstadoCargaCertificacion();
+13944:     });
+13945:     document.addEventListener('change',event=>{
+13946:       const control=event.target.closest('#panelCargaCertificacionR18 [data-cert-field]');
+13947:       if(!control)return;
+13948:       delete control.dataset.rawInvalid;
+13949:       recalcularFilaCertificacion(control.closest('tr'),{actualizarAnio:false});
+13950:       validarFilasCargaCertificacion();
+13951:       actualizarEstadoCargaCertificacion();
+13952:     });
+13953:     document.addEventListener('paste',event=>{
+13954:       const control=event.target.closest('#panelCargaCertificacionR18 [data-cert-field]');
+13955:       if(!control)return;
+13956:       const text=event.clipboardData?.getData('text/plain')||'';
+13957:       if(!text.includes('\t')&&!/[\r\n]/.test(text))return;
+13958:       const row=control.closest('tr');
+13959:       const rows=[...row.parentElement.children];
+13960:       procesarPegadoExcelCertificaciones(event,rows.indexOf(row),CERTIFICACION_FIELDS.indexOf(control.dataset.certField));
+13961:     });
+13962:   }
+13963: 
+13964:   window.normalizarNroOCCertificacion=normalizarNroOCCertificacion;
+13965:   window.normalizarFechaCertificacion=normalizarFechaCertificacion;
+13966:   window.normalizarNumeroCertificacion=normalizarNumeroCertificacion;
+13967:   window.normalizarBooleanoCertificacion=normalizarBooleanoCertificacion;
+13968:   window.normalizarTextoCertificacion=normalizarTextoCertificacion;
+13969:   window.normalizarCertificacionDesdeSupabase=normalizarCertificacionDesdeSupabase;
+13970:   window.normalizarCertificacionParaSupabase=normalizarCertificacionParaSupabase;
+13971:   window.validarFilaCertificacion=validarFilaCertificacion;
+13972:   window.buscarOrdenPorNroOC=buscarOrdenPorNroOC;
+13973:   window.cargarCertificacionesPorOC=cargarCertificacionesPorOC;
+13974:   window.actualizarProximaCertificacionOrden=actualizarProximaCertificacionOrden;
+13975:   window.guardarCertificacionSupabase=guardarCertificacionSupabase;
+13976:   window.upsertCertificacionSupabase=upsertCertificacionSupabase;
+13977:   window.guardarCargaCertificaciones=guardarCargaCertificaciones;
+13978:   window.renderCertificacionesSupabaseEnFicha=renderCertificacionesSupabaseEnFicha;
+13979:   window.inicializarEventosCargaCertificacion=inicializarEventosCargaCertificacion;
+13980:   window.procesarPegadoExcelCertificaciones=procesarPegadoExcelCertificaciones;
+13981:   window.parsearPortapapelesExcel=parsearPortapapelesExcel;
+13982:   window.aplicarMatrizPegadaCertificaciones=aplicarMatrizPegadaCertificaciones;
+13983:   window.crearFilasCertificacionSiFaltan=crearFilasCertificacionSiFaltan;
+13984:   window.recalcularFilaCertificacion=recalcularFilaCertificacion;
+13985: 
+13986:   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',inicializarEventosCargaCertificacion,{once:true});
+13987:   else inicializarEventosCargaCertificacion();
+13988: })();
+13989: </script>
+13990: 
+13991: 
+13992: 
+13993: <script>
+13994: /* =========================================================
+13995:    V58.1R6 - Fix definitivo eliminación desde Diagnóstico Administración
+13996:    - Captura botones Eliminar del diagnóstico antes de listeners viejos.
+13997:    - Borra por ID único cuando existe; fallback controlado por OC.
+13998:    - Persiste cambios en localStorage/base existente.
+13999:    - Reejecuta diagnóstico y refresca módulos relacionados.
+14000:    ========================================================= */
+14001: (function(){
+14002:   'use strict';
+14003:   const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
+14004:   const $=id=>document.getElementById(id);
+14005:   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+14006:   const norm=v=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ').trim();
+14007:   const normKey=v=>norm(v).replace(/[\.\s\-\/]/g,'');
+14008:   const has=v=>String(v??'').trim()!=='';
+14009:   const now=()=>new Date().toISOString();
+14010: 
+
+===== CONSOLIDACION CERTIFICACIONES | 16570-16665 =====
+16570:       const docIdServicio=norm(campoDocumentoStorage(documento,['idServicio','id_servicio','ID_SERVICIO'],''));
+16571:       const vinculada=(!targetOC&&!targetIdObra&&!targetIdServicio)||(targetOC&&docOC===targetOC)||(targetIdObra&&docIdObra===targetIdObra)||(targetIdServicio&&docIdServicio===targetIdServicio);
+16572:       if(!vinculada)return false;
+16573:       const key=claveActaDocumental(documento,targetOC);
+16574:       if(seen.has(key))return false;
+16575:       seen.add(key);return true;
+16576:     }).sort((a,b)=>{
+16577:       const na=Number(obtenerNumeroActaDocumento(a)),nb=Number(obtenerNumeroActaDocumento(b));
+16578:       const va=Number.isFinite(na)&&obtenerNumeroActaDocumento(a)!=='',vb=Number.isFinite(nb)&&obtenerNumeroActaDocumento(b)!=='';
+16579:       if(va&&vb&&na!==nb)return na-nb;if(va!==vb)return va?-1:1;
+16580:       const fa=obtenerFechaDocumentoActa(a),fb=obtenerFechaDocumentoActa(b);if(fa!==fb)return fa.localeCompare(fb);
+16581:       return clean(campoDocumentoStorage(a,['fechaCarga','fecha_creacion','created_at'],'')).localeCompare(clean(campoDocumentoStorage(b,['fechaCarga','fecha_creacion','created_at'],'')));
+16582:     });
+16583:   }
+16584:   function esAdministradorDocumental(){return typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();}
+16585:   function asegurarContenedorActasDocumentales(orden){
+16586:     const panel=$('panelFichaCertificaciones');if(!panel)return null;
+16587:     const nroOC=normalizarNroOCStorage(orden);let section=panel.querySelector('[data-actas-documentales]');
+16588:     if(!section){section=document.createElement('section');section.className='actas-documentales-section';section.dataset.actasDocumentales='true';panel.appendChild(section)}
+16589:     section.dataset.nroOc=nroOC;return section;
+16590:   }
+16591:   function actualizarResumenFichaConActasDocumentales(actas){
+16592:     if(!actas.length)return;
+16593:     const ordenadas=[...actas].sort((a,b)=>{const na=Number(obtenerNumeroActaDocumento(a))||0,nb=Number(obtenerNumeroActaDocumento(b))||0;if(na!==nb)return na-nb;return obtenerFechaDocumentoActa(a).localeCompare(obtenerFechaDocumentoActa(b))});
+16594:     const ultima=ordenadas.at(-1),numero=obtenerNumeroActaDocumento(ultima)||'Sin numero',fecha=obtenerFechaDocumentoActa(ultima);
+16595:     const panel=$('panelFichaCertificaciones');if(!panel)return;
+16596:     const setValue=(label,value)=>{const title=[...panel.querySelectorAll('.grid b')].find(node=>norm(node.textContent)===label);if(!title)return;const cell=title.parentElement;[...cell.childNodes].filter(node=>node!==title).forEach(node=>node.remove());cell.append(document.createTextNode(value))};
+16597:     setValue('ULTIMA ACTA',numero);if(fecha)setValue('FECHA ULTIMA ACTA',fmtDate(fecha));
+16598:   }
+16599:   function ocultarCertificacionesManualesDuplicadas(actas){
+16600:     const numeros=new Set(actas.map(obtenerNumeroActaDocumento).map(value=>norm(value).replace(/^0+(?=\d)/,'')).filter(Boolean));
+16601:     const section=$('certificacionesSupabaseFichaR18');if(!section||!numeros.size)return;
+16602:     let ocultas=0;section.querySelectorAll('tbody tr').forEach(row=>{const numero=norm(row.cells?.[0]?.textContent).replace(/^0+(?=\d)/,'');const duplicada=numero&&numeros.has(numero);row.hidden=!!duplicada;if(duplicada)ocultas++});
+16603:     let note=section.querySelector('[data-actas-consolidadas-note]');
+16604:     if(ocultas&&!note){note=document.createElement('div');note.dataset.actasConsolidadasNote='true';note.className='carga-certificacion-status ok';section.querySelector('.table-wrap')?.before(note)}
+16605:     if(note){note.hidden=!ocultas;note.textContent=`${ocultas} certificacion(es) vinculada(s) se muestran consolidadas con su PDF en Actas de medicion documentales.`}
+16606:   }
+16607:   async function renderActasMedicionDocumentalesOC(orden,documentos=null,certificaciones=null){
+16608:     const section=asegurarContenedorActasDocumentales(orden);if(!section)return[];
+16609:     const nroOC=normalizarNroOCStorage(orden),actas=obtenerActasMedicionDocumentalesOC(orden,documentos);
+16610:     let manuales=Array.isArray(certificaciones)?certificaciones:[];
+16611:     if(!manuales.length&&typeof window.cargarCertificacionesPorOC==='function')try{manuales=await window.cargarCertificacionesPorOC(orden)}catch(error){console.warn('COI: certificaciones manuales no disponibles para consolidacion.',error)}
+16612:     const manualPorNumero=new Map();manuales.forEach(row=>{const numero=norm(row?.acta_medicion_nro).replace(/^0+(?=\d)/,'');if(numero&&!manualPorNumero.has(numero))manualPorNumero.set(numero,row)});
+16613:     const alertas=[];
+16614:     actas.forEach(documento=>{const nombre=obtenerNombreArchivoDocumento(documento);if(!obtenerNumeroActaDocumento(documento))alertas.push(`${nombre}: completar Nro. de acta.`);if(!obtenerFechaDocumentoActa(documento))alertas.push(`${nombre}: completar fecha.`);if(!obtenerRutaDocumento(documento))alertas.push(`${nombre}: archivo no disponible en Storage.`)});
+16615:     if(manuales.length&&!actas.length)alertas.push('La OC posee certificaciones registradas, pero no tiene Acta de Medicion documental asociada.');
+16616:     const rows=actas.map(documento=>{
+16617:       const id=clean(campoDocumentoStorage(documento,['idDocumento','id_documento','id'],'')),numero=obtenerNumeroActaDocumento(documento),fecha=obtenerFechaDocumentoActa(documento),periodo=obtenerPeriodoDocumentoActa(documento),archivo=obtenerNombreArchivoDocumento(documento),estado=obtenerEstadoDocumento(documento),ruta=obtenerRutaDocumento(documento),observaciones=clean(campoDocumentoStorage(documento,['observaciones','descripcion'],'')),manual=manualPorNumero.get(norm(numero).replace(/^0+(?=\d)/,''));
+16618:       const clase=norm(estado).includes('OBSERV')?'rojo':!ruta?'gris':(!numero||!fecha)?'amarillo':'verde';
+16619:       const registro=manual?`Vinculada - avance ${Number(manual.aux_porcentaje||0).toFixed(2)}% - ejecutado periodo ${clean(manual.servicio_ejecutado_periodo)||'0'}`:'Solo registro documental';
+16620:       return `<tr data-acta-documental-id="${esc(id)}"><td><b>${esc(numero||'Sin numero')}</b>${!numero?'<br><span class="documento-storage-status amarillo">Completar Nro. de acta</span>':''}</td><td>${esc(clean(campoDocumentoStorage(documento,['tipoDocumento','tipo_documento','tipo'],'Acta de Medicion')))}</td><td>${esc(archivo)}</td><td><span class="documento-storage-status ${clase}">${esc(estado)}</span></td><td>${esc(obtenerRepositorioDocumento(documento))}</td><td>${esc(observaciones||'Sin observaciones')}<br><small>${esc(registro)}</small></td><td><div class="actas-documentales-actions"><button type="button" class="primary" data-storage-documento-id="${esc(id)}" ${ruta?'':'disabled title="Archivo no disponible en Storage"'}>Abrir PDF</button><button type="button" data-storage-documento-view="${esc(id)}">Ver en Documentos</button>${!numero&&esAdministradorDocumental()?`<button type="button" data-storage-documento-edit-meta="${esc(id)}">Editar metadatos</button>`:''}</div></td></tr>`;
+16621:     }).join('');
+16622:     section.innerHTML=`<div class="actas-documentales-head"><div><span class="documentos-storage-source">Vista operativa vinculada</span><h4>Actas de medicion documentales</h4><p>${actas.length} registro(s) documental(es) de la OC ${esc(nroOC)}. Los PDF permanecen en Supabase Storage.</p></div></div>${alertas.length?`<div class="actas-documentales-alertas">${[...new Set(alertas)].map(message=>`<div>${esc(message)}</div>`).join('')}</div>`:''}<div class="table-wrap"><table class="coi-table actas-documentales-table"><thead><tr><th>Acta Nro.</th><th>Tipo documento</th><th>Nombre archivo</th><th>Estado</th><th>Repositorio</th><th>Observaciones</th><th>Acciones</th></tr></thead><tbody>${rows||'<tr><td colspan="7">No hay Actas de Medicion ni Certificaciones documentales cargadas para esta OC.</td></tr>'}</tbody></table></div>`;
+16623:     actualizarResumenFichaConActasDocumentales(actas);ocultarCertificacionesManualesDuplicadas(actas);setTimeout(()=>ocultarCertificacionesManualesDuplicadas(actas),180);setTimeout(()=>ocultarCertificacionesManualesDuplicadas(actas),700);
+16624:     return actas;
+16625:   }
+16626:   function mostrarDocumentoStorageEnFicha(id,{editar=false}={}){
+16627:     if(typeof window.activarSubmoduloFichaOC==='function')window.activarSubmoduloFichaOC('panelFichaDocumentos');
+16628:     const selector=`[data-storage-documento-card="${typeof CSS!=='undefined'&&CSS.escape?CSS.escape(String(id)):String(id)}"]`;
+16629:     setTimeout(()=>{const card=document.querySelector(selector);if(card){card.scrollIntoView({behavior:'smooth',block:'center'});card.classList.add('documento-storage-destacado');setTimeout(()=>card.classList.remove('documento-storage-destacado'),1800)}if(editar){const localEdit=document.querySelector(`[data-v64-doc-edit="${String(id)}"]`);if(localEdit)localEdit.click();else toast('Registro localizado en Documentos. Complete los metadatos disponibles sin modificar el PDF.','warning')}},60);
+16630:   }
+16631:   Object.assign(window,{esDocumentoActaMedicion,obtenerNumeroActaDocumento,obtenerActasMedicionDocumentalesOC,renderActasMedicionDocumentalesOC});
+16632:   function invalidarDocumentosStorageOC(orden){if(orden===undefined||orden===null){documentosStorageCache.clear();return}const key=normalizarNroOCStorage(orden);if(key)documentosStorageCache.delete(key)}
+16633:   async function cargarDocumentosStorageOC(orden,{force=false}={}){
+16634:     const nroOC=normalizarNroOCStorage(orden);
+16635:     if(!nroOC)return[];
+16636:     if(documentosStoragePromises.has(nroOC))return documentosStoragePromises.get(nroOC);
+16637:     if(!force&&documentosStorageCache.has(nroOC))return documentosStorageCache.get(nroOC);
+16638:     const request=(async()=>{
+16639:       const c=client();
+16640:       if(!c)throw new Error('Cliente Supabase no disponible.');
+16641:       const u=await user();
+16642:       if(!u)throw new Error('Debe iniciar sesión en Supabase para consultar documentos PDF.');
+16643:       if(!navigator.onLine)throw new Error('Los documentos PDF requieren conexión con Supabase.');
+16644:       const {data,error}=await c.from(T_DOCUMENTOS_STORAGE).select('*').eq('nro_oc',nroOC).order('tipo_documento',{ascending:true}).order('fecha_documento',{ascending:true}).order('nombre_documento',{ascending:true});
+16645:       if(error)throw error;
+16646:       const documentos=Array.isArray(data)?data:[];
+16647:       documentosStorageCache.set(nroOC,documentos);
+16648:       return documentos;
+16649:     })();
+16650:     documentosStoragePromises.set(nroOC,request);
+16651:     try{return await request}finally{if(documentosStoragePromises.get(nroOC)===request)documentosStoragePromises.delete(nroOC)}
+16652:   }
+16653:   function categoriaDocumentoStorage(tipo){const value=norm(tipo);if(value.includes('ACTA')&&value.includes('MEDIC'))return'Actas de medición';if(value.includes('ACTA')&&value.includes('INICIO'))return'Actas de inicio';if(value.includes('FACTURA'))return'Facturas';if(value.includes('REMITO'))return'Remitos';if((value.includes('ORDEN')&&value.includes('COMPRA'))||value==='OC')return'Orden de Compra';return'Otros'}
+16654:   function claseEstadoDocumentoStorage(estado){const value=norm(estado);if(value.includes('OBSERV'))return'rojo';if(value.includes('PEND')||value.includes('SIN LINK'))return'amarillo';if(value.includes('CERR'))return'gris';if(value.includes('CARG')||value.includes('REVIS')||value.includes('VALID'))return'verde';return'azul'}
+16655:   function cabeceraDocumentosStorage(nroOC){return`<div class="documentos-storage-header"><div><span class="documentos-storage-source">B. Documentos PDF en Supabase Storage</span><h4>Documentación almacenada en Supabase</h4><p>Consulta segura de archivos privados asociados a la OC ${esc(nroOC||'sin identificar')}.</p></div><button type="button" data-storage-doc-refresh="${esc(nroOC)}">Actualizar documentos</button></div>`}
+16656:   function asegurarContenedorDocumentosStorage(orden){const panel=$('panelFichaDocumentos');if(!panel)return null;const nroOC=normalizarNroOCStorage(orden);let section=panel.querySelector('[data-documentos-storage]');if(!section){section=document.createElement('section');section.className='documentos-storage-section';section.dataset.documentosStorage='true';panel.appendChild(section)}section.dataset.nroOc=nroOC;return section}
+16657:   function prepararFuenteLinksDocumentales(){const panel=$('panelFichaDocumentos'),card=$('execDocumentCard');if(!panel||!card)return;card.classList.remove('ficha-oc-panel','active','is-active');if(card.parentElement!==panel)panel.appendChild(card);const title=card.querySelector('h3');if(title)title.textContent='A. Links externos / OneDrive'}
+16658:   function renderMensajeDocumentosStorage(orden,mensaje,{error=false}={}){const nroOC=normalizarNroOCStorage(orden),section=asegurarContenedorDocumentosStorage(orden);if(!section)return null;section.innerHTML=`${cabeceraDocumentosStorage(nroOC)}<div class="documentos-storage-empty${error?' error':''}">${esc(mensaje)}</div>`;return section}
+16659:   function renderDocumentosStorageOC(orden,documentos){
+16660:     const nroOC=normalizarNroOCStorage(orden),section=asegurarContenedorDocumentosStorage(orden);
+16661:     if(!section)return null;
+16662:     const rows=Array.isArray(documentos)?documentos:[];
+16663:     const categorias=['Actas de medición','Actas de inicio','Facturas','Remitos','Orden de Compra','Otros'];
+16664:     const conteos=Object.fromEntries(categorias.map(nombre=>[nombre,0])),grupos=new Map();
+16665:     rows.forEach(documento=>{const categoria=categoriaDocumentoStorage(documento?.tipo_documento);conteos[categoria]=(conteos[categoria]||0)+1;const tipo=clean(documento?.tipo_documento)||'Otros';if(!grupos.has(tipo))grupos.set(tipo,[]);grupos.get(tipo).push(documento)});
+
+===== RENDER FICHA FINAL SUPABASE | 17340-17470 =====
+17340:       const byNro = nro && associationNro && nro === associationNro;
+17341:       const byId = id != null && association?.orden_id != null && String(id) === String(association.orden_id);
+17342:       return byNro || byId;
+17343:     });
+17344:   }
+17345: 
+17346:   function associationIsActive(association){
+17347:     const state = fold(association?.estado || 'ACTIVA');
+17348:     return !['FINALIZ', 'SUSPENDID', 'FUERA DE ALCANCE', 'CANCELAD', 'INACTIV'].some((token) => state.includes(token));
+17349:   }
+17350: 
+17351:   function stationsForOrder(reference, onlyActiveAssociations = false){
+17352:     const found = resolveOrder(reference);
+17353:     const item = found?.item || unwrap(reference);
+17354:     const stations = [];
+17355:     const principal = clean(item?.estacion || found?.row?.estacion);
+17356:     if (principal) stations.push({ nombre: principal, rol: 'Principal', ramal: clean(item?.ramal), sector: clean(item?.sector) });
+17357:     associationsForOrder(reference)
+17358:       .filter((association) => !onlyActiveAssociations || associationIsActive(association))
+17359:       .forEach((association) => {
+17360:         const name = clean(association?.estacion);
+17361:         if (!name) return;
+17362:         const key = normalizeStation(name);
+17363:         const existing = stations.find((station) => normalizeStation(station.nombre) === key);
+17364:         const role = association?.es_principal ? 'Principal' : 'Asociada';
+17365:         if (existing) {
+17366:           if (role === 'Principal') existing.rol = 'Principal';
+17367:           return;
+17368:         }
+17369:         stations.push({
+17370:           nombre: name,
+17371:           rol: role,
+17372:           ramal: clean(association?.ramal),
+17373:           sector: clean(association?.sector),
+17374:           association
+17375:         });
+17376:       });
+17377:     return stations;
+17378:   }
+17379: 
+17380:   function patchOrderLookupAndButtons(){
+17381:     const previousLookup = window.obtenerOC;
+17382:     window.obtenerOC = function(reference){
+17383:       return resolveOrder(reference) || (typeof previousLookup === 'function' ? previousLookup(reference) : null);
+17384:     };
+17385: 
+17386:     const previousSearch = window.buscarPorIdObra;
+17387:     window.buscarPorIdObra = function(reference){
+17388:       return resolveOrder(reference) || (typeof previousSearch === 'function' ? previousSearch(reference) : null);
+17389:     };
+17390: 
+17391:     const previousOpen = window.abrirFichaOC;
+17392:     if (typeof previousOpen === 'function') {
+17393:       window.abrirFichaOC = function(reference){
+17394:         const key = canonicalOrderKey(reference) || reference;
+17395:         return previousOpen.call(this, key);
+17396:       };
+17397:     }
+17398: 
+17399:     const previousRender = window.renderFichaOC;
+17400:     if (typeof previousRender === 'function') {
+17401:       window.renderFichaOC = function(reference){
+17402:         const key = canonicalOrderKey(reference) || reference;
+17403:         return previousRender.call(this, key);
+17404:       };
+17405:     }
+17406: 
+17407:     window.botonFichaOC = function(reference, label = 'Ver ficha OC'){
+17408:       const key = canonicalOrderKey(reference);
+17409:       return `<button type="button" class="btn-open-oc" data-open-oc="${escapeHTML(key)}">${escapeHTML(label)}</button>`;
+17410:     };
+17411:   }
+17412: 
+17413:   function rowOrder(tableRow){
+17414:     const direct = tableRow?.dataset?.openOc || tableRow?.querySelector?.('[data-open-oc]')?.dataset?.openOc;
+17415:     let found = resolveOrder(direct);
+17416:     if (found) return found;
+17417:     const ocCell = tableRow?.querySelector?.('.orden-oc-num, .orden-oc-col');
+17418:     found = resolveOrder(ocCell?.textContent);
+17419:     if (found) return found;
+17420:     const cells = [...(tableRow?.cells || [])];
+17421:     for (const cell of cells.slice(0, 4)) {
+17422:       found = resolveOrder(cell.textContent);
+17423:       if (found) return found;
+17424:     }
+17425:     return null;
+17426:   }
+17427: 
+17428:   function booleanValue(value){
+17429:     return value === true || ['1', 'TRUE', 'SI', 'SÍ', 'YES'].includes(fold(value));
+17430:   }
+17431: 
+17432:   function applyOrdersTypeFilter(){
+17433:     const tbody = $('ordenesTbody');
+17434:     if (!tbody) return;
+17435:     const selectValue = clean($('ordenesFiltroTipo')?.value);
+17436:     const selectedType = selectValue ? normalizarTipoOrden(selectValue) : '';
+17437:     const onlyActive = fold($('uxOrderContext')?.textContent).includes('SOLO OCS ACTIVAS');
+17438:     let visible = 0;
+17439:     let obras = 0;
+17440:     let servicios = 0;
+17441:     let upcoming = 0;
+17442: 
+17443:     [...tbody.rows].forEach((tableRow) => {
+17444:       const found = rowOrder(tableRow);
+17445:       const fallbackType = /\bOBRA(?:S)?\s+CIVIL(?:ES)?\b/.test(fold(tableRow.textContent)) ? 'Obra' : 'Servicio';
+17446:       const type = found ? clasificarOrdenCOI(found) : fallbackType;
+17447:       let matches = !selectedType || type === selectedType;
+17448:       if (matches && found && onlyActive) matches = isActiveOrder(found);
+17449:       tableRow.hidden = !matches;
+17450:       tableRow.dataset.coiTipoOperativo = type;
+17451:       if (matches) {
+17452:         visible += 1;
+17453:         if (type === 'Obra') obras += 1; else servicios += 1;
+17454:         const days = found ? daysTo(orderDate(found)) : null;
+17455:         if (days !== null && days >= 0 && days <= 30) upcoming += 1;
+17456:       }
+17457:     });
+17458: 
+17459:     if ($('ordKTotal')) $('ordKTotal').textContent = String(visible);
+17460:     if ($('ordKObras')) $('ordKObras').textContent = String(obras);
+17461:     if ($('ordKServicios')) $('ordKServicios').textContent = String(servicios);
+17462:     if ($('ordKProxCert')) $('ordKProxCert').textContent = String(upcoming);
+17463:     $('ordenesFiltroTipo')?.classList.toggle('ux-filter-active', !!selectedType);
+17464:   }
+17465: 
+17466:   function patchOrdersRender(){
+17467:     const previousRender = window.renderOrdenes;
+17468:     if (typeof previousRender === 'function') {
+17469:       window.renderOrdenes = function(...args){
+17470:         if (ordersRenderLock) return previousRender.apply(this, args);
+
+===== DOCUMENTOS STORAGE / WRAPPERS | 12620-12840 =====
+12620:   function getUMs(){return arrFromGlobalOrKeys('unidadesMantenimiento',['coi_unidades_mantenimiento','coi_ums','unidadesMantenimiento','coi_um_catalogo']);}
+12621:   function saveUMs(a){try{window.unidadesMantenimiento=a;if(typeof unidadesMantenimiento!=='undefined')unidadesMantenimiento=a;}catch(e){} saveJSONKey('coi_unidades_mantenimiento',a);}
+12622:   function getSTs(){let a=[];try{if(Array.isArray(window.serviciosTecnicosUM))a=window.serviciosTecnicosUM;}catch(e){} const ls=safeJSON(LS_ST,[]); if(Array.isArray(ls)&&ls.length>a.length)a=ls; return Array.isArray(a)?a:[];}
+12623:   function saveSTs(a){try{window.serviciosTecnicosUM=a;if(typeof serviciosTecnicosUM!=='undefined')serviciosTecnicosUM=a;}catch(e){} saveJSONKey(LS_ST,a);}
+12624:   function findRowByKey(key){const k=normKey(key);return getRows().find(r=>normKey(getId(r))===k||normKey(getOC(r))===k)||null;}
+12625:   function openOC(key){try{if(typeof abrirFichaOC==='function'){abrirFichaOC(key);return;}}catch(e){}try{if(typeof renderFichaOC==='function'){if(typeof mostrarVista==='function')mostrarVista('vistaFichaOC');renderFichaOC(key);return;}}catch(e){}toast('No se pudo abrir la ficha OC','error',key);}
+12626:   function editOC(key){try{if(typeof abrirEdicionFichaOC==='function'){abrirEdicionFichaOC(key);return;}}catch(e){}try{if(typeof editarFichaOC==='function'){editarFichaOC(key);return;}}catch(e){}try{if(typeof renderFichaOCEdicion==='function'){if(typeof mostrarVista==='function')mostrarVista('vistaFichaOC');renderFichaOCEdicion(key);return;}}catch(e){}openOC(key);setTimeout(()=>focusEstadoSelect(),250);}
+12627: 
+12628:   function setVersion(){
+12629:     ['appVersionHeader','headerVersionOperativa'].forEach(id=>{const el=$(id);if(el)el.textContent=VERSION;});
+12630:     document.querySelectorAll('.app-version-badge,.footer-pill b,.header-pill b').forEach(el=>{if(/V\d+/i.test(el.textContent||''))el.textContent=VERSION;});
+12631:     try{const foot=$('headerUltimaActualizacion'); if(foot && (!foot.textContent||/Sin datos/i.test(foot.textContent)))foot.textContent=RELEASE_DATE;}catch(e){}
+12632:   }
+12633: 
+12634:   const ESTADOS_COI=['Pendiente de completar','Pliegos en preparación','Pliegos terminados sin SOLPED','Con SOLPED sin expediente','Con expediente','Con expediente y OC sin C3','Con OC con C3 sin acta','Con OC y C3 con acta','Obra/Servicio en ejecución','En ejecución','Suspendida','Cancelada','Finalizada','Finalizada con acta provisoria','Finalizada con acta definitiva','Enviado a Planificación y Control','Cerrada','Archivada'];
+12635:   function focusEstadoSelect(){
+12636:     const inp=[...document.querySelectorAll('input,select,textarea')].find(el=>norm(el.previousElementSibling?.textContent||el.closest('label')?.textContent||'').includes('ESTADO COI')||/estado.?coi/i.test(el.id||el.name||''));
+12637:     if(inp)inp.focus();
+12638:   }
+12639:   function convertirEstadoSelect(){
+12640:     const candidates=[...document.querySelectorAll('input,textarea')].filter(el=>{
+12641:       const lab=norm(el.previousElementSibling?.textContent||el.closest('label')?.textContent||el.getAttribute('aria-label')||el.id||el.name||'');
+12642:       return lab.includes('ESTADO COI')||/estado.?coi/i.test(el.id||el.name||'');
+12643:     });
+12644:     candidates.forEach(el=>{
+12645:       if(el.dataset.v581EstadoSelect)return;
+12646:       const val=el.value||'';const sel=document.createElement('select');sel.className=(el.className||'')+' coi-v581-select-estado';sel.dataset.v581EstadoSelect='1';sel.id=el.id||'estadoCOIV581';sel.name=el.name||'estadoCOI';
+12647:       sel.innerHTML=ESTADOS_COI.map(x=>`<option value="${esc(x)}" ${norm(x)===norm(val)?'selected':''}>${esc(x)}</option>`).join('');
+12648:       el.replaceWith(sel);
+12649:       sel.dispatchEvent(new Event('change',{bubbles:true}));
+12650:     });
+12651:   }
+12652: 
+12653:   function crearObservacionDesdeAlerta(alerta, origen='Centro de Alertas'){
+12654:     const oc=String(alerta.oc||alerta.ocNro||alerta.OC_NRO||alerta.idRegistro||alerta.ocId||'').trim();
+12655:     if(!oc){toast('La alerta no tiene OC asociada','warn');return false;}
+12656:     const msg=String(alerta.mensaje||alerta.descripcion||'').trim();
+12657:     const acc=String(alerta.accionSugerida||alerta.accion||'').trim();
+12658:     const tipo=String(alerta.tipoAlerta||alerta.tipo||'Alerta').trim();
+12659:     const texto=`Origen: ${origen}\nTipo de alerta: ${tipo}\nMensaje: ${msg}\nAcción sugerida: ${acc}\nFecha generada: ${new Date().toLocaleString()}`;
+12660:     const obs=getObs();
+12661:     const dup=obs.some(o=>norm(o.origen||'')===norm(origen)&&norm(o.ocNro||o.oc||'')===norm(oc)&&norm(o.texto||'').includes(norm(msg).slice(0,50))&&norm(o.texto||'').includes(norm(acc).slice(0,50))&&norm(o.estadoObservacion||o.estado)!=='RESUELTA');
+12662:     if(dup){toast('Esta alerta ya existe como observación pendiente.','warn');return false;}
+12663:     const row=findRowByKey(oc); const it=ocItem(row||{});
+12664:     obs.push({idObservacion:'OBS-'+Date.now()+'-'+Math.random().toString(36).slice(2,6).toUpperCase(),ocNro:getOC(row)||oc,idObra:it.idObra||it.idOC||'',idServicio:it.idServicio||'',tipoRegistro:getTipo(row)||alerta.tipoRegistro||'',texto,estadoObservacion:'Pendiente',fechaCarga:now(),usuarioCarga:'Local',origen,alertaId:alerta.id||'',fechaUltimaModificacion:now()});
+12665:     saveObs(obs);toast('Alerta enviada a observaciones de la OC.','ok',oc);return true;
+12666:   }
+12667: 
+12668:   function diagnostico(){
+12669:     const rows=getRows(); const posiciones=getPositions(); const docs=getDocs(); const problems=[];
+12670:     const add=(tipo,severidad,row,desc,accion)=>problems.push({tipo,severidad,id:getId(row),oc:getOC(row),estacion:getEst(row),proveedor:getProv(row),descripcion:desc,accion});
+12671:     const groupsOC={}, groupsID={};
+12672:     rows.forEach(r=>{const oc=getOC(r);const id=getId(r);if(oc)groupsOC[normKey(oc)]=(groupsOC[normKey(oc)]||[]).concat(r);if(id)groupsID[normKey(id)]=(groupsID[normKey(id)]||[]).concat(r);});
+12673:     Object.values(groupsOC).filter(g=>g.length>1).forEach(g=>g.forEach(r=>add('Duplicado por N° OC','Alta',r,`La OC ${getOC(r)} aparece ${g.length} veces.`, 'Revisar duplicidad y consolidar registro.')));
+12674:     Object.values(groupsID).filter(g=>g.length>1).forEach(g=>g.forEach(r=>add('Duplicado por ID','Alta',r,`El ID ${getId(r)} aparece ${g.length} veces.`, 'Revisar ID único de obra/servicio.')));
+12675:     rows.forEach(r=>{
+12676:       const inicio=getInicio(r), fin=getFin(r), plazo=getPlazo(r);
+12677:       const falt=[]; if(!getId(r))falt.push('ID'); if(!getOC(r))falt.push('OC'); if(!getTipo(r))falt.push('Tipo'); if(!getEst(r)||norm(getEst(r)).includes('SIN DEFINIR'))falt.push('Estación'); if(!getProv(r)||norm(getProv(r)).includes('SIN DEFINIR'))falt.push('Proveedor'); if(!inicio)falt.push('Fecha inicio'); if(!plazo)falt.push('Plazo días'); if(!getEstado(r))falt.push('Estado COI'); if(!getEstadoDoc(r))falt.push('Estado documental');
+12678:       if(falt.length)add('Registro incompleto','Media',r,'Faltan campos mínimos: '+falt.join(', ')+'.','Completar datos en Ficha OC.');
+12679:       const di=parseDate(inicio), df=parseDate(fin); if(inicio&&!di)add('Fecha inválida','Alta',r,'Fecha de inicio inválida: '+inicio,'Corregir fecha de inicio.'); if(fin&&!df)add('Fecha inválida','Alta',r,'Fecha de vencimiento inválida: '+fin,'Corregir vencimiento.'); if(di&&df&&df<di)add('Fecha inválida','Alta',r,'Fecha fin anterior a fecha inicio.','Revisar plazo contractual.');
+12680:       if((norm(getEstado(r)).includes('EJECUC')||norm(getEstado(r)).includes('ACTIVA'))&&!getCarpeta(r))add('Documental','Media',r,'OC activa sin carpeta documental/link asociado.','Asociar carpeta OneDrive/SharePoint.');
+12681:     });
+12682:     const posOC=posiciones.filter(p=>blockFin(p)==='OC'), cert=posiciones.filter(p=>blockFin(p)==='CERT');
+12683:     const posByOC={}; posOC.forEach(p=>{const k=normKey(pOC(p)); if(k)(posByOC[k]=posByOC[k]||[]).push(p); if(!pOC(p)||!pPOS(p))problems.push({tipo:'Financiera',severidad:'Media',id:p.idPosicionFinanciera||'',oc:pOC(p),estacion:'',proveedor:'',descripcion:'Posición OC sin OC o sin POS.',accion:'Completar OC/POS en carga financiera.'});});
+12684:     cert.forEach(p=>{if(!pOC(p)||!pPOS(p))problems.push({tipo:'Financiera',severidad:'Media',id:p.idPosicionFinanciera||'',oc:pOC(p),estacion:'',proveedor:'',descripcion:'Posición certificada sin OC o sin POS.',accion:'Completar OC/POS en carga financiera.'});});
+12685:     rows.forEach(r=>{const oc=getOC(r), k=normKey(oc), monto=getMontoOC(r), list=posByOC[k]||[]; const total=list.reduce((a,p)=>a+pMonto(p),0); const certTot=cert.filter(p=>normKey(pOC(p))===k).reduce((a,p)=>a+pMonto(p),0);
+12686:       if(monto>0&&!list.length)add('Financiera','Media',r,'OC con monto total pero sin posiciones financieras.','Cargar posiciones OC.');
+12687:       if(monto>0&&list.length&&Math.abs(total-monto)>1)add('Financiera','Media',r,`Diferencia OC vs posiciones: OC ${fmtMoney(monto)} / Posiciones ${fmtMoney(total)}.`,'Conciliar posiciones financieras.');
+12688:       if(monto>0&&certTot>monto+1)add('Financiera','Alta',r,`Certificado acumulado mayor al monto OC: ${fmtMoney(certTot)}.`,'Revisar certificaciones.');
+12689:       try{if(typeof calcularResumenFinancieroOC==='function'){const rr=calcularResumenFinancieroOC(oc); if((rr?.libres||[]).some(x=>money(x.saldoMonto)<-0.01))add('Financiera','Alta',r,'Posiciones libres negativas detectadas.','Revisar consumos/certificaciones.');}}catch(e){}
+12690:     });
+12691:     docs.forEach(d=>{if((d.fechaDocumento||d.fecha||d.fechaActa)&&!parseDate(d.fechaDocumento||d.fecha||d.fechaActa))problems.push({tipo:'Documental',severidad:'Media',id:d.idDocumento||'',oc:d.ocNro||d.oc||'',estacion:'',proveedor:'',descripcion:'Documento con fecha inválida.',accion:'Corregir fecha documental.'});});
+12692:     const resumen={fecha:now(),total:rows.length,duplicados:Object.values(groupsOC).filter(g=>g.length>1).length+Object.values(groupsID).filter(g=>g.length>1).length,fechasInvalidas:problems.filter(p=>p.tipo==='Fecha inválida').length,registrosIncompletos:problems.filter(p=>p.tipo==='Registro incompleto').length,inconsistenciasFinancieras:problems.filter(p=>p.tipo==='Financiera').length,problemasDocumentales:problems.filter(p=>p.tipo==='Documental').length,problemas:problems.slice(0,300)};
+12693:     try{if(typeof registrarLogSistema==='function')registrarLogSistema('diagnostico','Diagnóstico V58.1 ejecutado',JSON.stringify(resumen));}catch(e){}
+12694:     return resumen;
+12695:   }
+12696:   window.ejecutarDiagnosticoSistema=diagnostico;
+12697:   window.renderAdminDiagnostico=function(res=null){
+12698:     const p=$('adminTabDiagnostico'); if(!p)return; const r=res||null;
+12699:     if(!r){p.innerHTML=`<div class="admin-panel"><h3>Diagnóstico avanzado V58.1</h3><div class="admin-actions"><button type="button" id="btnEjecutarDiagnostico" class="primary">Ejecutar diagnóstico</button><button type="button" id="btnOptimizarBase">Optimizar base</button></div><p class="muted">Verifica duplicados, fechas inválidas, registros incompletos, inconsistencias financieras y documentación.</p></div>`;return;}
+12700:     const cards=[['Total registros',r.total],['Duplicados',r.duplicados],['Fechas inválidas',r.fechasInvalidas],['Registros incompletos',r.registrosIncompletos],['Inconsistencias financieras',r.inconsistenciasFinancieras],['Problemas documentales',r.problemasDocumentales]];
+12701:     const rows=(r.problemas||[]).map(x=>`<tr><td>${esc(x.tipo)}</td><td><span class="sev-${esc(norm(x.severidad).toLowerCase())}">${esc(x.severidad)}</span></td><td>${esc(x.id)}</td><td>${esc(x.oc)}</td><td>${esc(x.estacion)}</td><td>${esc(x.proveedor)}</td><td>${esc(x.descripcion)}</td><td>${esc(x.accion)}</td><td class="diag-actions"><button type="button" data-v581-open-oc="${esc(x.id||x.oc)}">Ver ficha</button><button type="button" class="primary" data-v581-edit-oc="${esc(x.id||x.oc)}">Editar</button><button type="button" data-v581-problem-obs="${esc(encodeURIComponent(JSON.stringify(x)))}">Enviar a Observaciones</button>${isAdmin()?`<button type="button" class="btn-danger-soft" data-v581-delete-oc="${esc(x.id||x.oc)}">Eliminar</button>`:''}</td></tr>`).join('')||'<tr><td colspan="9">Sin problemas detectados.</td></tr>';
+12702:     p.innerHTML=`<div class="admin-panel"><h3>Diagnóstico avanzado V58.1</h3><div class="admin-actions"><button type="button" id="btnEjecutarDiagnostico" class="primary">Ejecutar diagnóstico</button><button type="button" id="btnOptimizarBase">Optimizar base</button></div><p class="muted">Última ejecución: ${esc(new Date(r.fecha).toLocaleString())}</p><div class="v581-grid">${cards.map(c=>`<div class="v581-card"><b>${esc(c[1])}</b><span>${esc(c[0])}</span></div>`).join('')}</div><div class="table-wrap"><table class="coi-table v581-diag-table"><thead><tr><th>Tipo problema</th><th>Severidad</th><th>ID</th><th>OC</th><th>Estación</th><th>Proveedor</th><th>Descripción</th><th>Acción sugerida</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+12703:   };
+12704: 
+12705:   function exportBackup(){
+12706:     const payload={tipo:'backup-coi-linea-roca',version:VERSION,fechaExportacion:now(),usuario:'Local',resumen:{totalOC:getRows().length,totalUM:getUMs().length,totalPosiciones:getPositions().length,totalDocumentos:getDocs().length,totalObservaciones:getObs().length,totalST:getSTs().length},datos:{obrasServicios:getRows().map(r=>ocItem(r)),unidadesMantenimiento:getUMs(),posicionesFinancieras:getPositions(),documentosOC:getDocs(),observacionesOC:getObs(),alertasRevisadas:safeJSON(LS_ALERTAS_REV,[]),serviciosTecnicosUM:getSTs(),configuracion:{version:VERSION,fechaVersion:RELEASE_DATE}},localStorage:snapshotLocalStorage()};
+12707:     const name=`backup-coi-linea-roca-v58-1-${dateStamp()}.json`;download(name,JSON.stringify(payload,null,2));saveJSONKey(LS_BACKUP_META,{fecha:now(),tipo:'Exportado',version:VERSION,archivo:name,usuario:'Local'});inyectarAdmin();toast('Backup JSON exportado','ok',name);
+12708:   }
+12709:   function importarBackup(file){
+12710:     if(!file)return; if(!confirm('Esta acción reemplazará o fusionará datos locales. Se recomienda exportar backup antes de continuar. ¿Continuar?'))return;
+12711:     const reader=new FileReader();reader.onload=()=>{try{const data=JSON.parse(reader.result); if(!data||typeof data!=='object')throw new Error('JSON inválido'); if(data.localStorage&&typeof data.localStorage==='object'){if(typeof adminApplyLocalStorageSnapshot!=='function')throw new Error('La restauración segura no está disponible.');adminApplyLocalStorageSnapshot(data.localStorage,{tipo:'backup maestro V58.1',archivo:file.name});}
+12712:       if(data.datos){if(Array.isArray(data.datos.posicionesFinancieras))savePositions(data.datos.posicionesFinancieras); if(Array.isArray(data.datos.observacionesOC))saveObs(data.datos.observacionesOC); if(Array.isArray(data.datos.serviciosTecnicosUM))saveSTs(data.datos.serviciosTecnicosUM); if(Array.isArray(data.datos.unidadesMantenimiento))saveUMs(data.datos.unidadesMantenimiento); if(Array.isArray(data.datos.documentosOC))saveJSONKey(LS_DOCS,data.datos.documentosOC);}
+12713:       saveJSONKey(LS_BACKUP_META,{fecha:now(),tipo:'Importado',version:data.version||data.appVersion||VERSION,archivo:file.name,usuario:'Local'});toast('Backup JSON importado','ok',file.name);setTimeout(()=>location.reload(),700);
+12714:     }catch(e){toast('No se pudo importar backup','error',e.message||String(e));}};reader.readAsText(file);
+12715:   }
+12716:   function estadoLocal(){
+12717:     const bytes=new Blob(Object.keys(localStorage).map(k=>String(k)+String(localStorage.getItem(k)))).size;
+12718:     return {bytes,oc:getRows().length,um:getUMs().length,pos:getPositions().length,docs:getDocs().length,obs:getObs().length,st:getSTs().length,meta:safeJSON(LS_BACKUP_META,{})};
+12719:   }
+12720:   function showEstadoLocal(){const e=estadoLocal();toast('Estado de datos locales','info',`LocalStorage ${(e.bytes/1024).toFixed(1)} KB · OC ${e.oc} · UM ${e.um} · Pos ${e.pos} · Docs ${e.docs} · Obs ${e.obs} · ST ${e.st}`); const box=$('estadoDatosLocalesV581'); if(box)box.innerHTML=`<div class="v581-grid"><div class="v581-card"><b>${(e.bytes/1024).toFixed(1)} KB</b><span>LocalStorage</span></div><div class="v581-card"><b>${e.oc}</b><span>OC</span></div><div class="v581-card"><b>${e.um}</b><span>UM</span></div><div class="v581-card"><b>${e.pos}</b><span>Posiciones</span></div><div class="v581-card"><b>${e.docs}</b><span>Documentos</span></div><div class="v581-card"><b>${e.obs}</b><span>Observaciones</span></div><div class="v581-card"><b>${e.st}</b><span>ST asociados</span></div><div class="v581-card"><b>${esc(e.meta.fecha?new Date(e.meta.fecha).toLocaleString():'Sin datos')}</b><span>Último backup</span></div></div>`;}
+12721:   function limpiarLocal(){if(!isAdmin()){toast('Solo Administrador puede limpiar datos locales.','error');return;} const pin=prompt('Ingrese PIN de Administrador para limpiar datos locales'); if(pin===null)return; if(String(pin)!==String(pinAdmin())){toast('PIN incorrecto','error');return;} if(!confirm('Primera confirmación: se recomienda exportar backup JSON antes de limpiar. ¿Continuar?'))return; if(!confirm('Segunda confirmación: se eliminarán los datos locales de esta PC/navegador. ¿Limpiar?'))return; localStorage.clear();toast('Datos locales limpiados','warn','La página se recargará.');setTimeout(()=>location.reload(),700);}
+12722:   function inyectarAdmin(){
+12723:     const datos=$('adminTabDatos'); if(datos&&!$('adminBackupV581'))datos.insertAdjacentHTML('afterbegin',`<div class="admin-panel" id="adminBackupV581"><h3>Backup JSON maestro V58.1</h3><p class="muted">Exporta/importa la base completa local para piloto operativo.</p><div class="admin-actions"><button type="button" id="btnExportarBackupV581" class="primary">Exportar backup JSON completo</button><button type="button" id="btnImportarBackupV581">Importar backup JSON completo</button><button type="button" id="btnVerEstadoLocalV581">Ver estado de datos locales</button><button type="button" id="btnLimpiarLocalV581" class="btn-danger-soft">Limpiar datos locales</button></div><input type="file" id="fileImportarBackupV581" accept="application/json,.json" hidden><div id="estadoDatosLocalesV581" class="backup-json-note">Último backup: ${esc(safeJSON(LS_BACKUP_META,{}).fecha?new Date(safeJSON(LS_BACKUP_META,{}).fecha).toLocaleString():'Sin datos')}</div></div>`);
+12724:     if($('adminCfgVersion'))$('adminCfgVersion').value=VERSION;
+12725:     convertirEstadoSelect();setVersion();
+12726:   }
+12727: 
+12728:   function renderCentroAlertasV581(){
+12729:     const body=document.querySelector('#vistaCentroAlertas .view-body')||$('vistaCentroAlertas'); if(!body)return;
+12730:     let a=[];try{a=typeof generarAlertasCOI==='function'?generarAlertasCOI():[];}catch(e){a=[];} if(!Array.isArray(a))a=[];
+12731:     const rev=new Set(safeJSON(LS_ALERTAS_REV,[])); a=a.filter(x=>!rev.has(String(x.id||'')));
+12732:     const rows=a.map((x,i)=>`<tr><td>${esc(x.oc||x.ocNro||x.idRegistro||'')}</td><td>${esc(x.tipoAlerta||x.tipo||'')}</td><td>${esc(x.estacion||'')}</td><td>${esc(x.proveedor||'')}</td><td>${esc(x.descripcion||'')}</td><td>${esc(iso(x.fechaRelacionada||x.fecha)||x.fechaRelacionada||'')}</td><td>${esc(x.dias??'')}</td><td>${esc(x.mensaje||'')}</td><td>${esc(x.accionSugerida||'')}<br><button type="button" class="btn-small" data-v581-alert-obs="${esc(encodeURIComponent(JSON.stringify(x)))}">Enviar a Observaciones</button></td><td><button type="button" class="primary" data-v581-open-oc="${esc(x.idRegistro||x.oc||x.ocNro||'')}">Ver ficha OC</button><button type="button" data-v581-alert-revisada="${esc(x.id||('ALERTA-'+i))}">Marcar revisada</button></td></tr>`).join('')||'<tr><td colspan="10">Sin alertas visibles.</td></tr>';
+12733:     body.innerHTML=`<h2>Centro de Alertas</h2><p class="muted">Detección automática de vencimientos, certificaciones, documentación pendiente y datos críticos.</p><div class="admin-status-grid"><div class="v581-card"><b>${a.length}</b><span>Total visibles</span></div><div class="v581-card"><b>${a.filter(x=>norm(x.categoria).includes('DOCUMENT')).length}</b><span>Documentales</span></div><div class="v581-card"><b>${a.filter(x=>norm(x.categoria).includes('FINAN')).length}</b><span>Financieras</span></div><div class="v581-card"><b>${a.filter(x=>norm(x.severidad).includes('ALTA')||norm(x.severidad).includes('ROJA')).length}</b><span>Alta severidad</span></div></div><div class="table-wrap"><table class="coi-table"><thead><tr><th>OC</th><th>Tipo alerta</th><th>Estación</th><th>Proveedor</th><th>Descripción</th><th>Fecha</th><th>Días</th><th>Mensaje</th><th>Acción sugerida</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+12734:   }
+12735:   window.renderCentroAlertas=renderCentroAlertasV581;
+12736: 
+12737:   function addObsButtonEnhance(){
+12738:     document.querySelectorAll('#panelFichaObservaciones .obs-actions, .obs-actions').forEach(bar=>{if(!bar.querySelector('[data-v581-obs-resolver]')){const id=bar.closest('[data-obs-id]')?.dataset?.obsId||bar.querySelector('[data-obs-resolve]')?.dataset?.obsResolve||''; if(id)bar.insertAdjacentHTML('afterbegin',`<button type="button" data-v581-obs-resolver="${esc(id)}">Resolver</button>`);}});
+12739:   }
+12740:   function resolverObs(id){
+12741:     const obs=getObs().find(o=>String(o.idObservacion)===String(id)); if(!obs){toast('No se encontró observación','error');return;}
+12742:     const t=norm(obs.texto||'');
+12743:     if(t.match(/DOCUMENT|REMITO|FACTURA|DDJJ|SERCAE|ACTA|ONEDRIVE|PLIEGO/)){try{document.querySelector('[data-ficha-tab="documentos"], [data-oc-tab="documentos"], [data-tab="documentos"]')?.click();toast('Resolver en Documentos','info');return;}catch(e){}}
+12744:     if(t.match(/MONTO|SALDO|CERTIFIC|FINAN|POSICION/)){try{document.querySelector('[data-ficha-tab="financiero"], [data-oc-tab="financiero"], [data-tab="financiero"]')?.click();toast('Resolver en Estado Financiero','info');return;}catch(e){}}
+12745:     if(t.match(/FOTO|IMAGEN/)){try{document.querySelector('[data-ficha-tab="fotos"], [data-oc-tab="fotos"], [data-tab="fotos"]')?.click();toast('Resolver en Fotos','info');return;}catch(e){}}
+12746:     editOC(obs.idObra||obs.idServicio||obs.ocNro);toast('Resolver en edición de Ficha OC','info');
+12747:   }
+12748: 
+12749:   function calcResumenFin(ocNro){
+12750:     const ok=normKey(ocNro);const lista=getPositions().filter(p=>normKey(pOC(p))===ok);const pos=lista.filter(p=>blockFin(p)==='OC'), cert=lista.filter(p=>blockFin(p)==='CERT');
+12751:     function certsPara(p){const oc=normKey(pOC(p)),posi=normKey(pPOS(p)),rem=normKey(pRemito(p)),id=String(p.idPosicionFinanciera||'');return cert.filter(c=>String(c.idPosicionOrigen||'')===id||(normKey(pOC(c))===oc&&normKey(pPOS(c))===posi&&(!rem||!normKey(pRemito(c))||normKey(pRemito(c))===rem)));}
+12752:     const libres=pos.map(p=>{const rel=certsPara(p);const cant=pCant(p), monto=pMonto(p), cantC=rel.reduce((a,c)=>a+pCant(c),0), monC=rel.reduce((a,c)=>a+pMonto(c),0);return {...p,cantidadOriginal:cant,montoOriginal:monto,cantidadConsumida:cantC,montoConsumido:monC,saldoCantidad:cant-cantC,saldoMonto:monto-monC,cantidad:cant-cantC,precioTotal:monto-monC,saldo:monto-monC,idPosicionOrigen:p.idPosicionFinanciera};}).filter(p=>money(p.saldoMonto)>0.01||Number(p.saldoCantidad)>0.0001);
+12753:     const totalPosiciones=pos.reduce((a,p)=>a+pMonto(p),0), totalCertificado=cert.reduce((a,p)=>a+pMonto(p),0), totalLibre=libres.reduce((a,p)=>a+money(p.saldoMonto),0);
+12754:     return {lista,posOC:pos,cert,libres,totalPosiciones,totalCertificado,totalLibre,saldo:totalPosiciones-totalCertificado,cantidadPosicionesOC:pos.length,cantidadCertificadas:cert.length,cantidadLibres:libres.length,porcentajeConsumido:totalPosiciones?totalCertificado/totalPosiciones*100:0};
+12755:   }
+12756:   window.calcularResumenFinancieroOC=calcResumenFin;
+12757: 
+12758:   function findUM(id){const k=normKey(id);return getUMs().find(u=>normKey(u.idUM||u.ID_UM||u.id||u.codigoUM)===k)||null;}
+12759:   function stUM(st){return String(st.idUM||st.um||st.UM||'').trim();}
+12760:   function renderSTBlock(idUM){const arr=getSTs().filter(st=>normKey(stUM(st))===normKey(idUM));const rows=arr.map(st=>`<tr><td>${esc(st.empresa||'')}</td><td>${esc(st.obra||'')}</td><td>${esc(stUM(st))}</td><td>${esc(iso(st.fecha)||st.fecha||'')}</td><td>${esc(st.trabajosRepuestos||st.descripcion||'')}</td><td>${esc(st.tecnico||'')}</td><td>${esc(st.firmaResponsable||'')}</td><td>${isAdmin()?`<button type="button" class="btn-danger-soft" data-v581-del-st="${esc(st.idST||'')}" data-v581-del-st-um="${esc(idUM)}">Eliminar</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8">Sin servicios técnicos asociados cargados.</td></tr>';
+12761:     const form=isAdmin()?`<div class="st-v581-form" data-v581-st-form="${esc(idUM)}"><h4>Cargar Servicio Técnico asociado</h4><div class="st-v581-grid"><label>Empresa<input data-st="empresa"></label><label>Obra<input data-st="obra"></label><label>UM<input data-st="idUM" value="${esc(idUM)}"></label><label>Fecha<input data-st="fecha" type="date" value="${esc(iso(new Date()))}"></label><label class="full">Trabajos y Repuestos<textarea data-st="trabajosRepuestos"></textarea></label><label>Técnico<input data-st="tecnico"></label><label>Firma Responsable<input data-st="firmaResponsable"></label></div><button type="button" class="primary" data-v581-save-st="${esc(idUM)}">Guardar ST</button><button type="button" data-v581-export-st="${esc(idUM)}">Exportar ST CSV</button></div>`:'<div class="oc-empty">Ingrese como Administrador para cargar ST asociados.</div>';
+12762:     return `<div class="table-wrap"><table class="coi-table st-v581-table"><thead><tr><th>Empresa</th><th>Obra</th><th>UM</th><th>Fecha</th><th>Trabajos y Repuestos</th><th>Técnico</th><th>Firma Responsable</th><th>Acción</th></tr></thead><tbody>${rows}</tbody></table></div>${form}`;
+12763:   }
+12764:   function renderFichaUMV581(idUM){
+12765:     const body=$('fichaUMBody'); if(!body)return; const u=findUM(idUM); if(!u){body.innerHTML=`<div class="coi-error-box"><b>No se encontró la UM ${esc(idUM)}.</b></div>`;return;}
+12766:     const id=String(u.idUM||u.ID_UM||idUM);body.innerHTML=`<div class="oc-kpis"><div class="oc-kpi"><b>${esc(id)}</b><span>ID UM</span></div><div class="oc-kpi"><b>${esc(u.tipoUM||u.tipo||'—')}</b><span>Tipo UM</span></div><div class="oc-kpi"><b>${esc(u.estacion||'—')}</b><span>Estación</span></div><div class="oc-kpi"><b>${esc(u.estadoOperativo||u.estado||'—')}</b><span>Estado</span></div></div><div class="um-ficha-grid"><section class="um-ficha-card"><h3>A. Encabezado</h3><div class="grid"><div><b>ID UM</b>${esc(id)}</div><div><b>Tipo</b>${esc(u.tipoUM||u.tipo||'—')}</div><div><b>Estación</b>${esc(u.estacion||'—')}</div><div><b>Ubicación técnica</b>${esc(u.ubicacionTecnica||u.ubicacion||'—')}</div></div></section><section class="um-ficha-card"><h3>B. Datos técnicos</h3><div class="grid"><div><b>Sector</b>${esc(u.sector||'—')}</div><div><b>Criticidad</b>${esc(u.criticidad||'—')}</div><div><b>Proveedor actual</b>${esc(u.proveedorActual||'—')}</div><div><b>OC actual</b>${esc(u.ocActual||'—')}</div><div><b>Descripción</b>${esc(u.descripcion||'—')}</div></div></section><section class="um-ficha-card full"><h3>C. Servicios Técnicos Asociados</h3>${renderSTBlock(id)}</section><section class="um-ficha-card full"><h3>D. Observaciones</h3><div class="exp-observaciones">${esc(u.observaciones||'Sin observaciones cargadas.')}</div></section></div>`;
+12767:   }
+12768:   window.renderFichaUM=renderFichaUMV581; window.abrirFichaUM=function(idUM){try{window.umActualId=idUM;if(typeof mostrarVista==='function')mostrarVista('vistaFichaUM');else{document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));$('vistaFichaUM')?.classList.add('active');}renderFichaUMV581(idUM);}catch(e){toast('No se pudo abrir Ficha UM','error',e.message||String(e));}};
+12769:   function saveST(idUM){const f=document.querySelector(`[data-v581-st-form="${CSS.escape(idUM)}"]`);if(!f)return;const val=k=>String(f.querySelector(`[data-st="${k}"]`)?.value||'').trim();const st={idST:'ST-'+Date.now()+'-'+Math.random().toString(36).slice(2,6).toUpperCase(),empresa:val('empresa'),obra:val('obra'),idUM:val('idUM')||idUM,um:val('idUM')||idUM,fecha:val('fecha'),trabajosRepuestos:val('trabajosRepuestos'),descripcion:val('trabajosRepuestos'),tecnico:val('tecnico'),firmaResponsable:val('firmaResponsable'),fechaCreacion:now(),fechaUltimaModificacion:now()}; if(!st.idUM||!st.fecha||!st.trabajosRepuestos){toast('Complete UM, Fecha y Trabajos/Repuestos.','error');return;} const arr=getSTs();arr.push(st);saveSTs(arr);toast('Servicio Técnico asociado guardado','ok',st.idUM);renderFichaUMV581(st.idUM);}
+12770:   function exportST(idUM){const arr=getSTs().filter(st=>normKey(stUM(st))===normKey(idUM));const head=['Empresa','Obra','UM','Fecha','Trabajos y Repuestos','Técnico','Firma Responsable'];const lines=[head.join(';')].concat(arr.map(st=>[st.empresa,st.obra,stUM(st),st.fecha,st.trabajosRepuestos||st.descripcion,st.tecnico,st.firmaResponsable].map(coiCSVCell).join(';')));download(`st_um_${String(idUM).replace(/\W+/g,'_')}_v58_1.csv`,lines.join('\n'),'text/csv;charset=utf-8');}
+12771: 
+12772:   function bindClicks(){document.addEventListener('click',ev=>{
+12773:     if(ev.target.closest('#btnEjecutarDiagnostico')){ev.preventDefault();ev.stopImmediatePropagation();setTimeout(()=>{const r=diagnostico();window.renderAdminDiagnostico(r);try{if(typeof adminMostrarTab==='function')adminMostrarTab('diagnostico');}catch(e){}toast('Diagnóstico ejecutado','ok',`${r.total} registros verificados`);},0);return;}
+12774:     if(ev.target.closest('#btnExportarBackupV581,#btnExportarBackupJSONCompleto,#btnExportBaseJson')){ev.preventDefault();ev.stopImmediatePropagation();exportBackup();return;}
+12775:     if(ev.target.closest('#btnImportarBackupV581,#btnImportarBackupJSONCompleto')){ev.preventDefault();ev.stopImmediatePropagation();$('fileImportarBackupV581')?.click();return;}
+12776:     if(ev.target.closest('#btnVerEstadoLocalV581')){ev.preventDefault();showEstadoLocal();return;}
+12777:     if(ev.target.closest('#btnLimpiarLocalV581')){ev.preventDefault();limpiarLocal();return;}
+12778:     const o=ev.target.closest('[data-v581-open-oc]'); if(o){ev.preventDefault();openOC(o.dataset.v581OpenOc);return;}
+12779:     const ed=ev.target.closest('[data-v581-edit-oc]'); if(ed){ev.preventDefault();editOC(ed.dataset.v581EditOc);return;}
+12780:     const ao=ev.target.closest('[data-v581-alert-obs]'); if(ao){ev.preventDefault();crearObservacionDesdeAlerta(JSON.parse(decodeURIComponent(ao.dataset.v581AlertObs||'%7B%7D')));return;}
+12781:     const po=ev.target.closest('[data-v581-problem-obs]'); if(po){ev.preventDefault();crearObservacionDesdeAlerta(JSON.parse(decodeURIComponent(po.dataset.v581ProblemObs||'%7B%7D')),'Diagnóstico');return;}
+12782:     const rev=ev.target.closest('[data-v581-alert-revisada]'); if(rev){ev.preventDefault();const a=safeJSON(LS_ALERTAS_REV,[]);a.push(rev.dataset.v581AlertRevisada);saveJSONKey(LS_ALERTAS_REV,[...new Set(a)]);renderCentroAlertasV581();toast('Alerta marcada como revisada','ok');return;}
+12783:     const delst=ev.target.closest('[data-v581-del-st]'); if(delst){ev.preventDefault();if(!isAdmin()){toast('Solo Administrador puede eliminar ST.','error');return;} if(!confirm('¿Eliminar este ST asociado?'))return;saveSTs(getSTs().filter(st=>String(st.idST)!==String(delst.dataset.v581DelSt)));renderFichaUMV581(delst.dataset.v581DelStUm);toast('ST eliminado','warn');return;}
+12784:     const savest=ev.target.closest('[data-v581-save-st]'); if(savest){ev.preventDefault();saveST(savest.dataset.v581SaveSt);return;}
+12785:     const expst=ev.target.closest('[data-v581-export-st]'); if(expst){ev.preventDefault();exportST(expst.dataset.v581ExportSt);return;}
+12786:     const res=ev.target.closest('[data-v581-obs-resolver]'); if(res){ev.preventDefault();resolverObs(res.dataset.v581ObsResolver);return;}
+12787:   },true);}
+12788: 
+12789:   function injectStyle(){if($('styleV581'))return;const s=document.createElement('style');s.id='styleV581';s.textContent=`.coi-toast-v581{position:fixed;right:22px;bottom:88px;z-index:999999;background:#1768a9;color:white;border-radius:14px;padding:12px 16px;box-shadow:0 14px 34px rgba(0,0,0,.25);font-weight:800;opacity:0;transform:translateY(10px);transition:.2s}.coi-toast-v581.show{opacity:1;transform:translateY(0)}.coi-toast-v581 small{display:block;font-weight:600;opacity:.95;margin-top:3px}.coi-toast-v581.ok{background:#138a4b}.coi-toast-v581.warn{background:#b26a00}.coi-toast-v581.error{background:#b42318}.coi-toast-v581.info{background:#1768a9}.v581-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:10px 0}.v581-card{border:1px solid #d7e4ef;border-radius:14px;background:#fff;padding:14px}.v581-card b{display:block;color:#1264a3;font-size:22px}.v581-card span{text-transform:uppercase;font-size:11px;font-weight:800;color:#52697b}.v581-diag-table td{vertical-align:top}.diag-actions button{margin:2px}.coi-v581-select-estado{min-height:38px;border:1px solid #cbd8e4;border-radius:10px;padding:8px;background:#fff}.st-v581-form{border:1px solid #d7e4ef;background:#f8fbff;border-radius:14px;padding:14px;margin-top:12px}.st-v581-grid{display:grid;grid-template-columns:repeat(3,minmax(180px,1fr));gap:10px}.st-v581-grid label{font-size:12px;font-weight:800;color:#24415a}.st-v581-grid input,.st-v581-grid textarea{width:100%;border:1px solid #cbd8e4;border-radius:10px;padding:8px;margin-top:4px}.st-v581-grid .full{grid-column:1/-1}.sev-alta,.sev-roja{color:#b42318;font-weight:800}.sev-media,.sev-amarilla{color:#b26a00;font-weight:800}.sev-baja{color:#1768a9;font-weight:800}`;document.head.appendChild(s);}
+12790: 
+12791:   function init(){injectStyle();setVersion();inyectarAdmin();convertirEstadoSelect();addObsButtonEnhance();bindClicks();
+12792:     const baseRenderAdmin=window.renderAdministracionSistema; if(typeof baseRenderAdmin==='function'&&!baseRenderAdmin._v581){window.renderAdministracionSistema=function(){const r=baseRenderAdmin.apply(this,arguments);setTimeout(inyectarAdmin,0);return r;};window.renderAdministracionSistema._v581=true;}
+12793:     const baseRenderFichaOC=window.renderFichaOC; if(typeof baseRenderFichaOC==='function'&&!baseRenderFichaOC._v581){window.renderFichaOC=function(){const r=baseRenderFichaOC.apply(this,arguments);setTimeout(()=>{convertirEstadoSelect();addObsButtonEnhance();},0);return r;};window.renderFichaOC._v581=true;}
+12794:     document.addEventListener('change',ev=>{if(ev.target&&ev.target.id==='fileImportarBackupV581')importarBackup(ev.target.files?.[0]);},true);
+12795:     setInterval(()=>{setVersion();convertirEstadoSelect();},1200);
+12796:   }
+12797:   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+12798:   window.COI_V581={version:VERSION,diagnostico,exportBackup,renderCentroAlertas:renderCentroAlertasV581,calcularResumenFinancieroOC:calcResumenFin,renderFichaUM:renderFichaUMV581};
+12799: })();
+12800: 
+12801: 
+12802: /* V58.1R18: implementación local heredada de Certificaciones retirada.
+12803:    Los datos existentes no se eliminan; la persistencia activa es Supabase. */
+12804: window.COI_CERTIFICACION_LEGACY_DISABLED=true;
+12805: 
+12806: </script>
+12807: 
+12808: 
+12809: <style id="coi-certificaciones-r18-styles">
+12810: .carga-certificacion-shell {
+12811:   display: grid;
+12812:   gap: 12px;
+12813:   padding: 14px;
+12814:   border: 1px solid #d7e3ec;
+12815:   border-radius: 8px;
+12816:   background: #fff;
+12817: }
+12818: 
+12819: .carga-cert-subtabs-r18 {
+12820:   display: flex;
+12821:   gap: 6px;
+12822:   margin: 0 0 12px;
+12823:   padding: 4px;
+12824:   border: 1px solid #d9e4eb;
+12825:   border-radius: 7px;
+12826:   background: #eef4f7;
+12827: }
+12828: 
+12829: .carga-cert-subtabs-r18 button {
+12830:   min-height: 36px;
+12831:   padding: 7px 14px;
+12832:   border: 1px solid transparent;
+12833:   border-radius: 5px;
+12834:   background: transparent;
+12835:   color: #38546a;
+12836:   font-weight: 700;
+12837: }
+12838: 
+12839: .carga-cert-subtabs-r18 button.active {
+12840:   border-color: #b8d2e1;
