@@ -5,26 +5,48 @@ async function openIsolated(page) {
   await page.addInitScript(() => { localStorage.clear(); sessionStorage.clear(); });
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('body')).toBeVisible();
-  await page.waitForFunction(() => typeof window.renderFichaOC === 'function' && typeof window.todasLasOC === 'function');
+  await page.waitForFunction(() => typeof window.renderFichaOC === 'function' && typeof window.obtenerOC === 'function');
 }
 
 async function renderTypeWithSupabaseStubs(page, tipo) {
   return page.evaluate(async tipoBuscado => {
-    const rows = window.todasLasOC();
-    const row = rows.find(r => String((r.item || r).tipo || '').toLowerCase() === tipoBuscado.toLowerCase());
-    if (!row) return { ok:false, reason:`No hay ${tipoBuscado} demo` };
-    const item = row.item || row;
-    const ref = item.idObra || item.idOC || item.numeroOC || item.oc;
+    const esObra = String(tipoBuscado).toLowerCase() === 'obra';
+    const item = {
+      idObra: esObra ? 'OC-QA-OBRA-001' : 'OC-QA-SERVICIO-001',
+      idOC: esObra ? 'OC-QA-OBRA-001' : 'OC-QA-SERVICIO-001',
+      numeroOC: esObra ? '4530099001' : '4530099002',
+      oc: esObra ? '4530099001' : '4530099002',
+      tipo: esObra ? 'Obra' : 'Servicio',
+      tipoTrabajo: esObra ? 'Obras Civiles' : 'Ascensores',
+      sector: esObra ? 'Andén 1' : 'Hall principal',
+      proveedor: 'PROVEEDOR QA S.R.L.',
+      estado: 'En ejecución',
+      estadoDocumental: 'Pendiente',
+      fechaInicio: '2026-01-01',
+      actaInicio: '2026-01-01',
+      plazoDias: 365,
+      plazo: 365,
+      vencimiento: '2026-12-31',
+      fechaFin: '2026-12-31',
+      monto: 1000000,
+      _supabaseRaw: { fecha_vencimiento: '2026-12-31' }
+    };
+    const estacion = { nombre:'Plaza Constitución' };
+    const ref = item.idObra;
+
+    // La OC existe solo dentro del navegador de prueba. No se siembra localStorage
+    // ni se reintroducen demos: el sistema real sigue dependiendo de Supabase.
+    window.obtenerOC = () => ({ estacion, item });
     Object.defineProperty(navigator, 'onLine', { configurable:true, get:() => true });
     window.getSupabaseClient = () => ({ from:()=>({}) });
     window.getUsuarioActual = async () => ({ id:'qa-user' });
     window.cargarCertificacionesPorOC = async () => [
-      { nro_oc:item.numeroOC||item.oc, acta_medicion_nro:'7', fecha_inicio:'2026-07-01', fecha_fin:'2026-07-31', aux_porcentaje:62.5 },
-      { nro_oc:item.numeroOC||item.oc, acta_medicion_nro:'6', fecha_inicio:'2026-06-01', fecha_fin:'2026-06-30', aux_porcentaje:50 }
+      { nro_oc:item.numeroOC, acta_medicion_nro:'7', fecha_inicio:'2026-07-01', fecha_fin:'2026-07-31', aux_porcentaje:62.5 },
+      { nro_oc:item.numeroOC, acta_medicion_nro:'6', fecha_inicio:'2026-06-01', fecha_fin:'2026-06-30', aux_porcentaje:50 }
     ];
     window.cargarDocumentosStorageOC = async () => [
-      { id:'doc-1', nro_oc:item.numeroOC||item.oc, storage_path:'qa/a.pdf' },
-      { id:'doc-2', nro_oc:item.numeroOC||item.oc, storage_path:'qa/b.pdf' }
+      { id:'doc-1', nro_oc:item.numeroOC, storage_path:'qa/a.pdf' },
+      { id:'doc-2', nro_oc:item.numeroOC, storage_path:'qa/b.pdf' }
     ];
     window.renderFichaOC(ref);
     return { ok:true, ref };
@@ -34,7 +56,7 @@ async function renderTypeWithSupabaseStubs(page, tipo) {
 test('Obra muestra VTO, última certificación y avance desde Supabase sin tocar Finanzas', async ({ page }) => {
   await openIsolated(page);
   const result = await renderTypeWithSupabaseStubs(page, 'Obra');
-  expect(result.ok, result.reason || '').toBe(true);
+  expect(result.ok).toBe(true);
   await expect(page.locator('[data-coi-obra-resumen-source="supabase"]')).toBeVisible();
   const card = page.locator('[data-coi-obra-resumen-source="supabase"]');
   await expect(card).toContainText('Vencimiento');
@@ -42,6 +64,7 @@ test('Obra muestra VTO, última certificación y avance desde Supabase sin tocar
   await expect(card).toContainText('% de avance');
   const labels = await card.locator('.grid > div > b').allTextContents();
   expect(labels.map(x=>x.trim().toLowerCase())).not.toContain('sector');
+  await expect(card.locator('[data-coi-obra-vencimiento]')).toHaveText('31/12/2026');
   await expect(card.locator('[data-coi-obra-ultima-cert]')).toContainText('Acta N° 7');
   await expect(card.locator('[data-coi-obra-ultima-cert]')).toContainText('31/07/2026');
   await expect(card.locator('[data-coi-obra-avance]')).toHaveText('62,5%');
@@ -51,7 +74,7 @@ test('Obra muestra VTO, última certificación y avance desde Supabase sin tocar
 test('Repositorio contractual usa Supabase Storage y no ofrece OneDrive', async ({ page }) => {
   await openIsolated(page);
   const result = await renderTypeWithSupabaseStubs(page, 'Obra');
-  expect(result.ok, result.reason || '').toBe(true);
+  expect(result.ok).toBe(true);
   const repo = page.locator('[data-coi-repo-supabase]').first();
   await expect(repo).toHaveText(/Supabase Storage · 2 documentos/);
   const repoParent = repo.locator('..');
@@ -62,7 +85,7 @@ test('Repositorio contractual usa Supabase Storage y no ofrece OneDrive', async 
 test('Servicios conservan Sector en su Resumen General', async ({ page }) => {
   await openIsolated(page);
   const result = await renderTypeWithSupabaseStubs(page, 'Servicio');
-  expect(result.ok, result.reason || '').toBe(true);
+  expect(result.ok).toBe(true);
   await page.waitForTimeout(50);
   const summary = page.locator('.expediente-card').filter({ has: page.getByRole('heading', { name:/1\. Resumen general/i }) }).first();
   await expect(summary).toBeVisible();
