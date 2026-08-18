@@ -10,27 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Extraer renderer final y consolidacion
+      - name: Localizar runtime documental Supabase
         run: |
-          python3 - <<'PY' > inspection_context3.txt
+          python3 - <<'PY' > inspection_docs_hits.txt
           from pathlib import Path
           lines=Path('index.html').read_text(encoding='utf-8',errors='replace').splitlines()
-          ranges=[
-            (13680,14010,'CARGA CERTIFICACIONES SUPABASE'),
-            (16570,16665,'CONSOLIDACION CERTIFICACIONES'),
-            (17340,17470,'RENDER FICHA FINAL SUPABASE'),
-            (12620,12840,'DOCUMENTOS STORAGE / WRAPPERS')
-          ]
-          for a,b,title in ranges:
-              print(f'\n===== {title} | {a}-{b} =====')
-              for n in range(a,b+1):
-                  if n<=len(lines): print(f'{n}: {lines[n-1]}')
+          terms=['coi_documentos_oc','abrirDocumentoStorageOC','documentosStorage','documentacionOC','cargarDocumentos','renderDocumentos','storage_bucket','storage_path','renderLinksDocumentalesOC','obtenerDocumentos']
+          for term in terms:
+              hits=[(i+1,l.strip()) for i,l in enumerate(lines) if term in l]
+              print(f'\n=== {term} | {len(hits)} ===')
+              for n,l in hits[:100]: print(f'{n}: {l[:1800]}')
           PY
-      - name: Commit context 3
+      - name: Commit docs hits
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add inspection_context3.txt
+          git add inspection_docs_hits.txt
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "chore: snapshot renderer final Supabase"
+          git commit -m "chore: snapshot runtime documental Supabase"
           git push
