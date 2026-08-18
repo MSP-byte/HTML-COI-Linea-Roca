@@ -1,0 +1,50 @@
+name: COI Final UI Apply
+
+on:
+  push:
+    branches:
+      - fix/ficha-obras-alertas-supabase
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[final-ui-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout rama de trabajo
+        uses: actions/checkout@v4
+        with:
+          ref: fix/ficha-obras-alertas-supabase
+          fetch-depth: 0
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Aplicar parche definitivo y limpiar temporales
+        run: node .coi-qa/apply-final-ui-v1.mjs
+      - name: Validar invariantes mínimas
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'id="coi-ficha-obra-final-v1"' index.html
+          grep -q 'coi-centro-alertas-legibilidad-v1' index.html
+          grep -q '4. ESTADO FINANCIERO' index.html
+          grep -q 'Posiciones OC' index.html
+          grep -q 'Posiciones Certificadas' index.html
+          grep -q 'Posiciones Libres' index.html
+          grep -q 'Consumir seleccionadas' index.html
+      - name: Commit del parche final
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'Sin cambios para commitear'
+            exit 0
+          fi
+          git commit -m 'fix: cerrar ficha Obras y Centro de Alertas [final-ui-applied]'
+          git push origin HEAD:fix/ficha-obras-alertas-supabase
