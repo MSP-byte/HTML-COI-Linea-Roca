@@ -32,3 +32,5 @@ test('Fuente final no expone botones legacy ni Abrir OneDrive', async ({page})=>
   const source=await page.locator('html').evaluate(()=>document.documentElement.outerHTML);
   expect(source).not.toMatch(/>\s*Agregar\s+link\s+documental\s*</i);expect(source).not.toMatch(/>\s*Marcar\s+enviad[oa]\s+a\s+PyC\s*</i);expect(source).not.toMatch(/Abrir\s+OneDrive/i);expect(source).toContain('4. ESTADO FINANCIERO');
 });
+
+// QA final: este commit fuerza la ejecución completa del Quality Gate desde un commit de usuario.
