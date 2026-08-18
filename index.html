@@ -5742,7 +5742,6 @@ function renderFichaOC(idObra){
           <div><b>Recepción documentación</b>${fmtFecha(item.fechaRecepcionDocumentacion || item.recepcionDocumentacion || item.fechaRecepcionFactura) || '—'}</div>
           <div><b>Envío a Planificación y Control</b>${fmtFecha(item.fechaEnvioPyC || item.fechaEnvioPlanificacion || item.fechaEnvioPlanificacionControl) || '—'}</div>
           <div><b>Estado documental</b>${esc(estadoDoc)}</div>
-          <div><b>Repositorio documental</b>${coiURLHTTPValida(item.linkOneDrive)?'<a href="'+esc(item.linkOneDrive)+'" target="_blank" rel="noopener noreferrer">Abrir OneDrive</a>':'—'}</div>
         </div>
         ${typeof renderBloqueEstadoDocumental==='function'?renderBloqueEstadoDocumental(item):''}
       </section>
@@ -16517,9 +16516,9 @@ const APP_DATA_MODE = "supabase_first";
       const href=validarUrlDocumental(l.url)?clean(l.url):'';
       return`<tr><td>${esc(l.tipo_link)}</td><td><b>${esc(l.titulo)}</b></td><td>${href?`<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">Abrir enlace</a>`:'<span class="coi-error-text">URL inválida</span>'}</td><td>${badge(l.estado||'Cargado','azul')}</td><td>${bool(l.es_principal)?badge('Principal','verde'):'—'}</td><td>${esc(l.observaciones||'—')}</td><td>${fmtDate(l.fecha_actualizacion||l.fecha_creacion)}</td><td><div class="exec-table-actions">${href?`<button data-exec-link-open="${esc(l.id)}">Abrir</button>`:''}<button data-exec-link-edit="${esc(l.id)}">Editar</button>${!bool(l.es_principal)?`<button data-exec-link-main="${esc(l.id)}">Marcar principal</button>`:''}<button class="btn-danger-soft" data-exec-link-delete="${esc(l.id)}">Eliminar</button></div></td></tr>`;
     }).join('');
-    return`<div class="exec-primary-link"><div><b>Link principal</b><br>${principalSeguro?`<a href="${esc(principalSeguro)}" target="_blank" rel="noopener noreferrer">${esc(principalSeguro)}</a>`:'Sin carpeta principal válida configurada'}</div>${principalSeguro?`<button type="button" data-exec-open-link="${esc(principalSeguro)}">Abrir OneDrive</button>`:''}</div><div class="table-wrap"><table class="coi-table tabla-operativa exec-table"><thead><tr><th>Tipo</th><th>Título</th><th>URL</th><th>Estado</th><th>Principal</th><th>Observaciones</th><th>Actualización</th><th>Acciones</th></tr></thead><tbody>${body||'<tr><td colspan="8">Sin links documentales.</td></tr>'}</tbody></table></div>`;
+    return`<div class="exec-primary-link"><div><b>Link principal</b><br>${principalSeguro?`<a href="${esc(principalSeguro)}" target="_blank" rel="noopener noreferrer">${esc(principalSeguro)}</a>`:'Sin carpeta principal válida configurada'}</div>${principalSeguro?`<button type="button" data-exec-open-link="${esc(principalSeguro)}">Abrir vínculo</button>`:''}</div><div class="table-wrap"><table class="coi-table tabla-operativa exec-table"><thead><tr><th>Tipo</th><th>Título</th><th>URL</th><th>Estado</th><th>Principal</th><th>Observaciones</th><th>Actualización</th><th>Acciones</th></tr></thead><tbody>${body||'<tr><td colspan="8">Sin links documentales.</td></tr>'}</tbody></table></div>`;
   }
-  async function renderLinksDocumentalesOC(orden){const o=resolveOrder(orden);if(!o)return[];currentOrder=o;let card=$('execDocumentCard');if(card)card.remove();const host=$('fichaOCBody');if(!host)return[];card=document.createElement('section');card.id='execDocumentCard';card.className='exec-document-card ficha-oc-panel';card.innerHTML='<h3>Expediente documental</h3><div class="exec-empty">Cargando links desde Supabase…</div>';host.appendChild(card);try{const rows=await cargarLinksDocumentalesOC(o);card.innerHTML=`<div class="exec-card-head"><div><h3>Expediente documental</h3><div class="muted">Carpetas OneDrive y documentos vinculados a la OC ${esc(nro(o))}.</div></div><div class="exec-actions"><button type="button" class="primary" data-exec-link-add>Agregar link documental</button>${o.linkDocumentalPrincipal?`<button type="button" data-exec-open-link="${esc(o.linkDocumentalPrincipal)}">Abrir principal</button>`:''}</div></div>${renderLinksTable(o,rows)}`;return rows}catch(e){card.innerHTML=`<h3>Expediente documental</h3><div class="coi-error-box">${esc(e.message||e)}</div>`;return[]}}
+  async function renderLinksDocumentalesOC(orden){const o=resolveOrder(orden);if(!o)return[];currentOrder=o;let card=$('execDocumentCard');if(card)card.remove();const host=$('fichaOCBody');if(!host)return[];card=document.createElement('section');card.id='execDocumentCard';card.className='exec-document-card ficha-oc-panel';card.innerHTML='<h3>Expediente documental</h3><div class="exec-empty">Cargando links desde Supabase…</div>';host.appendChild(card);try{const rows=await cargarLinksDocumentalesOC(o);card.innerHTML=`<div class="exec-card-head"><div><h3>Expediente documental</h3><div class="muted">Vínculos documentales registrados en Supabase para la OC ${esc(nro(o))}.</div></div><div class="exec-actions">${o.linkDocumentalPrincipal?`<button type="button" data-exec-open-link="${esc(o.linkDocumentalPrincipal)}">Abrir principal</button>`:''}</div></div>${renderLinksTable(o,rows)}`;return rows}catch(e){card.innerHTML=`<h3>Expediente documental</h3><div class="coi-error-box">${esc(e.message||e)}</div>`;return[]}}
   function normalizarNroOCStorage(orden){const o=resolveOrder(orden)||orden;return (nro(o)||clean(typeof orden==='string'?orden:'')).replace(/\s+/g,'')}
   function campoDocumentoStorage(documento,nombres,fallback=''){
     for(const nombre of nombres){
@@ -16774,7 +16773,7 @@ const APP_DATA_MODE = "supabase_first";
   function enhanceOrders(){const table=document.querySelector('#vistaOrdenes table.ordenes-table'),tbody=$('ordenesTbody');if(!table||!tbody)return;const head=table.tHead?.rows?.[0];if(head&&!head.querySelector('[data-exec-col]')){const action=head.lastElementChild;['Calidad','Documental','PyC','Prioridad','Requiere acción'].forEach(l=>{const th=document.createElement('th');th.dataset.execCol='1';th.textContent=l;head.insertBefore(th,action)})}[...tbody.rows].forEach(tr=>{if(tr.cells.length<2)return;[...tr.querySelectorAll('[data-exec-cell]')].forEach(x=>x.remove());const key=tr.dataset.openOc||tr.querySelector('[data-open-oc]')?.dataset.openOc;const o=resolveOrder(key);if(!o)return;const meta=metaByOC.get(nro(o));if(meta)Object.assign(o,mapRowToItem(meta));const action=tr.lastElementChild;const vals=[qualityBadge(o),docBadge(o),pycBadge(o),priorityBadge(o),bool(o.requiere_accion||o.requiereAccion)?`<span class="exec-action-yes">Sí<br><small>${esc(o.motivo_requiere_accion||o.motivoRequiereAccion||'')}</small></span>`:'<span class="exec-action-no">No</span>'];vals.forEach(v=>{const td=document.createElement('td');td.dataset.execCell='1';td.innerHTML=v;tr.insertBefore(td,action)});tr.hidden=false})}
   function generarAlertasCalidadYDocumentales(){const out=[];normalizedRows().forEach(o=>{const n=o.nro_oc,d=daysTo(o.fecha_vencimiento);if(!clean(o.link_documental_principal))out.push({sev:'Alta',tipo:'Sin link documental',oc:n,est:o.estacion,msg:'La OC no posee link documental principal.',accion:'Cargar carpeta OneDrive desde Ficha OC'});if(norm(o.calidad_datos_estado)==='ROJO')out.push({sev:'Crítica',tipo:'Calidad roja',oc:n,est:o.estacion,msg:o.motivo_requiere_accion||'Datos críticos incompletos.',accion:'Ejecutar control de calidad y completar datos'});if(d!==null&&d<0&&!clean(o.justificacion_administrativa))out.push({sev:'Crítica',tipo:'Vencida sin justificación',oc:n,est:o.estacion,msg:'OC vencida sin justificación administrativa.',accion:'Registrar justificación o cerrar operativamente'});if(!clean(o.proxima_certificacion)&&!isClosed(o))out.push({sev:'Media',tipo:'Sin próxima certificación',oc:n,est:o.estacion,msg:'No se informó próxima certificación.',accion:'Completar fecha de certificación'});if(!clean(o.fecha_acta_inicio)&&!isClosed(o))out.push({sev:'Media',tipo:'Sin acta de inicio',oc:n,est:o.estacion,msg:'No se informó acta de inicio.',accion:'Completar datos contractuales'});if(!clean(o.fecha_envio_planificacion)&&norm(o.estado_envio_pyc)!=='ENVIADO'&&!isClosed(o))out.push({sev:'Media',tipo:'No enviada a PyC',oc:n,est:o.estacion,msg:'Pendiente de envío a Planificación y Control.',accion:'Marcar enviada a PyC'});if(d!==null&&d>=0&&d<=30)out.push({sev:d<=7?'Alta':'Media',tipo:'Próxima a vencer',oc:n,est:o.estacion,msg:`Vence en ${d} día(s).`,accion:'Revisar vigencia y certificaciones'});if(norm(o.estado_link_documental)==='INCOMPLETO')out.push({sev:'Media',tipo:'Documentación incompleta',oc:n,est:o.estacion,msg:'Hay links, pero falta carpeta principal.',accion:'Marcar carpeta OneDrive como principal'})});return out}
   function renderAlertsExecutive(){const host=document.querySelector('#vistaCentroAlertas .view-body');if(!host)return;let card=$('execAlertsCard');if(card)card.remove();const rows=generarAlertasCalidadYDocumentales();card=document.createElement('section');card.id='execAlertsCard';card.className='exec-alert-card';card.innerHTML=`<div class="exec-card-head"><div><h3>Alertas de calidad y documentación</h3><div class="muted">${rows.length} alerta(s) calculadas desde Supabase.</div></div></div><div class="table-wrap"><table class="coi-table tabla-operativa exec-alert-table"><thead><tr><th>Severidad</th><th>Tipo</th><th>OC</th><th>Estación</th><th>Mensaje</th><th>Acción sugerida</th><th>Ficha</th></tr></thead><tbody>${rows.map(a=>`<tr class="${norm(a.sev)==='CRITICA'?'exec-critical-row':''}"><td>${badge(a.sev,norm(a.sev).includes('CRIT')||norm(a.sev)==='ALTA'?'rojo':norm(a.sev)==='MEDIA'?'amarillo':'gris')}</td><td>${esc(a.tipo)}</td><td>${esc(a.oc)}</td><td>${esc(a.est||'—')}</td><td>${esc(a.msg)}</td><td>${esc(a.accion)}</td><td><button type="button" data-open-oc="${esc(a.oc)}">Ver ficha</button></td></tr>`).join('')||'<tr><td colspan="7">Sin alertas ejecutivas.</td></tr>'}</tbody></table></div>`;host.insertBefore(card,host.firstChild)}
-  function renderExecutiveFicha(orden){const o=resolveOrder(orden);if(!o)return;currentOrder=o;const host=$('fichaOCBody');if(!host)return;let card=$('execHeaderCard');if(card)card.remove();card=document.createElement('section');card.id='execHeaderCard';card.className='exec-header-card';const linkRaw=o.linkDocumentalPrincipal||o.link_documental_principal,link=validarUrlDocumental(linkRaw)?linkRaw:'';card.innerHTML=`<div class="exec-card-head"><div><h3>Cabecera ejecutiva</h3><div class="muted">OC ${esc(nro(o))} · ${esc(o.proveedor||'Sin proveedor')}</div></div><div>${qualityBadge(o)} ${docBadge(o)} ${pycBadge(o)}</div></div><div class="exec-header-grid">${[['N° OC',nro(o)],['Proveedor',o.proveedor],['Tipo',o.tipo],['Estación principal',o.estacion],['Estado COI',o.estado||o.estadoCOI],['Vigencia operativa',daysTo(o.vencimiento)<0?'Vencida':'Vigente'],['Próxima certificación',fmtDate(o.proximaCertificacion)],['Estado documental',o.estadoDocumental||'—'],['Calidad',`${o.calidadDatosEstado||'Sin auditar'} (${Number(o.calidadDatosScore||0)})`],['Link principal',link?`<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">Abrir OneDrive</a>`:'Sin link válido']].map(([l,v])=>`<div class="exec-header-item"><b>${esc(l)}</b><span>${String(v||'—').startsWith('<a ')?v:esc(v||'—')}</span></div>`).join('')}</div><div class="exec-top-actions"><button type="button" id="execBtnEditar">Editar OC</button><button type="button" id="execBtnGuardar" class="primary">Guardar cambios</button><button type="button" data-oc-station-add>Agregar estación asociada</button><button type="button" data-exec-link-add>Agregar link documental</button>${link?`<button type="button" data-exec-open-link="${esc(link)}">Abrir OneDrive</button>`:''}<button type="button" id="execBtnPyc">Marcar enviada a PyC</button><button type="button" id="execBtnQuality">Ejecutar control de calidad</button><button type="button" id="execBtnClose" class="btn-danger-soft">Cerrar OC</button></div>`;host.insertBefore(card,host.firstChild)}
+  function renderExecutiveFicha(orden){const o=resolveOrder(orden);if(!o)return;currentOrder=o;const host=$('fichaOCBody');if(!host)return;let card=$('execHeaderCard');if(card)card.remove();card=document.createElement('section');card.id='execHeaderCard';card.className='exec-header-card';const linkRaw=o.linkDocumentalPrincipal||o.link_documental_principal,link=validarUrlDocumental(linkRaw)?linkRaw:'';card.innerHTML=`<div class="exec-card-head"><div><h3>Cabecera ejecutiva</h3><div class="muted">OC ${esc(nro(o))} · ${esc(o.proveedor||'Sin proveedor')}</div></div><div>${qualityBadge(o)} ${docBadge(o)} ${pycBadge(o)}</div></div><div class="exec-header-grid">${[['N° OC',nro(o)],['Proveedor',o.proveedor],['Tipo',o.tipo],['Estación principal',o.estacion],['Estado COI',o.estado||o.estadoCOI],['Vigencia operativa',daysTo(o.vencimiento)<0?'Vencida':'Vigente'],['Próxima certificación',fmtDate(o.proximaCertificacion)],['Estado documental',o.estadoDocumental||'—'],['Calidad',`${o.calidadDatosEstado||'Sin auditar'} (${Number(o.calidadDatosScore||0)})`],['Link principal',link?`<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">Abrir vínculo</a>`:'Sin link válido']].map(([l,v])=>`<div class="exec-header-item"><b>${esc(l)}</b><span>${String(v||'—').startsWith('<a ')?v:esc(v||'—')}</span></div>`).join('')}</div><div class="exec-top-actions"><button type="button" id="execBtnEditar">Editar OC</button><button type="button" id="execBtnGuardar" class="primary">Guardar cambios</button><button type="button" data-oc-station-add>Agregar estación asociada</button><button type="button" data-exec-link-add>Agregar link documental</button>${link?`<button type="button" data-exec-open-link="${esc(link)}">Abrir vínculo</button>`:''}<button type="button" id="execBtnPyc">Marcar enviada a PyC</button><button type="button" id="execBtnQuality">Ejecutar control de calidad</button><button type="button" id="execBtnClose" class="btn-danger-soft">Cerrar OC</button></div>`;host.insertBefore(card,host.firstChild)}
   async function controlQualitySingle(o){const r=evaluarCalidadOrden(metaByOC.get(nro(o))||o);await actualizarCalidadOrdenSupabase(o,r);await registrarHistorialOC(o,{tipo_evento:'Control de calidad',campo_modificado:'calidad_datos_estado',valor_anterior:o.calidadDatosEstado||'',valor_nuevo:r.estado,motivo:r.motivo_requiere_accion});await syncExecutiveMetadata();renderExecutiveFicha(o);toast(`Calidad ${r.estado} · Score ${r.score}`,'ok');return r}
   async function markPyC(o){const before=o.fechaEnvioPlanificacion||'',today=dateOnly(new Date());await updateOrder(o,{estado_envio_pyc:'Enviado',fecha_envio_planificacion:today},{history:false});await registrarHistorialOC(o,{tipo_evento:'Envío a Planificación y Control',campo_modificado:'fecha_envio_planificacion',valor_anterior:before,valor_nuevo:today,motivo:'Marcado desde Ficha OC'});toast('OC marcada como enviada a PyC.','ok')}
   async function closeOrder(o){const obs=prompt('Observación de cierre operativo:','');if(obs===null)return;await updateOrder(o,{fecha_cierre_operativo:isoNow(),observacion_cierre:clean(obs)||null,estado_registro:'Cerrado'},{history:false});await registrarHistorialOC(o,{tipo_evento:'Cierre operativo',campo_modificado:'estado_registro',valor_anterior:o.estadoRegistro||'',valor_nuevo:'Cerrado',motivo:obs});toast('OC cerrada operativamente.','ok')}
@@ -25253,4 +25252,147 @@ document.addEventListener('click',function(event){
   window.COI_OPERATIONAL_GUARDS=Object.freeze({version:VERSION,financialMutations:'supabase-rpc-only',automaticDuplicateDeletion:false,message:MESSAGE,refresh:enhanceFinancialUI});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>enhanceFinancialUI(document),{once:true});else enhanceFinancialUI(document);
 })();
-</script></body></html>
+</script>
+<script id="coi-ficha-obra-final-v1">
+(function(){
+  'use strict';
+  if(window.__COI_FICHA_OBRA_FINAL_V1__)return;
+  window.__COI_FICHA_OBRA_FINAL_V1__=true;
+
+  const clean=v=>String(v??'').trim();
+  const norm=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  const finitePct=v=>{
+    if(v===null||v===undefined||v==='')return null;
+    const n=Number(String(v).trim().replace('%','').replace(',','.'));
+    return Number.isFinite(n)&&n>=0&&n<=100?n:null;
+  };
+  const fmtPct=n=>new Intl.NumberFormat('es-AR',{minimumFractionDigits:0,maximumFractionDigits:1}).format(n)+'%';
+  const fmtDate=v=>{
+    if(!v)return 'Sin dato';
+    try{if(typeof window.fmtFecha==='function'){const x=window.fmtFecha(v);if(x)return x;}}catch(_e){}
+    const s=clean(v).slice(0,10),m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m?m[3]+'/'+m[2]+'/'+m[1]:(s||'Sin dato');
+  };
+
+  function resolveItem(reference){
+    try{const x=typeof window.obtenerOC==='function'?window.obtenerOC(reference):null;if(x?.item)return x.item;if(x&&typeof x==='object')return x;}catch(_e){}
+    try{
+      const target=norm(reference),rows=typeof window.todasLasOC==='function'?window.todasLasOC():[];
+      const row=rows.find(r=>{const x=r?.item||r||{};return [x.numeroOC,x.nro_oc,x.oc,x.idObra,x.idOC,x.id_obra,x.id_servicio].some(v=>norm(v)===target);});
+      return row?.item||row||null;
+    }catch(_e){}
+    return null;
+  }
+
+  function summaryCard(body){
+    return [...body.querySelectorAll('section,.expediente-card,.ficha-oc-panel')].find(el=>norm(el.querySelector('h3')?.textContent).includes('1. RESUMEN GENERAL'))||null;
+  }
+  function fieldNodes(card){
+    const grid=card?.querySelector('.grid,.resumen-grid,.ficha-resumen-grid');
+    return grid?{grid,nodes:[...grid.children].filter(el=>el.querySelector('b'))}:{grid:null,nodes:[]};
+  }
+  function fieldByLabel(card,label){return fieldNodes(card).nodes.find(el=>norm(el.querySelector('b')?.textContent)===norm(label))||null;}
+  function setField(div,label,value,attr){
+    if(!div)return null;
+    div.replaceChildren();
+    const b=document.createElement('b');b.textContent=label;div.appendChild(b);
+    const span=document.createElement('span');span.textContent=value;if(attr)span.setAttribute(attr,'');div.appendChild(span);
+    return span;
+  }
+  function ensureField(card,label,attr){
+    let div=fieldByLabel(card,label);const {grid}=fieldNodes(card);if(!grid)return null;
+    if(!div){div=document.createElement('div');grid.appendChild(div);}
+    return setField(div,label,'Sin dato',attr);
+  }
+  function getVencimiento(item){return item?._supabaseRaw?.fecha_vencimiento||item?.fechaVencimiento||item?.fecha_vencimiento||item?.vencimiento||item?.fechaFin||item?.fecha_fin||'';}
+  function isObra(item,card){return norm(item?.tipo||item?.TIPO)==='OBRA'||norm(fieldByLabel(card,'Tipo')?.textContent).includes('OBRA');}
+
+  function cleanupLegacyFicha(body){
+    if(!body)return;
+    for(const div of [...body.querySelectorAll('.grid > div,.resumen-grid > div,.ficha-resumen-grid > div')]){
+      if(norm(div.querySelector('b')?.textContent)==='REPOSITORIO DOCUMENTAL')div.remove();
+    }
+    for(const btn of [...body.querySelectorAll('button')]){
+      const t=norm(btn.textContent);if(t==='MARCAR ENVIADO A PYC'||t==='AGREGAR LINK DOCUMENTAL')btn.remove();
+    }
+    for(const a of [...body.querySelectorAll('a')])if(norm(a.textContent)==='ABRIR ONEDRIVE')a.textContent='Abrir vínculo';
+  }
+
+  function explicitProgress(item){
+    const candidates=[item?._supabaseRaw?.porcentaje_avance,item?._supabaseRaw?.avance_porcentaje,item?._supabaseRaw?.porcentaje_ejecucion,item?.porcentajeAvance,item?.porcentaje_avance,item?.avancePorcentaje,item?.porcentajeEjecucion,item?.porcentaje_ejecucion,item?.avanceParcial,item?.avance_parcial];
+    for(const v of candidates){const n=finitePct(v);if(n!==null)return n;}return null;
+  }
+  function latestCertification(rows){
+    const live=(Array.isArray(rows)?rows:[]).filter(r=>r&&!r._legacy);
+    if(!live.length)return {label:'Sin certificación',progress:null};
+    const dateOf=r=>clean(r.fecha_fin||r.periodo_fin||r.fecha_certificacion||r.fecha_inicio||r.periodo_inicio||r.fecha);
+    live.sort((a,b)=>dateOf(b).localeCompare(dateOf(a))||(Number(b.acta_medicion_nro)||0)-(Number(a.acta_medicion_nro)||0));
+    const last=live[0],acta=clean(last.acta_medicion_nro||last.acta_nro||last.numero_acta),fecha=dateOf(last);
+    const group=live.filter(r=>acta?clean(r.acta_medicion_nro||r.acta_nro||r.numero_acta)===acta:dateOf(r)===fecha);
+    const vals=group.map(r=>finitePct(r.aux_porcentaje??r.porcentaje_avance??r.avance_porcentaje)).filter(v=>v!==null);
+    const progress=vals.length&&vals.every(v=>Math.abs(v-vals[0])<0.000001)?vals[0]:null;
+    return {label:(acta?'Acta N° '+acta:'Certificación')+(fecha?' · '+fmtDate(fecha):''),progress};
+  }
+
+  function decorateObra(item,card){
+    if(!card||!isObra(item,card))return null;
+    card.dataset.coiObraResumenFinal='true';
+    let venc=fieldByLabel(card,'Vencimiento');const sector=fieldByLabel(card,'Sector');
+    if(!venc&&sector)venc=sector;if(sector&&venc!==sector)sector.remove();
+    const vencSpan=venc?setField(venc,'Vencimiento',fmtDate(getVencimiento(item)),'data-coi-obra-vencimiento'):ensureField(card,'Vencimiento','data-coi-obra-vencimiento');
+    if(vencSpan)vencSpan.textContent=fmtDate(getVencimiento(item));
+    const cert=ensureField(card,'Última certificación','data-coi-obra-ultima-certificacion');if(cert)cert.textContent='Sin certificación';
+    const avance=ensureField(card,'% de avance','data-coi-obra-avance');
+    if(avance){const p=explicitProgress(item);avance.textContent=p===null?'Sin dato':fmtPct(p);avance.dataset.explicitProgress=p===null?'false':'true';}
+    return {cert,avance};
+  }
+  async function enrichObra(reference,item,ui){
+    if(!ui||typeof window.cargarCertificacionesPorOC!=='function')return;
+    try{
+      const latest=latestCertification(await window.cargarCertificacionesPorOC(item||reference));
+      if(ui.cert)ui.cert.textContent=latest.label;
+      if(ui.avance&&ui.avance.dataset.explicitProgress!=='true')ui.avance.textContent=latest.progress===null?'Sin dato':fmtPct(latest.progress);
+    }catch(_e){if(ui.cert)ui.cert.textContent='Sin certificación';if(ui.avance&&ui.avance.dataset.explicitProgress!=='true')ui.avance.textContent='Sin dato';}
+  }
+  async function enhanceFicha(reference,itemOverride){
+    const body=document.getElementById('fichaOCBody');if(!body)return {obra:false};
+    cleanupLegacyFicha(body);const card=summaryCard(body),item=itemOverride||resolveItem(reference),ui=decorateObra(item,card);
+    if(ui)await enrichObra(reference,item,ui);cleanupLegacyFicha(body);return {obra:Boolean(ui)};
+  }
+
+  function fixAlertas(root=document){
+    for(const table of [...root.querySelectorAll('table')]){
+      const h=norm(table.querySelector('thead')?.textContent);
+      if(!(h.includes('TIPO ALERTA')&&h.includes('ACCION SUGERIDA')&&h.includes('DIAS')))continue;
+      table.classList.add('coi-alertas-table-fixed');if(table.parentElement)table.parentElement.classList.add('coi-alertas-scroll-fixed');
+    }
+  }
+  const style=document.createElement('style');
+  style.id='coi-centro-alertas-legibilidad-v1';
+  style.textContent='.coi-alertas-scroll-fixed{overflow-x:auto!important;max-width:100%!important;-webkit-overflow-scrolling:touch}' +
+    'table.coi-alertas-table-fixed{min-width:1450px!important;table-layout:auto!important;width:100%}' +
+    'table.coi-alertas-table-fixed th,table.coi-alertas-table-fixed td{vertical-align:top!important;word-break:normal!important;overflow-wrap:normal!important;hyphens:none!important}' +
+    'table.coi-alertas-table-fixed th:nth-child(1),table.coi-alertas-table-fixed td:nth-child(1){min-width:105px!important;white-space:nowrap!important}' +
+    'table.coi-alertas-table-fixed th:nth-child(2),table.coi-alertas-table-fixed td:nth-child(2){min-width:120px!important}' +
+    'table.coi-alertas-table-fixed th:nth-child(3),table.coi-alertas-table-fixed td:nth-child(3){min-width:140px!important;word-break:keep-all!important}' +
+    'table.coi-alertas-table-fixed th:nth-child(4),table.coi-alertas-table-fixed td:nth-child(4){min-width:135px!important}' +
+    'table.coi-alertas-table-fixed th:nth-child(5),table.coi-alertas-table-fixed td:nth-child(5){min-width:320px!important}' +
+    'table.coi-alertas-table-fixed th:nth-child(6),table.coi-alertas-table-fixed td:nth-child(6){min-width:105px!important;white-space:nowrap!important}' +
+    'table.coi-alertas-table-fixed th:nth-child(7),table.coi-alertas-table-fixed td:nth-child(7){min-width:65px!important;white-space:nowrap!important;text-align:center}' +
+    'table.coi-alertas-table-fixed th:nth-child(8),table.coi-alertas-table-fixed td:nth-child(8){min-width:170px!important}' +
+    'table.coi-alertas-table-fixed th:nth-child(9),table.coi-alertas-table-fixed td:nth-child(9){min-width:220px!important}' +
+    'table.coi-alertas-table-fixed th:nth-child(10),table.coi-alertas-table-fixed td:nth-child(10){min-width:190px!important}' +
+    'table.coi-alertas-table-fixed td:nth-child(10) button{white-space:nowrap}';
+  document.head.appendChild(style);
+
+  let timer=0;const scheduleAlertFix=()=>{clearTimeout(timer);timer=setTimeout(()=>fixAlertas(document),30);};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',scheduleAlertFix,{once:true});else scheduleAlertFix();
+  new MutationObserver(scheduleAlertFix).observe(document.documentElement,{childList:true,subtree:true});
+
+  const previous=window.renderFichaOC;
+  if(typeof previous==='function')window.renderFichaOC=function(reference){const result=previous.apply(this,arguments);setTimeout(()=>enhanceFicha(reference),0);return result;};
+  window.COI_FICHA_OBRA_FINAL_V1=Object.freeze({enhanceFicha,latestCertification,fixAlertas,cleanupLegacyFicha});
+})();
+</script>
+
+</body></html>
