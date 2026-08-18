@@ -1,29 +1,7 @@
-import fs from 'node:fs';
-
-const indexPath='index.html';
-let html=fs.readFileSync(indexPath,'utf8');
-
-html=html.replace(/Cargar\s+carpeta\s+OneDrive\s+desde\s+Ficha\s+OC/gi,'Revisar documentación registrada en Supabase');
-html=html.replace(/Marcar\s+carpeta\s+OneDrive\s+como\s+principal/gi,'Revisar vínculo documental principal');
-html=html.replace(/Carpetas\s+OneDrive\s+y\s+documentos\s+vinculados\s+a\s+la\s+OC/gi,'Vínculos documentales registrados en Supabase para la OC');
-html=html.replace(/Abrir\s+OneDrive/gi,'Abrir vínculo');
-
-html=html.replace(/<button\b[^>]*data-exec-link-add[^>]*>\s*Agregar\s+link\s+documental\s*<\/button>/gi,'');
-html=html.replace(/<button\b[^>]*id="execBtnPyc"[^>]*>\s*Marcar\s+enviad[ao]\s+a\s+PyC\s*<\/button>/gi,'');
-html=html.replace(/<button\b[^>]*>\s*Marcar\s+enviado\s+a\s+PyC\s*<\/button>/gi,'');
-html=html.replace(/<button\b[^>]*>\s*Agregar\s+link\s+documental\s*<\/button>/gi,'');
-
-if(!html.includes('id="coi-ficha-obra-final-v1"')) throw new Error('Falta hotfix final de Ficha Obras');
-if(/Abrir\s+OneDrive/i.test(html)) throw new Error('Quedó texto Abrir OneDrive en index.html');
-if(/>\s*Agregar\s+link\s+documental\s*</i.test(html)) throw new Error('Quedó botón Agregar link documental');
-if(/>\s*Marcar\s+enviad[oa]\s+a\s+PyC\s*</i.test(html)) throw new Error('Quedó botón Marcar enviado a PyC');
-
-fs.writeFileSync(indexPath,html,'utf8');
-
-const test=`const { test, expect } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
 
 async function openIsolated(page){
-  await page.route(/^https?:\\/(?!\\/127\\.0\\.0\\.1)/, route=>route.abort());
+  await page.route(/^https?:\/(?!\/127\.0\.0\.1)/, route=>route.abort());
   await page.addInitScript(()=>{localStorage.clear();sessionStorage.clear();});
   await page.goto('/index.html',{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>Boolean(window.COI_FICHA_OBRA_FINAL_V1));
@@ -52,12 +30,5 @@ test('Centro de Alertas conserva palabras y usa scroll horizontal', async ({page
 test('Fuente final no expone botones legacy ni Abrir OneDrive', async ({page})=>{
   await openIsolated(page);
   const source=await page.locator('html').evaluate(()=>document.documentElement.outerHTML);
-  expect(source).not.toMatch(/>\\s*Agregar\\s+link\\s+documental\\s*</i);expect(source).not.toMatch(/>\\s*Marcar\\s+enviad[oa]\\s+a\\s+PyC\\s*</i);expect(source).not.toMatch(/Abrir\\s+OneDrive/i);expect(source).toContain('4. ESTADO FINANCIERO');
+  expect(source).not.toMatch(/>\s*Agregar\s+link\s+documental\s*</i);expect(source).not.toMatch(/>\s*Marcar\s+enviad[oa]\s+a\s+PyC\s*</i);expect(source).not.toMatch(/Abrir\s+OneDrive/i);expect(source).toContain('4. ESTADO FINANCIERO');
 });
-`;
-fs.writeFileSync('tests/final_ui_obras_alertas.spec.js',test,'utf8');
-
-for(const path of ['.coi-qa/diagnose_final_ui.mjs','.github/workflows/diagnose-final-ui.yml','.coi-qa/finalize-pr33.mjs','.github/workflows/finalize-pr33.yml']){
-  try{fs.unlinkSync(path);}catch(e){if(e.code!=='ENOENT')throw e;}
-}
-console.log('PR33 finalizado: cambios productivos + QA; temporales eliminados');
