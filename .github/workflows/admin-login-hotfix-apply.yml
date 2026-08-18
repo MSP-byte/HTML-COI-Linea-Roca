@@ -1,0 +1,54 @@
+name: Admin Login Supabase Hotfix
+
+on:
+  push:
+    branches:
+      - fix/admin-login-supabase
+    paths:
+      - .coi-qa/apply-admin-login-hotfix.mjs
+      - .github/workflows/admin-login-hotfix-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout rama hotfix
+        uses: actions/checkout@v4
+        with:
+          ref: fix/admin-login-supabase
+          fetch-depth: 0
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Aplicar parche exacto
+        run: node .coi-qa/apply-admin-login-hotfix.mjs
+
+      - name: Validar diff
+        run: |
+          git diff --check
+          test "$(git diff --numstat -- index.html | wc -l)" -eq 1
+          grep -q 'function abrirLoginSupabaseAdministradorV573()' index.html
+          grep -q 'Cerrar sesión de administrador' index.html
+          if grep -q 'La sesion Supabase actual no posee autorizacion administrativa.' index.html; then
+            echo "Persistió el flujo legacy roto"
+            exit 1
+          fi
+
+      - name: Commit del hotfix generado
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "No hay cambios que confirmar"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "fix(auth): conectar acceso administrador con Supabase"
+          git push origin HEAD:fix/admin-login-supabase
