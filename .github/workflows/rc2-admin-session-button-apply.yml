@@ -1,0 +1,47 @@
+name: RC2 Admin Session Button Patch
+
+on:
+  push:
+    branches:
+      - hotfix/admin-session-button
+    paths:
+      - .coi-qa/apply-admin-session-button-hotfix.mjs
+      - .github/workflows/rc2-admin-session-button-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout rama hotfix
+        uses: actions/checkout@v4
+        with:
+          ref: hotfix/admin-session-button
+          fetch-depth: 0
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Aplicar bridge de sesión administrativa
+        run: node .coi-qa/apply-admin-session-button-hotfix.mjs
+
+      - name: Validar diff
+        run: |
+          git diff --check
+          test "$(git diff --numstat -- index.html | wc -l)" -eq 1
+
+      - name: Commit del hotfix generado
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "No hay cambios que confirmar"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "fix(auth): alinear botón administrador con sesión Supabase"
+          git push origin HEAD:hotfix/admin-session-button
