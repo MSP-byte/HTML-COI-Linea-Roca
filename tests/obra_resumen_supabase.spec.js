@@ -7,11 +7,38 @@ async function openIsolated(page) {
   await expect(page.locator('body')).toBeVisible();
   await page.waitForFunction(() =>
     typeof window.renderFichaOC === 'function' &&
-    typeof window.COI_OBRA_RESUMEN_SUPABASE_V1?.decorateForQA === 'function'
+    Boolean(document.getElementById('coi-obra-resumen-supabase-v1'))
   );
 }
 
+async function instrumentProductHotfix(page) {
+  return page.evaluate(() => {
+    if (window.__COI_OBRA_QA__?.decorateForQA) return { ok:true, reused:true };
+    const script = document.getElementById('coi-obra-resumen-supabase-v1');
+    if (!script) return { ok:false, reason:'No existe el hotfix productivo de Obras' };
+
+    const anchor = "  installAlertStyles();\n  const previous=window.renderFichaOC;";
+    if (!script.textContent.includes(anchor)) {
+      return { ok:false, reason:'No se encontró el ancla interna del hotfix productivo' };
+    }
+    const exposure = `  window.__COI_OBRA_QA__=Object.freeze({\n    async decorateForQA(reference,item){\n      const seq=++renderSeq;\n      const ui=item?patchResumenObra(item):null;\n      const repoSpan=patchRepositorioBase();\n      if(ui||repoSpan) await enrichFromSupabase(reference,item,ui,repoSpan,seq);\n      return {obra:Boolean(ui),repositorio:Boolean(repoSpan)};\n    },\n    latestCertification\n  });\n\n`;
+
+    window.__COI_OBRA_RESUMEN_SUPABASE_V1__ = false;
+    try {
+      // Se reevalúa exactamente el script productivo, agregando sólo una exposición temporal
+      // de sus funciones privadas dentro del navegador de Playwright. index.html no se modifica.
+      (0, eval)(script.textContent.replace(anchor, exposure + anchor));
+    } catch (error) {
+      return { ok:false, reason:`No se pudo instrumentar el hotfix: ${error?.message || error}` };
+    }
+    return { ok:Boolean(window.__COI_OBRA_QA__?.decorateForQA) };
+  });
+}
+
 async function decorateFixture(page, tipo) {
+  const instrumented = await instrumentProductHotfix(page);
+  if (!instrumented.ok) return instrumented;
+
   return page.evaluate(async tipoBuscado => {
     const esObra = String(tipoBuscado).toLowerCase() === 'obra';
     const item = {
@@ -73,7 +100,7 @@ async function decorateFixture(page, tipo) {
       { id:'doc-2', nro_oc:item.numeroOC, storage_path:'qa/b.pdf' }
     ];
 
-    const result = await window.COI_OBRA_RESUMEN_SUPABASE_V1.decorateForQA(item.idObra, item);
+    const result = await window.__COI_OBRA_QA__.decorateForQA(item.idObra, item);
     const financeAfter = document.getElementById('qaFinanzas').innerHTML;
     return { ok:true, result, financeUnchanged: financeBefore === financeAfter };
   }, tipo);
@@ -105,7 +132,7 @@ test('Obra muestra VTO, última certificación y avance desde Supabase sin tocar
 test('Repositorio contractual usa Supabase Storage y no ofrece OneDrive', async ({ page }) => {
   await openIsolated(page);
   const result = await decorateFixture(page, 'Obra');
-  expect(result.ok).toBe(true);
+  expect(result.ok, result.reason || '').toBe(true);
   expect(result.result.repositorio).toBe(true);
   const repo = page.locator('#qaContractual [data-coi-repo-supabase]');
   await expect(repo).toHaveText(/Supabase Storage · 2 documentos/);
@@ -116,7 +143,7 @@ test('Repositorio contractual usa Supabase Storage y no ofrece OneDrive', async 
 test('Servicios conservan Sector y no reciben campos exclusivos de Obra', async ({ page }) => {
   await openIsolated(page);
   const result = await decorateFixture(page, 'Servicio');
-  expect(result.ok).toBe(true);
+  expect(result.ok, result.reason || '').toBe(true);
   expect(result.result.obra).toBe(false);
   expect(result.financeUnchanged).toBe(true);
 
