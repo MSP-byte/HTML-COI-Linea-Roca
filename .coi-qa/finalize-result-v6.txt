@@ -1,2 +1,0 @@
-FINAL UI V6 OK OneDrive independiente 33->0
-EXIT_CODE=0

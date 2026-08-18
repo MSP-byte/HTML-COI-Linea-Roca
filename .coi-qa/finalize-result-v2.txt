@@ -1,9 +1,0 @@
-Filas contractuales de repositorio eliminadas: 1
-Botones eliminados: Agregar link documental=2; Marcar enviado a PyC=0
-OK normalizar ID OBRA
-OK fallback avance
-OK evitar promedio no ponderado
-OK limpieza al renderizar
-OK observador anti-legacy
-FINAL UI V2 OK
-EXIT_CODE=0

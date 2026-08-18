@@ -1,3 +1,0 @@
-Botones legacy retirados=4
-FINAL UI V4 OK
-EXIT_CODE=0
