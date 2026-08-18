@@ -5,7 +5,7 @@ async function openIsolated(page) {
   await page.addInitScript(() => { localStorage.clear(); sessionStorage.clear(); });
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('body')).toBeVisible();
-  await page.waitForFunction(() => typeof window.renderFichaOC === 'function' && typeof window.obtenerOC === 'function');
+  await page.waitForFunction(() => typeof window.renderFichaOC === 'function' && typeof window.todasLasOC === 'function');
 }
 
 async function renderTypeWithSupabaseStubs(page, tipo) {
@@ -21,6 +21,7 @@ async function renderTypeWithSupabaseStubs(page, tipo) {
       sector: esObra ? 'Andén 1' : 'Hall principal',
       proveedor: 'PROVEEDOR QA S.R.L.',
       estado: 'En ejecución',
+      estadoCOI: 'En ejecución',
       estadoDocumental: 'Pendiente',
       fechaInicio: '2026-01-01',
       actaInicio: '2026-01-01',
@@ -31,12 +32,46 @@ async function renderTypeWithSupabaseStubs(page, tipo) {
       monto: 1000000,
       _supabaseRaw: { fecha_vencimiento: '2026-12-31' }
     };
-    const estacion = { nombre:'Plaza Constitución' };
     const ref = item.idObra;
 
-    // La OC existe solo dentro del navegador de prueba. No se siembra localStorage
-    // ni se reintroducen demos: el sistema real sigue dependiendo de Supabase.
-    window.obtenerOC = () => ({ estacion, item });
+    // El renderer productivo resuelve las OCs desde la colección léxica `estaciones`.
+    // Inyectamos una OC sólo en memoria del navegador de Playwright, sin localStorage
+    // y sin escribir en Supabase. Se detecta dinámicamente qué array consume allItems().
+    let stations;
+    let allItemsFn;
+    try {
+      stations = eval('estaciones');
+      allItemsFn = eval('allItems');
+    } catch (error) {
+      return { ok:false, reason:`No se pudo acceder al dataset interno: ${error?.message || error}` };
+    }
+    const estacion = Array.isArray(stations) ? stations[0] : null;
+    if (!estacion || typeof allItemsFn !== 'function') {
+      return { ok:false, reason:'Dataset interno de estaciones no disponible' };
+    }
+    let inserted = false;
+    for (const value of Object.values(estacion)) {
+      if (!Array.isArray(value)) continue;
+      value.push(item);
+      let consumed = false;
+      try { consumed = allItemsFn(estacion).includes(item); } catch (_) {}
+      if (consumed) { inserted = true; break; }
+      value.pop();
+    }
+    if (!inserted) {
+      for (const key of ['obras','servicios','ordenes','items','ocs']) {
+        const previous = estacion[key];
+        if (!Array.isArray(previous)) estacion[key] = [];
+        estacion[key].push(item);
+        let consumed = false;
+        try { consumed = allItemsFn(estacion).includes(item); } catch (_) {}
+        if (consumed) { inserted = true; break; }
+        estacion[key].pop();
+        if (!Array.isArray(previous)) delete estacion[key];
+      }
+    }
+    if (!inserted) return { ok:false, reason:'allItems() no reconoció la OC QA' };
+
     Object.defineProperty(navigator, 'onLine', { configurable:true, get:() => true });
     window.getSupabaseClient = () => ({ from:()=>({}) });
     window.getUsuarioActual = async () => ({ id:'qa-user' });
@@ -56,7 +91,7 @@ async function renderTypeWithSupabaseStubs(page, tipo) {
 test('Obra muestra VTO, última certificación y avance desde Supabase sin tocar Finanzas', async ({ page }) => {
   await openIsolated(page);
   const result = await renderTypeWithSupabaseStubs(page, 'Obra');
-  expect(result.ok).toBe(true);
+  expect(result.ok, result.reason || '').toBe(true);
   await expect(page.locator('[data-coi-obra-resumen-source="supabase"]')).toBeVisible();
   const card = page.locator('[data-coi-obra-resumen-source="supabase"]');
   await expect(card).toContainText('Vencimiento');
@@ -74,7 +109,7 @@ test('Obra muestra VTO, última certificación y avance desde Supabase sin tocar
 test('Repositorio contractual usa Supabase Storage y no ofrece OneDrive', async ({ page }) => {
   await openIsolated(page);
   const result = await renderTypeWithSupabaseStubs(page, 'Obra');
-  expect(result.ok).toBe(true);
+  expect(result.ok, result.reason || '').toBe(true);
   const repo = page.locator('[data-coi-repo-supabase]').first();
   await expect(repo).toHaveText(/Supabase Storage · 2 documentos/);
   const repoParent = repo.locator('..');
@@ -85,7 +120,7 @@ test('Repositorio contractual usa Supabase Storage y no ofrece OneDrive', async 
 test('Servicios conservan Sector en su Resumen General', async ({ page }) => {
   await openIsolated(page);
   const result = await renderTypeWithSupabaseStubs(page, 'Servicio');
-  expect(result.ok).toBe(true);
+  expect(result.ok, result.reason || '').toBe(true);
   await page.waitForTimeout(50);
   const summary = page.locator('.expediente-card').filter({ has: page.getByRole('heading', { name:/1\. Resumen general/i }) }).first();
   await expect(summary).toBeVisible();
