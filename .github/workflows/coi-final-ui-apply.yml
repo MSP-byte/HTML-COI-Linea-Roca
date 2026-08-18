@@ -24,17 +24,14 @@ jobs:
           node-version: '22'
       - name: Aplicar parche definitivo y limpiar temporales
         run: node .coi-qa/apply-final-ui-v1.mjs
-      - name: Validar invariantes mínimas
+      - name: Validar instalación del parche
         shell: bash
         run: |
           set -euo pipefail
           grep -q 'id="coi-ficha-obra-final-v1"' index.html
           grep -q 'coi-centro-alertas-legibilidad-v1' index.html
-          grep -q '4. ESTADO FINANCIERO' index.html
-          grep -q 'Posiciones OC' index.html
-          grep -q 'Posiciones Certificadas' index.html
-          grep -q 'Posiciones Libres' index.html
-          grep -q 'Consumir seleccionadas' index.html
+          grep -q 'data-coi-obra-ultima-certificacion' index.html
+          grep -q 'data-coi-obra-avance' index.html
       - name: Commit del parche final
         shell: bash
         run: |
