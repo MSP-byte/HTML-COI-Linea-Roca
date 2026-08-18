@@ -1,0 +1,27 @@
+name: TMP inspect ficha obras
+on:
+  push:
+    branches:
+      - fix/obra-resumen-repositorio-supabase
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Localizar resumen y repositorio
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          text=p.read_text(encoding='utf-8',errors='replace')
+          terms=['RESUMEN GENERAL','Resumen General','REPOSITORIO DOCUMENTAL','Repositorio documental','OneDrive','ESTADO CONTRACTUAL','ESTADO FINANCIERO','Semáforo','SEMÁFORO']
+          lines=text.splitlines()
+          print('TOTAL_LINES',len(lines))
+          for term in terms:
+              hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
+              print('\n=== TERM',term,'HITS',len(hits),'===')
+              for i in hits[:20]:
+                  a=max(0,i-12); b=min(len(lines),i+18)
+                  print(f'--- context lines {a+1}-{b} ---')
+                  for j in range(a,b): print(f'{j+1}: {lines[j]}')
+          PY
