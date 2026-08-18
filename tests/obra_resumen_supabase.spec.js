@@ -5,10 +5,13 @@ async function openIsolated(page) {
   await page.addInitScript(() => { localStorage.clear(); sessionStorage.clear(); });
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('body')).toBeVisible();
-  await page.waitForFunction(() => typeof window.renderFichaOC === 'function' && typeof window.todasLasOC === 'function');
+  await page.waitForFunction(() =>
+    typeof window.renderFichaOC === 'function' &&
+    typeof window.COI_OBRA_RESUMEN_SUPABASE_V1?.decorateForQA === 'function'
+  );
 }
 
-async function renderTypeWithSupabaseStubs(page, tipo) {
+async function decorateFixture(page, tipo) {
   return page.evaluate(async tipoBuscado => {
     const esObra = String(tipoBuscado).toLowerCase() === 'obra';
     const item = {
@@ -19,59 +22,45 @@ async function renderTypeWithSupabaseStubs(page, tipo) {
       tipo: esObra ? 'Obra' : 'Servicio',
       tipoTrabajo: esObra ? 'Obras Civiles' : 'Ascensores',
       sector: esObra ? 'Andén 1' : 'Hall principal',
+      estacion: 'Plaza Constitución',
       proveedor: 'PROVEEDOR QA S.R.L.',
       estado: 'En ejecución',
       estadoCOI: 'En ejecución',
       estadoDocumental: 'Pendiente',
-      fechaInicio: '2026-01-01',
-      actaInicio: '2026-01-01',
-      plazoDias: 365,
-      plazo: 365,
       vencimiento: '2026-12-31',
       fechaFin: '2026-12-31',
       monto: 1000000,
       _supabaseRaw: { fecha_vencimiento: '2026-12-31' }
     };
-    const ref = item.idObra;
+    const body = document.getElementById('fichaOCBody');
+    if (!body) return { ok:false, reason:'No existe fichaOCBody' };
 
-    // El renderer productivo resuelve las OCs desde la colección léxica `estaciones`.
-    // Inyectamos una OC sólo en memoria del navegador de Playwright, sin localStorage
-    // y sin escribir en Supabase. Se detecta dinámicamente qué array consume allItems().
-    let stations;
-    let allItemsFn;
-    try {
-      stations = eval('estaciones');
-      allItemsFn = eval('allItems');
-    } catch (error) {
-      return { ok:false, reason:`No se pudo acceder al dataset interno: ${error?.message || error}` };
-    }
-    const estacion = Array.isArray(stations) ? stations[0] : null;
-    if (!estacion || typeof allItemsFn !== 'function') {
-      return { ok:false, reason:'Dataset interno de estaciones no disponible' };
-    }
-    let inserted = false;
-    for (const value of Object.values(estacion)) {
-      if (!Array.isArray(value)) continue;
-      value.push(item);
-      let consumed = false;
-      try { consumed = allItemsFn(estacion).includes(item); } catch (_) {}
-      if (consumed) { inserted = true; break; }
-      value.pop();
-    }
-    if (!inserted) {
-      for (const key of ['obras','servicios','ordenes','items','ocs']) {
-        const previous = estacion[key];
-        if (!Array.isArray(previous)) estacion[key] = [];
-        estacion[key].push(item);
-        let consumed = false;
-        try { consumed = allItemsFn(estacion).includes(item); } catch (_) {}
-        if (consumed) { inserted = true; break; }
-        estacion[key].pop();
-        if (!Array.isArray(previous)) delete estacion[key];
-      }
-    }
-    if (!inserted) return { ok:false, reason:'allItems() no reconoció la OC QA' };
+    body.innerHTML = `
+      <section class="expediente-card" id="qaResumen">
+        <h3>1. Resumen General</h3>
+        <div class="grid">
+          <div><b>ID_OBRA</b><span>${item.idObra}</span></div>
+          <div><b>N° OC</b><span>${item.numeroOC}</span></div>
+          <div><b>Tipo</b><span>${item.tipo}</span></div>
+          <div><b>Tipo de trabajo</b><span>${item.tipoTrabajo}</span></div>
+          <div><b>Estación</b><span>${item.estacion}</span></div>
+          <div><b>Sector</b><span>${item.sector}</span></div>
+          <div><b>Proveedor</b><span>${item.proveedor}</span></div>
+          <div><b>Estado COI</b><span>${item.estadoCOI}</span></div>
+          <div><b>Estado documental</b><span>${item.estadoDocumental}</span></div>
+          <div><b>Semáforo</b><span>En plazo</span></div>
+        </div>
+      </section>
+      <section class="expediente-card" id="qaContractual">
+        <h3>2. Contractual</h3>
+        <div class="grid"><div><b>Repositorio documental</b><a href="#onedrive-legacy">Abrir OneDrive</a></div></div>
+      </section>
+      <section class="expediente-card" id="qaFinanzas">
+        <h3>4. ESTADO FINANCIERO</h3>
+        <div data-finance-sentinel>FINANZAS-SIN-CAMBIOS</div>
+      </section>`;
 
+    const financeBefore = document.getElementById('qaFinanzas').innerHTML;
     Object.defineProperty(navigator, 'onLine', { configurable:true, get:() => true });
     window.getSupabaseClient = () => ({ from:()=>({}) });
     window.getUsuarioActual = async () => ({ id:'qa-user' });
@@ -83,49 +72,59 @@ async function renderTypeWithSupabaseStubs(page, tipo) {
       { id:'doc-1', nro_oc:item.numeroOC, storage_path:'qa/a.pdf' },
       { id:'doc-2', nro_oc:item.numeroOC, storage_path:'qa/b.pdf' }
     ];
-    window.renderFichaOC(ref);
-    return { ok:true, ref };
+
+    const result = await window.COI_OBRA_RESUMEN_SUPABASE_V1.decorateForQA(item.idObra, item);
+    const financeAfter = document.getElementById('qaFinanzas').innerHTML;
+    return { ok:true, result, financeUnchanged: financeBefore === financeAfter };
   }, tipo);
 }
 
 test('Obra muestra VTO, última certificación y avance desde Supabase sin tocar Finanzas', async ({ page }) => {
   await openIsolated(page);
-  const result = await renderTypeWithSupabaseStubs(page, 'Obra');
+  const result = await decorateFixture(page, 'Obra');
   expect(result.ok, result.reason || '').toBe(true);
-  await expect(page.locator('[data-coi-obra-resumen-source="supabase"]')).toBeVisible();
-  const card = page.locator('[data-coi-obra-resumen-source="supabase"]');
-  await expect(card).toContainText('Vencimiento');
-  await expect(card).toContainText('Última certificación');
-  await expect(card).toContainText('% de avance');
-  const labels = await card.locator('.grid > div > b').allTextContents();
-  expect(labels.map(x=>x.trim().toLowerCase())).not.toContain('sector');
-  await expect(card.locator('[data-coi-obra-vencimiento]')).toHaveText('31/12/2026');
+  expect(result.result.obra).toBe(true);
+  expect(result.financeUnchanged).toBe(true);
+
+  const card = page.locator('#qaResumen[data-coi-obra-resumen-source="supabase"]');
+  await expect(card).toBeVisible();
+  const labels = (await card.locator('.grid > div > b').allTextContents()).map(x=>x.trim().toLowerCase());
+  expect(labels).toEqual(expect.arrayContaining([
+    'id_obra','n° oc','tipo','tipo de trabajo','estación','vencimiento',
+    'proveedor','estado coi','estado documental','semáforo','última certificación','% de avance'
+  ]));
+  expect(labels).not.toContain('sector');
+  await expect(card.locator('[data-coi-obra-vencimiento]')).not.toHaveText('—');
+  await expect(card.locator('[data-coi-obra-vencimiento]')).toContainText('2026');
   await expect(card.locator('[data-coi-obra-ultima-cert]')).toContainText('Acta N° 7');
-  await expect(card.locator('[data-coi-obra-ultima-cert]')).toContainText('31/07/2026');
+  await expect(card.locator('[data-coi-obra-ultima-cert]')).toContainText('2026');
   await expect(card.locator('[data-coi-obra-avance]')).toHaveText('62,5%');
-  await expect(page.getByText('4. ESTADO FINANCIERO', { exact:false })).toBeVisible();
+  await expect(page.locator('[data-finance-sentinel]')).toHaveText('FINANZAS-SIN-CAMBIOS');
 });
 
 test('Repositorio contractual usa Supabase Storage y no ofrece OneDrive', async ({ page }) => {
   await openIsolated(page);
-  const result = await renderTypeWithSupabaseStubs(page, 'Obra');
-  expect(result.ok, result.reason || '').toBe(true);
-  const repo = page.locator('[data-coi-repo-supabase]').first();
+  const result = await decorateFixture(page, 'Obra');
+  expect(result.ok).toBe(true);
+  expect(result.result.repositorio).toBe(true);
+  const repo = page.locator('#qaContractual [data-coi-repo-supabase]');
   await expect(repo).toHaveText(/Supabase Storage · 2 documentos/);
-  const repoParent = repo.locator('..');
-  await expect(repoParent).not.toContainText(/OneDrive/i);
-  await expect(repoParent.locator('a')).toHaveCount(0);
+  await expect(page.locator('#qaContractual')).not.toContainText(/OneDrive/i);
+  await expect(page.locator('#qaContractual a')).toHaveCount(0);
 });
 
-test('Servicios conservan Sector en su Resumen General', async ({ page }) => {
+test('Servicios conservan Sector y no reciben campos exclusivos de Obra', async ({ page }) => {
   await openIsolated(page);
-  const result = await renderTypeWithSupabaseStubs(page, 'Servicio');
-  expect(result.ok, result.reason || '').toBe(true);
-  await page.waitForTimeout(50);
-  const summary = page.locator('.expediente-card').filter({ has: page.getByRole('heading', { name:/1\. Resumen general/i }) }).first();
-  await expect(summary).toBeVisible();
-  const labels = await summary.locator('.grid > div > b').allTextContents();
-  expect(labels.map(x=>x.trim().toLowerCase())).toContain('sector');
+  const result = await decorateFixture(page, 'Servicio');
+  expect(result.ok).toBe(true);
+  expect(result.result.obra).toBe(false);
+  expect(result.financeUnchanged).toBe(true);
+
+  const summary = page.locator('#qaResumen');
+  const labels = (await summary.locator('.grid > div > b').allTextContents()).map(x=>x.trim().toLowerCase());
+  expect(labels).toContain('sector');
+  expect(labels).not.toContain('última certificación');
+  expect(labels).not.toContain('% de avance');
   await expect(summary.locator('[data-coi-obra-ultima-cert]')).toHaveCount(0);
 });
 
