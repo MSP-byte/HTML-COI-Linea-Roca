@@ -1,16 +1,15 @@
 name: COI Final UI Apply
 
 on:
-  push:
-    branches:
-      - fix/ficha-obras-alertas-supabase
+  pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: ${{ !contains(github.event.head_commit.message, '[final-ui-applied]') }}
+    if: ${{ github.event.pull_request.head.ref == 'fix/ficha-obras-alertas-supabase' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout rama de trabajo
@@ -18,6 +17,7 @@ jobs:
         with:
           ref: fix/ficha-obras-alertas-supabase
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Configurar Node
         uses: actions/setup-node@v4
         with:
