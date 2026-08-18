@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - fix/obra-resumen-repositorio-supabase
+  pull_request:
+    branches:
+      - main
 jobs:
   inspect:
     runs-on: ubuntu-latest
@@ -14,14 +17,14 @@ jobs:
           from pathlib import Path
           p=Path('index.html')
           text=p.read_text(encoding='utf-8',errors='replace')
-          terms=['RESUMEN GENERAL','Resumen General','REPOSITORIO DOCUMENTAL','Repositorio documental','OneDrive','ESTADO CONTRACTUAL','ESTADO FINANCIERO','Semáforo','SEMÁFORO']
+          terms=['RESUMEN GENERAL','Resumen General','REPOSITORIO DOCUMENTAL','Repositorio documental','OneDrive','ESTADO CONTRACTUAL','ESTADO FINANCIERO','Semáforo','SEMÁFORO','ultima certificacion','última certificación','porcentaje avance','avance']
           lines=text.splitlines()
           print('TOTAL_LINES',len(lines))
           for term in terms:
               hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
               print('\n=== TERM',term,'HITS',len(hits),'===')
-              for i in hits[:20]:
-                  a=max(0,i-12); b=min(len(lines),i+18)
+              for i in hits[:25]:
+                  a=max(0,i-14); b=min(len(lines),i+22)
                   print(f'--- context lines {a+1}-{b} ---')
                   for j in range(a,b): print(f'{j+1}: {lines[j]}')
           PY
