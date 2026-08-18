@@ -10523,7 +10523,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     const isAdmin=adminA();
     const rol=$a('adminRolActivo'); if(rol) rol.textContent=isAdmin?'Administrador':'Modo Consulta';
     const badge=$a('adminModoBadge'); if(badge){badge.textContent='PRODUCCIÓN'; badge.className='version-status ok';}
-    const btn=$a('btnAdminMode'); if(btn) btn.textContent=(typeof esSesionSupabaseAdministradorV573==='function'&&esSesionSupabaseAdministradorV573())?'Administrador autenticado':(isAdmin?'Cerrar sesion de administrador':'Iniciar sesion como administrador');
+    const btn=$a('btnAdminMode'); if(btn){const adminSupabase=typeof esSesionSupabaseAdministradorV573==='function'&&esSesionSupabaseAdministradorV573();btn.textContent=adminSupabase?'Cerrar sesión de administrador':'Iniciar sesión como administrador';btn.title=adminSupabase?'Cerrar la sesión Supabase administrativa activa':'Autenticar una cuenta Supabase con rol Administrador';btn.setAttribute('aria-pressed',adminSupabase?'true':'false');}
     document.body.classList.toggle('modo-admin',isAdmin);
     document.body.classList.toggle('modo-consulta',!isAdmin);
     document.querySelectorAll('[data-admin-only]').forEach(el=>el.classList.toggle('admin-hidden',!isAdmin));
