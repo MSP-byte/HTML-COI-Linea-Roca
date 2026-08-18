@@ -13,6 +13,10 @@ text = text.replace(
     'Carpetas OneDrive y documentos vinculados a la OC ${esc(nro(o))}.',
     'Vínculos documentales registrados en Supabase para la OC ${esc(nro(o))}.'
 )
+text = text.replace(
+    'data-exec-open-link="${esc(principalSeguro)}">Abrir OneDrive</button>',
+    'data-exec-open-link="${esc(principalSeguro)}">Abrir vínculo</button>'
+)
 
 if marker not in text:
     patch = Path('.coi-qa/obra_summary_patch.html').read_text(encoding='utf-8')
