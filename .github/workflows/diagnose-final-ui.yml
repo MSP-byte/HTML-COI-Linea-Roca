@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - fix/ficha-obras-alertas-supabase
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 jobs:
   diagnose:
