@@ -139,12 +139,12 @@ test('Contractual elimina repositorio OneDrive y controles documentales/PyC lega
   expect(result.ok, result.reason || '').toBe(true);
   await page.evaluate(() => {
     const contractual=document.getElementById('qaContractual');
-    contractual.insertAdjacentHTML('beforeend','<button>Marcar enviado a PyC</button><button>Agregar link documental</button>');
+    contractual.insertAdjacentHTML('beforeend','<button>Marcar enviada a PyC</button><button>Agregar link documental</button><button>Abrir OneDrive</button>');
   });
   await page.waitForTimeout(100);
   await expect(page.locator('#qaContractual')).not.toContainText(/OneDrive/i);
   await expect(page.locator('#qaContractual')).not.toContainText(/Repositorio documental/i);
-  await expect(page.locator('#fichaOCBody')).not.toContainText(/Marcar enviado a PyC/i);
+  await expect(page.locator('#fichaOCBody')).not.toContainText(/Marcar enviad[oa] a PyC/i);
   await expect(page.locator('#fichaOCBody')).not.toContainText(/Agregar link documental/i);
 });
 
