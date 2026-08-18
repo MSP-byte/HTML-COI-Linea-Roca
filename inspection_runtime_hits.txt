@@ -1,0 +1,92 @@
+
+=== obtenerResumenCertificacionesOC | 10 ===
+7086: function obtenerResumenCertificacionesOC(oc){
+7113: function obtenerUltimaActaOC(oc){return obtenerResumenCertificacionesOC(oc).ultimaActa;}
+7114: function calcularProximaActaOC(oc){return obtenerResumenCertificacionesOC(oc).proximaActa;}
+7115: function calcularFechaProximaActaOC(oc){return obtenerResumenCertificacionesOC(oc).fechaProximaActa;}
+7117: const r=obtenerResumenCertificacionesOC(oc);
+7886: const _obtenerResumenCertificacionesOCV62Base=typeof obtenerResumenCertificacionesOC==='function'?obtenerResumenCertificacionesOC:null;
+7887: obtenerResumenCertificacionesOC=function(oc){if(v62EsObraOC(oc))return v62ResumenCertificacionesObra(oc);return _obtenerResumenCertificacionesOCV62Base?_obtenerResumenCertificacionesOCV62Base(oc):{actas:[],ultimaActa:'',fechaUltimaActa:'',proximaActa:'',fechaProximaActa:''};};
+7894: const r=obtenerResumenCertificacionesOC(oc),esObra=v62EsObraOC(oc),key=v62KeyOC(oc),admin=typeof adminIsEnabled==='function'&&adminIsEnabled();
+7913: function repararCertificacionesObrasMalCalculadas(){const resumen={registrosRevisados:0,obrasCorregidas:0,serviciosIgnorados:0,registrosSinCambios:0,revisionManual:0,backup:''};try{resumen.backup=v62BackupReparacionCertObras();}catch(e){console.error('No se pudo crear backup de reparacion',e);resumen.error='No se pudo crear backup automatico en localStorage.';return resumen;}const obs='Certificaciones de obra limpiadas por calculo automatico incorrecto.';estaciones.forEach(est=>allItems(est).forEach(oc=>{resumen.registrosRevisados++;if(!v62EsObraOC(oc)){resumen.serviciosIgnorados++;return;}const r=v62ResumenCertificacionesObra(oc),base=_obtenerResumenCertificacionesOCV62Base?_obtenerResumenCertificacionesOCV62Base(oc):{},sinFuente=!r.tieneFuenteReal,baseUlt=v62NumeroActa(base.ultimaActa),baseProx=v62NumeroActa(base.proximaActa),autoProx=!!(oc.proximaCertificacion&&!oc.PROX_CERTIFICACION&&!oc.proxCertificacion&&v62FechaISO(addMeses(oc.actaInicio||oc.fechaInicio||oc.inicio,1))===v62FechaISO(oc.proximaCertificacion)),sospechoso=sinFuente&&(v62NumeroAlto(baseUlt)||v62NumeroAlto(baseProx)||v62NumeroAlto(oc.ultimaActa)||v62NumeroAlto(oc.proximaActa)||autoProx||Array.isArray(oc.certificacionesMensuales)||Array.isArray(oc.certificacionesGeneradas));if(!sospechoso){resumen.registrosSinCambios++;return;}['certificacionesMensuales','certificacionesGeneradas','proximaActa','PROXIMA_ACTA','fechaProximaActa','fechaProximaCertificacion'].forEach(k=>delete oc[k]);if(v62NumeroAlto(oc.ultimaAc
+7914: function v62DiagnosticoCertificaciones(){const rows=typeof todasLasOC==='function'?todasLasOC():[],obras=rows.filter(r=>r.tipo==='Obra'),servicios=rows.filter(r=>r.tipo==='Servicio');return {obrasActasSospechosas:obras.filter(r=>{const b=_obtenerResumenCertificacionesOCV62Base?_obtenerResumenCertificacionesOCV62Base(r.item):{};return !v62ResumenCertificacionesObra(r.item).tieneFuenteReal&&(v62NumeroAlto(b.ultimaActa)||v62NumeroAlto(b.proximaActa));}).length,obrasProximaActaAutomatica:obras.filter(r=>v62NumeroAlto(r.item?.proximaActa)&&!v62ResumenCertificacionesObra(r.item).tieneProximaManual).length,obrasProximaCertSinRespaldo:obras.filter(r=>r.item?.proximaCertificacion&&!r.item?.PROX_CERTIFICACION&&!r.item?.proxCertificacion&&!v62ResumenCertificacionesObra(r.item).tieneFuenteReal).length,serviciosSinProximaCertificacion:servicios.filter(r=>!r.proximaCertificacion&&!r.cerrada).length,certificacionesCruzadas:v62DocsGlobales().filter(d=>v62EsActaMedicionDoc(d)&&!rows.some(r=>v62DocPerteneceOC(d,r.item))).length};}
+
+=== certificacionesCacheOC | 6 ===
+13108: const certificacionesCacheOC=new Map();
+13708: certificacionesCacheOC.delete(saved.nro_oc);
+13734: const memory=certificacionesCacheOC.get(nroOC)||[];
+13748: certificacionesCacheOC.set(nroOC,normalized);
+13753: certificacionesCacheOC.delete(nroOC);
+13785: list.forEach(nro=>certificacionesCacheOC.delete(nro));
+
+=== cargarCertificaciones | 7 ===
+13714: function cargarCertificacionesLegacyPorOC(nroOC){
+13726: async function cargarCertificacionesPorOC(reference){
+13735: const legacy=cargarCertificacionesLegacyPorOC(nroOC);
+13754: const source=await cargarCertificacionesPorOC(nroOC);
+13912: const rows=await cargarCertificacionesPorOC(reference);
+13973: window.cargarCertificacionesPorOC=cargarCertificacionesPorOC;
+16611: if(!manuales.length&&typeof window.cargarCertificacionesPorOC==='function')try{manuales=await window.cargarCertificacionesPorOC(orden)}catch(error){console.warn('COI: certificaciones manuales no disponibles para consolidacion.',error)}
+
+=== obtenerCertificaciones | 0 ===
+
+=== normalizarCertificacionDesdeSupabase | 13 ===
+13188: function normalizarCertificacionDesdeSupabase(row={}){
+13226: const normalized=normalizarCertificacionDesdeSupabase(data);
+13337: const normalized=normalizarCertificacionDesdeSupabase(data);
+13366: const normalized=normalizarCertificacionDesdeSupabase(data);
+13400: const normalized=normalizarCertificacionDesdeSupabase(data);
+13486: const n=normalizarCertificacionDesdeSupabase(entry.data);
+13494: const normalized=normalizarCertificacionDesdeSupabase(entry.data);
+13707: const saved=normalizarCertificacionDesdeSupabase(raw);
+13719: if(Array.isArray(parsed))parsed.forEach(row=>{if(obtenerNroOCCertificacion(row)===target)rows.push(normalizarCertificacionDesdeSupabase({...row,_legacy:true}));});
+13747: const normalized=rows.map(normalizarCertificacionDesdeSupabase);
+13805: const n=normalizarCertificacionDesdeSupabase(entry.data);
+13822: const normalized=normalizarCertificacionDesdeSupabase(entry.data);
+13969: window.normalizarCertificacionDesdeSupabase=normalizarCertificacionDesdeSupabase;
+
+=== CERTIFICACIONES_TABLE | 8 ===
+13085: const CERTIFICACIONES_TABLE='coi_certificaciones';
+13602: <div class="muted">Persistencia confirmada: public.${CERTIFICACIONES_TABLE}. Los campos acumulado y AUX % se recalculan en la grilla y no se envían porque PostgreSQL los genera automáticamente.</div>
+13662: let query=client.from(CERTIFICACIONES_TABLE).select('id,nro_oc,acta_medicion_nro,item_nro,posicion,fecha_inicio,fecha_fin')
+13692: result=await client.from(CERTIFICACIONES_TABLE).update(payload).eq('id',existing.id).select().limit(1);
+13694: result=await client.from(CERTIFICACIONES_TABLE).upsert(payload,{onConflict:CERTIFICACION_CONFLICT_FIELDS}).select().limit(1);
+13698: result=await client.from(CERTIFICACIONES_TABLE).insert(payload).select().limit(1);
+13738: let result=await client.from(CERTIFICACIONES_TABLE).select('*').eq('nro_oc',nroOC).order('fecha_fin',{ascending:false,nullsFirst:false}).limit(1000);
+13743: result=await client.from(CERTIFICACIONES_TABLE).select('*').eq('orden_id',orderId).order('fecha_fin',{ascending:false,nullsFirst:false}).limit(1000);
+
+=== renderFichaOC=function | 6 ===
+6601: renderFichaOC=function(idObra){_renderFichaOCV54Base(idObra);fichaV54InsertarBoton(fichaV54Encontrar(idObra),idObra);};
+7128: renderFichaOC=function(idOC){_renderFichaOCV57Base(idOC);v57ActualizarBloqueCertificaciones(idOC);};
+7342: renderFichaOC=function(id){
+7652: if(_renderFichaOCV60Base){renderFichaOC=function(id){_renderFichaOCV60Base(id);v60InsertarFichaOC(id);};}
+8001: if(_renderFichaOCV63Base){renderFichaOC=function(idOC){_renderFichaOCV63Base(idOC);organizarSubmodulosFichaOC(idOC);};}
+12793: const baseRenderFichaOC=window.renderFichaOC; if(typeof baseRenderFichaOC==='function'&&!baseRenderFichaOC._v581){window.renderFichaOC=function(){const r=baseRenderFichaOC.apply(this,arguments);setTimeout(()=>{convertirEstadoSelect();addObsButtonEnhance();},0);return r;};window.renderFichaOC._v581=true;}
+
+=== _renderFichaOC | 14 ===
+6600: const _renderFichaOCV54Base=renderFichaOC;
+6601: renderFichaOC=function(idObra){_renderFichaOCV54Base(idObra);fichaV54InsertarBoton(fichaV54Encontrar(idObra),idObra);};
+7127: const _renderFichaOCV57Base=renderFichaOC;
+7128: renderFichaOC=function(idOC){_renderFichaOCV57Base(idOC);v57ActualizarBloqueCertificaciones(idOC);};
+7184: const _renderFichaOCV58Base = typeof renderFichaOC === 'function' ? renderFichaOC : null;
+7185: if (_renderFichaOCV58Base) {
+7187: _renderFichaOCV58Base(id);
+7340: const _renderFichaOCV59Base = typeof renderFichaOC==='function' ? renderFichaOC : null;
+7341: if(_renderFichaOCV59Base){
+7343: _renderFichaOCV59Base(id);
+7651: const _renderFichaOCV60Base=typeof renderFichaOC==='function'?renderFichaOC:null;
+7652: if(_renderFichaOCV60Base){renderFichaOC=function(id){_renderFichaOCV60Base(id);v60InsertarFichaOC(id);};}
+8000: const _renderFichaOCV63Base=typeof renderFichaOC==='function'?renderFichaOC:null;
+8001: if(_renderFichaOCV63Base){renderFichaOC=function(idOC){_renderFichaOCV63Base(idOC);organizarSubmodulosFichaOC(idOC);};}
+
+=== renderFichaOC = function | 2 ===
+7186: renderFichaOC = function(id){
+17401: window.renderFichaOC = function(reference){
+
+=== renderFichaOC=function | 6 ===
+6601: renderFichaOC=function(idObra){_renderFichaOCV54Base(idObra);fichaV54InsertarBoton(fichaV54Encontrar(idObra),idObra);};
+7128: renderFichaOC=function(idOC){_renderFichaOCV57Base(idOC);v57ActualizarBloqueCertificaciones(idOC);};
+7342: renderFichaOC=function(id){
+7652: if(_renderFichaOCV60Base){renderFichaOC=function(id){_renderFichaOCV60Base(id);v60InsertarFichaOC(id);};}
+8001: if(_renderFichaOCV63Base){renderFichaOC=function(idOC){_renderFichaOCV63Base(idOC);organizarSubmodulosFichaOC(idOC);};}
+12793: const baseRenderFichaOC=window.renderFichaOC; if(typeof baseRenderFichaOC==='function'&&!baseRenderFichaOC._v581){window.renderFichaOC=function(){const r=baseRenderFichaOC.apply(this,arguments);setTimeout(()=>{convertirEstadoSelect();addObsButtonEnhance();},0);return r;};window.renderFichaOC._v581=true;}
