@@ -10,30 +10,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Generar inspeccion acotada
+      - name: Generar contextos exactos
         run: |
-          python3 - <<'PY' > inspection_hits.txt
+          python3 - <<'PY' > inspection_context.txt
           from pathlib import Path
           lines=Path('index.html').read_text(encoding='utf-8',errors='replace').splitlines()
-          terms=[
-            'RESUMEN GENERAL','REPOSITORIO DOCUMENTAL','OneDrive',
-            'ESTADO CONTRACTUAL / CIRCUITO ADMINISTRATIVO','ESTADO FINANCIERO',
-            'ID_OBRA','fecha_vencimiento','vencimiento','porcentaje_avance',
-            'avance_obra','avance_pct','acta_medicion_nro','proxima_acta_medicion_fecha',
-            'ultima_certificacion','última certificación','certificaciones'
+          ranges=[
+            (5650,5785,'FICHA BASE / RESUMEN / CONTRACTUAL'),
+            (3100,3175,'CERTIFICACIONES LEGACY / AVANCE'),
+            (7860,7945,'V62 ACTAS / AVANCE OBRA'),
+            (13070,13235,'CERTIFICACIONES SUPABASE CAMPOS'),
+            (16470,16525,'MAPEO SUPABASE COI_ORDENES')
           ]
-          print('TOTAL_LINES',len(lines))
-          for term in terms:
-              hits=[(i+1,l.strip()) for i,l in enumerate(lines) if term.lower() in l.lower()]
-              print(f'\n=== {term} | HITS {len(hits)} ===')
-              for n,l in hits[:40]:
-                  print(f'{n}: {l[:900]}')
+          for a,b,title in ranges:
+              print(f'\n===== {title} | {a}-{b} =====')
+              for n in range(a,b+1):
+                  if n<=len(lines): print(f'{n}: {lines[n-1]}')
           PY
-      - name: Commit inspection hits
+      - name: Commit inspection context
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add inspection_hits.txt
+          git add inspection_context.txt
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "chore: snapshot hits ficha obras"
+          git commit -m "chore: snapshot contextos ficha obras"
           git push
