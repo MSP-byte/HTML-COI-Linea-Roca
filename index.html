@@ -8504,11 +8504,87 @@ function esSesionSupabaseAdministradorV573(){
 window.esAutorizacionAdministrativaSupabaseV60=function(){return esSesionSupabaseAdministradorV573();};
 function esModoAdmin(){return window.esAutorizacionAdministrativaSupabaseV60();}
 function esModoConsulta(){return !esModoAdmin();}
+function prepararModalLoginAdministradorV573(){
+  const modal=document.getElementById("supabaseAuthModal");
+  if(!modal) return null;
+  const titulo=document.getElementById("supabaseAuthTitle");
+  if(titulo) titulo.textContent="Acceso de Administrador";
+  const intro=modal.querySelector(".supabase-auth-head p");
+  if(intro) intro.textContent="Ingresá con una cuenta Supabase que tenga rol Administrador habilitado para COI Línea Roca.";
+  const errorEl=document.getElementById("supabaseLoginError");
+  if(errorEl) errorEl.textContent="";
+  return modal;
+}
+async function verificarResultadoLoginAdministradorV573(){
+  const esperar=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  for(let intento=0;intento<32;intento++){
+    await esperar(250);
+    if(esSesionSupabaseAdministradorV573()){
+      modoAccesoActual="admin";
+      actualizarUIModoAcceso();
+      if(typeof adminSetMsg==="function") adminSetMsg("Administrador autenticado correctamente mediante Supabase.","ok");
+      if(typeof renderAdministracionSistema==="function") renderAdministracionSistema();
+      return true;
+    }
+    const modal=document.getElementById("supabaseAuthModal");
+    if(modal?.hidden){
+      await esperar(450);
+      if(esSesionSupabaseAdministradorV573()){
+        modoAccesoActual="admin";
+        actualizarUIModoAcceso();
+        if(typeof adminSetMsg==="function") adminSetMsg("Administrador autenticado correctamente mediante Supabase.","ok");
+        if(typeof renderAdministracionSistema==="function") renderAdministracionSistema();
+        return true;
+      }
+      modoAccesoActual="consulta";
+      actualizarUIModoAcceso();
+      if(window.APP_STATE?.user && typeof adminSetMsg==="function") adminSetMsg("El usuario autenticado no posee permisos de Administrador.","err");
+      if(typeof renderAdministracionSistema==="function") renderAdministracionSistema();
+      return false;
+    }
+  }
+  return esSesionSupabaseAdministradorV573();
+}
+function abrirLoginSupabaseAdministradorV573(){
+  if(esSesionSupabaseAdministradorV573()){
+    modoAccesoActual="admin";
+    actualizarUIModoAcceso();
+    return true;
+  }
+  const loginSupabaseBtn=document.getElementById("btnSupabaseLogin");
+  if(!loginSupabaseBtn){
+    if(typeof adminSetMsg==="function") adminSetMsg("El acceso Supabase todavía no está disponible. Recargá la página e intentá nuevamente.","err");
+    return false;
+  }
+  loginSupabaseBtn.click();
+  setTimeout(()=>{
+    prepararModalLoginAdministradorV573();
+    const form=document.getElementById("supabaseLoginForm");
+    if(form){
+      form.addEventListener("submit",()=>{void verificarResultadoLoginAdministradorV573();},{once:true,capture:true});
+    }
+    const email=document.getElementById("supabaseEmail");
+    if(email) email.focus();
+  },0);
+  return false;
+}
+function cerrarSesionSupabaseAdministradorV573(){
+  const logoutSupabaseBtn=document.getElementById("btnSupabaseLogout");
+  if(!logoutSupabaseBtn){
+    if(typeof adminSetMsg==="function") adminSetMsg("No se encontró una sesión Supabase activa para cerrar.","warn");
+    return false;
+  }
+  logoutSupabaseBtn.click();
+  modoAccesoActual="consulta";
+  setTimeout(()=>{
+    actualizarUIModoAcceso();
+    if(typeof renderAdministracionSistema==="function") renderAdministracionSistema();
+  },250);
+  return true;
+}
 function iniciarSesionAdministrador(){
-  modoAccesoActual=esSesionSupabaseAdministradorV573()?"admin":"consulta";
   try{sessionStorage.removeItem("coi_modo_acceso_actual");}catch(e){}
-  actualizarUIModoAcceso();
-  return esModoAdmin();
+  return abrirLoginSupabaseAdministradorV573();
 }
 function cerrarSesionAdministrador(){
   modoAccesoActual="consulta";
@@ -8565,8 +8641,8 @@ function renderMensajeModoAdministracionV573(){
   }
   aviso.className="access-mode-notice"+(esModoAdmin()?" admin":"");
   aviso.innerHTML=esModoAdmin()
-    ? '<b>Modo Administrador activo</b>Las acciones de edicion, borrado, importacion y cierre estan habilitadas hasta cerrar sesion o recargar la pagina.'
-    : '<b>Modo Consulta activo</b>Para modificar datos, limpiar base o restaurar backups, inicia sesion como administrador desde este modulo.';
+    ? '<b>Modo Administrador activo</b>Las acciones protegidas están habilitadas mientras la sesión Supabase administrativa permanezca autenticada.'
+    : '<b>Modo Consulta activo</b>Para ejecutar acciones protegidas, iniciá sesión con una cuenta Supabase que tenga rol Administrador.';
 }
 function initEventosModoAccesoV573(){
   const btn=document.getElementById("btnAdminMode");
@@ -8576,13 +8652,12 @@ function initEventosModoAccesoV573(){
     ev.preventDefault();
     ev.stopImmediatePropagation();
     if(esSesionSupabaseAdministradorV573()){
-      actualizarUIModoAcceso();
-      if(typeof adminSetMsg==="function") adminSetMsg("La sesion Supabase ya posee rol Administrador.","ok");
-      if(typeof renderAdministracionSistema==="function") renderAdministracionSistema();
+      if(typeof adminSetMsg==="function") adminSetMsg("Cerrando sesión de Administrador en Supabase…","warn");
+      cerrarSesionSupabaseAdministradorV573();
       return;
     }
-    cerrarSesionAdministrador();
-    if(typeof adminSetMsg==="function") adminSetMsg("La sesion Supabase actual no posee autorizacion administrativa.","err");
+    iniciarSesionAdministrador();
+    if(typeof adminSetMsg==="function") adminSetMsg("Autenticá una cuenta Supabase con rol Administrador.","warn");
     if(typeof renderAdministracionSistema==="function") renderAdministracionSistema();
   },true);
 }
@@ -8597,8 +8672,10 @@ function actualizarUIModoAcceso(){
   initEventosModoAccesoV573();
   const btn=document.getElementById("btnAdminMode");
   if(btn){
-    btn.textContent=esSesionSupabaseAdministradorV573()?"Administrador autenticado":(esModoAdmin()?"Cerrar sesion de administrador":"Iniciar sesion como administrador");
-    btn.title=esSesionSupabaseAdministradorV573()?"Rol Administrador otorgado por la sesion Supabase activa":"";
+    const adminSupabase=esSesionSupabaseAdministradorV573();
+    btn.textContent=adminSupabase?"Cerrar sesión de administrador":"Iniciar sesión como administrador";
+    btn.title=adminSupabase?"Cerrar la sesión Supabase administrativa activa":"Autenticar una cuenta Supabase con rol Administrador";
+    btn.setAttribute("aria-pressed",adminSupabase?"true":"false");
   }
   const rol=document.getElementById("adminRolActivo");
   if(rol) rol.textContent=esModoAdmin()?"Administrador":"Modo Consulta";
@@ -10446,7 +10523,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     const isAdmin=adminA();
     const rol=$a('adminRolActivo'); if(rol) rol.textContent=isAdmin?'Administrador':'Modo Consulta';
     const badge=$a('adminModoBadge'); if(badge){badge.textContent='PRODUCCIÓN'; badge.className='version-status ok';}
-    const btn=$a('btnAdminMode'); if(btn) btn.textContent=(typeof esSesionSupabaseAdministradorV573==='function'&&esSesionSupabaseAdministradorV573())?'Administrador autenticado':(isAdmin?'Cerrar sesion de administrador':'Iniciar sesion como administrador');
+    const btn=$a('btnAdminMode'); if(btn){const adminSupabase=typeof esSesionSupabaseAdministradorV573==='function'&&esSesionSupabaseAdministradorV573();btn.textContent=adminSupabase?'Cerrar sesión de administrador':'Iniciar sesión como administrador';btn.title=adminSupabase?'Cerrar la sesión Supabase administrativa activa':'Autenticar una cuenta Supabase con rol Administrador';btn.setAttribute('aria-pressed',adminSupabase?'true':'false');}
     document.body.classList.toggle('modo-admin',isAdmin);
     document.body.classList.toggle('modo-consulta',!isAdmin);
     document.querySelectorAll('[data-admin-only]').forEach(el=>el.classList.toggle('admin-hidden',!isAdmin));
