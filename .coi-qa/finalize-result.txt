@@ -1,0 +1,16 @@
+OK eliminar fila Repositorio documental
+OK eliminar Agregar link documental
+OK neutralizar repositorio/controles legacy tardíos
+Marcar enviado a PyC eliminado de 0 plantilla(s); la limpieza runtime cubre renderers alternativos.
+file:///home/runner/work/HTML-COI-Linea-Roca/HTML-COI-Linea-Roca/.coi-qa/finalize_final_ui.mjs:134
+if(html.includes('>Agregar link documental</button>')) throw new Error('Sigue existiendo botón Agregar link documental');
+                                                             ^
+
+Error: Sigue existiendo botón Agregar link documental
+    at file:///home/runner/work/HTML-COI-Linea-Roca/HTML-COI-Linea-Roca/.coi-qa/finalize_final_ui.mjs:134:62
+    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+EXIT_CODE=1
