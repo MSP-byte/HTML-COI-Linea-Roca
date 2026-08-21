@@ -5673,7 +5673,9 @@ function renderFichaOC(idObra){
   const avanceEstado=estadoAvanceOC(item,calc);
   const ultimaActa=calc.ultima?.numero || extraerNumeroActa(item.ultimaCertificacion) || '—';
   const esObra=String(item.tipo||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase()==='OBRA';
-  const vencimientoResumen=calc.venc?fmtFecha(calc.venc):'Sin dato';
+  const vencimientoISO=String(calc.venc||'').slice(0,10);
+  const vencimientoPartes=vencimientoISO.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const vencimientoResumen=vencimientoPartes?`${vencimientoPartes[3]}/${vencimientoPartes[2]}/${vencimientoPartes[1]}`:(calc.venc?fmtFecha(calc.venc):'Sin dato');
   const diasRestantesResumen=calc.dias===null?'Sin dato':String(calc.dias);
 
   body.innerHTML=`
