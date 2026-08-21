@@ -16767,27 +16767,47 @@ const APP_DATA_MODE = "supabase_first";
   function exportarReporteCalidadCSV(){csvDownload('reporte_calidad_coi.csv',normalizedRows().map(o=>({nro_oc:o.nro_oc,proveedor:o.proveedor,estacion:o.estacion,calidad:o.calidad_datos_estado,score:o.calidad_datos_score,requiere_accion:o.requiere_accion,motivo:o.motivo_requiere_accion,fecha_ultimo_control:o.fecha_ultimo_control})))}
   async function exportarReporteDocumentalCSV(){
   const rows=normalizedRows();
-  const loader=typeof window.cargarDocumentosStorageOC==='function'
-    ? window.cargarDocumentosStorageOC
-    : cargarDocumentosStorageOC;
+  const documentosPorOC=new Map();
+  const pageSize=1000;
 
-  const docs=await Promise.all(
-    rows.map(async o=>({
-      orden:o,
-      documentos:await loader(o,{force:true})
-    }))
-  );
+  for(let from=0;;from+=pageSize){
+    const {data,error}=await client()
+      .from(T_DOCUMENTOS_STORAGE)
+      .select('nro_oc,storage_path')
+      .range(from,from+pageSize-1);
+
+    if(error) throw error;
+
+    const batch=data||[];
+
+    batch.forEach(doc=>{
+      const key=clean(doc.nro_oc).replace(/\s+/g,'');
+
+      if(key&&clean(doc.storage_path)){
+        documentosPorOC.set(
+          key,
+          (documentosPorOC.get(key)||0)+1
+        );
+      }
+    });
+
+    if(batch.length<pageSize) break;
+  }
 
   csvDownload(
     'reporte_documental_coi.csv',
-    docs.map(({orden,documentos})=>({
-      nro_oc:orden.nro_oc,
-      proveedor:orden.proveedor,
-      estacion:orden.estacion,
-      estado_documental:orden.estado_documental,
-      cantidad_documentos_storage:documentos.length,
-      fecha_envio_pyc:orden.fecha_envio_planificacion
-    }))
+    rows.map(orden=>{
+      const key=clean(orden.nro_oc).replace(/\s+/g,'');
+
+      return{
+        nro_oc:orden.nro_oc,
+        proveedor:orden.proveedor,
+        estacion:orden.estacion,
+        estado_documental:orden.estado_documental,
+        cantidad_documentos_storage:documentosPorOC.get(key)||0,
+        fecha_envio_pyc:orden.fecha_envio_planificacion
+      };
+    })
   );
 }
   function injectAdmin(){const host=$('adminTabDatos')||document.querySelector('#vistaAdministracionSistema .view-body');if(!host||$('execAdminPanel'))return;const p=document.createElement('section');p.id='execAdminPanel';p.className='exec-admin-panel';p.innerHTML=`<h3>Calidad, documental y auditoría</h3><div class="muted">Controles ejecutivos sobre public.coi_ordenes y tablas de trazabilidad.</div><div class="admin-actions"><button type="button" id="execAuditRun" class="primary">Ejecutar auditoría de calidad</button><button type="button" id="execAuditLast">Ver último resultado</button><button type="button" id="execReload">Recargar datos desde Supabase</button><button type="button" id="execDuplicates">Verificar duplicados por nro_oc</button><button type="button" id="execExportQuality">Exportar reporte calidad CSV</button><button type="button" id="execExportDocs">Exportar reporte documental CSV</button></div><div id="execAuditResult"></div>`;host.prepend(p);if(lastAudit)renderResumenAuditoriaCalidad(lastAudit)}
