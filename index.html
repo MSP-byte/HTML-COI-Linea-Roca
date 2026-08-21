@@ -16765,7 +16765,31 @@ const APP_DATA_MODE = "supabase_first";
   async function verificarDuplicadosSupabase(){await requireWrite();const {data,error}=await client().from(T_ORDENES).select('id,nro_oc,id_obra,estacion,proveedor').limit(10000);if(error)throw error;const m=new Map();(data||[]).forEach(r=>{const k=clean(r.nro_oc).replace(/\s+/g,'');if(!k)return;m.set(k,[...(m.get(k)||[]),r])});const dup=[...m].filter(([,v])=>v.length>1);const msg=dup.length?dup.map(([k,v])=>`${k}: ${v.length} filas`).join('\n'):'No se detectaron duplicados por nro_oc.';alert(msg);return dup}
   function csvDownload(name,rows){if(!rows.length){toast('No hay datos para exportar.','warning');return}const headers=Object.keys(rows[0]),text=[headers.join(';'),...rows.map(r=>headers.map(h=>coiCSVCell(r[h])).join(';'))].join('\n');const blob=new Blob(['\ufeff'+text],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
   function exportarReporteCalidadCSV(){csvDownload('reporte_calidad_coi.csv',normalizedRows().map(o=>({nro_oc:o.nro_oc,proveedor:o.proveedor,estacion:o.estacion,calidad:o.calidad_datos_estado,score:o.calidad_datos_score,requiere_accion:o.requiere_accion,motivo:o.motivo_requiere_accion,fecha_ultimo_control:o.fecha_ultimo_control})))}
-  async function exportarReporteDocumentalCSV(){const rows=normalizedRows();const docs=await Promise.all(rows.map(async o=>({orden:o,documentos:await cargarDocumentosStorageOC(o)})));csvDownload('reporte_documental_coi.csv',docs.map(({orden,documentos})=>({nro_oc:orden.nro_oc,proveedor:orden.proveedor,estacion:orden.estacion,estado_documental:orden.estado_documental,cantidad_documentos_storage:documentos.length,fecha_envio_pyc:orden.fecha_envio_planificacion})))}
+  async function exportarReporteDocumentalCSV(){
+  const rows=normalizedRows();
+  const loader=typeof window.cargarDocumentosStorageOC==='function'
+    ? window.cargarDocumentosStorageOC
+    : cargarDocumentosStorageOC;
+
+  const docs=await Promise.all(
+    rows.map(async o=>({
+      orden:o,
+      documentos:await loader(o,{force:true})
+    }))
+  );
+
+  csvDownload(
+    'reporte_documental_coi.csv',
+    docs.map(({orden,documentos})=>({
+      nro_oc:orden.nro_oc,
+      proveedor:orden.proveedor,
+      estacion:orden.estacion,
+      estado_documental:orden.estado_documental,
+      cantidad_documentos_storage:documentos.length,
+      fecha_envio_pyc:orden.fecha_envio_planificacion
+    }))
+  );
+}
   function injectAdmin(){const host=$('adminTabDatos')||document.querySelector('#vistaAdministracionSistema .view-body');if(!host||$('execAdminPanel'))return;const p=document.createElement('section');p.id='execAdminPanel';p.className='exec-admin-panel';p.innerHTML=`<h3>Calidad, documental y auditoría</h3><div class="muted">Controles ejecutivos sobre public.coi_ordenes y tablas de trazabilidad.</div><div class="admin-actions"><button type="button" id="execAuditRun" class="primary">Ejecutar auditoría de calidad</button><button type="button" id="execAuditLast">Ver último resultado</button><button type="button" id="execReload">Recargar datos desde Supabase</button><button type="button" id="execDuplicates">Verificar duplicados por nro_oc</button><button type="button" id="execExportQuality">Exportar reporte calidad CSV</button><button type="button" id="execExportDocs">Exportar reporte documental CSV</button></div><div id="execAuditResult"></div>`;host.prepend(p);if(lastAudit)renderResumenAuditoriaCalidad(lastAudit)}
   function wrap(name,after){const base=window[name];if(typeof base!=='function'||base.__execWrapped)return;const fn=function(...args){const r=base.apply(this,args),completed=Promise.resolve(r).finally(()=>after(...args));return r&&typeof r.then==='function'?completed:r};fn.__execWrapped=true;window[name]=fn}
   function renderExecutiveAfterFicha(key){const o=resolveOrder(key||window.ocActualId);if(!o)return;currentOrder=o;renderExecutiveFicha(o);$('execBtnEditar')?.remove();$('execBtnGuardar')?.remove();const documentosRequest=cargarYRenderDocumentosStorageOC(o);Promise.resolve(documentosRequest).then(documentos=>renderActasMedicionDocumentalesOC(o,documentos)).catch(error=>console.warn('COI: actas documentales no disponibles.',error));renderHistorialOC(o)}
