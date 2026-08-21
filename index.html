@@ -5673,7 +5673,8 @@ function renderFichaOC(idObra){
   const avanceEstado=estadoAvanceOC(item,calc);
   const ultimaActa=calc.ultima?.numero || extraerNumeroActa(item.ultimaCertificacion) || '—';
   const esObra=String(item.tipo||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase()==='OBRA';
-  const vencimientoISO=String(calc.venc||'').slice(0,10);
+  const vencimientoFuente=item?._supabaseRaw?.fecha_vencimiento||item.fechaVencimiento||item.fecha_vencimiento||item.vencimiento||item.fechaFin||item.fecha_fin||calc.venc;
+  const vencimientoISO=String(vencimientoFuente||'').slice(0,10);
   const vencimientoPartes=vencimientoISO.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   const vencimientoResumen=vencimientoPartes?`${vencimientoPartes[3]}/${vencimientoPartes[2]}/${vencimientoPartes[1]}`:(calc.venc?fmtFecha(calc.venc):'Sin dato');
   const diasRestantesResumen=calc.dias===null?'Sin dato':String(calc.dias);
@@ -25292,6 +25293,9 @@ document.addEventListener('click',function(event){
     const renderedType=[...card.querySelectorAll('.grid > div > b')].find(label=>norm(label.textContent)==='TIPO')?.parentElement?.textContent;
     return norm(item?.tipo||item?.TIPO)==='OBRA'||norm(renderedType).includes('OBRA');
   }
+  function persistedDueDate(item){
+    return item?._supabaseRaw?.fecha_vencimiento||item?.fechaVencimiento||item?.fecha_vencimiento||item?.vencimiento||item?.fechaFin||item?.fecha_fin||'';
+  }
   function numeric(value){
     if(value===null||value===undefined||value==='')return null;
     const n=Number(String(value).trim().replace(',','.'));
@@ -25331,6 +25335,8 @@ document.addEventListener('click',function(event){
     if(!card||!item||!isObra(item,card))return {obra:false};
     const certification=card.querySelector('[data-coi-obra-ultima-certificacion]');
     const progress=card.querySelector('[data-coi-obra-avance]');
+    const dueDate=card.querySelector('[data-coi-obra-vencimiento]');
+    if(dueDate)dueDate.textContent=fmtDate(persistedDueDate(item));
     if(certification)certification.textContent='Sin certificación';
     if(progress)progress.textContent='Sin dato';
     if(typeof window.cargarCertificacionesPorOC!=='function')return {obra:true,latest:{label:'Sin certificación',progress:null}};
