@@ -78,6 +78,7 @@ async function installSupabaseFixture(page) {
         fecha_inicio: '2026-07-01',
         fecha_fin: '2026-07-31',
         cantidad: 8,
+        unidad_medida: 'm',
         servicio_ejecutado_anterior: 4,
         servicio_ejecutado_periodo: 1
       }, {
@@ -89,6 +90,7 @@ async function installSupabaseFixture(page) {
         fecha_inicio: '2026-07-01',
         fecha_fin: '2026-07-31',
         cantidad: 2,
+        unidad_medida: 'u',
         servicio_ejecutado_anterior: 0.5,
         servicio_ejecutado_periodo: 0.5
       }, {
@@ -103,7 +105,16 @@ async function installSupabaseFixture(page) {
         servicio_ejecutado_anterior: 1,
         servicio_ejecutado_periodo: 1
       }],
-      documents: [],
+      documents: [{
+        id: '96666666-6666-4666-8666-666666666666',
+        orden_id: orderId,
+        nro_oc: orderNumber,
+        tipo_documento: 'Acta de medición',
+        nombre_documento: 'Acta 7.pdf',
+        estado: 'Validado',
+        storage_bucket: 'coi-documentos',
+        storage_path: `${orderNumber}/acta-7.pdf`
+      }],
       history: []
     };
 
@@ -220,7 +231,7 @@ test('Obra: el Resumen General usa vencimiento y certificaciones reales de Supab
   await installSupabaseFixture(page);
   await renderWork(page);
 
-  await expect(page.locator('#fichaOCBody [data-coi-obra-avance]')).toHaveText('60%');
+  await expect(page.locator('#fichaOCBody [data-coi-obra-avance]')).toHaveText('Sin dato');
   await expect(page.locator('#fichaOCBody [data-coi-obra-ultima-certificacion]')).toHaveText('Acta N° 7 · 31/07/2026');
 
   const summary = await page.evaluate(() => {
@@ -246,11 +257,68 @@ test('Obra: el Resumen General usa vencimiento y certificaciones reales de Supab
   expect(summary.days).not.toMatch(/Sin dato/i);
 });
 
+test('documentación Storage válida no genera alerta ni penalización por link legacy vacío', async ({ page }) => {
+  await openIsolated(page);
+  await installSupabaseFixture(page);
+
+  const result = await page.evaluate(() => {
+    const order = window.__FINAL_UI_SUPABASE_STATE__.order;
+    order.link_documental_principal = '';
+    order.estado_link_documental = 'Sin link';
+    const quality = window.evaluarCalidadOrden(order);
+    const alerts = window.generarAlertasCalidadYDocumentales();
+    window.renderDashboardEjecutivo();
+    return {
+      quality,
+      alerts,
+      dashboard: document.getElementById('execDashboard')?.textContent || ''
+    };
+  });
+
+  expect(result.quality.faltantes).not.toContain('link_documental');
+  expect(result.quality.criticos.join(' ')).not.toMatch(/link documental/i);
+  expect(result.quality.score).toBe(100);
+  expect(result.alerts.map(alert => `${alert.tipo} ${alert.msg}`).join(' ')).not.toMatch(/sin link documental/i);
+  expect(result.dashboard).not.toMatch(/sin link documental/i);
+});
+
+test('certificación con unidades heterogéneas conserva acta y fecha pero no inventa avance global', async ({ page }) => {
+  await openIsolated(page);
+  await installSupabaseFixture(page);
+  await renderWork(page);
+
+  await expect(page.locator('[data-coi-obra-avance]')).toHaveText('Sin dato');
+  await expect(page.locator('[data-coi-obra-ultima-certificacion]')).toHaveText('Acta N° 7 · 31/07/2026');
+});
+
+test('vencimiento y días restantes usan juntos la fecha persistida o muestran Sin dato', async ({ page }) => {
+  await openIsolated(page);
+  await installSupabaseFixture(page);
+  await renderWork(page);
+
+  const withDue = await page.evaluate(() => ({
+    due: document.querySelector('[data-coi-obra-vencimiento]')?.textContent.trim(),
+    days: document.querySelector('[data-coi-obra-dias-restantes]')?.textContent.trim()
+  }));
+  expect(withDue.due).toBe('31/12/2026');
+  expect(withDue.days).not.toBe('Sin dato');
+
+  await page.evaluate(async workId => {
+    const state = window.__FINAL_UI_SUPABASE_STATE__;
+    state.order.fecha_vencimiento = null;
+    await window.recargarDatosDesdeSupabase({ silencioso: true });
+    window.renderFichaOC(workId);
+  }, WORK_ID);
+
+  await expect(page.locator('[data-coi-obra-vencimiento]')).toHaveText('Sin dato');
+  await expect(page.locator('[data-coi-obra-dias-restantes]')).toHaveText('Sin dato');
+});
+
 test('recarga: Supabase prevalece sobre localStorage y un rechazo no deja éxito visual falso', async ({ page }) => {
   await openIsolated(page);
   await installSupabaseFixture(page);
   await renderWork(page);
-  await expect(page.locator('[data-coi-obra-avance]')).toHaveText('60%');
+  await expect(page.locator('[data-coi-obra-avance]')).toHaveText('Sin dato');
 
   await page.evaluate(async ({ orderNumber, workId }) => {
     const state = window.__FINAL_UI_SUPABASE_STATE__;
@@ -282,7 +350,7 @@ test('recarga: Supabase prevalece sobre localStorage y un rechazo no deja éxito
     window.renderFichaOC(workId);
   }, { orderNumber: ORDER_NUMBER, workId: WORK_ID });
 
-  await expect(page.locator('[data-coi-obra-avance]')).toHaveText('75%');
+  await expect(page.locator('[data-coi-obra-avance]')).toHaveText('Sin dato');
   await expect(page.locator('[data-coi-obra-ultima-certificacion]')).toHaveText('Acta N° 8 · 31/08/2026');
 
   const rejected = await page.evaluate(async workId => {
