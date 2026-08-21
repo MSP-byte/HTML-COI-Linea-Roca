@@ -92,10 +92,10 @@ for (const pattern of [
   /client\.rpc\('coi_anular_consumo_posicion'/,
   /client\.rpc\('coi_actualizar_orden_integral'/,
   /client\.rpc\('coi_eliminar_orden_integral'/,
-  /\.rpc\('coi_confirmar_etapa_circuito_v2'/,
-  /\.rpc\('coi_guardar_link_documental'/,
-  /\.rpc\('coi_eliminar_link_documental'/
+  /\.rpc\('coi_confirmar_etapa_circuito_v2'/
 ]) assert.match(html, pattern);
+assert.doesNotMatch(html, /\.rpc\('coi_guardar_link_documental'/);
+assert.doesNotMatch(html, /\.rpc\('coi_eliminar_link_documental'/);
 assert.doesNotMatch(html, /\.rpc\('coi_certificar_posiciones'/);
 assert.doesNotMatch(html, /\.rpc\('coi_confirmar_etapa_circuito'/);
 assert.doesNotMatch(html, /\.from\(ORDENES_TABLE\)\.update\(\{proxima_certificacion:/);
