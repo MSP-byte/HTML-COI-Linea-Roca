@@ -25267,9 +25267,10 @@ document.addEventListener('click',function(event){
   const fmtPct=n=>new Intl.NumberFormat('es-AR',{minimumFractionDigits:0,maximumFractionDigits:1}).format(n)+'%';
   const fmtDate=v=>{
     if(!v)return 'Sin dato';
-    try{if(typeof window.fmtFecha==='function'){const x=window.fmtFecha(v);if(x)return x;}}catch(_e){}
     const s=clean(v).slice(0,10),m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    return m?m[3]+'/'+m[2]+'/'+m[1]:(s||'Sin dato');
+    if(m)return m[3]+'/'+m[2]+'/'+m[1];
+    try{if(typeof window.fmtFecha==='function'){const x=window.fmtFecha(v);if(x)return x;}}catch(_e){}
+    return s||'Sin dato';
   };
 
   function resolveItem(reference){
