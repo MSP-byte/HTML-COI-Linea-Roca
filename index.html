@@ -19365,8 +19365,9 @@ const CIRCUITO_ADMINISTRATIVO_ETAPAS=[
   {codigo:'cancelada_suspendida',nombre:'OBRA/SERVICIO CANCELADA O SUSPENDIDA'},
   {codigo:'finalizada',nombre:'OBRA/SERVICIO FINALIZADA'},
   {codigo:'finalizada_actas',nombre:'OBRA/SERV. FINALIZADA CON ACTA PROVISORIA Y DEFINITIVA'},
-  {codigo:'finalizada_saldo_remanente',nombre:'ENVIADO A PLANIFICACION Y CONTROL (R. de Escalada)',legacyCodigos:['enviada_pyc'],persistedNames:['OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE']}
+  {codigo:'enviada_pyc',nombre:'ENVIADO A PLANIFICACION Y CONTROL (R. de Escalada)'}
 ];
+const ESTADO_FINALIZADA_SALDO_REMANENTE={codigo:'finalizada_saldo_remanente',nombre:'OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE'};
 const CIRCUITO_CACHE_KEY='coi_circuito_historial_cache_v1';
 const historialCircuitoCache=new Map();
 let guardandoEtapaCircuito=false;
@@ -19516,9 +19517,9 @@ function obtenerEstadoVisualEtapa(etapa,historial=[],estadoActual=''){
   const confirmations=(historial||[]).filter(esEventoConfirmacionCircuito).sort((a,b)=>new Date(a.fecha_evento||0)-new Date(b.fecha_evento||0));
   const own=confirmations.filter(evento=>clean(evento.campo_modificado)===etapa.codigo);
   const latest=confirmations[confirmations.length-1];
+  if([etapa.nombre,...(etapa.persistedNames||[])].some(nombre=>fold(estadoActual)===fold(nombre)))return'actual';
   if(own.length&&clean(latest?.campo_modificado)===etapa.codigo)return'actual';
   if(own.length)return'completada';
-  if(!confirmations.length&&[etapa.nombre,...(etapa.persistedNames||[])].some(nombre=>fold(estadoActual)===fold(nombre)))return'actual';
   return'pendiente';
 }
 function renderCircuitoAdministrativoOC(orden){
@@ -19536,7 +19537,7 @@ function renderCircuitoAdministrativoOC(orden){
     const visual=obtenerEstadoVisualEtapa(etapa,history,currentState);
     const cancelled=etapa.codigo==='cancelada_suspendida'?' cancelada-suspendida':'';
     const meta=confirmation?`Confirmado: ${formatearFechaHoraCOI(confirmation.fecha_evento)}<br>Usuario: ${esc(confirmation.usuario_email||'—')}`:'Pendiente de confirmación';
-    const title=confirmation?'Abrir historial de esta etapa':canWrite?'Confirmar esta etapa':'Disponible en modo lectura';
+    const title=canWrite?(confirmation?'Confirmar reingreso a esta etapa':'Confirmar esta etapa'):'Abrir historial de esta etapa';
     return `<button type="button" class="circuito-etapa-button ${visual}${cancelled}" data-circuito-etapa="${esc(etapa.codigo)}" data-circuito-oc="${esc(nro)}" data-circuito-confirmada="${confirmation?'true':'false'}" title="${esc(title)}">
       <span class="circuito-etapa-numero">${index+1}</span><span class="circuito-etapa-contenido"><span class="circuito-etapa-titulo">${esc(etapa.nombre)}</span><span class="circuito-etapa-meta">${meta}</span><span class="circuito-etapa-observaciones">Observaciones: ${observationCount}</span><span class="circuito-etapa-estado">${visual==='actual'?'Etapa actual':visual==='completada'?'Completada':'Pendiente'}</span></span>
     </button>`;
@@ -19576,7 +19577,7 @@ async function confirmarEtapaCircuitoOC(orden,etapa){
     const initialObservation=prompt('Observación inicial opcional para esta etapa:','');
     if(initialObservation===null)return;
     if(clean(initialObservation).length>3000)throw new Error('La observación inicial no puede superar 3000 caracteres.');
-    await actualizarEstadoDocumentalDesdePasoContractual(nro,stage,{observacion:initialObservation,allowLocalFallback:false});
+    await window.actualizarEstadoDocumentalDesdePasoContractual(nro,stage,{observacion:initialObservation,allowLocalFallback:false});
     await abrirHistorialEtapaCircuitoOC(resolved,stage);
   }catch(error){
     console.error('Confirmar etapa circuito administrativo:',error);
@@ -21807,6 +21808,9 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
   const CT_DATE_FIELDS=['controlTercerosHasta','control_terceros_hasta','fechaControlTercerosHasta','fecha_control_terceros_hasta','control_terceros_vigente_hasta','ct_hasta'];
   const CT_STATUS_FIELDS=['controlTercerosEstado','control_terceros_estado','estadoControlTerceros','estado_control_terceros','ct_estado'];
   const ESTADO_DOC_FIELDS=['estadoDocumental','estado_documental','ESTADO_DOCUMENTAL','estado_doc','estadoDoc','estado','estadoCOI','estado_coi'];
+  const PYC_STATUS_FIELDS=['estadoEnvioPyC','estado_envio_pyc'];
+  const PYC_STAGE_CODE='enviada_pyc';
+  const PYC_STAGE_NAME='ENVIADO A PLANIFICACION Y CONTROL (R. de Escalada)';
   let ctEditState=null;
   const circuitHistoryLoads=new Map();
   const ETAPAS_FALLBACK=[
@@ -21822,7 +21826,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     {codigo:'cancelada_suspendida',nombre:'OBRA/SERVICIO CANCELADA O SUSPENDIDA'},
     {codigo:'finalizada',nombre:'OBRA/SERVICIO FINALIZADA'},
     {codigo:'finalizada_actas',nombre:'OBRA/SERV. FINALIZADA CON ACTA PROVISORIA Y DEFINITIVA'},
-    {codigo:'finalizada_saldo_remanente',nombre:'ENVIADO A PLANIFICACION Y CONTROL (R. de Escalada)',legacyCodigos:['enviada_pyc'],persistedNames:['OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE']}
+    {codigo:PYC_STAGE_CODE,nombre:PYC_STAGE_NAME}
   ];
 
   function clean(v){return String(v??'').trim();}
@@ -21983,12 +21987,11 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(orderId)))throw new Error('Supabase no devolvió un UUID válido para la OC.');
     const result=await c.rpc('coi_guardar_orden_integral',{p_orden_id:orderId,p_datos:payload});
     if(result.error)throw result.error;
-    const returned=result.data?.orden;
-    if(!returned?.id||clean(returned.id)!==clean(orderId))throw new Error('Supabase no confirmó la actualización de Control de Terceros.');
     const verification=await c.from('coi_ordenes').select('id,nro_oc,control_terceros_hasta,control_terceros_estado').eq('id',orderId).limit(1);
     if(verification.error)throw verification.error;
     if(verification.data?.length!==1)throw new Error('No se pudo verificar el Control de Terceros persistido.');
     const verified=verification.data[0];
+    if(clean(verified.id)!==clean(orderId))throw new Error('Supabase devolvió otra OC al verificar Control de Terceros.');
     const verifiedDate=fechaISO(verified.control_terceros_hasta);
     const verifiedStatus=clean(verified.control_terceros_estado);
     if(verifiedDate!==fechaISO(payload.control_terceros_hasta))throw new Error('Supabase no conservó la fecha de Control de Terceros solicitada.');
@@ -21998,6 +22001,46 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
   async function syncCTSupabase(oc,fecha,estado){
     const nro=orderNro(oc);
     return updateSupabaseFields(nro,{control_terceros_hasta:fecha||null,control_terceros_estado:estado});
+  }
+  const PYC_READBACK_FIELDS='id,nro_oc,estado_documental,estado_coi,estado_envio_pyc,fecha_envio_planificacion,certificable_con_saldo,saldo_remanente';
+  function boolValue(value){return value===true||['true','1','si','sí'].includes(clean(value).toLowerCase());}
+  function samePersistedValue(left,right){return clean(left)===clean(right);}
+  async function readOrderForPyC(c,nro,orderId){
+    let query=c.from('coi_ordenes').select(PYC_READBACK_FIELDS);
+    const byId=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(orderId));
+    query=byId?query.eq('id',orderId):query.eq('nro_oc',nro);
+    const result=await query.limit(byId?1:2);
+    if(result.error)throw result.error;
+    if(result.data?.length!==1)throw new Error('No se pudo resolver una única OC para Envío a Planificación y Control.');
+    const row=result.data[0];
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(row.id)))throw new Error('Supabase no devolvió un UUID válido para la OC.');
+    return row;
+  }
+  async function persistirEtapaEnvioPyC(c,oc,nro,orderId){
+    const before=await readOrderForPyC(c,nro,orderId);
+    const payload={estado_documental:PYC_STAGE_NAME,estado_coi:PYC_STAGE_NAME,estado_envio_pyc:'Enviado'};
+    const result=await c.rpc('coi_guardar_orden_integral',{p_orden_id:before.id,p_datos:payload});
+    if(result.error)throw result.error;
+    const verified=await readOrderForPyC(c,nro,before.id);
+    if(clean(verified.id)!==clean(before.id))throw new Error('Supabase devolvió otra OC al verificar Envío a Planificación y Control.');
+    if(clean(verified.estado_documental)!==PYC_STAGE_NAME||clean(verified.estado_coi)!==PYC_STAGE_NAME)throw new Error('Supabase no confirmó el estado contractual de Envío a Planificación y Control.');
+    if(clean(verified.estado_envio_pyc)!=='Enviado')throw new Error('Supabase no confirmó estado_envio_pyc = Enviado.');
+    if(!samePersistedValue(verified.fecha_envio_planificacion,before.fecha_envio_planificacion))throw new Error('Supabase modificó fecha_envio_planificacion durante el envío.');
+    if(boolValue(verified.certificable_con_saldo)!==boolValue(before.certificable_con_saldo))throw new Error('Supabase modificó certificable_con_saldo durante el envío.');
+    if(!samePersistedValue(verified.saldo_remanente,before.saldo_remanente))throw new Error('Supabase modificó saldo_remanente durante el envío.');
+    setEstadoDocumentalLocal(oc,PYC_STAGE_NAME);
+    setMany(oc,PYC_STATUS_FIELDS,'Enviado');
+    setMany(oc,['fechaEnvioPlanificacion','fecha_envio_planificacion','fechaEnvioPyC'],verified.fecha_envio_planificacion||'');
+    if(oc._supabaseRaw&&typeof oc._supabaseRaw==='object')Object.assign(oc._supabaseRaw,verified);
+    try{if(typeof window.mergeRows==='function')window.mergeRows([verified]);}catch(e){}
+    guardarLocal();
+    updateEstadoDOM(PYC_STAGE_NAME);
+    markStageDOM(PYC_STAGE_NAME);
+    try{if(typeof window.renderOrdenes==='function')window.renderOrdenes();}catch(e){}
+    try{if(typeof window.renderCentroAlertas==='function'&&document.getElementById('vistaCentroAlertas')?.classList.contains('active'))window.renderCentroAlertas();}catch(e){}
+    const wasConfirmed=clean(before.estado_documental)===PYC_STAGE_NAME&&clean(before.estado_coi)===PYC_STAGE_NAME&&clean(before.estado_envio_pyc)==='Enviado';
+    toast(wasConfirmed?`Etapa reconciliada: ${PYC_STAGE_NAME}`:`Estado documental sincronizado: ${PYC_STAGE_NAME}`,'ok');
+    return{nro_oc:nro,estado:PYC_STAGE_NAME,synced:true,orden:verified,nombre:PYC_STAGE_NAME,ya_confirmada:wasConfirmed};
   }
   function updateEstadoDOM(estado){
     const body=document.getElementById('fichaOCBody');
@@ -22045,6 +22088,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       if(lookup.data?.length!==1)throw new Error('No se pudo resolver un UUID único para la OC.');
       orderId=lookup.data[0].id;
     }
+    if(stage.codigo===PYC_STAGE_CODE)return persistirEtapaEnvioPyC(c,oc,nro,orderId);
     const result=await c.rpc('coi_confirmar_etapa_circuito_v2',{p_orden_id:orderId,p_codigo:stage.codigo,p_observacion:clean(options.observacion)||null});
     if(result.error)throw result.error;
     if(!result.data?.orden?.id||clean(result.data.orden.id)!==clean(orderId))throw new Error('Supabase no confirmó la actualización del circuito.');
@@ -22286,11 +22330,10 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     const stage=stageByCodeOrName(btn.dataset.circuitoEtapa);
     if(!stage)return;
     const order=findOrder(btn.dataset.circuitoOc||currentKey());
-    const confirmed=btn.dataset.circuitoConfirmada==='true';
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    if(confirmed||!canEdit()){
+    if(!canEdit()){
       if(typeof window.abrirHistorialEtapaCircuitoOC==='function')Promise.resolve(window.abrirHistorialEtapaCircuitoOC(order,stage))
         .catch(error=>toast(error?.message||'No se pudo abrir el historial contractual.','error'));
       else toast('El historial contractual no está disponible.','warning');

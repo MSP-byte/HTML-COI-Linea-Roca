@@ -32,18 +32,28 @@ async function openFixture(page, { editable = true, session = true } = {}) {
     typeof window.renderCircuitoAdministrativoOC === 'function'
   );
   await page.evaluate(({ orderId, orderNumber, oldDate, editable, session }) => {
-    const user = { id: '82222222-2222-4222-8222-222222222222', email: 'admin.hotfix@example.com' };
+    const user = { id: '82222222-2222-4222-8222-222222222222', email: 'admin@coiroca.com' };
     const order = {
       id: orderId,
       nro_oc: orderNumber,
       id_obra: 'OB-HOTFIX-CT',
       estado_documental: 'PLIEGOS EN PREPARACIÓN',
+      estado_coi: 'PLIEGOS EN PREPARACIÓN',
+      estado_envio_pyc: 'No enviado',
+      fecha_envio_planificacion: '2026-08-20',
+      certificable_con_saldo: false,
+      saldo_remanente: 125000,
       control_terceros_hasta: oldDate,
       control_terceros_estado: 'Vigente',
       _supabaseRaw: {
         id: orderId,
         nro_oc: orderNumber,
         estado_documental: 'PLIEGOS EN PREPARACIÓN',
+        estado_coi: 'PLIEGOS EN PREPARACIÓN',
+        estado_envio_pyc: 'No enviado',
+        fecha_envio_planificacion: '2026-08-20',
+        certificable_con_saldo: false,
+        saldo_remanente: 125000,
         control_terceros_hasta: oldDate,
         control_terceros_estado: 'Vigente'
       }
@@ -58,6 +68,7 @@ async function openFixture(page, { editable = true, session = true } = {}) {
       writes: [],
       localWrites: 0,
       alertRefreshes: 0,
+      confirmations: 0,
       toasts: []
     };
     const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
@@ -89,7 +100,7 @@ async function openFixture(page, { editable = true, session = true } = {}) {
         if (name === 'coi_guardar_orden_integral') {
           if (state.rejectCT) return { data: null, error: { code: '42501', message: 'permission denied fixture CT' } };
           Object.assign(state.persisted, clone(args.p_datos));
-          return { data: { accion: 'updated', orden: clone(state.persisted) }, error: null };
+          return { data: { ...clone(state.persisted), accion: 'updated' }, error: null };
         }
         if (name === 'coi_confirmar_etapa_circuito_v2') {
           if (state.rejectCircuit) return { data: null, error: { code: '42501', message: 'permission denied fixture circuit' } };
@@ -130,7 +141,7 @@ async function openFixture(page, { editable = true, session = true } = {}) {
     window.guardarOrdenesSupabaseCache = () => {};
     window.renderCentroAlertas = () => { state.alertRefreshes += 1; };
     window.toast = (message, type = 'info') => { state.toasts.push({ message, type }); };
-    window.confirm = () => true;
+    window.confirm = () => { state.confirmations += 1; return true; };
     window.prompt = () => '';
     document.body.classList.toggle('modo-admin', editable);
     const view = document.getElementById('vistaFichaOC');
@@ -156,9 +167,15 @@ async function stateSnapshot(page) {
       persistedStatus: state.persisted.control_terceros_estado,
       documentState: state.order.estado_documental,
       persistedDocumentState: state.persisted.estado_documental,
+      persistedCoiState: state.persisted.estado_coi,
+      persistedPycState: state.persisted.estado_envio_pyc,
+      planningDate: state.persisted.fecha_envio_planificacion,
+      certificableWithBalance: state.persisted.certificable_con_saldo,
+      remainingBalance: state.persisted.saldo_remanente,
       writes: state.writes,
       localWrites: state.localWrites,
       alertRefreshes: state.alertRefreshes,
+      confirmations: state.confirmations,
       toasts: state.toasts
     };
   });
@@ -182,6 +199,9 @@ test('Ficha contractual monta exactamente 13 etapas y no duplica módulos al rer
   await expect(page.locator('[data-r28-ct-contractual]')).toHaveCount(1);
   const text = await page.locator('#fichaOCBody').innerText();
   expect(text).not.toMatch(/OneDrive|Agregar link documental|Marcar enviada a PyC/i);
+  await expect(page.getByRole('button', { name: /Marcar enviada a PyC/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Agregar link documental/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /Abrir.*OneDrive/i })).toHaveCount(0);
 });
 
 test('Control de Terceros permite cancelar sin mutar ni persistir', async ({ page }) => {
@@ -234,6 +254,8 @@ test('éxito Supabase de CT actualiza fecha, estado, KPI, contractual y alertas'
   expect(state.localWrites).toBeGreaterThan(0);
   expect(state.alertRefreshes).toBeGreaterThan(0);
   expect(state.toasts.at(-1)).toMatchObject({ type: 'ok' });
+  expect(state.writes).toHaveLength(1);
+  expect(state.writes[0]).toMatchObject({ name: 'coi_guardar_orden_integral' });
 });
 
 test('circuito contractual conserva estado local si Supabase rechaza y muta sólo tras confirmar', async ({ page }) => {
@@ -263,6 +285,58 @@ test('circuito contractual conserva estado local si Supabase rechaza y muta sól
   expect(state.persistedDocumentState).toBe('OBRA/SERVICIO EN EJECUCIÓN');
   expect(state.documentState).toBe('OBRA/SERVICIO EN EJECUCIÓN');
   expect(state.localWrites).toBeGreaterThan(0);
+});
+
+test('etapa 13 usa enviada_pyc y writer integral sin alterar saldo, certificabilidad ni fecha PyC', async ({ page }) => {
+  await openFixture(page);
+  const stage = page.locator('[data-circuito-etapa="enviada_pyc"]');
+  await expect(stage).toHaveCount(1);
+  await stage.click();
+  await expect.poll(() => page.evaluate(() => window.__HOTFIX_STATE__.writes.length)).toBe(1);
+
+  const state = await stateSnapshot(page);
+  expect(state.writes[0].name).toBe('coi_guardar_orden_integral');
+  expect(state.writes[0].args.p_datos).toEqual({
+    estado_documental: 'ENVIADO A PLANIFICACION Y CONTROL (R. de Escalada)',
+    estado_coi: 'ENVIADO A PLANIFICACION Y CONTROL (R. de Escalada)',
+    estado_envio_pyc: 'Enviado'
+  });
+  expect(state.writes[0].args.p_datos).not.toHaveProperty('certificable_con_saldo');
+  expect(state.writes[0].args.p_datos).not.toHaveProperty('saldo_remanente');
+  expect(state.writes[0].args.p_datos).not.toHaveProperty('fecha_envio_planificacion');
+  expect(state.persistedDocumentState).toBe(EXPECTED_STAGES[12]);
+  expect(state.persistedCoiState).toBe(EXPECTED_STAGES[12]);
+  expect(state.persistedPycState).toBe('Enviado');
+  expect(state.planningDate).toBe('2026-08-20');
+  expect(state.certificableWithBalance).toBe(false);
+  expect(state.remainingBalance).toBe(125000);
+  expect(await page.evaluate(() => window.CIRCUITO_ADMINISTRATIVO_ETAPAS.some(stage => stage.codigo === 'finalizada_saldo_remanente'))).toBe(false);
+  expect(await page.evaluate(() => window.obtenerPasoContractualDesdeEstadoDocumental('OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE'))).toBeNull();
+
+  await expect(page.locator('#modalHistorialEtapaCircuitoR18')).toHaveCount(1);
+  await page.evaluate(() => window.cerrarModalHistorialEtapa?.());
+  await stage.evaluate(node => { node.dataset.circuitoConfirmada = 'true'; });
+  await stage.click();
+  await expect.poll(() => page.evaluate(() => window.__HOTFIX_STATE__.writes.length)).toBe(2);
+  const reentry = await stateSnapshot(page);
+  expect(reentry.confirmations).toBe(2);
+  expect(reentry.writes[1].name).toBe('coi_guardar_orden_integral');
+  expect(reentry.writes[1].args.p_datos).toEqual(reentry.writes[0].args.p_datos);
+});
+
+test('usuario autorizado puede reingresar a una etapa confirmada y vuelve a auditar en Supabase', async ({ page }) => {
+  await openFixture(page);
+  const stage = page.locator('[data-circuito-etapa="ejecucion"]');
+  await stage.evaluate(node => { node.dataset.circuitoConfirmada = 'true'; });
+  await stage.click();
+  await expect.poll(() => page.evaluate(() => window.__HOTFIX_STATE__.writes.length)).toBe(1);
+  const state = await stateSnapshot(page);
+  expect(state.confirmations).toBe(1);
+  expect(state.writes[0]).toMatchObject({
+    name: 'coi_confirmar_etapa_circuito_v2',
+    args: { p_codigo: 'ejecucion' }
+  });
+  expect(state.persistedDocumentState).toBe('OBRA/SERVICIO EN EJECUCIÓN');
 });
 
 test('sin sesión ni permiso, circuito y Control de Terceros quedan en lectura', async ({ page }) => {
