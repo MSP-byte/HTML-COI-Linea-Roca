@@ -1055,7 +1055,7 @@ body.modo-consulta #alertTabCalidadDatos,body.modo-consulta #alertTabTodas{displ
 .timeline-event-card {
   position: relative;
   display: grid;
-  grid-template-columns: 126px minmax(0, 1fr) auto;
+  grid-template-columns: 126px minmax(0, 1fr);
   gap: 14px;
   padding: 14px 14px 14px 18px;
   border: 1px solid #dfe7ed;
@@ -1082,6 +1082,25 @@ body.modo-consulta #alertTabCalidadDatos,body.modo-consulta #alertTabTodas{displ
 
 .timeline-event-main {
   min-width: 0;
+}
+.timeline-event-actions{
+  grid-column:-2 / -1;
+  justify-content:flex-start;
+  align-self:start;
+}
+
+.timeline-event-actions a{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:34px;
+  padding:8px 10px;
+  border:1px solid #cfd6dd;
+  border-radius:9px;
+  background:#f7f8fa;
+  color:#2f6fa3;
+  font-weight:700;
+  text-decoration:none;
 }
 
 .timeline-event-main h4 {
@@ -20258,7 +20277,9 @@ if(document.readyState==='loading'){
   }
   function eventCard(event,compact){
     const orderButton=event.oc?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
-    const link=coiURLHTTPValida(event.link_documental)?`<a href="${attr(event.link_documental)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
+    const rawLink=String(event.link_documental??'').trim();
+const validLink=/^https?:\/\//i.test(rawLink)&&coiURLHTTPValida(rawLink);
+const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
     const pending=event.accion_pendiente?`<p class="pending-action"><b>Pr\u00f3xima acci\u00f3n:</b> ${html(event.accion_pendiente)}${event.responsable_accion?`<br><small>Responsable: ${html(event.responsable_accion)}${event.fecha_limite?` \u00b7 L\u00edmite: ${html(displayDate(event.fecha_limite))}`:''}</small>`:''}</p>`:'';
     return `<article class="timeline-event-card ${riskClass(event.riesgo)}" data-timeline-event-id="${attr(event.id)}">
       <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><b>Sin OC individual</b>'}</div>
