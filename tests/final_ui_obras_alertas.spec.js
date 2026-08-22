@@ -383,7 +383,7 @@ test('Ficha: contractual no monta OneDrive ni acciones legacy y conserva Storage
   await expect(body).not.toContainText('Repositorio documental');
   await expect(body.getByRole('button', { name: 'Marcar enviado a PyC', exact: true })).toHaveCount(0);
   await expect(body.getByRole('button', { name: 'Agregar link documental', exact: true })).toHaveCount(0);
-  await expect(body).toContainText('Envío a Planificación y Control');
+  await expect(body).not.toContainText(/No enviado|Enviado a PyC|Enviadas a PyC|Estado envío PyC|Envío PyC|No enviada a PyC|Planificación y Control/i);
   await expect(body).not.toContainText('Se guarda automáticamente en localStorage');
   await expect(body).toContainText('Documentación almacenada en Supabase');
 
