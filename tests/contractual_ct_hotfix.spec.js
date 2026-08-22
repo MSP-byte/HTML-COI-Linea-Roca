@@ -16,11 +16,17 @@ const EXPECTED_STAGES = [
   'OBRA/SERVICIO EN EJECUCION',
   'OBRA/SERVICIO CANCELADA O SUSPENDIDA',
   'OBRA/SERVICIO FINALIZADA',
-  'OBRA/SERV. FINALIZADA CON ACTA PROVISORIA Y DEFINITIVA',
-  'ENVIADO A PLANIFICACION Y CONTROL (R. de Escalada)'
+  'OBRA/SERV. FINALIZADA CON ACTA PROVISORIA Y DEFINITIVA'
 ];
 
-async function openFixture(page, { editable = true, session = true, persistedPyc = false } = {}) {
+async function openFixture(page, {
+  editable = true,
+  session = true,
+  remoteDate = OLD_DATE,
+  remoteStatus = 'Vigente',
+  localDate = OLD_DATE,
+  localStatus = 'Vigente'
+} = {}) {
   await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
   await page.addInitScript(() => {
     localStorage.clear();
@@ -31,32 +37,32 @@ async function openFixture(page, { editable = true, session = true, persistedPyc
     typeof window.coiRestoreContractualCT === 'function' &&
     typeof window.renderCircuitoAdministrativoOC === 'function'
   );
-  await page.evaluate(({ orderId, orderNumber, oldDate, editable, session, persistedPyc }) => {
+  await page.evaluate(({ orderId, orderNumber, editable, session, remoteDate, remoteStatus, localDate, localStatus }) => {
     const user = { id: '82222222-2222-4222-8222-222222222222', email: 'admin@coiroca.com' };
-    const pycStatus = persistedPyc ? 'Enviado' : 'No enviado';
     const order = {
       id: orderId,
       nro_oc: orderNumber,
       id_obra: 'OB-HOTFIX-CT',
+      tipo: 'Obra',
+      moneda: 'ARS',
       estado_documental: 'PLIEGOS EN PREPARACIÓN',
       estado_coi: 'PLIEGOS EN PREPARACIÓN',
-      estado_envio_pyc: pycStatus,
-      fecha_envio_planificacion: '2026-08-20',
       certificable_con_saldo: false,
       saldo_remanente: 125000,
-      control_terceros_hasta: oldDate,
-      control_terceros_estado: 'Vigente',
+      control_terceros_hasta: localDate,
+      control_terceros_estado: localStatus,
       _supabaseRaw: {
         id: orderId,
         nro_oc: orderNumber,
+        id_obra: 'OB-HOTFIX-CT',
+        tipo: 'Obra',
+        moneda: 'ARS',
         estado_documental: 'PLIEGOS EN PREPARACIÓN',
         estado_coi: 'PLIEGOS EN PREPARACIÓN',
-        estado_envio_pyc: pycStatus,
-        fecha_envio_planificacion: '2026-08-20',
         certificable_con_saldo: false,
         saldo_remanente: 125000,
-        control_terceros_hasta: oldDate,
-        control_terceros_estado: 'Vigente'
+        control_terceros_hasta: remoteDate,
+        control_terceros_estado: remoteStatus
       }
     };
     const state = {
@@ -103,6 +109,11 @@ async function openFixture(page, { editable = true, session = true, persistedPyc
           Object.assign(state.persisted, clone(args.p_datos));
           return { data: { ...clone(state.persisted), accion: 'updated' }, error: null };
         }
+        if (name === 'coi_actualizar_orden_integral') {
+          if (state.rejectCT) return { data: null, error: { code: '42501', message: 'permission denied fixture CT' } };
+          Object.assign(state.persisted, clone(args.p_cambios));
+          return { data: { orden: clone(state.persisted) }, error: null };
+        }
         if (name === 'coi_confirmar_etapa_circuito_v2') {
           if (state.rejectCircuit) return { data: null, error: { code: '42501', message: 'permission denied fixture circuit' } };
           const nombre = args.p_codigo === 'ejecucion' ? 'OBRA/SERVICIO EN EJECUCIÓN' : state.persisted.estado_documental;
@@ -135,6 +146,8 @@ async function openFixture(page, { editable = true, session = true, persistedPyc
     window.getSupabaseClient = () => client;
     window.getUsuarioActual = async () => state.session ? user : null;
     window.usuarioTienePermisoEdicion = () => state.editable;
+    window.esAutorizacionAdministrativaSupabaseV60 = () => state.editable;
+    window.APP_STATE = { ...(window.APP_STATE || {}), role: state.editable ? 'administrador' : 'consulta', activeView: 'vistaFichaOC' };
     window.resolverOrdenActual = () => state.order;
     window.obtenerOC = () => ({ item: state.order });
     window.todasLasOC = () => [{ item: state.order }];
@@ -144,6 +157,12 @@ async function openFixture(page, { editable = true, session = true, persistedPyc
     window.toast = (message, type = 'info') => { state.toasts.push({ message, type }); };
     window.confirm = () => { state.confirmations += 1; return true; };
     window.prompt = () => '';
+    window.registrarHistorialOC = async () => {};
+    window.recargarDatosDesdeSupabase = async () => {
+      Object.assign(state.order, clone(state.persisted));
+      state.order._supabaseRaw = clone(state.persisted);
+    };
+    window.renderFichaOC = () => { window.coiRestoreContractualCT(orderNumber); };
     document.body.classList.toggle('modo-admin', editable);
     const view = document.getElementById('vistaFichaOC');
     document.querySelectorAll('section.view.active').forEach(node => node.classList.remove('active'));
@@ -154,7 +173,7 @@ async function openFixture(page, { editable = true, session = true, persistedPyc
     body.innerHTML = `<div class="oc-kpis"><div class="oc-kpi"><b>${state.order.estado_documental}</b><span>Estado documental</span></div></div>
       <section id="panelFichaContractual" class="expediente-card ficha-oc-panel active"><h3>2. CONTRACTUAL</h3></section>`;
     window.coiRestoreContractualCT(orderNumber);
-  }, { orderId: ORDER_ID, orderNumber: ORDER_NUMBER, oldDate: OLD_DATE, editable, session, persistedPyc });
+  }, { orderId: ORDER_ID, orderNumber: ORDER_NUMBER, editable, session, remoteDate, remoteStatus, localDate, localStatus });
   await expect(page.locator('[data-coi-contractual-circuit-hotfix]')).toHaveCount(1);
 }
 
@@ -169,8 +188,6 @@ async function stateSnapshot(page) {
       documentState: state.order.estado_documental,
       persistedDocumentState: state.persisted.estado_documental,
       persistedCoiState: state.persisted.estado_coi,
-      persistedPycState: state.persisted.estado_envio_pyc,
-      planningDate: state.persisted.fecha_envio_planificacion,
       certificableWithBalance: state.persisted.certificable_con_saldo,
       remainingBalance: state.persisted.saldo_remanente,
       writes: state.writes,
@@ -182,9 +199,9 @@ async function stateSnapshot(page) {
   });
 }
 
-test('Ficha contractual monta exactamente 13 etapas y no duplica módulos al rerender', async ({ page }) => {
+test('Ficha contractual monta exactamente 12 etapas y no duplica módulos al rerender', async ({ page }) => {
   await openFixture(page);
-  await expect(page.locator('[data-circuito-etapa]')).toHaveCount(13);
+  await expect(page.locator('[data-circuito-etapa]')).toHaveCount(12);
   expect(await page.locator('.circuito-etapa-titulo').allTextContents()).toEqual(EXPECTED_STAGES);
   await expect(page.locator('[data-r28-ct-card] [data-r28-ct-edit]')).toHaveCount(1);
   await expect(page.locator('[data-r28-ct-contractual] [data-r28-ct-edit]')).toHaveCount(1);
@@ -203,6 +220,7 @@ test('Ficha contractual monta exactamente 13 etapas y no duplica módulos al rer
   await expect(page.getByRole('button', { name: /Marcar enviada a PyC/i })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Agregar link documental/i })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Abrir.*OneDrive/i })).toHaveCount(0);
+  await expect(page.locator('[data-circuito-etapa="enviada_pyc"]')).toHaveCount(0);
 });
 
 test('etapas 1–12 conservan su render actual sin historial', async ({ page }) => {
@@ -218,24 +236,59 @@ test('etapas 1–12 conservan su render actual sin historial', async ({ page }) 
   }
 });
 
-test('etapa 13 persistida en Supabase se muestra actual y confirmada sin inventar trazabilidad', async ({ page }) => {
-  await openFixture(page, { persistedPyc: true, editable: false });
-  const stage = page.locator('[data-circuito-etapa="enviada_pyc"]');
-  await expect(stage).toHaveClass(/\bactual\b/);
-  await expect(stage).toHaveAttribute('data-circuito-confirmada', 'true');
-  await expect(stage.locator('.circuito-etapa-estado')).toHaveText('Etapa actual');
-  await expect(stage.locator('.circuito-etapa-meta')).toHaveText('Confirmado en Supabase');
-  await expect(stage).not.toContainText('Pendiente de confirmación');
-  await expect(stage).not.toContainText('Usuario:');
-  await expect(stage).not.toContainText(/Confirmado:\s*\d/);
-  await stage.click();
-  const history = page.locator('#modalHistorialEtapaCircuitoR18');
-  await expect(history).toContainText('Estado: Confirmada');
-  await expect(history).toContainText('Confirmado en Supabase. No existe historial específico con fecha o usuario para esta etapa.');
-  await expect(history).not.toContainText('Estado: Pendiente');
+test('Control de Terceros lee _supabaseRaw y deriva estado si Supabase devuelve estado null', async ({ page }) => {
+  await openFixture(page, {
+    remoteDate: '2026-08-26',
+    remoteStatus: null,
+    localDate: '',
+    localStatus: ''
+  });
+  await expect(page.locator('[data-r28-ct-card] .ct-date')).toHaveText('2026-08-26');
+  await expect(page.locator('[data-r28-ct-contractual] .ct-date')).toHaveText('2026-08-26');
+  await expect(page.locator('[data-r28-ct-card] .ct-status')).toContainText('Próximo a vencer');
+  await expect(page.locator('[data-r28-ct-contractual] .ct-status')).toContainText('Próximo a vencer');
   const state = await stateSnapshot(page);
-  expect(state.persistedPycState).toBe('Enviado');
   expect(state.writes).toHaveLength(0);
+});
+
+test('Control de Terceros sobrevive navegación, rerender y recarga simulada desde Supabase', async ({ page }) => {
+  await openFixture(page, { remoteDate: '2026-08-26', remoteStatus: null, localDate: '', localStatus: '' });
+  await page.evaluate(orderNumber => {
+    const contractual = document.getElementById('panelFichaContractual');
+    const other = document.createElement('section');
+    other.id = 'panelFichaResumenFixture';
+    contractual.after(other);
+    contractual.classList.remove('active');
+    other.classList.add('active');
+    other.classList.remove('active');
+    contractual.classList.add('active');
+    window.coiRestoreContractualCT(orderNumber);
+    window.coiRestoreContractualCT(orderNumber);
+  }, ORDER_NUMBER);
+  await page.evaluate(async orderNumber => {
+    window.__HOTFIX_STATE__.order.control_terceros_hasta = '';
+    await window.recargarDatosDesdeSupabase({ silencioso: true });
+    window.coiRestoreContractualCT(orderNumber);
+  }, ORDER_NUMBER);
+  await expect(page.locator('[data-r28-ct-card] .ct-date')).toHaveText('2026-08-26');
+  await expect(page.locator('[data-r28-ct-contractual] .ct-date')).toHaveText('2026-08-26');
+  await expect(page.locator('[data-r28-ct-card]')).toHaveCount(1);
+  await expect(page.locator('[data-r28-ct-contractual]')).toHaveCount(1);
+});
+
+test('resolver el rol administrador reinserta Editar CT de forma idempotente', async ({ page }) => {
+  await openFixture(page, { editable: false });
+  await expect(page.locator('[data-r28-ct-edit]')).toHaveCount(0);
+  await page.evaluate(() => {
+    window.__HOTFIX_STATE__.editable = true;
+    window.APP_STATE.role = 'administrador';
+    window.actualizarPermisosEdicion();
+    window.actualizarPermisosEdicion();
+  });
+  await expect(page.locator('[data-r28-ct-card] [data-r28-ct-edit]')).toHaveCount(1);
+  await expect(page.locator('[data-r28-ct-contractual] [data-r28-ct-edit]')).toHaveCount(1);
+  await expect(page.locator('[data-r28-ct-card]')).toHaveCount(1);
+  await expect(page.locator('[data-r28-ct-contractual]')).toHaveCount(1);
 });
 
 test('Control de Terceros permite cancelar sin mutar ni persistir', async ({ page }) => {
@@ -321,41 +374,34 @@ test('circuito contractual conserva estado local si Supabase rechaza y muta sól
   expect(state.localWrites).toBeGreaterThan(0);
 });
 
-test('etapa 13 usa enviada_pyc y writer integral sin alterar saldo, certificabilidad ni fecha PyC', async ({ page }) => {
+test('Editar OC deriva y persiste fecha y estado de Control de Terceros', async ({ page }) => {
   await openFixture(page);
-  const stage = page.locator('[data-circuito-etapa="enviada_pyc"]');
-  await expect(stage).toHaveCount(1);
-  await stage.click();
-  await expect.poll(() => page.evaluate(() => window.__HOTFIX_STATE__.writes.length)).toBe(1);
-
+  await page.evaluate(orderNumber => window.COI_ORDENES_EDIT_V60.abrir(orderNumber), ORDER_NUMBER);
+  const modal = page.locator('#coiEditOCModalV60');
+  await expect(modal).toBeVisible();
+  await expect(modal.locator('[data-coi-edit-field="control_terceros_hasta"]')).toHaveCount(1);
+  await expect(modal.locator('[data-coi-edit-field="control_terceros_estado"]')).toHaveCount(0);
+  await expect(modal).not.toContainText(/Estado envío PyC|Envío PyC|Enviado a PyC/i);
+  await expect(modal.locator('#coiEditDirtyV60')).toHaveText('Sin cambios pendientes');
+  await modal.locator('[data-coi-edit-field="control_terceros_hasta"]').fill(NEW_DATE);
+  await expect(modal.locator('#coiEditDirtyV60')).toContainText('Cambios pendientes');
+  await modal.locator('#coiEditSaveV60').click();
+  await expect(modal).toBeHidden();
   const state = await stateSnapshot(page);
-  expect(state.writes[0].name).toBe('coi_guardar_orden_integral');
-  expect(state.writes[0].args.p_datos).toEqual({
-    estado_documental: 'ENVIADO A PLANIFICACION Y CONTROL (R. de Escalada)',
-    estado_coi: 'ENVIADO A PLANIFICACION Y CONTROL (R. de Escalada)',
-    estado_envio_pyc: 'Enviado'
+  expect(state.writes).toHaveLength(1);
+  expect(state.writes[0]).toMatchObject({
+    name: 'coi_actualizar_orden_integral',
+    args: {
+      p_orden_id: ORDER_ID,
+      p_cambios: {
+        control_terceros_hasta: NEW_DATE,
+        control_terceros_estado: 'Vigente'
+      }
+    }
   });
-  expect(state.writes[0].args.p_datos).not.toHaveProperty('certificable_con_saldo');
-  expect(state.writes[0].args.p_datos).not.toHaveProperty('saldo_remanente');
-  expect(state.writes[0].args.p_datos).not.toHaveProperty('fecha_envio_planificacion');
-  expect(state.persistedDocumentState).toBe(EXPECTED_STAGES[12]);
-  expect(state.persistedCoiState).toBe(EXPECTED_STAGES[12]);
-  expect(state.persistedPycState).toBe('Enviado');
-  expect(state.planningDate).toBe('2026-08-20');
-  expect(state.certificableWithBalance).toBe(false);
-  expect(state.remainingBalance).toBe(125000);
-  expect(await page.evaluate(() => window.CIRCUITO_ADMINISTRATIVO_ETAPAS.some(stage => stage.codigo === 'finalizada_saldo_remanente'))).toBe(false);
-  expect(await page.evaluate(() => window.obtenerPasoContractualDesdeEstadoDocumental('OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE'))).toBeNull();
-
-  await expect(page.locator('#modalHistorialEtapaCircuitoR18')).toHaveCount(1);
-  await page.evaluate(() => window.cerrarModalHistorialEtapa?.());
-  await stage.evaluate(node => { node.dataset.circuitoConfirmada = 'true'; });
-  await stage.click();
-  await expect.poll(() => page.evaluate(() => window.__HOTFIX_STATE__.writes.length)).toBe(2);
-  const reentry = await stateSnapshot(page);
-  expect(reentry.confirmations).toBe(2);
-  expect(reentry.writes[1].name).toBe('coi_guardar_orden_integral');
-  expect(reentry.writes[1].args.p_datos).toEqual(reentry.writes[0].args.p_datos);
+  expect(state.persistedDate).toBe(NEW_DATE);
+  expect(state.persistedStatus).toBe('Vigente');
+  await expect(page.locator('[data-r28-ct-card] .ct-date')).toHaveText(NEW_DATE);
 });
 
 test('usuario autorizado puede reingresar a una etapa confirmada y vuelve a auditar en Supabase', async ({ page }) => {
@@ -375,7 +421,7 @@ test('usuario autorizado puede reingresar a una etapa confirmada y vuelve a audi
 
 test('sin sesión ni permiso, circuito y Control de Terceros quedan en lectura', async ({ page }) => {
   await openFixture(page, { editable: false, session: false });
-  await expect(page.locator('[data-circuito-etapa]')).toHaveCount(13);
+  await expect(page.locator('[data-circuito-etapa]')).toHaveCount(12);
   await expect(page.locator('.circuito-lectura-aviso')).toContainText('Modo lectura');
   await expect(page.locator('[data-r28-ct-edit],[data-r28-ct-save],[data-r28-ct-cancel]')).toHaveCount(0);
   const state = await stateSnapshot(page);
