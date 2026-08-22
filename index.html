@@ -19522,6 +19522,13 @@ function obtenerEstadoVisualEtapa(etapa,historial=[],estadoActual=''){
   if(own.length)return'completada';
   return'pendiente';
 }
+function esEtapaPyCConfirmadaEnSupabase(etapa,orden){
+  if(etapa?.codigo!=='enviada_pyc')return false;
+  const persisted=orden?._supabaseRaw&&typeof orden._supabaseRaw==='object'?orden._supabaseRaw:orden||{};
+  const estadoDocumental=field(persisted,'estado_documental','estadoDocumental','ESTADO_DOCUMENTAL','estado_doc','estadoDoc','estado_coi','estadoCOI','estado');
+  const estadoEnvioPyC=field(persisted,'estado_envio_pyc','estadoEnvioPyC');
+  return normalizarTextoEstado(estadoDocumental)===normalizarTextoEstado(etapa.nombre)||normalizarTextoEstado(estadoEnvioPyC)==='ENVIADO';
+}
 function renderCircuitoAdministrativoOC(orden){
   const resolved=resolverOrdenActual(orden)||orden||{};
   const nro=nroOCCircuito(resolved);
@@ -19534,11 +19541,13 @@ function renderCircuitoAdministrativoOC(orden){
     const confirmation=events.find(esEventoConfirmacionCircuito);
     const observations=events.filter(esEventoObservacionCircuito);
     const observationCount=observations.length+(clean(confirmation?.motivo)?1:0);
-    const visual=obtenerEstadoVisualEtapa(etapa,history,currentState);
+    const confirmedByOrder=esEtapaPyCConfirmadaEnSupabase(etapa,resolved);
+    const visual=confirmedByOrder?'actual':obtenerEstadoVisualEtapa(etapa,history,currentState);
     const cancelled=etapa.codigo==='cancelada_suspendida'?' cancelada-suspendida':'';
-    const meta=confirmation?`Confirmado: ${formatearFechaHoraCOI(confirmation.fecha_evento)}<br>Usuario: ${esc(confirmation.usuario_email||'—')}`:'Pendiente de confirmación';
-    const title=canWrite?(confirmation?'Confirmar reingreso a esta etapa':'Confirmar esta etapa'):'Abrir historial de esta etapa';
-    return `<button type="button" class="circuito-etapa-button ${visual}${cancelled}" data-circuito-etapa="${esc(etapa.codigo)}" data-circuito-oc="${esc(nro)}" data-circuito-confirmada="${confirmation?'true':'false'}" title="${esc(title)}">
+    const confirmed=Boolean(confirmation)||confirmedByOrder;
+    const meta=confirmation?`Confirmado: ${formatearFechaHoraCOI(confirmation.fecha_evento)}<br>Usuario: ${esc(confirmation.usuario_email||'—')}`:confirmedByOrder?'Confirmado en Supabase':'Pendiente de confirmación';
+    const title=canWrite?(confirmed?'Confirmar reingreso a esta etapa':'Confirmar esta etapa'):'Abrir historial de esta etapa';
+    return `<button type="button" class="circuito-etapa-button ${visual}${cancelled}" data-circuito-etapa="${esc(etapa.codigo)}" data-circuito-oc="${esc(nro)}" data-circuito-confirmada="${confirmed?'true':'false'}" title="${esc(title)}">
       <span class="circuito-etapa-numero">${index+1}</span><span class="circuito-etapa-contenido"><span class="circuito-etapa-titulo">${esc(etapa.nombre)}</span><span class="circuito-etapa-meta">${meta}</span><span class="circuito-etapa-observaciones">Observaciones: ${observationCount}</span><span class="circuito-etapa-estado">${visual==='actual'?'Etapa actual':visual==='completada'?'Completada':'Pendiente'}</span></span>
     </button>`;
   }).join('');
@@ -19590,12 +19599,15 @@ function renderHistorialEtapaCircuitoOC(orden,etapa,historial=[]){
   const grouped=agruparHistorialCircuitoPorEtapa(historial);
   const events=grouped[etapa.codigo]||[];
   const confirmation=events.find(esEventoConfirmacionCircuito);
+  const confirmedByOrder=esEtapaPyCConfirmadaEnSupabase(etapa,resolved);
+  const confirmed=Boolean(confirmation)||confirmedByOrder;
   const observations=[];
   if(clean(confirmation?.motivo))observations.push({...confirmation,valor_nuevo:confirmation.motivo,_initial:true});
   events.filter(esEventoObservacionCircuito).forEach(evento=>observations.push(evento));
   const canWrite=usuarioTienePermisoEdicion();
-  return `<div class="circuito-historial-head"><div><h3>Historial de etapa — ${esc(etapa.nombre)}</h3><p>OC ${esc(nroOCCircuito(resolved))} · Estado: ${confirmation?'Confirmada':'Pendiente'}</p></div><button type="button" class="circuito-historial-cerrar" data-circuito-cerrar>✕</button></div>
-    <div class="circuito-historial-body"><div><b>Primera confirmación:</b> ${confirmation?formatearFechaHoraCOI(confirmation.fecha_evento):'—'}<br><b>Usuario:</b> ${esc(confirmation?.usuario_email||'—')}</div>
+  const traceability=confirmation?`<div><b>Primera confirmación:</b> ${formatearFechaHoraCOI(confirmation.fecha_evento)}<br><b>Usuario:</b> ${esc(confirmation.usuario_email||'—')}</div>`:confirmedByOrder?'<div>Confirmado en Supabase. No existe historial específico con fecha o usuario para esta etapa.</div>':'<div><b>Primera confirmación:</b> —<br><b>Usuario:</b> —</div>';
+  return `<div class="circuito-historial-head"><div><h3>Historial de etapa — ${esc(etapa.nombre)}</h3><p>OC ${esc(nroOCCircuito(resolved))} · Estado: ${confirmed?'Confirmada':'Pendiente'}</p></div><button type="button" class="circuito-historial-cerrar" data-circuito-cerrar>✕</button></div>
+    <div class="circuito-historial-body">${traceability}
     <div class="circuito-observacion-lista">${observations.length?observations.map(evento=>`<div class="circuito-observacion-item"><small>${evento._initial?'Observación inicial':'Observación'} · ${formatearFechaHoraCOI(evento.fecha_evento)} · ${esc(evento.usuario_email||'—')}</small><p>${esc(evento.valor_nuevo||evento.motivo||'')}</p></div>`).join(''):'<div class="empty-state">Sin observaciones para esta etapa.</div>'}</div>
     ${confirmation&&canWrite?`<div class="circuito-observacion-form"><label for="circuitoNuevaObservacionR18"><b>Nueva observación</b></label><textarea id="circuitoNuevaObservacionR18" maxlength="3000" placeholder="Escriba una observación de 3 a 3000 caracteres"></textarea><div id="circuitoModalStatusR18"></div><div class="circuito-observacion-actions"><button type="button" data-circuito-cerrar>Cerrar</button><button type="button" class="primary" data-circuito-guardar-observacion>Guardar observación</button></div></div>`:`<div class="circuito-lectura-aviso">${confirmation?'Modo lectura: no posee permisos para agregar observaciones.':'Confirme la etapa antes de agregar observaciones.'}</div>`}</div>`;
 }
@@ -22057,8 +22069,9 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       if(normText(b?.textContent||'')==='ESTADO DOCUMENTAL')cell.innerHTML=`<b>Estado documental</b>${esc(estado)}`;
     });
   }
-  function markStageDOM(estado){
-    const stage=stageByCodeOrName(estado);
+  function markStageDOM(estado,oc=findOrder(currentKey())){
+    const pycPersisted=normText(pick(oc?._supabaseRaw&&typeof oc._supabaseRaw==='object'?oc._supabaseRaw:oc,PYC_STATUS_FIELDS,''))==='ENVIADO'||normText(pick(oc?._supabaseRaw&&typeof oc._supabaseRaw==='object'?oc._supabaseRaw:oc,ESTADO_DOC_FIELDS,''))===normText(PYC_STAGE_NAME);
+    const stage=stageByCodeOrName(pycPersisted?PYC_STAGE_CODE:estado);
     const buttons=[...document.querySelectorAll('[data-circuito-etapa]')];
     buttons.forEach(btn=>{
       const on=stage&&btn.dataset.circuitoEtapa===stage.codigo;
@@ -22167,7 +22180,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
         const current=findOrder(nro);
         const host=document.querySelector('#fichaOCBody [data-coi-contractual-circuit-hotfix] #circuitoAdministrativoOCR18');
         if(current&&host&&normOC(host.dataset.circuitoOc)===nro)host.outerHTML=window.renderCircuitoAdministrativoOC(current);
-        markStageDOM(pick(current||oc,ESTADO_DOC_FIELDS,''));
+        markStageDOM(pick(current||oc,ESTADO_DOC_FIELDS,''),current||oc);
       })
       .catch(error=>console.warn('COI: no se pudo refrescar el historial contractual.',error))
       .finally(()=>circuitHistoryLoads.delete(nro));
@@ -22197,7 +22210,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       else contractual.insertAdjacentHTML('beforeend',renderCTContractualBox(oc));
     }
     refreshContractualHistory(oc);
-    markStageDOM(pick(oc,ESTADO_DOC_FIELDS,''));
+    markStageDOM(pick(oc,ESTADO_DOC_FIELDS,''),oc);
     if(ctEditState?.modoEdicion)setControlTercerosEditMode(true,oc,false);
   }
   function setControlTercerosEditMode(enabled,oc=findOrder(currentKey()),captureOriginal=true){

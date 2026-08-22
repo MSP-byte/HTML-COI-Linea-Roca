@@ -22,6 +22,8 @@ const required = [
   "async function persistirEtapaEnvioPyC",
   "const payload={estado_documental:PYC_STAGE_NAME,estado_coi:PYC_STAGE_NAME,estado_envio_pyc:'Enviado'}",
   "if(stage.codigo===PYC_STAGE_CODE)return persistirEtapaEnvioPyC(c,oc,nro,orderId)",
+  "function esEtapaPyCConfirmadaEnSupabase",
+  "confirmedByOrder?'Confirmado en Supabase':'Pendiente de confirmación'",
   "await window.actualizarEstadoDocumentalDesdePasoContractual(nro,stage",
 ];
 for (const token of required) {
