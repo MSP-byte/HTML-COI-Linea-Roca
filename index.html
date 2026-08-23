@@ -9654,7 +9654,6 @@ function initCalendarioCOIUnificado(){
 
 /* V58.0 - Centro de Alertas por rol y calidad de datos */
 const ALERTAS_COI_V58 = true;
-let subvistaAlertasActual = 'operativa';
 const generarAlertasCOIV58Base = typeof generarAlertasCOI === 'function' ? generarAlertasCOI : null;
 const initCentroAlertasV46V58Base = typeof initCentroAlertasV46 === 'function' ? initCentroAlertasV46 : null;
 function esModoAdminAlertasV58(){try{return typeof esModoAdmin==='function'?!!esModoAdmin():(typeof adminIsEnabled==='function'?!!adminIsEnabled():false);}catch(e){return false;}}
@@ -9739,10 +9738,6 @@ generarAlertasCOI=function(){
 function filtrarAlertasPorModo(alertas){
   return esModoAdminAlertasV58() ? alertas.filter(a=>a.visibleAdmin!==false) : alertas.filter(a=>a.visibleConsulta===true);
 }
-function filtrarAlertasPorCategoria(alertas,categoria){
-  if(!categoria||categoria==='todas')return alertas;
-  return alertas.filter(a=>a.categoria===categoria);
-}
 function v58ActualizarFiltrosAlertas(alertas){
   const set=(id,vals,label)=>{const el=document.getElementById(id);if(!el)return;const actual=el.value||'';el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean).map(String))].sort((a,b)=>a.localeCompare(b,'es')).map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');if([...el.options].some(o=>o.value===actual))el.value=actual;};
   const admin=esModoAdminAlertasV58();
@@ -9768,12 +9763,7 @@ function renderKPIsCentroAlertas(alertas){
   const el=document.getElementById('alertasKpis');if(el)el.innerHTML=data.map(x=>`<div class="alert-kpi"><b>${esc(x[1])}</b><span>${esc(x[0])}</span></div>`).join('');
 }
 function renderTabsCentroAlertas(){
-  const admin=esModoAdminAlertasV58();
-  const permitidas=admin?['operativa','documental','financiera','calidad_datos','todas']:['operativa','documental','financiera'];
-  if(!permitidas.includes(subvistaAlertasActual))subvistaAlertasActual='operativa';
-  const html=`<div class="alert-role-note">${admin?'Se muestran alertas operativas, documentales, financieras y pendientes de calidad de datos para depuracion administrativa.':'Se muestran alertas operativas y documentales relevantes para seguimiento de gestion. Los pendientes internos de carga quedan reservados al administrador.'}</div><div class="alert-tabs" role="tablist">${permitidas.map(c=>`<button type="button" id="alertTab${c==='calidad_datos'?'CalidadDatos':c.charAt(0).toUpperCase()+c.slice(1)}" class="alert-tab ${subvistaAlertasActual===c?'active':''}" data-alert-tab="${c}">${v58CategoryLabel(c)}</button>`).join('')}</div>`;
-  const body=document.querySelector('#vistaCentroAlertas .view-body');const old=document.getElementById('alertasTabsV58');
-  if(old)old.innerHTML=html;else if(body)body.insertAdjacentHTML('afterbegin',`<div id="alertasTabsV58">${html}</div>`);
+  document.getElementById('alertasTabsV58')?.remove();
 }
 function renderListadoAlertas(alertas){
   const admin=esModoAdminAlertasV58();
@@ -9785,16 +9775,15 @@ function renderCentroAlertas(){
   const alertasPorModo=filtrarAlertasPorModo(todas);
   v58ActualizarFiltrosAlertas(alertasPorModo);
   renderTabsCentroAlertas();
-  const porCategoria=filtrarAlertasPorCategoria(alertasPorModo,subvistaAlertasActual);
-  const visibles=v58AplicarFiltrosUI(porCategoria);
+  const visibles=v58AplicarFiltrosUI(alertasPorModo);
   renderKPIsCentroAlertas(alertasPorModo);
   renderListadoAlertas(visibles);
 }
 function exportarAlertasCSV(){
-  const alertas=v58AplicarFiltrosUI(filtrarAlertasPorCategoria(filtrarAlertasPorModo(generarAlertasCOI()),subvistaAlertasActual));
+  const alertas=v58AplicarFiltrosUI(filtrarAlertasPorModo(generarAlertasCOI()));
   const headers=['idAlerta','categoria','severidad','visibleConsulta','visibleAdmin','tipo alerta','OC','ID','tipo registro','estacion','proveedor','descripcion','fecha referencia','dias','mensaje','accion sugerida','revisada'];
   const rows=alertas.map(a=>[a.idAlerta,a.categoria,a.severidad,a.visibleConsulta?'SI':'NO',a.visibleAdmin?'SI':'NO',a.tipoAlerta,a.oc,a.idRegistro,a.tipoRegistro,a.estacion,a.proveedor,a.descripcion,a.fechaReferencia||a.fechaRelacionada,a.dias,a.mensaje,a.accionSugerida,a.revisada?'SI':'NO']);
-  descargarArchivo(`centro_alertas_${subvistaAlertasActual}_v58.csv`,[headers,...rows].map(r=>r.map(coiCSVCell).join(';')).join('\n'),'text/csv;charset=utf-8');
+  descargarArchivo('centro_alertas_v58.csv',[headers,...rows].map(r=>r.map(coiCSVCell).join(';')).join('\n'),'text/csv;charset=utf-8');
 }
 function renderDashboardAlertSummary(){
   const alertas=filtrarAlertasPorModo(generarAlertasCOI());
@@ -9808,7 +9797,6 @@ function renderDashboardAlertSummary(){
 }
 function initCentroAlertasV58(){
   document.addEventListener('click',ev=>{
-    const tab=ev.target.closest('[data-alert-tab]');if(tab){subvistaAlertasActual=tab.dataset.alertTab||'operativa';renderCentroAlertas();return;}
     if(ev.target.closest('[data-alert-calendar]')){mostrarVista('vistaCalendarioCOI');if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();return;}
     const doc=ev.target.closest('[data-alert-docs], [data-alert-complete]');if(doc){const id=doc.dataset.alertDocs||doc.dataset.alertComplete;if(typeof abrirFichaOC==='function')abrirFichaOC(id);return;}
     const folder=ev.target.closest('[data-alert-folder]');if(folder){const oc=v58OCItemByAlerta({ocId:folder.dataset.alertFolder,idRegistro:folder.dataset.alertFolder});const link=oc&&(oc.linkCarpetaOneDrive||oc.linkOneDrive);v64AbrirLink(link,'Esta OC aun no tiene carpeta documental asociada.');return;}
@@ -9850,7 +9838,6 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   const mesesFix = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   let cargaTipoFix = 'Servicio';
   let calendarioTabFix = 'inteligente';
-  let alertTabFix = 'operativa';
   const ordenesSeleccionadasFix = new Set();
 
   function parseDateFix(v){
@@ -10347,13 +10334,10 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     return out.sort((a,b)=>({alta:0,media:1,baja:2,informativa:3}[a.severidad]??4)-({alta:0,media:1,baja:2,informativa:3}[b.severidad]??4));
   }
   function renderAlertTabsFix(){
-    const tabs=esAdminFix()?['operativa','documental','financiera','calidad_datos','todas']:['operativa','documental','financiera']; if(!tabs.includes(alertTabFix)) alertTabFix='operativa';
-    const labels={operativa:'Operativas',documental:'Documentales',financiera:'Financieras',calidad_datos:'Calidad de Datos',todas:'Todas'};
-    let box=$fix('alertasTabsV58'); const body=document.querySelector('#vistaCentroAlertas .view-body'); if(!box&&body){body.insertAdjacentHTML('afterbegin','<div id="alertasTabsV58"></div>'); box=$fix('alertasTabsV58');}
-    if(box) box.innerHTML=`<div class="alert-role-note">${esAdminFix()?'Se muestran alertas operativas, documentales, financieras y pendientes de calidad de datos para depuración administrativa.':'Se muestran alertas operativas, documentales y financieras relevantes para consulta. Los pendientes internos quedan reservados al administrador.'}</div><div class="alert-tabs">${tabs.map(t=>`<button type="button" class="alert-tab ${alertTabFix===t?'active':''}" data-alert-tab="${t}">${labels[t]}</button>`).join('')}</div>`;
+    $fix('alertasTabsV58')?.remove();
   }
   function renderCentroAlertasFix(){
-    const todas=alertasFix(), visibles=todas.filter(a=>esAdminFix()?true:a.visibleConsulta).filter(a=>alertTabFix==='todas'||a.categoria===alertTabFix);
+    const todas=alertasFix(), visibles=todas.filter(a=>esAdminFix()?true:a.visibleConsulta);
     const sev=$fix('alertFiltroSeveridad')?.value||'', tipo=$fix('alertFiltroTipo')?.value||'', est=$fix('alertFiltroEstacion')?.value||'', prov=$fix('alertFiltroProveedor')?.value||'', cat=$fix('alertFiltroCategoria')?.value||'', txt=normFix($fix('alertFiltroTexto')?.value||'');
     const set=(id,vals,label)=>{const el=$fix(id); if(!el)return; const val=el.value; el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'es')).map(v=>`<option value="${html(v)}">${html(v)}</option>`).join(''); if([...el.options].some(o=>o.value===val))el.value=val;};
     set('alertFiltroTipo',todas.map(a=>a.tipo),'Todos los tipos'); set('alertFiltroEstacion',todas.map(a=>a.estacion),'Estación'); set('alertFiltroProveedor',todas.map(a=>a.proveedor),'Proveedor');
@@ -10388,7 +10372,6 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       const oc=ev.target.closest('[data-open-oc]'); if(oc){ev.preventDefault(); ev.stopPropagation(); safeOpenOCFix(oc.dataset.openOc); return;}
       const card=ev.target.closest('.quick-type-card[data-carga-tipo]'); if(card){ev.preventDefault(); ev.stopImmediatePropagation(); setTipoCargaFix(card.dataset.cargaTipo); return;}
       const tab=ev.target.closest('#vistaCalendarioCOI [data-coi-tab]'); if(tab){ev.preventDefault(); ev.stopImmediatePropagation(); calendarioTabFix=tab.dataset.coiTab||'inteligente'; renderCalendarioFix(); return;}
-      const atab=ev.target.closest('[data-alert-tab]'); if(atab){ev.preventDefault(); ev.stopPropagation(); alertTabFix=atab.dataset.alertTab||'operativa'; renderCentroAlertasFix(); return;}
       if(ev.target.closest('#btnIrCentroAlertasDashboard')){ev.preventDefault(); mostrarVistaFix('vistaCentroAlertas','btnCentroAlertas'); renderCentroAlertasFix(); return;}
       if(ev.target.closest('#btnAgregarFilasCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); agregarFilasCargaFix(cargaTipoFix,5); return;}
       if(ev.target.closest('#btnLimpiarCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); renderTablaCargaFix(cargaTipoFix); return;}
@@ -25477,6 +25460,128 @@ document.addEventListener('click',function(event){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});
   else boot();
   window.addEventListener('load',()=>{install();restore(window.__coiFichaOCActiva||window.fichaOCActualKeyV64||window.ocActualId);},{once:true});
+})();
+</script>
+<style id="coi-final-ux-alerts-orders-filter-style">
+#vistaCentroAlertas #alertasTabsV58,
+#vistaCentroAlertas #alertasFiltrosRol{display:none!important}
+#vistaCentroAlertas .coi-alertas-scroll{max-width:100%;overflow-x:auto!important;overflow-y:visible!important;-webkit-overflow-scrolling:touch}
+#toastR15,#coiToast{pointer-events:none!important}
+#vistaCentroAlertas table.coi-alertas-table{width:100%;min-width:1880px!important;table-layout:fixed!important;border-collapse:collapse}
+#vistaCentroAlertas table.coi-alertas-table th,
+#vistaCentroAlertas table.coi-alertas-table td{vertical-align:top!important;white-space:normal!important;word-break:normal!important;overflow-wrap:break-word!important}
+#vistaCentroAlertas table.coi-alertas-table th:nth-child(9),
+#vistaCentroAlertas table.coi-alertas-table td:nth-child(9){width:360px!important;min-width:360px!important;white-space:normal!important}
+#vistaCentroAlertas table.coi-alertas-table th:nth-child(10),
+#vistaCentroAlertas table.coi-alertas-table td:nth-child(10){width:240px!important;min-width:240px!important}
+#vistaCentroAlertas table.coi-alertas-table td:nth-child(9) .alerta-observacion-r14,
+#vistaCentroAlertas table.coi-alertas-table td:nth-child(9) .alerta-observacion-r15{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:8px!important;min-width:0!important}
+#vistaCentroAlertas table.coi-alertas-table td:nth-child(9) button,
+#vistaCentroAlertas table.coi-alertas-table td:nth-child(10) button{display:block;width:100%;max-width:100%;min-height:36px;margin:0 0 8px;white-space:normal!important;position:static!important}
+#vistaCentroAlertas table.coi-alertas-table td:nth-child(9) button:last-child,
+#vistaCentroAlertas table.coi-alertas-table td:nth-child(10) button:last-child{margin-bottom:0}
+#vistaOrdenes #uxOrderContext[hidden]{display:none!important}
+#vistaOrdenes #uxOrderContext.coi-dashboard-order-filter{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+#vistaOrdenes #uxOrderContext.coi-dashboard-order-filter button{flex:0 0 auto;white-space:nowrap}
+@media(max-width:700px){#vistaOrdenes #uxOrderContext.coi-dashboard-order-filter{align-items:stretch}#vistaOrdenes #uxOrderContext.coi-dashboard-order-filter button{width:100%}}
+</style>
+<script id="coi-final-ux-alerts-orders-filter-script">
+(function(){
+  'use strict';
+  const STATUS_LABELS={active:'OCs activas',execution:'En ejecución',upcoming:'Próximas a vencer',certifiable:'Vencidas con saldo certificable',expired:'Vencidas sin saldo',closed:'Finalizadas / cerradas'};
+  const MANUAL_FILTER_IDS=['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert','ordenMontoOrden'];
+  const $=id=>document.getElementById(id);
+
+  function removeObsoleteAlertCategories(){
+    const view=$('vistaCentroAlertas');if(!view)return;
+    view.querySelectorAll('#alertasTabsV58,#alertasFiltrosRol').forEach(node=>node.remove());
+  }
+  function consolidateAlertsHeading(){
+    const view=$('vistaCentroAlertas'),body=view?.querySelector('.view-body');
+    if(!body||!view.querySelector(':scope > .view-card > .view-head h2'))return;
+    [...body.children].forEach(node=>{
+      if(node.matches?.('h2')&&node.textContent.trim()==='Centro de Alertas')node.remove();
+      else if(node.matches?.('p.muted')&&node.textContent.includes('Detección automática de vencimientos'))node.remove();
+    });
+  }
+  function normalizeAlertActionText(){
+    const view=$('vistaCentroAlertas');if(!view)return;
+    view.querySelectorAll('.alerta-observacion-r14 .alerta-observacion-texto,.alerta-observacion-r15 > div').forEach(node=>{
+      const clean=node.textContent.replace(/(?:\s*Enviar a Observaciones)+\s*$/i,'').trim();
+      if(node.textContent!==clean)node.textContent=clean;
+    });
+  }
+  function normalizeAlertsUI(){removeObsoleteAlertCategories();consolidateAlertsHeading();normalizeAlertActionText();}
+
+  function ordersContext(create=false){
+    let context=$('uxOrderContext');
+    if(!context&&create){
+      context=document.createElement('div');context.id='uxOrderContext';context.className='ux-filter-context';
+      const body=document.querySelector('#vistaOrdenes .view-body'),anchor=body?.querySelector('.ordenes-toolbar');
+      if(anchor)anchor.insertAdjacentElement('afterend',context);else body?.prepend(context);
+    }
+    return context;
+  }
+  function inferredDashboardFields(status){
+    const fields={};
+    if(status==='upcoming'&&$('ordenesFiltroMesVenc')?.value==='proximas')fields.ordenesFiltroMesVenc='proximas';
+    if(status==='expired'&&$('ordenesFiltroMesVenc')?.value==='vencidas')fields.ordenesFiltroMesVenc='vencidas';
+    if(status==='closed'&&$('ordenesFiltroEstado')?.value)fields.ordenesFiltroEstado=$('ordenesFiltroEstado').value;
+    return fields;
+  }
+  function managedFields(context){try{return JSON.parse(context?.dataset.dashboardManagedFields||'{}');}catch(error){return{};}}
+  function writeManagedFields(context,fields){
+    if(!context)return;
+    if(Object.keys(fields).length)context.dataset.dashboardManagedFields=JSON.stringify(fields);else delete context.dataset.dashboardManagedFields;
+  }
+  function syncDashboardOrderBanner(){
+    const status=String(window.__dashboardOrdersStatusFilter||'').trim(),context=ordersContext(Boolean(status));
+    if(!status){
+      if(context?.dataset.dashboardFilterStatus){context.hidden=true;context.innerHTML='';context.classList.remove('coi-dashboard-order-filter');delete context.dataset.dashboardFilterStatus;delete context.dataset.dashboardManagedFields;}
+      return;
+    }
+    if(context.dataset.dashboardFilterStatus!==status){context.dataset.dashboardFilterStatus=status;writeManagedFields(context,inferredDashboardFields(status));}
+    context.hidden=false;context.classList.add('coi-dashboard-order-filter');
+    context.innerHTML=`<span>Filtro Dashboard: <b>${STATUS_LABELS[status]||status}</b></span><button type="button" data-dashboard-orders-clear>Quitar filtro</button>`;
+  }
+  function refreshOrdersSurface(){
+    try{if(typeof window.renderOrdenes==='function')window.renderOrdenes();}catch(error){console.error('COI filtro Dashboard: no se pudo renderizar Órdenes.',error);}
+    try{window.COI_ORDENES_ANALYTICS?.refresh?.();}catch(error){console.warn('COI filtro Dashboard: no se pudo refrescar Analítica.',error);}
+  }
+  function clearDashboardOrderFilter(){
+    const context=ordersContext(false),fields=managedFields(context);
+    Object.entries(fields).forEach(([id,value])=>{const element=$(id);if(element&&element.value===value)element.value='';});
+    delete window.__dashboardOrdersStatusFilter;
+    if(context){context.hidden=true;context.innerHTML='';context.classList.remove('coi-dashboard-order-filter');delete context.dataset.dashboardFilterStatus;delete context.dataset.dashboardManagedFields;}
+    refreshOrdersSurface();
+  }
+  function clearAllOrderFilters(){
+    MANUAL_FILTER_IDS.forEach(id=>{const element=$(id);if(element)element.value='';});
+    delete window.__dashboardOrdersStatusFilter;
+    const context=ordersContext(false);if(context){context.hidden=true;context.innerHTML='';context.classList.remove('coi-dashboard-order-filter');delete context.dataset.dashboardFilterStatus;delete context.dataset.dashboardManagedFields;}
+    refreshOrdersSurface();
+  }
+  function noteManualOverride(target){
+    const context=ordersContext(false),status=String(window.__dashboardOrdersStatusFilter||'');if(!context||!status)return;
+    const fields=managedFields(context);if(Object.prototype.hasOwnProperty.call(fields,target.id)){delete fields[target.id];writeManagedFields(context,fields);}
+  }
+  function wrapRenderers(){
+    const alerts=window.renderCentroAlertas;
+    if(typeof alerts==='function'&&!alerts.__finalUxAlerts){const wrapped=function(...args){const result=alerts.apply(this,args);normalizeAlertsUI();requestAnimationFrame(normalizeAlertsUI);return result;};wrapped.__finalUxAlerts=true;window.renderCentroAlertas=wrapped;}
+    const orders=window.renderOrdenes;
+    if(typeof orders==='function'&&!orders.__finalUxDashboardFilter){const wrapped=function(...args){const result=orders.apply(this,args);syncDashboardOrderBanner();return result;};wrapped.__finalUxDashboardFilter=true;window.renderOrdenes=wrapped;}
+  }
+  function bind(){
+    window.addEventListener('click',event=>{
+      if(event.target.closest?.('[data-dashboard-orders-clear]')){event.preventDefault();event.stopPropagation();clearDashboardOrderFilter();return;}
+      if(event.target.closest?.('#btnOrdenesLimpiar'))clearAllOrderFilters();
+    },true);
+    window.addEventListener('change',event=>{if(event.target?.closest?.('#vistaOrdenes .ordenes-toolbar'))noteManualOverride(event.target);},true);
+    const body=document.querySelector('#vistaCentroAlertas .view-body');if(body)new MutationObserver(normalizeAlertsUI).observe(body,{childList:true,subtree:true});
+  }
+  function init(){wrapRenderers();bind();normalizeAlertsUI();syncDashboardOrderBanner();}
+  window.COI_ORDERS_DASHBOARD_FILTERS=Object.freeze({clearDashboard:clearDashboardOrderFilter,clearAll:clearAllOrderFilters,sync:syncDashboardOrderBanner,getStatus:()=>String(window.__dashboardOrdersStatusFilter||'')});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
 </body></html>
