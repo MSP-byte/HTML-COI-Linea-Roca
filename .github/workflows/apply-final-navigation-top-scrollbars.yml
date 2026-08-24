@@ -1,0 +1,39 @@
+name: Apply final navigation and top scrollbars patch
+
+on:
+  push:
+    branches: [fix/final-navigation-top-scrollbars]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/final-navigation-top-scrollbars
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Apply focused patch
+        run: python3 .github/scripts/apply_final_navigation_top_scrollbars.py
+
+      - name: Validate patch formatting
+        run: git diff --check
+
+      - name: Commit and push patch
+        run: |
+          if git diff --quiet; then
+            echo "Patch already applied"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html tests/final_navigation_top_scrollbars.spec.js
+          git commit -m "fix: restore OC navigation and add top table scrollbars"
+          git push origin HEAD:fix/final-navigation-top-scrollbars
