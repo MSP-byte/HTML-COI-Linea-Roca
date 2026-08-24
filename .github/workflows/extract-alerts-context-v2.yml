@@ -16,32 +16,17 @@ jobs:
         with:
           ref: fix/alerts-collapsible-init-race
           persist-credentials: true
-      - name: Extract compact source context
+      - name: Extract targeted source ranges
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          s = Path('index.html').read_text(encoding='utf-8')
-          lines = s.splitlines()
-          terms = [
-            'Alertas de calidad y documentación',
-            'calculadas desde Supabase',
-            'cliente Supabase no disponible',
-            'Modo solo lectura',
-            'renderCentroAlertas',
-            'consolidateAlertsHeading'
-          ]
+          lines=Path('index.html').read_text(encoding='utf-8').splitlines()
+          ranges=[(16695,16765),(24515,24690)]
           out=[]
-          used=[]
-          for term in terms:
-            hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
-            out.append(f'### {term} | hits={len(hits)}')
-            for i in hits[:6]:
-              a=max(0,i-14); b=min(len(lines),i+18)
-              if any(a>=x and b<=y for x,y in used):
-                continue
-              used.append((a,b))
-              out.append(f'--- lines {a+1}-{b} (hit {i+1}) ---')
-              out.extend(f'{j+1}: {lines[j]}' for j in range(a,b))
+          for a,b in ranges:
+            out.append(f'### SOURCE {a}-{b}')
+            for n in range(a,b+1):
+              if n<=len(lines): out.append(f'{n}: {lines[n-1]}')
           Path('.github/alerts_context.txt').write_text('\n'.join(out),encoding='utf-8')
           PY
       - name: Commit context
@@ -50,5 +35,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .github/alerts_context.txt
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "chore: capture compact alerts context"
+          git commit -m "chore: capture alerts bootstrap context"
           git push origin HEAD:fix/alerts-collapsible-init-race
