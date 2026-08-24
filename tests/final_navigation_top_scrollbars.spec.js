@@ -88,6 +88,7 @@ test('scroll superior de Alertas sincroniza en ambos sentidos y no duplica', asy
 
 test('scroll superior de Ordenes sobrevive rerender y sincroniza', async ({ page }) => {
   await mountHarness(page);
+  await page.locator('#btnFichaVolverTop').click();
   const top = page.locator('[data-top-scroll-key="ordenes"]');
   const body = page.locator('#ordersParent .table-wrap');
   await expect(top).toBeVisible();
