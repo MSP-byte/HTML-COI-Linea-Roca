@@ -13,7 +13,10 @@ function finalScript() {
 
 async function mountHarness(page) {
   await page.setContent(`
-    <!doctype html><html><body style="margin:0;width:420px;overflow-x:hidden">
+    <!doctype html><html><head><style>
+      .coi-top-horizontal-scroll { width:320px; overflow-x:auto; overflow-y:hidden; height:18px; display:none; }
+      .coi-top-horizontal-scroll-inner { height:1px; min-height:1px; }
+    </style></head><body style="margin:0;width:420px;overflow-x:hidden">
       <aside><button id="ordersNav">Órdenes de compra</button></aside>
       <section id="vistaFichaOC"><button id="btnFichaVolverTop">Volver</button></section>
       <section id="vistaOrdenes" style="display:none">
@@ -42,6 +45,12 @@ async function mountHarness(page) {
       document.getElementById(id).style.display = 'block';
     };
     window.renderOrdenes = () => { window.__renders += 1; };
+
+    for (const selector of ['.coi-alertas-scroll', '#ordersParent .table-wrap']) {
+      const el = document.querySelector(selector);
+      Object.defineProperty(el, 'clientWidth', { configurable: true, value: 320 });
+      Object.defineProperty(el, 'scrollWidth', { configurable: true, value: 1000 });
+    }
   });
 
   await page.addScriptTag({ content: finalScript() });
