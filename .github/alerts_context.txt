@@ -1,0 +1,699 @@
+### Alertas de calidad y documentación | hits=1
+--- lines 16717-16748 (hit 16731) ---
+16717:   function normalizedRows(){const remote=[...metaByOC.values()];return remote.length?remote:localOrders().map(o=>({...o,nro_oc:nro(o),monto_total:o.monto||0,fecha_vencimiento:o.vencimiento,proxima_certificacion:o.proximaCertificacion,estado_coi:o.estado,estado_documental:o.estadoDocumental,link_documental_principal:o.linkDocumentalPrincipal,estado_link_documental:o.estadoLinkDocumental,calidad_datos_estado:o.calidadDatosEstado,calidad_datos_score:o.calidadDatosScore,prioridad_operativa:o.prioridadOperativa,requiere_accion:o.requiereAccion}))}
+16718:   function calcularDashboardEjecutivo(ordenes=normalizedRows()){const active=ordenes.filter(o=>!isClosed(o)),sum=ordenes.reduce((a,o)=>a+Number(o.monto_total||0),0);return{total:ordenes.length,obras:active.filter(o=>norm(o.tipo).includes('OBRA')).length,servicios:active.filter(o=>norm(o.tipo).includes('SERV')).length,monto:sum,proximas:active.filter(o=>{const d=daysTo(o.fecha_vencimiento);return d!==null&&d>=0&&d<=30}).length,vencidasSaldo:ordenes.filter(o=>daysTo(o.fecha_vencimiento)<0&&Number(o.saldo_remanente||0)>0&&bool(o.certificable_con_saldo)).length,calidadRoja:ordenes.filter(o=>norm(o.calidad_datos_estado)==='ROJO').length,requieren:ordenes.filter(o=>bool(o.requiere_accion)).length}}
+16719:   function obtenerTopEstaciones(ordenes=normalizedRows()){const m=new Map();ordenes.forEach(o=>{const k=clean(o.estacion)||'Sin estación';m.set(k,(m.get(k)||0)+1)});(window.__coiEstacionesAsociadas||[]).forEach(a=>{const k=clean(a.estacion);if(k)m.set(k,(m.get(k)||0)+1)});return[...m].sort((a,b)=>b[1]-a[1]).slice(0,8)}
+16720:   function obtenerTopProveedores(ordenes=normalizedRows()){const m=new Map();ordenes.forEach(o=>{const k=clean(o.proveedor)||'Sin proveedor';m.set(k,(m.get(k)||0)+Number(o.monto_total||0))});return[...m].sort((a,b)=>b[1]-a[1]).slice(0,8)}
+16721:   function obtenerOCsCriticas(ordenes=normalizedRows()){return ordenes.filter(o=>norm(o.calidad_datos_estado)==='ROJO'||bool(o.requiere_accion)||(!clean(o.justificacion_administrativa)&&daysTo(o.fecha_vencimiento)<0)).slice(0,12)}
+16722:   function obtenerPendientesSemana(ordenes=normalizedRows()){return ordenes.filter(o=>{const dc=daysTo(o.proxima_certificacion),dv=daysTo(o.fecha_vencimiento);return(dc!==null&&dc>=0&&dc<=7)||(dv!==null&&dv>=0&&dv<=15)||norm(o.calidad_datos_estado)==='ROJO'||(dv!==null&&dv<0&&!clean(o.justificacion_administrativa))}).slice(0,15)}
+16723:   function calcularEstadoDocumentalGeneral(ordenes=normalizedRows()){const m={};ordenes.forEach(o=>{const k=clean(o.estado_documental)||'Sin estado documental';m[k]=(m[k]||0)+1});return m}
+16724:   function calcularCalidadGeneral(ordenes=normalizedRows()){const m={};ordenes.forEach(o=>{const k=clean(o.calidad_datos_estado)||'Sin auditar';m[k]=(m[k]||0)+1});return m}
+16725:   function renderDashboardEjecutivo(){const host=document.querySelector('#vistaDashboard .view-body');if(!host)return;let box=$('execDashboard');if(box)box.remove();const rows=normalizedRows();if(!rows.length)return;const k=calcularDashboardEjecutivo(rows),stations=obtenerTopEstaciones(rows),providers=obtenerTopProveedores(rows),week=obtenerPendientesSemana(rows),docs=calcularEstadoDocumentalGeneral(rows),qual=calcularCalidadGeneral(rows);box=document.createElement('section');box.id='execDashboard';box.className='exec-dashboard';box.innerHTML=`<div class="exec-kpis">${[['Total OCs',k.total],['Obras activas',k.obras],['Servicios activos',k.servicios],['Monto comprometido',money(k.monto)],['Próximas a vencer',k.proximas],['Vencidas certificables',k.vencidasSaldo],['Calidad roja',k.calidadRoja],['Requieren acción',k.requieren]].map(([l,v])=>`<div class="exec-kpi"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div><div class="exec-grid"><div class="exec-card"><h3>Top estaciones con más intervenciones</h3><div class="exec-list">${stations.map(([n,c])=>`<div class="exec-list-item"><b>${esc(n)}</b><span>${c}</span></div>`).join('')}</div></div><div class="exec-card"><h3>Top proveedores por monto</h3><div class="exec-list">${providers.map(([n,c])=>`<div class="exec-list-item"><b>${esc(n)}</b><span>${money(c)}</span></div>`).join('')}</div></div><div class="exec-card"><h3>Para resolver esta semana</h3><div class="exec-list">${week.map(o=>`<div class="exec-list-item"><div><b>OC ${esc(o.nro_oc)}</b><small>${esc(o.motivo_requiere_accion||o.estado_documental||'Seguimiento pendiente')}</small></div><button type="button" data-open-oc="${esc(o.id_obra||o.nro_oc)}">Ficha</button></div>`).join('')||'<div class="exec-empty">Sin pendientes inmediatos.</div>'}</div></div><div class="exec-card"><h3>Estado documental general</h3><div class="exec-list">${Object.entries(docs).map(([n,c])=>`<div class="exec-list-item"><b>${esc(n)}</b><span>${c}</span></div>`).join('')}</div></div><div class="exec-card"><h3>Calidad de datos</h3><div class="exec-list">${Object.entries(qual).map(([n,c])=>`<div class="exec-list-item"><b>${esc(n)}</b><span>${c}</span></div>`).join('')}</div></div></div>`;host.appendChild(box)}
+16726:   function qualityBadge(o){return badge(o.calidad_datos_estado||o.calidadDatosEstado||'Sin auditar',clean(o.calidad_datos_estado||o.calidadDatosEstado||'sin-auditar').toLowerCase())}
+16727:   function docBadge(o){const t=o.estado_documental||o.estadoDocumental||'Sin estado documental';return badge(t,norm(t)==='VALIDADO'||norm(t)==='REVISADO'?'verde':norm(t)==='CARGADO'?'azul':norm(t)==='INCOMPLETO'||norm(t)==='PENDIENTE'?'amarillo':'gris')}
+16728:   function priorityBadge(o){const t=o.prioridad_operativa||o.prioridadOperativa||'Normal';return badge(t,t.toLowerCase())}
+16729:   function enhanceOrders(){const table=document.querySelector('#vistaOrdenes table.ordenes-table'),tbody=$('ordenesTbody');if(!table||!tbody)return;const head=table.tHead?.rows?.[0];if(head&&!head.querySelector('[data-exec-col]')){const action=head.lastElementChild;['Calidad','Documental','Prioridad','Requiere acción'].forEach(l=>{const th=document.createElement('th');th.dataset.execCol='1';th.textContent=l;head.insertBefore(th,action)})}[...tbody.rows].forEach(tr=>{if(tr.cells.length<2)return;[...tr.querySelectorAll('[data-exec-cell]')].forEach(x=>x.remove());const key=tr.dataset.openOc||tr.querySelector('[data-open-oc]')?.dataset.openOc;const o=resolveOrder(key);if(!o)return;const meta=metaByOC.get(nro(o));if(meta)Object.assign(o,mapRowToItem(meta));const action=tr.lastElementChild;const vals=[qualityBadge(o),docBadge(o),priorityBadge(o),bool(o.requiere_accion||o.requiereAccion)?`<span class="exec-action-yes">Sí<br><small>${esc(o.motivo_requiere_accion||o.motivoRequiereAccion||'')}</small></span>`:'<span class="exec-action-no">No</span>'];vals.forEach(v=>{const td=document.createElement('td');td.dataset.execCell='1';td.innerHTML=v;tr.insertBefore(td,action)});tr.hidden=false})}
+16730:   function generarAlertasCalidadYDocumentales(){const out=[];normalizedRows().forEach(o=>{const n=o.nro_oc,d=daysTo(o.fecha_vencimiento);if(norm(o.calidad_datos_estado)==='ROJO')out.push({sev:'Crítica',tipo:'Calidad roja',oc:n,est:o.estacion,msg:o.motivo_requiere_accion||'Datos críticos incompletos.',accion:'Ejecutar control de calidad y completar datos'});if(d!==null&&d<0&&!clean(o.justificacion_administrativa))out.push({sev:'Crítica',tipo:'Vencida sin justificación',oc:n,est:o.estacion,msg:'OC vencida sin justificación administrativa.',accion:'Registrar justificación o cerrar operativamente'});if(!clean(o.proxima_certificacion)&&!isClosed(o))out.push({sev:'Media',tipo:'Sin próxima certificación',oc:n,est:o.estacion,msg:'No se informó próxima certificación.',accion:'Completar fecha de certificación'});if(!clean(o.fecha_acta_inicio)&&!isClosed(o))out.push({sev:'Media',tipo:'Sin acta de inicio',oc:n,est:o.estacion,msg:'No se informó acta de inicio.',accion:'Completar datos contractuales'});if(d!==null&&d>=0&&d<=30)out.push({sev:d<=7?'Alta':'Media',tipo:'Próxima a vencer',oc:n,est:o.estacion,msg:`Vence en ${d} día(s).`,accion:'Revisar vigencia y certificaciones'})});return out}
+16731:   function renderAlertsExecutive(){const host=document.querySelector('#vistaCentroAlertas .view-body');if(!host)return;let card=$('execAlertsCard');if(card)card.remove();const rows=generarAlertasCalidadYDocumentales();card=document.createElement('section');card.id='execAlertsCard';card.className='exec-alert-card';card.innerHTML=`<div class="exec-card-head"><div><h3>Alertas de calidad y documentación</h3><div class="muted">${rows.length} alerta(s) calculadas desde Supabase.</div></div></div><div class="table-wrap"><table class="coi-table tabla-operativa exec-alert-table"><thead><tr><th>Severidad</th><th>Tipo</th><th>OC</th><th>Estación</th><th>Mensaje</th><th>Acción sugerida</th><th>Ficha</th></tr></thead><tbody>${rows.map(a=>`<tr class="${norm(a.sev)==='CRITICA'?'exec-critical-row':''}"><td>${badge(a.sev,norm(a.sev).includes('CRIT')||norm(a.sev)==='ALTA'?'rojo':norm(a.sev)==='MEDIA'?'amarillo':'gris')}</td><td>${esc(a.tipo)}</td><td>${esc(a.oc)}</td><td>${esc(a.est||'—')}</td><td>${esc(a.msg)}</td><td>${esc(a.accion)}</td><td><button type="button" data-open-oc="${esc(a.oc)}">Ver ficha</button></td></tr>`).join('')||'<tr><td colspan="7">Sin alertas ejecutivas.</td></tr>'}</tbody></table></div>`;host.insertBefore(card,host.firstChild)}
+16732:   function renderExecutiveFicha(orden){const o=resolveOrder(orden);if(!o)return;currentOrder=o;const host=$('fichaOCBody');if(!host)return;let card=$('execHeaderCard');if(card)card.remove();card=document.createElement('section');card.id='execHeaderCard';card.className='exec-header-card';card.innerHTML=`<div class="exec-card-head"><div><h3>Cabecera ejecutiva</h3><div class="muted">OC ${esc(nro(o))} · ${esc(o.proveedor||'Sin proveedor')}</div></div><div>${qualityBadge(o)} ${docBadge(o)}</div></div><div class="exec-header-grid">${[['N° OC',nro(o)],['Proveedor',o.proveedor],['Tipo',o.tipo],['Estación principal',o.estacion],['Estado COI',o.estado||o.estadoCOI],['Vigencia operativa',daysTo(o.vencimiento)<0?'Vencida':'Vigente'],['Próxima certificación',fmtDate(o.proximaCertificacion)],['Estado documental',o.estadoDocumental||'—'],['Calidad',`${o.calidadDatosEstado||'Sin auditar'} (${Number(o.calidadDatosScore||0)})`]].map(([l,v])=>`<div class="exec-header-item"><b>${esc(l)}</b><span>${esc(v||'—')}</span></div>`).join('')}</div><div class="exec-top-actions"><button type="button" id="execBtnEditar">Editar OC</button><button type="button" id="execBtnGuardar" class="primary">Guardar cambios</button><button type="button" data-oc-station-add>Agregar estación asociada</button><button type="button" id="execBtnQuality">Ejecutar control de calidad</button><button type="button" id="execBtnClose" class="btn-danger-soft">Cerrar OC</button></div>`;host.insertBefore(card,host.firstChild)}
+16733:   async function controlQualitySingle(o){const r=evaluarCalidadOrden(metaByOC.get(nro(o))||o);await actualizarCalidadOrdenSupabase(o,r);await registrarHistorialOC(o,{tipo_evento:'Control de calidad',campo_modificado:'calidad_datos_estado',valor_anterior:o.calidadDatosEstado||'',valor_nuevo:r.estado,motivo:r.motivo_requiere_accion});await syncExecutiveMetadata();renderExecutiveFicha(o);toast(`Calidad ${r.estado} · Score ${r.score}`,'ok');return r}
+16734:   async function closeOrder(o){const obs=prompt('Observación de cierre operativo:','');if(obs===null)return;await updateOrder(o,{fecha_cierre_operativo:isoNow(),observacion_cierre:clean(obs)||null,estado_registro:'Cerrado'},{history:false});await registrarHistorialOC(o,{tipo_evento:'Cierre operativo',campo_modificado:'estado_registro',valor_anterior:o.estadoRegistro||'',valor_nuevo:'Cerrado',motivo:obs});toast('OC cerrada operativamente.','ok')}
+16735:   function readEditForm(){const v=id=>clean($(id)?.value);return{id_obra:v('edit_idObra'),nro_oc:v('edit_numeroOC'),tipo:v('edit_tipo'),tipo_trabajo:v('edit_tipoUM'),especialidad:v('edit_tipoUM'),descripcion:v('edit_descripcion'),estacion:v('edit_estacion'),proveedor:v('edit_proveedor'),expediente:v('edit_expediente'),monto_total:Number(v('edit_montoOC').replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0,plazo_dias:Number(v('edit_plazoDias'))||0,fecha_acta_inicio:dateOnly(v('edit_fechaInicio'))||null,fecha_vencimiento:dateOnly(v('edit_fechaFin'))||null,estado_coi:v('edit_estado'),estado_documental:v('edit_estadoDocumental'),proxima_certificacion:dateOnly(v('edit_proximaCertificacion'))||null,observaciones:v('edit_observaciones')}}
+16736:   async function saveExecutiveEdit(){const o=currentOrder;if(!$('edit_numeroOC')){toast('Primero presione “Editar OC” para abrir el formulario.','warning');return}const changes=readEditForm(),before={...(metaByOC.get(nro(o))||{})};if(clean(changes.estacion)&&norm(changes.estacion)!==norm(o.estacion)){changes.estacion=o.estacion;toast('La estación principal solo se cambia desde “Estaciones asociadas”.','warning')}const row=await updateOrder(o,changes,{history:false});const after=row||{...before,...changes};for(const ch of compararCambiosOC(before,after))await registrarCambioCampo(o,ch.campo,ch.anterior,ch.nuevo,'Edición desde Ficha OC');await syncExecutiveMetadata();if(typeof window.renderFichaOC==='function')window.renderFichaOC(o.idObra||nro(o));toast('Ficha OC actualizada y trazabilidad registrada.','ok')}
+16737:   async function verificarDuplicadosSupabase(){await requireWrite();const {data,error}=await client().from(T_ORDENES).select('id,nro_oc,id_obra,estacion,proveedor').limit(10000);if(error)throw error;const m=new Map();(data||[]).forEach(r=>{const k=clean(r.nro_oc).replace(/\s+/g,'');if(!k)return;m.set(k,[...(m.get(k)||[]),r])});const dup=[...m].filter(([,v])=>v.length>1);const msg=dup.length?dup.map(([k,v])=>`${k}: ${v.length} filas`).join('\n'):'No se detectaron duplicados por nro_oc.';alert(msg);return dup}
+16738:   function csvDownload(name,rows){if(!rows.length){toast('No hay datos para exportar.','warning');return}const headers=Object.keys(rows[0]),text=[headers.join(';'),...rows.map(r=>headers.map(h=>coiCSVCell(r[h])).join(';'))].join('\n');const blob=new Blob(['\ufeff'+text],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+16739:   function exportarReporteCalidadCSV(){csvDownload('reporte_calidad_coi.csv',normalizedRows().map(o=>({nro_oc:o.nro_oc,proveedor:o.proveedor,estacion:o.estacion,calidad:o.calidad_datos_estado,score:o.calidad_datos_score,requiere_accion:o.requiere_accion,motivo:o.motivo_requiere_accion,fecha_ultimo_control:o.fecha_ultimo_control})))}
+16740:   async function exportarReporteDocumentalCSV(){
+16741:   const rows=normalizedRows();
+16742:   const documentosPorOC=new Map();
+16743:   const pageSize=1000;
+16744: 
+16745:   for(let from=0;;from+=pageSize){
+16746:     const {data,error}=await client()
+16747:       .from(T_DOCUMENTOS_STORAGE)
+16748:       .select('nro_oc,storage_path')
+### calculadas desde Supabase | hits=1
+### cliente Supabase no disponible | hits=14
+--- lines 14611-14642 (hit 14625) ---
+14611:       if (error) throw error;
+14612:       supabaseUsuario = data?.session?.user || null;
+14613:       updateSupabaseUserUI(supabaseUsuario);
+14614:       return supabaseUsuario;
+14615:     } catch (error) {
+14616:       console.warn('COI Supabase: no se pudo obtener la sesión', error);
+14617:       return null;
+14618:     }
+14619:   }
+14620: 
+14621:   async function requireSupabaseWriteAccess() {
+14622:     const user = await getUsuarioActual();
+14623:     if (!user) throw new Error('Debe iniciar sesión en Supabase para crear, editar o eliminar OCs.');
+14624:     if (!navigator.onLine) throw new Error('Supabase no está disponible sin conexión. La operación no se guardó.');
+14625:     if (!getSupabaseClient()) throw new Error('Cliente Supabase no disponible. La operación no se guardó.');
+14626:     return user;
+14627:   }
+14628: 
+14629: 
+14630:   function normalizeStationValue(value) {
+14631:     return clean(value).replace(/\s+/g, ' ');
+14632:   }
+14633: 
+14634:   function stationAssociationKey(data) {
+14635:     return [
+14636:       normalizeNroOC(data?.nro_oc || data?.numeroOC || data?.oc),
+14637:       norm(data?.estacion),
+14638:       norm(data?.sector)
+14639:     ].join('|');
+14640:   }
+14641: 
+14642:   function getNroOCFromOrder(orden) {
+--- lines 15149-15180 (hit 15163) ---
+15149:     const authenticated = options.authenticated === true || Boolean(supabaseUsuario);
+15150:     if (!authenticated) {
+15151:       vaciarDatosOperativosSinSesion();
+15152:       setSupabaseStatus('local', `${reason} Iniciá sesión para consultar datos operativos.`);
+15153:       return [];
+15154:     }
+15155:     const cached = readSupabaseCache();
+15156:     aplicarOrdenesPrincipal(cached, 'Caché Supabase');
+15157:     setSupabaseStatus('local', `${reason} ${cached.length ? `Se muestran ${cached.length} OC(s) de la caché Supabase.` : 'No hay caché Supabase disponible.'}`);
+15158:     return cached;
+15159:   }
+15160: 
+15161:   async function cargarOrdenesDesdeSupabase(options = {}) {
+15162:     const client = getSupabaseClient();
+15163:     if (!client) throw new Error('Cliente Supabase no disponible.');
+15164:     const user = await getUsuarioActual();
+15165:     if (!user) throw new Error('Sin sesión Supabase.');
+15166:     if (!navigator.onLine) throw new Error('Sin conexión a Internet.');
+15167: 
+15168:     const { data, error } = await client.from(SUPABASE_TABLE).select('*').limit(10000);
+15169:     if (error) throw error;
+15170:     const rows = Array.isArray(data) ? data : [];
+15171:     supabaseColumnas = new Set(rows.flatMap((row) => Object.keys(row || {})));
+15172:     const normalized = deduplicarOrdenes(rows.map(normalizarOrdenDesdeSupabase));
+15173:     const duplicates = Math.max(0, rows.length - normalized.length);
+15174:     cacheSupabaseOrders(normalized);
+15175:     aplicarOrdenesPrincipal(normalized, 'Supabase');
+15176:     await cargarTodasEstacionesAsociadasSupabase({ silencioso: true });
+15177:     supabaseUltimaCarga = Date.now();
+15178:     const duplicateNotice = duplicates
+15179:       ? ` Se consolidaron ${duplicates} fila(s) repetida(s) por nro_oc en la vista.`
+15180:       : '';
+--- lines 15460-15491 (hit 15474) ---
+15460:     const references = Array.isArray(explicitReferences) && explicitReferences.length
+15461:       ? explicitReferences
+15462:       : [...document.querySelectorAll('#ordenesTbody .chk-orden-row:checked')].map(deleteSelectionReferenceV60).filter(Boolean);
+15463:     const rows = [];
+15464:     references.forEach((reference) => {
+15465:       let order = deleteResolveLocalV60(reference);
+15466:       if (!order && reference) order = { idObra: reference, numeroOC: normalizeNroOC(reference) };
+15467:       if (order && !rows.some((item) => deleteOrdersMatchV60(item, order))) rows.push(order);
+15468:     });
+15469:     return rows;
+15470:   }
+15471:   async function deleteRequireAdminV60() {
+15472:     if (navigator.onLine === false) throw new Error('Modo solo lectura: no se pueden eliminar OCs sin conexión.');
+15473:     const client = typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null;
+15474:     if (!client) throw new Error('Cliente Supabase no disponible. No se eliminó ninguna OC.');
+15475:     const { data: { session } = {}, error } = await client.auth.getSession();
+15476:     if (error) throw error;
+15477:     if (!session?.user) throw new Error('Debe iniciar sesión en Supabase para eliminar OCs.');
+15478:     const email = deleteTextV60(session.user.email).toLowerCase();
+15479:     const profileResult = await client.from('profiles').select('rol,activo').eq('id', session.user.id).maybeSingle();
+15480:     if (profileResult.error) throw profileResult.error;
+15481:     const role = deleteTextV60(profileResult.data?.rol).toLowerCase();
+15482:     if (profileResult.data?.activo === false || role !== 'administrador') {
+15483:       throw new Error('La eliminación requiere un perfil Administrador activo.');
+15484:     }
+15485:     return { client, session, email, role };
+15486:   }
+15487:   async function deleteResolveRemoteV60(client, reference) {
+15488:     const local = deleteResolveLocalV60(reference) || (reference && typeof reference === 'object' ? reference : {});
+15489:     const idCandidate = deleteTextV60(local.supabaseId || local.id || (deleteUUIDV60(reference) ? reference : ''));
+15490:     const id = deleteUUIDV60(idCandidate) ? idCandidate : '';
+15491:     const columns = 'id,nro_oc,id_obra,proveedor,tipo';
+--- lines 16459-16490 (hit 16473) ---
+16459:   const documentosStorageCache=new Map(),documentosStoragePromises=new Map();
+16460:   let lastAudit=null,currentOrder=null,pendingEditSnapshot=null,eventosDocumentosStorageInicializados=false;
+16461:   const $=id=>document.getElementById(id), clean=v=>String(v??'').trim(), norm=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' '), esc=v=>clean(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+16462:   const nro=o=>clean(o?.nro_oc||o?.numeroOC||o?.OC_NRO||o?.oc||o?.ocNro).replace(/\s+/g,'');
+16463:   const oid=o=>o?.supabaseId??o?._supabaseRaw?.id??o?.id??o?.orden_id??null;
+16464:   const isoNow=()=>new Date().toISOString();
+16465:   const bool=v=>v===true||['1','TRUE','SI','SÍ','YES'].includes(norm(v));
+16466:   const dateOnly=v=>{if(!v)return'';const d=new Date(v);return Number.isNaN(d.getTime())?clean(v).slice(0,10):d.toISOString().slice(0,10)};
+16467:   const fmtDate=v=>{if(!v)return'—';const d=new Date(String(v).length===10?v+'T12:00:00':v);return Number.isNaN(d.getTime())?clean(v):d.toLocaleDateString('es-AR')};
+16468:   const money=(v,c='ARS')=>{const n=Number(v||0);return new Intl.NumberFormat('es-AR',{style:'currency',currency:clean(c)||'ARS',maximumFractionDigits:2}).format(Number.isFinite(n)?n:0)};
+16469:   const daysTo=v=>{if(!v)return null;const d=new Date(String(v).slice(0,10)+'T12:00:00');if(Number.isNaN(d.getTime()))return null;const t=new Date();t.setHours(12,0,0,0);return Math.ceil((d-t)/86400000)};
+16470:   function toast(msg,type='info'){if(typeof window.toast==='function'){try{return window.toast(msg,type)}catch(e){}}let el=$('execPhaseToast');if(!el){el=document.createElement('div');el.id='execPhaseToast';el.className='coi-supabase-toast';document.body.appendChild(el)}el.textContent=msg;el.className='coi-supabase-toast '+(type==='ok'?'ok':type==='error'?'error':type==='warning'?'warning':'');requestAnimationFrame(()=>el.classList.add('show'));setTimeout(()=>el.classList.remove('show'),3400)}
+16471:   function client(){return typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null}
+16472:   async function user(){return typeof window.getUsuarioActual==='function'?window.getUsuarioActual():null}
+16473:   async function requireWrite(){const u=await user();if(!u)throw new Error('Debe iniciar sesión en Supabase para modificar información.');if(!navigator.onLine)throw new Error('Supabase no está disponible sin conexión.');if(!client())throw new Error('Cliente Supabase no disponible.');return u}
+16474:   function localOrders(){let rows=[];try{rows=typeof window.todasLasOC==='function'?window.todasLasOC():[]}catch(e){}const out=[],seen=new Set();rows.forEach(r=>{const item=r?.item||r;const key=nro(item)||clean(item?.idObra||item?.idOC);if(!key||seen.has(key))return;seen.add(key);const meta=metaByOC.get(key);if(meta)Object.assign(item,mapRowToItem(meta));out.push(item)});return out}
+16475:   function resolveOrder(value){if(value&&typeof value==='object'){const key=nro(value);return Object.assign(value,mapRowToItem(metaByOC.get(key)||{}))}const key=clean(value);try{const f=typeof window.obtenerOC==='function'?window.obtenerOC(key):null;if(f?.item)return Object.assign(f.item,mapRowToItem(metaByOC.get(nro(f.item))||{}))}catch(e){}return localOrders().find(o=>[nro(o),clean(o.idObra),clean(o.idOC)].some(x=>norm(x)===norm(key)))||null}
+16476:   function mapRowToItem(r){if(!r)return{};return{_supabaseRaw:r,supabaseId:r.id,idObra:r.id_obra||'',idOC:r.id_obra||'',numeroOC:r.nro_oc||'',oc:r.nro_oc||'',tipo:r.tipo||'',tipoTrabajo:r.tipo_trabajo||'',especialidad:r.especialidad||'',descripcion:r.descripcion||'',proveedor:r.proveedor||'',estacion:r.estacion||'',ramal:r.ramal||'',sector:r.sector||'',expediente:r.expediente||'',monto:Number(r.monto_total||0),montoTotal:Number(r.monto_total||0),moneda:r.moneda||'ARS',actaInicio:r.fecha_acta_inicio||'',fechaInicio:r.fecha_acta_inicio||'',plazoDias:Number(r.plazo_dias||0),vencimiento:r.fecha_vencimiento||'',fechaFin:r.fecha_vencimiento||'',proximaCertificacion:r.proxima_certificacion||'',fechaRecepcionDocumentacion:r.fecha_recepcion_documentacion||'',estado:r.estado_coi||'',estadoCOI:r.estado_coi||'',estadoDocumental:r.estado_documental||'',estadoRegistro:r.estado_registro||'',observaciones:r.observaciones||'',saldoRemanente:Number(r.saldo_remanente||0),certificableConSaldo:bool(r.certificable_con_saldo),justificacionAdministrativa:r.justificacion_administrativa||'',linkDocumentalPrincipal:r.link_documental_principal||'',estadoLinkDocumental:r.estado_link_documental||'Sin link',calidadDatosEstado:r.calidad_datos_estado||'Sin auditar',calidadDatosScore:Number(r.calidad_datos_score||0),prioridadOperativa:r.prioridad_operativa||'Normal',responsableCOI:r.responsable_coi||'',fechaUltimoControl:r.fecha_ultimo_control||'',requiereAccion:bool(r.requiere_accion),motivoRequiereAccion:r.motivo_requiere_accion||'',fechaCierreOperativo:r.fecha_cierre_operativo||'',observacionCierre:r.observacion_cierre||'',controlTercerosHasta:r.control_terceros_hasta||'',controlTercerosEstado:r.control_terceros_estado||''}}
+16477:   function mergeRows(rows){(rows||[]).forEach(r=>{const k=clean(r.nro_oc).replace(/\s+/g,'');if(k)metaByOC.set(k,r)});localOrders().forEach(o=>{const m=metaByOC.get(nro(o));if(m)Object.assign(o,mapRowToItem(m))});window.todasLasOC?.invalidarCache?.();window.__coiExecutiveRows=[...metaByOC.values()];return rows||[]}
+16478:   async function syncExecutiveMetadata(){const c=client(),u=await user();if(!c||!u||!navigator.onLine)return[];const {data,error}=await c.from(T_ORDENES).select(META_FIELDS.join(',')).limit(10000);if(error)throw error;mergeRows(data||[]);renderDashboardEjecutivo();enhanceOrders();renderAlertsExecutive();return data||[]}
+16479:   function normalizeExtraPayload(o){return{link_documental_principal:clean(o?.link_documental_principal??o?.linkDocumentalPrincipal)||null,estado_link_documental:clean(o?.estado_link_documental??o?.estadoLinkDocumental)||'Sin link',calidad_datos_estado:clean(o?.calidad_datos_estado??o?.calidadDatosEstado)||'Sin auditar',calidad_datos_score:Number(o?.calidad_datos_score??o?.calidadDatosScore??0)||0,prioridad_operativa:clean(o?.prioridad_operativa??o?.prioridadOperativa)||'Normal',responsable_coi:clean(o?.responsable_coi??o?.responsableCOI)||null,fecha_ultimo_control:o?.fecha_ultimo_control??o?.fechaUltimoControl??null,requiere_accion:bool(o?.requiere_accion??o?.requiereAccion),motivo_requiere_accion:clean(o?.motivo_requiere_accion??o?.motivoRequiereAccion)||null,fecha_cierre_operativo:o?.fecha_cierre_operativo??o?.fechaCierreOperativo??null,observacion_cierre:clean(o?.observacion_cierre??o?.observacionCierre)||null}}
+16480:   async function updateOrder(orden,changes,{history=true,motivo='Actualización desde Ficha OC'}={}){const u=await requireWrite(),o=resolveOrder(orden),n=nro(o||orden);if(!n)throw new Error('No se pudo identificar el nro_oc.');const before={...(metaByOC.get(n)||{})};const {data,error}=await client().from(T_ORDENES).update(changes).eq('nro_oc',n).select();if(error)throw error;const row=Array.isArray(data)?data[0]:data;if(row)mergeRows([row]);if(history){const after=row||{...before,...changes};for(const ch of compararCambiosOC(before,after))await registrarCambioCampo(o||{nro_oc:n},ch.campo,ch.anterior,ch.nuevo,motivo)}refreshAll();return row}
+16481:   function refreshAll(){try{if(typeof window.renderOrdenes==='function')window.renderOrdenes()}catch(e){}try{if(typeof window.updateKpis==='function')window.updateKpis()}catch(e){}try{if(typeof window.renderCalendarioCOIUnificado==='function')window.renderCalendarioCOIUnificado()}catch(e){}try{if(typeof window.renderCentroAlertas==='function')window.renderCentroAlertas()}catch(e){}renderDashboardEjecutivo();enhanceOrders();renderAlertsExecutive();if(currentOrder){renderExecutiveFicha(currentOrder);renderHistorialOC(currentOrder)}}
+16482:   function normalizarNroOCStorage(orden){const o=resolveOrder(orden)||orden;return (nro(o)||clean(typeof orden==='string'?orden:'')).replace(/\s+/g,'')}
+16483:   function campoDocumentoStorage(documento,nombres,fallback=''){
+16484:     for(const nombre of nombres){
+16485:       if(Object.prototype.hasOwnProperty.call(documento||{},nombre)&&clean(documento[nombre])!=='')return documento[nombre];
+16486:     }
+16487:     return fallback;
+16488:   }
+16489:   function esDocumentoActaMedicion(documento){
+16490:     const tipo=norm(campoDocumentoStorage(documento,['tipoDocumento','tipo_documento','tipo'],''));
+--- lines 16585-16616 (hit 16599) ---
+16585:   function mostrarDocumentoStorageEnFicha(id,{editar=false}={}){
+16586:     if(typeof window.activarSubmoduloFichaOC==='function')window.activarSubmoduloFichaOC('panelFichaDocumentos');
+16587:     const selector=`[data-storage-documento-card="${typeof CSS!=='undefined'&&CSS.escape?CSS.escape(String(id)):String(id)}"]`;
+16588:     setTimeout(()=>{const card=document.querySelector(selector);if(card){card.scrollIntoView({behavior:'smooth',block:'center'});card.classList.add('documento-storage-destacado');setTimeout(()=>card.classList.remove('documento-storage-destacado'),1800)}if(editar){const localEdit=document.querySelector(`[data-v64-doc-edit="${String(id)}"]`);if(localEdit)localEdit.click();else toast('Registro localizado en Documentos. Complete los metadatos disponibles sin modificar el PDF.','warning')}},60);
+16589:   }
+16590:   Object.assign(window,{esDocumentoActaMedicion,obtenerNumeroActaDocumento,obtenerActasMedicionDocumentalesOC,renderActasMedicionDocumentalesOC});
+16591:   function invalidarDocumentosStorageOC(orden){if(orden===undefined||orden===null){documentosStorageCache.clear();return}const key=normalizarNroOCStorage(orden);if(key)documentosStorageCache.delete(key)}
+16592:   async function cargarDocumentosStorageOC(orden,{force=false}={}){
+16593:     const nroOC=normalizarNroOCStorage(orden);
+16594:     if(!nroOC)return[];
+16595:     if(documentosStoragePromises.has(nroOC))return documentosStoragePromises.get(nroOC);
+16596:     if(!force&&documentosStorageCache.has(nroOC))return documentosStorageCache.get(nroOC);
+16597:     const request=(async()=>{
+16598:       const c=client();
+16599:       if(!c)throw new Error('Cliente Supabase no disponible.');
+16600:       const u=await user();
+16601:       if(!u)throw new Error('Debe iniciar sesión en Supabase para consultar documentos PDF.');
+16602:       if(!navigator.onLine)throw new Error('Los documentos PDF requieren conexión con Supabase.');
+16603:       const {data,error}=await c.from(T_DOCUMENTOS_STORAGE).select('*').eq('nro_oc',nroOC).order('tipo_documento',{ascending:true}).order('fecha_documento',{ascending:true}).order('nombre_documento',{ascending:true});
+16604:       if(error)throw error;
+16605:       const documentos=Array.isArray(data)?data:[];
+16606:       documentosStorageCache.set(nroOC,documentos);
+16607:       return documentos;
+16608:     })();
+16609:     documentosStoragePromises.set(nroOC,request);
+16610:     try{return await request}finally{if(documentosStoragePromises.get(nroOC)===request)documentosStoragePromises.delete(nroOC)}
+16611:   }
+16612:   function categoriaDocumentoStorage(tipo){const value=norm(tipo);if(value.includes('ACTA')&&value.includes('MEDIC'))return'Actas de medición';if(value.includes('ACTA')&&value.includes('INICIO'))return'Actas de inicio';if(value.includes('FACTURA'))return'Facturas';if(value.includes('REMITO'))return'Remitos';if((value.includes('ORDEN')&&value.includes('COMPRA'))||value==='OC')return'Orden de Compra';return'Otros'}
+16613:   function claseEstadoDocumentoStorage(estado){const value=norm(estado);if(value.includes('OBSERV'))return'rojo';if(value.includes('PEND')||value.includes('SIN LINK'))return'amarillo';if(value.includes('CERR'))return'gris';if(value.includes('CARG')||value.includes('REVIS')||value.includes('VALID'))return'verde';return'azul'}
+16614:   function cabeceraDocumentosStorage(nroOC){return`<div class="documentos-storage-header"><div><span class="documentos-storage-source">B. Documentos PDF en Supabase Storage</span><h4>Documentación almacenada en Supabase</h4><p>Consulta segura de archivos privados asociados a la OC ${esc(nroOC||'sin identificar')}.</p></div><button type="button" data-storage-doc-refresh="${esc(nroOC)}">Actualizar documentos</button></div>`}
+16615:   function asegurarContenedorDocumentosStorage(orden){const panel=$('panelFichaDocumentos');if(!panel)return null;const nroOC=normalizarNroOCStorage(orden);let section=panel.querySelector('[data-documentos-storage]');if(!section){section=document.createElement('section');section.className='documentos-storage-section';section.dataset.documentosStorage='true';panel.appendChild(section)}section.dataset.nroOc=nroOC;return section}
+16616:   function renderMensajeDocumentosStorage(orden,mensaje,{error=false}={}){const nroOC=normalizarNroOCStorage(orden),section=asegurarContenedorDocumentosStorage(orden);if(!section)return null;section.innerHTML=`${cabeceraDocumentosStorage(nroOC)}<div class="documentos-storage-empty${error?' error':''}">${esc(mensaje)}</div>`;return section}
+--- lines 16623-16654 (hit 16637) ---
+16623:     rows.forEach(documento=>{const categoria=categoriaDocumentoStorage(documento?.tipo_documento);conteos[categoria]=(conteos[categoria]||0)+1;const tipo=clean(documento?.tipo_documento)||'Otros';if(!grupos.has(tipo))grupos.set(tipo,[]);grupos.get(tipo).push(documento)});
+16624:     const resumen=[['Total documentos',rows.length],...categorias.map(nombre=>[nombre,conteos[nombre]||0])];
+16625:     const contenido=[...grupos.entries()].map(([tipo,items])=>`<section class="documentos-storage-group"><h5>${esc(tipo)} (${items.length})</h5><div class="documentos-storage-cards">${items.map(documento=>{const nombre=clean(documento?.nombre_documento)||'Documento sin nombre',estado=clean(documento?.estado)||'Sin estado',tienePDF=!!clean(documento?.storage_path);return`<article class="documentos-storage-card"><div class="documentos-storage-card-head"><h6>${esc(nombre)}</h6><span class="documento-storage-status ${claseEstadoDocumentoStorage(estado)}">${esc(estado)}</span></div><div class="documento-storage-meta"><span><b>Tipo:</b> ${esc(clean(documento?.tipo_documento)||'Otro')}</span><span><b>Fecha:</b> ${documento?.fecha_documento?esc(fmtDate(documento.fecha_documento)):'Sin fecha'}</span><span><b>Expediente:</b> ${esc(clean(documento?.expediente)||'Sin expediente')}</span><span><b>Cargado:</b> ${documento?.fecha_creacion?esc(fmtDate(documento.fecha_creacion)):'Sin fecha'}</span></div><p class="documento-storage-observaciones"><b>Observaciones:</b> ${esc(clean(documento?.observaciones)||'Sin observaciones')}</p><div class="documento-storage-actions"><button type="button" class="primary" data-storage-documento-id="${esc(String(documento?.id??''))}" ${tienePDF?'':'disabled title="Archivo no disponible en Storage"'}>Abrir PDF</button></div></article>`}).join('')}</div></section>`).join('');
+16626:     section.innerHTML=`${cabeceraDocumentosStorage(nroOC)}<div class="documentos-storage-summary">${resumen.map(([label,value])=>`<div><b>${esc(value)}</b><span>${esc(label)}</span></div>`).join('')}</div>${rows.length?`<div class="documentos-storage-groups">${contenido}</div>`:'<div class="documentos-storage-empty">No hay documentos PDF cargados en Supabase para esta OC.</div>'}`;
+16627:     section.querySelectorAll('[data-storage-documento-id]').forEach(button=>{const card=button.closest('.documentos-storage-card');if(card)card.dataset.storageDocumentoCard=button.dataset.storageDocumentoId});
+16628:     return section;
+16629:   }
+16630:   async function cargarYRenderDocumentosStorageOC(orden,{force=false}={}){const nroOC=normalizarNroOCStorage(orden);if(!nroOC)return[];if(force)invalidarDocumentosStorageOC(nroOC);renderMensajeDocumentosStorage(orden,'Cargando documentos PDF desde Supabase…');try{const documentos=await cargarDocumentosStorageOC(orden,{force});const section=$('panelFichaDocumentos')?.querySelector('[data-documentos-storage]');if(section?.dataset.nroOc===nroOC)renderDocumentosStorageOC(orden,documentos);return documentos}catch(error){console.warn('COI documentos Storage:',error);const section=$('panelFichaDocumentos')?.querySelector('[data-documentos-storage]');if(section?.dataset.nroOc===nroOC)renderMensajeDocumentosStorage(orden,error?.message||'No se pudieron cargar los documentos PDF.',{error:true});return[]}}
+16631:   function buscarDocumentoStoragePorId(id){const key=clean(id);for(const documentos of documentosStorageCache.values()){const documento=(documentos||[]).find(item=>String(item?.id)===key);if(documento)return documento}return null}
+16632:   async function abrirDocumentoStorageOC(documento) {
+16633:     try {
+16634:       const client = getSupabaseClient();
+16635: 
+16636:       if (!client) {
+16637:         throw new Error('Cliente Supabase no disponible.');
+16638:       }
+16639: 
+16640:       const { data: sessionData, error: sessionError } =
+16641:         await client.auth.getSession();
+16642: 
+16643:       if (sessionError) throw sessionError;
+16644: 
+16645:       if (!sessionData?.session) {
+16646:         throw new Error('Se requiere una sesión Supabase activa.');
+16647:       }
+16648: 
+16649:       const bucket = String(
+16650:         documento?.storage_bucket || 'coi-documentos'
+16651:       ).trim();
+16652: 
+16653:       const storagePath = String(
+16654:         documento?.storage_path || ''
+### Modo solo lectura | hits=11
+--- lines 15458-15489 (hit 15472) ---
+15458:   }
+15459:   function deleteSelectedOrdersV60(explicitReferences = null) {
+15460:     const references = Array.isArray(explicitReferences) && explicitReferences.length
+15461:       ? explicitReferences
+15462:       : [...document.querySelectorAll('#ordenesTbody .chk-orden-row:checked')].map(deleteSelectionReferenceV60).filter(Boolean);
+15463:     const rows = [];
+15464:     references.forEach((reference) => {
+15465:       let order = deleteResolveLocalV60(reference);
+15466:       if (!order && reference) order = { idObra: reference, numeroOC: normalizeNroOC(reference) };
+15467:       if (order && !rows.some((item) => deleteOrdersMatchV60(item, order))) rows.push(order);
+15468:     });
+15469:     return rows;
+15470:   }
+15471:   async function deleteRequireAdminV60() {
+15472:     if (navigator.onLine === false) throw new Error('Modo solo lectura: no se pueden eliminar OCs sin conexión.');
+15473:     const client = typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null;
+15474:     if (!client) throw new Error('Cliente Supabase no disponible. No se eliminó ninguna OC.');
+15475:     const { data: { session } = {}, error } = await client.auth.getSession();
+15476:     if (error) throw error;
+15477:     if (!session?.user) throw new Error('Debe iniciar sesión en Supabase para eliminar OCs.');
+15478:     const email = deleteTextV60(session.user.email).toLowerCase();
+15479:     const profileResult = await client.from('profiles').select('rol,activo').eq('id', session.user.id).maybeSingle();
+15480:     if (profileResult.error) throw profileResult.error;
+15481:     const role = deleteTextV60(profileResult.data?.rol).toLowerCase();
+15482:     if (profileResult.data?.activo === false || role !== 'administrador') {
+15483:       throw new Error('La eliminación requiere un perfil Administrador activo.');
+15484:     }
+15485:     return { client, session, email, role };
+15486:   }
+15487:   async function deleteResolveRemoteV60(client, reference) {
+15488:     const local = deleteResolveLocalV60(reference) || (reference && typeof reference === 'object' ? reference : {});
+15489:     const idCandidate = deleteTextV60(local.supabaseId || local.id || (deleteUUIDV60(reference) ? reference : ''));
+--- lines 23917-23948 (hit 23931) ---
+23917:       const oc=normalizarOC(current);
+23918:       if(oc&&affectedOCs.has(oc)&&typeof window.renderFichaOC==='function'){
+23919:         setTimeout(()=>{try{window.renderFichaOC(oc);}catch(e){console.warn('R38: no se pudo refrescar Ficha OC',e);}},0);
+23920:       }
+23921:     }
+23922:   }
+23923:   async function saveFinancialRows(){
+23924:     if(SAVE_LOCK.running)return;
+23925:     const block=activeFinancialBlock();
+23926:     if(block==='LIBRE'){
+23927:       setMessage('Posiciones Libres se calculan automáticamente desde Posiciones OC menos Posiciones Certificadas. No se guardó una tabla manual.','error');
+23928:       toast('Posiciones Libres es una vista calculada.','warning');return;
+23929:     }
+23930:     if(block==='CERTIFICADA'){
+23931:       setMessage('Modo solo lectura: la certificación requiere la RPC transaccional V60.','error');
+23932:       toast('Certificación bloqueada hasta validar la RPC V60.','warning');return;
+23933:     }
+23934:     const integration=window.COI_FINANZAS_SUPABASE;
+23935:     if(!integration?.guardarPosiciones)throw new Error('El repositorio Supabase V60 de Posiciones OC no está disponible.');
+23936:     const trs=currentFinancialRows();
+23937:     const rows=trs.map(readRow);
+23938:     let existing=(Array.isArray(window.posicionesFinancieras)?window.posicionesFinancieras:[])
+23939:       .filter(p=>fold(p.tipoBloqueFinanciero)==='POSICION_OC');
+23940:     const byKey=new Map(existing.map((p,i)=>[recordKey(p),i]));
+23941:     const pending=[];
+23942:     const ordersAvailable=(()=>{try{return typeof window.todasLasOC==='function'?(window.todasLasOC()||[]).length:0;}catch(e){return 0;}})();
+23943:     let created=0,updated=0,empty=0,invalid=0;const warnings=[];const affected=new Set();
+23944:     SAVE_LOCK.running=true;
+23945:     try{
+23946:       for(let start=0;start<rows.length;start+=25){
+23947:         const batch=rows.slice(start,start+25);
+23948:         batch.forEach((row,offset)=>{
+--- lines 24507-24538 (hit 24521) ---
+24507:       tipoBloqueFinanciero:'CERTIFICADA',posicion:text(row.posicion).replace('.',','),posKey:normalizePosition(row.posicion),
+24508:       descripcion:text(row.descripcion),descripcionPosicion:text(row.descripcion),cantidad:Number(row.cantidad||0),cantidadTotal:Number(row.cantidad||0),
+24509:       precioUnitario:Number(row.precio_unitario||0),precioTotal:Number(row.monto||0),montoPosicion:Number(row.monto||0),montoCertificado:Number(row.monto||0),
+24510:       moneda:text(row.moneda)||'ARS',remito:text(row.remito),mes:text(row.mes),periodo:text(row.periodo),actaNro:text(row.acta_nro),actaMedicionNro:text(row.acta_nro),
+24511:       fechaActa:text(row.fecha_acta),observaciones:text(row.observaciones),certificado:'SI',estadoPosicion:'Certificada',origen:'Supabase RPC',
+24512:       fechaCarga:row.creado_en||'',fechaUltimaModificacion:row.actualizado_en||row.creado_en||'',usuarioEmail:text(row.usuario_email)
+24513:     };
+24514:   }
+24515:   function applyMemory(remoteRows,remoteConsumptions=[]){const merged=remoteRows.map(fromRemote).concat(remoteConsumptions.filter(row=>text(row.estado).toUpperCase()==='CONFIRMADA').map(fromRemoteConsumption));try{window.posicionesFinancieras=merged;posicionesFinancieras=merged;}catch(error){}return merged;}
+24516:   function clearMemory(){try{window.posicionesFinancieras=[];posicionesFinancieras=[];}catch(error){}return[];}
+24517:   function saveRemoteCache(remoteRows,remoteConsumptions=[]){const envelope={version:CACHE_VERSION,savedAt:new Date().toISOString(),source:'Supabase',positions:remoteRows,consumptions:remoteConsumptions,rows:remoteRows};localStorage.setItem(CACHE_KEY,JSON.stringify(envelope));return envelope;}
+24518:   async function currentUser(c=client()){if(typeof window.getUsuarioActual==='function'){const user=await window.getUsuarioActual();if(user)return user;}if(c?.auth?.getUser){const {data}=await c.auth.getUser();return data?.user||null;}return null;}
+24519:   function stateMessage(state,detail=''){
+24520:     if(state===STATES.CLIENTE_INICIALIZANDO)return 'Conectando con Supabase…';
+24521:     if(state===STATES.SIN_CLIENTE)return 'Modo solo lectura · cliente Supabase no disponible';
+24522:     if(state===STATES.SIN_SESION)return 'Supabase disponible · iniciá sesión para editar';
+24523:     if(state===STATES.OFFLINE)return 'Modo solo lectura · sin conexión';
+24524:     if(state===STATES.ERROR_RLS)return `Modo solo lectura · acceso restringido por RLS${detail?` · ${detail}`:''}`;
+24525:     return 'Supabase-first operativo';
+24526:   }
+24527:   function setState(state,error=null){
+24528:     runtime.estado=state;runtime.ultimoError=error?text(error?.message||error):null;
+24529:     const readOnly=state!==STATES.SUPABASE_FIRST;
+24530:     if(document.body){document.body.classList.toggle('coi-data-readonly',readOnly);document.body.dataset.coiDataMode=readOnly?'readonly':'supabase-first';document.body.dataset.coiDataState=state;document.body.dataset.coiDataReason=runtime.ultimoError||'';}
+24531:     const mode=$('headerModoSistema');if(mode)mode.textContent=readOnly?'Modo solo lectura':'Modo Operativo';
+24532:     let banner=$('coiV60ReadOnlyBanner');
+24533:     if(readOnly&&!banner&&document.body){banner=document.createElement('div');banner.id='coiV60ReadOnlyBanner';banner.setAttribute('role','status');banner.style.cssText='position:fixed;right:18px;bottom:18px;z-index:5000;padding:10px 14px;border-radius:10px;background:#7f1d1d;color:#fff;font-weight:800;box-shadow:0 8px 24px #0005';document.body.appendChild(banner);}
+24534:     if(banner){banner.textContent=stateMessage(state,runtime.ultimoError);banner.hidden=!readOnly;}
+24535:     return state;
+24536:   }
+24537:   async function waitForSupabaseClient({timeoutMs=10000,intervalMs=250}={}){
+24538:     const existing=client();if(existing)return existing;
+--- lines 24509-24540 (hit 24523) ---
+24509:       precioUnitario:Number(row.precio_unitario||0),precioTotal:Number(row.monto||0),montoPosicion:Number(row.monto||0),montoCertificado:Number(row.monto||0),
+24510:       moneda:text(row.moneda)||'ARS',remito:text(row.remito),mes:text(row.mes),periodo:text(row.periodo),actaNro:text(row.acta_nro),actaMedicionNro:text(row.acta_nro),
+24511:       fechaActa:text(row.fecha_acta),observaciones:text(row.observaciones),certificado:'SI',estadoPosicion:'Certificada',origen:'Supabase RPC',
+24512:       fechaCarga:row.creado_en||'',fechaUltimaModificacion:row.actualizado_en||row.creado_en||'',usuarioEmail:text(row.usuario_email)
+24513:     };
+24514:   }
+24515:   function applyMemory(remoteRows,remoteConsumptions=[]){const merged=remoteRows.map(fromRemote).concat(remoteConsumptions.filter(row=>text(row.estado).toUpperCase()==='CONFIRMADA').map(fromRemoteConsumption));try{window.posicionesFinancieras=merged;posicionesFinancieras=merged;}catch(error){}return merged;}
+24516:   function clearMemory(){try{window.posicionesFinancieras=[];posicionesFinancieras=[];}catch(error){}return[];}
+24517:   function saveRemoteCache(remoteRows,remoteConsumptions=[]){const envelope={version:CACHE_VERSION,savedAt:new Date().toISOString(),source:'Supabase',positions:remoteRows,consumptions:remoteConsumptions,rows:remoteRows};localStorage.setItem(CACHE_KEY,JSON.stringify(envelope));return envelope;}
+24518:   async function currentUser(c=client()){if(typeof window.getUsuarioActual==='function'){const user=await window.getUsuarioActual();if(user)return user;}if(c?.auth?.getUser){const {data}=await c.auth.getUser();return data?.user||null;}return null;}
+24519:   function stateMessage(state,detail=''){
+24520:     if(state===STATES.CLIENTE_INICIALIZANDO)return 'Conectando con Supabase…';
+24521:     if(state===STATES.SIN_CLIENTE)return 'Modo solo lectura · cliente Supabase no disponible';
+24522:     if(state===STATES.SIN_SESION)return 'Supabase disponible · iniciá sesión para editar';
+24523:     if(state===STATES.OFFLINE)return 'Modo solo lectura · sin conexión';
+24524:     if(state===STATES.ERROR_RLS)return `Modo solo lectura · acceso restringido por RLS${detail?` · ${detail}`:''}`;
+24525:     return 'Supabase-first operativo';
+24526:   }
+24527:   function setState(state,error=null){
+24528:     runtime.estado=state;runtime.ultimoError=error?text(error?.message||error):null;
+24529:     const readOnly=state!==STATES.SUPABASE_FIRST;
+24530:     if(document.body){document.body.classList.toggle('coi-data-readonly',readOnly);document.body.dataset.coiDataMode=readOnly?'readonly':'supabase-first';document.body.dataset.coiDataState=state;document.body.dataset.coiDataReason=runtime.ultimoError||'';}
+24531:     const mode=$('headerModoSistema');if(mode)mode.textContent=readOnly?'Modo solo lectura':'Modo Operativo';
+24532:     let banner=$('coiV60ReadOnlyBanner');
+24533:     if(readOnly&&!banner&&document.body){banner=document.createElement('div');banner.id='coiV60ReadOnlyBanner';banner.setAttribute('role','status');banner.style.cssText='position:fixed;right:18px;bottom:18px;z-index:5000;padding:10px 14px;border-radius:10px;background:#7f1d1d;color:#fff;font-weight:800;box-shadow:0 8px 24px #0005';document.body.appendChild(banner);}
+24534:     if(banner){banner.textContent=stateMessage(state,runtime.ultimoError);banner.hidden=!readOnly;}
+24535:     return state;
+24536:   }
+24537:   async function waitForSupabaseClient({timeoutMs=10000,intervalMs=250}={}){
+24538:     const existing=client();if(existing)return existing;
+24539:     setState(STATES.CLIENTE_INICIALIZANDO);
+24540:     if(typeof window.initSupabase==='function')Promise.resolve(window.initSupabase()).catch(()=>null);
+--- lines 24510-24541 (hit 24524) ---
+24510:       moneda:text(row.moneda)||'ARS',remito:text(row.remito),mes:text(row.mes),periodo:text(row.periodo),actaNro:text(row.acta_nro),actaMedicionNro:text(row.acta_nro),
+24511:       fechaActa:text(row.fecha_acta),observaciones:text(row.observaciones),certificado:'SI',estadoPosicion:'Certificada',origen:'Supabase RPC',
+24512:       fechaCarga:row.creado_en||'',fechaUltimaModificacion:row.actualizado_en||row.creado_en||'',usuarioEmail:text(row.usuario_email)
+24513:     };
+24514:   }
+24515:   function applyMemory(remoteRows,remoteConsumptions=[]){const merged=remoteRows.map(fromRemote).concat(remoteConsumptions.filter(row=>text(row.estado).toUpperCase()==='CONFIRMADA').map(fromRemoteConsumption));try{window.posicionesFinancieras=merged;posicionesFinancieras=merged;}catch(error){}return merged;}
+24516:   function clearMemory(){try{window.posicionesFinancieras=[];posicionesFinancieras=[];}catch(error){}return[];}
+24517:   function saveRemoteCache(remoteRows,remoteConsumptions=[]){const envelope={version:CACHE_VERSION,savedAt:new Date().toISOString(),source:'Supabase',positions:remoteRows,consumptions:remoteConsumptions,rows:remoteRows};localStorage.setItem(CACHE_KEY,JSON.stringify(envelope));return envelope;}
+24518:   async function currentUser(c=client()){if(typeof window.getUsuarioActual==='function'){const user=await window.getUsuarioActual();if(user)return user;}if(c?.auth?.getUser){const {data}=await c.auth.getUser();return data?.user||null;}return null;}
+24519:   function stateMessage(state,detail=''){
+24520:     if(state===STATES.CLIENTE_INICIALIZANDO)return 'Conectando con Supabase…';
+24521:     if(state===STATES.SIN_CLIENTE)return 'Modo solo lectura · cliente Supabase no disponible';
+24522:     if(state===STATES.SIN_SESION)return 'Supabase disponible · iniciá sesión para editar';
+24523:     if(state===STATES.OFFLINE)return 'Modo solo lectura · sin conexión';
+24524:     if(state===STATES.ERROR_RLS)return `Modo solo lectura · acceso restringido por RLS${detail?` · ${detail}`:''}`;
+24525:     return 'Supabase-first operativo';
+24526:   }
+24527:   function setState(state,error=null){
+24528:     runtime.estado=state;runtime.ultimoError=error?text(error?.message||error):null;
+24529:     const readOnly=state!==STATES.SUPABASE_FIRST;
+24530:     if(document.body){document.body.classList.toggle('coi-data-readonly',readOnly);document.body.dataset.coiDataMode=readOnly?'readonly':'supabase-first';document.body.dataset.coiDataState=state;document.body.dataset.coiDataReason=runtime.ultimoError||'';}
+24531:     const mode=$('headerModoSistema');if(mode)mode.textContent=readOnly?'Modo solo lectura':'Modo Operativo';
+24532:     let banner=$('coiV60ReadOnlyBanner');
+24533:     if(readOnly&&!banner&&document.body){banner=document.createElement('div');banner.id='coiV60ReadOnlyBanner';banner.setAttribute('role','status');banner.style.cssText='position:fixed;right:18px;bottom:18px;z-index:5000;padding:10px 14px;border-radius:10px;background:#7f1d1d;color:#fff;font-weight:800;box-shadow:0 8px 24px #0005';document.body.appendChild(banner);}
+24534:     if(banner){banner.textContent=stateMessage(state,runtime.ultimoError);banner.hidden=!readOnly;}
+24535:     return state;
+24536:   }
+24537:   async function waitForSupabaseClient({timeoutMs=10000,intervalMs=250}={}){
+24538:     const existing=client();if(existing)return existing;
+24539:     setState(STATES.CLIENTE_INICIALIZANDO);
+24540:     if(typeof window.initSupabase==='function')Promise.resolve(window.initSupabase()).catch(()=>null);
+24541:     const started=Date.now();
+--- lines 24517-24548 (hit 24531) ---
+24517:   function saveRemoteCache(remoteRows,remoteConsumptions=[]){const envelope={version:CACHE_VERSION,savedAt:new Date().toISOString(),source:'Supabase',positions:remoteRows,consumptions:remoteConsumptions,rows:remoteRows};localStorage.setItem(CACHE_KEY,JSON.stringify(envelope));return envelope;}
+24518:   async function currentUser(c=client()){if(typeof window.getUsuarioActual==='function'){const user=await window.getUsuarioActual();if(user)return user;}if(c?.auth?.getUser){const {data}=await c.auth.getUser();return data?.user||null;}return null;}
+24519:   function stateMessage(state,detail=''){
+24520:     if(state===STATES.CLIENTE_INICIALIZANDO)return 'Conectando con Supabase…';
+24521:     if(state===STATES.SIN_CLIENTE)return 'Modo solo lectura · cliente Supabase no disponible';
+24522:     if(state===STATES.SIN_SESION)return 'Supabase disponible · iniciá sesión para editar';
+24523:     if(state===STATES.OFFLINE)return 'Modo solo lectura · sin conexión';
+24524:     if(state===STATES.ERROR_RLS)return `Modo solo lectura · acceso restringido por RLS${detail?` · ${detail}`:''}`;
+24525:     return 'Supabase-first operativo';
+24526:   }
+24527:   function setState(state,error=null){
+24528:     runtime.estado=state;runtime.ultimoError=error?text(error?.message||error):null;
+24529:     const readOnly=state!==STATES.SUPABASE_FIRST;
+24530:     if(document.body){document.body.classList.toggle('coi-data-readonly',readOnly);document.body.dataset.coiDataMode=readOnly?'readonly':'supabase-first';document.body.dataset.coiDataState=state;document.body.dataset.coiDataReason=runtime.ultimoError||'';}
+24531:     const mode=$('headerModoSistema');if(mode)mode.textContent=readOnly?'Modo solo lectura':'Modo Operativo';
+24532:     let banner=$('coiV60ReadOnlyBanner');
+24533:     if(readOnly&&!banner&&document.body){banner=document.createElement('div');banner.id='coiV60ReadOnlyBanner';banner.setAttribute('role','status');banner.style.cssText='position:fixed;right:18px;bottom:18px;z-index:5000;padding:10px 14px;border-radius:10px;background:#7f1d1d;color:#fff;font-weight:800;box-shadow:0 8px 24px #0005';document.body.appendChild(banner);}
+24534:     if(banner){banner.textContent=stateMessage(state,runtime.ultimoError);banner.hidden=!readOnly;}
+24535:     return state;
+24536:   }
+24537:   async function waitForSupabaseClient({timeoutMs=10000,intervalMs=250}={}){
+24538:     const existing=client();if(existing)return existing;
+24539:     setState(STATES.CLIENTE_INICIALIZANDO);
+24540:     if(typeof window.initSupabase==='function')Promise.resolve(window.initSupabase()).catch(()=>null);
+24541:     const started=Date.now();
+24542:     while(Date.now()-started<timeoutMs){const available=client();if(available)return available;await new Promise(resolve=>setTimeout(resolve,intervalMs));}
+24543:     setState(STATES.SIN_CLIENTE,'Tiempo de espera agotado.');return null;
+24544:   }
+24545:   function isRlsError(error){const value=`${error?.code||''} ${error?.message||error||''}`.toLowerCase();return value.includes('42501')||value.includes('row-level security')||value.includes('row level security')||value.includes('permission denied')||value.includes('rls');}
+24546:   function applyCacheState(state,error=null){
+24547:     const authenticated=Boolean(runtime.sesion?.user);
+24548:     if(state===STATES.SIN_SESION||!authenticated){clearMemory();setState(STATES.SIN_SESION,error);return[];}
+### renderCentroAlertas | hits=68
+--- lines 3420-3451 (hit 3434) ---
+3420:   if($('ordenesTbody')) $('ordenesTbody').innerHTML=rows.map(r=>`<tr><td>${esc(r.oc)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.especialidad)}</td><td>${esc(r.estado)}</td><td>${fmtFecha(r.fin)}</td></tr>`).join('') || '<tr><td colspan="7">Sin OC cargadas.</td></tr>';
+3421: }
+3422: function renderBuscador(){
+3423:   const q=($('buscadorGlobal')?.value||'').toLowerCase().trim();
+3424:   const rows=todasLasOC().filter(r=>{
+3425:     const txt=[r.oc,r.tipo,r.estacion,r.proveedor,r.especialidad,r.estado,r.item?.observaciones].join(' ').toLowerCase();
+3426:     return !q || txt.includes(q);
+3427:   });
+3428:   if($('buscadorTbody')) $('buscadorTbody').innerHTML=rows.map(r=>`<tr><td>${esc(r.oc)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.especialidad)}</td><td>${esc(r.estado)}</td><td>${esc(r.item?.observaciones||'—')}</td></tr>`).join('') || '<tr><td colspan="7">Sin resultados.</td></tr>';
+3429: }
+3430: function initVistasCOI(){
+3431:   document.getElementById('btnDashboard')?.addEventListener('click',()=>{mostrarVista('vistaDashboard'); updateKpis();});
+3432:   document.getElementById('btnRed')?.addEventListener('click',()=>{mostrarVista('vistaRed'); ocultarPanelEstacion(); renderMap();});
+3433:   document.getElementById('btnCalendarioCOI')?.addEventListener('click',()=>{mostrarVista('vistaCalendarioCOI'); renderCalendarioCOIUnificado();});
+3434:   document.getElementById('btnCentroAlertas')?.addEventListener('click',()=>{mostrarVista('vistaCentroAlertas'); renderCentroAlertas();});
+3435:   document.getElementById('btnAdministracionSistema')?.addEventListener('click',()=>{mostrarVista('vistaAdministracionSistema'); renderAdministracionSistema();});
+3436:   document.getElementById('btnOrdenes')?.addEventListener('click',()=>{abrirModuloOrdenes(false);});
+3437:   document.getElementById('btnCarga')?.addEventListener('click',()=>{mostrarVista('vistaCarga');});
+3438:   /* V32 estabilizacion: el botón lateral Buscador queda desactivado; la búsqueda vive en Órdenes. */
+3439:   document.getElementById('buscadorGlobal')?.addEventListener('input',renderBuscador);
+3440:   ['vencEstacion','vencProveedor','vencTipo','vencMes','vencEstado','vencOrden'].forEach(id=>$(id)?.addEventListener('change',renderCalendarioVencimientos));
+3441:   ['certEstacion','certProveedor','certTipo','certMes','certEstado'].forEach(id=>$(id)?.addEventListener('change',renderCalendarioCertificaciones));
+3442:   $('btnVencActualizar')?.addEventListener('click',renderCalendarioVencimientos);
+3443:   $('btnCertActualizar')?.addEventListener('click',renderCalendarioCertificaciones);
+3444:   $('btnVencLimpiar')?.addEventListener('click',()=>{['vencEstacion','vencProveedor','vencTipo','vencMes','vencEstado'].forEach(id=>{if($(id)) $(id).value='';}); if($('vencOrden')) $('vencOrden').value='diasDesc'; renderCalendarioVencimientos();});
+3445:   $('btnCertLimpiar')?.addEventListener('click',()=>{['certEstacion','certProveedor','certTipo','certMes','certEstado'].forEach(id=>{if($(id)) $(id).value='';}); renderCalendarioCertificaciones();});
+3446:   $('btnVencCsv')?.addEventListener('click',exportCalendarioCSV);
+3447:   $('btnCertCsv')?.addEventListener('click',exportCalendarioCSV);
+3448:   $('btnVencIcs')?.addEventListener('click',exportCalendarioICS);
+3449:   $('btnCertIcs')?.addEventListener('click',exportCalendarioICS);
+3450:   cargarFiltrosV16('venc');
+3451:   cargarFiltrosV16('cert');
+--- lines 4152-4183 (hit 4166) ---
+4152:   return {importados,actualizados,omitidos:0};
+4153: }
+4154: function v33ConfirmarImportacion(){
+4155:   if(!v33PreviewState){alert('Primero previsualice un archivo.');return;}
+4156:   if(v33PreviewState.errores.length){alert('Hay errores pendientes antes de importar.');return;}
+4157:   const tipo=$('v33ImportTipo')?.value||'',politica=$('v33Duplicados')?.value||'omit';
+4158:   let res={importados:0,actualizados:0,omitidos:0};
+4159:   if(tipo==='Unidades de Mantenimiento')res=v33GuardarUM(v33PreviewState.validos);
+4160:   else if(tipo==='Documentación OneDrive'){saveJSON(V33_LS_DOCS,v33PreviewState.validos);res={importados:v33PreviewState.validos.length,actualizados:0,omitidos:0};}
+4161:   else res=v33GuardarOrdenes(v33PreviewState.validos,tipo,politica);
+4162:   saveJSON(V33_LS_INCOMPLETOS,v33PreviewState.incompletos);
+4163:   const logs=getArrayStorage(V33_LS_LOGS,[]);
+4164:   const log={fecha:new Date().toISOString(),tipoImportacion:tipo,archivo:v33PreviewState.fileName,registrosDetectados:v33PreviewState.total,registrosImportados:res.importados,registrosConError:v33PreviewState.incompletos.length+v33PreviewState.errores.length,usuario:typeof APP_AUTHOR!=='undefined'?APP_AUTHOR:'',duplicadosOmitidos:res.omitidos,actualizados:res.actualizados};
+4165:   logs.unshift(log);saveJSON(V33_LS_LOGS,logs.slice(0,100));
+4166:   if(typeof renderMap==='function')renderMap();if(typeof updateKpis==='function')updateKpis();if(typeof renderOrdenes==='function')renderOrdenes();if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();if(typeof renderCentroAlertas==='function'&&document.getElementById('vistaCentroAlertas')?.classList.contains('active'))renderCentroAlertas();if(typeof renderDashboardAlertSummary==='function')renderDashboardAlertSummary();if(typeof renderAcercaSistema==='function'&&document.getElementById('vistaAcercaSistema')?.classList.contains('active'))renderAcercaSistema();if(typeof renderAdministracionSistema==='function'&&document.getElementById('vistaAdministracionSistema')?.classList.contains('active'))renderAdministracionSistema();
+4167:   $('v33Resultado').className='v33-message';$('v33Resultado').textContent=`Importación confirmada. Importados: ${res.importados}. Actualizados: ${res.actualizados}. Omitidos: ${res.omitidos}. Registros con error: ${log.registrosConError}.`;
+4168: }
+4169: function initImportadorV33(){
+4170:   $('btnV33Preview')?.addEventListener('click',v33PrevisualizarArchivo);
+4171:   $('btnV33Confirm')?.addEventListener('click',v33ConfirmarImportacion);
+4172:   $('btnV33Limpiar')?.addEventListener('click',()=>{v33PreviewState=null;if($('v33File'))$('v33File').value='';['v33Resumen','v33Columnas','v33PreviewHead','v33PreviewBody'].forEach(id=>{if($(id))$(id).innerHTML='';});if($('v33Errores')){$('v33Errores').style.display='none';$('v33Errores').innerHTML='';}if($('v33Resultado'))$('v33Resultado').textContent='Seleccione un archivo CSV para iniciar la previsualización.';});
+4173: }
+4174: function initArquitecturaMaestra(){
+4175:   migrarArquitecturaIdObra();
+4176:   if(typeof reconstruirCAT_ESTACIONES==='function') reconstruirCAT_ESTACIONES();
+4177:   if(typeof migrarOrdenesAIdEstacion==='function') migrarOrdenesAIdEstacion();
+4178:   guardarBaseLocal();
+4179:   const estSel=$('f_estacion');
+4180:   if(estSel && estSel.options.length<=1){
+4181:     estaciones.map(e=>e.nombre).sort().forEach(n=>estSel.insertAdjacentHTML('beforeend',`<option>${esc(n)}</option>`));
+4182:   }
+4183:   const estadoSel=$('f_estado');
+--- lines 5500-5531 (hit 5514) ---
+5500:   if(identity) identity.title=APP_SUBTITLE;
+5501: }
+5502: function initAcercaSistema(){
+5503:   renderAppVersionHeader();
+5504:   $('btnAcercaSistema')?.addEventListener('click',()=>{ mostrarVista('vistaAcercaSistema'); renderAcercaSistema(); });
+5505: }
+5506: function initHistorialVersiones(){initAcercaSistema();}
+5507: /* ===============================
+5508:    V47 - Panel de Administración Profesional
+5509:    =============================== */
+5510: const LS_ADMIN_ROLE='coi_admin_role_v47',LS_ADMIN_LAST_BACKUP='coi_admin_last_backup_v1',LS_ADMIN_INTERNAL_BACKUP='coi_admin_internal_backup_v1',LS_ADMIN_LOGS='coi_admin_logs_v47',LS_ADMIN_USERS='coi_admin_users_v47',LS_ADMIN_CATALOGOS='coi_admin_catalogos_v47',LS_ADMIN_CONFIG='coi_admin_config_v47';
+5511: let adminTabActiva='estado';
+5512: function adminConfig(){return safeParseJSON(localStorage.getItem(LS_ADMIN_CONFIG),{})||{};}function adminPinActual(){return adminConfig().adminPin||ADMIN_PIN;}function adminRolActivo(){return (typeof esModoAdmin==="function"&&esModoAdmin())?USER_ROLES.ADMIN:"Modo Consulta";}function adminIsEnabled(){return typeof esModoAdmin==="function"&&esModoAdmin();}function adminSetRole(r){if(r===USER_ROLES.ADMIN&&typeof iniciarSesionAdministrador==="function")iniciarSesionAdministrador();else if(typeof cerrarSesionAdministrador==="function")cerrarSesionAdministrador();}function adminSetMsg(m,c='ok'){const e=$('adminMsg');if(e){e.textContent=m;e.className=`admin-msg ${c}`;}}function adminNowStamp(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`;}function adminBackupFileName(){return `backup_coi_roca_${adminNowStamp()}.json`;}function adminSnapshotLocalStorage(){const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);d[k]=localStorage.getItem(k);}return d;}function adminBackupPayload(){return {tipo:'COI_LINEA_ROCA_BACKUP',appName:APP_NAME,version:APP_VERSION,fechaExportacion:new Date().toISOString(),autor:APP_AUTHOR,rolActivo:adminRolActivo(),catalogoEstaciones:typeof CAT_ESTACIONES!=='undefined'?CAT_ESTACIONES:[],totalOC:typeof todasLasOC==='function'?todasLasOC().length:0,ultimaActualizacionDatos:typeof ultimaActualizacionDatos==='function'?ultimaActualizacionDatos():'',localStorage:adminSnapshotLocalStorage()};}
+5513: function registrarLogSistema(tipo,mensaje,detalle=''){const logs=safeParseJSON(localStorage.getItem(LS_ADMIN_LOGS),[])||[];logs.unshift({fechaHora:new Date().toISOString(),tipo,mensaje,detalle,usuario:APP_AUTHOR,rol:adminRolActivo()});saveJSON(LS_ADMIN_LOGS,logs.slice(0,300));}function adminSetLastBackup(t,a=''){saveJSON(LS_ADMIN_LAST_BACKUP,{tipo:t,archivo:a,fecha:new Date().toISOString(),version:APP_VERSION});}function adminLastBackupText(){const b=safeParseJSON(localStorage.getItem(LS_ADMIN_LAST_BACKUP),null);return b?`${b.tipo} ${b.archivo||''} · ${fmtFecha(b.fecha)||b.fecha}`:'Sin registros';}function adminStorageSizeText(){let n=0;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i),v=localStorage.getItem(k)||'';n+=k.length+v.length;}return n>1024?`${(n/1024).toFixed(1)} KB`:`${n} bytes`;}
+5514: function adminRefreshAll(){loadImportedData();if(typeof renderMap==='function')renderMap();if(typeof updateKpis==='function')updateKpis();if(typeof renderOrdenes==='function')renderOrdenes();if(typeof cargarFiltrosCalendario==='function')cargarFiltrosCalendario();if(typeof renderCalendarioCOI==='function')renderCalendarioCOI();if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();if(typeof renderCentroAlertas==='function'&&$('vistaCentroAlertas')?.classList.contains('active'))renderCentroAlertas();if(typeof renderDashboardAlertSummary==='function')renderDashboardAlertSummary();if(typeof renderAcercaSistema==='function'&&$('vistaAcercaSistema')?.classList.contains('active'))renderAcercaSistema();renderAdministracionSistema();}
+5515: function adminEstadoDatos(){const r=typeof todasLasOC==='function'?todasLasOC():[],a=typeof generarAlertasCOI==='function'?generarAlertasCOI():[],c=adminConfig(),d=window.COI_FINANZAS_SUPABASE?.diagnostico?.()||null;return {oc:r.length,obras:r.filter(x=>x.tipo==='Obra').length,servicios:r.filter(x=>x.tipo==='Servicio').length,alertas:a.length,modo:c.modoSistema||'Producción',fuente:'Supabase',estadoSupabase:d?.estado||'CLIENTE_INICIALIZANDO',sesionSupabase:d?.sesionActiva?'Activa':'Sin sesión',cacheSupabase:d?`${d.filasCache} filas`:'Sin diagnóstico'};}function adminCard(l,v){return `<div class="admin-status-card"><b>${esc(v)}</b><span>${esc(l)}</span></div>`;}
+5516: function renderAdministracionSistema(){const e=adminEstadoDatos(),r=adminRolActivo(),c=adminConfig();if($('adminRolActivo'))$('adminRolActivo').textContent=r;if($('adminModoBadge')){$('adminModoBadge').textContent=e.modo==='Demo'?'MODO DEMO':'PRODUCCIÓN';$('adminModoBadge').className=`version-status ${e.modo==='Demo'?'warn':'ok'}`;}if($('btnAdminMode'))$('btnAdminMode').textContent=adminIsEnabled()?'Salir de modo Administrador':'Ingresar como Administrador';document.querySelectorAll('[data-admin-only]').forEach(x=>x.classList.toggle('admin-hidden',!adminIsEnabled()));const cards=[['Versión actual',c.versionVisible||APP_VERSION],['Fecha versión',c.fechaVersion||APP_RELEASE_DATE],['Rol activo',r],['Total OCs',e.oc],['Obras',e.obras],['Servicios',e.servicios],['Alertas',e.alertas],['Último backup',adminLastBackupText()],['Caché local',adminStorageSizeText()],['Fuente oficial',e.fuente],['Estado Supabase',e.estadoSupabase],['Sesión Supabase',e.sesionSupabase],['Caché Posiciones OC',e.cacheSupabase]];if($('adminStatus'))$('adminStatus').innerHTML=cards.map(x=>adminCard(x[0],x[1])).join('');renderAdminEstado();renderAdminDatos();renderAdminUsuarios();renderAdminCatalogos();renderAdminDiagnostico();renderAuditorDatos();renderAdminConfig();renderAdminLogs();document.querySelectorAll('[data-admin-only]').forEach(x=>x.classList.toggle('admin-hidden',!adminIsEnabled()));adminMostrarTab(adminTabActiva);if(typeof actualizarHeaderOperativo==='function')actualizarHeaderOperativo();}
+5517: function adminMostrarTab(t){adminTabActiva=t||'estado';document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b.dataset.adminTab===adminTabActiva));document.querySelectorAll('.admin-tab-panel').forEach(p=>p.classList.remove('active'));const p=$(`adminTab${adminTabActiva[0].toUpperCase()+adminTabActiva.slice(1)}`);if(p)p.classList.add('active');}
+5518: function renderAdminEstado(){if($('adminTabEstado'))$('adminTabEstado').innerHTML='<div class="admin-panel"><h3>Estado del sistema</h3><p class="muted">Supabase es la fuente oficial de datos operativos. LocalStorage se utiliza únicamente para preferencias, caché y respaldo legacy temporal.</p></div>';}
+5519: function renderAdminDatos(){if(!$('adminTabDatos'))return;$('adminTabDatos').innerHTML=`<div class="admin-panel"><h3>Gestión de datos</h3><div class="admin-actions"><button type="button" id="btnImportBackupViewerPanel">Importar backup recibido</button><button type="button" id="btnImportBaseJson">Importar Base JSON</button><button type="button" id="btnExportBaseCsv">Exportar Base CSV</button><button type="button" id="btnIrCargaCSV">Importar CSV</button><button type="button" id="btnImportExcelPreparado">Importar Excel</button><button type="button" id="btnExportBaseJson" data-admin-only>Exportar Base JSON</button><button type="button" id="btnCrearBackupInterno" data-admin-only>Crear Backup</button><button type="button" id="btnRestaurarBackupInterno" data-admin-only>Restaurar Backup</button><button type="button" id="btnCargarDemoOperativa" data-admin-only>Cargar Demo Operativa</button><button type="button" id="btnLimpiarBase" data-admin-only class="btn-danger-soft">Limpiar Base</button></div><div class="muted">${adminIsEnabled()?'Administrador: herramientas completas disponibles.':'Jefatura: puede importar un backup recibido y exportar CSV operativo.'}</div></div>`;}
+5520: function usuariosSistema(){let u=safeParseJSON(localStorage.getItem(LS_ADMIN_USERS),null);if(!Array.isArray(u)){u=[{idUsuario:'USR-ADMIN',nombre:APP_AUTHOR,rol:USER_ROLES.ADMIN,estado:'Activo',observaciones:'Usuario local inicial'}];saveJSON(LS_ADMIN_USERS,u);}return u;}function guardarUsuariosSistema(u){saveJSON(LS_ADMIN_USERS,u);registrarLogSistema('usuarios','Usuarios locales actualizados',`${u.length} usuario(s)`);}
+5521: function renderAdminUsuarios(){if(!$('adminTabUsuarios'))return;const u=usuariosSistema();$('adminTabUsuarios').innerHTML=`<div class="admin-panel"><h3>Seguridad y usuarios</h3><div class="admin-form-grid"><input id="adminUserNombre" placeholder="Nombre"><select id="adminUserRol"><option>${USER_ROLES.JEFE}</option><option>${USER_ROLES.ADMIN}</option></select><input id="adminUserObs" placeholder="Observaciones"><button type="button" id="btnCrearUsuarioLocal" class="primary">Crear usuario local</button><button type="button" id="btnCambiarPinAdmin">Cambiar PIN administrador</button></div><div class="table-wrap"><table class="coi-table"><thead><tr><th>ID</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Observaciones</th><th>Acción</th></tr></thead><tbody>${u.map(x=>`<tr><td>${esc(x.idUsuario)}</td><td>${esc(x.nombre)}</td><td>${esc(x.rol)}</td><td>${esc(x.estado)}</td><td>${esc(x.observaciones||'')}</td><td><button type="button" data-del-user="${esc(x.idUsuario)}">Eliminar</button></td></tr>`).join('')}</tbody></table></div></div>`;}
+5522: function catalogosDefault(){const r=typeof todasLasOC==='function'?todasLasOC():[];return {estaciones:[...new Set(estaciones.map(e=>e.nombre).filter(Boolean))].sort(),proveedores:[...new Set(r.map(x=>x.proveedor).filter(v=>v&&v!=='—'))].sort(),tiposTrabajo:[...new Set(r.map(x=>x.especialidad).filter(v=>v&&v!=='—'))].sort(),estadosCOI:[...new Set(r.map(x=>x.estado).filter(v=>v&&v!=='—'))].sort(),estadosDocumentales:['Completo','Pendiente','Incompleto','Sin datos'],sectores:[...new Set(r.map(x=>x.item?.sector).filter(Boolean))].sort(),especialidades:[...new Set(r.map(x=>x.especialidad).filter(v=>v&&v!=='—'))].sort(),unidadesMantenimiento:(typeof unidadesMantenimiento!=='undefined'?unidadesMantenimiento:[]).map(u=>u.idUM).filter(Boolean).sort()};}
+5523: function getCatalogosSistema(){return {...catalogosDefault(),...(safeParseJSON(localStorage.getItem(LS_ADMIN_CATALOGOS),{})||{})};}function getCatalogo(n){return getCatalogosSistema()[n]||[];}function setCatalogo(n,d){const c=getCatalogosSistema();c[n]=Array.isArray(d)?d:[];saveJSON(LS_ADMIN_CATALOGOS,c);registrarLogSistema('catalogos',`Catálogo actualizado: ${n}`,`${c[n].length} ítems`);}function renderSelectDesdeCatalogo(sel,n){const e=typeof sel==='string'?$(sel):sel;if(e)e.innerHTML=getCatalogo(n).map(v=>`<option>${esc(v)}</option>`).join('');}
+5524: function renderAdminCatalogos(){if(!$('adminTabCatalogos'))return;const c=getCatalogosSistema(),n=Object.keys(c);$('adminTabCatalogos').innerHTML=`<div class="admin-panel"><h3>Catálogos del Sistema</h3><div class="admin-form-grid"><select id="adminCatalogoNombre">${n.map(x=>`<option>${esc(x)}</option>`).join('')}</select><input id="adminCatalogoValor" placeholder="Valor de catálogo"><button type="button" id="btnAgregarCatalogo" class="primary">Agregar</button><button type="button" id="btnEliminarCatalogo">Eliminar valor</button><input id="adminCatalogoBuscar" placeholder="Buscar catálogo"></div><div class="about-modules">${n.map(x=>`<span class="about-module-badge">${esc(x)} (${(c[x]||[]).length})</span>`).join('')}</div></div>`;}
+5525: function ejecutarDiagnosticoSistema(){const r=typeof todasLasOC==='function'?todasLasOC():[],oc={},id={};r.forEach(x=>{const i=x.item?.idObra||x.item?.idOC||x.item?.idServicio||'';if(x.oc)oc[x.oc]=(oc[x.oc]||0)+1;if(i)id[i]=(id[i]||0)+1;});const res={total:r.length,duplicadosOC:Object.values(oc).filter(n=>n>1).length,duplicadosID:Object.values(id).filter(n=>n>1).length,sinOC:r.filter(x=>!x.oc||x.oc==='SIN OC').length,sinID:r.filter(x=>!(x.item?.idObra||x.item?.idOC||x.item?.idServicio)).length,sinEstacion:r.filter(x=>!x.estacion||x.estacion==='Sin definir').length,sinProveedor:r.filter(x=>!x.proveedor||x.proveedor==='—'||x.proveedor==='Sin definir').length,sinFechaInicio:r.filter(x=>!x.inicio).length,sinFechaFin:r.filter(x=>!x.fin).length,fechasInvalidas:r.filter(x=>(x.inicio&&!parseFecha(x.inicio))||(x.fin&&!parseFecha(x.fin))).length,estadosVacios:r.filter(x=>!x.estado||x.estado==='—').length,registrosIncompletos:r.filter(x=>String(x.item?.estadoDocumental||'').toLowerCase().includes('incompleto')).length,alertasCriticas:(typeof generarAlertasCOI==='function'?generarAlertasCOI().filter(a=>a.severidad==='ROJA').length:0)};registrarLogSistema('diagnostico','Diagnóstico ejecutado',JSON.stringify(res));return res;}
+5526: function renderAdminDiagnostico(res=null){if(!$('adminTabDiagnostico'))return;const rows=res?Object.entries(res):[];$('adminTabDiagnostico').innerHTML=`<div class="admin-panel"><h3>Diagnóstico</h3><div class="admin-actions"><button type="button" id="btnEjecutarDiagnostico" class="primary">Ejecutar diagnóstico</button><button type="button" id="btnOptimizarBase">Optimizar base</button></div>${rows.length?`<div class="admin-status-grid">${rows.map(x=>adminCard(x[0],x[1])).join('')}</div>`:'<p class="muted">Ejecute el diagnóstico para verificar duplicados, fechas inválidas y registros incompletos.</p>'}</div>`;}
+5527: function optimizarBaseSistema(){if(!confirm('Antes de optimizar se creará un backup interno automático. ¿Continuar?'))return;adminCrearBackupInterno();let n=0;estaciones.forEach(est=>allItems(est).forEach(i=>{i.oc=i.oc||i.numeroOC||i.OC_NRO||'SIN OC';i.numeroOC=i.numeroOC||i.oc;i.tipo=i.tipo||'Servicio';i.estacion=i.estacion||est.nombre;i.proveedor=i.proveedor||'Sin definir';i.estado=i.estado||'Pendiente de completar';i.estadoDocumental=i.estadoDocumental||'';if(!i.vencimiento&&i.actaInicio&&i.plazoDias){const f=addDias(parseFecha(i.actaInicio),Number(i.plazoDias));if(f)i.vencimiento=f.toISOString().slice(0,10);}if(!i.proximaCertificacion&&i.actaInicio)i.proximaCertificacion=addMeses(i.actaInicio,1)?.toISOString().slice(0,10)||'';n++;}));guardarBaseLocal();registrarLogSistema('optimizacion','Optimización ejecutada',`${n} registros normalizados`);adminRefreshAll();adminSetMsg(`Base optimizada. Registros revisados: ${n}.`,'ok');}
+5528: function renderAdminConfig(){if(!$('adminTabConfiguracion'))return;const c=adminConfig();$('adminTabConfiguracion').innerHTML=`<div class="admin-panel"><h3>Configuración y versión del sistema</h3><div class="admin-form-grid"><input id="adminCfgNombre" value="${esc(c.nombreSistema||APP_NAME)}" placeholder="Nombre"><input id="adminCfgVersion" value="${esc(c.versionVisible||APP_VERSION)}" placeholder="Versión"><input id="adminCfgBuild" value="${esc(c.build||adminNowStamp())}" placeholder="Build"><input id="adminCfgFecha" value="${esc(c.fechaVersion||APP_RELEASE_DATE)}" placeholder="Fecha"><select id="adminCfgModo"><option ${c.modoSistema==='Demo'?'selected':''}>Demo</option><option ${c.modoSistema!=='Demo'?'selected':''}>Producción</option></select><input id="adminCfgFuente" value="Supabase" readonly><input id="adminCfgEstado" value="${esc(c.estadoVersion||APP_STATUS)}" placeholder="Estado"><input id="adminCfgObs" value="${esc(c.observacionesVersion||'')}" placeholder="Observaciones"><button type="button" id="btnGuardarAdminConfig" class="primary">Guardar configuración</button></div></div>`;}
+5529: function renderAdminLogs(){if(!$('adminTabLogs'))return;const l=safeParseJSON(localStorage.getItem(LS_ADMIN_LOGS),[])||[];$('adminTabLogs').innerHTML=`<div class="admin-panel"><h3>Logs del sistema</h3><div class="admin-actions"><button type="button" id="btnLimpiarLogs" class="btn-danger-soft">Limpiar logs</button></div><div class="table-wrap"><table class="coi-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Mensaje</th><th>Detalle</th><th>Rol</th></tr></thead><tbody>${l.map(x=>`<tr><td>${esc(fmtFecha(x.fechaHora)||x.fechaHora)}</td><td>${esc(x.tipo)}</td><td>${esc(x.mensaje)}</td><td>${esc(x.detalle||'')}</td><td>${esc(x.rol||'')}</td></tr>`).join('')||'<tr><td colspan="5">Sin logs registrados.</td></tr>'}</tbody></table></div></div>`;}
+5530: function adminExportBaseJSON(){const p=adminBackupPayload(),f=adminBackupFileName();descargarArchivo(f,JSON.stringify(p,null,2),'application/json;charset=utf-8');adminSetLastBackup('exportado',f);registrarLogSistema('exportacion_json','Base JSON exportada',f);renderAdministracionSistema();adminSetMsg(`Backup JSON exportado: ${f}`,'ok');}function adminValidateBackup(d){if(!d||typeof d!=='object')return null;if(d.localStorage&&typeof d.localStorage==='object')return d.localStorage;return Object.values(d).every(v=>typeof v==='string')?d:null;}
+5531: const ADMIN_PREIMPORT_BACKUP_KEY='coi_admin_preimport_backup_v1';
+--- lines 6108-6139 (hit 6122) ---
+6108:     if(normalizarTexto(r.estadoDocumental).includes('PENDIENTE'))push(crearAlerta(r,'Estado documental pendiente','Documental','AMARILLA','', '', 'Estado documental pendiente.','Revisar documentación requerida.'));
+6109:     if(!r.prox&&!r.cerrada)push(crearAlerta(r,'Sin próxima certificación calculada','Documental','AMARILLA','', '', 'OC sin próxima certificación calculada.','Validar fechas y actas.'));
+6110:     if(estadoCerradoAlerta(r.estado))push(crearAlerta(r,'OC cerrada / finalizada','Informativa','GRIS',r.fin||r.prox||'',diasFin,`OC ${r.estado}.`,'Sin acción inmediata.'));
+6111:     else if(normalizarTexto(r.estado).includes('EJECUC'))push(crearAlerta(r,'OC en ejecución','Informativa','AZUL',r.fin||r.prox||'',diasFin,'OC en ejecución.','Seguimiento operativo normal.'));
+6112:   });
+6113:   const revisadas=getAlertasRevisadas();
+6114:   const orden={ROJA:0,AMARILLA:1,AZUL:2,GRIS:3};
+6115:   return alertas.map(a=>({...a,revisada:!!revisadas[a.id]})).sort((a,b)=>(orden[a.severidad]-orden[b.severidad])||String(a.oc).localeCompare(String(b.oc)));
+6116: }
+6117: function getAlertasRevisadas(){return safeParseJSON(localStorage.getItem(LS_ALERTAS_REVISADAS),{})||{};}
+6118: function setAlertaRevisada(id){const data=getAlertasRevisadas();data[id]={fecha:new Date().toISOString(),usuario:typeof APP_AUTHOR!=='undefined'?APP_AUTHOR:''};localStorage.setItem(LS_ALERTAS_REVISADAS,JSON.stringify(data));}
+6119: function filtrarAlertasCOI(alertas=generarAlertasCOI()){const filtros={sev:$('alertFiltroSeveridad')?.value||'',tipo:$('alertFiltroTipo')?.value||'',est:$('alertFiltroEstacion')?.value||'',prov:$('alertFiltroProveedor')?.value||'',cat:$('alertFiltroCategoria')?.value||'',q:($('alertFiltroTexto')?.value||'').toLowerCase().trim()};localStorage.setItem(LS_ALERTAS_FILTROS,JSON.stringify(filtros));return alertas.filter(a=>(!filtros.sev||a.severidad===filtros.sev)&&(!filtros.tipo||a.tipoRegistro===filtros.tipo)&&(!filtros.est||a.estacion===filtros.est)&&(!filtros.prov||a.proveedor===filtros.prov)&&(!filtros.cat||a.categoria===filtros.cat)&&(!filtros.q||[a.tipoAlerta,a.oc,a.idRegistro,a.tipoRegistro,a.estacion,a.proveedor,a.descripcion,a.mensaje,a.accionSugerida].join(' ').toLowerCase().includes(filtros.q)));}
+6120: function resumenAlertasCOI(alertas=generarAlertasCOI()){return {total:alertas.length,criticas:alertas.filter(a=>a.categoria==='Crítica').length,proximas:alertas.filter(a=>a.categoria==='Próxima').length,documentales:alertas.filter(a=>a.categoria==='Documental').length,vencidas:alertas.filter(a=>a.tipoAlerta==='OC vencida').length,certProx:alertas.filter(a=>a.tipoAlerta==='Certificación próxima').length,incompletos:alertas.filter(a=>a.tipoAlerta==='Datos incompletos').length,sinEstProv:alertas.filter(a=>a.tipoAlerta==='OC sin estación'||a.tipoAlerta==='OC sin proveedor').length};}
+6121: function cargarFiltrosCentroAlertas(alertas){const set=(id,vals,label)=>{const el=$(id);if(!el)return;const cur=el.value;el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort().map(v=>`<option>${esc(v)}</option>`).join('');if([...el.options].some(o=>o.value===cur))el.value=cur;};set('alertFiltroEstacion',alertas.map(a=>a.estacion),'Estación');set('alertFiltroProveedor',alertas.map(a=>a.proveedor),'Proveedor');}
+6122: function renderCentroAlertas(){const alertas=generarAlertasCOI();cargarFiltrosCentroAlertas(alertas);const filtradas=filtrarAlertasCOI(alertas),r=resumenAlertasCOI(alertas);if($('alertasKpis'))$('alertasKpis').innerHTML=[['Total alertas',r.total],['Críticas',r.criticas],['Próximas',r.proximas],['Documentales',r.documentales],['OCs vencidas',r.vencidas],['Certificaciones próximas',r.certProx],['Datos incompletos',r.incompletos],['Sin estación / proveedor',r.sinEstProv]].map(x=>`<div class="alert-kpi"><b>${x[1]}</b><span>${esc(x[0])}</span></div>`).join('');if($('alertasTbody'))$('alertasTbody').innerHTML=filtradas.map(a=>`<tr class="${a.revisada?'alert-row-reviewed':''}"><td><span class="alert-badge ${a.severidad}">${a.severidad}</span>${a.revisada?'<span class="alert-reviewed-pill">revisada</span>':''}</td><td>${esc(a.tipoAlerta)}<br><span class="muted">${esc(a.categoria)}</span></td><td>${esc(a.oc)}</td><td>${esc(a.idRegistro)}</td><td>${esc(a.tipoRegistro)}</td><td>${esc(a.estacion)}</td><td>${esc(a.proveedor)}</td><td>${esc(a.descripcion)}</td><td>${fmtFecha(a.fechaRelacionada)}</td><td>${esc(a.dias)}</td><td>${esc(a.mensaje)}</td><td>${esc(a.accionSugerida)}</td><td><div class="alert-actions"><button type="button" class="primary" data-open-oc="${esc(a.ocId)}">Ver ficha OC</button><button type="button" data-alert-station="${esc(a.estacion)}">Ir a estación</button><button type="button" data-alert-reviewed="${esc(a.id)}">Marcar revisada</button></div></td></tr>`).join('')||'<tr><td colspan="13">Sin alertas para los filtros seleccionados.</td></tr>';}
+6123: function renderDashboardAlertSummary(){const cont=$('dashboardAlertSummary');if(!cont)return;const r=resumenAlertasCOI();cont.innerHTML=`<div class="alert-summary"><div><strong>Resumen operativo de alertas</strong><div class="alert-summary-list"><span class="alert-summary-chip">${r.vencidas} OCs vencidas</span><span class="alert-summary-chip">${r.certProx} certificaciones próximas</span><span class="alert-summary-chip">${r.incompletos} registros con datos incompletos</span><span class="alert-summary-chip">${r.sinEstProv} sin estación / proveedor</span></div></div><button type="button" id="btnIrCentroAlertasDashboard" class="primary">Ir al Centro de Alertas</button></div>`;$('btnIrCentroAlertasDashboard')?.addEventListener('click',()=>{mostrarVista('vistaCentroAlertas');renderCentroAlertas();});}
+6124: function categoriaCalendarioInteligente(e){const d=parseFecha(e.fecha),dias=d?diffDias(d,COI_TODAY):null;if(dias===null)return null;if(dias<0)return'Vencidas';if(dias===0)return'Hoy';if(dias<=7)return'Próximos 7 días';if(dias<=15)return'Próximos 15 días';if(dias<=30)return'Próximos 30 días';return null;}
+6125: function renderCalendarioInteligenteCOI(){const cont=$('calendarioInteligenteCOI');if(!cont)return;const grupos=['Hoy','Próximos 7 días','Próximos 15 días','Próximos 30 días','Vencidas'],eventos=generarEventosCalendarioCOI().filter(e=>['Certificación servicio','Certificación obra','Vencimiento OC','Avance de obra','Documentación pendiente','Alerta factura anticipada'].includes(e.tipoEvento));const por=Object.fromEntries(grupos.map(g=>[g,[]]));eventos.forEach(e=>{const g=categoriaCalendarioInteligente(e);if(g)por[g].push(e);});cont.innerHTML=`<div class="calendar-intel"><h3>Calendario inteligente</h3><div class="calendar-intel-grid">${grupos.map(g=>`<div class="calendar-intel-card"><h4>${g} (${por[g].length})</h4>${por[g].slice(0,6).map(e=>{const dias=diffDias(e.fecha,COI_TODAY);return `<div class="calendar-intel-event"><b>${esc(e.tipoEvento)}</b>${esc(e.oc)} · ${esc(e.estacion)}<br>${esc(e.proveedor)}<br>${fmtFecha(e.fecha)} · ${dias} días · ${esc(e.estado)}<br>${botonFichaOC(e.item,'Ver ficha OC')}</div>`;}).join('')||'<div class="calendar-intel-empty">Sin eventos.</div>'}</div>`).join('')}</div></div>`;}
+6126: function exportarAlertasCSV(){const headers=['severidad','categoria','tipo alerta','OC','ID','tipo registro','estacion','proveedor','descripcion','fecha relacionada','dias','mensaje','accion sugerida','revisada'];const rows=filtrarAlertasCOI().map(a=>[a.severidad,a.categoria,a.tipoAlerta,a.oc,a.idRegistro,a.tipoRegistro,a.estacion,a.proveedor,a.descripcion,a.fechaRelacionada,a.dias,a.mensaje,a.accionSugerida,a.revisada?'SI':'NO']);descargarArchivo('centro_alertas_v46.csv',[headers,...rows].map(r=>r.map(coiCSVCell).join(';')).join('\n'),'text/csv;charset=utf-8');}
+6127: function initCentroAlertasV46(){$('btnExportAlertasCSV')?.addEventListener('click',exportarAlertasCSV);['alertFiltroSeveridad','alertFiltroTipo','alertFiltroEstacion','alertFiltroProveedor','alertFiltroCategoria'].forEach(id=>$(id)?.addEventListener('change',renderCentroAlertas));$('alertFiltroTexto')?.addEventListener('input',renderCentroAlertas);$('btnLimpiarAlertas')?.addEventListener('click',()=>{['alertFiltroSeveridad','alertFiltroTipo','alertFiltroEstacion','alertFiltroProveedor','alertFiltroCategoria','alertFiltroTexto'].forEach(id=>{if($(id))$(id).value='';});renderCentroAlertas();});document.addEventListener('click',ev=>{const rev=ev.target.closest('[data-alert-reviewed]');if(rev){setAlertaRevisada(rev.dataset.alertReviewed);renderCentroAlertas();return;}const st=ev.target.closest('[data-alert-station]');if(st){mostrarVista('vistaRed');if($('q'))$('q').value=st.dataset.alertStation;renderMap();}});renderDashboardAlertSummary();}
+6128: 
+6129: /* ===============================
+6130:    V32 - Repositorio de Unidades de Mantenimiento
+6131:    =============================== */
+6132: const LS_UM="coi_roca_unidades_mantenimiento";let unidadesMantenimiento=[];let vistaAnteriorUM="vistaUnidadesMantenimiento";let umActualId=null;
+6133: function crearUM(idUM,tipoUM,estacion,sector,ubicacionTecnica,descripcion,proveedorActual,ocActual){return{idUM,tipoUM,estacion,sector:sector||"",ubicacionTecnica,descripcion,estadoOperativo:"Activo",criticidad:"Media",proveedorActual:proveedorActual||"FEMYP S.R.L",ocActual:ocActual||"",observaciones:"",fotos:[],historialMantenimiento:[]};}
+6134: const unidadesMantenimientoDemo=[
+6135: ...[["ASC-001","Ascensor","Monte Grande","","Ascensor N° 1"],["ASC-002","Ascensor","Monte Grande","","Ascensor N° 2"],["ASC-003","Ascensor","Monte Grande","","Ascensor N° 3"],["ASC-004","Ascensor","Ezeiza","","Ascensor N° 1"],["ASC-005","Ascensor","Ezeiza","","Ascensor N° 2"],["ASC-006","Ascensor","Ezeiza","","Ascensor N° 3"],["ASC-007","Ascensor","Ezeiza","","Ascensor N° 4"],["ASC-008","Ascensor","Sarandí","","Ascensor N° 1"],["ASC-009","Ascensor","City Bell","","Ascensor N° 1"],["ASC-010","Ascensor","City Bell","","Ascensor N° 2"],["ASC-011","Montacarga","Plaza Constitución","Hornos 97","Montacarga Hornos 97"],["ASC-012","Ascensor","Plaza Constitución","Estación Constitución","Ascensor panorámico Est. Constitución"],["ASC-013","Ascensor","Plaza Constitución","Hornos 11","Ascensor N° 1 Hornos 11"],["ASC-014","Ascensor","Plaza Constitución","Hornos 11","Ascensor N° 2 Hornos 11"],["ASC-015","Ascensor","Plaza Constitución","Hall Central Est. PC","Ascensor N° 3 Hall Central Est. PC"],["ASC-016","Ascensor","Plaza Constitución","Hall Central Est. PC","Ascensor N° 4 Hall Central Est. PC"],["ASC-017","Ascensor","Plaza Constitución","Hornos 41","Ascensor Hornos 41"],["ASC-018","Ascensor","Plaza Constitución","Hornos 57","Ascensor Hornos 57"],["ASC-019","Ascensor","Plaza Constitución","Edificio Paracas","Ascensor Lima 1940 / Edificio Paracas"],["ASC-020","Montacarga","Plaza Constitución","Lado andenes","Montacarga lado andenes"]].map(x=>crearUM(x[0],x[1],x[2],x[3],x[4],x[4]+" estación "+x[2],"FEMYP S.R.L","4530009623")),
+6136: ...[["ESC-001","SS al Hall, lado Hornos","Escalera mecánica N° 1"],["ESC-002","SS al Hall, lado Hornos","Escalera mecánica N° 2"],["ESC-003","SS al Hall, lado Lima","Escalera mecánica N° 3"],["ESC-004","SS al Hall, lado Lima","Escalera mecánica N° 4"],["ESC-005","PB Hall, sala de monitoreo","Escalera mecánica N° 5"],["ESC-006","PB Hall, sala de monitoreo","Escalera mecánica N° 6"],["ESC-007","PB Hall, lado Brasil","Escalera mecánica N° 7"],["ESC-008","PB Hall, lado Brasil","Escalera mecánica N° 8"]].map(x=>crearUM(x[0],"Escalera mecánica","Plaza Constitución",x[1],x[2],x[2]+" "+x[1],"FEMYP S.R.L","4530009304"))];
+6137: function cargarUM(){const raw=localStorage.getItem(LS_UM);const data=getArrayStorage(LS_UM,[]);unidadesMantenimiento=data.length?data:unidadesMantenimientoDemo.map(x=>({...x}));if(!raw)guardarUM();}
+6138: function guardarUM(){saveJSON(LS_UM,unidadesMantenimiento);}
+6139: function estadoClaseUM(estado){const e=norm(estado);if(e.includes('FUERA'))return'fuera';if(e.includes('MANTENIMIENTO'))return'mantenimiento';if(e.includes('BAJA'))return'baja';if(e.includes('SIN DATOS'))return'sindatos';return'activo';}
+--- lines 6109-6140 (hit 6123) ---
+6109:     if(!r.prox&&!r.cerrada)push(crearAlerta(r,'Sin próxima certificación calculada','Documental','AMARILLA','', '', 'OC sin próxima certificación calculada.','Validar fechas y actas.'));
+6110:     if(estadoCerradoAlerta(r.estado))push(crearAlerta(r,'OC cerrada / finalizada','Informativa','GRIS',r.fin||r.prox||'',diasFin,`OC ${r.estado}.`,'Sin acción inmediata.'));
+6111:     else if(normalizarTexto(r.estado).includes('EJECUC'))push(crearAlerta(r,'OC en ejecución','Informativa','AZUL',r.fin||r.prox||'',diasFin,'OC en ejecución.','Seguimiento operativo normal.'));
+6112:   });
+6113:   const revisadas=getAlertasRevisadas();
+6114:   const orden={ROJA:0,AMARILLA:1,AZUL:2,GRIS:3};
+6115:   return alertas.map(a=>({...a,revisada:!!revisadas[a.id]})).sort((a,b)=>(orden[a.severidad]-orden[b.severidad])||String(a.oc).localeCompare(String(b.oc)));
+6116: }
+6117: function getAlertasRevisadas(){return safeParseJSON(localStorage.getItem(LS_ALERTAS_REVISADAS),{})||{};}
+6118: function setAlertaRevisada(id){const data=getAlertasRevisadas();data[id]={fecha:new Date().toISOString(),usuario:typeof APP_AUTHOR!=='undefined'?APP_AUTHOR:''};localStorage.setItem(LS_ALERTAS_REVISADAS,JSON.stringify(data));}
+6119: function filtrarAlertasCOI(alertas=generarAlertasCOI()){const filtros={sev:$('alertFiltroSeveridad')?.value||'',tipo:$('alertFiltroTipo')?.value||'',est:$('alertFiltroEstacion')?.value||'',prov:$('alertFiltroProveedor')?.value||'',cat:$('alertFiltroCategoria')?.value||'',q:($('alertFiltroTexto')?.value||'').toLowerCase().trim()};localStorage.setItem(LS_ALERTAS_FILTROS,JSON.stringify(filtros));return alertas.filter(a=>(!filtros.sev||a.severidad===filtros.sev)&&(!filtros.tipo||a.tipoRegistro===filtros.tipo)&&(!filtros.est||a.estacion===filtros.est)&&(!filtros.prov||a.proveedor===filtros.prov)&&(!filtros.cat||a.categoria===filtros.cat)&&(!filtros.q||[a.tipoAlerta,a.oc,a.idRegistro,a.tipoRegistro,a.estacion,a.proveedor,a.descripcion,a.mensaje,a.accionSugerida].join(' ').toLowerCase().includes(filtros.q)));}
+6120: function resumenAlertasCOI(alertas=generarAlertasCOI()){return {total:alertas.length,criticas:alertas.filter(a=>a.categoria==='Crítica').length,proximas:alertas.filter(a=>a.categoria==='Próxima').length,documentales:alertas.filter(a=>a.categoria==='Documental').length,vencidas:alertas.filter(a=>a.tipoAlerta==='OC vencida').length,certProx:alertas.filter(a=>a.tipoAlerta==='Certificación próxima').length,incompletos:alertas.filter(a=>a.tipoAlerta==='Datos incompletos').length,sinEstProv:alertas.filter(a=>a.tipoAlerta==='OC sin estación'||a.tipoAlerta==='OC sin proveedor').length};}
+6121: function cargarFiltrosCentroAlertas(alertas){const set=(id,vals,label)=>{const el=$(id);if(!el)return;const cur=el.value;el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort().map(v=>`<option>${esc(v)}</option>`).join('');if([...el.options].some(o=>o.value===cur))el.value=cur;};set('alertFiltroEstacion',alertas.map(a=>a.estacion),'Estación');set('alertFiltroProveedor',alertas.map(a=>a.proveedor),'Proveedor');}
+6122: function renderCentroAlertas(){const alertas=generarAlertasCOI();cargarFiltrosCentroAlertas(alertas);const filtradas=filtrarAlertasCOI(alertas),r=resumenAlertasCOI(alertas);if($('alertasKpis'))$('alertasKpis').innerHTML=[['Total alertas',r.total],['Críticas',r.criticas],['Próximas',r.proximas],['Documentales',r.documentales],['OCs vencidas',r.vencidas],['Certificaciones próximas',r.certProx],['Datos incompletos',r.incompletos],['Sin estación / proveedor',r.sinEstProv]].map(x=>`<div class="alert-kpi"><b>${x[1]}</b><span>${esc(x[0])}</span></div>`).join('');if($('alertasTbody'))$('alertasTbody').innerHTML=filtradas.map(a=>`<tr class="${a.revisada?'alert-row-reviewed':''}"><td><span class="alert-badge ${a.severidad}">${a.severidad}</span>${a.revisada?'<span class="alert-reviewed-pill">revisada</span>':''}</td><td>${esc(a.tipoAlerta)}<br><span class="muted">${esc(a.categoria)}</span></td><td>${esc(a.oc)}</td><td>${esc(a.idRegistro)}</td><td>${esc(a.tipoRegistro)}</td><td>${esc(a.estacion)}</td><td>${esc(a.proveedor)}</td><td>${esc(a.descripcion)}</td><td>${fmtFecha(a.fechaRelacionada)}</td><td>${esc(a.dias)}</td><td>${esc(a.mensaje)}</td><td>${esc(a.accionSugerida)}</td><td><div class="alert-actions"><button type="button" class="primary" data-open-oc="${esc(a.ocId)}">Ver ficha OC</button><button type="button" data-alert-station="${esc(a.estacion)}">Ir a estación</button><button type="button" data-alert-reviewed="${esc(a.id)}">Marcar revisada</button></div></td></tr>`).join('')||'<tr><td colspan="13">Sin alertas para los filtros seleccionados.</td></tr>';}
+6123: function renderDashboardAlertSummary(){const cont=$('dashboardAlertSummary');if(!cont)return;const r=resumenAlertasCOI();cont.innerHTML=`<div class="alert-summary"><div><strong>Resumen operativo de alertas</strong><div class="alert-summary-list"><span class="alert-summary-chip">${r.vencidas} OCs vencidas</span><span class="alert-summary-chip">${r.certProx} certificaciones próximas</span><span class="alert-summary-chip">${r.incompletos} registros con datos incompletos</span><span class="alert-summary-chip">${r.sinEstProv} sin estación / proveedor</span></div></div><button type="button" id="btnIrCentroAlertasDashboard" class="primary">Ir al Centro de Alertas</button></div>`;$('btnIrCentroAlertasDashboard')?.addEventListener('click',()=>{mostrarVista('vistaCentroAlertas');renderCentroAlertas();});}
+6124: function categoriaCalendarioInteligente(e){const d=parseFecha(e.fecha),dias=d?diffDias(d,COI_TODAY):null;if(dias===null)return null;if(dias<0)return'Vencidas';if(dias===0)return'Hoy';if(dias<=7)return'Próximos 7 días';if(dias<=15)return'Próximos 15 días';if(dias<=30)return'Próximos 30 días';return null;}
+6125: function renderCalendarioInteligenteCOI(){const cont=$('calendarioInteligenteCOI');if(!cont)return;const grupos=['Hoy','Próximos 7 días','Próximos 15 días','Próximos 30 días','Vencidas'],eventos=generarEventosCalendarioCOI().filter(e=>['Certificación servicio','Certificación obra','Vencimiento OC','Avance de obra','Documentación pendiente','Alerta factura anticipada'].includes(e.tipoEvento));const por=Object.fromEntries(grupos.map(g=>[g,[]]));eventos.forEach(e=>{const g=categoriaCalendarioInteligente(e);if(g)por[g].push(e);});cont.innerHTML=`<div class="calendar-intel"><h3>Calendario inteligente</h3><div class="calendar-intel-grid">${grupos.map(g=>`<div class="calendar-intel-card"><h4>${g} (${por[g].length})</h4>${por[g].slice(0,6).map(e=>{const dias=diffDias(e.fecha,COI_TODAY);return `<div class="calendar-intel-event"><b>${esc(e.tipoEvento)}</b>${esc(e.oc)} · ${esc(e.estacion)}<br>${esc(e.proveedor)}<br>${fmtFecha(e.fecha)} · ${dias} días · ${esc(e.estado)}<br>${botonFichaOC(e.item,'Ver ficha OC')}</div>`;}).join('')||'<div class="calendar-intel-empty">Sin eventos.</div>'}</div>`).join('')}</div></div>`;}
+6126: function exportarAlertasCSV(){const headers=['severidad','categoria','tipo alerta','OC','ID','tipo registro','estacion','proveedor','descripcion','fecha relacionada','dias','mensaje','accion sugerida','revisada'];const rows=filtrarAlertasCOI().map(a=>[a.severidad,a.categoria,a.tipoAlerta,a.oc,a.idRegistro,a.tipoRegistro,a.estacion,a.proveedor,a.descripcion,a.fechaRelacionada,a.dias,a.mensaje,a.accionSugerida,a.revisada?'SI':'NO']);descargarArchivo('centro_alertas_v46.csv',[headers,...rows].map(r=>r.map(coiCSVCell).join(';')).join('\n'),'text/csv;charset=utf-8');}
+6127: function initCentroAlertasV46(){$('btnExportAlertasCSV')?.addEventListener('click',exportarAlertasCSV);['alertFiltroSeveridad','alertFiltroTipo','alertFiltroEstacion','alertFiltroProveedor','alertFiltroCategoria'].forEach(id=>$(id)?.addEventListener('change',renderCentroAlertas));$('alertFiltroTexto')?.addEventListener('input',renderCentroAlertas);$('btnLimpiarAlertas')?.addEventListener('click',()=>{['alertFiltroSeveridad','alertFiltroTipo','alertFiltroEstacion','alertFiltroProveedor','alertFiltroCategoria','alertFiltroTexto'].forEach(id=>{if($(id))$(id).value='';});renderCentroAlertas();});document.addEventListener('click',ev=>{const rev=ev.target.closest('[data-alert-reviewed]');if(rev){setAlertaRevisada(rev.dataset.alertReviewed);renderCentroAlertas();return;}const st=ev.target.closest('[data-alert-station]');if(st){mostrarVista('vistaRed');if($('q'))$('q').value=st.dataset.alertStation;renderMap();}});renderDashboardAlertSummary();}
+6128: 
+6129: /* ===============================
+6130:    V32 - Repositorio de Unidades de Mantenimiento
+6131:    =============================== */
+6132: const LS_UM="coi_roca_unidades_mantenimiento";let unidadesMantenimiento=[];let vistaAnteriorUM="vistaUnidadesMantenimiento";let umActualId=null;
+6133: function crearUM(idUM,tipoUM,estacion,sector,ubicacionTecnica,descripcion,proveedorActual,ocActual){return{idUM,tipoUM,estacion,sector:sector||"",ubicacionTecnica,descripcion,estadoOperativo:"Activo",criticidad:"Media",proveedorActual:proveedorActual||"FEMYP S.R.L",ocActual:ocActual||"",observaciones:"",fotos:[],historialMantenimiento:[]};}
+6134: const unidadesMantenimientoDemo=[
+6135: ...[["ASC-001","Ascensor","Monte Grande","","Ascensor N° 1"],["ASC-002","Ascensor","Monte Grande","","Ascensor N° 2"],["ASC-003","Ascensor","Monte Grande","","Ascensor N° 3"],["ASC-004","Ascensor","Ezeiza","","Ascensor N° 1"],["ASC-005","Ascensor","Ezeiza","","Ascensor N° 2"],["ASC-006","Ascensor","Ezeiza","","Ascensor N° 3"],["ASC-007","Ascensor","Ezeiza","","Ascensor N° 4"],["ASC-008","Ascensor","Sarandí","","Ascensor N° 1"],["ASC-009","Ascensor","City Bell","","Ascensor N° 1"],["ASC-010","Ascensor","City Bell","","Ascensor N° 2"],["ASC-011","Montacarga","Plaza Constitución","Hornos 97","Montacarga Hornos 97"],["ASC-012","Ascensor","Plaza Constitución","Estación Constitución","Ascensor panorámico Est. Constitución"],["ASC-013","Ascensor","Plaza Constitución","Hornos 11","Ascensor N° 1 Hornos 11"],["ASC-014","Ascensor","Plaza Constitución","Hornos 11","Ascensor N° 2 Hornos 11"],["ASC-015","Ascensor","Plaza Constitución","Hall Central Est. PC","Ascensor N° 3 Hall Central Est. PC"],["ASC-016","Ascensor","Plaza Constitución","Hall Central Est. PC","Ascensor N° 4 Hall Central Est. PC"],["ASC-017","Ascensor","Plaza Constitución","Hornos 41","Ascensor Hornos 41"],["ASC-018","Ascensor","Plaza Constitución","Hornos 57","Ascensor Hornos 57"],["ASC-019","Ascensor","Plaza Constitución","Edificio Paracas","Ascensor Lima 1940 / Edificio Paracas"],["ASC-020","Montacarga","Plaza Constitución","Lado andenes","Montacarga lado andenes"]].map(x=>crearUM(x[0],x[1],x[2],x[3],x[4],x[4]+" estación "+x[2],"FEMYP S.R.L","4530009623")),
+6136: ...[["ESC-001","SS al Hall, lado Hornos","Escalera mecánica N° 1"],["ESC-002","SS al Hall, lado Hornos","Escalera mecánica N° 2"],["ESC-003","SS al Hall, lado Lima","Escalera mecánica N° 3"],["ESC-004","SS al Hall, lado Lima","Escalera mecánica N° 4"],["ESC-005","PB Hall, sala de monitoreo","Escalera mecánica N° 5"],["ESC-006","PB Hall, sala de monitoreo","Escalera mecánica N° 6"],["ESC-007","PB Hall, lado Brasil","Escalera mecánica N° 7"],["ESC-008","PB Hall, lado Brasil","Escalera mecánica N° 8"]].map(x=>crearUM(x[0],"Escalera mecánica","Plaza Constitución",x[1],x[2],x[2]+" "+x[1],"FEMYP S.R.L","4530009304"))];
+6137: function cargarUM(){const raw=localStorage.getItem(LS_UM);const data=getArrayStorage(LS_UM,[]);unidadesMantenimiento=data.length?data:unidadesMantenimientoDemo.map(x=>({...x}));if(!raw)guardarUM();}
+6138: function guardarUM(){saveJSON(LS_UM,unidadesMantenimiento);}
+6139: function estadoClaseUM(estado){const e=norm(estado);if(e.includes('FUERA'))return'fuera';if(e.includes('MANTENIMIENTO'))return'mantenimiento';if(e.includes('BAJA'))return'baja';if(e.includes('SIN DATOS'))return'sindatos';return'activo';}
+6140: function badgeUMEstado(estado){return`<span class="um-status ${estadoClaseUM(estado)}">${esc(estado||'Sin datos')}</span>`;}
+--- lines 6113-6144 (hit 6127) ---
+6113:   const revisadas=getAlertasRevisadas();
+6114:   const orden={ROJA:0,AMARILLA:1,AZUL:2,GRIS:3};
+6115:   return alertas.map(a=>({...a,revisada:!!revisadas[a.id]})).sort((a,b)=>(orden[a.severidad]-orden[b.severidad])||String(a.oc).localeCompare(String(b.oc)));
+6116: }
+6117: function getAlertasRevisadas(){return safeParseJSON(localStorage.getItem(LS_ALERTAS_REVISADAS),{})||{};}
+6118: function setAlertaRevisada(id){const data=getAlertasRevisadas();data[id]={fecha:new Date().toISOString(),usuario:typeof APP_AUTHOR!=='undefined'?APP_AUTHOR:''};localStorage.setItem(LS_ALERTAS_REVISADAS,JSON.stringify(data));}
+6119: function filtrarAlertasCOI(alertas=generarAlertasCOI()){const filtros={sev:$('alertFiltroSeveridad')?.value||'',tipo:$('alertFiltroTipo')?.value||'',est:$('alertFiltroEstacion')?.value||'',prov:$('alertFiltroProveedor')?.value||'',cat:$('alertFiltroCategoria')?.value||'',q:($('alertFiltroTexto')?.value||'').toLowerCase().trim()};localStorage.setItem(LS_ALERTAS_FILTROS,JSON.stringify(filtros));return alertas.filter(a=>(!filtros.sev||a.severidad===filtros.sev)&&(!filtros.tipo||a.tipoRegistro===filtros.tipo)&&(!filtros.est||a.estacion===filtros.est)&&(!filtros.prov||a.proveedor===filtros.prov)&&(!filtros.cat||a.categoria===filtros.cat)&&(!filtros.q||[a.tipoAlerta,a.oc,a.idRegistro,a.tipoRegistro,a.estacion,a.proveedor,a.descripcion,a.mensaje,a.accionSugerida].join(' ').toLowerCase().includes(filtros.q)));}
+6120: function resumenAlertasCOI(alertas=generarAlertasCOI()){return {total:alertas.length,criticas:alertas.filter(a=>a.categoria==='Crítica').length,proximas:alertas.filter(a=>a.categoria==='Próxima').length,documentales:alertas.filter(a=>a.categoria==='Documental').length,vencidas:alertas.filter(a=>a.tipoAlerta==='OC vencida').length,certProx:alertas.filter(a=>a.tipoAlerta==='Certificación próxima').length,incompletos:alertas.filter(a=>a.tipoAlerta==='Datos incompletos').length,sinEstProv:alertas.filter(a=>a.tipoAlerta==='OC sin estación'||a.tipoAlerta==='OC sin proveedor').length};}
+6121: function cargarFiltrosCentroAlertas(alertas){const set=(id,vals,label)=>{const el=$(id);if(!el)return;const cur=el.value;el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort().map(v=>`<option>${esc(v)}</option>`).join('');if([...el.options].some(o=>o.value===cur))el.value=cur;};set('alertFiltroEstacion',alertas.map(a=>a.estacion),'Estación');set('alertFiltroProveedor',alertas.map(a=>a.proveedor),'Proveedor');}
+6122: function renderCentroAlertas(){const alertas=generarAlertasCOI();cargarFiltrosCentroAlertas(alertas);const filtradas=filtrarAlertasCOI(alertas),r=resumenAlertasCOI(alertas);if($('alertasKpis'))$('alertasKpis').innerHTML=[['Total alertas',r.total],['Críticas',r.criticas],['Próximas',r.proximas],['Documentales',r.documentales],['OCs vencidas',r.vencidas],['Certificaciones próximas',r.certProx],['Datos incompletos',r.incompletos],['Sin estación / proveedor',r.sinEstProv]].map(x=>`<div class="alert-kpi"><b>${x[1]}</b><span>${esc(x[0])}</span></div>`).join('');if($('alertasTbody'))$('alertasTbody').innerHTML=filtradas.map(a=>`<tr class="${a.revisada?'alert-row-reviewed':''}"><td><span class="alert-badge ${a.severidad}">${a.severidad}</span>${a.revisada?'<span class="alert-reviewed-pill">revisada</span>':''}</td><td>${esc(a.tipoAlerta)}<br><span class="muted">${esc(a.categoria)}</span></td><td>${esc(a.oc)}</td><td>${esc(a.idRegistro)}</td><td>${esc(a.tipoRegistro)}</td><td>${esc(a.estacion)}</td><td>${esc(a.proveedor)}</td><td>${esc(a.descripcion)}</td><td>${fmtFecha(a.fechaRelacionada)}</td><td>${esc(a.dias)}</td><td>${esc(a.mensaje)}</td><td>${esc(a.accionSugerida)}</td><td><div class="alert-actions"><button type="button" class="primary" data-open-oc="${esc(a.ocId)}">Ver ficha OC</button><button type="button" data-alert-station="${esc(a.estacion)}">Ir a estación</button><button type="button" data-alert-reviewed="${esc(a.id)}">Marcar revisada</button></div></td></tr>`).join('')||'<tr><td colspan="13">Sin alertas para los filtros seleccionados.</td></tr>';}
+6123: function renderDashboardAlertSummary(){const cont=$('dashboardAlertSummary');if(!cont)return;const r=resumenAlertasCOI();cont.innerHTML=`<div class="alert-summary"><div><strong>Resumen operativo de alertas</strong><div class="alert-summary-list"><span class="alert-summary-chip">${r.vencidas} OCs vencidas</span><span class="alert-summary-chip">${r.certProx} certificaciones próximas</span><span class="alert-summary-chip">${r.incompletos} registros con datos incompletos</span><span class="alert-summary-chip">${r.sinEstProv} sin estación / proveedor</span></div></div><button type="button" id="btnIrCentroAlertasDashboard" class="primary">Ir al Centro de Alertas</button></div>`;$('btnIrCentroAlertasDashboard')?.addEventListener('click',()=>{mostrarVista('vistaCentroAlertas');renderCentroAlertas();});}
+6124: function categoriaCalendarioInteligente(e){const d=parseFecha(e.fecha),dias=d?diffDias(d,COI_TODAY):null;if(dias===null)return null;if(dias<0)return'Vencidas';if(dias===0)return'Hoy';if(dias<=7)return'Próximos 7 días';if(dias<=15)return'Próximos 15 días';if(dias<=30)return'Próximos 30 días';return null;}
+6125: function renderCalendarioInteligenteCOI(){const cont=$('calendarioInteligenteCOI');if(!cont)return;const grupos=['Hoy','Próximos 7 días','Próximos 15 días','Próximos 30 días','Vencidas'],eventos=generarEventosCalendarioCOI().filter(e=>['Certificación servicio','Certificación obra','Vencimiento OC','Avance de obra','Documentación pendiente','Alerta factura anticipada'].includes(e.tipoEvento));const por=Object.fromEntries(grupos.map(g=>[g,[]]));eventos.forEach(e=>{const g=categoriaCalendarioInteligente(e);if(g)por[g].push(e);});cont.innerHTML=`<div class="calendar-intel"><h3>Calendario inteligente</h3><div class="calendar-intel-grid">${grupos.map(g=>`<div class="calendar-intel-card"><h4>${g} (${por[g].length})</h4>${por[g].slice(0,6).map(e=>{const dias=diffDias(e.fecha,COI_TODAY);return `<div class="calendar-intel-event"><b>${esc(e.tipoEvento)}</b>${esc(e.oc)} · ${esc(e.estacion)}<br>${esc(e.proveedor)}<br>${fmtFecha(e.fecha)} · ${dias} días · ${esc(e.estado)}<br>${botonFichaOC(e.item,'Ver ficha OC')}</div>`;}).join('')||'<div class="calendar-intel-empty">Sin eventos.</div>'}</div>`).join('')}</div></div>`;}
+6126: function exportarAlertasCSV(){const headers=['severidad','categoria','tipo alerta','OC','ID','tipo registro','estacion','proveedor','descripcion','fecha relacionada','dias','mensaje','accion sugerida','revisada'];const rows=filtrarAlertasCOI().map(a=>[a.severidad,a.categoria,a.tipoAlerta,a.oc,a.idRegistro,a.tipoRegistro,a.estacion,a.proveedor,a.descripcion,a.fechaRelacionada,a.dias,a.mensaje,a.accionSugerida,a.revisada?'SI':'NO']);descargarArchivo('centro_alertas_v46.csv',[headers,...rows].map(r=>r.map(coiCSVCell).join(';')).join('\n'),'text/csv;charset=utf-8');}
+6127: function initCentroAlertasV46(){$('btnExportAlertasCSV')?.addEventListener('click',exportarAlertasCSV);['alertFiltroSeveridad','alertFiltroTipo','alertFiltroEstacion','alertFiltroProveedor','alertFiltroCategoria'].forEach(id=>$(id)?.addEventListener('change',renderCentroAlertas));$('alertFiltroTexto')?.addEventListener('input',renderCentroAlertas);$('btnLimpiarAlertas')?.addEventListener('click',()=>{['alertFiltroSeveridad','alertFiltroTipo','alertFiltroEstacion','alertFiltroProveedor','alertFiltroCategoria','alertFiltroTexto'].forEach(id=>{if($(id))$(id).value='';});renderCentroAlertas();});document.addEventListener('click',ev=>{const rev=ev.target.closest('[data-alert-reviewed]');if(rev){setAlertaRevisada(rev.dataset.alertReviewed);renderCentroAlertas();return;}const st=ev.target.closest('[data-alert-station]');if(st){mostrarVista('vistaRed');if($('q'))$('q').value=st.dataset.alertStation;renderMap();}});renderDashboardAlertSummary();}
+6128: 
+6129: /* ===============================
+6130:    V32 - Repositorio de Unidades de Mantenimiento
+6131:    =============================== */
+6132: const LS_UM="coi_roca_unidades_mantenimiento";let unidadesMantenimiento=[];let vistaAnteriorUM="vistaUnidadesMantenimiento";let umActualId=null;
+6133: function crearUM(idUM,tipoUM,estacion,sector,ubicacionTecnica,descripcion,proveedorActual,ocActual){return{idUM,tipoUM,estacion,sector:sector||"",ubicacionTecnica,descripcion,estadoOperativo:"Activo",criticidad:"Media",proveedorActual:proveedorActual||"FEMYP S.R.L",ocActual:ocActual||"",observaciones:"",fotos:[],historialMantenimiento:[]};}
+6134: const unidadesMantenimientoDemo=[
+6135: ...[["ASC-001","Ascensor","Monte Grande","","Ascensor N° 1"],["ASC-002","Ascensor","Monte Grande","","Ascensor N° 2"],["ASC-003","Ascensor","Monte Grande","","Ascensor N° 3"],["ASC-004","Ascensor","Ezeiza","","Ascensor N° 1"],["ASC-005","Ascensor","Ezeiza","","Ascensor N° 2"],["ASC-006","Ascensor","Ezeiza","","Ascensor N° 3"],["ASC-007","Ascensor","Ezeiza","","Ascensor N° 4"],["ASC-008","Ascensor","Sarandí","","Ascensor N° 1"],["ASC-009","Ascensor","City Bell","","Ascensor N° 1"],["ASC-010","Ascensor","City Bell","","Ascensor N° 2"],["ASC-011","Montacarga","Plaza Constitución","Hornos 97","Montacarga Hornos 97"],["ASC-012","Ascensor","Plaza Constitución","Estación Constitución","Ascensor panorámico Est. Constitución"],["ASC-013","Ascensor","Plaza Constitución","Hornos 11","Ascensor N° 1 Hornos 11"],["ASC-014","Ascensor","Plaza Constitución","Hornos 11","Ascensor N° 2 Hornos 11"],["ASC-015","Ascensor","Plaza Constitución","Hall Central Est. PC","Ascensor N° 3 Hall Central Est. PC"],["ASC-016","Ascensor","Plaza Constitución","Hall Central Est. PC","Ascensor N° 4 Hall Central Est. PC"],["ASC-017","Ascensor","Plaza Constitución","Hornos 41","Ascensor Hornos 41"],["ASC-018","Ascensor","Plaza Constitución","Hornos 57","Ascensor Hornos 57"],["ASC-019","Ascensor","Plaza Constitución","Edificio Paracas","Ascensor Lima 1940 / Edificio Paracas"],["ASC-020","Montacarga","Plaza Constitución","Lado andenes","Montacarga lado andenes"]].map(x=>crearUM(x[0],x[1],x[2],x[3],x[4],x[4]+" estación "+x[2],"FEMYP S.R.L","4530009623")),
+6136: ...[["ESC-001","SS al Hall, lado Hornos","Escalera mecánica N° 1"],["ESC-002","SS al Hall, lado Hornos","Escalera mecánica N° 2"],["ESC-003","SS al Hall, lado Lima","Escalera mecánica N° 3"],["ESC-004","SS al Hall, lado Lima","Escalera mecánica N° 4"],["ESC-005","PB Hall, sala de monitoreo","Escalera mecánica N° 5"],["ESC-006","PB Hall, sala de monitoreo","Escalera mecánica N° 6"],["ESC-007","PB Hall, lado Brasil","Escalera mecánica N° 7"],["ESC-008","PB Hall, lado Brasil","Escalera mecánica N° 8"]].map(x=>crearUM(x[0],"Escalera mecánica","Plaza Constitución",x[1],x[2],x[2]+" "+x[1],"FEMYP S.R.L","4530009304"))];
+6137: function cargarUM(){const raw=localStorage.getItem(LS_UM);const data=getArrayStorage(LS_UM,[]);unidadesMantenimiento=data.length?data:unidadesMantenimientoDemo.map(x=>({...x}));if(!raw)guardarUM();}
+6138: function guardarUM(){saveJSON(LS_UM,unidadesMantenimiento);}
+6139: function estadoClaseUM(estado){const e=norm(estado);if(e.includes('FUERA'))return'fuera';if(e.includes('MANTENIMIENTO'))return'mantenimiento';if(e.includes('BAJA'))return'baja';if(e.includes('SIN DATOS'))return'sindatos';return'activo';}
+6140: function badgeUMEstado(estado){return`<span class="um-status ${estadoClaseUM(estado)}">${esc(estado||'Sin datos')}</span>`;}
+6141: function umsPorEstacion(nombre){return unidadesMantenimiento.filter(u=>u.estacion===nombre);}
+6142: function cargarFiltrosUM(){const setOptions=(id,vals,label)=>{const el=$(id);if(!el)return;const actual=el.value;el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort().map(v=>`<option>${esc(v)}</option>`).join('');if([...el.options].some(o=>o.value===actual))el.value=actual;};setOptions('umFiltroTipo',unidadesMantenimiento.map(u=>u.tipoUM),'Tipo UM');setOptions('umFiltroEstacion',unidadesMantenimiento.map(u=>u.estacion),'Estación');setOptions('umFiltroEstado',unidadesMantenimiento.map(u=>u.estadoOperativo),'Estado operativo');setOptions('umFiltroCriticidad',unidadesMantenimiento.map(u=>u.criticidad),'Criticidad');setOptions('umFiltroProveedor',unidadesMantenimiento.map(u=>u.proveedorActual),'Proveedor actual');const estSel=$('um_estacion');if(estSel&&estSel.options.length<=1)estaciones.map(e=>e.nombre).sort().forEach(n=>estSel.insertAdjacentHTML('beforeend',`<option>${esc(n)}</option>`));}
+6143: function filtrarUM(){const q=($('umBuscar')?.value||'').toLowerCase().trim(),tipo=$('umFiltroTipo')?.value||'',est=$('umFiltroEstacion')?.value||'',estado=$('umFiltroEstado')?.value||'',crit=$('umFiltroCriticidad')?.value||'',prov=$('umFiltroProveedor')?.value||'';return unidadesMantenimiento.filter(u=>{const txt=[u.idUM,u.tipoUM,u.estacion,u.ubicacionTecnica,u.descripcion,u.proveedorActual,u.ocActual,u.observaciones,u.sector].join(' ').toLowerCase();return(!q||txt.includes(q))&&(!tipo||u.tipoUM===tipo)&&(!est||u.estacion===est)&&(!estado||u.estadoOperativo===estado)&&(!crit||u.criticidad===crit)&&(!prov||u.proveedorActual===prov);});}
+6144: function renderUnidadesMantenimiento(){cargarFiltrosUM();const rows=filtrarUM();if($('umKTotal'))$('umKTotal').textContent=unidadesMantenimiento.length;if($('umKAsc'))$('umKAsc').textContent=unidadesMantenimiento.filter(u=>u.tipoUM==='Ascensor').length;if($('umKEsc'))$('umKEsc').textContent=unidadesMantenimiento.filter(u=>u.tipoUM==='Escalera mecánica').length;if($('umKActivas'))$('umKActivas').textContent=unidadesMantenimiento.filter(u=>u.estadoOperativo==='Activo').length;if($('umKFuera'))$('umKFuera').textContent=unidadesMantenimiento.filter(u=>u.estadoOperativo==='Fuera de servicio').length;if($('umKSinFoto'))$('umKSinFoto').textContent=unidadesMantenimiento.filter(u=>!u.fotos||!u.fotos.length).length;if($('umTbody'))$('umTbody').innerHTML=rows.map(u=>`<tr class="row-clickable" data-open-um="${esc(u.idUM)}"><td><b>${esc(u.idUM)}</b></td><td>${esc(u.tipoUM)}</td><td>${esc(u.estacion)}</td><td>${esc(u.sector||'—')}</td><td>${esc(u.ubicacionTecnica)}</td><td>${badgeUMEstado(u.estadoOperativo)}</td><td>${esc(u.criticidad||'—')}</td><td>${esc(u.proveedorActual||'—')}</td><td>${esc(u.ocActual||'—')}</td><td><button type="button" class="btn-open-um" data-open-um="${esc(u.idUM)}">Ver ficha UM</button></td></tr>`).join('')||'<tr><td colspan="10">Sin UM para los filtros seleccionados.</td></tr>';}
+### consolidateAlertsHeading | hits=2
+--- lines 25485-25516 (hit 25499) ---
+25485: #vistaOrdenes #uxOrderContext.coi-dashboard-order-filter button{flex:0 0 auto;white-space:nowrap}
+25486: @media(max-width:700px){#vistaOrdenes #uxOrderContext.coi-dashboard-order-filter{align-items:stretch}#vistaOrdenes #uxOrderContext.coi-dashboard-order-filter button{width:100%}}
+25487: </style>
+25488: <script id="coi-final-ux-alerts-orders-filter-script">
+25489: (function(){
+25490:   'use strict';
+25491:   const STATUS_LABELS={active:'OCs activas',execution:'En ejecución',upcoming:'Próximas a vencer',certifiable:'Vencidas con saldo certificable',expired:'Vencidas sin saldo',closed:'Finalizadas / cerradas'};
+25492:   const MANUAL_FILTER_IDS=['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert','ordenMontoOrden'];
+25493:   const $=id=>document.getElementById(id);
+25494: 
+25495:   function removeObsoleteAlertCategories(){
+25496:     const view=$('vistaCentroAlertas');if(!view)return;
+25497:     view.querySelectorAll('#alertasTabsV58,#alertasFiltrosRol').forEach(node=>node.remove());
+25498:   }
+25499:   function consolidateAlertsHeading(){
+25500:     const view=$('vistaCentroAlertas'),body=view?.querySelector('.view-body');
+25501:     if(!body||!view.querySelector(':scope > .view-card > .view-head h2'))return;
+25502:     [...body.children].forEach(node=>{
+25503:       if(node.matches?.('h2')&&node.textContent.trim()==='Centro de Alertas')node.remove();
+25504:       else if(node.matches?.('p.muted')&&node.textContent.includes('Detección automática de vencimientos'))node.remove();
+25505:     });
+25506:   }
+25507:   function normalizeAlertActionText(){
+25508:     const view=$('vistaCentroAlertas');if(!view)return;
+25509:     view.querySelectorAll('.alerta-observacion-r14 .alerta-observacion-texto,.alerta-observacion-r15 > div').forEach(node=>{
+25510:       const clean=node.textContent.replace(/(?:\s*Enviar a Observaciones)+\s*$/i,'').trim();
+25511:       if(node.textContent!==clean)node.textContent=clean;
+25512:     });
+25513:   }
+25514:   function normalizeAlertsUI(){removeObsoleteAlertCategories();consolidateAlertsHeading();normalizeAlertActionText();}
+25515: 
+25516:   function ordersContext(create=false){
+--- lines 25500-25531 (hit 25514) ---
+25500:     const view=$('vistaCentroAlertas'),body=view?.querySelector('.view-body');
+25501:     if(!body||!view.querySelector(':scope > .view-card > .view-head h2'))return;
+25502:     [...body.children].forEach(node=>{
+25503:       if(node.matches?.('h2')&&node.textContent.trim()==='Centro de Alertas')node.remove();
+25504:       else if(node.matches?.('p.muted')&&node.textContent.includes('Detección automática de vencimientos'))node.remove();
+25505:     });
+25506:   }
+25507:   function normalizeAlertActionText(){
+25508:     const view=$('vistaCentroAlertas');if(!view)return;
+25509:     view.querySelectorAll('.alerta-observacion-r14 .alerta-observacion-texto,.alerta-observacion-r15 > div').forEach(node=>{
+25510:       const clean=node.textContent.replace(/(?:\s*Enviar a Observaciones)+\s*$/i,'').trim();
+25511:       if(node.textContent!==clean)node.textContent=clean;
+25512:     });
+25513:   }
+25514:   function normalizeAlertsUI(){removeObsoleteAlertCategories();consolidateAlertsHeading();normalizeAlertActionText();}
+25515: 
+25516:   function ordersContext(create=false){
+25517:     let context=$('uxOrderContext');
+25518:     if(!context&&create){
+25519:       context=document.createElement('div');context.id='uxOrderContext';context.className='ux-filter-context';
+25520:       const body=document.querySelector('#vistaOrdenes .view-body'),anchor=body?.querySelector('.ordenes-toolbar');
+25521:       if(anchor)anchor.insertAdjacentElement('afterend',context);else body?.prepend(context);
+25522:     }
+25523:     return context;
+25524:   }
+25525:   function inferredDashboardFields(status){
+25526:     const fields={};
+25527:     if(status==='upcoming'&&$('ordenesFiltroMesVenc')?.value==='proximas')fields.ordenesFiltroMesVenc='proximas';
+25528:     if(status==='expired'&&$('ordenesFiltroMesVenc')?.value==='vencidas')fields.ordenesFiltroMesVenc='vencidas';
+25529:     if(status==='closed'&&$('ordenesFiltroEstado')?.value)fields.ordenesFiltroEstado=$('ordenesFiltroEstado').value;
+25530:     return fields;
+25531:   }
