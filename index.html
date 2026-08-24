@@ -25674,14 +25674,7 @@ document.addEventListener('click',function(event){
     orders.classList.add('active');
   }
 
-  function goBackToOrders(event) {
-    const target = event.target instanceof Element ? event.target.closest(BACK_SELECTOR) : null;
-    if (!target || !target.closest('#vistaFichaOC')) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-    if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
-
+  function navigateToOrders() {
     try {
       if (typeof window.mostrarVista === 'function') {
         window.mostrarVista('vistaOrdenes');
@@ -25708,6 +25701,29 @@ document.addEventListener('click',function(event){
     }
 
     scheduleReconcile();
+  }
+
+  function goBackToOrders(event) {
+    const target = event.target instanceof Element ? event.target.closest(BACK_SELECTOR) : null;
+    if (!target || !target.closest('#vistaFichaOC')) return;
+
+    // Si existe una edición integral activa, no interceptar el primer click:
+    // dejamos que el guard histórico de cambios sin guardar muestre su confirmación.
+    // Si ese guard autoriza la salida y limpia editingOC, completamos luego el regreso
+    // canónico a Órdenes. Si el usuario cancela, editingOC sigue true y no navegamos.
+    if (window.APP_STATE && window.APP_STATE.editingOC) {
+      setTimeout(() => {
+        if (!(window.APP_STATE && window.APP_STATE.editingOC)) {
+          navigateToOrders();
+        }
+      }, 0);
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+    navigateToOrders();
   }
 
   document.addEventListener('click', goBackToOrders, true);
