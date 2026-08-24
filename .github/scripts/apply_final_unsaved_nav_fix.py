@@ -4,9 +4,11 @@ p = Path('index.html')
 s = p.read_text(encoding='utf-8')
 marker = 'id="coi-final-navigation-top-scrollbars"'
 base = s.index(marker)
-start = s.index('  function goBackToOrders(event) {', base)
+go_back = s.index('  function goBackToOrders(event) {', base)
+helper = s.rfind('  function clearEditingStateForOrdersNavigation() {', base, go_back)
+start = helper if helper != -1 else go_back
 end_marker = "  document.addEventListener('click', goBackToOrders, true);"
-end = s.index(end_marker, start)
+end = s.index(end_marker, go_back)
 
 replacement = r'''  function clearEditingStateForOrdersNavigation() {
     if (!window.APP_STATE || !window.APP_STATE.editingOC) return;
