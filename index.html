@@ -25711,14 +25711,6 @@ document.addEventListener('click',function(event){
     document.getElementById('coiEditIntegralOC')?.remove();
   }
 
-  function clearEditingStateForOrdersNavigation() {
-    if (!window.APP_STATE || !window.APP_STATE.editingOC) return;
-    window.APP_STATE.editingOC = false;
-    window.APP_STATE.editingOCKey = null;
-    window.APP_STATE.editingOCSnapshot = null;
-    document.getElementById('coiEditIntegralOC')?.remove();
-  }
-
   function goBackToOrders(event) {
     const target = event.target instanceof Element ? event.target.closest(BACK_SELECTOR) : null;
     if (!target || !target.closest('#vistaFichaOC')) return;
