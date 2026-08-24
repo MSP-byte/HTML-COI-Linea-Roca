@@ -79,6 +79,8 @@ test('fuente contiene los contratos finales sin reintroducir legacy', async () =
   expect(SOURCE).toContain("window.mostrarVista('vistaOrdenes')");
   expect(SOURCE).toContain("installTopHorizontalScrollbar(alerts, 'alertas')");
   expect(SOURCE).toContain("installTopHorizontalScrollbar(orders, 'ordenes')");
+  expect(SOURCE).toContain("window.confirm('Hay cambios de edición sin guardar. ¿Salir igual?')");
+  expect(SOURCE.match(/function clearEditingStateForOrdersNavigation\(\)/g) || []).toHaveLength(1);
 });
 
 test('Volver abre Ordenes y conserva filtros existentes', async ({ page }) => {
