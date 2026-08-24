@@ -57,6 +57,23 @@ async function mountHarness(page) {
   await page.waitForTimeout(100);
 }
 
+async function enableUnsavedEdit(page, confirmResult) {
+  await page.evaluate((result) => {
+    window.APP_STATE.editingOC = true;
+    window.APP_STATE.editingOCKey = 'OC-4530008964';
+    window.APP_STATE.editingOCSnapshot = { proveedor: 'FEMYP S.R.L.' };
+    window.__confirmCalls = 0;
+    window.confirm = () => {
+      window.__confirmCalls += 1;
+      return result;
+    };
+    const panel = document.createElement('div');
+    panel.id = 'coiEditIntegralOC';
+    panel.textContent = 'Edicion activa';
+    document.body.appendChild(panel);
+  }, confirmResult);
+}
+
 test('fuente contiene los contratos finales sin reintroducir legacy', async () => {
   expect(SOURCE).toContain('id="coi-final-navigation-top-scrollbars"');
   expect(SOURCE).toContain("window.mostrarVista('vistaOrdenes')");
@@ -73,6 +90,41 @@ test('Volver abre Ordenes y conserva filtros existentes', async ({ page }) => {
   await expect(page.locator('#vistaFichaOC')).toBeHidden();
   await expect(page.locator('#manualFilter')).toHaveValue('FEMYP');
   expect(await page.evaluate(() => window.__renders)).toBeGreaterThan(0);
+});
+
+test('Volver con cambios sin guardar y CANCELAR mantiene la Ficha y la edicion intacta', async ({ page }) => {
+  await mountHarness(page);
+  await enableUnsavedEdit(page, false);
+
+  await page.locator('#btnFichaVolverTop').click();
+  await page.waitForTimeout(50);
+
+  expect(await page.evaluate(() => window.__confirmCalls)).toBe(1);
+  expect(await page.evaluate(() => window.__shown)).toBeNull();
+  expect(await page.evaluate(() => window.APP_STATE.activeView)).toBe('vistaFichaOC');
+  expect(await page.evaluate(() => window.APP_STATE.editingOC)).toBe(true);
+  expect(await page.evaluate(() => window.APP_STATE.editingOCKey)).toBe('OC-4530008964');
+  expect(await page.evaluate(() => window.APP_STATE.editingOCSnapshot?.proveedor)).toBe('FEMYP S.R.L.');
+  await expect(page.locator('#coiEditIntegralOC')).toHaveCount(1);
+  await expect(page.locator('#vistaFichaOC')).toBeVisible();
+  await expect(page.locator('#vistaOrdenes')).toBeHidden();
+});
+
+test('Volver con cambios sin guardar y CONFIRMAR limpia la edicion y vuelve a Ordenes una sola vez', async ({ page }) => {
+  await mountHarness(page);
+  await enableUnsavedEdit(page, true);
+
+  await page.locator('#btnFichaVolverTop').click();
+
+  await expect.poll(() => page.evaluate(() => window.__shown)).toBe('vistaOrdenes');
+  expect(await page.evaluate(() => window.__confirmCalls)).toBe(1);
+  expect(await page.evaluate(() => window.APP_STATE.editingOC)).toBe(false);
+  expect(await page.evaluate(() => window.APP_STATE.editingOCKey)).toBeNull();
+  expect(await page.evaluate(() => window.APP_STATE.editingOCSnapshot)).toBeNull();
+  await expect(page.locator('#coiEditIntegralOC')).toHaveCount(0);
+  await expect(page.locator('#manualFilter')).toHaveValue('FEMYP');
+  await expect(page.locator('#vistaOrdenes')).toBeVisible();
+  await expect(page.locator('#vistaFichaOC')).toBeHidden();
 });
 
 test('scroll superior de Alertas sincroniza en ambos sentidos y no duplica', async ({ page }) => {
