@@ -25703,20 +25703,29 @@ document.addEventListener('click',function(event){
     scheduleReconcile();
   }
 
+  function clearEditingStateForOrdersNavigation() {
+    if (!window.APP_STATE || !window.APP_STATE.editingOC) return;
+    window.APP_STATE.editingOC = false;
+    window.APP_STATE.editingOCKey = null;
+    window.APP_STATE.editingOCSnapshot = null;
+    document.getElementById('coiEditIntegralOC')?.remove();
+  }
+
   function goBackToOrders(event) {
     const target = event.target instanceof Element ? event.target.closest(BACK_SELECTOR) : null;
     if (!target || !target.closest('#vistaFichaOC')) return;
 
-    // Si existe una edición integral activa, no interceptar el primer click:
-    // dejamos que el guard histórico de cambios sin guardar muestre su confirmación.
-    // Si ese guard autoriza la salida y limpia editingOC, completamos luego el regreso
-    // canónico a Órdenes. Si el usuario cancela, editingOC sigue true y no navegamos.
     if (window.APP_STATE && window.APP_STATE.editingOC) {
-      setTimeout(() => {
-        if (!(window.APP_STATE && window.APP_STATE.editingOC)) {
-          navigateToOrders();
-        }
-      }, 0);
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+
+      const shouldLeave = typeof window.confirm !== 'function'
+        || window.confirm('Hay cambios de edición sin guardar. ¿Salir igual?');
+      if (!shouldLeave) return;
+
+      clearEditingStateForOrdersNavigation();
+      navigateToOrders();
       return;
     }
 
