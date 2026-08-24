@@ -1492,6 +1492,21 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
   .orders-agenda-actions{justify-content:flex-start}
 }
 </style>
+<style id="coi-alerts-collapsible-init-fix">
+#execAlertsCard.exec-alert-collapsible{margin-bottom:14px;border:1px solid #d8e2ee;border-radius:14px;background:#fff;overflow:hidden}
+#execAlertsCard.exec-alert-collapsible>summary{display:block;cursor:pointer;list-style:none;padding:14px 16px;user-select:none;background:#f8fafc}
+#execAlertsCard.exec-alert-collapsible>summary::-webkit-details-marker{display:none}
+#execAlertsCard .exec-alert-summary-main{display:flex;align-items:center;justify-content:space-between;gap:16px}
+#execAlertsCard .exec-alert-summary h3{margin:0 0 3px;font-size:16px;color:#17324d}
+#execAlertsCard .exec-alert-summary-meta{display:flex;align-items:center;gap:10px;flex:0 0 auto}
+#execAlertsCard .exec-alert-summary-count{display:inline-flex;align-items:center;min-height:28px;padding:4px 10px;border:1px solid #cfdbea;border-radius:999px;background:#fff;color:#31516f;font-size:12px;font-weight:800}
+#execAlertsCard .exec-alert-chevron{font-size:22px;line-height:1;color:#59728b;transition:transform .18s ease}
+#execAlertsCard[open] .exec-alert-chevron{transform:rotate(180deg)}
+#execAlertsCard .exec-alert-collapsible-body{border-top:1px solid #e3eaf2;padding:12px}
+#execAlertsCard .exec-alert-source{margin:0 0 10px 2px}
+#execAlertsCard .exec-alert-loading{padding:18px;text-align:center;color:#64748b;font-weight:700;background:#f8fafc;border-radius:10px}
+@media(max-width:760px){#execAlertsCard .exec-alert-summary-main{align-items:flex-start}#execAlertsCard .exec-alert-summary .muted{display:block;max-width:220px}#execAlertsCard .exec-alert-summary-meta{gap:6px}#execAlertsCard .exec-alert-summary-count{white-space:nowrap}}
+</style>
 </head>
 <body>
 <header class="main-header">
@@ -16728,7 +16743,22 @@ const APP_DATA_MODE = "supabase_first";
   function priorityBadge(o){const t=o.prioridad_operativa||o.prioridadOperativa||'Normal';return badge(t,t.toLowerCase())}
   function enhanceOrders(){const table=document.querySelector('#vistaOrdenes table.ordenes-table'),tbody=$('ordenesTbody');if(!table||!tbody)return;const head=table.tHead?.rows?.[0];if(head&&!head.querySelector('[data-exec-col]')){const action=head.lastElementChild;['Calidad','Documental','Prioridad','Requiere acción'].forEach(l=>{const th=document.createElement('th');th.dataset.execCol='1';th.textContent=l;head.insertBefore(th,action)})}[...tbody.rows].forEach(tr=>{if(tr.cells.length<2)return;[...tr.querySelectorAll('[data-exec-cell]')].forEach(x=>x.remove());const key=tr.dataset.openOc||tr.querySelector('[data-open-oc]')?.dataset.openOc;const o=resolveOrder(key);if(!o)return;const meta=metaByOC.get(nro(o));if(meta)Object.assign(o,mapRowToItem(meta));const action=tr.lastElementChild;const vals=[qualityBadge(o),docBadge(o),priorityBadge(o),bool(o.requiere_accion||o.requiereAccion)?`<span class="exec-action-yes">Sí<br><small>${esc(o.motivo_requiere_accion||o.motivoRequiereAccion||'')}</small></span>`:'<span class="exec-action-no">No</span>'];vals.forEach(v=>{const td=document.createElement('td');td.dataset.execCell='1';td.innerHTML=v;tr.insertBefore(td,action)});tr.hidden=false})}
   function generarAlertasCalidadYDocumentales(){const out=[];normalizedRows().forEach(o=>{const n=o.nro_oc,d=daysTo(o.fecha_vencimiento);if(norm(o.calidad_datos_estado)==='ROJO')out.push({sev:'Crítica',tipo:'Calidad roja',oc:n,est:o.estacion,msg:o.motivo_requiere_accion||'Datos críticos incompletos.',accion:'Ejecutar control de calidad y completar datos'});if(d!==null&&d<0&&!clean(o.justificacion_administrativa))out.push({sev:'Crítica',tipo:'Vencida sin justificación',oc:n,est:o.estacion,msg:'OC vencida sin justificación administrativa.',accion:'Registrar justificación o cerrar operativamente'});if(!clean(o.proxima_certificacion)&&!isClosed(o))out.push({sev:'Media',tipo:'Sin próxima certificación',oc:n,est:o.estacion,msg:'No se informó próxima certificación.',accion:'Completar fecha de certificación'});if(!clean(o.fecha_acta_inicio)&&!isClosed(o))out.push({sev:'Media',tipo:'Sin acta de inicio',oc:n,est:o.estacion,msg:'No se informó acta de inicio.',accion:'Completar datos contractuales'});if(d!==null&&d>=0&&d<=30)out.push({sev:d<=7?'Alta':'Media',tipo:'Próxima a vencer',oc:n,est:o.estacion,msg:`Vence en ${d} día(s).`,accion:'Revisar vigencia y certificaciones'})});return out}
-  function renderAlertsExecutive(){const host=document.querySelector('#vistaCentroAlertas .view-body');if(!host)return;let card=$('execAlertsCard');if(card)card.remove();const rows=generarAlertasCalidadYDocumentales();card=document.createElement('section');card.id='execAlertsCard';card.className='exec-alert-card';card.innerHTML=`<div class="exec-card-head"><div><h3>Alertas de calidad y documentación</h3><div class="muted">${rows.length} alerta(s) calculadas desde Supabase.</div></div></div><div class="table-wrap"><table class="coi-table tabla-operativa exec-alert-table"><thead><tr><th>Severidad</th><th>Tipo</th><th>OC</th><th>Estación</th><th>Mensaje</th><th>Acción sugerida</th><th>Ficha</th></tr></thead><tbody>${rows.map(a=>`<tr class="${norm(a.sev)==='CRITICA'?'exec-critical-row':''}"><td>${badge(a.sev,norm(a.sev).includes('CRIT')||norm(a.sev)==='ALTA'?'rojo':norm(a.sev)==='MEDIA'?'amarillo':'gris')}</td><td>${esc(a.tipo)}</td><td>${esc(a.oc)}</td><td>${esc(a.est||'—')}</td><td>${esc(a.msg)}</td><td>${esc(a.accion)}</td><td><button type="button" data-open-oc="${esc(a.oc)}">Ver ficha</button></td></tr>`).join('')||'<tr><td colspan="7">Sin alertas ejecutivas.</td></tr>'}</tbody></table></div>`;host.insertBefore(card,host.firstChild)}
+  function renderAlertsExecutive(){
+    const host=document.querySelector('#vistaCentroAlertas .view-body');
+    if(!host)return;
+    let card=$('execAlertsCard');
+    const wasOpen=card?.tagName==='DETAILS'&&card.open===true;
+    if(card)card.remove();
+    const ready=metaByOC.size>0||Array.isArray(window.__coiExecutiveRows);
+    const rows=ready?generarAlertasCalidadYDocumentales():[];
+    card=document.createElement('details');
+    card.id='execAlertsCard';
+    card.className='exec-alert-card exec-alert-collapsible';
+    card.open=wasOpen;
+    const countLabel=ready?`${rows.length} alerta${rows.length===1?'':'s'}`:'Cargando…';
+    card.innerHTML=`<summary class="exec-alert-summary"><div class="exec-alert-summary-main"><div><h3>Alertas de calidad y documentación</h3><span class="muted">Panel específico de calidad y seguimiento documental</span></div><div class="exec-alert-summary-meta"><span class="exec-alert-summary-count">${esc(countLabel)}</span><span class="exec-alert-chevron" aria-hidden="true">⌄</span></div></div></summary><div class="exec-alert-collapsible-body">${ready?`<div class="muted exec-alert-source">${rows.length} alerta(s) calculadas desde Supabase.</div><div class="table-wrap"><table class="coi-table tabla-operativa exec-alert-table"><thead><tr><th>Severidad</th><th>Tipo</th><th>OC</th><th>Estación</th><th>Mensaje</th><th>Acción sugerida</th><th>Ficha</th></tr></thead><tbody>${rows.map(a=>`<tr class="${norm(a.sev)==='CRITICA'?'exec-critical-row':''}"><td>${badge(a.sev,norm(a.sev).includes('CRIT')||norm(a.sev)==='ALTA'?'rojo':norm(a.sev)==='MEDIA'?'amarillo':'gris')}</td><td>${esc(a.tipo)}</td><td>${esc(a.oc)}</td><td>${esc(a.est||'—')}</td><td>${esc(a.msg)}</td><td>${esc(a.accion)}</td><td><button type="button" data-open-oc="${esc(a.oc)}">Ver ficha</button></td></tr>`).join('')||'<tr><td colspan="7">Sin alertas ejecutivas.</td></tr>'}</tbody></table></div>`:'<div class="exec-alert-loading">Cargando alertas desde Supabase…</div>'}</div>`;
+    host.insertBefore(card,host.firstChild);
+  }
   function renderExecutiveFicha(orden){const o=resolveOrder(orden);if(!o)return;currentOrder=o;const host=$('fichaOCBody');if(!host)return;let card=$('execHeaderCard');if(card)card.remove();card=document.createElement('section');card.id='execHeaderCard';card.className='exec-header-card';card.innerHTML=`<div class="exec-card-head"><div><h3>Cabecera ejecutiva</h3><div class="muted">OC ${esc(nro(o))} · ${esc(o.proveedor||'Sin proveedor')}</div></div><div>${qualityBadge(o)} ${docBadge(o)}</div></div><div class="exec-header-grid">${[['N° OC',nro(o)],['Proveedor',o.proveedor],['Tipo',o.tipo],['Estación principal',o.estacion],['Estado COI',o.estado||o.estadoCOI],['Vigencia operativa',daysTo(o.vencimiento)<0?'Vencida':'Vigente'],['Próxima certificación',fmtDate(o.proximaCertificacion)],['Estado documental',o.estadoDocumental||'—'],['Calidad',`${o.calidadDatosEstado||'Sin auditar'} (${Number(o.calidadDatosScore||0)})`]].map(([l,v])=>`<div class="exec-header-item"><b>${esc(l)}</b><span>${esc(v||'—')}</span></div>`).join('')}</div><div class="exec-top-actions"><button type="button" id="execBtnEditar">Editar OC</button><button type="button" id="execBtnGuardar" class="primary">Guardar cambios</button><button type="button" data-oc-station-add>Agregar estación asociada</button><button type="button" id="execBtnQuality">Ejecutar control de calidad</button><button type="button" id="execBtnClose" class="btn-danger-soft">Cerrar OC</button></div>`;host.insertBefore(card,host.firstChild)}
   async function controlQualitySingle(o){const r=evaluarCalidadOrden(metaByOC.get(nro(o))||o);await actualizarCalidadOrdenSupabase(o,r);await registrarHistorialOC(o,{tipo_evento:'Control de calidad',campo_modificado:'calidad_datos_estado',valor_anterior:o.calidadDatosEstado||'',valor_nuevo:r.estado,motivo:r.motivo_requiere_accion});await syncExecutiveMetadata();renderExecutiveFicha(o);toast(`Calidad ${r.estado} · Score ${r.score}`,'ok');return r}
   async function closeOrder(o){const obs=prompt('Observación de cierre operativo:','');if(obs===null)return;await updateOrder(o,{fecha_cierre_operativo:isoNow(),observacion_cierre:clean(obs)||null,estado_registro:'Cerrado'},{history:false});await registrarHistorialOC(o,{tipo_evento:'Cierre operativo',campo_modificado:'estado_registro',valor_anterior:o.estadoRegistro||'',valor_nuevo:'Cerrado',motivo:obs});toast('OC cerrada operativamente.','ok')}
@@ -24526,20 +24556,24 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   }
   function setState(state,error=null){
     runtime.estado=state;runtime.ultimoError=error?text(error?.message||error):null;
+    const initializing=state===STATES.CLIENTE_INICIALIZANDO;
     const readOnly=state!==STATES.SUPABASE_FIRST;
     if(document.body){document.body.classList.toggle('coi-data-readonly',readOnly);document.body.dataset.coiDataMode=readOnly?'readonly':'supabase-first';document.body.dataset.coiDataState=state;document.body.dataset.coiDataReason=runtime.ultimoError||'';}
-    const mode=$('headerModoSistema');if(mode)mode.textContent=readOnly?'Modo solo lectura':'Modo Operativo';
+    const mode=$('headerModoSistema');if(mode)mode.textContent=initializing?'Conectando…':readOnly?'Modo solo lectura':'Modo Operativo';
     let banner=$('coiV60ReadOnlyBanner');
-    if(readOnly&&!banner&&document.body){banner=document.createElement('div');banner.id='coiV60ReadOnlyBanner';banner.setAttribute('role','status');banner.style.cssText='position:fixed;right:18px;bottom:18px;z-index:5000;padding:10px 14px;border-radius:10px;background:#7f1d1d;color:#fff;font-weight:800;box-shadow:0 8px 24px #0005';document.body.appendChild(banner);}
-    if(banner){banner.textContent=stateMessage(state,runtime.ultimoError);banner.hidden=!readOnly;}
+    if(readOnly&&!initializing&&!banner&&document.body){banner=document.createElement('div');banner.id='coiV60ReadOnlyBanner';banner.setAttribute('role','status');banner.style.cssText='position:fixed;right:18px;bottom:18px;z-index:5000;padding:10px 14px;border-radius:10px;background:#7f1d1d;color:#fff;font-weight:800;box-shadow:0 8px 24px #0005';document.body.appendChild(banner);}
+    if(banner){banner.textContent=stateMessage(state,runtime.ultimoError);banner.hidden=!readOnly||initializing;}
     return state;
   }
-  async function waitForSupabaseClient({timeoutMs=10000,intervalMs=250}={}){
+  async function waitForSupabaseClient({timeoutMs=15000,intervalMs=250,graceMs=5000}={}){
     const existing=client();if(existing)return existing;
     setState(STATES.CLIENTE_INICIALIZANDO);
     if(typeof window.initSupabase==='function')Promise.resolve(window.initSupabase()).catch(()=>null);
     const started=Date.now();
     while(Date.now()-started<timeoutMs){const available=client();if(available)return available;await new Promise(resolve=>setTimeout(resolve,intervalMs));}
+    const graceStarted=Date.now();
+    while(Date.now()-graceStarted<graceMs){const available=client();if(available)return available;await new Promise(resolve=>setTimeout(resolve,intervalMs));}
+    const late=client();if(late)return late;
     setState(STATES.SIN_CLIENTE,'Tiempo de espera agotado.');return null;
   }
   function isRlsError(error){const value=`${error?.code||''} ${error?.message||error||''}`.toLowerCase();return value.includes('42501')||value.includes('row-level security')||value.includes('row level security')||value.includes('permission denied')||value.includes('rls');}
