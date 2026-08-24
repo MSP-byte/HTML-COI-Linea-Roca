@@ -1,0 +1,44 @@
+name: Extract editing guard context
+
+on:
+  push:
+    branches: [fix/final-navigation-top-scrollbars]
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/final-navigation-top-scrollbars
+          persist-credentials: true
+      - name: Extract context
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          terms=['APP_STATE.editingOC','editingOC','instalarEventosEdicionIntegral','volverVistaAnterior']
+          out=[]
+          lines=s.splitlines()
+          for term in terms:
+              out.append(f'### {term}')
+              hits=[i for i,l in enumerate(lines) if term in l]
+              for i in hits[:20]:
+                  a=max(0,i-12); b=min(len(lines),i+18)
+                  out.append(f'-- around line {i+1} --')
+                  out.extend(f'{j+1}: {lines[j]}' for j in range(a,b))
+                  out.append('')
+          Path('.github/editing_guard_context.txt').write_text('\n'.join(out),encoding='utf-8')
+          PY
+      - name: Commit context
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/editing_guard_context.txt
+          git commit -m "chore: capture editing guard context"
+          git push origin HEAD:fix/final-navigation-top-scrollbars
