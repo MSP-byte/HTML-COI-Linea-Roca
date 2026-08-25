@@ -16738,6 +16738,9 @@ const APP_DATA_MODE = "supabase_first";
   }
 
   function mutationOnlyTouchesExecAlertsCard(mutation){
+    const target=mutation.target;
+    const targetElement=target?.nodeType===1?target:target?.parentElement;
+    if(targetElement&&(targetElement.id==='execAlertsCard'||targetElement.closest?.('#execAlertsCard')))return true;
     const nodes=[...mutation.addedNodes,...mutation.removedNodes];
     return nodes.length>0&&nodes.every(node=>{
       if(node.nodeType!==1)return false;
