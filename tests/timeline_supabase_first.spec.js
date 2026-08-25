@@ -131,8 +131,9 @@ async function openTimelineFixture(page) {
 test('migra localStorage una vez y hace CRUD de Mailing con Supabase como autoridad', async ({ page }) => {
   await openTimelineFixture(page);
 
-  await expect(page.getByText('Mailing local pendiente de migración', { exact: true })).toBeVisible();
-  await expect(page.getByText('Dato demostrativo que no debe migrarse', { exact: true })).toHaveCount(0);
+  const results = page.locator('.timeline-result');
+  await expect(results.getByRole('heading', { name: 'Mailing local pendiente de migración', exact: true })).toBeVisible();
+  await expect(results.getByRole('heading', { name: 'Dato demostrativo que no debe migrarse', exact: true })).toHaveCount(0);
   expect(await page.evaluate(migrationKey => Boolean(localStorage.getItem(migrationKey)), MIGRATION_KEY)).toBe(true);
   expect(await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.rows.map(row => row.id))).toEqual([
     'TL-LEGACY-BROWSER-1'
@@ -146,7 +147,7 @@ test('migra localStorage una vez y hace CRUD de Mailing con Supabase como autori
   await page.locator('[data-timeline-field="descripcion"]').fill('Seguimiento operativo compartido.');
   await page.getByRole('button', { name: 'Guardar evento' }).click();
 
-  await expect(page.getByText('Mailing persistido en Supabase', { exact: true })).toBeVisible();
+  await expect(results.getByRole('heading', { name: 'Mailing persistido en Supabase', exact: true })).toBeVisible();
   const created = await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.rows.find(row => row.titulo === 'Mailing persistido en Supabase'));
   expect(created).toMatchObject({
     remitente: 'contratista@example.test',
@@ -161,11 +162,11 @@ test('migra localStorage una vez y hace CRUD de Mailing con Supabase como autori
     window.coiTimelineEvents = [];
     await window.COI_TIMELINE_COI.reload();
   }, STORAGE_KEY);
-  await expect(page.getByText('Mailing persistido en Supabase', { exact: true })).toBeVisible();
+  await expect(results.getByRole('heading', { name: 'Mailing persistido en Supabase', exact: true })).toBeVisible();
 
   const card = page.locator('.timeline-event-card').filter({ hasText: 'Mailing persistido en Supabase' });
   await card.getByRole('button', { name: 'Eliminar' }).click();
-  await expect(page.getByText('Mailing persistido en Supabase', { exact: true })).toHaveCount(0);
+  await expect(results.getByRole('heading', { name: 'Mailing persistido en Supabase', exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.rows.some(row => row.titulo === 'Mailing persistido en Supabase'))).toBe(false);
 
   const actions = await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.operations.map(item => item.action));
