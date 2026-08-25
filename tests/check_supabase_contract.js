@@ -13,7 +13,9 @@ const names = {
   rls: '202608100004_rls_policies.sql',
   operations: '202608100005_operational_integrity.sql',
   hardening: '202608110006_release_candidate_hardening.sql',
-  review: '202608160010_rc2_review_hardening.sql'
+  review: '202608160010_rc2_review_hardening.sql',
+  timeline: '202608250001_timeline_supabase_first.sql',
+  timelineIndexes: '202608250002_timeline_actor_indexes.sql'
 };
 
 const sql = {};
@@ -85,6 +87,22 @@ for (const pattern of [
 const updater = sql.review.slice(sql.review.indexOf('create or replace function public.coi_actualizar_orden_integral'));
 assert.doesNotMatch(updater, /'link_documental_principal'|'estado_link_documental'/);
 
+// Timeline/Mailing: tabla canónica, RLS por rol, auditoría y sincronización OC.
+for (const pattern of [
+  /create table if not exists public\.coi_timeline_events/,
+  /orden_id uuid references public\.coi_ordenes/,
+  /coi_timeline_prepare_row/,
+  /coi_timeline_audit_row/,
+  /TIMELINE_CREAR/,
+  /coi_timeline_sync_order_number/,
+  /coi_timeline_select_guard_v1/,
+  /notify pgrst, 'reload schema'/
+]) assert.match(sql.timeline, pattern);
+assert.match(sql.timeline, /revoke all on function public\.coi_timeline_prepare_row\(\) from public, anon, authenticated/i);
+assert.match(sql.timeline, /'administrador','jefatura','editor','planificacion','control','supervisor'/i);
+assert.match(sql.timelineIndexes, /coi_timeline_created_by_idx/);
+assert.match(sql.timelineIndexes, /coi_timeline_updated_by_idx/);
+
 // El frontend debe consumir las APIs sustitutas y no reabrir el DML financiero.
 for (const pattern of [
   /client\.rpc\('coi_certificar_posiciones_v2'/,
@@ -109,4 +127,4 @@ for (const [name, body] of Object.entries(sql)) {
   assert.doesNotMatch(body, /service_role|password\s*=|secret\s*=/i, `${name}: posible secreto`);
 }
 
-console.log('Contrato Supabase: 7 migraciones auditadas; hardening PR #27, RPC, RLS e integridad verificados.');
+console.log('Contrato Supabase: 9 migraciones auditadas; Timeline Supabase-first, RPC, RLS e integridad verificados.');

@@ -927,6 +927,25 @@ body.modo-consulta #alertTabCalidadDatos,body.modo-consulta #alertTabTodas{displ
   color: #fff !important;
 }
 
+.timeline-persistence {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid #cfe2ff;
+  border-left: 4px solid #147dad;
+  border-radius: 8px;
+  background: #eef6ff;
+  color: #174a6b;
+}
+
+.timeline-persistence > div { display: grid; gap: 3px; }
+.timeline-persistence span { font-size: 12px; }
+.timeline-persistence.online { border-color: #bfe4cb; border-left-color: #237a3b; background: #f0fbf4; color: #1f6332; }
+.timeline-persistence.cache { border-color: #ffe3a3; border-left-color: #b07800; background: #fff8e6; color: #765300; }
+.timeline-persistence.error { border-color: #ffd0d0; border-left-color: #b42323; background: #fff1f1; color: #8f1f1f; }
+
 .timeline-danger {
   color: #a52424 !important;
   border-color: #efc7c7 !important;
@@ -1316,6 +1335,7 @@ body.modo-consulta #alertTabCalidadDatos,body.modo-consulta #alertTabTodas{displ
   .timeline-section-head,
   .timeline-ficha-head { flex-direction: column; }
   .timeline-actions { width: 100%; }
+  .timeline-persistence { align-items: stretch; flex-direction: column; }
   .timeline-kpis,
   .timeline-filters,
   .timeline-editor-grid,
@@ -19986,8 +20006,11 @@ if(document.readyState==='loading'){
 (function(){
   'use strict';
 
+  const TIMELINE_TABLE='coi_timeline_events';
   const TIMELINE_STORAGE_KEY='coi_timeline_events_v1';
-  const TIMELINE_SCHEMA='COI_TIMELINE_EVENTS_V1';
+  const TIMELINE_MIGRATION_KEY='coi_timeline_supabase_migrated_v1';
+  const TIMELINE_SCHEMA='COI_TIMELINE_EVENTS_V2';
+  const TIMELINE_PAGE_SIZE=1000;
   const TIMELINE_RECENT_DAYS=14;
   const TIMELINE_DUE_DAYS=7;
   const TIMELINE_STATUSES=[
@@ -20006,15 +20029,23 @@ if(document.readyState==='loading'){
     'id','fecha','hora','semana','oc','expediente','proveedor','rubro','estacion','titulo',
     'tipo_evento','origen','remitente','destinatarios','descripcion','documentos_mencionados',
     'estado','riesgo','accion_pendiente','responsable_accion','fecha_limite','link_documental',
-    'observaciones','creado_por','actualizado_en'
+    'observaciones','creado_por','origen_carga','oc_registrada','actualizado_en'
   ];
+  const TIMELINE_DB_SELECT=[
+    'id','orden_id','nro_oc','fecha','hora','semana','expediente','proveedor','rubro','estacion','titulo',
+    'tipo_evento','origen','remitente','destinatarios','descripcion','documentos_mencionados','estado','riesgo',
+    'accion_pendiente','responsable_accion','fecha_limite','link_documental','observaciones','creado_por',
+    'origen_carga','oc_registrada','created_by','updated_by','creado_en','actualizado_en'
+  ].join(',');
   const riskWeight={'Bajo':1,'Medio':2,'Alto':3,'Cr\u00edtico':4};
   const state={
     view:'diaria',
     editingId:'',
     filters:{fecha:'',fecha_desde:'',fecha_hasta:'',semana:'',oc:'',proveedor:'',rubro:'',estado:'',riesgo:'',tipo_evento:'',origen:'',responsable_accion:''},
-    bulk:{text:'',events:[],previewed:false,allowDuplicates:false,recent:[],lastMessage:''}
+    bulk:{text:'',events:[],previewed:false,allowDuplicates:false,recent:[],lastMessage:''},
+    persistence:{mode:'loading',message:'Cargando Timeline desde Supabase…'}
   };
+  let timelineLoadPromise=null;
 
   function byId(id){return document.getElementById(id);}
   function text(value){return String(value??'').trim();}
@@ -20074,6 +20105,7 @@ if(document.readyState==='loading'){
     const event={};
     TIMELINE_FIELDS.forEach(field=>{event[field]=text(source[field]);});
     event.id=event.id||`TL-IMPORT-${Date.now()}-${index||0}-${Math.random().toString(36).slice(2,7)}`;
+    event.oc=text(source.oc||source.nro_oc);
     event.fecha=fecha;
     event.hora=/^\d{2}:\d{2}/.test(event.hora)?event.hora.slice(0,5):'09:00';
     event.semana=event.semana||isoWeek(fecha);
@@ -20087,64 +20119,22 @@ if(document.readyState==='loading'){
     return event;
   }
   function sortEvents(events){return [...events].sort((a,b)=>eventTime(b)-eventTime(a)||text(b.actualizado_en).localeCompare(text(a.actualizado_en)));}
-  function loadEvents(){
+  function readTimelineCache(){
     try{
       const parsed=JSON.parse(localStorage.getItem(TIMELINE_STORAGE_KEY)||'[]');
       return Array.isArray(parsed)?sortEvents(parsed.map(normalizeEvent)):[];
     }catch(error){
-      console.warn('Timeline COI: almacenamiento local inv\u00e1lido; se conserva el sistema operativo.',error);
+      console.warn('Timeline COI: la cach\u00e9 local no es v\u00e1lida.',error);
       return [];
     }
   }
-  function seedEvents(){
-    return [
-      {
-        id:'TL-DEMO-4530009871-20260715',fecha:'2026-07-15',hora:'09:10',oc:'4530009871',proveedor:'FEMYP',rubro:'Ascensores',
-        titulo:'Revisi\u00f3n documental nueva OC Ascensores',tipo_evento:'SERCAE',origen:'Control de Terceros',estado:'Pendiente CT',riesgo:'Alto',
-        descripcion:'Documentaci\u00f3n SERCAE parcialmente cargada. EMP-049 rechazado. EMP-045, EMP-008, EMP-050, EMP-019, EMP-018, EMP-043 y EMP-044 pendientes/observados. EMP-002 ART vence 15/07/2026.',
-        documentos_mencionados:'EMP-049; EMP-045; EMP-008; EMP-050; EMP-019; EMP-018; EMP-043; EMP-044; EMP-002 ART',
-        accion_pendiente:'Pedir faltantes exactos a Control de Terceros y solicitar actualizaci\u00f3n ART.',responsable_accion:'COI / Control de Terceros',fecha_limite:'2026-07-15',creado_por:'Mariano Special'
-      },
-      {
-        id:'TL-DEMO-4530008964-20260714',fecha:'2026-07-14',hora:'11:30',oc:'4530008964',proveedor:'FEMYP',rubro:'Puertas Autom\u00e1ticas',
-        titulo:'Acta de Medici\u00f3n N\u00b011 corregida',tipo_evento:'Correcci\u00f3n documental',origen:'Acta de Medici\u00f3n',estado:'Corregido',riesgo:'Bajo',
-        descripcion:'Se corrige error de a\u00f1o en per\u00edodo certificado. Per\u00edodo correcto 05/06/2026 al 04/07/2026.',
-        documentos_mencionados:'Acta de Medici\u00f3n N\u00b011',accion_pendiente:'Reemplazar versi\u00f3n anterior y continuar circuito de certificaci\u00f3n.',responsable_accion:'COI',creado_por:'Mariano Special'
-      },
-      {
-        id:'TL-DEMO-4530009821-CERT-20260713',fecha:'2026-07-13',hora:'14:20',oc:'4530009821',proveedor:'LYMBA',rubro:'Obra Civil',estacion:'Spegazzini',
-        titulo:'Certificado N\u00b01 Spegazzini descendente',tipo_evento:'Certificado',origen:'Mailing',estado:'Certificaci\u00f3n',riesgo:'Medio',
-        descripcion:'Se env\u00eda Certificado N\u00b01 del servicio de alba\u00f1iler\u00eda para mejoras en and\u00e9n descendente de Estaci\u00f3n Spegazzini.',
-        documentos_mencionados:'Certificado N\u00b01',accion_pendiente:'Cargar certificado al expediente y cruzar con habilitaci\u00f3n CT/HSMA.',responsable_accion:'COI',creado_por:'Mariano Special'
-      },
-      {
-        id:'TL-DEMO-4530009821-CT-20260715',fecha:'2026-07-15',hora:'10:40',oc:'4530009821',proveedor:'GUIFFREY / LYMBA',rubro:'Obra Civil',estacion:'Spegazzini',
-        titulo:'Habilitaci\u00f3n documental parcial',tipo_evento:'Control de Terceros',origen:'Control de Terceros',estado:'Pendiente CT',riesgo:'Medio',
-        descripcion:'LYMBA habilitada hasta 17/07/2026. GUIFFREY con habilitaci\u00f3n parcial. Personal sin trabajos en altura.',
-        accion_pendiente:'Controlar vencimientos documentales y n\u00f3mina habilitada.',responsable_accion:'COI / Control de Terceros',fecha_limite:'2026-07-17',creado_por:'Mariano Special'
-      },
-      {
-        id:'TL-DEMO-CONTENEDORES-HUGO-20260715',fecha:'2026-07-15',hora:'15:00',oc:'',proveedor:'Contenedores Hugo',rubro:'Servicios',
-        titulo:'Observaciones HSMA varias OCs',tipo_evento:'HSMA',origen:'HSMA',estado:'Pendiente HSMA',riesgo:'Alto',
-        descripcion:'OCs 4530009795 y 4530009812 adeudan ATS, DDJJ, capacitaci\u00f3n, EPP y matr\u00edcula profesional. Otras OCs requieren actualizaci\u00f3n de capacitaciones LR 16, 17 y 21.',
-        documentos_mencionados:'ATS; DDJJ; capacitaci\u00f3n; EPP; matr\u00edcula profesional; LR 16; LR 17; LR 21',
-        accion_pendiente:'Pedir documentaci\u00f3n faltante antes de habilitar ingreso.',responsable_accion:'COI / HSMA',creado_por:'Mariano Special'
-      }
-    ].map(normalizeEvent);
-  }
-  function initializeStore(){
-    const existing=localStorage.getItem(TIMELINE_STORAGE_KEY);
-    if(existing===null){
-      const seeds=seedEvents();
-      localStorage.setItem(TIMELINE_STORAGE_KEY,JSON.stringify(seeds));
-      window.coiTimelineEvents=seeds;
-      return;
-    }
-    window.coiTimelineEvents=loadEvents();
-  }
-  function saveEvents(events,reason){
+  async function initializeStore(){return loadEvents({migrateLegacy:true});}
+  function applyTimelineEvents(events,reason,{cache=true}={}){
     const normalized=sortEvents((Array.isArray(events)?events:[]).map(normalizeEvent));
-    localStorage.setItem(TIMELINE_STORAGE_KEY,JSON.stringify(normalized));
+    if(cache){
+      try{localStorage.setItem(TIMELINE_STORAGE_KEY,JSON.stringify(normalized));}
+      catch(error){console.warn('Timeline COI: no se pudo actualizar la cach\u00e9.',error);}
+    }
     window.coiTimelineEvents=normalized;
     try{
       if(typeof window.registrarLogSistema==='function')window.registrarLogSistema('TIMELINE_COI',reason||'Timeline actualizado',`${normalized.length} evento(s)`);
@@ -20152,6 +20142,120 @@ if(document.readyState==='loading'){
     renderTimelineDashboardKPIs();
     if(byId('vistaTimelineCOI')?.classList.contains('active'))renderTimelineCOI();
     renderTimelineFichaActual();
+    return normalized;
+  }
+  function setTimelinePersistence(mode,message){
+    state.persistence={mode,message:text(message)};
+    if(byId('vistaTimelineCOI')?.classList.contains('active'))renderTimelineCOI();
+  }
+  async function requireTimelineSupabase(){
+    if(typeof window.initSupabase==='function')await window.initSupabase();
+    const client=typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;
+    if(!client)throw new Error('Cliente Supabase no disponible.');
+    const {data,error}=await client.auth.getSession();
+    if(error)throw error;
+    if(!data?.session?.user)throw new Error('Inici\u00e1 sesi\u00f3n en Supabase para consultar o modificar el Timeline.');
+    if(navigator.onLine===false)throw new Error('Sin conexi\u00f3n a Internet.');
+    return {client,user:data.session.user};
+  }
+  function databaseToTimelineEvent(row,index){
+    return normalizeEvent({...row,oc:row?.nro_oc||'',hora:text(row?.hora).slice(0,5)},index);
+  }
+  function timelineEventToDatabase(raw){
+    const event=normalizeEvent(raw);
+    const order=event.oc?findOrder(event.oc):null;
+    return {
+      id:event.id,
+      orden_id:order?.orderId||null,
+      nro_oc:event.oc||null,
+      fecha:event.fecha,
+      hora:event.hora,
+      semana:event.semana,
+      expediente:event.expediente,
+      proveedor:event.proveedor,
+      rubro:event.rubro,
+      estacion:event.estacion,
+      titulo:event.titulo,
+      tipo_evento:event.tipo_evento,
+      origen:event.origen,
+      remitente:event.remitente,
+      destinatarios:event.destinatarios,
+      descripcion:event.descripcion,
+      documentos_mencionados:event.documentos_mencionados,
+      estado:event.estado,
+      riesgo:event.riesgo,
+      accion_pendiente:event.accion_pendiente,
+      responsable_accion:event.responsable_accion,
+      fecha_limite:event.fecha_limite||null,
+      link_documental:event.link_documental,
+      observaciones:event.observaciones,
+      creado_por:event.creado_por||userName(),
+      origen_carga:event.origen_carga||'Carga manual',
+      oc_registrada:event.oc_registrada||''
+    };
+  }
+  async function fetchTimelineEventsSupabase(client){
+    const rows=[];
+    for(let from=0;;from+=TIMELINE_PAGE_SIZE){
+      const {data,error}=await client.from(TIMELINE_TABLE).select(TIMELINE_DB_SELECT)
+        .order('fecha',{ascending:false}).order('hora',{ascending:false}).order('id',{ascending:true})
+        .range(from,from+TIMELINE_PAGE_SIZE-1);
+      if(error)throw error;
+      const batch=Array.isArray(data)?data:[];
+      rows.push(...batch);
+      if(batch.length<TIMELINE_PAGE_SIZE)break;
+    }
+    return sortEvents(rows.map(databaseToTimelineEvent));
+  }
+  async function upsertTimelineEventsSupabase(client,events){
+    const list=Array.isArray(events)?events:[];
+    const saved=[];
+    for(let from=0;from<list.length;from+=500){
+      const payload=list.slice(from,from+500).map(timelineEventToDatabase);
+      const {data,error}=await client.from(TIMELINE_TABLE).upsert(payload,{onConflict:'id'}).select(TIMELINE_DB_SELECT);
+      if(error)throw error;
+      saved.push(...(data||[]).map(databaseToTimelineEvent));
+    }
+    return saved;
+  }
+  async function migrateLegacyTimeline(client,remoteEvents,{force=false}={}){
+    if(!force&&localStorage.getItem(TIMELINE_MIGRATION_KEY))return {migrated:0};
+    const remoteIds=new Set((remoteEvents||[]).map(event=>event.id));
+    const legacy=readTimelineCache().filter(event=>event.id&&!event.id.startsWith('TL-DEMO-')&&text(event.titulo));
+    const pending=legacy.filter(event=>!remoteIds.has(event.id));
+    if(pending.length)await upsertTimelineEventsSupabase(client,pending);
+    localStorage.setItem(TIMELINE_MIGRATION_KEY,JSON.stringify({completedAt:nowISO(),migrated:pending.length}));
+    return {migrated:pending.length};
+  }
+  async function loadEvents(options={}){
+    if(timelineLoadPromise)return timelineLoadPromise;
+    timelineLoadPromise=(async()=>{
+      setTimelinePersistence('loading','Cargando Timeline desde Supabase\u2026');
+      try{
+        const {client}=await requireTimelineSupabase();
+        let remote=await fetchTimelineEventsSupabase(client);
+        const migration=await migrateLegacyTimeline(client,remote,{force:options.forceMigration===true});
+        if(migration.migrated)remote=await fetchTimelineEventsSupabase(client);
+        applyTimelineEvents(remote,'Timeline cargado desde Supabase');
+        setTimelinePersistence('online',`${remote.length} evento(s) cargado(s) desde Supabase.${migration.migrated?` Se migraron ${migration.migrated} registro(s) locales.`:''}`);
+        return remote;
+      }catch(error){
+        console.warn('Timeline COI: no se pudo cargar Supabase.',error);
+        const cached=readTimelineCache().filter(event=>!event.id.startsWith('TL-DEMO-'));
+        applyTimelineEvents(cached,'Timeline en cach\u00e9',{cache:false});
+        setTimelinePersistence(cached.length?'cache':'error',`${error?.message||error}${cached.length?' Se muestra la \u00faltima cach\u00e9; no se habilitan escrituras.':''}`);
+        return cached;
+      }finally{timelineLoadPromise=null;}
+    })();
+    return timelineLoadPromise;
+  }
+  async function saveTimelineEventsSupabase(events,reason){
+    const {client}=await requireTimelineSupabase();
+    const saved=await upsertTimelineEventsSupabase(client,events);
+    const remote=await fetchTimelineEventsSupabase(client);
+    applyTimelineEvents(remote,reason||'Timeline guardado en Supabase');
+    setTimelinePersistence('online',`${remote.length} evento(s) sincronizado(s) con Supabase.`);
+    return {ok:true,count:saved.length,events:saved};
   }
   window.coiTimelineEvents=[];
 
@@ -20182,6 +20286,7 @@ if(document.readyState==='loading'){
       proveedor:text(item.proveedor||item.PROVEEDOR||row?.proveedor),
       rubro:text(item.rubro||item.especialidad||item.tipoTrabajo||row?.especialidad),
       estacion:text(item.estacion||item.ESTACION||row?.estacion),
+      orderId:text(item.supabaseId||item._supabaseRaw?.id||item.orden_id||row?.orden_id),
       key:text(item.idOC||item.idObra||item.idServicio||item.id||item.oc||item.numeroOC||row?.oc)
     };
   }
@@ -20583,42 +20688,22 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     const counts=timelineBulkCounts(state.bulk.events);
     return `<div class="timeline-bulk-counters"><div class="timeline-bulk-counter"><b>${counts.detected}</b><span>Eventos detectados</span></div><div class="timeline-bulk-counter ok"><b>${counts.valid}</b><span>Eventos válidos</span></div><div class="timeline-bulk-counter warn"><b>${counts.observed}</b><span>Eventos observados</span></div><div class="timeline-bulk-counter"><b>${counts.duplicated}</b><span>Eventos duplicados</span></div><div class="timeline-bulk-counter bad"><b>${counts.error}</b><span>Eventos con error</span></div></div>`;
   }
-  async function saveTimelineEventsSupabase(events){
-    const client=typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;
-    if(!client||!Array.isArray(events)||!events.length)return {skipped:true};
-    const payload=events.map(event=>{
-      const cleanEvent={};
-      TIMELINE_FIELDS.forEach(field=>{cleanEvent[field]=event[field]??'';});
-      cleanEvent.origen_carga=event.origen_carga||'Carga masiva ChatGPT / Excel';
-      cleanEvent.oc_registrada=event.oc_registrada||'';
-      return cleanEvent;
-    });
-    try{
-      const {error}=await client.from('coi_timeline_events').upsert(payload,{onConflict:'id'});
-      if(error)throw error;
-      return {ok:true,count:payload.length};
-    }catch(error){
-      console.warn('Timeline COI: no se pudo sincronizar la carga masiva con Supabase. Se conserva localStorage.',error);
-      return {error};
-    }
-  }
-  function importTimelineEvents(events){
+  async function importTimelineEvents(events){
     const allow=!!state.bulk.allowDuplicates;
     const valid=(Array.isArray(events)?events:[]).filter(event=>event._bulk?.valid&&(allow||!event._bulk?.duplicate));
     if(!valid.length){alert('No hay eventos válidos para importar con la configuración actual.');return;}
-    const existing=new Map(window.coiTimelineEvents.map(event=>[event.id,event]));
-    valid.forEach(event=>{
-      const cleanEvent={...event};
-      delete cleanEvent._bulk;
-      existing.set(cleanEvent.id,cleanEvent);
-    });
-    state.bulk.recent=valid.map(event=>({...event})).slice(0,12);
-    state.bulk.lastMessage=`${valid.length} evento(s) importado(s).${allow?' Se permitieron duplicados seleccionados.':''}`;
-    saveEvents([...existing.values()],`Carga masiva Timeline: ${valid.length} evento(s)`);
-    saveTimelineEventsSupabase(valid).then(result=>{
-      if(result?.ok){try{if(typeof window.mostrarMensajeCOI==='function')window.mostrarMensajeCOI(`Timeline sincronizado con Supabase: ${result.count} evento(s).`,'ok');}catch(e){}}
-      if(result?.error){try{if(typeof window.mostrarMensajeCOI==='function')window.mostrarMensajeCOI('Eventos guardados localmente. Supabase no aceptó la sincronización de Timeline.','warn');}catch(e){}}
-    });
+    const clean=valid.map(event=>{const item={...event};delete item._bulk;return item;});
+    try{
+      const result=await saveTimelineEventsSupabase(clean,`Carga masiva Timeline: ${clean.length} evento(s)`);
+      state.bulk.recent=clean.map(event=>({...event})).slice(0,12);
+      state.bulk.lastMessage=`${result.count} evento(s) guardado(s) en Supabase.${allow?' Se permitieron duplicados seleccionados.':''}`;
+      renderTimelineCOI();
+      if(typeof window.mostrarMensajeCOI==='function')window.mostrarMensajeCOI(`Timeline guardado en Supabase: ${result.count} evento(s).`,'ok');
+      else alert(`Timeline guardado en Supabase: ${result.count} evento(s).`);
+    }catch(error){
+      console.error('Timeline COI: la carga masiva no se guardó.',error);
+      alert(`No se guardó la carga masiva en Supabase. No se modificaron los datos visibles.\n\n${error?.message||error}`);
+    }
   }
   function recentBulkMarkup(){
     const recent=state.bulk.recent||[];
@@ -20627,6 +20712,12 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
   }
   function bulkImportMarkup(){
     return `<section class="timeline-bulk-card" id="timelineBulkImportCard"><div class="timeline-bulk-head"><div><h3>Carga masiva desde ChatGPT / Excel</h3><p>Pegue filas tabuladas o separadas por punto y coma. Permite cargar mailings diarios/semanales en bloque sin reemplazar el formulario manual.</p></div><div class="timeline-bulk-actions"><button type="button" id="btnTimelineBulkCopy">Copiar plantilla</button><button type="button" id="btnTimelineBulkPreview" class="timeline-primary">Previsualizar eventos</button><button type="button" id="btnTimelineBulkImport">Importar eventos</button><button type="button" id="btnTimelineBulkClear">Limpiar</button></div></div><div class="timeline-bulk-body"><div class="timeline-bulk-help">Columnas esperadas: ${html(TIMELINE_BULK_COLUMNS.join(' | '))}. Si FECHA, HORA, RIESGO, ESTADO u ORIGEN vienen vacíos, el sistema aplica valores operativos por defecto.</div><textarea id="timelineBulkTextarea" class="timeline-bulk-textarea" spellcheck="false" placeholder="Pegue aquí las filas desde ChatGPT o Excel...">${html(state.bulk.text)}</textarea><div class="timeline-bulk-options"><label><input type="checkbox" id="timelineBulkAllowDuplicates" ${state.bulk.allowDuplicates?'checked':''}> Permitir importar posibles duplicados</label><span class="muted">Duplicado: FECHA + OC + TÍTULO + TIPO_EVENTO.</span></div>${bulkCountersMarkup()}<div class="timeline-bulk-preview">${state.bulk.previewed?previewTimelineEvents(state.bulk.events):'<div class="timeline-empty">Todavía no se previsualizaron eventos masivos.</div>'}</div>${state.bulk.lastMessage?`<div class="notice okmsg">${html(state.bulk.lastMessage)}</div>`:''}${recentBulkMarkup()}</div></section>`;
+  }
+
+  function persistenceMarkup(){
+    const mode=state.persistence?.mode||'loading';
+    const label=mode==='online'?'Supabase sincronizado':mode==='loading'?'Sincronizando…':mode==='cache'?'Caché de contingencia':'Supabase no disponible';
+    return `<div class="timeline-persistence ${attr(mode)}" role="status"><div><b>${html(label)}</b><span>${html(state.persistence?.message||'')}</span></div><button type="button" data-timeline-refresh ${mode==='loading'?'disabled':''}>Actualizar desde Supabase</button></div>`;
   }
 
   function renderTimelineCOI(){
@@ -20639,6 +20730,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     if(state.view==='oc')result=ocMarkup(events);
     mount.innerHTML=`<div class="timeline-view-shell">
       <section class="timeline-hero"><div><h2>Timeline COI / Trazabilidad por OC</h2><p>Mailings, sistemas, actas, certificados, remitos, facturas y acciones pendientes en una secuencia auditable.</p></div><div class="timeline-actions"><button type="button" id="btnTimelineNuevo" class="timeline-primary">Nueva carga manual</button><button type="button" id="btnTimelineExportJSON">Exportar JSON</button><button type="button" id="btnTimelineImportJSON">Importar JSON</button><input type="file" id="timelineImportFile" accept="application/json,.json" hidden></div></section>
+      ${persistenceMarkup()}
       ${kpisMarkup(metrics())}
       <nav class="timeline-tabs" aria-label="Vistas del Timeline COI"><button type="button" data-timeline-view="diaria" class="${state.view==='diaria'?'active':''}">Vista diaria</button><button type="button" data-timeline-view="semanal" class="${state.view==='semanal'?'active':''}">Vista semanal</button><button type="button" data-timeline-view="oc" class="${state.view==='oc'?'active':''}">Vista por OC</button></nav>
       ${filtersMarkup()}
@@ -20666,7 +20758,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       if(input&&!text(input.value))input.value=value;
     });
   }
-  function saveForm(form){
+  async function saveForm(form){
     const data=Object.fromEntries(new FormData(form).entries());
     if(!validDate(data.fecha)||!text(data.titulo)||!text(data.tipo_evento)){
       alert('Complete Fecha, T\u00edtulo y Tipo de evento.');
@@ -20677,22 +20769,40 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       ...(existing||{}),...data,id:existing?.id||makeId(),semana:isoWeek(data.fecha),
       creado_por:text(data.creado_por)||existing?.creado_por||userName(),actualizado_en:nowISO()
     });
-    const events=existing
-      ? window.coiTimelineEvents.map(item=>item.id===existing.id?event:item)
-      : [event,...window.coiTimelineEvents];
-    state.editingId='';
-    state.filters.oc=event.oc&&state.view==='oc'?event.oc:state.filters.oc;
-    saveEvents(events,existing?'Evento editado':'Evento agregado');
+    const submit=form.querySelector('button[type="submit"]');
+    if(submit)submit.disabled=true;
+    try{
+      await saveTimelineEventsSupabase([event],existing?'Evento editado en Supabase':'Evento agregado en Supabase');
+      state.editingId='';
+      state.filters.oc=event.oc&&state.view==='oc'?event.oc:state.filters.oc;
+      renderTimelineCOI();
+      if(typeof window.mostrarMensajeCOI==='function')window.mostrarMensajeCOI(existing?'Evento actualizado en Supabase.':'Evento guardado en Supabase.','ok');
+    }catch(error){
+      console.error('Timeline COI: no se guardó el formulario.',error);
+      alert(`No se guardó el evento en Supabase.\n\n${error?.message||error}`);
+    }finally{if(submit?.isConnected)submit.disabled=false;}
   }
-  function deleteEvent(id){
+  async function deleteEvent(id){
     const event=window.coiTimelineEvents.find(item=>item.id===id);
     if(!event)return;
-    if(!confirm(`Eliminar el movimiento "${event.titulo}" del ${displayDate(event.fecha)}?\n\nEsta acci\u00f3n solo elimina el registro local del Timeline.`))return;
-    saveEvents(window.coiTimelineEvents.filter(item=>item.id!==id),'Evento eliminado');
+    if(!confirm(`Eliminar el movimiento "${event.titulo}" del ${displayDate(event.fecha)}?\n\nSe eliminará el registro compartido de Supabase y quedará constancia en la auditoría.`))return;
+    try{
+      const {client}=await requireTimelineSupabase();
+      const {data,error}=await client.from(TIMELINE_TABLE).delete().eq('id',id).select('id');
+      if(error)throw error;
+      if(!Array.isArray(data)||data.length!==1)throw new Error('Supabase no confirmó la eliminación del evento.');
+      const remote=await fetchTimelineEventsSupabase(client);
+      applyTimelineEvents(remote,'Evento eliminado en Supabase');
+      setTimelinePersistence('online',`${remote.length} evento(s) sincronizado(s) con Supabase.`);
+      if(typeof window.mostrarMensajeCOI==='function')window.mostrarMensajeCOI('Evento eliminado de Supabase.','ok');
+    }catch(error){
+      console.error('Timeline COI: no se eliminó el evento.',error);
+      alert(`No se eliminó el evento.\n\n${error?.message||error}`);
+    }
   }
   function downloadJSON(){
     const payload={
-      schema:TIMELINE_SCHEMA,version:1,fecha_exportacion:nowISO(),app_version:readAppVersion(),
+      schema:TIMELINE_SCHEMA,version:2,fecha_exportacion:nowISO(),app_version:readAppVersion(),
       total_eventos:window.coiTimelineEvents.length,events:window.coiTimelineEvents
     };
     const name=`timeline_coi_${todayISO()}.json`;
@@ -20711,16 +20821,20 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
   function importJSON(file){
     if(!file)return;
     const reader=new FileReader();
-    reader.onload=()=>{
+    reader.onload=async()=>{
       let payload;
       try{payload=JSON.parse(reader.result);}catch(error){alert('El archivo JSON no es v\u00e1lido.');return;}
       const incoming=Array.isArray(payload)?payload:(Array.isArray(payload.events)?payload.events:Array.isArray(payload.coiTimelineEvents)?payload.coiTimelineEvents:null);
       if(!incoming){alert('El archivo no contiene una colecci\u00f3n de eventos Timeline compatible.');return;}
       if(!confirm(`Se detectaron ${incoming.length} evento(s). Se fusionar\u00e1n por ID sin borrar los movimientos actuales. \u00bfContinuar?`))return;
-      const merged=new Map(window.coiTimelineEvents.map(event=>[event.id,event]));
-      incoming.map(normalizeEvent).forEach(event=>merged.set(event.id,event));
-      saveEvents([...merged.values()],`Importaci\u00f3n JSON: ${file.name}`);
-      alert('Datos del Timeline importados correctamente.');
+      try{
+        const normalized=incoming.map(normalizeEvent).filter(event=>text(event.titulo));
+        const result=await saveTimelineEventsSupabase(normalized,`Importaci\u00f3n JSON: ${file.name}`);
+        alert(`${result.count} evento(s) del Timeline importado(s) y verificado(s) en Supabase.`);
+      }catch(error){
+        console.error('Timeline COI: no se importó el JSON.',error);
+        alert(`No se importó el Timeline en Supabase.\n\n${error?.message||error}`);
+      }
     };
     reader.readAsText(file,'utf-8');
   }
@@ -20783,7 +20897,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     const section=document.createElement('section');
     section.id='timelineAboutCard';
     section.className='timeline-about-card';
-    section.innerHTML='<h3>Timeline COI / Trazabilidad por OC</h3><p>Registro cronol\u00f3gico local de mailings, SERCAE, Control de Terceros, HSMA, SAP, AGC, actas, certificados, remitos, facturas, observaciones y pr\u00f3ximas acciones. La informaci\u00f3n se incluye en el backup JSON integral del sistema.</p>';
+    section.innerHTML='<h3>Timeline COI / Trazabilidad por OC</h3><p>Registro cronol\u00f3gico compartido en Supabase de mailings, SERCAE, Control de Terceros, HSMA, SAP, AGC, actas, certificados, remitos, facturas, observaciones y pr\u00f3ximas acciones. Supabase es la fuente de verdad y la informaci\u00f3n tambi\u00e9n se incluye en el backup JSON integral.</p>';
     mount.appendChild(section);
   }
   function highlightCriticalOrders(){
@@ -20857,10 +20971,20 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       const base=window[name];
       if(typeof base!=='function'||base.__timelineWrapped)return;
       const wrapped=function(){
+        let incoming=[];
+        if(name==='adminApplyLocalStorageSnapshot'){
+          try{
+            const raw=arguments[0]?.[TIMELINE_STORAGE_KEY];
+            const parsed=typeof raw==='string'?JSON.parse(raw):raw;
+            if(Array.isArray(parsed))incoming=parsed.map(normalizeEvent).filter(event=>text(event.titulo));
+          }catch(error){console.warn('Timeline COI: el backup no contiene un Timeline compatible.',error);}
+        }
         const result=base.apply(this,arguments);
-        window.coiTimelineEvents=loadEvents();
-        renderTimelineDashboardKPIs();
-        if(byId('vistaTimelineCOI')?.classList.contains('active'))renderTimelineCOI();
+        if(incoming.length)localStorage.removeItem(TIMELINE_MIGRATION_KEY);
+        Promise.resolve(incoming.length
+          ? saveTimelineEventsSupabase(incoming,'Timeline restaurado desde backup')
+          : loadEvents({force:true})
+        ).catch(error=>console.warn('Timeline COI: la restauración en Supabase quedó pendiente.',error));
         return result;
       };
       wrapped.__timelineWrapped=true;window[name]=wrapped;
@@ -20887,12 +21011,13 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
   function bindEvents(){
     if(window.__coiTimelineEventsBound)return;
     window.__coiTimelineEventsBound=true;
-    document.addEventListener('click',event=>{
+    document.addEventListener('click',async event=>{
       const target=event.target.closest('button,a');
       if(!target)return;
       if(target.closest('#btnTimelineCOI')||target.closest('[data-open-timeline]')){
         event.preventDefault();openTimeline();return;
       }
+      if(target.closest('[data-timeline-refresh]')){await loadEvents({force:true});return;}
       const tab=target.closest('[data-timeline-view]');
       if(tab){state.view=tab.dataset.timelineView;state.editingId='';renderTimelineCOI();return;}
       if(target.closest('#btnTimelineNuevo')){state.editingId='__new__';renderTimelineCOI();return;}
@@ -20912,7 +21037,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
         openTimeline(found?.oc?{oc:found.oc}:null);return;
       }
       const remove=target.closest('[data-timeline-delete]');
-      if(remove){deleteEvent(remove.dataset.timelineDelete);return;}
+      if(remove){await deleteEvent(remove.dataset.timelineDelete);return;}
       const openOC=target.closest('[data-timeline-open-oc]');
       if(openOC){openOrder(openOC.dataset.timelineOpenOc);return;}
       if(target.closest('#btnTimelineAplicarFiltros')){readFilters();renderTimelineCOI();return;}
@@ -20939,16 +21064,16 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
         state.bulk.allowDuplicates=!!byId('timelineBulkAllowDuplicates')?.checked;
         if(!state.bulk.previewed)state.bulk.events=parseTimelineBulkText(state.bulk.text);
         state.bulk.previewed=true;
-        importTimelineEvents(state.bulk.events);return;
+        await importTimelineEvents(state.bulk.events);return;
       }
       if(target.closest('#btnTimelineBulkClear')){
         state.bulk={text:'',events:[],previewed:false,allowDuplicates:false,recent:state.bulk.recent||[],lastMessage:''};
         renderTimelineCOI();return;
       }
     });
-    document.addEventListener('submit',event=>{
+    document.addEventListener('submit',async event=>{
       if(event.target?.id!=='timelineEventForm')return;
-      event.preventDefault();saveForm(event.target);
+      event.preventDefault();await saveForm(event.target);
     });
     document.addEventListener('change',event=>{
       if(event.target?.id==='timelineImportFile'){
@@ -20968,11 +21093,19 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     });
     window.addEventListener('storage',event=>{
       if(event.key!==TIMELINE_STORAGE_KEY)return;
-      window.coiTimelineEvents=loadEvents();
-      renderTimelineDashboardKPIs();
-      if(byId('vistaTimelineCOI')?.classList.contains('active'))renderTimelineCOI();
-      renderTimelineFichaActual();
+      loadEvents({force:true});
     });
+    window.addEventListener('coi:supabase-auth',event=>{
+      const authEvent=event.detail?.event||'';
+      if(authEvent==='SIGNED_OUT'){
+        if(localStorage.getItem(TIMELINE_MIGRATION_KEY))localStorage.removeItem(TIMELINE_STORAGE_KEY);
+        applyTimelineEvents([],'Timeline cerrado por fin de sesión',{cache:false});
+        setTimelinePersistence('error','Iniciá sesión en Supabase para consultar el Timeline.');
+        return;
+      }
+      if(['SIGNED_IN','INITIAL_SESSION','TOKEN_REFRESHED','USER_UPDATED'].includes(authEvent))loadEvents({force:true});
+    });
+    window.addEventListener('online',()=>loadEvents({force:true}));
   }
   window.normalizeTimelineDate=normalizeTimelineDate;
   window.normalizeTimelineTime=normalizeTimelineTime;
@@ -20980,9 +21113,8 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
   window.previewTimelineEvents=previewTimelineEvents;
   window.importTimelineEvents=importTimelineEvents;
 
-  function initialize(){
+  async function initialize(){
     try{
-      initializeStore();
       ensureStructure();
       wrapExistingRenders();
       wrapBackups();
@@ -20992,20 +21124,23 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       aboutIntegration();
       renderTimelineFichaActual();
       highlightCriticalOrders();
+      await initializeStore();
     }catch(error){
       console.warn('Timeline COI no pudo inicializarse; los dem\u00e1s m\u00f3dulos permanecen disponibles.',error);
     }
   }
 
   window.COI_TIMELINE_COI={
+    table:TIMELINE_TABLE,
     storageKey:TIMELINE_STORAGE_KEY,
+    migrationKey:TIMELINE_MIGRATION_KEY,
     schema:TIMELINE_SCHEMA,
     statuses:[...TIMELINE_STATUSES],
     risks:[...TIMELINE_RISKS],
     eventTypes:[...TIMELINE_EVENT_TYPES],
     fields:[...TIMELINE_FIELDS],
     load:loadEvents,
-    save:saveEvents,
+    save:saveTimelineEventsSupabase,
     render:renderTimelineCOI,
     open:openTimeline,
     metrics,
@@ -21013,9 +21148,10 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     normalizeTimelineTime,
     parseTimelineBulkText,
     previewTimelineEvents,
-    importTimelineEvents
+    importTimelineEvents,
+    reload:()=>loadEvents({force:true})
   };
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>initialize(),{once:true});
   else initialize();
 })();
 

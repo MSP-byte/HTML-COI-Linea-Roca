@@ -120,6 +120,54 @@ async function main() {
     await db.exec('set role authenticated');
     await setUser(db, 'administrador');
 
+    // Timeline/Mailing: CRUD compartido, lectura por consulta y auditoría.
+    const timelineId = 'TL-RUNTIME-SUPABASE-FIRST';
+    const insertedTimeline = await db.query(`
+      insert into public.coi_timeline_events(
+        id, orden_id, nro_oc, fecha, hora, titulo, tipo_evento, origen,
+        estado, riesgo, descripcion, creado_por
+      ) values (
+        $1, $2, 'OC-IGNORADA', '2026-08-25', '09:30', 'Mailing runtime',
+        'Mailing', 'Mailing', 'Informativo', 'Bajo', 'Prueba transaccional', 'QA'
+      ) returning id, orden_id, nro_oc, semana, created_by
+    `, [timelineId, ORDER_ID]);
+    assert.equal(insertedTimeline.rows[0].nro_oc, '4530008964');
+    assert.equal(insertedTimeline.rows[0].orden_id, ORDER_ID);
+    assert.equal(insertedTimeline.rows[0].created_by, USERS.administrador[0]);
+    assert.equal(insertedTimeline.rows[0].semana, '2026-W35');
+
+    await setUser(db, 'consulta');
+    assert.equal((await db.query('select count(*)::int n from public.coi_timeline_events where id=$1', [timelineId])).rows[0].n, 1);
+    await assert.rejects(
+      db.query(`insert into public.coi_timeline_events(id,fecha,titulo) values ('TL-CONSULTA-BLOCKED','2026-08-25','No autorizado')`),
+      /row-level security|permission denied/i
+    );
+
+    await setUser(db, 'editor');
+    const editedTimeline = await db.query(
+      "update public.coi_timeline_events set estado='En revisión' where id=$1 returning estado,updated_by",
+      [timelineId]
+    );
+    assert.equal(editedTimeline.rows[0].estado, 'En revisión');
+    assert.equal(editedTimeline.rows[0].updated_by, USERS.editor[0]);
+    const editorDelete = await db.query('delete from public.coi_timeline_events where id=$1 returning id', [timelineId]);
+    assert.equal(editorDelete.rows.length, 0);
+
+    await setUser(db, 'administrador');
+    await db.exec('reset role');
+    await db.exec('alter table public.coi_ordenes disable trigger coi_order_number_dependency_guard');
+    await db.query("update public.coi_ordenes set nro_oc='4530008965' where id=$1", [ORDER_ID]);
+    assert.equal((await db.query('select nro_oc from public.coi_timeline_events where id=$1', [timelineId])).rows[0].nro_oc, '4530008965');
+    await db.query("update public.coi_ordenes set nro_oc='4530008964' where id=$1", [ORDER_ID]);
+    assert.equal((await db.query('select nro_oc from public.coi_timeline_events where id=$1', [timelineId])).rows[0].nro_oc, '4530008964');
+    await db.exec('alter table public.coi_ordenes enable trigger coi_order_number_dependency_guard');
+    await db.exec('set role authenticated');
+    await setUser(db, 'administrador');
+
+    const deletedTimeline = await db.query('delete from public.coi_timeline_events where id=$1 returning id', [timelineId]);
+    assert.equal(deletedTimeline.rows[0].id, timelineId);
+    assert.equal((await db.query("select count(*)::int n from public.coi_operaciones_auditoria where entidad='coi_timeline_events' and registro_id=$1", [timelineId])).rows[0].n >= 4, true);
+
     // Writer legacy permitido, pero trazado server-side.
     const legacy = await db.query("update public.coi_ordenes set proveedor='LEGACY OK' where id=$1 returning proveedor", [ORDER_ID]);
     assert.equal(legacy.rows[0].proveedor, 'LEGACY OK');
