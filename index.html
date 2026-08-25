@@ -20009,6 +20009,7 @@ if(document.readyState==='loading'){
 
   const TIMELINE_TABLE='coi_timeline_events';
   const TIMELINE_STORAGE_KEY='coi_timeline_events_v1';
+  const TIMELINE_LEGACY_KEY='coi_timeline_legacy_pending_v1';
   const TIMELINE_MIGRATION_KEY='coi_timeline_supabase_migrated_v1';
   const TIMELINE_SCHEMA='COI_TIMELINE_EVENTS_V2';
   const TIMELINE_PAGE_SIZE=1000;
@@ -20124,16 +20125,27 @@ if(document.readyState==='loading'){
     return event;
   }
   function sortEvents(events){return [...events].sort((a,b)=>eventTime(b)-eventTime(a)||text(b.actualizado_en).localeCompare(text(a.actualizado_en)));}
-  function readTimelineCache(){
+  function readTimelineCollection(key){
     try{
-      const parsed=JSON.parse(localStorage.getItem(TIMELINE_STORAGE_KEY)||'[]');
-      return Array.isArray(parsed)?sortEvents(parsed.map(normalizeEvent)):[];
+      const parsed=JSON.parse(localStorage.getItem(key)||'[]');
+      const events=Array.isArray(parsed)?parsed:(Array.isArray(parsed?.events)?parsed.events:[]);
+      return sortEvents(events.map(normalizeEvent));
     }catch(error){
-      console.warn('Timeline COI: la cach\u00e9 local no es v\u00e1lida.',error);
+      console.warn(`Timeline COI: ${key} no contiene una colecci\u00f3n v\u00e1lida.`,error);
       return [];
     }
   }
-  async function initializeStore(){return loadEvents({migrateLegacy:true});}
+  function readTimelineCache(){return readTimelineCollection(TIMELINE_STORAGE_KEY);}
+  function readTimelineLegacy(){return readTimelineCollection(TIMELINE_LEGACY_KEY);}
+  function stageLegacyTimelineCache(){
+    if(localStorage.getItem(TIMELINE_MIGRATION_KEY)||localStorage.getItem(TIMELINE_LEGACY_KEY))return;
+    const legacy=readTimelineCache().filter(event=>event.id&&!event.id.startsWith('TL-DEMO-')&&text(event.titulo));
+    if(legacy.length)localStorage.setItem(TIMELINE_LEGACY_KEY,JSON.stringify(legacy));
+  }
+  async function initializeStore(){
+    stageLegacyTimelineCache();
+    return loadEvents({migrateLegacy:true});
+  }
   function applyTimelineEvents(events,reason,{cache=true}={}){
     const normalized=sortEvents((Array.isArray(events)?events:[]).map(normalizeEvent));
     if(cache){
@@ -20212,19 +20224,26 @@ if(document.readyState==='loading'){
       observaciones:event.observaciones,
       creado_por:event.creado_por||userName(),
       origen_carga:event.origen_carga||'Carga manual',
-      oc_registrada:event.oc_registrada||''
+      oc_registrada:event.oc_registrada||'',
+      expected_actualizado_en:event.actualizado_en||null
     };
   }
   async function fetchTimelineEventsSupabase(client){
     const rows=[];
-    for(let from=0;;from+=TIMELINE_PAGE_SIZE){
-      const {data,error}=await client.from(TIMELINE_TABLE).select(TIMELINE_DB_SELECT)
-        .order('fecha',{ascending:false}).order('hora',{ascending:false}).order('id',{ascending:true})
-        .range(from,from+TIMELINE_PAGE_SIZE-1);
+    let cursor=null;
+    for(;;){
+      const {data,error}=await client.rpc('coi_timeline_list_page',{
+        p_before_fecha:cursor?.fecha||null,
+        p_before_hora:cursor?.hora||null,
+        p_before_id:cursor?.id||null,
+        p_limit:TIMELINE_PAGE_SIZE
+      });
       if(error)throw error;
       const batch=Array.isArray(data)?data:[];
       rows.push(...batch);
       if(batch.length<TIMELINE_PAGE_SIZE)break;
+      const last=batch[batch.length-1];
+      cursor={fecha:last.fecha,hora:text(last.hora).slice(0,8),id:last.id};
     }
     return sortEvents(rows.map(databaseToTimelineEvent));
   }
@@ -20237,13 +20256,14 @@ if(document.readyState==='loading'){
     if(error)throw error;
     return (data||[]).map(databaseToTimelineEvent);
   }
-  async function migrateLegacyTimeline(client,remoteEvents,{force=false}={}){
-    if(!force&&localStorage.getItem(TIMELINE_MIGRATION_KEY))return {migrated:0};
+  async function migrateLegacyTimeline(client,remoteEvents){
+    if(localStorage.getItem(TIMELINE_MIGRATION_KEY))return {migrated:0};
     const remoteIds=new Set((remoteEvents||[]).map(event=>event.id));
-    const legacy=readTimelineCache().filter(event=>event.id&&!event.id.startsWith('TL-DEMO-')&&text(event.titulo));
+    const legacy=readTimelineLegacy().filter(event=>event.id&&!event.id.startsWith('TL-DEMO-')&&text(event.titulo));
     const pending=legacy.filter(event=>!remoteIds.has(event.id));
     if(pending.length)await upsertTimelineEventsSupabase(client,pending);
     localStorage.setItem(TIMELINE_MIGRATION_KEY,JSON.stringify({completedAt:nowISO(),migrated:pending.length}));
+    localStorage.removeItem(TIMELINE_LEGACY_KEY);
     return {migrated:pending.length};
   }
   async function loadEvents(options={}){
@@ -20254,14 +20274,16 @@ if(document.readyState==='loading'){
         const {client}=await requireTimelineSupabase();
         let remote=await fetchTimelineEventsSupabase(client);
         let migration={migrated:0};
-        try{
-          migration=await migrateLegacyTimeline(client,remote,{force:options.forceMigration===true});
-          if(migration.migrated)remote=await fetchTimelineEventsSupabase(client);
-        }catch(migrationError){
-          console.warn('Timeline COI: la migraci\u00f3n local qued\u00f3 pendiente; se conservan los datos remotos.',migrationError);
-          applyTimelineEvents(remote,'Timeline cargado desde Supabase');
-          setTimelinePersistence('warning',`${remote.length} evento(s) cargado(s) desde Supabase. Migraci\u00f3n pendiente de la cach\u00e9 local: ${migrationError?.message||migrationError}`);
-          return remote;
+        if(options.migrateLegacy===true){
+          try{
+            migration=await migrateLegacyTimeline(client,remote);
+            if(migration.migrated)remote=await fetchTimelineEventsSupabase(client);
+          }catch(migrationError){
+            console.warn('Timeline COI: la migraci\u00f3n local qued\u00f3 pendiente; se conservan los datos remotos.',migrationError);
+            applyTimelineEvents(remote,'Timeline cargado desde Supabase');
+            setTimelinePersistence('warning',`${remote.length} evento(s) cargado(s) desde Supabase. Migraci\u00f3n pendiente de la cach\u00e9 local: ${migrationError?.message||migrationError}`);
+            return remote;
+          }
         }
         applyTimelineEvents(remote,'Timeline cargado desde Supabase');
         setTimelinePersistence('online',`${remote.length} evento(s) cargado(s) desde Supabase.${migration.migrated?` Se migraron ${migration.migrated} registro(s) locales.`:''}`);
@@ -20295,6 +20317,25 @@ if(document.readyState==='loading'){
       applyTimelineEvents(committed,reason||'Timeline guardado en Supabase');
       setTimelinePersistence('warning',`Supabase confirm\u00f3 ${saved.length} evento(s), pero no se pudo refrescar la lista completa: ${refreshError?.message||refreshError}`);
       return {ok:true,count:saved.length,events:saved,refreshed:false,refreshError};
+    }
+  }
+  async function replaceTimelineEventsSupabase(events,reason){
+    const {client}=await requireTimelineSupabase('delete');
+    const list=Array.isArray(events)?events:[];
+    if(list.length>5000)throw new Error('La restauraci\u00f3n supera el l\u00edmite transaccional de 5.000 eventos.');
+    const payload=list.map(timelineEventToDatabase);
+    const {data,error}=await client.rpc('coi_timeline_replace_events',{p_events:payload});
+    if(error)throw error;
+    const committed=(data||[]).map(databaseToTimelineEvent);
+    try{
+      const remote=await fetchTimelineEventsSupabase(client);
+      applyTimelineEvents(remote,reason||'Timeline reemplazado en Supabase');
+      setTimelinePersistence('online',`${remote.length} evento(s) restaurado(s) en Supabase.`);
+      return {ok:true,count:remote.length,events:remote,refreshed:true};
+    }catch(refreshError){
+      applyTimelineEvents(committed,reason||'Timeline reemplazado en Supabase');
+      setTimelinePersistence('warning',`Supabase confirm\u00f3 la restauraci\u00f3n de ${committed.length} evento(s), pero fall\u00f3 el refresco posterior: ${refreshError?.message||refreshError}`);
+      return {ok:true,count:committed.length,events:committed,refreshed:false,refreshError};
     }
   }
   window.coiTimelineEvents=[];
@@ -20811,7 +20852,8 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     const existing=window.coiTimelineEvents.find(event=>event.id===text(form.dataset.eventId));
     const event=normalizeEvent({
       ...(existing||{}),...data,id:existing?.id||makeId(),semana:isoWeek(data.fecha),
-      creado_por:text(data.creado_por)||existing?.creado_por||userName(),actualizado_en:nowISO()
+      creado_por:text(data.creado_por)||existing?.creado_por||userName(),
+      actualizado_en:existing?.actualizado_en||nowISO()
     });
     const submit=form.querySelector('button[type="submit"]');
     if(submit)submit.disabled=true;
@@ -21022,27 +21064,40 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     if(typeof applySnapshot==='function'&&!applySnapshot.__timelineWrapped){
       const wrapped=async function(){
         let incoming=[];
+        let hasTimelineSnapshot=false;
         try{
-          const raw=arguments[0]?.[TIMELINE_STORAGE_KEY];
+          hasTimelineSnapshot=Object.prototype.hasOwnProperty.call(arguments[0]||{},TIMELINE_STORAGE_KEY);
+          const raw=hasTimelineSnapshot?arguments[0][TIMELINE_STORAGE_KEY]:null;
           const parsed=typeof raw==='string'?JSON.parse(raw):raw;
+          if(hasTimelineSnapshot&&!Array.isArray(parsed))throw new Error('La colecci\u00f3n Timeline debe ser un arreglo.');
           if(Array.isArray(parsed))incoming=parsed.map(normalizeEvent).filter(event=>text(event.titulo));
         }catch(error){throw new Error(`El backup no contiene un Timeline compatible: ${error?.message||error}`);}
         const previousEvents=window.coiTimelineEvents.map(event=>({...event}));
-        const previousCache=localStorage.getItem(TIMELINE_STORAGE_KEY);
-        const previousMarker=localStorage.getItem(TIMELINE_MIGRATION_KEY);
-        const result=await applySnapshot.apply(this,arguments);
+        const previousLocal=typeof window.adminSnapshotLocalStorage==='function'
+          ?window.adminSnapshotLocalStorage()
+          :(()=>{const snapshot={};for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);snapshot[key]=localStorage.getItem(key);}return snapshot;})();
+        const restoreLocalSnapshot=()=>{
+          const isSafe=key=>typeof window.adminEsClaveSistemaSegura==='function'
+            ?window.adminEsClaveSistemaSegura(key)
+            :/^(?:coi[_:.\-]|COI[_:.\-]|LS_)/.test(String(key||''));
+          const current=[];
+          for(let i=0;i<localStorage.length;i++)current.push(localStorage.key(i));
+          current.filter(isSafe).forEach(key=>localStorage.removeItem(key));
+          Object.entries(previousLocal).filter(([key])=>isSafe(key)).forEach(([key,value])=>localStorage.setItem(key,String(value)));
+        };
         try{
-          if(incoming.length){
-            await saveTimelineEventsSupabase(incoming,'Timeline restaurado desde backup');
+          const result=await applySnapshot.apply(this,arguments);
+          if(hasTimelineSnapshot){
+            await replaceTimelineEventsSupabase(incoming,'Timeline restaurado exactamente desde backup');
             localStorage.setItem(TIMELINE_MIGRATION_KEY,JSON.stringify({completedAt:nowISO(),restored:incoming.length}));
-          }else await loadEvents({force:true});
+            localStorage.removeItem(TIMELINE_LEGACY_KEY);
+          }else await loadEvents();
           return result;
         }catch(error){
-          if(previousCache===null)localStorage.removeItem(TIMELINE_STORAGE_KEY);else localStorage.setItem(TIMELINE_STORAGE_KEY,previousCache);
-          if(previousMarker===null)localStorage.removeItem(TIMELINE_MIGRATION_KEY);else localStorage.setItem(TIMELINE_MIGRATION_KEY,previousMarker);
+          restoreLocalSnapshot();
           applyTimelineEvents(previousEvents,'Timeline restaurado tras fallo de backup',{cache:false});
-          setTimelinePersistence('error',`El backup local se aplicó, pero Timeline no se restauró en Supabase: ${error?.message||error}`);
-          throw new Error(`No se confirmó la restauración del Timeline en Supabase: ${error?.message||error}`);
+          setTimelinePersistence('error',`La restauraci\u00f3n fall\u00f3 y se repuso el estado local completo anterior: ${error?.message||error}`);
+          throw new Error(`No se confirm\u00f3 la restauraci\u00f3n integral del backup: ${error?.message||error}`);
         }
       };
       wrapped.__timelineWrapped=true;window.adminApplyLocalStorageSnapshot=wrapped;
@@ -21075,7 +21130,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       if(target.closest('#btnTimelineCOI')||target.closest('[data-open-timeline]')){
         event.preventDefault();openTimeline();return;
       }
-      if(target.closest('[data-timeline-refresh]')){await loadEvents({force:true});return;}
+      if(target.closest('[data-timeline-refresh]')){await loadEvents();return;}
       const tab=target.closest('[data-timeline-view]');
       if(tab){state.view=tab.dataset.timelineView;state.editingId='';renderTimelineCOI();return;}
       if(target.closest('#btnTimelineNuevo')){state.editingId='__new__';renderTimelineCOI();return;}
@@ -21151,20 +21206,23 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     });
     window.addEventListener('storage',event=>{
       if(event.key!==TIMELINE_STORAGE_KEY)return;
-      loadEvents({force:true});
+      loadEvents();
     });
     window.addEventListener('coi:supabase-auth',event=>{
       const authEvent=event.detail?.event||'';
       if(authEvent==='SIGNED_OUT'){
         setTimelinePermissions('');
-        if(localStorage.getItem(TIMELINE_MIGRATION_KEY))localStorage.removeItem(TIMELINE_STORAGE_KEY);
+        localStorage.removeItem(TIMELINE_STORAGE_KEY);
         applyTimelineEvents([],'Timeline cerrado por fin de sesión',{cache:false});
         setTimelinePersistence('error','Iniciá sesión en Supabase para consultar el Timeline.');
         return;
       }
-      if(['SIGNED_IN','INITIAL_SESSION','TOKEN_REFRESHED','USER_UPDATED'].includes(authEvent))loadEvents({force:true});
+      if(['SIGNED_IN','INITIAL_SESSION'].includes(authEvent)){
+        stageLegacyTimelineCache();
+        loadEvents({migrateLegacy:true});
+      }else if(['TOKEN_REFRESHED','USER_UPDATED'].includes(authEvent))loadEvents();
     });
-    window.addEventListener('online',()=>loadEvents({force:true}));
+    window.addEventListener('online',()=>loadEvents());
   }
   window.normalizeTimelineDate=normalizeTimelineDate;
   window.normalizeTimelineTime=normalizeTimelineTime;
@@ -21192,6 +21250,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
   window.COI_TIMELINE_COI={
     table:TIMELINE_TABLE,
     storageKey:TIMELINE_STORAGE_KEY,
+    legacyKey:TIMELINE_LEGACY_KEY,
     migrationKey:TIMELINE_MIGRATION_KEY,
     schema:TIMELINE_SCHEMA,
     statuses:[...TIMELINE_STATUSES],
@@ -21200,6 +21259,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     fields:[...TIMELINE_FIELDS],
     load:loadEvents,
     save:saveTimelineEventsSupabase,
+    replace:replaceTimelineEventsSupabase,
     render:renderTimelineCOI,
     open:openTimeline,
     metrics,
@@ -21208,7 +21268,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     parseTimelineBulkText,
     previewTimelineEvents,
     importTimelineEvents,
-    reload:()=>loadEvents({force:true})
+    reload:()=>loadEvents()
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>initialize(),{once:true});
   else initialize();

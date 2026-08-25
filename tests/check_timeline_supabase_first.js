@@ -9,13 +9,17 @@ const sql = fs.readFileSync('supabase/migrations/202608250001_timeline_supabase_
 const actorIndexes = fs.readFileSync('supabase/migrations/202608250002_timeline_actor_indexes.sql', 'utf8');
 const atomicUpsert = fs.readFileSync('supabase/migrations/202608250003_timeline_atomic_upsert.sql', 'utf8');
 const atomicInvoker = fs.readFileSync('supabase/migrations/202608250004_timeline_atomic_upsert_invoker.sql', 'utf8');
+const consistency = fs.readFileSync('supabase/migrations/202608250005_timeline_consistency_hardening.sql', 'utf8');
 
 for (const pattern of [
   /const TIMELINE_TABLE='coi_timeline_events'/,
   /const TIMELINE_MIGRATION_KEY='coi_timeline_supabase_migrated_v1'/,
+  /const TIMELINE_LEGACY_KEY='coi_timeline_legacy_pending_v1'/,
   /async function fetchTimelineEventsSupabase/,
-  /\.range\(from,from\+TIMELINE_PAGE_SIZE-1\)/,
+  /client\.rpc\('coi_timeline_list_page'/,
   /client\.rpc\('coi_timeline_upsert_events',\{p_events:payload\}\)/,
+  /client\.rpc\('coi_timeline_replace_events',\{p_events:payload\}\)/,
+  /expected_actualizado_en:event\.actualizado_en/,
   /\.delete\(\)\.eq\('id',id\)\.select\('id'\)/,
   /async function saveForm/,
   /async function importTimelineEvents/,
@@ -27,6 +31,8 @@ for (const pattern of [
   /state\.permissions\.canDelete/,
   /Supabase confirm\\u00f3 \$\{saved\.length\} evento/,
   /const wrapped=async function\(\)/,
+  /restoreLocalSnapshot/,
+  /replaceTimelineEventsSupabase\(incoming/,
   /await adminApplyLocalStorageSnapshot/,
   /const result=await saveTimelineEventsSupabase/
 ]) assert.match(html, pattern);
@@ -55,5 +61,14 @@ assert.match(atomicUpsert, /jsonb_array_length\(p_events\) > 5000/);
 assert.match(atomicUpsert, /perform public\.coi_assert_role/);
 assert.match(atomicUpsert, /security invoker/);
 assert.match(atomicInvoker, /security invoker/);
+for (const pattern of [
+  /coi_timeline_list_page/,
+  /coi_timeline_page_idx/,
+  /COI_TIMELINE_STALE_WRITE/,
+  /expected_actualizado_en/,
+  /coi_timeline_replace_events/,
+  /lock table public\.coi_timeline_events/,
+  /security invoker/g
+]) assert.match(consistency, pattern);
 
-console.log('Timeline/Mailing Supabase-first: carga, CRUD, migración local y contrato SQL verificados.');
+console.log('Timeline/Mailing Supabase-first: caché aislada, CRUD concurrente, restore exacto y contrato SQL verificados.');

@@ -17,7 +17,8 @@ const names = {
   timeline: '202608250001_timeline_supabase_first.sql',
   timelineIndexes: '202608250002_timeline_actor_indexes.sql',
   timelineAtomic: '202608250003_timeline_atomic_upsert.sql',
-  timelineAtomicInvoker: '202608250004_timeline_atomic_upsert_invoker.sql'
+  timelineAtomicInvoker: '202608250004_timeline_atomic_upsert_invoker.sql',
+  timelineConsistency: '202608250005_timeline_consistency_hardening.sql'
 };
 
 const sql = {};
@@ -114,6 +115,16 @@ for (const pattern of [
   /grant execute on function public\.coi_timeline_upsert_events\(jsonb\) to authenticated/
 ]) assert.match(sql.timelineAtomic, pattern);
 assert.match(sql.timelineAtomicInvoker, /alter function public\.coi_timeline_upsert_events\(jsonb\) security invoker/);
+for (const pattern of [
+  /coi_timeline_page_idx/,
+  /coi_timeline_list_page/,
+  /\(event\.fecha, event\.hora, event\.id\) < \(p_before_fecha, p_before_hora, p_before_id\)/,
+  /COI_TIMELINE_STALE_WRITE/,
+  /for update of target/,
+  /coi_timeline_replace_events/,
+  /lock table public\.coi_timeline_events in share row exclusive mode/,
+  /grant execute on function public\.coi_timeline_replace_events\(jsonb\) to authenticated/
+]) assert.match(sql.timelineConsistency, pattern);
 
 // El frontend debe consumir las APIs sustitutas y no reabrir el DML financiero.
 for (const pattern of [
@@ -139,4 +150,4 @@ for (const [name, body] of Object.entries(sql)) {
   assert.doesNotMatch(body, /service_role|password\s*=|secret\s*=/i, `${name}: posible secreto`);
 }
 
-console.log('Contrato Supabase: 11 migraciones auditadas; Timeline Supabase-first, RPC atómica, RLS e integridad verificados.');
+console.log('Contrato Supabase: 12 migraciones auditadas; Timeline Supabase-first, concurrencia, restore exacto, RLS e integridad verificados.');

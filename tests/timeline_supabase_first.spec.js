@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
 const STORAGE_KEY = 'coi_timeline_events_v1';
+const LEGACY_KEY = 'coi_timeline_legacy_pending_v1';
 const MIGRATION_KEY = 'coi_timeline_supabase_migrated_v1';
 
 async function openTimelineFixture(page, { role = 'administrador', remoteRows = [] } = {}) {
@@ -39,13 +40,15 @@ async function openTimelineFixture(page, { role = 'administrador', remoteRows = 
   await page.evaluate(({ role, remoteRows }) => {
     const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
     const actorId = '85555555-5555-4555-8555-555555555555';
-    const state = { rows: clone(remoteRows), operations: [], role, failNextRefresh: false };
+    const state = { rows: clone(remoteRows), operations: [], role, failNextRefresh: false, failNextReplace: false };
 
     function serverRow(payload, previous = {}) {
       const now = new Date().toISOString();
+      const clean = clone(payload);
+      delete clean.expected_actualizado_en;
       return {
         ...previous,
-        ...clone(payload),
+        ...clean,
         created_by: previous.created_by || actorId,
         updated_by: actorId,
         creado_en: previous.creado_en || now,
@@ -118,11 +121,29 @@ async function openTimelineFixture(page, { role = 'administrador', remoteRows = 
       from: table => queryFor(table),
       rpc: async (name, args = {}) => {
         if (name === 'coi_current_role') return { data: state.role, error: null };
+        if (name === 'coi_timeline_list_page') {
+          state.operations.push({ action: 'list_page', table: 'coi_timeline_events', cursor: clone(args) });
+          if (state.failNextRefresh) {
+            state.failNextRefresh = false;
+            return { data: null, error: { message: 'fallo de refresco simulado' } };
+          }
+          const key = row => `${row.fecha || ''}|${String(row.hora || '').slice(0, 8)}|${row.id || ''}`;
+          const before = args.p_before_fecha == null ? null : `${args.p_before_fecha}|${String(args.p_before_hora || '').slice(0, 8)}|${args.p_before_id || ''}`;
+          const rows = [...state.rows].sort((a, b) => key(b).localeCompare(key(a)));
+          const page = rows.filter(row => before == null || key(row) < before).slice(0, args.p_limit || 1000);
+          return { data: clone(page), error: null };
+        }
         if (name === 'coi_timeline_upsert_events') {
           if (!['administrador', 'jefatura', 'editor', 'planificacion', 'control', 'supervisor'].includes(state.role)) {
             return { data: null, error: { code: '42501', message: 'row-level security fixture' } };
           }
-          const saved = (args.p_events || []).map(item => {
+          const items = args.p_events || [];
+          const stale = items.find(item => {
+            const previous = state.rows.find(row => row.id === item.id);
+            return previous && (!item.expected_actualizado_en || item.expected_actualizado_en !== previous.actualizado_en);
+          });
+          if (stale) return { data: null, error: { code: '40001', message: 'COI_TIMELINE_STALE_WRITE' } };
+          const saved = items.map(item => {
             const index = state.rows.findIndex(row => row.id === item.id);
             const row = serverRow(item, index >= 0 ? state.rows[index] : {});
             if (index >= 0) state.rows[index] = row;
@@ -131,6 +152,19 @@ async function openTimelineFixture(page, { role = 'administrador', remoteRows = 
           });
           state.operations.push({ action: 'upsert', table: 'coi_timeline_events', ids: saved.map(row => row.id) });
           return { data: clone(saved), error: null };
+        }
+        if (name === 'coi_timeline_replace_events') {
+          if (!['administrador', 'jefatura'].includes(state.role)) {
+            return { data: null, error: { code: '42501', message: 'COI_ROLE_REQUIRED' } };
+          }
+          if (state.failNextReplace) {
+            state.failNextReplace = false;
+            return { data: null, error: { code: '40001', message: 'fallo de replace simulado' } };
+          }
+          const previous = new Map(state.rows.map(row => [row.id, row]));
+          state.rows = (args.p_events || []).map(item => serverRow(item, previous.get(item.id) || {}));
+          state.operations.push({ action: 'replace', table: 'coi_timeline_events', ids: state.rows.map(row => row.id) });
+          return { data: clone(state.rows), error: null };
         }
         return { data: null, error: { code: '42883', message: `RPC no simulada: ${name}` } };
       }
@@ -143,7 +177,7 @@ async function openTimelineFixture(page, { role = 'administrador', remoteRows = 
   }, { role, remoteRows });
 
   await page.evaluate(async () => {
-    await window.COI_TIMELINE_COI.reload();
+    await window.COI_TIMELINE_COI.load({ migrateLegacy: true });
     window.COI_TIMELINE_COI.open();
   });
   await expect(page.locator('#vistaTimelineCOI')).toHaveClass(/\bactive\b/);
@@ -160,6 +194,18 @@ test('migra localStorage una vez y hace CRUD de Mailing con Supabase como autori
   expect(await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.rows.map(row => row.id))).toEqual([
     'TL-LEGACY-BROWSER-1'
   ]);
+
+  const upsertsBeforeRefresh = await page.evaluate(() =>
+    window.__TIMELINE_REMOTE_STATE__.operations.filter(item => item.action === 'upsert').length
+  );
+  await page.evaluate(async () => {
+    window.__TIMELINE_REMOTE_STATE__.rows = window.__TIMELINE_REMOTE_STATE__.rows.filter(row => row.id !== 'TL-LEGACY-BROWSER-1');
+    await window.COI_TIMELINE_COI.reload();
+  });
+  await expect(results.getByRole('heading', { name: 'Mailing local pendiente de migración', exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() =>
+    window.__TIMELINE_REMOTE_STATE__.operations.filter(item => item.action === 'upsert').length
+  )).toBe(upsertsBeforeRefresh);
 
   await page.getByRole('button', { name: 'Nueva carga manual' }).click();
   await page.locator('[data-timeline-field="fecha"]').fill('2026-08-26');
@@ -224,4 +270,53 @@ test('rol de lectura conserva Supabase si la migración local es denegada y ocul
   await expect(view.getByRole('button', { name: 'Editar' })).toHaveCount(0);
   await expect(view.getByRole('button', { name: 'Eliminar' })).toHaveCount(0);
   await expect(view.getByText('acceso de solo lectura', { exact: false })).toBeVisible();
+
+  expect(await page.evaluate(legacyKey => Boolean(localStorage.getItem(legacyKey)), LEGACY_KEY)).toBe(true);
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('coi:supabase-auth', { detail: { event: 'SIGNED_OUT' } })));
+  expect(await page.evaluate(storageKey => localStorage.getItem(storageKey), STORAGE_KEY)).toBeNull();
+  expect(await page.evaluate(legacyKey => Boolean(localStorage.getItem(legacyKey)), LEGACY_KEY)).toBe(true);
+  await expect(results.getByRole('heading', { name: 'Mailing canónico de Supabase', exact: true })).toHaveCount(0);
+});
+
+test('restore reemplaza exactamente Supabase y revierte todas las claves locales si falla', async ({ page }) => {
+  await openTimelineFixture(page, {
+    remoteRows: [{
+      id: 'TL-REMOTE-ANTERIOR', fecha: '2026-08-25', hora: '10:00:00',
+      titulo: 'Evento remoto anterior', tipo_evento: 'Mailing', origen: 'Mailing',
+      estado: 'Informativo', riesgo: 'Bajo'
+    }]
+  });
+
+  await page.evaluate(async () => {
+    await window.COI_TIMELINE_COI.replace([{
+      id: 'TL-SNAPSHOT-UNICO', fecha: '2026-08-26', hora: '09:00',
+      titulo: 'Snapshot único', tipo_evento: 'Mailing', origen: 'Mailing',
+      estado: 'Cerrado', riesgo: 'Bajo'
+    }]);
+  });
+  expect(await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.rows.map(row => row.id))).toEqual(['TL-SNAPSHOT-UNICO']);
+
+  await page.evaluate(async () => window.COI_TIMELINE_COI.replace([]));
+  expect(await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.rows)).toEqual([]);
+
+  const rollback = await page.evaluate(async ({ storageKey }) => {
+    localStorage.setItem('coi_test_rollback', 'antes');
+    window.__TIMELINE_REMOTE_STATE__.failNextReplace = true;
+    let error = '';
+    try {
+      await window.adminApplyLocalStorageSnapshot({
+        coi_test_rollback: 'después',
+        [storageKey]: JSON.stringify([{
+          id: 'TL-NO-DEBE-QUEDAR', fecha: '2026-08-27', titulo: 'No persistir',
+          tipo_evento: 'Mailing', estado: 'Informativo', riesgo: 'Bajo'
+        }])
+      }, { tipo: 'test', archivo: 'fixture.json' });
+    } catch (caught) {
+      error = caught?.message || String(caught);
+    }
+    return { value: localStorage.getItem('coi_test_rollback'), error };
+  }, { storageKey: STORAGE_KEY });
+  expect(rollback.value).toBe('antes');
+  expect(rollback.error).toMatch(/restauración integral/i);
+  expect(await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.rows)).toEqual([]);
 });

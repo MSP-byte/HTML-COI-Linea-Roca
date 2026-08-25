@@ -145,6 +145,36 @@ async function main() {
     const atomicRows = await db.query('select id from public.coi_timeline_upsert_events($1::jsonb) order by id', [validAtomicBatch]);
     assert.deepEqual(atomicRows.rows.map(row => row.id), ['TL-ATOMIC-1', 'TL-ATOMIC-2']);
 
+    const firstPage = await db.query(
+      'select id,fecha,hora from public.coi_timeline_list_page(null,null,null,1)'
+    );
+    const cursor = firstPage.rows[0];
+    const secondPage = await db.query(
+      'select id from public.coi_timeline_list_page($1::date,$2::time,$3::text,1)',
+      [cursor.fecha, cursor.hora, cursor.id]
+    );
+    assert.equal(firstPage.rows.length, 1);
+    assert.equal(secondPage.rows.length, 1);
+    assert.notEqual(firstPage.rows[0].id, secondPage.rows[0].id);
+
+    const staleStamp = (await db.query(
+      "select actualizado_en from public.coi_timeline_events where id='TL-ATOMIC-1'"
+    )).rows[0].actualizado_en;
+    await db.query(
+      "update public.coi_timeline_events set titulo='Edición ganadora' where id='TL-ATOMIC-1'"
+    );
+    const stalePayload = JSON.stringify([{
+      id: 'TL-ATOMIC-1', fecha: '2026-08-25', titulo: 'Edición obsoleta',
+      estado: 'Informativo', riesgo: 'Bajo', expected_actualizado_en: staleStamp
+    }]);
+    await assert.rejects(
+      db.query('select id from public.coi_timeline_upsert_events($1::jsonb)', [stalePayload]),
+      /COI_TIMELINE_STALE_WRITE/
+    );
+    assert.equal((await db.query(
+      "select titulo from public.coi_timeline_events where id='TL-ATOMIC-1'"
+    )).rows[0].titulo, 'Edición ganadora');
+
     const timelineId = 'TL-RUNTIME-SUPABASE-FIRST';
     const insertedTimeline = await db.query(`
       insert into public.coi_timeline_events(
@@ -168,6 +198,10 @@ async function main() {
     );
     await assert.rejects(
       db.query("select id from public.coi_timeline_upsert_events('[{\"id\":\"TL-CONSULTA-RPC\",\"fecha\":\"2026-08-25\",\"titulo\":\"No autorizado\"}]'::jsonb)"),
+      /COI_ROLE_REQUIRED|permission denied/i
+    );
+    await assert.rejects(
+      db.query("select id from public.coi_timeline_replace_events('[]'::jsonb)"),
       /COI_ROLE_REQUIRED|permission denied/i
     );
 
@@ -196,6 +230,23 @@ async function main() {
     assert.equal(deletedTimeline.rows[0].id, timelineId);
     await db.query("delete from public.coi_timeline_events where id in ('TL-ATOMIC-1','TL-ATOMIC-2')");
     assert.equal((await db.query("select count(*)::int n from public.coi_operaciones_auditoria where entidad='coi_timeline_events' and registro_id=$1", [timelineId])).rows[0].n >= 4, true);
+
+    const replaceSeed = JSON.stringify([
+      { id: 'TL-REPLACE-OLD-1', fecha: '2026-08-25', titulo: 'Anterior 1', estado: 'Informativo', riesgo: 'Bajo' },
+      { id: 'TL-REPLACE-OLD-2', fecha: '2026-08-25', titulo: 'Anterior 2', estado: 'Informativo', riesgo: 'Bajo' }
+    ]);
+    await db.query('select id from public.coi_timeline_upsert_events($1::jsonb)', [replaceSeed]);
+    const exactSnapshot = JSON.stringify([
+      { id: 'TL-REPLACE-ONLY', fecha: '2026-08-26', titulo: 'Snapshot exacto', estado: 'Cerrado', riesgo: 'Bajo' }
+    ]);
+    const replaced = await db.query(
+      'select id from public.coi_timeline_replace_events($1::jsonb)',
+      [exactSnapshot]
+    );
+    assert.deepEqual(replaced.rows.map(row => row.id), ['TL-REPLACE-ONLY']);
+    assert.equal((await db.query('select count(*)::int n from public.coi_timeline_events')).rows[0].n, 1);
+    await db.query("select id from public.coi_timeline_replace_events('[]'::jsonb)");
+    assert.equal((await db.query('select count(*)::int n from public.coi_timeline_events')).rows[0].n, 0);
 
     // Writer legacy permitido, pero trazado server-side.
     const legacy = await db.query("update public.coi_ordenes set proveedor='LEGACY OK' where id=$1 returning proveedor", [ORDER_ID]);
