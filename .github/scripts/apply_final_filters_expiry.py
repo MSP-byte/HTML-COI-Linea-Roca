@@ -10,14 +10,14 @@ def replace_once(old,new,label):
         raise SystemExit(f'{label}: expected exactly 1 occurrence, found {count}')
     s=s.replace(old,new,1)
 
-# Orders: remove UI-only filters requested by the user.
+# Orders: remove the two requested controls as complete lines.
 replace_once(
-    '<div class="ordenes-filtro-group"><label for="ordenesFiltroEstado">Estado COI</label><select id="ordenesFiltroEstado"><option value="">Todos los estados</option></select></div>',
+    '          <div class="ordenes-filtro-group"><label for="ordenesFiltroEstado">Estado COI</label><select id="ordenesFiltroEstado"><option value="">Todos los estados</option></select></div>\n',
     '',
     'remove orders Estado COI filter'
 )
 replace_once(
-    '<div class="ordenes-filtro-group"><label for="ordenesFiltroDoc">Estado documental</label><select id="ordenesFiltroDoc"><option value="">Todos los estados</option></select></div>',
+    '          <div class="ordenes-filtro-group"><label for="ordenesFiltroDoc">Estado documental</label><select id="ordenesFiltroDoc"><option value="">Todos los estados</option></select></div>\n',
     '',
     'remove orders Estado documental filter'
 )
@@ -27,7 +27,7 @@ replace_once(
     'rename expiry order label'
 )
 
-# Do not overwrite the semantic expiry-order options with month values.
+# Preserve the semantic expiry-order options instead of replacing them with month values.
 replace_once(
     "  setOptions('ordenesFiltroMesVenc',rows.map(r=>valorMesOrdenes(r.calc.venc)).filter(Boolean),'Todos los meses');",
     "  if(typeof asegurarSelectorOrdenVencimiento==='function') asegurarSelectorOrdenVencimiento();",
@@ -56,7 +56,7 @@ replace_once(
     'remove dashboard Period/Branch listeners'
 )
 
-# Avoid hidden persisted filters after controls are removed. Keep the business horizon fixed at the former default: 30 days.
+# Prevent hidden persisted filters. Keep the former default business horizon fixed at 30 days and Ramal neutral.
 replace_once(
     "      setVersion();if(!$('dashboardInteractivoMount'))return;if(!$('d33Filters'))skeleton();",
     "      setVersion();if(!$('dashboardInteractivoMount'))return;if(!$('d33Filters'))skeleton();state.filters.period='30';state.filters.branch='';",
