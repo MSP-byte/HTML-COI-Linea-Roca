@@ -16,35 +16,20 @@ jobs:
         with:
           ref: fix/final-filters-expiry-order
           persist-credentials: true
-      - name: Extract compact contexts
+      - name: Extract exact implementation slices
         run: |
           python3 - <<'PY'
           from pathlib import Path
           lines=Path('index.html').read_text(encoding='utf-8').splitlines()
-          def context_for(terms, radius=35):
-              out=[]; seen=[]
-              for term in terms:
-                  hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
-                  out.append(f'## {term!r} hits={len(hits)}')
-                  for i in hits[:4]:
-                      a=max(0,i-radius); b=min(len(lines),i+radius)
-                      if any(abs(i-x)<radius for x in seen): continue
-                      seen.append(i)
-                      out.append(f'### line {i+1}')
-                      out.extend(f'{j+1}: {lines[j]}' for j in range(a,b))
-              return '\n'.join(out)
-          Path('.github/dashboard_filter_context.txt').write_text(context_for([
-              'Próximos 30 días','Todos los ramales','ESTADO CONTRACTUAL','Resumen operativo Línea Roca'
-          ],45),encoding='utf-8')
-          Path('.github/orders_filter_context.txt').write_text(context_for([
-              'ordenesFiltroMesVenc','function renderOrdenes','getOrdenesFiltradasBase','ordenesFiltroMontoOrden'
-          ],55),encoding='utf-8')
+          def dump(a,b): return '\n'.join(f'{i+1}: {lines[i]}' for i in range(a-1,min(b,len(lines))))
+          Path('.github/dashboard_impl_slice.txt').write_text(dump(23260,23480),encoding='utf-8')
+          Path('.github/orders_impl_slice.txt').write_text(dump(2050,2225)+'\n\n--- LATE ---\n'+dump(11180,11330),encoding='utf-8')
           PY
       - name: Commit context
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/dashboard_filter_context.txt .github/orders_filter_context.txt
+          git add .github/dashboard_impl_slice.txt .github/orders_impl_slice.txt
           git diff --cached --quiet && exit 0
-          git commit -m "chore: capture compact filter contexts"
+          git commit -m "chore: capture exact filter implementation slices"
           git push origin HEAD:fix/final-filters-expiry-order
