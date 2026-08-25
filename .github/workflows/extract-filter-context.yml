@@ -1,0 +1,55 @@
+name: Extract filter context
+
+on:
+  push:
+    branches: [fix/final-filters-expiry-order]
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/final-filters-expiry-order
+          persist-credentials: true
+      - name: Extract relevant index context
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          lines=p.read_text(encoding='utf-8').splitlines()
+          terms=[
+            'PERÍODO','PERIODO','RAMAL','ordenesFiltro','ORDEN VENCIMIENTO','Orden vencimiento',
+            'ordenesTbody','renderOrdenes','diasRestantes','fecha_vencimiento','fechaVencimiento',
+            'dashboardFilt','d33-', 'Inicio operativo'
+          ]
+          hits=[]
+          seen=set()
+          for term in terms:
+            for i,line in enumerate(lines):
+              if term.lower() in line.lower():
+                a=max(0,i-8); b=min(len(lines),i+12)
+                key=(a,b)
+                if key in seen: continue
+                seen.add(key)
+                hits.append((i+1,term,a,b))
+          hits.sort()
+          out=[]
+          for line_no,term,a,b in hits[:160]:
+            out.append(f'### hit {term!r} around line {line_no}')
+            out.extend(f'{j+1}: {lines[j]}' for j in range(a,b))
+            out.append('')
+          Path('.github/filter_context.txt').write_text('\n'.join(out),encoding='utf-8')
+          PY
+      - name: Commit context
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/filter_context.txt
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: capture filter context"
+          git push origin HEAD:fix/final-filters-expiry-order
