@@ -6,6 +6,17 @@ const SOURCE = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf
 
 test.describe.configure({ timeout: 60_000 });
 
+async function forceAdminAccess(page) {
+  await page.evaluate(() => {
+    window.esAutorizacionAdministrativaSupabaseV60 = () => true;
+    const btn = document.getElementById('btnCentroAlertas');
+    if (btn) {
+      btn.hidden = false;
+      btn.style.display = '';
+    }
+  });
+}
+
 async function openIsolated(page) {
   await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
   await page.addInitScript(() => {
@@ -18,10 +29,16 @@ async function openIsolated(page) {
     Boolean(document.getElementById('btnCentroAlertas')) &&
     Boolean(document.getElementById('vistaCentroAlertas'))
   );
+  await forceAdminAccess(page);
 }
 
 async function openAlertsFromRealNav(page) {
-  await page.evaluate(() => document.getElementById('btnCentroAlertas').click());
+  await forceAdminAccess(page);
+  await page.evaluate(() => {
+    const btn = document.getElementById('btnCentroAlertas');
+    if (!btn) throw new Error('btnCentroAlertas no disponible');
+    btn.click();
+  });
   const view = page.locator('#vistaCentroAlertas');
   await expect(view).toBeVisible();
   await expect.poll(() => view.locator('#alertasTbody').count()).toBe(1);
@@ -45,6 +62,7 @@ test('navegacion real monta un unico panel plegado y conserva expansion tras rer
   panel = view.locator('#execAlertsCard');
   await expect.poll(() => panel.evaluate(el => el.open)).toBe(true);
 
+  await forceAdminAccess(page);
   await page.evaluate(() => document.getElementById('btnCentroAlertas').click());
   await expect.poll(() => view.locator('#execAlertsCard').count()).toBe(1);
   panel = view.locator('#execAlertsCard');
