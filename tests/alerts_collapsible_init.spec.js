@@ -16,18 +16,22 @@ async function openIsolated(page) {
   await page.waitForFunction(() =>
     typeof window.renderCentroAlertas === 'function' &&
     Boolean(document.getElementById('btnCentroAlertas')) &&
-    Boolean(document.getElementById('alertasTbody'))
+    Boolean(document.getElementById('vistaCentroAlertas'))
   );
+}
+
+async function openAlertsFromRealNav(page) {
+  await page.evaluate(() => document.getElementById('btnCentroAlertas').click());
+  const view = page.locator('#vistaCentroAlertas');
+  await expect(view).toBeVisible();
+  await expect.poll(() => view.locator('#alertasTbody').count()).toBe(1);
+  await expect.poll(() => view.locator('#execAlertsCard').count()).toBe(1);
+  return view;
 }
 
 test('navegacion real monta un unico panel plegado y conserva expansion tras rerender', async ({ page }) => {
   await openIsolated(page);
-
-  await page.evaluate(() => document.getElementById('btnCentroAlertas').click());
-
-  const view = page.locator('#vistaCentroAlertas');
-  await expect(view).toBeVisible();
-  await expect.poll(() => view.locator('#execAlertsCard').count()).toBe(1);
+  const view = await openAlertsFromRealNav(page);
 
   let panel = view.locator('#execAlertsCard');
   await expect(panel.locator('summary')).toContainText('Alertas de calidad y documentación');
@@ -49,17 +53,14 @@ test('navegacion real monta un unico panel plegado y conserva expansion tras rer
 
 test('panel usa la superficie real de Alertas y no altera tabla general ni scrollbar superior', async ({ page }) => {
   await openIsolated(page);
-  await page.evaluate(() => document.getElementById('btnCentroAlertas').click());
-
-  const view = page.locator('#vistaCentroAlertas');
-  await expect.poll(() => view.locator('#execAlertsCard').count()).toBe(1);
-  await expect(view.locator('#alertasTbody')).toHaveCount(1);
+  const view = await openAlertsFromRealNav(page);
 
   await page.evaluate(() => {
     window.renderCentroAlertas();
     window.renderCentroAlertas();
   });
   await expect.poll(() => view.locator('#execAlertsCard').count()).toBe(1);
+  await expect(view.locator('#alertasTbody')).toHaveCount(1);
 
   expect(SOURCE).toContain("const legacyBody=host.querySelector('#alertasTbody')");
   expect(SOURCE).toContain("installTopHorizontalScrollbar(alerts, 'alertas')");
