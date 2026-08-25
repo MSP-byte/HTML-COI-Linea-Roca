@@ -16,20 +16,25 @@ jobs:
         with:
           ref: fix/final-filters-expiry-order
           persist-credentials: true
-      - name: Extract exact implementation slices
+      - name: Extract exact references
         run: |
           python3 - <<'PY'
           from pathlib import Path
           lines=Path('index.html').read_text(encoding='utf-8').splitlines()
-          def dump(a,b): return '\n'.join(f'{i+1}: {lines[i]}' for i in range(a-1,min(b,len(lines))))
-          Path('.github/dashboard_impl_slice.txt').write_text(dump(23260,23480),encoding='utf-8')
-          Path('.github/orders_impl_slice.txt').write_text(dump(2050,2225)+'\n\n--- LATE ---\n'+dump(11180,11330),encoding='utf-8')
+          terms=['ordenesFiltroMesVenc','d33Period','d33Branch']
+          out=[]
+          for term in terms:
+            out.append(f'## {term}')
+            for i,l in enumerate(lines):
+              if term in l:
+                out.append(f'{i+1}: {l}')
+          Path('.github/filter_exact_refs.txt').write_text('\n'.join(out),encoding='utf-8')
           PY
       - name: Commit context
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/dashboard_impl_slice.txt .github/orders_impl_slice.txt
+          git add .github/filter_exact_refs.txt
           git diff --cached --quiet && exit 0
-          git commit -m "chore: capture exact filter implementation slices"
+          git commit -m "chore: capture exact filter references"
           git push origin HEAD:fix/final-filters-expiry-order
