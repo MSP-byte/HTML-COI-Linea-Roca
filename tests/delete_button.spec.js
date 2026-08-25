@@ -52,10 +52,9 @@ test('los módulos principales mantienen una única vista activa', async ({ page
   } else {
     await dashboardNav.click();
   }
-  const periodFilter = page.getByRole('combobox', { name: 'Período' });
-  await expect(periodFilter).toBeVisible();
-  await periodFilter.selectOption({ label: 'Todo' });
-  await expect(periodFilter).toHaveValue('all');
+  await expect(page.locator('#d33Period')).toHaveCount(0);
+  await expect(page.locator('#d33Branch')).toHaveCount(0);
+  await expect(page.locator('#d33Type')).toBeVisible();
   expect(runtimeErrors).toEqual([]);
 });
 
