@@ -1412,6 +1412,11 @@ body.dashboard-focus-mode #coiFocusMode::before{content:"↙"}
 body:not(.dashboard-focus-mode) #coiFocusMode::before{content:"↗"}
 body.coi-motion-off *,body.coi-motion-off *::before,body.coi-motion-off *::after{animation-play-state:paused!important;scroll-behavior:auto!important}
 body.coi-motion-off .d33-kpi,body.coi-motion-off .d33-card,body.coi-motion-off .d33-chip{transition-duration:.01ms!important}
+body.coi-motion-off .d33-segment,
+body.coi-motion-off .d33-bar,
+body.coi-motion-off .d33-fin-used,
+body.coi-motion-off .d33-fin-rest,
+body.coi-motion-off .d33-fin-bad{animation:none!important;opacity:1!important}
 @media(max-width:1100px){.coi-visual-controls{width:100%;justify-content:flex-start;margin-left:0}.d33-head{min-height:unset}.coi-rail-signature{flex-wrap:wrap}.coi-rail-signature svg{width:145px}.d33-card{backdrop-filter:none;-webkit-backdrop-filter:none}}
 @media(max-width:720px){#vistaDashboard::before,#vistaDashboard::after{display:none}.coi-visual-btn{flex:1 1 150px;justify-content:center}.coi-visual-controls{display:grid;grid-template-columns:1fr 1fr}.coi-rail-signature span{display:none}.d33-head{padding:15px}.d33-filters{backdrop-filter:none;-webkit-backdrop-filter:none}}
 @media(prefers-reduced-motion:reduce){#vistaDashboard::before,#vistaDashboard::after,.d33-head::before,.d33-head::after,.coi-rail-track,.coi-rail-node,.d33-segment,.d33-bar,.d33-fin-used,.d33-fin-rest,.d33-fin-bad,.d33-kpi:before{animation:none!important}.d33-kpi,.d33-card,.d33-chip,.d33-priority,.d33-activity{transition:none!important}}
