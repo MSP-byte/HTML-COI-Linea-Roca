@@ -40,7 +40,10 @@ async function openTimelineFixture(page, { role = 'administrador', remoteRows = 
   await page.evaluate(({ role, remoteRows }) => {
     const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
     const actorId = '85555555-5555-4555-8555-555555555555';
-    const state = { rows: clone(remoteRows), operations: [], role, failNextRefresh: false, failNextReplace: false };
+    const state = {
+      rows: clone(remoteRows), operations: [], role, failNextRefresh: false, failNextReplace: false,
+      deferNextRefresh: false, resolveNextRefresh: null
+    };
 
     function serverRow(payload, previous = {}) {
       const now = new Date().toISOString();
@@ -131,6 +134,15 @@ async function openTimelineFixture(page, { role = 'administrador', remoteRows = 
           const before = args.p_before_fecha == null ? null : `${args.p_before_fecha}|${String(args.p_before_hora || '').slice(0, 8)}|${args.p_before_id || ''}`;
           const rows = [...state.rows].sort((a, b) => key(b).localeCompare(key(a)));
           const page = rows.filter(row => before == null || key(row) < before).slice(0, args.p_limit || 1000);
+          if (state.deferNextRefresh) {
+            state.deferNextRefresh = false;
+            return await new Promise(resolve => {
+              state.resolveNextRefresh = () => {
+                state.resolveNextRefresh = null;
+                resolve({ data: clone(page), error: null });
+              };
+            });
+          }
           return { data: clone(page), error: null };
         }
         if (name === 'coi_timeline_upsert_events') {
@@ -174,6 +186,8 @@ async function openTimelineFixture(page, { role = 'administrador', remoteRows = 
     window.getSupabaseClient = () => client;
     window.mostrarMensajeCOI = () => {};
     window.confirm = () => true;
+    window.__TIMELINE_ALERTS__ = [];
+    window.alert = message => window.__TIMELINE_ALERTS__.push(String(message));
   }, { role, remoteRows });
 
   await page.evaluate(async () => {
@@ -235,9 +249,21 @@ test('migra localStorage una vez y hace CRUD de Mailing con Supabase como autori
   await expect(results.getByRole('heading', { name: 'Mailing persistido en Supabase', exact: true })).toBeVisible();
 
   const card = page.locator('.timeline-event-card').filter({ hasText: 'Mailing persistido en Supabase' });
+  await page.evaluate(id => {
+    const row = window.__TIMELINE_REMOTE_STATE__.rows.find(item => item.id === id);
+    row.titulo = 'Mailing editado por otra sesión';
+    row.actualizado_en = '2099-01-01T00:00:00.000Z';
+  }, created.id);
   await card.getByRole('button', { name: 'Eliminar' }).click();
+  expect(await page.evaluate(id => window.__TIMELINE_REMOTE_STATE__.rows.some(row => row.id === id), created.id)).toBe(true);
+  expect(await page.evaluate(() => window.__TIMELINE_ALERTS__.at(-1))).toMatch(/modificado por otra sesión/i);
+
+  await page.evaluate(async () => window.COI_TIMELINE_COI.reload());
+  const refreshedCard = page.locator('.timeline-event-card').filter({ hasText: 'Mailing editado por otra sesión' });
+  await expect(refreshedCard).toBeVisible();
+  await refreshedCard.getByRole('button', { name: 'Eliminar' }).click();
   await expect(results.getByRole('heading', { name: 'Mailing persistido en Supabase', exact: true })).toHaveCount(0);
-  expect(await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.rows.some(row => row.titulo === 'Mailing persistido en Supabase'))).toBe(false);
+  expect(await page.evaluate(id => window.__TIMELINE_REMOTE_STATE__.rows.some(row => row.id === id), created.id)).toBe(false);
 
   const actions = await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.operations.map(item => item.action));
   expect(actions).toContain('upsert');
@@ -272,7 +298,16 @@ test('rol de lectura conserva Supabase si la migración local es denegada y ocul
   await expect(view.getByText('acceso de solo lectura', { exact: false })).toBeVisible();
 
   expect(await page.evaluate(legacyKey => Boolean(localStorage.getItem(legacyKey)), LEGACY_KEY)).toBe(true);
-  await page.evaluate(() => window.dispatchEvent(new CustomEvent('coi:supabase-auth', { detail: { event: 'SIGNED_OUT' } })));
+  await page.evaluate(() => {
+    window.__TIMELINE_REMOTE_STATE__.deferNextRefresh = true;
+    window.__PENDING_TIMELINE_LOAD__ = window.COI_TIMELINE_COI.reload();
+  });
+  await page.waitForFunction(() => typeof window.__TIMELINE_REMOTE_STATE__.resolveNextRefresh === 'function');
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('coi:supabase-auth', { detail: { event: 'SIGNED_OUT' } }));
+    window.__TIMELINE_REMOTE_STATE__.resolveNextRefresh();
+  });
+  await page.evaluate(async () => window.__PENDING_TIMELINE_LOAD__);
   expect(await page.evaluate(storageKey => localStorage.getItem(storageKey), STORAGE_KEY)).toBeNull();
   expect(await page.evaluate(legacyKey => Boolean(localStorage.getItem(legacyKey)), LEGACY_KEY)).toBe(true);
   await expect(results.getByRole('heading', { name: 'Mailing canónico de Supabase', exact: true })).toHaveCount(0);
@@ -298,6 +333,28 @@ test('restore reemplaza exactamente Supabase y revierte todas las claves locales
 
   await page.evaluate(async () => window.COI_TIMELINE_COI.replace([]));
   expect(await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.rows)).toEqual([]);
+
+  const committedWithMarkerFailure = await page.evaluate(async ({ storageKey, migrationKey }) => {
+    const originalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(key, value) {
+      if (key === migrationKey) throw new DOMException('cuota simulada', 'QuotaExceededError');
+      return originalSetItem.call(this, key, value);
+    };
+    try {
+      await window.adminApplyLocalStorageSnapshot({
+        [storageKey]: JSON.stringify([{
+          id: 'TL-RESTORE-COMMITTED', fecha: '2026-08-27', titulo: 'Restore confirmado',
+          tipo_evento: 'Mailing', estado: 'Informativo', riesgo: 'Bajo'
+        }])
+      }, { tipo: 'test cuota', archivo: 'quota.json' });
+      return window.__TIMELINE_REMOTE_STATE__.rows.map(row => row.id);
+    } finally {
+      Storage.prototype.setItem = originalSetItem;
+    }
+  }, { storageKey: STORAGE_KEY, migrationKey: MIGRATION_KEY });
+  expect(committedWithMarkerFailure).toEqual(['TL-RESTORE-COMMITTED']);
+  await expect(page.locator('.timeline-persistence')).toContainText(/restauración.*marcador local/i);
+  await page.evaluate(async () => window.COI_TIMELINE_COI.replace([]));
 
   const rollback = await page.evaluate(async ({ storageKey }) => {
     localStorage.setItem('coi_test_rollback', 'antes');

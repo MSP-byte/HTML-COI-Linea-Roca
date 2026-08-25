@@ -18,7 +18,8 @@ const names = {
   timelineIndexes: '202608250002_timeline_actor_indexes.sql',
   timelineAtomic: '202608250003_timeline_atomic_upsert.sql',
   timelineAtomicInvoker: '202608250004_timeline_atomic_upsert_invoker.sql',
-  timelineConsistency: '202608250005_timeline_consistency_hardening.sql'
+  timelineConsistency: '202608250005_timeline_consistency_hardening.sql',
+  timelineLockOrder: '202608250006_timeline_lock_order_hardening.sql'
 };
 
 const sql = {};
@@ -125,6 +126,18 @@ for (const pattern of [
   /lock table public\.coi_timeline_events in share row exclusive mode/,
   /grant execute on function public\.coi_timeline_replace_events\(jsonb\) to authenticated/
 ]) assert.match(sql.timelineConsistency, pattern);
+for (const pattern of [
+  /coi_timeline_upsert_events/,
+  /from public\.coi_ordenes orders/,
+  /order by orders\.id\s+for key share of orders/,
+  /order by target\.id\s+for update of target/,
+  /security invoker/,
+  /grant execute on function public\.coi_timeline_upsert_events\(jsonb\) to authenticated/
+]) assert.match(sql.timelineLockOrder, pattern);
+assert.ok(
+  sql.timelineLockOrder.indexOf('for key share of orders') < sql.timelineLockOrder.indexOf('for update of target'),
+  'Timeline debe bloquear las OC antes que sus eventos.'
+);
 
 // El frontend debe consumir las APIs sustitutas y no reabrir el DML financiero.
 for (const pattern of [
@@ -150,4 +163,4 @@ for (const [name, body] of Object.entries(sql)) {
   assert.doesNotMatch(body, /service_role|password\s*=|secret\s*=/i, `${name}: posible secreto`);
 }
 
-console.log('Contrato Supabase: 12 migraciones auditadas; Timeline Supabase-first, concurrencia, restore exacto, RLS e integridad verificados.');
+console.log('Contrato Supabase: 13 migraciones auditadas; Timeline Supabase-first, concurrencia, restore exacto, locks ordenados, RLS e integridad verificados.');

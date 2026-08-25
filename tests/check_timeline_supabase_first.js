@@ -10,6 +10,7 @@ const actorIndexes = fs.readFileSync('supabase/migrations/202608250002_timeline_
 const atomicUpsert = fs.readFileSync('supabase/migrations/202608250003_timeline_atomic_upsert.sql', 'utf8');
 const atomicInvoker = fs.readFileSync('supabase/migrations/202608250004_timeline_atomic_upsert_invoker.sql', 'utf8');
 const consistency = fs.readFileSync('supabase/migrations/202608250005_timeline_consistency_hardening.sql', 'utf8');
+const lockOrder = fs.readFileSync('supabase/migrations/202608250006_timeline_lock_order_hardening.sql', 'utf8');
 
 for (const pattern of [
   /const TIMELINE_TABLE='coi_timeline_events'/,
@@ -20,7 +21,11 @@ for (const pattern of [
   /client\.rpc\('coi_timeline_upsert_events',\{p_events:payload\}\)/,
   /client\.rpc\('coi_timeline_replace_events',\{p_events:payload\}\)/,
   /expected_actualizado_en:event\.actualizado_en/,
-  /\.delete\(\)\.eq\('id',id\)\.select\('id'\)/,
+  /\.delete\(\)\.eq\('id',id\)\.eq\('actualizado_en',event\.actualizado_en\)\.select\('id'\)/,
+  /COI_TIMELINE_STALE_DELETE/,
+  /let timelineAuthGeneration=0/,
+  /loadGeneration!==timelineAuthGeneration/,
+  /timelineAuthGeneration\+=1/,
   /async function saveForm/,
   /async function importTimelineEvents/,
   /await initializeStore\(\)/,
@@ -33,6 +38,7 @@ for (const pattern of [
   /const wrapped=async function\(\)/,
   /restoreLocalSnapshot/,
   /replaceTimelineEventsSupabase\(incoming/,
+  /Supabase confirm.*el restore, pero no se pudo guardar el marcador local/,
   /await adminApplyLocalStorageSnapshot/,
   /const result=await saveTimelineEventsSupabase/
 ]) assert.match(html, pattern);
@@ -70,5 +76,16 @@ for (const pattern of [
   /lock table public\.coi_timeline_events/,
   /security invoker/g
 ]) assert.match(consistency, pattern);
+for (const pattern of [
+  /coi_timeline_upsert_events/,
+  /from public\.coi_ordenes orders/,
+  /order by orders\.id\s+for key share of orders/,
+  /order by target\.id\s+for update of target/,
+  /security invoker/
+]) assert.match(lockOrder, pattern);
+assert.ok(
+  lockOrder.indexOf('for key share of orders') < lockOrder.indexOf('for update of target'),
+  'La migración 006 debe bloquear las OC antes que los eventos Timeline.'
+);
 
 console.log('Timeline/Mailing Supabase-first: caché aislada, CRUD concurrente, restore exacto y contrato SQL verificados.');
