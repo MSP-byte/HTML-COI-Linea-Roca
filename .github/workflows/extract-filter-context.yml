@@ -16,25 +16,19 @@ jobs:
         with:
           ref: fix/final-filters-expiry-order
           persist-credentials: true
-      - name: Extract exact references
+      - name: Extract final orders sorter
         run: |
           python3 - <<'PY'
           from pathlib import Path
           lines=Path('index.html').read_text(encoding='utf-8').splitlines()
-          terms=['ordenesFiltroMesVenc','d33Period','d33Branch']
-          out=[]
-          for term in terms:
-            out.append(f'## {term}')
-            for i,l in enumerate(lines):
-              if term in l:
-                out.append(f'{i+1}: {l}')
-          Path('.github/filter_exact_refs.txt').write_text('\n'.join(out),encoding='utf-8')
+          a,b=18235,18325
+          Path('.github/orders_sorter_final.txt').write_text('\n'.join(f'{i+1}: {lines[i]}' for i in range(a-1,b)),encoding='utf-8')
           PY
       - name: Commit context
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/filter_exact_refs.txt
+          git add .github/orders_sorter_final.txt
           git diff --cached --quiet && exit 0
-          git commit -m "chore: capture exact filter references"
+          git commit -m "chore: capture final orders sorter"
           git push origin HEAD:fix/final-filters-expiry-order
