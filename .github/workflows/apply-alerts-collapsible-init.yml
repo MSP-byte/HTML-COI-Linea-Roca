@@ -17,6 +17,12 @@ jobs:
           ref: fix/alerts-collapsible-init
           persist-credentials: true
           fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
       - name: Apply focused patch
         run: python3 .github/scripts/apply-alerts-collapsible-init.py
       - name: Add focused regression
