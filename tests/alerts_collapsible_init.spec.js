@@ -41,7 +41,7 @@ async function openAlertsFromRealNav(page) {
   });
   const view = page.locator('#vistaCentroAlertas');
   await expect(view).toBeVisible();
-  await expect.poll(() => view.locator('#alertasTbody').count()).toBe(1);
+  await expect.poll(() => view.locator('table.coi-alertas-table').count()).toBe(1);
   await expect.poll(() => view.locator('#execAlertsCard').count()).toBe(1);
   return view;
 }
@@ -78,7 +78,7 @@ test('panel usa la superficie real de Alertas y no altera tabla general ni scrol
     window.renderCentroAlertas();
   });
   await expect.poll(() => view.locator('#execAlertsCard').count()).toBe(1);
-  await expect(view.locator('#alertasTbody')).toHaveCount(1);
+  await expect(view.locator('table.coi-alertas-table')).toHaveCount(1);
 
   expect(SOURCE).toContain("const legacyBody=host.querySelector('#alertasTbody')");
   expect(SOURCE).toContain("installTopHorizontalScrollbar(alerts, 'alertas')");
