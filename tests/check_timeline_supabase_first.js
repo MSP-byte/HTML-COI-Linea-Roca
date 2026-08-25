@@ -11,6 +11,8 @@ const atomicUpsert = fs.readFileSync('supabase/migrations/202608250003_timeline_
 const atomicInvoker = fs.readFileSync('supabase/migrations/202608250004_timeline_atomic_upsert_invoker.sql', 'utf8');
 const consistency = fs.readFileSync('supabase/migrations/202608250005_timeline_consistency_hardening.sql', 'utf8');
 const lockOrder = fs.readFileSync('supabase/migrations/202608250006_timeline_lock_order_hardening.sql', 'utf8');
+const lockHelper = fs.readFileSync('supabase/migrations/202608250007_timeline_order_lock_helper.sql', 'utf8');
+const privateLockHelper = fs.readFileSync('supabase/migrations/202608250008_timeline_private_lock_helper.sql', 'utf8');
 
 for (const pattern of [
   /const TIMELINE_TABLE='coi_timeline_events'/,
@@ -87,5 +89,28 @@ assert.ok(
   lockOrder.indexOf('for key share of orders') < lockOrder.indexOf('for update of target'),
   'La migración 006 debe bloquear las OC antes que los eventos Timeline.'
 );
+for (const pattern of [
+  /coi_timeline_lock_orders/,
+  /security definer\s+set search_path = public, pg_temp/,
+  /perform public\.coi_assert_role/,
+  /for key share of orders/,
+  /perform public\.coi_timeline_lock_orders\(p_events\)/,
+  /security invoker/,
+  /for update of target/
+]) assert.match(lockHelper, pattern);
+assert.ok(
+  lockHelper.indexOf('perform public.coi_timeline_lock_orders(p_events)')
+    < lockHelper.indexOf('for update of target'),
+  'La migración 007 debe adquirir los locks de OC antes de bloquear Timeline.'
+);
+for (const pattern of [
+  /create schema if not exists coi_private/,
+  /coi_private\.coi_timeline_lock_orders/,
+  /security definer\s+set search_path = public, pg_temp/,
+  /perform public\.coi_assert_role/,
+  /for key share of orders/,
+  /public\.coi_timeline_lock_orders\(p_events jsonb\)[\s\S]*security invoker/,
+  /perform coi_private\.coi_timeline_lock_orders\(p_events\)/
+]) assert.match(privateLockHelper, pattern);
 
 console.log('Timeline/Mailing Supabase-first: caché aislada, CRUD concurrente, restore exacto y contrato SQL verificados.');

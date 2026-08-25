@@ -19,7 +19,9 @@ const names = {
   timelineAtomic: '202608250003_timeline_atomic_upsert.sql',
   timelineAtomicInvoker: '202608250004_timeline_atomic_upsert_invoker.sql',
   timelineConsistency: '202608250005_timeline_consistency_hardening.sql',
-  timelineLockOrder: '202608250006_timeline_lock_order_hardening.sql'
+  timelineLockOrder: '202608250006_timeline_lock_order_hardening.sql',
+  timelineLockHelper: '202608250007_timeline_order_lock_helper.sql',
+  timelinePrivateLockHelper: '202608250008_timeline_private_lock_helper.sql'
 };
 
 const sql = {};
@@ -138,6 +140,33 @@ assert.ok(
   sql.timelineLockOrder.indexOf('for key share of orders') < sql.timelineLockOrder.indexOf('for update of target'),
   'Timeline debe bloquear las OC antes que sus eventos.'
 );
+for (const pattern of [
+  /create or replace function public\.coi_timeline_lock_orders\(p_events jsonb\)/,
+  /security definer\s+set search_path = public, pg_temp/,
+  /perform public\.coi_assert_role/,
+  /for key share of orders/,
+  /revoke all on function public\.coi_timeline_lock_orders\(jsonb\)\s+from public, anon/,
+  /grant execute on function public\.coi_timeline_lock_orders\(jsonb\)\s+to authenticated/,
+  /create or replace function public\.coi_timeline_upsert_events\(p_events jsonb\)[\s\S]*security invoker/,
+  /perform public\.coi_timeline_lock_orders\(p_events\)/,
+  /for update of target/
+]) assert.match(sql.timelineLockHelper, pattern);
+assert.ok(
+  sql.timelineLockHelper.indexOf('perform public.coi_timeline_lock_orders(p_events)')
+    < sql.timelineLockHelper.indexOf('for update of target'),
+  'La RPC invoker debe llamar al helper de OC antes de bloquear Timeline.'
+);
+for (const pattern of [
+  /create schema if not exists coi_private/,
+  /revoke all on schema coi_private from public, anon, authenticated/,
+  /grant usage on schema coi_private to authenticated/,
+  /create or replace function coi_private\.coi_timeline_lock_orders\(p_events jsonb\)/,
+  /security definer\s+set search_path = public, pg_temp/,
+  /perform public\.coi_assert_role/,
+  /for key share of orders/,
+  /create or replace function public\.coi_timeline_lock_orders\(p_events jsonb\)[\s\S]*security invoker/,
+  /perform coi_private\.coi_timeline_lock_orders\(p_events\)/
+]) assert.match(sql.timelinePrivateLockHelper, pattern);
 
 // El frontend debe consumir las APIs sustitutas y no reabrir el DML financiero.
 for (const pattern of [
@@ -163,4 +192,4 @@ for (const [name, body] of Object.entries(sql)) {
   assert.doesNotMatch(body, /service_role|password\s*=|secret\s*=/i, `${name}: posible secreto`);
 }
 
-console.log('Contrato Supabase: 13 migraciones auditadas; Timeline Supabase-first, concurrencia, restore exacto, locks ordenados, RLS e integridad verificados.');
+console.log('Contrato Supabase: 15 migraciones auditadas; Timeline Supabase-first, concurrencia, restore exacto, helper privado de locks, RLS e integridad verificados.');
