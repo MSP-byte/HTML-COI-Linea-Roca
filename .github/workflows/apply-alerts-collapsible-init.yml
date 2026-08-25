@@ -1,0 +1,66 @@
+name: Apply alerts collapsible init
+
+on:
+  push:
+    branches: [fix/alerts-collapsible-init]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/alerts-collapsible-init
+          persist-credentials: true
+          fetch-depth: 0
+      - name: Apply focused patch
+        run: python3 .github/scripts/apply-alerts-collapsible-init.py
+      - name: Add focused regression
+        run: |
+          cat > tests/alerts_collapsible_init.spec.js <<'EOF'
+          const { test, expect } = require('@playwright/test');
+          const fs = require('fs');
+          const path = require('path');
+
+          const SOURCE = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
+
+          test('Alertas ejecutivas espera la tabla canonica y queda plegada por defecto', async () => {
+            const start = SOURCE.indexOf('function renderAlertsExecutive(){');
+            const end = SOURCE.indexOf('function renderExecutiveFicha(', start);
+            expect(start).toBeGreaterThan(-1);
+            expect(end).toBeGreaterThan(start);
+            const block = SOURCE.slice(start, end);
+
+            expect(block).toContain("host.querySelector('table.coi-alertas-table')");
+            expect(block).toContain('host.__coiExecAlertsWaiter');
+            expect(block).toContain("card=document.createElement('details')");
+            expect(block).toContain("card.className='exec-alert-card exec-alert-collapsible'");
+            expect(block).toContain('card.open=wasOpen');
+            expect(block).toContain('Alertas de calidad y documentación');
+            expect(block).toContain('desplegar');
+            expect(block).toContain('contraer');
+            expect(block).not.toContain("document.createElement('section')");
+          });
+
+          test('el hotfix no altera la tabla general ni los scrollbars superiores', async () => {
+            expect(SOURCE).toContain('table.coi-alertas-table');
+            expect(SOURCE).toContain("installTopHorizontalScrollbar(alerts, 'alertas')");
+            expect(SOURCE).toContain('id="coi-final-navigation-top-scrollbars"');
+          });
+          EOF
+      - name: Validate diff
+        run: |
+          git diff --check
+          npm test
+      - name: Commit product and test
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html tests/alerts_collapsible_init.spec.js
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "fix: collapse executive alerts after canonical render"
+          git push origin HEAD:fix/alerts-collapsible-init
