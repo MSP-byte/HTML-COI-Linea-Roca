@@ -51,8 +51,10 @@ create table if not exists public.coi_timeline_events (
   constraint coi_timeline_risk_valid check (riesgo in ('Bajo', 'Medio', 'Alto', 'Crítico'))
 );
 
--- Compatibilidad forward-only con fixtures/minimos historicos donde la tabla
--- podia existir solo con id, orden_id y nro_oc.
+-- Compatibilidad forward-only con instalaciones historicas donde la tabla
+-- podia existir solo con id, orden_id y nro_oc. Las columnas y restricciones
+-- se completan idempotentemente para que el contrato sea igual al de una
+-- instalacion nueva.
 alter table public.coi_timeline_events add column if not exists fecha date not null default current_date;
 alter table public.coi_timeline_events add column if not exists hora time without time zone not null default '09:00'::time;
 alter table public.coi_timeline_events add column if not exists semana text not null default '';
@@ -81,6 +83,55 @@ alter table public.coi_timeline_events add column if not exists created_by uuid 
 alter table public.coi_timeline_events add column if not exists updated_by uuid references auth.users(id) on delete set null;
 alter table public.coi_timeline_events add column if not exists creado_en timestamptz not null default clock_timestamp();
 alter table public.coi_timeline_events add column if not exists actualizado_en timestamptz not null default clock_timestamp();
+
+update public.coi_timeline_events
+   set id = case
+              when nullif(btrim(id), '') is null
+                then 'TL-LEGACY-' || md5(ctid::text || clock_timestamp()::text)
+              else btrim(id)
+            end,
+       titulo = coalesce(nullif(btrim(titulo), ''), 'Evento histórico sin título'),
+       estado = case when estado in (
+         'Informativo', 'En revisión', 'Pendiente proveedor', 'Pendiente SOFSE',
+         'Pendiente CT', 'Pendiente HSMA', 'Certificación', 'Observado',
+         'Corregido', 'Cerrado'
+       ) then estado else 'Informativo' end,
+       riesgo = case when riesgo in ('Bajo', 'Medio', 'Alto', 'Crítico') then riesgo else 'Bajo' end
+ where nullif(btrim(id), '') is null
+    or nullif(btrim(titulo), '') is null
+    or estado is null
+    or estado not in (
+      'Informativo', 'En revisión', 'Pendiente proveedor', 'Pendiente SOFSE',
+      'Pendiente CT', 'Pendiente HSMA', 'Certificación', 'Observado',
+      'Corregido', 'Cerrado'
+    )
+    or riesgo is null
+    or riesgo not in ('Bajo', 'Medio', 'Alto', 'Crítico');
+
+alter table public.coi_timeline_events alter column id set not null;
+alter table public.coi_timeline_events alter column titulo set not null;
+alter table public.coi_timeline_events alter column estado set not null;
+alter table public.coi_timeline_events alter column riesgo set not null;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conrelid='public.coi_timeline_events'::regclass and conname='coi_timeline_id_required') then
+    alter table public.coi_timeline_events add constraint coi_timeline_id_required check (nullif(btrim(id), '') is not null);
+  end if;
+  if not exists (select 1 from pg_constraint where conrelid='public.coi_timeline_events'::regclass and conname='coi_timeline_title_required') then
+    alter table public.coi_timeline_events add constraint coi_timeline_title_required check (nullif(btrim(titulo), '') is not null);
+  end if;
+  if not exists (select 1 from pg_constraint where conrelid='public.coi_timeline_events'::regclass and conname='coi_timeline_status_valid') then
+    alter table public.coi_timeline_events add constraint coi_timeline_status_valid check (estado in (
+      'Informativo', 'En revisión', 'Pendiente proveedor', 'Pendiente SOFSE',
+      'Pendiente CT', 'Pendiente HSMA', 'Certificación', 'Observado', 'Corregido', 'Cerrado'
+    ));
+  end if;
+  if not exists (select 1 from pg_constraint where conrelid='public.coi_timeline_events'::regclass and conname='coi_timeline_risk_valid') then
+    alter table public.coi_timeline_events add constraint coi_timeline_risk_valid check (riesgo in ('Bajo', 'Medio', 'Alto', 'Crítico'));
+  end if;
+end;
+$$;
 
 do $$
 begin

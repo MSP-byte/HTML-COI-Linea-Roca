@@ -121,6 +121,30 @@ async function main() {
     await setUser(db, 'administrador');
 
     // Timeline/Mailing: CRUD compartido, lectura por consulta y auditoría.
+    const timelineConstraints = await db.query(`
+      select count(*)::int n from pg_constraint
+       where conrelid='public.coi_timeline_events'::regclass
+         and conname in ('coi_timeline_id_required','coi_timeline_title_required','coi_timeline_status_valid','coi_timeline_risk_valid')
+    `);
+    assert.equal(timelineConstraints.rows[0].n, 4);
+
+    const invalidAtomicBatch = JSON.stringify([
+      { id: 'TL-ATOMIC-ROLLBACK-1', fecha: '2026-08-25', titulo: 'Debe revertirse', estado: 'Informativo', riesgo: 'Bajo' },
+      { id: 'TL-ATOMIC-ROLLBACK-2', fecha: '2026-08-25', titulo: 'Inválido', estado: 'Informativo', riesgo: 'RIESGO_INVALIDO' }
+    ]);
+    await assert.rejects(
+      db.query('select id from public.coi_timeline_upsert_events($1::jsonb)', [invalidAtomicBatch]),
+      /coi_timeline_risk_valid|check constraint/i
+    );
+    assert.equal((await db.query("select count(*)::int n from public.coi_timeline_events where id like 'TL-ATOMIC-ROLLBACK-%'")).rows[0].n, 0);
+
+    const validAtomicBatch = JSON.stringify([
+      { id: 'TL-ATOMIC-1', fecha: '2026-08-25', titulo: 'Lote atómico 1', estado: 'Informativo', riesgo: 'Bajo' },
+      { id: 'TL-ATOMIC-2', fecha: '2026-08-25', titulo: 'Lote atómico 2', estado: 'En revisión', riesgo: 'Medio' }
+    ]);
+    const atomicRows = await db.query('select id from public.coi_timeline_upsert_events($1::jsonb) order by id', [validAtomicBatch]);
+    assert.deepEqual(atomicRows.rows.map(row => row.id), ['TL-ATOMIC-1', 'TL-ATOMIC-2']);
+
     const timelineId = 'TL-RUNTIME-SUPABASE-FIRST';
     const insertedTimeline = await db.query(`
       insert into public.coi_timeline_events(
@@ -141,6 +165,10 @@ async function main() {
     await assert.rejects(
       db.query(`insert into public.coi_timeline_events(id,fecha,titulo) values ('TL-CONSULTA-BLOCKED','2026-08-25','No autorizado')`),
       /row-level security|permission denied/i
+    );
+    await assert.rejects(
+      db.query("select id from public.coi_timeline_upsert_events('[{\"id\":\"TL-CONSULTA-RPC\",\"fecha\":\"2026-08-25\",\"titulo\":\"No autorizado\"}]'::jsonb)"),
+      /COI_ROLE_REQUIRED|permission denied/i
     );
 
     await setUser(db, 'editor');
@@ -166,6 +194,7 @@ async function main() {
 
     const deletedTimeline = await db.query('delete from public.coi_timeline_events where id=$1 returning id', [timelineId]);
     assert.equal(deletedTimeline.rows[0].id, timelineId);
+    await db.query("delete from public.coi_timeline_events where id in ('TL-ATOMIC-1','TL-ATOMIC-2')");
     assert.equal((await db.query("select count(*)::int n from public.coi_operaciones_auditoria where entidad='coi_timeline_events' and registro_id=$1", [timelineId])).rows[0].n >= 4, true);
 
     // Writer legacy permitido, pero trazado server-side.

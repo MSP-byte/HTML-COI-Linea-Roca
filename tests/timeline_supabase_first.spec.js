@@ -3,7 +3,7 @@ const { test, expect } = require('@playwright/test');
 const STORAGE_KEY = 'coi_timeline_events_v1';
 const MIGRATION_KEY = 'coi_timeline_supabase_migrated_v1';
 
-async function openTimelineFixture(page) {
+async function openTimelineFixture(page, { role = 'administrador', remoteRows = [] } = {}) {
   await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
   await page.addInitScript(({ storageKey }) => {
     localStorage.clear();
@@ -36,10 +36,10 @@ async function openTimelineFixture(page) {
     window.coiTimelineEvents.some(event => event.id === 'TL-LEGACY-BROWSER-1')
   );
 
-  await page.evaluate(() => {
+  await page.evaluate(({ role, remoteRows }) => {
     const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
     const actorId = '85555555-5555-4555-8555-555555555555';
-    const state = { rows: [], operations: [] };
+    const state = { rows: clone(remoteRows), operations: [], role, failNextRefresh: false };
 
     function serverRow(payload, previous = {}) {
       const now = new Date().toISOString();
@@ -77,6 +77,10 @@ async function openTimelineFixture(page) {
         order() { return query; },
         range(from, to) {
           state.operations.push({ action: 'select', table, from, to });
+          if (state.failNextRefresh) {
+            state.failNextRefresh = false;
+            return Promise.resolve({ data: null, error: { message: 'fallo de refresco simulado' } });
+          }
           return Promise.resolve({ data: clone(matchingRows().slice(from, to + 1)), error: null });
         },
         select() {
@@ -111,14 +115,32 @@ async function openTimelineFixture(page) {
           error: null
         })
       },
-      from: table => queryFor(table)
+      from: table => queryFor(table),
+      rpc: async (name, args = {}) => {
+        if (name === 'coi_current_role') return { data: state.role, error: null };
+        if (name === 'coi_timeline_upsert_events') {
+          if (!['administrador', 'jefatura', 'editor', 'planificacion', 'control', 'supervisor'].includes(state.role)) {
+            return { data: null, error: { code: '42501', message: 'row-level security fixture' } };
+          }
+          const saved = (args.p_events || []).map(item => {
+            const index = state.rows.findIndex(row => row.id === item.id);
+            const row = serverRow(item, index >= 0 ? state.rows[index] : {});
+            if (index >= 0) state.rows[index] = row;
+            else state.rows.push(row);
+            return row;
+          });
+          state.operations.push({ action: 'upsert', table: 'coi_timeline_events', ids: saved.map(row => row.id) });
+          return { data: clone(saved), error: null };
+        }
+        return { data: null, error: { code: '42883', message: `RPC no simulada: ${name}` } };
+      }
     };
     window.__TIMELINE_REMOTE_STATE__ = state;
     window.initSupabase = async () => client;
     window.getSupabaseClient = () => client;
     window.mostrarMensajeCOI = () => {};
     window.confirm = () => true;
-  });
+  }, { role, remoteRows });
 
   await page.evaluate(async () => {
     await window.COI_TIMELINE_COI.reload();
@@ -145,9 +167,11 @@ test('migra localStorage una vez y hace CRUD de Mailing con Supabase como autori
   await page.locator('[data-timeline-field="remitente"]').fill('contratista@example.test');
   await page.locator('[data-timeline-field="destinatarios"]').fill('equipo-coi@example.test');
   await page.locator('[data-timeline-field="descripcion"]').fill('Seguimiento operativo compartido.');
+  await page.evaluate(() => { window.__TIMELINE_REMOTE_STATE__.failNextRefresh = true; });
   await page.getByRole('button', { name: 'Guardar evento' }).click();
 
   await expect(results.getByRole('heading', { name: 'Mailing persistido en Supabase', exact: true })).toBeVisible();
+  await expect(page.locator('.timeline-persistence')).toContainText('Supabase sincronizado con advertencia');
   const created = await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.rows.find(row => row.titulo === 'Mailing persistido en Supabase'));
   expect(created).toMatchObject({
     remitente: 'contratista@example.test',
@@ -172,4 +196,32 @@ test('migra localStorage una vez y hace CRUD de Mailing con Supabase como autori
   const actions = await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.operations.map(item => item.action));
   expect(actions).toContain('upsert');
   expect(actions).toContain('delete');
+});
+
+test('rol de lectura conserva Supabase si la migración local es denegada y oculta mutaciones', async ({ page }) => {
+  await openTimelineFixture(page, {
+    role: 'consulta',
+    remoteRows: [{
+      id: 'TL-REMOTE-CANONICAL-1',
+      fecha: '2026-08-25',
+      hora: '10:00:00',
+      semana: '2026-W35',
+      titulo: 'Mailing canónico de Supabase',
+      tipo_evento: 'Mailing',
+      origen: 'Mailing',
+      estado: 'Informativo',
+      riesgo: 'Bajo'
+    }]
+  });
+
+  const results = page.locator('.timeline-result');
+  await expect(results.getByRole('heading', { name: 'Mailing canónico de Supabase', exact: true })).toBeVisible();
+  await expect(results.getByRole('heading', { name: 'Mailing local pendiente de migración', exact: true })).toHaveCount(0);
+  await expect(page.locator('.timeline-persistence')).toContainText(/migración pendiente/i);
+  const view = page.locator('#vistaTimelineCOI');
+  await expect(view.getByRole('button', { name: 'Nueva carga manual' })).toHaveCount(0);
+  await expect(view.getByRole('button', { name: 'Importar JSON' })).toHaveCount(0);
+  await expect(view.getByRole('button', { name: 'Editar' })).toHaveCount(0);
+  await expect(view.getByRole('button', { name: 'Eliminar' })).toHaveCount(0);
+  await expect(view.getByText('acceso de solo lectura', { exact: false })).toBeVisible();
 });

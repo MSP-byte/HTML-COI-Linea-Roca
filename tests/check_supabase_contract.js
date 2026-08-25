@@ -15,7 +15,9 @@ const names = {
   hardening: '202608110006_release_candidate_hardening.sql',
   review: '202608160010_rc2_review_hardening.sql',
   timeline: '202608250001_timeline_supabase_first.sql',
-  timelineIndexes: '202608250002_timeline_actor_indexes.sql'
+  timelineIndexes: '202608250002_timeline_actor_indexes.sql',
+  timelineAtomic: '202608250003_timeline_atomic_upsert.sql',
+  timelineAtomicInvoker: '202608250004_timeline_atomic_upsert_invoker.sql'
 };
 
 const sql = {};
@@ -102,6 +104,16 @@ assert.match(sql.timeline, /revoke all on function public\.coi_timeline_prepare_
 assert.match(sql.timeline, /'administrador','jefatura','editor','planificacion','control','supervisor'/i);
 assert.match(sql.timelineIndexes, /coi_timeline_created_by_idx/);
 assert.match(sql.timelineIndexes, /coi_timeline_updated_by_idx/);
+for (const pattern of [
+  /coi_timeline_upsert_events/,
+  /jsonb_to_recordset\(p_events\)/,
+  /jsonb_array_length\(p_events\) > 5000/,
+  /perform public\.coi_assert_role/,
+  /security invoker/,
+  /on conflict \(id\) do update/,
+  /grant execute on function public\.coi_timeline_upsert_events\(jsonb\) to authenticated/
+]) assert.match(sql.timelineAtomic, pattern);
+assert.match(sql.timelineAtomicInvoker, /alter function public\.coi_timeline_upsert_events\(jsonb\) security invoker/);
 
 // El frontend debe consumir las APIs sustitutas y no reabrir el DML financiero.
 for (const pattern of [
@@ -127,4 +139,4 @@ for (const [name, body] of Object.entries(sql)) {
   assert.doesNotMatch(body, /service_role|password\s*=|secret\s*=/i, `${name}: posible secreto`);
 }
 
-console.log('Contrato Supabase: 9 migraciones auditadas; Timeline Supabase-first, RPC, RLS e integridad verificados.');
+console.log('Contrato Supabase: 11 migraciones auditadas; Timeline Supabase-first, RPC atómica, RLS e integridad verificados.');
