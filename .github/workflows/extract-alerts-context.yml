@@ -1,0 +1,44 @@
+name: Extract alerts context
+
+on:
+  push:
+    branches: [fix/alerts-collapsible-init]
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/alerts-collapsible-init
+          persist-credentials: true
+      - name: Extract relevant alerts context
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('index.html').read_text(encoding='utf-8')
+          lines=s.splitlines()
+          terms=['Alertas de calidad y documentación','cliente Supabase no disponible','renderCentroAlertas','coi-alertas-scroll','generarAlertasCOI']
+          out=[]
+          for term in terms:
+              out.append(f'### {term}')
+              hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
+              out.append(f'hits={len(hits)}')
+              for i in hits[:25]:
+                  a=max(0,i-20); b=min(len(lines),i+35)
+                  out.append(f'-- around line {i+1} --')
+                  out.extend(f'{j+1}: {lines[j]}' for j in range(a,b))
+                  out.append('')
+          Path('.github/alerts_context.txt').write_text('\n'.join(out),encoding='utf-8')
+          PY
+      - name: Commit context
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/alerts_context.txt
+          git commit -m "chore: capture alerts render context"
+          git push origin HEAD:fix/alerts-collapsible-init
