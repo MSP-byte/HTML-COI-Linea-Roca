@@ -4,26 +4,64 @@ const path = require('path');
 
 const SOURCE = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
 
-test('Alertas ejecutivas espera la tabla canonica y queda plegada por defecto', async () => {
-  const start = SOURCE.indexOf('function renderAlertsExecutive(){');
-  const end = SOURCE.indexOf('function renderExecutiveFicha(', start);
-  expect(start).toBeGreaterThan(-1);
-  expect(end).toBeGreaterThan(start);
-  const block = SOURCE.slice(start, end);
+test.describe.configure({ timeout: 60_000 });
 
-  expect(block).toContain("host.querySelector('table.coi-alertas-table')");
-  expect(block).toContain('host.__coiExecAlertsWaiter');
-  expect(block).toContain("card=document.createElement('details')");
-  expect(block).toContain("card.className='exec-alert-card exec-alert-collapsible'");
-  expect(block).toContain('card.open=wasOpen');
-  expect(block).toContain('Alertas de calidad y documentación');
-  expect(block).toContain('desplegar');
-  expect(block).toContain('contraer');
-  expect(block).not.toContain("document.createElement('section')");
+async function openIsolated(page) {
+  await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
+  await page.addInitScript(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() =>
+    typeof window.renderCentroAlertas === 'function' &&
+    Boolean(document.getElementById('btnCentroAlertas')) &&
+    Boolean(document.getElementById('alertasTbody'))
+  );
+}
+
+test('navegacion real monta un unico panel plegado y conserva expansion tras rerender', async ({ page }) => {
+  await openIsolated(page);
+
+  await page.evaluate(() => document.getElementById('btnCentroAlertas').click());
+
+  const view = page.locator('#vistaCentroAlertas');
+  await expect(view).toBeVisible();
+  await expect.poll(() => view.locator('#execAlertsCard').count()).toBe(1);
+
+  let panel = view.locator('#execAlertsCard');
+  await expect(panel.locator('summary')).toContainText('Alertas de calidad y documentación');
+  expect(await panel.evaluate(el => el.open)).toBe(false);
+
+  await panel.locator('summary').evaluate(el => el.click());
+  await expect.poll(() => panel.evaluate(el => el.open)).toBe(true);
+
+  await page.evaluate(() => window.renderCentroAlertas());
+  await expect.poll(() => view.locator('#execAlertsCard').count()).toBe(1);
+  panel = view.locator('#execAlertsCard');
+  await expect.poll(() => panel.evaluate(el => el.open)).toBe(true);
+
+  await page.evaluate(() => document.getElementById('btnCentroAlertas').click());
+  await expect.poll(() => view.locator('#execAlertsCard').count()).toBe(1);
+  panel = view.locator('#execAlertsCard');
+  await expect.poll(() => panel.evaluate(el => el.open)).toBe(true);
 });
 
-test('el hotfix no altera la tabla general ni los scrollbars superiores', async () => {
-  expect(SOURCE).toContain('table.coi-alertas-table');
+test('panel usa la superficie real de Alertas y no altera tabla general ni scrollbar superior', async ({ page }) => {
+  await openIsolated(page);
+  await page.evaluate(() => document.getElementById('btnCentroAlertas').click());
+
+  const view = page.locator('#vistaCentroAlertas');
+  await expect.poll(() => view.locator('#execAlertsCard').count()).toBe(1);
+  await expect(view.locator('#alertasTbody')).toHaveCount(1);
+
+  await page.evaluate(() => {
+    window.renderCentroAlertas();
+    window.renderCentroAlertas();
+  });
+  await expect.poll(() => view.locator('#execAlertsCard').count()).toBe(1);
+
+  expect(SOURCE).toContain("const legacyBody=host.querySelector('#alertasTbody')");
   expect(SOURCE).toContain("installTopHorizontalScrollbar(alerts, 'alertas')");
   expect(SOURCE).toContain('id="coi-final-navigation-top-scrollbars"');
 });
