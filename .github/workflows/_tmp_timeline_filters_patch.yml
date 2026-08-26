@@ -1,0 +1,142 @@
+name: TEMP Timeline Filters Patch
+on:
+  push:
+    branches: [fix/timeline-filters-views]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Patch Timeline filters and views
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+
+          def one(old,new,label):
+              global s
+              count=s.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match, got {count}')
+              s=s.replace(old,new,1)
+
+          one("filters:{fecha:'',fecha_desde:'',fecha_hasta:'',semana:'',oc:'',proveedor:'',rubro:'',estado:'',riesgo:'',tipo_evento:'',origen:'',responsable_accion:''}",
+              "filters:{fecha:'',fecha_desde:'',oc:'',proveedor:'',rubro:'',tipo_evento:'',origen:'',responsable_accion:''}",
+              'state filters')
+
+          for old in [
+              "    if(f.fecha_hasta&&event.fecha>f.fecha_hasta)return false;\n",
+              "    if(f.semana&&event.semana!==f.semana)return false;\n",
+              "    if(f.estado&&event.estado!==f.estado)return false;\n",
+              "    if(f.riesgo&&event.riesgo!==f.riesgo)return false;\n",
+          ]:
+              if s.count(old)!=1:
+                  raise SystemExit(f'eventMatches line missing: {old!r}')
+              s=s.replace(old,'',1)
+
+          for old in [
+              "      ${field('Fecha hasta','fecha_hasta',`<input id=\"timelineFilter_fecha_hasta\" type=\"date\" value=\"${attr(f.fecha_hasta)}\" data-timeline-filter=\"fecha_hasta\">`)}\n",
+              "      ${field('Semana','semana',`<input id=\"timelineFilter_semana\" type=\"week\" value=\"${attr(f.semana)}\" data-timeline-filter=\"semana\">`)}\n",
+              "      ${field('Estado','estado',`<select id=\"timelineFilter_estado\" data-timeline-filter=\"estado\">${options(TIMELINE_STATUSES,f.estado,'Todos')}</select>`)}\n",
+              "      ${field('Riesgo','riesgo',`<select id=\"timelineFilter_riesgo\" data-timeline-filter=\"riesgo\">${options(TIMELINE_RISKS,f.riesgo,'Todos')}</select>`)}\n",
+          ]:
+              if s.count(old)!=1:
+                  raise SystemExit(f'filtersMarkup line missing: {old[:80]!r}')
+              s=s.replace(old,'',1)
+
+          old_render="""      ${filtersMarkup()}
+      ${editorMarkup()}
+      ${bulkImportMarkup()}
+      <div class=\"timeline-section-head\"><div><h3>${state.view==='diaria'?'Movimientos diarios':state.view==='semanal'?'Resumen semanal':'Historial por OC'}</h3><p>${events.length} de ${window.coiTimelineEvents.length} evento(s) visibles</p></div></div>
+      <div class=\"timeline-result\">${result}</div>
+"""
+          new_render="""      ${filtersMarkup()}
+      <section id=\"timelineResultsAnchor\" class=\"timeline-results-section\" aria-live=\"polite\">
+        <div class=\"timeline-section-head\"><div><h3>${state.view==='diaria'?'Movimientos diarios':state.view==='semanal'?'Resumen semanal':'Historial por OC'}</h3><p>${events.length} de ${window.coiTimelineEvents.length} evento(s) visibles</p></div></div>
+        <div class=\"timeline-result\">${result}</div>
+      </section>
+      ${editorMarkup()}
+      ${bulkImportMarkup()}
+"""
+          one(old_render,new_render,'render order')
+
+          one("if(tab){state.view=tab.dataset.timelineView;state.editingId='';renderTimelineCOI();return;}",
+              "if(tab){state.view=tab.dataset.timelineView;state.editingId='';renderTimelineCOI();requestAnimationFrame(()=>byId('timelineResultsAnchor')?.scrollIntoView({block:'nearest'}));return;}",
+              'view handler')
+          one("if(target.closest('#btnTimelineAplicarFiltros')){readFilters();renderTimelineCOI();return;}",
+              "if(target.closest('#btnTimelineAplicarFiltros')){readFilters();state.editingId='';renderTimelineCOI();requestAnimationFrame(()=>byId('timelineResultsAnchor')?.scrollIntoView({block:'nearest'}));return;}",
+              'apply handler')
+
+          p.write_text(s,encoding='utf-8')
+          PY
+
+          cat > tests/timeline_filters_views.spec.js <<'JS'
+          const { test, expect } = require('@playwright/test');
+          const fs = require('fs');
+          const path = require('path');
+          const SOURCE = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
+          function between(a,b){const x=SOURCE.indexOf(a),y=SOURCE.indexOf(b,x);if(x<0||y<0)throw new Error(`Bloque no encontrado: ${a}`);return SOURCE.slice(x,y);}
+          const FILTERS=between('  function filtersMarkup(){','  function kpisMarkup(');
+          const MATCHES=between('  function eventMatches(event){','  function filteredEvents(');
+          const RENDER=between('  function renderTimelineCOI(){','  window.renderTimelineCOI=renderTimelineCOI;');
+          const BIND=between('  function bindEvents(){','  async function initializeStore(');
+
+          test('Timeline muestra solo los filtros operativos solicitados', async () => {
+            for (const id of ['timelineFilter_fecha_desde','timelineFilter_oc','timelineFilter_proveedor','timelineFilter_rubro','timelineFilter_tipo_evento','timelineFilter_origen','timelineFilter_responsable_accion']) expect(FILTERS).toContain(id);
+            for (const id of ['timelineFilter_fecha_hasta','timelineFilter_semana','timelineFilter_estado','timelineFilter_riesgo']) expect(FILTERS).not.toContain(id);
+          });
+
+          test('filtros retirados tampoco condicionan eventMatches', async () => {
+            expect(MATCHES).toContain('f.fecha_desde');
+            expect(MATCHES).toContain('f.oc');
+            expect(MATCHES).not.toContain('f.fecha_hasta');
+            expect(MATCHES).not.toContain('f.semana');
+            expect(MATCHES).not.toContain('f.estado');
+            expect(MATCHES).not.toContain('f.riesgo');
+          });
+
+          test('resultados quedan inmediatamente después de filtros y antes de carga/editor', async () => {
+            const filters=RENDER.indexOf('${filtersMarkup()}');
+            const results=RENDER.indexOf('timelineResultsAnchor');
+            const editor=RENDER.indexOf('${editorMarkup()}');
+            const bulk=RENDER.indexOf('${bulkImportMarkup()}');
+            expect(filters).toBeGreaterThan(-1);
+            expect(results).toBeGreaterThan(filters);
+            expect(editor).toBeGreaterThan(results);
+            expect(bulk).toBeGreaterThan(editor);
+          });
+
+          test('Aplicar filtros y vistas fuerzan rerender visible', async () => {
+            expect(BIND).toContain("target.closest('#btnTimelineAplicarFiltros')");
+            expect(BIND).toContain("target.closest('[data-timeline-view]')");
+            expect(BIND).toContain("byId('timelineResultsAnchor')?.scrollIntoView({block:'nearest'})");
+          });
+          JS
+
+      - name: Validate patch
+        run: |
+          node --check tests/timeline_filters_views.spec.js
+          node - <<'NODE'
+          const fs=require('fs');
+          const s=fs.readFileSync('index.html','utf8');
+          for(const forbidden of ['id="timelineFilter_fecha_hasta"','id="timelineFilter_semana"','id="timelineFilter_estado"','id="timelineFilter_riesgo"']){
+            if(s.includes(forbidden))throw new Error('Removed filter still present: '+forbidden);
+          }
+          if(!s.includes('id="timelineResultsAnchor"'))throw new Error('Results anchor missing');
+          NODE
+      - name: Commit patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html tests/timeline_filters_views.spec.js
+          git commit -m 'fix: make Timeline filters and views visible'
+          git push
