@@ -1,0 +1,1497 @@
+===== Vista diaria :: [20985] =====
+20974:     ensureStructure();
+20975:     const mount=byId('timelineCOIBody');
+20976:     if(!mount)return;
+20977:     const events=filteredEvents();
+20978:     let result=dailyMarkup(events);
+20979:     if(state.view==='semanal')result=weeklyMarkup(events);
+20980:     if(state.view==='oc')result=ocMarkup(events);
+20981:     const writeActions=state.permissions.canWrite?'<button type="button" id="btnTimelineNuevo" class="timeline-primary">Nueva carga manual</button><button type="button" id="btnTimelineImportJSON">Importar JSON</button><input type="file" id="timelineImportFile" accept="application/json,.json" hidden>':'';
+20982:     mount.innerHTML=`<div class="timeline-view-shell">
+20983:       <section class="timeline-hero"><div><h2>Timeline COI / Trazabilidad por OC</h2><p>Mailings, sistemas, actas, certificados, remitos, facturas y acciones pendientes en una secuencia auditable.</p></div><div class="timeline-actions">${writeActions}<button type="button" id="btnTimelineExportJSON">Exportar JSON</button></div></section>
+20984:       ${persistenceMarkup()}
+20985:       ${kpisMarkup(metrics())}
+20986:       <nav class="timeline-tabs" aria-label="Vistas del Timeline COI"><button type="button" data-timeline-view="diaria" class="${state.view==='diaria'?'active':''}">Vista diaria</button><button type="button" data-timeline-view="semanal" class="${state.view==='semanal'?'active':''}">Vista semanal</button><button type="button" data-timeline-view="oc" class="${state.view==='oc'?'active':''}">Vista por OC</button></nav>
+20987:       ${filtersMarkup()}
+20988:       ${editorMarkup()}
+20989:       ${bulkImportMarkup()}
+20990:       <div class="timeline-section-head"><div><h3>${state.view==='diaria'?'Movimientos diarios':state.view==='semanal'?'Resumen semanal':'Historial por OC'}</h3><p>${events.length} de ${window.coiTimelineEvents.length} evento(s) visibles</p></div></div>
+20991:       <div class="timeline-result">${result}</div>
+20992:     </div>`;
+20993:   }
+20994:   window.renderTimelineCOI=renderTimelineCOI;
+20995: 
+20996:   function readFilters(){
+20997:     Object.keys(state.filters).forEach(name=>{
+20998:       const input=byId('timelineFilter_'+name);
+20999:       if(input)state.filters[name]=text(input.value);
+21000:     });
+21001:   }
+21002:   function resetFilters(){Object.keys(state.filters).forEach(name=>{state.filters[name]='';});}
+21003:   function autocompleteOrder(oc){
+21004:     const order=findOrder(oc);
+21005:     if(!order)return;
+21006:     const values={expediente:order.expediente,proveedor:order.proveedor,rubro:order.rubro,estacion:order.estacion};
+21007:     Object.entries(values).forEach(([name,value])=>{
+21008:       const input=byId('timelineEventForm')?.querySelector(`[data-timeline-field="${name}"]`);
+21009:       if(input&&!text(input.value))input.value=value;
+21010:     });
+21011:   }
+21012:   async function saveForm(form){
+21013:     const data=Object.fromEntries(new FormData(form).entries());
+21014:     if(!validDate(data.fecha)||!text(data.titulo)||!text(data.tipo_evento)){
+21015:       alert('Complete Fecha, T\u00edtulo y Tipo de evento.');
+21016:       return;
+21017:     }
+21018:     const existing=window.coiTimelineEvents.find(event=>event.id===text(form.dataset.eventId));
+21019:     const event=normalizeEvent({
+21020:       ...(existing||{}),...data,id:existing?.id||makeId(),semana:isoWeek(data.fecha),
+---
+===== Vista semanal :: [20985] =====
+20974:     ensureStructure();
+20975:     const mount=byId('timelineCOIBody');
+20976:     if(!mount)return;
+20977:     const events=filteredEvents();
+20978:     let result=dailyMarkup(events);
+20979:     if(state.view==='semanal')result=weeklyMarkup(events);
+20980:     if(state.view==='oc')result=ocMarkup(events);
+20981:     const writeActions=state.permissions.canWrite?'<button type="button" id="btnTimelineNuevo" class="timeline-primary">Nueva carga manual</button><button type="button" id="btnTimelineImportJSON">Importar JSON</button><input type="file" id="timelineImportFile" accept="application/json,.json" hidden>':'';
+20982:     mount.innerHTML=`<div class="timeline-view-shell">
+20983:       <section class="timeline-hero"><div><h2>Timeline COI / Trazabilidad por OC</h2><p>Mailings, sistemas, actas, certificados, remitos, facturas y acciones pendientes en una secuencia auditable.</p></div><div class="timeline-actions">${writeActions}<button type="button" id="btnTimelineExportJSON">Exportar JSON</button></div></section>
+20984:       ${persistenceMarkup()}
+20985:       ${kpisMarkup(metrics())}
+20986:       <nav class="timeline-tabs" aria-label="Vistas del Timeline COI"><button type="button" data-timeline-view="diaria" class="${state.view==='diaria'?'active':''}">Vista diaria</button><button type="button" data-timeline-view="semanal" class="${state.view==='semanal'?'active':''}">Vista semanal</button><button type="button" data-timeline-view="oc" class="${state.view==='oc'?'active':''}">Vista por OC</button></nav>
+20987:       ${filtersMarkup()}
+20988:       ${editorMarkup()}
+20989:       ${bulkImportMarkup()}
+20990:       <div class="timeline-section-head"><div><h3>${state.view==='diaria'?'Movimientos diarios':state.view==='semanal'?'Resumen semanal':'Historial por OC'}</h3><p>${events.length} de ${window.coiTimelineEvents.length} evento(s) visibles</p></div></div>
+20991:       <div class="timeline-result">${result}</div>
+20992:     </div>`;
+20993:   }
+20994:   window.renderTimelineCOI=renderTimelineCOI;
+20995: 
+20996:   function readFilters(){
+20997:     Object.keys(state.filters).forEach(name=>{
+20998:       const input=byId('timelineFilter_'+name);
+20999:       if(input)state.filters[name]=text(input.value);
+21000:     });
+21001:   }
+21002:   function resetFilters(){Object.keys(state.filters).forEach(name=>{state.filters[name]='';});}
+21003:   function autocompleteOrder(oc){
+21004:     const order=findOrder(oc);
+21005:     if(!order)return;
+21006:     const values={expediente:order.expediente,proveedor:order.proveedor,rubro:order.rubro,estacion:order.estacion};
+21007:     Object.entries(values).forEach(([name,value])=>{
+21008:       const input=byId('timelineEventForm')?.querySelector(`[data-timeline-field="${name}"]`);
+21009:       if(input&&!text(input.value))input.value=value;
+21010:     });
+21011:   }
+21012:   async function saveForm(form){
+21013:     const data=Object.fromEntries(new FormData(form).entries());
+21014:     if(!validDate(data.fecha)||!text(data.titulo)||!text(data.tipo_evento)){
+21015:       alert('Complete Fecha, T\u00edtulo y Tipo de evento.');
+21016:       return;
+21017:     }
+21018:     const existing=window.coiTimelineEvents.find(event=>event.id===text(form.dataset.eventId));
+21019:     const event=normalizeEvent({
+21020:       ...(existing||{}),...data,id:existing?.id||makeId(),semana:isoWeek(data.fecha),
+---
+===== Vista por OC :: [20985] =====
+20974:     ensureStructure();
+20975:     const mount=byId('timelineCOIBody');
+20976:     if(!mount)return;
+20977:     const events=filteredEvents();
+20978:     let result=dailyMarkup(events);
+20979:     if(state.view==='semanal')result=weeklyMarkup(events);
+20980:     if(state.view==='oc')result=ocMarkup(events);
+20981:     const writeActions=state.permissions.canWrite?'<button type="button" id="btnTimelineNuevo" class="timeline-primary">Nueva carga manual</button><button type="button" id="btnTimelineImportJSON">Importar JSON</button><input type="file" id="timelineImportFile" accept="application/json,.json" hidden>':'';
+20982:     mount.innerHTML=`<div class="timeline-view-shell">
+20983:       <section class="timeline-hero"><div><h2>Timeline COI / Trazabilidad por OC</h2><p>Mailings, sistemas, actas, certificados, remitos, facturas y acciones pendientes en una secuencia auditable.</p></div><div class="timeline-actions">${writeActions}<button type="button" id="btnTimelineExportJSON">Exportar JSON</button></div></section>
+20984:       ${persistenceMarkup()}
+20985:       ${kpisMarkup(metrics())}
+20986:       <nav class="timeline-tabs" aria-label="Vistas del Timeline COI"><button type="button" data-timeline-view="diaria" class="${state.view==='diaria'?'active':''}">Vista diaria</button><button type="button" data-timeline-view="semanal" class="${state.view==='semanal'?'active':''}">Vista semanal</button><button type="button" data-timeline-view="oc" class="${state.view==='oc'?'active':''}">Vista por OC</button></nav>
+20987:       ${filtersMarkup()}
+20988:       ${editorMarkup()}
+20989:       ${bulkImportMarkup()}
+20990:       <div class="timeline-section-head"><div><h3>${state.view==='diaria'?'Movimientos diarios':state.view==='semanal'?'Resumen semanal':'Historial por OC'}</h3><p>${events.length} de ${window.coiTimelineEvents.length} evento(s) visibles</p></div></div>
+20991:       <div class="timeline-result">${result}</div>
+20992:     </div>`;
+20993:   }
+20994:   window.renderTimelineCOI=renderTimelineCOI;
+20995: 
+20996:   function readFilters(){
+20997:     Object.keys(state.filters).forEach(name=>{
+20998:       const input=byId('timelineFilter_'+name);
+20999:       if(input)state.filters[name]=text(input.value);
+21000:     });
+21001:   }
+21002:   function resetFilters(){Object.keys(state.filters).forEach(name=>{state.filters[name]='';});}
+21003:   function autocompleteOrder(oc){
+21004:     const order=findOrder(oc);
+21005:     if(!order)return;
+21006:     const values={expediente:order.expediente,proveedor:order.proveedor,rubro:order.rubro,estacion:order.estacion};
+21007:     Object.entries(values).forEach(([name,value])=>{
+21008:       const input=byId('timelineEventForm')?.querySelector(`[data-timeline-field="${name}"]`);
+21009:       if(input&&!text(input.value))input.value=value;
+21010:     });
+21011:   }
+21012:   async function saveForm(form){
+21013:     const data=Object.fromEntries(new FormData(form).entries());
+21014:     if(!validDate(data.fecha)||!text(data.titulo)||!text(data.tipo_evento)){
+21015:       alert('Complete Fecha, T\u00edtulo y Tipo de evento.');
+21016:       return;
+21017:     }
+21018:     const existing=window.coiTimelineEvents.find(event=>event.id===text(form.dataset.eventId));
+21019:     const event=normalizeEvent({
+21020:       ...(existing||{}),...data,id:existing?.id||makeId(),semana:isoWeek(data.fecha),
+---
+===== Aplicar filtros :: [20674] =====
+20663:     return `<div class="timeline-filters" aria-label="Filtros del Timeline COI">
+20664:       ${field('Fecha desde','fecha_desde',`<input id="timelineFilter_fecha_desde" type="date" value="${attr(f.fecha_desde)}" data-timeline-filter="fecha_desde">`)}
+20665:       ${field('Fecha hasta','fecha_hasta',`<input id="timelineFilter_fecha_hasta" type="date" value="${attr(f.fecha_hasta)}" data-timeline-filter="fecha_hasta">`)}
+20666:       ${field('Semana','semana',`<input id="timelineFilter_semana" type="week" value="${attr(f.semana)}" data-timeline-filter="semana">`)}
+20667:       ${field('OC','oc',`<input id="timelineFilter_oc" type="search" value="${attr(f.oc)}" placeholder="Buscar N\u00ba OC" data-timeline-filter="oc" list="timelineOCFilterList">`)}
+20668:       ${field('Proveedor','proveedor',`<select id="timelineFilter_proveedor" data-timeline-filter="proveedor">${options(unique(events.map(e=>e.proveedor)),f.proveedor,'Todos')}</select>`)}
+20669:       ${field('Rubro','rubro',`<select id="timelineFilter_rubro" data-timeline-filter="rubro">${options(unique(events.map(e=>e.rubro)),f.rubro,'Todos')}</select>`)}
+20670:       ${field('Estado','estado',`<select id="timelineFilter_estado" data-timeline-filter="estado">${options(TIMELINE_STATUSES,f.estado,'Todos')}</select>`)}
+20671:       ${field('Riesgo','riesgo',`<select id="timelineFilter_riesgo" data-timeline-filter="riesgo">${options(TIMELINE_RISKS,f.riesgo,'Todos')}</select>`)}
+20672:       ${field('Tipo de evento','tipo_evento',`<select id="timelineFilter_tipo_evento" data-timeline-filter="tipo_evento">${options(TIMELINE_EVENT_TYPES,f.tipo_evento,'Todos')}</select>`)}
+20673:       ${field('Sistema / origen','origen',`<select id="timelineFilter_origen" data-timeline-filter="origen">${options(unique([...TIMELINE_ORIGINS,...events.map(e=>e.origen)]),f.origen,'Todos')}</select>`)}
+20674:       ${field('Responsable','responsable_accion',`<select id="timelineFilter_responsable_accion" data-timeline-filter="responsable_accion">${options(unique(events.map(e=>e.responsable_accion)),f.responsable_accion,'Todos')}</select>`)}
+20675:       <div class="timeline-filter-actions"><button type="button" id="btnTimelineAplicarFiltros" class="timeline-primary">Aplicar filtros</button><button type="button" id="btnTimelineLimpiarFiltros">Limpiar</button></div>
+20676:       <datalist id="timelineOCFilterList">${unique([...events.map(e=>e.oc),...getOrderRows().map(row=>orderData(row).oc)]).map(oc=>`<option value="${attr(oc)}"></option>`).join('')}</datalist>
+20677:     </div>`;
+20678:   }
+20679:   function kpisMarkup(data){
+20680:     const values=[
+20681:       [data.total,'Total eventos',''],[data.weekly,'Eventos de la semana',''],[data.activeOCs,'OCs con movimiento','ok'],
+20682:       [data.pendingCT,'Pendientes CT','warn'],[data.pendingHSMA,'Pendientes HSMA','warn'],
+20683:       [data.critical,'Eventos cr\u00edticos','bad'],[data.due,'Acciones vencidas / pr\u00f3ximas','bad']
+20684:     ];
+20685:     return `<div class="timeline-kpis">${values.map(([value,label,kind])=>`<div class="timeline-kpi ${kind}"><b>${html(value)}</b><span>${html(label)}</span></div>`).join('')}</div>`;
+20686:   }
+20687:   function eventCard(event,compact){
+20688:     const orderButton=event.oc?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
+20689:     const rawLink=String(event.link_documental??'').trim();
+20690: const validLink=/^https?:\/\//i.test(rawLink)&&coiURLHTTPValida(rawLink);
+20691: const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
+20692:     const pending=event.accion_pendiente?`<p class="pending-action"><b>Pr\u00f3xima acci\u00f3n:</b> ${html(event.accion_pendiente)}${event.responsable_accion?`<br><small>Responsable: ${html(event.responsable_accion)}${event.fecha_limite?` \u00b7 L\u00edmite: ${html(displayDate(event.fecha_limite))}`:''}</small>`:''}</p>`:'';
+20693:     const editButton=state.permissions.canWrite?`<button type="button" data-timeline-edit="${attr(event.id)}">Editar</button>`:'';
+20694:     const deleteButton=state.permissions.canDelete?`<button type="button" class="timeline-danger" data-timeline-delete="${attr(event.id)}">Eliminar</button>`:'';
+20695:     return `<article class="timeline-event-card ${riskClass(event.riesgo)}" data-timeline-event-id="${attr(event.id)}">
+20696:       <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><b>Sin OC individual</b>'}</div>
+20697:       <div class="timeline-event-main">
+20698:         <div class="timeline-badges"><span class="timeline-badge">${html(event.tipo_evento)}</span><span class="timeline-badge">${html(event.estado)}</span><span class="timeline-badge ${riskClass(event.riesgo)}">Riesgo ${html(event.riesgo)}</span>${event.origen?`<span class="timeline-badge">${html(event.origen)}</span>`:''}</div>
+20699:         <h4>${html(event.titulo)}</h4>
+20700:         <p><b>${html(event.proveedor||'Proveedor sin definir')}</b>${event.rubro?` \u00b7 ${html(event.rubro)}`:''}${event.estacion?` \u00b7 ${html(event.estacion)}`:''}</p>
+20701:         ${compact?'':`<p>${html(event.descripcion||'Sin descripci\u00f3n.')}</p>${event.documentos_mencionados?`<p><b>Documentos:</b> ${html(event.documentos_mencionados)}</p>`:''}${pending}`}
+20702:       </div>
+20703:       <div class="timeline-event-actions">${orderButton}${link}${editButton}${deleteButton}</div>
+20704:     </article>`;
+20705:   }
+20706:   function dailyMarkup(events){
+20707:     if(!events.length)return '<div class="timeline-empty">No hay movimientos para los filtros seleccionados.</div>';
+20708:     const groups=new Map();
+20709:     events.forEach(event=>{
+---
+===== Timeline COI / Trazabilidad por OC :: [20615, 20982, 21187] =====
+20604:       const button=document.createElement('button');
+20605:       button.type='button';
+20606:       button.id='btnTimelineCOI';
+20607:       button.textContent='Timeline COI';
+20608:       const anchor=byId('btnAcercaSistema')||byId('btnCentroAlertas');
+20609:       if(anchor&&anchor.parentElement===nav)nav.insertBefore(button,anchor);
+20610:       else nav.appendChild(button);
+20611:     }
+20612:     if(!byId('vistaTimelineCOI')){
+20613:       const section=document.createElement('section');
+20614:       section.id='vistaTimelineCOI';
+20615:       section.className='view';
+20616:       section.innerHTML='<div class="view-card"><div class="view-head"><h1>Timeline COI / Trazabilidad por OC</h1><p>Historial documental y operativo de cada Orden de Compra.</p></div><div class="view-body"><div id="timelineCOIBody"></div></div></div>';
+20617:       const main=document.querySelector('main')||document.querySelector('.main-content')||document.body;
+20618:       const anchor=byId('vistaAcercaSistema');
+20619:       if(anchor&&anchor.parentElement)anchor.parentElement.insertBefore(section,anchor);
+20620:       else main.appendChild(section);
+20621:     }
+20622:   }
+20623:   function openTimeline(filters){
+20624:     ensureStructure();
+20625:     if(filters&&typeof filters==='object')Object.assign(state.filters,filters);
+20626:     if(filters?.oc)state.view='oc';
+20627:     if(typeof window.mostrarVista==='function')window.mostrarVista('vistaTimelineCOI');
+20628:     else{
+20629:       document.querySelectorAll('.view').forEach(view=>view.classList.remove('active'));
+20630:       byId('vistaTimelineCOI')?.classList.add('active');
+20631:     }
+20632:     document.querySelectorAll('.module-nav button').forEach(button=>button.classList.remove('active'));
+20633:     byId('btnTimelineCOI')?.classList.add('active');
+20634:     renderTimelineCOI();
+20635:   }
+20636:   window.abrirTimelineCOI=openTimeline;
+20637: 
+20638:   function options(values,current,placeholder){
+20639:     return `<option value="">${html(placeholder||'Todos')}</option>`+values.map(value=>`<option value="${attr(value)}"${value===current?' selected':''}>${html(value)}</option>`).join('');
+20640:   }
+20641:   function riskClass(risk){return 'risk-'+fold(risk).replace(/[^a-z0-9]+/g,'-');}
+20642:   function eventMatches(event){
+20643:     const f=state.filters;
+20644:     if(f.fecha&&event.fecha!==f.fecha)return false;
+20645:     if(f.fecha_desde&&event.fecha<f.fecha_desde)return false;
+20646:     if(f.fecha_hasta&&event.fecha>f.fecha_hasta)return false;
+20647:     if(f.semana&&event.semana!==f.semana)return false;
+20648:     if(f.oc&&!fold(event.oc).includes(fold(f.oc)))return false;
+20649:     if(f.proveedor&&event.proveedor!==f.proveedor)return false;
+20650:     if(f.rubro&&event.rubro!==f.rubro)return false;
+---
+20971:   }
+20972: 
+20973:   function renderTimelineCOI(){
+20974:     ensureStructure();
+20975:     const mount=byId('timelineCOIBody');
+20976:     if(!mount)return;
+20977:     const events=filteredEvents();
+20978:     let result=dailyMarkup(events);
+20979:     if(state.view==='semanal')result=weeklyMarkup(events);
+20980:     if(state.view==='oc')result=ocMarkup(events);
+20981:     const writeActions=state.permissions.canWrite?'<button type="button" id="btnTimelineNuevo" class="timeline-primary">Nueva carga manual</button><button type="button" id="btnTimelineImportJSON">Importar JSON</button><input type="file" id="timelineImportFile" accept="application/json,.json" hidden>':'';
+20982:     mount.innerHTML=`<div class="timeline-view-shell">
+20983:       <section class="timeline-hero"><div><h2>Timeline COI / Trazabilidad por OC</h2><p>Mailings, sistemas, actas, certificados, remitos, facturas y acciones pendientes en una secuencia auditable.</p></div><div class="timeline-actions">${writeActions}<button type="button" id="btnTimelineExportJSON">Exportar JSON</button></div></section>
+20984:       ${persistenceMarkup()}
+20985:       ${kpisMarkup(metrics())}
+20986:       <nav class="timeline-tabs" aria-label="Vistas del Timeline COI"><button type="button" data-timeline-view="diaria" class="${state.view==='diaria'?'active':''}">Vista diaria</button><button type="button" data-timeline-view="semanal" class="${state.view==='semanal'?'active':''}">Vista semanal</button><button type="button" data-timeline-view="oc" class="${state.view==='oc'?'active':''}">Vista por OC</button></nav>
+20987:       ${filtersMarkup()}
+20988:       ${editorMarkup()}
+20989:       ${bulkImportMarkup()}
+20990:       <div class="timeline-section-head"><div><h3>${state.view==='diaria'?'Movimientos diarios':state.view==='semanal'?'Resumen semanal':'Historial por OC'}</h3><p>${events.length} de ${window.coiTimelineEvents.length} evento(s) visibles</p></div></div>
+20991:       <div class="timeline-result">${result}</div>
+20992:     </div>`;
+20993:   }
+20994:   window.renderTimelineCOI=renderTimelineCOI;
+20995: 
+20996:   function readFilters(){
+20997:     Object.keys(state.filters).forEach(name=>{
+20998:       const input=byId('timelineFilter_'+name);
+20999:       if(input)state.filters[name]=text(input.value);
+21000:     });
+21001:   }
+21002:   function resetFilters(){Object.keys(state.filters).forEach(name=>{state.filters[name]='';});}
+21003:   function autocompleteOrder(oc){
+21004:     const order=findOrder(oc);
+21005:     if(!order)return;
+21006:     const values={expediente:order.expediente,proveedor:order.proveedor,rubro:order.rubro,estacion:order.estacion};
+21007:     Object.entries(values).forEach(([name,value])=>{
+21008:       const input=byId('timelineEventForm')?.querySelector(`[data-timeline-field="${name}"]`);
+21009:       if(input&&!text(input.value))input.value=value;
+21010:     });
+21011:   }
+21012:   async function saveForm(form){
+21013:     const data=Object.fromEntries(new FormData(form).entries());
+21014:     if(!validDate(data.fecha)||!text(data.titulo)||!text(data.tipo_evento)){
+21015:       alert('Complete Fecha, T\u00edtulo y Tipo de evento.');
+21016:       return;
+21017:     }
+---
+21176:     panel.appendChild(holder.firstElementChild);
+21177:   }
+21178:   function renderTimelineFichaActual(){renderTimelineFichaOC(fichaReference());}
+21179:   window.renderTimelineFichaOC=renderTimelineFichaOC;
+21180: 
+21181:   function aboutIntegration(){
+21182:     byId('timelineAboutCard')?.remove();
+21183:     const mount=byId('vistaAcercaSistema')?.querySelector('.view-body')||byId('vistaAcercaSistema');
+21184:     if(!mount)return;
+21185:     const section=document.createElement('section');
+21186:     section.id='timelineAboutCard';
+21187:     section.className='timeline-about-card';
+21188:     section.innerHTML='<h3>Timeline COI / Trazabilidad por OC</h3><p>Registro cronol\u00f3gico compartido en Supabase de mailings, SERCAE, Control de Terceros, HSMA, SAP, AGC, actas, certificados, remitos, facturas, observaciones y pr\u00f3ximas acciones. Supabase es la fuente de verdad y la informaci\u00f3n tambi\u00e9n se incluye en el backup JSON integral.</p>';
+21189:     mount.appendChild(section);
+21190:   }
+21191:   function highlightCriticalOrders(){
+21192:     const critical=unique(window.coiTimelineEvents.filter(event=>event.riesgo==='Cr\u00edtico').map(event=>event.oc));
+21193:     const view=byId('vistaOrdenes');
+21194:     if(!view)return;
+21195:     view.querySelectorAll('tbody tr').forEach(row=>{
+21196:       row.classList.toggle('timeline-critical-order-row',critical.some(oc=>oc&&text(row.textContent).includes(oc)));
+21197:     });
+21198:   }
+21199: 
+21200:   function wrapRender(name,after,marker){
+21201:     const base=window[name];
+21202:     if(typeof base!=='function'||base[marker])return;
+21203:     const wrapped=function(){
+21204:       const result=base.apply(this,arguments);
+21205:       try{after.apply(this,arguments);}catch(error){console.warn(`Timeline COI: integraci\u00f3n ${name} no disponible`,error);}
+21206:       if(result&&typeof result.then==='function')result.finally(()=>{try{after.apply(this,arguments);}catch(error){}});
+21207:       return result;
+21208:     };
+21209:     wrapped[marker]=true;
+21210:     wrapped.__timelineBase=base;
+21211:     window[name]=wrapped;
+21212:   }
+21213:   function wrapExistingRenders(){
+21214:     wrapRender('renderFichaOC',reference=>renderTimelineFichaOC(reference),'__timelineFichaWrapped');
+21215:     wrapRender('renderDashboardInteractivoExtra',renderTimelineDashboardKPIs,'__timelineDashboardExtraWrapped');
+21216:     wrapRender('renderDashboard',renderTimelineDashboardKPIs,'__timelineDashboardWrapped');
+21217:     wrapRender('renderOrdenes',highlightCriticalOrders,'__timelineOrdersWrapped');
+21218:     wrapRender('renderAcercaSistema',aboutIntegration,'__timelineAboutWrapped');
+21219:   }
+21220: 
+21221:   function mergeTimelineIntoSnapshot(snapshot,payload){
+21222:     const target=snapshot&&typeof snapshot==='object'?snapshot:{};
+---
+===== COI_TIMELINE_COI :: [5536, 5555, 5590, 9035, 12725, 12728, 12732, 21456] =====
+05525: }
+05526: function initAcercaSistema(){
+05527:   renderAppVersionHeader();
+05528:   $('btnAcercaSistema')?.addEventListener('click',()=>{ mostrarVista('vistaAcercaSistema'); renderAcercaSistema(); });
+05529: }
+05530: function initHistorialVersiones(){initAcercaSistema();}
+05531: /* ===============================
+05532:    V47 - Panel de Administración Profesional
+05533:    =============================== */
+05534: const LS_ADMIN_ROLE='coi_admin_role_v47',LS_ADMIN_LAST_BACKUP='coi_admin_last_backup_v1',LS_ADMIN_INTERNAL_BACKUP='coi_admin_internal_backup_v1',LS_ADMIN_LOGS='coi_admin_logs_v47',LS_ADMIN_USERS='coi_admin_users_v47',LS_ADMIN_CATALOGOS='coi_admin_catalogos_v47',LS_ADMIN_CONFIG='coi_admin_config_v47';
+05535: let adminTabActiva='estado';
+05536: function adminConfig(){return safeParseJSON(localStorage.getItem(LS_ADMIN_CONFIG),{})||{};}function adminPinActual(){return adminConfig().adminPin||ADMIN_PIN;}function adminRolActivo(){return (typeof esModoAdmin==="function"&&esModoAdmin())?USER_ROLES.ADMIN:"Modo Consulta";}function adminIsEnabled(){return typeof esModoAdmin==="function"&&esModoAdmin();}function adminSetRole(r){if(r===USER_ROLES.ADMIN&&typeof iniciarSesionAdministrador==="function")iniciarSesionAdministrador();else if(typeof cerrarSesionAdministrador==="function")cerrarSesionAdministrador();}function adminSetMsg(m,c='ok'){const e=$('adminMsg');if(e){e.textContent=m;e.className=`admin-msg ${c}`;}}function adminNowStamp(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`;}function adminBackupFileName(){return `backup_coi_roca_${adminNowStamp()}.json`;}function adminSnapshotLocalStorage(){const d={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);d[k]=localStorage.getItem(k);}return d;}function adminBackupPayload(){
+05537:   if(!window.COI_TIMELINE_COI?.isAuthoritativeReady?.())throw new Error('Backup bloqueado: Timeline no está cargado autoritativamente desde Supabase.');return {tipo:'COI_LINEA_ROCA_BACKUP',appName:APP_NAME,version:APP_VERSION,fechaExportacion:new Date().toISOString(),autor:APP_AUTHOR,rolActivo:adminRolActivo(),catalogoEstaciones:typeof CAT_ESTACIONES!=='undefined'?CAT_ESTACIONES:[],totalOC:typeof todasLasOC==='function'?todasLasOC().length:0,ultimaActualizacionDatos:typeof ultimaActualizacionDatos==='function'?ultimaActualizacionDatos():'',localStorage:adminSnapshotLocalStorage()};}
+05538: function registrarLogSistema(tipo,mensaje,detalle=''){const logs=safeParseJSON(localStorage.getItem(LS_ADMIN_LOGS),[])||[];logs.unshift({fechaHora:new Date().toISOString(),tipo,mensaje,detalle,usuario:APP_AUTHOR,rol:adminRolActivo()});saveJSON(LS_ADMIN_LOGS,logs.slice(0,300));}function adminSetLastBackup(t,a=''){saveJSON(LS_ADMIN_LAST_BACKUP,{tipo:t,archivo:a,fecha:new Date().toISOString(),version:APP_VERSION});}function adminLastBackupText(){const b=safeParseJSON(localStorage.getItem(LS_ADMIN_LAST_BACKUP),null);return b?`${b.tipo} ${b.archivo||''} · ${fmtFecha(b.fecha)||b.fecha}`:'Sin registros';}function adminStorageSizeText(){let n=0;for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i),v=localStorage.getItem(k)||'';n+=k.length+v.length;}return n>1024?`${(n/1024).toFixed(1)} KB`:`${n} bytes`;}
+05539: function adminRefreshAll(){loadImportedData();if(typeof renderMap==='function')renderMap();if(typeof updateKpis==='function')updateKpis();if(typeof renderOrdenes==='function')renderOrdenes();if(typeof cargarFiltrosCalendario==='function')cargarFiltrosCalendario();if(typeof renderCalendarioCOI==='function')renderCalendarioCOI();if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();if(typeof renderCentroAlertas==='function'&&$('vistaCentroAlertas')?.classList.contains('active'))renderCentroAlertas();if(typeof renderDashboardAlertSummary==='function')renderDashboardAlertSummary();if(typeof renderAcercaSistema==='function'&&$('vistaAcercaSistema')?.classList.contains('active'))renderAcercaSistema();renderAdministracionSistema();}
+05540: function adminEstadoDatos(){const r=typeof todasLasOC==='function'?todasLasOC():[],a=typeof generarAlertasCOI==='function'?generarAlertasCOI():[],c=adminConfig(),d=window.COI_FINANZAS_SUPABASE?.diagnostico?.()||null;return {oc:r.length,obras:r.filter(x=>x.tipo==='Obra').length,servicios:r.filter(x=>x.tipo==='Servicio').length,alertas:a.length,modo:c.modoSistema||'Producción',fuente:'Supabase',estadoSupabase:d?.estado||'CLIENTE_INICIALIZANDO',sesionSupabase:d?.sesionActiva?'Activa':'Sin sesión',cacheSupabase:d?`${d.filasCache} filas`:'Sin diagnóstico'};}function adminCard(l,v){return `<div class="admin-status-card"><b>${esc(v)}</b><span>${esc(l)}</span></div>`;}
+05541: function renderAdministracionSistema(){const e=adminEstadoDatos(),r=adminRolActivo(),c=adminConfig();if($('adminRolActivo'))$('adminRolActivo').textContent=r;if($('adminModoBadge')){$('adminModoBadge').textContent=e.modo==='Demo'?'MODO DEMO':'PRODUCCIÓN';$('adminModoBadge').className=`version-status ${e.modo==='Demo'?'warn':'ok'}`;}if($('btnAdminMode'))$('btnAdminMode').textContent=adminIsEnabled()?'Salir de modo Administrador':'Ingresar como Administrador';document.querySelectorAll('[data-admin-only]').forEach(x=>x.classList.toggle('admin-hidden',!adminIsEnabled()));const cards=[['Versión actual',c.versionVisible||APP_VERSION],['Fecha versión',c.fechaVersion||APP_RELEASE_DATE],['Rol activo',r],['Total OCs',e.oc],['Obras',e.obras],['Servicios',e.servicios],['Alertas',e.alertas],['Último backup',adminLastBackupText()],['Caché local',adminStorageSizeText()],['Fuente oficial',e.fuente],['Estado Supabase',e.estadoSupabase],['Sesión Supabase',e.sesionSupabase],['Caché Posiciones OC',e.cacheSupabase]];if($('adminStatus'))$('adminStatus').innerHTML=cards.map(x=>adminCard(x[0],x[1])).join('');renderAdminEstado();renderAdminDatos();renderAdminUsuarios();renderAdminCatalogos();renderAdminDiagnostico();renderAuditorDatos();renderAdminConfig();renderAdminLogs();document.querySelectorAll('[data-admin-only]').forEach(x=>x.classList.toggle('admin-hidden',!adminIsEnabled()));adminMostrarTab(adminTabActiva);if(typeof actualizarHeaderOperativo==='function')actualizarHeaderOperativo();}
+05542: function adminMostrarTab(t){adminTabActiva=t||'estado';document.querySelectorAll('[data-admin-tab]').forEach(b=>b.classList.toggle('active',b.dataset.adminTab===adminTabActiva));document.querySelectorAll('.admin-tab-panel').forEach(p=>p.classList.remove('active'));const p=$(`adminTab${adminTabActiva[0].toUpperCase()+adminTabActiva.slice(1)}`);if(p)p.classList.add('active');}
+05543: function renderAdminEstado(){if($('adminTabEstado'))$('adminTabEstado').innerHTML='<div class="admin-panel"><h3>Estado del sistema</h3><p class="muted">Supabase es la fuente oficial de datos operativos. LocalStorage se utiliza únicamente para preferencias, caché y respaldo legacy temporal.</p></div>';}
+05544: function renderAdminDatos(){if(!$('adminTabDatos'))return;$('adminTabDatos').innerHTML=`<div class="admin-panel"><h3>Gestión de datos</h3><div class="admin-actions"><button type="button" id="btnImportBackupViewerPanel">Importar backup recibido</button><button type="button" id="btnImportBaseJson">Importar Base JSON</button><button type="button" id="btnExportBaseCsv">Exportar Base CSV</button><button type="button" id="btnIrCargaCSV">Importar CSV</button><button type="button" id="btnImportExcelPreparado">Importar Excel</button><button type="button" id="btnExportBaseJson" data-admin-only>Exportar Base JSON</button><button type="button" id="btnCrearBackupInterno" data-admin-only>Crear Backup</button><button type="button" id="btnRestaurarBackupInterno" data-admin-only>Restaurar Backup</button><button type="button" id="btnCargarDemoOperativa" data-admin-only>Cargar Demo Operativa</button><button type="button" id="btnLimpiarBase" data-admin-only class="btn-danger-soft">Limpiar Base</button></div><div class="muted">${adminIsEnabled()?'Administrador: herramientas completas disponibles.':'Jefatura: puede importar un backup recibido y exportar CSV operativo.'}</div></div>`;}
+05545: function usuariosSistema(){let u=safeParseJSON(localStorage.getItem(LS_ADMIN_USERS),null);if(!Array.isArray(u)){u=[{idUsuario:'USR-ADMIN',nombre:APP_AUTHOR,rol:USER_ROLES.ADMIN,estado:'Activo',observaciones:'Usuario local inicial'}];saveJSON(LS_ADMIN_USERS,u);}return u;}function guardarUsuariosSistema(u){saveJSON(LS_ADMIN_USERS,u);registrarLogSistema('usuarios','Usuarios locales actualizados',`${u.length} usuario(s)`);}
+05546: function renderAdminUsuarios(){if(!$('adminTabUsuarios'))return;const u=usuariosSistema();$('adminTabUsuarios').innerHTML=`<div class="admin-panel"><h3>Seguridad y usuarios</h3><div class="admin-form-grid"><input id="adminUserNombre" placeholder="Nombre"><select id="adminUserRol"><option>${USER_ROLES.JEFE}</option><option>${USER_ROLES.ADMIN}</option></select><input id="adminUserObs" placeholder="Observaciones"><button type="button" id="btnCrearUsuarioLocal" class="primary">Crear usuario local</button><button type="button" id="btnCambiarPinAdmin">Cambiar PIN administrador</button></div><div class="table-wrap"><table class="coi-table"><thead><tr><th>ID</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Observaciones</th><th>Acción</th></tr></thead><tbody>${u.map(x=>`<tr><td>${esc(x.idUsuario)}</td><td>${esc(x.nombre)}</td><td>${esc(x.rol)}</td><td>${esc(x.estado)}</td><td>${esc(x.observaciones||'')}</td><td><button type="button" data-del-user="${esc(x.idUsuario)}">Eliminar</button></td></tr>`).join('')}</tbody></table></div></div>`;}
+05547: function catalogosDefault(){const r=typeof todasLasOC==='function'?todasLasOC():[];return {estaciones:[...new Set(estaciones.map(e=>e.nombre).filter(Boolean))].sort(),proveedores:[...new Set(r.map(x=>x.proveedor).filter(v=>v&&v!=='—'))].sort(),tiposTrabajo:[...new Set(r.map(x=>x.especialidad).filter(v=>v&&v!=='—'))].sort(),estadosCOI:[...new Set(r.map(x=>x.estado).filter(v=>v&&v!=='—'))].sort(),estadosDocumentales:['Completo','Pendiente','Incompleto','Sin datos'],sectores:[...new Set(r.map(x=>x.item?.sector).filter(Boolean))].sort(),especialidades:[...new Set(r.map(x=>x.especialidad).filter(v=>v&&v!=='—'))].sort(),unidadesMantenimiento:(typeof unidadesMantenimiento!=='undefined'?unidadesMantenimiento:[]).map(u=>u.idUM).filter(Boolean).sort()};}
+05548: function getCatalogosSistema(){return {...catalogosDefault(),...(safeParseJSON(localStorage.getItem(LS_ADMIN_CATALOGOS),{})||{})};}function getCatalogo(n){return getCatalogosSistema()[n]||[];}function setCatalogo(n,d){const c=getCatalogosSistema();c[n]=Array.isArray(d)?d:[];saveJSON(LS_ADMIN_CATALOGOS,c);registrarLogSistema('catalogos',`Catálogo actualizado: ${n}`,`${c[n].length} ítems`);}function renderSelectDesdeCatalogo(sel,n){const e=typeof sel==='string'?$(sel):sel;if(e)e.innerHTML=getCatalogo(n).map(v=>`<option>${esc(v)}</option>`).join('');}
+05549: function renderAdminCatalogos(){if(!$('adminTabCatalogos'))return;const c=getCatalogosSistema(),n=Object.keys(c);$('adminTabCatalogos').innerHTML=`<div class="admin-panel"><h3>Catálogos del Sistema</h3><div class="admin-form-grid"><select id="adminCatalogoNombre">${n.map(x=>`<option>${esc(x)}</option>`).join('')}</select><input id="adminCatalogoValor" placeholder="Valor de catálogo"><button type="button" id="btnAgregarCatalogo" class="primary">Agregar</button><button type="button" id="btnEliminarCatalogo">Eliminar valor</button><input id="adminCatalogoBuscar" placeholder="Buscar catálogo"></div><div class="about-modules">${n.map(x=>`<span class="about-module-badge">${esc(x)} (${(c[x]||[]).length})</span>`).join('')}</div></div>`;}
+05550: function ejecutarDiagnosticoSistema(){const r=typeof todasLasOC==='function'?todasLasOC():[],oc={},id={};r.forEach(x=>{const i=x.item?.idObra||x.item?.idOC||x.item?.idServicio||'';if(x.oc)oc[x.oc]=(oc[x.oc]||0)+1;if(i)id[i]=(id[i]||0)+1;});const res={total:r.length,duplicadosOC:Object.values(oc).filter(n=>n>1).length,duplicadosID:Object.values(id).filter(n=>n>1).length,sinOC:r.filter(x=>!x.oc||x.oc==='SIN OC').length,sinID:r.filter(x=>!(x.item?.idObra||x.item?.idOC||x.item?.idServicio)).length,sinEstacion:r.filter(x=>!x.estacion||x.estacion==='Sin definir').length,sinProveedor:r.filter(x=>!x.proveedor||x.proveedor==='—'||x.proveedor==='Sin definir').length,sinFechaInicio:r.filter(x=>!x.inicio).length,sinFechaFin:r.filter(x=>!x.fin).length,fechasInvalidas:r.filter(x=>(x.inicio&&!parseFecha(x.inicio))||(x.fin&&!parseFecha(x.fin))).length,estadosVacios:r.filter(x=>!x.estado||x.estado==='—').length,registrosIncompletos:r.filter(x=>String(x.item?.estadoDocumental||'').toLowerCase().includes('incompleto')).length,alertasCriticas:(typeof generarAlertasCOI==='function'?generarAlertasCOI().filter(a=>a.severidad==='ROJA').length:0)};registrarLogSistema('diagnostico','Diagnóstico ejecutado',JSON.stringify(res));return res;}
+05551: function renderAdminDiagnostico(res=null){if(!$('adminTabDiagnostico'))return;const rows=res?Object.entries(res):[];$('adminTabDiagnostico').innerHTML=`<div class="admin-panel"><h3>Diagnóstico</h3><div class="admin-actions"><button type="button" id="btnEjecutarDiagnostico" class="primary">Ejecutar diagnóstico</button><button type="button" id="btnOptimizarBase">Optimizar base</button></div>${rows.length?`<div class="admin-status-grid">${rows.map(x=>adminCard(x[0],x[1])).join('')}</div>`:'<p class="muted">Ejecute el diagnóstico para verificar duplicados, fechas inválidas y registros incompletos.</p>'}</div>`;}
+05552: function optimizarBaseSistema(){if(!confirm('Antes de optimizar se creará un backup interno automático. ¿Continuar?'))return;adminCrearBackupInterno();let n=0;estaciones.forEach(est=>allItems(est).forEach(i=>{i.oc=i.oc||i.numeroOC||i.OC_NRO||'SIN OC';i.numeroOC=i.numeroOC||i.oc;i.tipo=i.tipo||'Servicio';i.estacion=i.estacion||est.nombre;i.proveedor=i.proveedor||'Sin definir';i.estado=i.estado||'Pendiente de completar';i.estadoDocumental=i.estadoDocumental||'';if(!i.vencimiento&&i.actaInicio&&i.plazoDias){const f=addDias(parseFecha(i.actaInicio),Number(i.plazoDias));if(f)i.vencimiento=f.toISOString().slice(0,10);}if(!i.proximaCertificacion&&i.actaInicio)i.proximaCertificacion=addMeses(i.actaInicio,1)?.toISOString().slice(0,10)||'';n++;}));guardarBaseLocal();registrarLogSistema('optimizacion','Optimización ejecutada',`${n} registros normalizados`);adminRefreshAll();adminSetMsg(`Base optimizada. Registros revisados: ${n}.`,'ok');}
+05553: function renderAdminConfig(){if(!$('adminTabConfiguracion'))return;const c=adminConfig();$('adminTabConfiguracion').innerHTML=`<div class="admin-panel"><h3>Configuración y versión del sistema</h3><div class="admin-form-grid"><input id="adminCfgNombre" value="${esc(c.nombreSistema||APP_NAME)}" placeholder="Nombre"><input id="adminCfgVersion" value="${esc(c.versionVisible||APP_VERSION)}" placeholder="Versión"><input id="adminCfgBuild" value="${esc(c.build||adminNowStamp())}" placeholder="Build"><input id="adminCfgFecha" value="${esc(c.fechaVersion||APP_RELEASE_DATE)}" placeholder="Fecha"><select id="adminCfgModo"><option ${c.modoSistema==='Demo'?'selected':''}>Demo</option><option ${c.modoSistema!=='Demo'?'selected':''}>Producción</option></select><input id="adminCfgFuente" value="Supabase" readonly><input id="adminCfgEstado" value="${esc(c.estadoVersion||APP_STATUS)}" placeholder="Estado"><input id="adminCfgObs" value="${esc(c.observacionesVersion||'')}" placeholder="Observaciones"><button type="button" id="btnGuardarAdminConfig" class="primary">Guardar configuración</button></div></div>`;}
+05554: function renderAdminLogs(){if(!$('adminTabLogs'))return;const l=safeParseJSON(localStorage.getItem(LS_ADMIN_LOGS),[])||[];$('adminTabLogs').innerHTML=`<div class="admin-panel"><h3>Logs del sistema</h3><div class="admin-actions"><button type="button" id="btnLimpiarLogs" class="btn-danger-soft">Limpiar logs</button></div><div class="table-wrap"><table class="coi-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Mensaje</th><th>Detalle</th><th>Rol</th></tr></thead><tbody>${l.map(x=>`<tr><td>${esc(fmtFecha(x.fechaHora)||x.fechaHora)}</td><td>${esc(x.tipo)}</td><td>${esc(x.mensaje)}</td><td>${esc(x.detalle||'')}</td><td>${esc(x.rol||'')}</td></tr>`).join('')||'<tr><td colspan="5">Sin logs registrados.</td></tr>'}</tbody></table></div></div>`;}
+05555: function adminExportBaseJSON(){
+05556:   if(!window.COI_TIMELINE_COI?.isAuthoritativeReady?.()){adminSetMsg('Backup bloqueado: espere a que Timeline termine de sincronizar con Supabase.','warn');return;}const p=adminBackupPayload(),f=adminBackupFileName();descargarArchivo(f,JSON.stringify(p,null,2),'application/json;charset=utf-8');adminSetLastBackup('exportado',f);registrarLogSistema('exportacion_json','Base JSON exportada',f);renderAdministracionSistema();adminSetMsg(`Backup JSON exportado: ${f}`,'ok');}function adminValidateBackup(d){if(!d||typeof d!=='object')return null;if(d.localStorage&&typeof d.localStorage==='object')return d.localStorage;return Object.values(d).every(v=>typeof v==='string')?d:null;}
+05557: const ADMIN_PREIMPORT_BACKUP_KEY='coi_admin_preimport_backup_v1';
+05558: function adminEsClaveSistemaSegura(key){const value=String(key||'');if(!value||value===ADMIN_PREIMPORT_BACKUP_KEY)return false;if(/token|jwt|password|secret|supabase\.auth/i.test(value))return false;return /^(?:coi[_:.\-]|COI[_:.\-]|LS_)/.test(value)||['estacionesData','umData','adminConfig'].includes(value)||/roca/i.test(value);}
+05559: function adminPrepararSnapshotSeguro(snapshot){
+05560:   if(!snapshot||typeof snapshot!=='object'||Array.isArray(snapshot))throw new Error('El snapshot de localStorage no es válido.');
+05561:   const entries=[],omitidas=[];let bytes=0;
+05562:   Object.entries(snapshot).forEach(([key,value])=>{
+05563:     if(!adminEsClaveSistemaSegura(key)){omitidas.push(key);return;}
+05564:     const raw=typeof value==='string'?value:JSON.stringify(value);
+05565:     if(typeof raw!=='string')throw new Error(`Valor inválido para ${key}.`);
+05566:     bytes+=new Blob([key,raw]).size;
+05567:     entries.push([key,raw]);
+05568:   });
+05569:   if(!entries.length)throw new Error('El backup no contiene claves operativas COI restaurables.');
+05570:   if(bytes>20*1024*1024)throw new Error('El backup supera el límite seguro de 20 MB para restauración local.');
+05571:   return {entries,omitidas,bytes};
+---
+05544: function renderAdminDatos(){if(!$('adminTabDatos'))return;$('adminTabDatos').innerHTML=`<div class="admin-panel"><h3>Gestión de datos</h3><div class="admin-actions"><button type="button" id="btnImportBackupViewerPanel">Importar backup recibido</button><button type="button" id="btnImportBaseJson">Importar Base JSON</button><button type="button" id="btnExportBaseCsv">Exportar Base CSV</button><button type="button" id="btnIrCargaCSV">Importar CSV</button><button type="button" id="btnImportExcelPreparado">Importar Excel</button><button type="button" id="btnExportBaseJson" data-admin-only>Exportar Base JSON</button><button type="button" id="btnCrearBackupInterno" data-admin-only>Crear Backup</button><button type="button" id="btnRestaurarBackupInterno" data-admin-only>Restaurar Backup</button><button type="button" id="btnCargarDemoOperativa" data-admin-only>Cargar Demo Operativa</button><button type="button" id="btnLimpiarBase" data-admin-only class="btn-danger-soft">Limpiar Base</button></div><div class="muted">${adminIsEnabled()?'Administrador: herramientas completas disponibles.':'Jefatura: puede importar un backup recibido y exportar CSV operativo.'}</div></div>`;}
+05545: function usuariosSistema(){let u=safeParseJSON(localStorage.getItem(LS_ADMIN_USERS),null);if(!Array.isArray(u)){u=[{idUsuario:'USR-ADMIN',nombre:APP_AUTHOR,rol:USER_ROLES.ADMIN,estado:'Activo',observaciones:'Usuario local inicial'}];saveJSON(LS_ADMIN_USERS,u);}return u;}function guardarUsuariosSistema(u){saveJSON(LS_ADMIN_USERS,u);registrarLogSistema('usuarios','Usuarios locales actualizados',`${u.length} usuario(s)`);}
+05546: function renderAdminUsuarios(){if(!$('adminTabUsuarios'))return;const u=usuariosSistema();$('adminTabUsuarios').innerHTML=`<div class="admin-panel"><h3>Seguridad y usuarios</h3><div class="admin-form-grid"><input id="adminUserNombre" placeholder="Nombre"><select id="adminUserRol"><option>${USER_ROLES.JEFE}</option><option>${USER_ROLES.ADMIN}</option></select><input id="adminUserObs" placeholder="Observaciones"><button type="button" id="btnCrearUsuarioLocal" class="primary">Crear usuario local</button><button type="button" id="btnCambiarPinAdmin">Cambiar PIN administrador</button></div><div class="table-wrap"><table class="coi-table"><thead><tr><th>ID</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Observaciones</th><th>Acción</th></tr></thead><tbody>${u.map(x=>`<tr><td>${esc(x.idUsuario)}</td><td>${esc(x.nombre)}</td><td>${esc(x.rol)}</td><td>${esc(x.estado)}</td><td>${esc(x.observaciones||'')}</td><td><button type="button" data-del-user="${esc(x.idUsuario)}">Eliminar</button></td></tr>`).join('')}</tbody></table></div></div>`;}
+05547: function catalogosDefault(){const r=typeof todasLasOC==='function'?todasLasOC():[];return {estaciones:[...new Set(estaciones.map(e=>e.nombre).filter(Boolean))].sort(),proveedores:[...new Set(r.map(x=>x.proveedor).filter(v=>v&&v!=='—'))].sort(),tiposTrabajo:[...new Set(r.map(x=>x.especialidad).filter(v=>v&&v!=='—'))].sort(),estadosCOI:[...new Set(r.map(x=>x.estado).filter(v=>v&&v!=='—'))].sort(),estadosDocumentales:['Completo','Pendiente','Incompleto','Sin datos'],sectores:[...new Set(r.map(x=>x.item?.sector).filter(Boolean))].sort(),especialidades:[...new Set(r.map(x=>x.especialidad).filter(v=>v&&v!=='—'))].sort(),unidadesMantenimiento:(typeof unidadesMantenimiento!=='undefined'?unidadesMantenimiento:[]).map(u=>u.idUM).filter(Boolean).sort()};}
+05548: function getCatalogosSistema(){return {...catalogosDefault(),...(safeParseJSON(localStorage.getItem(LS_ADMIN_CATALOGOS),{})||{})};}function getCatalogo(n){return getCatalogosSistema()[n]||[];}function setCatalogo(n,d){const c=getCatalogosSistema();c[n]=Array.isArray(d)?d:[];saveJSON(LS_ADMIN_CATALOGOS,c);registrarLogSistema('catalogos',`Catálogo actualizado: ${n}`,`${c[n].length} ítems`);}function renderSelectDesdeCatalogo(sel,n){const e=typeof sel==='string'?$(sel):sel;if(e)e.innerHTML=getCatalogo(n).map(v=>`<option>${esc(v)}</option>`).join('');}
+05549: function renderAdminCatalogos(){if(!$('adminTabCatalogos'))return;const c=getCatalogosSistema(),n=Object.keys(c);$('adminTabCatalogos').innerHTML=`<div class="admin-panel"><h3>Catálogos del Sistema</h3><div class="admin-form-grid"><select id="adminCatalogoNombre">${n.map(x=>`<option>${esc(x)}</option>`).join('')}</select><input id="adminCatalogoValor" placeholder="Valor de catálogo"><button type="button" id="btnAgregarCatalogo" class="primary">Agregar</button><button type="button" id="btnEliminarCatalogo">Eliminar valor</button><input id="adminCatalogoBuscar" placeholder="Buscar catálogo"></div><div class="about-modules">${n.map(x=>`<span class="about-module-badge">${esc(x)} (${(c[x]||[]).length})</span>`).join('')}</div></div>`;}
+05550: function ejecutarDiagnosticoSistema(){const r=typeof todasLasOC==='function'?todasLasOC():[],oc={},id={};r.forEach(x=>{const i=x.item?.idObra||x.item?.idOC||x.item?.idServicio||'';if(x.oc)oc[x.oc]=(oc[x.oc]||0)+1;if(i)id[i]=(id[i]||0)+1;});const res={total:r.length,duplicadosOC:Object.values(oc).filter(n=>n>1).length,duplicadosID:Object.values(id).filter(n=>n>1).length,sinOC:r.filter(x=>!x.oc||x.oc==='SIN OC').length,sinID:r.filter(x=>!(x.item?.idObra||x.item?.idOC||x.item?.idServicio)).length,sinEstacion:r.filter(x=>!x.estacion||x.estacion==='Sin definir').length,sinProveedor:r.filter(x=>!x.proveedor||x.proveedor==='—'||x.proveedor==='Sin definir').length,sinFechaInicio:r.filter(x=>!x.inicio).length,sinFechaFin:r.filter(x=>!x.fin).length,fechasInvalidas:r.filter(x=>(x.inicio&&!parseFecha(x.inicio))||(x.fin&&!parseFecha(x.fin))).length,estadosVacios:r.filter(x=>!x.estado||x.estado==='—').length,registrosIncompletos:r.filter(x=>String(x.item?.estadoDocumental||'').toLowerCase().includes('incompleto')).length,alertasCriticas:(typeof generarAlertasCOI==='function'?generarAlertasCOI().filter(a=>a.severidad==='ROJA').length:0)};registrarLogSistema('diagnostico','Diagnóstico ejecutado',JSON.stringify(res));return res;}
+05551: function renderAdminDiagnostico(res=null){if(!$('adminTabDiagnostico'))return;const rows=res?Object.entries(res):[];$('adminTabDiagnostico').innerHTML=`<div class="admin-panel"><h3>Diagnóstico</h3><div class="admin-actions"><button type="button" id="btnEjecutarDiagnostico" class="primary">Ejecutar diagnóstico</button><button type="button" id="btnOptimizarBase">Optimizar base</button></div>${rows.length?`<div class="admin-status-grid">${rows.map(x=>adminCard(x[0],x[1])).join('')}</div>`:'<p class="muted">Ejecute el diagnóstico para verificar duplicados, fechas inválidas y registros incompletos.</p>'}</div>`;}
+05552: function optimizarBaseSistema(){if(!confirm('Antes de optimizar se creará un backup interno automático. ¿Continuar?'))return;adminCrearBackupInterno();let n=0;estaciones.forEach(est=>allItems(est).forEach(i=>{i.oc=i.oc||i.numeroOC||i.OC_NRO||'SIN OC';i.numeroOC=i.numeroOC||i.oc;i.tipo=i.tipo||'Servicio';i.estacion=i.estacion||est.nombre;i.proveedor=i.proveedor||'Sin definir';i.estado=i.estado||'Pendiente de completar';i.estadoDocumental=i.estadoDocumental||'';if(!i.vencimiento&&i.actaInicio&&i.plazoDias){const f=addDias(parseFecha(i.actaInicio),Number(i.plazoDias));if(f)i.vencimiento=f.toISOString().slice(0,10);}if(!i.proximaCertificacion&&i.actaInicio)i.proximaCertificacion=addMeses(i.actaInicio,1)?.toISOString().slice(0,10)||'';n++;}));guardarBaseLocal();registrarLogSistema('optimizacion','Optimización ejecutada',`${n} registros normalizados`);adminRefreshAll();adminSetMsg(`Base optimizada. Registros revisados: ${n}.`,'ok');}
+05553: function renderAdminConfig(){if(!$('adminTabConfiguracion'))return;const c=adminConfig();$('adminTabConfiguracion').innerHTML=`<div class="admin-panel"><h3>Configuración y versión del sistema</h3><div class="admin-form-grid"><input id="adminCfgNombre" value="${esc(c.nombreSistema||APP_NAME)}" placeholder="Nombre"><input id="adminCfgVersion" value="${esc(c.versionVisible||APP_VERSION)}" placeholder="Versión"><input id="adminCfgBuild" value="${esc(c.build||adminNowStamp())}" placeholder="Build"><input id="adminCfgFecha" value="${esc(c.fechaVersion||APP_RELEASE_DATE)}" placeholder="Fecha"><select id="adminCfgModo"><option ${c.modoSistema==='Demo'?'selected':''}>Demo</option><option ${c.modoSistema!=='Demo'?'selected':''}>Producción</option></select><input id="adminCfgFuente" value="Supabase" readonly><input id="adminCfgEstado" value="${esc(c.estadoVersion||APP_STATUS)}" placeholder="Estado"><input id="adminCfgObs" value="${esc(c.observacionesVersion||'')}" placeholder="Observaciones"><button type="button" id="btnGuardarAdminConfig" class="primary">Guardar configuración</button></div></div>`;}
+05554: function renderAdminLogs(){if(!$('adminTabLogs'))return;const l=safeParseJSON(localStorage.getItem(LS_ADMIN_LOGS),[])||[];$('adminTabLogs').innerHTML=`<div class="admin-panel"><h3>Logs del sistema</h3><div class="admin-actions"><button type="button" id="btnLimpiarLogs" class="btn-danger-soft">Limpiar logs</button></div><div class="table-wrap"><table class="coi-table"><thead><tr><th>Fecha</th><th>Tipo</th><th>Mensaje</th><th>Detalle</th><th>Rol</th></tr></thead><tbody>${l.map(x=>`<tr><td>${esc(fmtFecha(x.fechaHora)||x.fechaHora)}</td><td>${esc(x.tipo)}</td><td>${esc(x.mensaje)}</td><td>${esc(x.detalle||'')}</td><td>${esc(x.rol||'')}</td></tr>`).join('')||'<tr><td colspan="5">Sin logs registrados.</td></tr>'}</tbody></table></div></div>`;}
+05555: function adminExportBaseJSON(){
+05556:   if(!window.COI_TIMELINE_COI?.isAuthoritativeReady?.()){adminSetMsg('Backup bloqueado: espere a que Timeline termine de sincronizar con Supabase.','warn');return;}const p=adminBackupPayload(),f=adminBackupFileName();descargarArchivo(f,JSON.stringify(p,null,2),'application/json;charset=utf-8');adminSetLastBackup('exportado',f);registrarLogSistema('exportacion_json','Base JSON exportada',f);renderAdministracionSistema();adminSetMsg(`Backup JSON exportado: ${f}`,'ok');}function adminValidateBackup(d){if(!d||typeof d!=='object')return null;if(d.localStorage&&typeof d.localStorage==='object')return d.localStorage;return Object.values(d).every(v=>typeof v==='string')?d:null;}
+05557: const ADMIN_PREIMPORT_BACKUP_KEY='coi_admin_preimport_backup_v1';
+05558: function adminEsClaveSistemaSegura(key){const value=String(key||'');if(!value||value===ADMIN_PREIMPORT_BACKUP_KEY)return false;if(/token|jwt|password|secret|supabase\.auth/i.test(value))return false;return /^(?:coi[_:.\-]|COI[_:.\-]|LS_)/.test(value)||['estacionesData','umData','adminConfig'].includes(value)||/roca/i.test(value);}
+05559: function adminPrepararSnapshotSeguro(snapshot){
+05560:   if(!snapshot||typeof snapshot!=='object'||Array.isArray(snapshot))throw new Error('El snapshot de localStorage no es válido.');
+05561:   const entries=[],omitidas=[];let bytes=0;
+05562:   Object.entries(snapshot).forEach(([key,value])=>{
+05563:     if(!adminEsClaveSistemaSegura(key)){omitidas.push(key);return;}
+05564:     const raw=typeof value==='string'?value:JSON.stringify(value);
+05565:     if(typeof raw!=='string')throw new Error(`Valor inválido para ${key}.`);
+05566:     bytes+=new Blob([key,raw]).size;
+05567:     entries.push([key,raw]);
+05568:   });
+05569:   if(!entries.length)throw new Error('El backup no contiene claves operativas COI restaurables.');
+05570:   if(bytes>20*1024*1024)throw new Error('El backup supera el límite seguro de 20 MB para restauración local.');
+05571:   return {entries,omitidas,bytes};
+05572: }
+05573: function adminClavesSistemaActuales(){const keys=[];for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(adminEsClaveSistemaSegura(key))keys.push(key);}return keys;}
+05574: function adminApplyLocalStorageSnapshot(s,m){
+05575:   const role=adminRolActivo(),prepared=adminPrepararSnapshotSeguro(s),before=adminSnapshotLocalStorage();
+05576:   const rollback=Object.fromEntries(Object.entries(before).filter(([key])=>adminEsClaveSistemaSegura(key)));
+05577:   localStorage.setItem(ADMIN_PREIMPORT_BACKUP_KEY,JSON.stringify({fecha:new Date().toISOString(),origen:m?.archivo||'backup JSON',localStorage:rollback}));
+05578:   try{
+05579:     adminClavesSistemaActuales().forEach(key=>localStorage.removeItem(key));
+05580:     prepared.entries.forEach(([key,value])=>localStorage.setItem(key,value));
+05581:   }catch(error){
+05582:     try{adminClavesSistemaActuales().forEach(key=>localStorage.removeItem(key));Object.entries(rollback).forEach(([key,value])=>localStorage.setItem(key,String(value)));}catch(rollbackError){console.error('COI: también falló el rollback de importación.',rollbackError);}
+05583:     throw new Error(`La importación no pudo completarse y se restauró el estado anterior: ${error?.message||error}`);
+05584:   }
+05585:   adminSetRole(role||USER_ROLES.JEFE);adminSetLastBackup(m?.tipo||'importado',m?.archivo||'backup JSON');registrarLogSistema('importacion_json','Backup JSON importado con staging y rollback',JSON.stringify({archivo:m?.archivo||'backup JSON',claves:prepared.entries.length,omitidas:prepared.omitidas}));adminRefreshAll();
+05586:   return {ok:true,aplicadas:prepared.entries.length,omitidas:prepared.omitidas,bytes:prepared.bytes,rollbackKey:ADMIN_PREIMPORT_BACKUP_KEY};
+05587: }
+05588: function adminImportJSONFile(file){if(!file)return;const reader=new FileReader();reader.onload=async()=>{let d;try{d=JSON.parse(reader.result);}catch(e){adminSetMsg('El archivo JSON no es válido.','err');registrarLogSistema('error','JSON inválido',file.name);return;}const s=adminValidateBackup(d);if(!s){adminSetMsg('La estructura del backup no es compatible con COI Línea Roca.','err');return;}if(!confirm('Esta acción reemplazará la base actual. ¿Desea continuar?'))return;try{await adminApplyLocalStorageSnapshot(s,{tipo:'importado',archivo:file.name});adminSetMsg(`Backup procesado: Timeline restaurado en Supabase. Las demás secciones del archivo no reemplazan tablas remotas desde este flujo: ${file.name}`,'warn');}catch(e){console.error(e);adminSetMsg(`No se restauró el backup: ${e?.message||e}`,'err');}};reader.readAsText(file,'utf-8');}
+05589: function adminExportBaseCSV(){const h=['OC','Tipo','Estación','Proveedor','Especialidad','Estado','Fecha inicio','Fecha fin','Días restantes','Próxima certificación','Estado documental'],r=todasLasOC().map(x=>[x.oc,x.tipo,x.estacion,x.proveedor,x.especialidad,x.estado,fmtFecha(x.inicio),fmtFecha(x.fin),x.diasRestantes??'',fmtFecha(x.proximaCertificacion),x.estadoDocumental||x.item?.estadoDocumental||'']);const csv=[h,...r].map(row=>row.map(coiCSVCell).join(';')).join('\n');descargarArchivo(`base_coi_roca_${adminNowStamp()}.csv`,csv,'text/csv;charset=utf-8');registrarLogSistema('exportacion_csv','Base CSV exportada','Vista operativa');adminSetMsg('Base CSV exportada correctamente.','ok');}
+05590: function adminCrearBackupInterno(){
+---
+05579:     adminClavesSistemaActuales().forEach(key=>localStorage.removeItem(key));
+05580:     prepared.entries.forEach(([key,value])=>localStorage.setItem(key,value));
+05581:   }catch(error){
+05582:     try{adminClavesSistemaActuales().forEach(key=>localStorage.removeItem(key));Object.entries(rollback).forEach(([key,value])=>localStorage.setItem(key,String(value)));}catch(rollbackError){console.error('COI: también falló el rollback de importación.',rollbackError);}
+05583:     throw new Error(`La importación no pudo completarse y se restauró el estado anterior: ${error?.message||error}`);
+05584:   }
+05585:   adminSetRole(role||USER_ROLES.JEFE);adminSetLastBackup(m?.tipo||'importado',m?.archivo||'backup JSON');registrarLogSistema('importacion_json','Backup JSON importado con staging y rollback',JSON.stringify({archivo:m?.archivo||'backup JSON',claves:prepared.entries.length,omitidas:prepared.omitidas}));adminRefreshAll();
+05586:   return {ok:true,aplicadas:prepared.entries.length,omitidas:prepared.omitidas,bytes:prepared.bytes,rollbackKey:ADMIN_PREIMPORT_BACKUP_KEY};
+05587: }
+05588: function adminImportJSONFile(file){if(!file)return;const reader=new FileReader();reader.onload=async()=>{let d;try{d=JSON.parse(reader.result);}catch(e){adminSetMsg('El archivo JSON no es válido.','err');registrarLogSistema('error','JSON inválido',file.name);return;}const s=adminValidateBackup(d);if(!s){adminSetMsg('La estructura del backup no es compatible con COI Línea Roca.','err');return;}if(!confirm('Esta acción reemplazará la base actual. ¿Desea continuar?'))return;try{await adminApplyLocalStorageSnapshot(s,{tipo:'importado',archivo:file.name});adminSetMsg(`Backup procesado: Timeline restaurado en Supabase. Las demás secciones del archivo no reemplazan tablas remotas desde este flujo: ${file.name}`,'warn');}catch(e){console.error(e);adminSetMsg(`No se restauró el backup: ${e?.message||e}`,'err');}};reader.readAsText(file,'utf-8');}
+05589: function adminExportBaseCSV(){const h=['OC','Tipo','Estación','Proveedor','Especialidad','Estado','Fecha inicio','Fecha fin','Días restantes','Próxima certificación','Estado documental'],r=todasLasOC().map(x=>[x.oc,x.tipo,x.estacion,x.proveedor,x.especialidad,x.estado,fmtFecha(x.inicio),fmtFecha(x.fin),x.diasRestantes??'',fmtFecha(x.proximaCertificacion),x.estadoDocumental||x.item?.estadoDocumental||'']);const csv=[h,...r].map(row=>row.map(coiCSVCell).join(';')).join('\n');descargarArchivo(`base_coi_roca_${adminNowStamp()}.csv`,csv,'text/csv;charset=utf-8');registrarLogSistema('exportacion_csv','Base CSV exportada','Vista operativa');adminSetMsg('Base CSV exportada correctamente.','ok');}
+05590: function adminCrearBackupInterno(){
+05591:   if(!window.COI_TIMELINE_COI?.isAuthoritativeReady?.()){adminSetMsg('Backup bloqueado: espere a que Timeline termine de sincronizar con Supabase.','warn');return;}saveJSON(LS_ADMIN_INTERNAL_BACKUP,adminBackupPayload());adminSetLastBackup('backup interno creado','localStorage');registrarLogSistema('backup_creado','Backup interno creado','localStorage');renderAdministracionSistema();adminSetMsg('Backup interno creado en localStorage.','ok');}async function adminRestaurarBackupInterno(){const p=safeParseJSON(localStorage.getItem(LS_ADMIN_INTERNAL_BACKUP),null),s=adminValidateBackup(p);if(!s){adminSetMsg('No existe backup interno válido para restaurar.','warn');return;}if(!confirm('Esta acción restaurará el backup interno y reemplazará la base actual. ¿Desea continuar?'))return;try{await adminApplyLocalStorageSnapshot(s,{tipo:'backup interno restaurado',archivo:'localStorage'});adminSetMsg('Backup procesado: Timeline restaurado en Supabase. Las demás secciones del backup interno no reemplazan tablas remotas desde este flujo.','warn');}catch(e){console.error(e);adminSetMsg(`No se restauró el backup interno: ${e?.message||e}`,'err');}}
+05592: function adminCargarDemoOperativa(){if(!confirm('La demo operativa reemplazará la base actual. ¿Desea continuar?'))return;adminCrearBackupInterno();if(typeof restoreDemo==='function')restoreDemo();const c=adminConfig();c.modoSistema='Demo';saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('demo','Demo operativa cargada','restoreDemo');adminRefreshAll();adminSetMsg('Demo operativa cargada correctamente.','ok');}function adminLimpiarBase(){if(!confirm('Primera confirmación: se vaciará la base operativa local. ¿Continuar?'))return;if(!confirm('Segunda confirmación: esta acción no puede deshacerse salvo que tenga un backup JSON. ¿Limpiar base?'))return;adminCrearBackupInterno();clearInterventions();guardarBaseLocal();[typeof V33_LS_ORDENES!=='undefined'?V33_LS_ORDENES:'coiOrdenes',typeof V33_LS_INCOMPLETOS!=='undefined'?V33_LS_INCOMPLETOS:'coiRegistrosIncompletos',typeof V33_LS_DOCS!=='undefined'?V33_LS_DOCS:'coiDocumentos',typeof V33_LS_UM!=='undefined'?V33_LS_UM:'coiUM',typeof LS_UM!=='undefined'?LS_UM:'coi_roca_unidades_mantenimiento'].forEach(k=>localStorage.removeItem(k));adminSetLastBackup('base limpiada','localStorage');registrarLogSistema('limpieza','Base local limpiada','Sistema vacío funcional');adminRefreshAll();adminSetMsg('Base local limpiada. El sistema quedó vacío y funcional.','ok');}
+05593: function initAdministracionSistema(){const file=$('adminImportFile');if(!localStorage.getItem(LS_ADMIN_ROLE))adminSetRole(USER_ROLES.JEFE);$('btnAdministracionSistema')?.addEventListener('click',()=>{mostrarVista('vistaAdministracionSistema');renderAdministracionSistema();});$('btnAdminMode')?.addEventListener('click',()=>{if(adminIsEnabled()){adminSetRole(USER_ROLES.JEFE);registrarLogSistema('sesion','Salida de modo Administrador','Vuelve a Jefatura');adminSetMsg('Modo presentación activado.','warn');renderAdministracionSistema();return;}iniciarSesionAdministrador();adminSetMsg('La autorización administrativa depende de la sesión Supabase.','warn');renderAdministracionSistema();});document.addEventListener('click',ev=>{const tab=ev.target.closest('[data-admin-tab]');if(tab){adminMostrarTab(tab.dataset.adminTab);return;}if(ev.target.closest('#btnImportBackupViewer,#btnImportBackupViewerPanel,#btnImportBaseJson'))file?.click();if(ev.target.closest('#btnExportBaseJson'))adminExportBaseJSON();if(ev.target.closest('#btnExportBaseCsv'))adminExportBaseCSV();if(ev.target.closest('#btnCrearBackupInterno'))adminCrearBackupInterno();if(ev.target.closest('#btnRestaurarBackupInterno'))adminRestaurarBackupInterno();if(ev.target.closest('#btnCargarDemoOperativa'))adminCargarDemoOperativa();if(ev.target.closest('#btnLimpiarBase'))adminLimpiarBase();if(ev.target.closest('#btnIrCargaCSV'))mostrarVista('vistaCarga');if(ev.target.closest('#btnImportExcelPreparado'))adminSetMsg('Excel directo queda preparado para futura etapa. Por ahora exportar la hoja como CSV UTF-8.','warn');if(ev.target.closest('#btnEjecutarDiagnostico')){const res=ejecutarDiagnosticoSistema();renderAdminDiagnostico(res);adminMostrarTab('diagnostico');adminSetMsg('Diagnóstico ejecutado.','ok');}if(ev.target.closest('#btnOptimizarBase'))optimizarBaseSistema();if(ev.target.closest('#btnEjecutarAuditorDatos')){renderAuditorDatos();adminMostrarTab('auditor');adminSetMsg('Auditoría de datos actualizada.','ok');}if(ev.target.closest('#btnExportAuditoriaCsv'))exportarAuditoriaDatosCSV();if(ev.target.closest('#btnCrearUsuarioLocal')){const u=usuariosSistema();u.push({idUsuario:'USR-'+Date.now(),nombre:$('adminUserNombre')?.value||'Usuario local',rol:$('adminUserRol')?.value||USER_ROLES.JEFE,estado:'Activo',observaciones:$('adminUserObs')?.value||''});guardarUsuariosSistema(u);renderAdministracionSistema();}const del=ev.target.closest('[data-del-user]');if(del){guardarUsuariosSistema(usuariosSistema().filter(u=>u.idUsuario!==del.dataset.delUser));renderAdministracionSistema();}if(ev.target.closest('#btnCambiarPinAdmin')){const pin=prompt('Nuevo PIN administrador');if(pin){const c=adminConfig();c.adminPin=pin;saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('configuracion','PIN administrador actualizado','PIN local');adminSetMsg('PIN administrador actualizado.','ok');}}if(ev.target.closest('#btnAgregarCatalogo')){const n=$('adminCatalogoNombre')?.value,v=($('adminCatalogoValor')?.value||'').trim();if(n&&v){setCatalogo(n,[...new Set([...getCatalogo(n),v])].sort());renderAdministracionSistema();}}if(ev.target.closest('#btnEliminarCatalogo')){const n=$('adminCatalogoNombre')?.value,v=($('adminCatalogoValor')?.value||'').trim();if(n&&v){setCatalogo(n,getCatalogo(n).filter(x=>x!==v));renderAdministracionSistema();}}if(ev.target.closest('#btnGuardarAdminConfig')){const c=adminConfig();c.nombreSistema=$('adminCfgNombre')?.value||APP_NAME;c.versionVisible=$('adminCfgVersion')?.value||APP_VERSION;c.build=$('adminCfgBuild')?.value||adminNowStamp();c.fechaVersion=$('adminCfgFecha')?.value||APP_RELEASE_DATE;c.modoSistema=$('adminCfgModo')?.value||'Producción';c.fuenteDatos=$('adminCfgFuente')?.value||'Supabase';c.estadoVersion=$('adminCfgEstado')?.value||APP_STATUS;c.observacionesVersion=$('adminCfgObs')?.value||'';saveJSON(LS_ADMIN_CONFIG,c);registrarLogSistema('configuracion','Configuración del sistema actualizada',c.versionVisible);renderAdministracionSistema();adminSetMsg('Configuración guardada.','ok');}if(ev.target.closest('#btnLimpiarLogs')){if(confirm('¿Limpiar logs del sistema?')){saveJSON(LS_ADMIN_LOGS,[]);renderAdminLogs();adminSetMsg('Logs limpiados.','ok');}}});file?.addEventListener('change',()=>{adminImportJSONFile(file.files?.[0]);file.value='';});renderAdministracionSistema();}/* ===============================
+05594:    V30 - Órdenes centro operativo + Expediente Digital OC
+05595:    =============================== */
+05596: function valorMesOrdenes(d){ return mesKey(d); }
+05597: function filasOrdenesBase(){
+05598:   if(typeof migrarArquitecturaIdObra==='function') migrarArquitecturaIdObra();
+05599:   return todasLasOC().map(r=>{
+05600:     const c=calcularFichaOC(r.item);
+05601:     return {...r, calc:c, idObra:r.item.idObra||r.item.idOC, numeroOC:r.item.numeroOC||r.item.oc||r.oc, tipoTrabajo:r.item.tipoTrabajo||r.item.descripcion||r.especialidad||'', estadoDocumental:r.item.estadoDocumental||'Pendiente', sector:r.item.sector||r.item.ubicacion||'', umVinculada:r.item.umVinculada||r.item.unidadMantenimiento||r.item.umClave||r.item.especialidad||''};
+05602:   });
+05603: }
+05604: function cargarFiltrosOrdenes(){
+05605:   const rows=filasOrdenesBase();
+05606:   const setOptions=(id,vals,label)=>{
+05607:     const el=$(id); if(!el) return;
+05608:     const actual=el.value;
+05609:     const clave=v=>String(v??'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').toLowerCase();
+05610:     const unicos=new Map();
+05611:     vals.forEach(valor=>{const visible=String(valor??'').trim(),key=clave(visible);if(key&&!unicos.has(key))unicos.set(key,visible);});
+05612:     el.innerHTML=`<option value="">${label}</option>`+[...unicos.values()].sort((a,b)=>a.localeCompare(b,'es')).map(v=>`<option>${esc(v)}</option>`).join('');
+05613:     const opcion=[...el.options].find(o=>clave(o.value)===clave(actual));if(opcion)el.value=opcion.value;
+05614:   };
+05615:   setOptions('ordenesFiltroEstacion',rows.map(r=>r.estacion),'Estación');
+05616:   setOptions('ordenesFiltroProveedor',rows.map(r=>r.proveedor),'Proveedor');
+05617:   setOptions('ordenesFiltroEstado',rows.map(r=>r.estado),'Estado COI');
+05618:   setOptions('ordenesFiltroSector',rows.map(r=>r.sector),'Sector');
+05619:   setOptions('ordenesFiltroUM',rows.map(r=>r.umVinculada),'UM vinculada');
+05620:   setOptions('ordenesFiltroDoc',rows.map(r=>r.estadoDocumental),'Estado documental');
+05621:   if(typeof asegurarSelectorOrdenVencimiento==='function') asegurarSelectorOrdenVencimiento();
+05622:   setOptions('ordenesFiltroMesCert',rows.map(r=>valorMesOrdenes(r.calc.prox)).filter(Boolean),'Todos los meses');
+05623: }
+05624: function filtrarOrdenes(rows){
+05625:   const q=($('ordenesBusqueda')?.value||'').toLowerCase().trim();
+---
+09024:   for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);d[k]=localStorage.getItem(k);}
+09025:   return d;
+09026: }
+09027: function v574RecolectarGlobalArray(nombre){
+09028:   try{return Array.isArray(window[nombre])?window[nombre]:[];}catch(e){return[];}
+09029: }
+09030: function v574TotalCertificaciones(rows){
+09031:   let n=0;
+09032:   rows.forEach(r=>{const oc=r.item||r;n+=Array.isArray(oc.certificaciones)?oc.certificaciones.length:0;n+=Array.isArray(oc.actasMedicion)?oc.actasMedicion.length:0;});
+09033:   return n;
+09034: }
+09035: function obtenerBackupCompletoCOI(){
+09036:   if(!window.COI_TIMELINE_COI?.isAuthoritativeReady?.())throw new Error('Backup bloqueado: Timeline no está cargado autoritativamente desde Supabase.');
+09037:   try{if(typeof v60NormalizarTodasLasOC==='function')v60NormalizarTodasLasOC();}catch(e){}
+09038:   const ordenes=typeof todasLasOC==='function'?todasLasOC().map(r=>({...r,item:v60NormalizarOC?v60NormalizarOC(r.item):r.item})):v574RecolectarGlobalArray('ordenes');
+09039:   const ums=typeof obtenerUM==='function'?obtenerUM():v574RecolectarGlobalArray('unidadesMantenimiento');
+09040:   const documentos=[...v574RecolectarGlobalArray('documentacionOC'),...v574RecolectarGlobalArray('documentosOC')];
+09041:   const obras=ordenes.filter(r=>r.tipo==='Obra'||normalizarTexto(r.item?.tipo||'').includes('OBRA'));
+09042:   const servicios=ordenes.filter(r=>r.tipo==='Servicio'||normalizarTexto(r.item?.tipo||'').includes('SERVICIO'));
+09043:   const local=v574LocalStorageCompleto();
+09044:   return {
+09045:     schema:V57_4_BACKUP_SCHEMA,
+09046:     schemaVersion:V57_4_BACKUP_SCHEMA_VERSION,
+09047:     appVersion:APP_VERSION,
+09048:     fechaExportacion:new Date().toISOString(),
+09049:     origen:location.href,
+09050:     resumen:{
+09051:       totalOC:ordenes.length,
+09052:       totalObras:obras.length,
+09053:       totalServicios:servicios.length,
+09054:       totalUM:Array.isArray(ums)?ums.length:0,
+09055:       totalDocumentos:documentos.length,
+09056:       totalCertificaciones:v574TotalCertificaciones(ordenes)
+09057:     },
+09058:     localStorage:local,
+09059:     datos:{
+09060:       ordenes,
+09061:       obras:obras.map(r=>r.item||r),
+09062:       servicios:servicios.map(r=>r.item||r),
+09063:       ums,
+09064:       posicionesFinancieras:v574RecolectarGlobalArray('posicionesFinancieras'),
+09065:       certificaciones:v574RecolectarGlobalArray('certificaciones'),
+09066:       documentos,
+09067:       estaciones:typeof CAT_ESTACIONES!=='undefined'?CAT_ESTACIONES:(typeof estaciones!=='undefined'?estaciones:[]),
+09068:       configuracion:typeof adminConfig==='function'?adminConfig():{},
+09069:       historial:typeof historialVersiones!=='undefined'?historialVersiones:[]
+09070:     }
+---
+12714:   function exportBackup(){
+12715:     const payload={tipo:'backup-coi-linea-roca',version:VERSION,fechaExportacion:now(),usuario:'Local',resumen:{totalOC:getRows().length,totalUM:getUMs().length,totalPosiciones:getPositions().length,totalDocumentos:getDocs().length,totalObservaciones:getObs().length,totalST:getSTs().length},datos:{obrasServicios:getRows().map(r=>ocItem(r)),unidadesMantenimiento:getUMs(),posicionesFinancieras:getPositions(),documentosOC:getDocs(),observacionesOC:getObs(),alertasRevisadas:safeJSON(LS_ALERTAS_REV,[]),serviciosTecnicosUM:getSTs(),configuracion:{version:VERSION,fechaVersion:RELEASE_DATE}},localStorage:snapshotLocalStorage()};
+12716:     const name=`backup-coi-linea-roca-v58-1-${dateStamp()}.json`;download(name,JSON.stringify(payload,null,2));saveJSONKey(LS_BACKUP_META,{fecha:now(),tipo:'Exportado',version:VERSION,archivo:name,usuario:'Local'});inyectarAdmin();toast('Backup JSON exportado','ok',name);
+12717:   }
+12718:   function importarBackup(file){
+12719:     if(!file)return;
+12720:     if(!confirm('Este backup solo restaurará datasets con una ruta autoritativa Supabase disponible. Los datos sin RPC de restore no se escribirán localmente como fuente de verdad. ¿Continuar?'))return;
+12721:     const reader=new FileReader();
+12722:     reader.onload=async()=>{
+12723:       try{
+12724:         const data=JSON.parse(reader.result);
+12725:         if(!data||typeof data!=='object')throw new Error('JSON inválido');
+12726:         const timelineKey=window.COI_TIMELINE_COI?.storageKey||'coi_timeline_events_v1';
+12727:         let timelineRestored=false;
+12728:         if(data.localStorage&&typeof data.localStorage==='object'&&Object.prototype.hasOwnProperty.call(data.localStorage,timelineKey)){
+12729:           if(typeof window.COI_TIMELINE_COI?.replace!=='function')throw new Error('La restauración autoritativa de Timeline no está disponible.');
+12730:           const raw=data.localStorage[timelineKey];
+12731:           const incoming=typeof raw==='string'?JSON.parse(raw):raw;
+12732:           if(!Array.isArray(incoming))throw new Error('El Timeline del backup no es una colección válida.');
+12733:           await window.COI_TIMELINE_COI.replace(incoming,'Timeline restaurado desde backup maestro V58.1');
+12734:           timelineRestored=true;
+12735:         }
+12736:         const omitted=data.datos&&typeof data.datos==='object'
+12737:           ?Object.entries(data.datos).filter(([,value])=>Array.isArray(value)&&value.length).map(([key])=>key)
+12738:           :[];
+12739:         saveJSONKey(LS_BACKUP_META,{fecha:now(),tipo:'Importado Supabase-first',version:data.version||data.appVersion||VERSION,archivo:file.name,usuario:'Supabase'});
+12740:         const detail=[
+12741:           timelineRestored?'Timeline restaurado y confirmado en Supabase.':'El archivo no contenía un snapshot Timeline para restaurar.',
+12742:           omitted.length?`No se aplicaron localmente datasets canónicos sin RPC de restore: ${omitted.join(', ')}.`:''
+12743:         ].filter(Boolean).join(' ');
+12744:         toast('Backup procesado',omitted.length||!timelineRestored?'warn':'ok',detail);
+12745:         if(timelineRestored)setTimeout(()=>location.reload(),700);
+12746:       }catch(e){
+12747:         toast('No se pudo importar backup','error',e.message||String(e));
+12748:       }
+12749:     };
+12750:     reader.readAsText(file);
+12751:   }
+12752:   function estadoLocal(){
+12753:     const bytes=new Blob(Object.keys(localStorage).map(k=>String(k)+String(localStorage.getItem(k)))).size;
+12754:     return {bytes,oc:getRows().length,um:getUMs().length,pos:getPositions().length,docs:getDocs().length,obs:getObs().length,st:getSTs().length,meta:safeJSON(LS_BACKUP_META,{})};
+12755:   }
+12756:   function showEstadoLocal(){const e=estadoLocal();toast('Estado de datos locales','info',`LocalStorage ${(e.bytes/1024).toFixed(1)} KB · OC ${e.oc} · UM ${e.um} · Pos ${e.pos} · Docs ${e.docs} · Obs ${e.obs} · ST ${e.st}`); const box=$('estadoDatosLocalesV581'); if(box)box.innerHTML=`<div class="v581-grid"><div class="v581-card"><b>${(e.bytes/1024).toFixed(1)} KB</b><span>LocalStorage</span></div><div class="v581-card"><b>${e.oc}</b><span>OC</span></div><div class="v581-card"><b>${e.um}</b><span>UM</span></div><div class="v581-card"><b>${e.pos}</b><span>Posiciones</span></div><div class="v581-card"><b>${e.docs}</b><span>Documentos</span></div><div class="v581-card"><b>${e.obs}</b><span>Observaciones</span></div><div class="v581-card"><b>${e.st}</b><span>ST asociados</span></div><div class="v581-card"><b>${esc(e.meta.fecha?new Date(e.meta.fecha).toLocaleString():'Sin datos')}</b><span>Último backup</span></div></div>`;}
+12757:   function limpiarLocal(){if(!isAdmin()){toast('Solo Administrador puede limpiar datos locales.','error');return;} const pin=prompt('Ingrese PIN de Administrador para limpiar datos locales'); if(pin===null)return; if(String(pin)!==String(pinAdmin())){toast('PIN incorrecto','error');return;} if(!confirm('Primera confirmación: se recomienda exportar backup JSON antes de limpiar. ¿Continuar?'))return; if(!confirm('Segunda confirmación: se eliminarán los datos locales de esta PC/navegador. ¿Limpiar?'))return; localStorage.clear();toast('Datos locales limpiados','warn','La página se recargará.');setTimeout(()=>location.reload(),700);}
+12758:   function inyectarAdmin(){
+12759:     const datos=$('adminTabDatos'); if(datos&&!$('adminBackupV581'))datos.insertAdjacentHTML('afterbegin',`<div class="admin-panel" id="adminBackupV581"><h3>Backup JSON maestro V58.1</h3><p class="muted">Exporta/importa la base completa local para piloto operativo.</p><div class="admin-actions"><button type="button" id="btnExportarBackupV581" class="primary">Exportar backup JSON completo</button><button type="button" id="btnImportarBackupV581">Importar backup JSON completo</button><button type="button" id="btnVerEstadoLocalV581">Ver estado de datos locales</button><button type="button" id="btnLimpiarLocalV581" class="btn-danger-soft">Limpiar datos locales</button></div><input type="file" id="fileImportarBackupV581" accept="application/json,.json" hidden><div id="estadoDatosLocalesV581" class="backup-json-note">Último backup: ${esc(safeJSON(LS_BACKUP_META,{}).fecha?new Date(safeJSON(LS_BACKUP_META,{}).fecha).toLocaleString():'Sin datos')}</div></div>`);
+12760:     if($('adminCfgVersion'))$('adminCfgVersion').value=VERSION;
+---
+12717:   }
+12718:   function importarBackup(file){
+12719:     if(!file)return;
+12720:     if(!confirm('Este backup solo restaurará datasets con una ruta autoritativa Supabase disponible. Los datos sin RPC de restore no se escribirán localmente como fuente de verdad. ¿Continuar?'))return;
+12721:     const reader=new FileReader();
+12722:     reader.onload=async()=>{
+12723:       try{
+12724:         const data=JSON.parse(reader.result);
+12725:         if(!data||typeof data!=='object')throw new Error('JSON inválido');
+12726:         const timelineKey=window.COI_TIMELINE_COI?.storageKey||'coi_timeline_events_v1';
+12727:         let timelineRestored=false;
+12728:         if(data.localStorage&&typeof data.localStorage==='object'&&Object.prototype.hasOwnProperty.call(data.localStorage,timelineKey)){
+12729:           if(typeof window.COI_TIMELINE_COI?.replace!=='function')throw new Error('La restauración autoritativa de Timeline no está disponible.');
+12730:           const raw=data.localStorage[timelineKey];
+12731:           const incoming=typeof raw==='string'?JSON.parse(raw):raw;
+12732:           if(!Array.isArray(incoming))throw new Error('El Timeline del backup no es una colección válida.');
+12733:           await window.COI_TIMELINE_COI.replace(incoming,'Timeline restaurado desde backup maestro V58.1');
+12734:           timelineRestored=true;
+12735:         }
+12736:         const omitted=data.datos&&typeof data.datos==='object'
+12737:           ?Object.entries(data.datos).filter(([,value])=>Array.isArray(value)&&value.length).map(([key])=>key)
+12738:           :[];
+12739:         saveJSONKey(LS_BACKUP_META,{fecha:now(),tipo:'Importado Supabase-first',version:data.version||data.appVersion||VERSION,archivo:file.name,usuario:'Supabase'});
+12740:         const detail=[
+12741:           timelineRestored?'Timeline restaurado y confirmado en Supabase.':'El archivo no contenía un snapshot Timeline para restaurar.',
+12742:           omitted.length?`No se aplicaron localmente datasets canónicos sin RPC de restore: ${omitted.join(', ')}.`:''
+12743:         ].filter(Boolean).join(' ');
+12744:         toast('Backup procesado',omitted.length||!timelineRestored?'warn':'ok',detail);
+12745:         if(timelineRestored)setTimeout(()=>location.reload(),700);
+12746:       }catch(e){
+12747:         toast('No se pudo importar backup','error',e.message||String(e));
+12748:       }
+12749:     };
+12750:     reader.readAsText(file);
+12751:   }
+12752:   function estadoLocal(){
+12753:     const bytes=new Blob(Object.keys(localStorage).map(k=>String(k)+String(localStorage.getItem(k)))).size;
+12754:     return {bytes,oc:getRows().length,um:getUMs().length,pos:getPositions().length,docs:getDocs().length,obs:getObs().length,st:getSTs().length,meta:safeJSON(LS_BACKUP_META,{})};
+12755:   }
+12756:   function showEstadoLocal(){const e=estadoLocal();toast('Estado de datos locales','info',`LocalStorage ${(e.bytes/1024).toFixed(1)} KB · OC ${e.oc} · UM ${e.um} · Pos ${e.pos} · Docs ${e.docs} · Obs ${e.obs} · ST ${e.st}`); const box=$('estadoDatosLocalesV581'); if(box)box.innerHTML=`<div class="v581-grid"><div class="v581-card"><b>${(e.bytes/1024).toFixed(1)} KB</b><span>LocalStorage</span></div><div class="v581-card"><b>${e.oc}</b><span>OC</span></div><div class="v581-card"><b>${e.um}</b><span>UM</span></div><div class="v581-card"><b>${e.pos}</b><span>Posiciones</span></div><div class="v581-card"><b>${e.docs}</b><span>Documentos</span></div><div class="v581-card"><b>${e.obs}</b><span>Observaciones</span></div><div class="v581-card"><b>${e.st}</b><span>ST asociados</span></div><div class="v581-card"><b>${esc(e.meta.fecha?new Date(e.meta.fecha).toLocaleString():'Sin datos')}</b><span>Último backup</span></div></div>`;}
+12757:   function limpiarLocal(){if(!isAdmin()){toast('Solo Administrador puede limpiar datos locales.','error');return;} const pin=prompt('Ingrese PIN de Administrador para limpiar datos locales'); if(pin===null)return; if(String(pin)!==String(pinAdmin())){toast('PIN incorrecto','error');return;} if(!confirm('Primera confirmación: se recomienda exportar backup JSON antes de limpiar. ¿Continuar?'))return; if(!confirm('Segunda confirmación: se eliminarán los datos locales de esta PC/navegador. ¿Limpiar?'))return; localStorage.clear();toast('Datos locales limpiados','warn','La página se recargará.');setTimeout(()=>location.reload(),700);}
+12758:   function inyectarAdmin(){
+12759:     const datos=$('adminTabDatos'); if(datos&&!$('adminBackupV581'))datos.insertAdjacentHTML('afterbegin',`<div class="admin-panel" id="adminBackupV581"><h3>Backup JSON maestro V58.1</h3><p class="muted">Exporta/importa la base completa local para piloto operativo.</p><div class="admin-actions"><button type="button" id="btnExportarBackupV581" class="primary">Exportar backup JSON completo</button><button type="button" id="btnImportarBackupV581">Importar backup JSON completo</button><button type="button" id="btnVerEstadoLocalV581">Ver estado de datos locales</button><button type="button" id="btnLimpiarLocalV581" class="btn-danger-soft">Limpiar datos locales</button></div><input type="file" id="fileImportarBackupV581" accept="application/json,.json" hidden><div id="estadoDatosLocalesV581" class="backup-json-note">Último backup: ${esc(safeJSON(LS_BACKUP_META,{}).fecha?new Date(safeJSON(LS_BACKUP_META,{}).fecha).toLocaleString():'Sin datos')}</div></div>`);
+12760:     if($('adminCfgVersion'))$('adminCfgVersion').value=VERSION;
+12761:     convertirEstadoSelect();setVersion();
+12762:   }
+12763: 
+---
+12721:     const reader=new FileReader();
+12722:     reader.onload=async()=>{
+12723:       try{
+12724:         const data=JSON.parse(reader.result);
+12725:         if(!data||typeof data!=='object')throw new Error('JSON inválido');
+12726:         const timelineKey=window.COI_TIMELINE_COI?.storageKey||'coi_timeline_events_v1';
+12727:         let timelineRestored=false;
+12728:         if(data.localStorage&&typeof data.localStorage==='object'&&Object.prototype.hasOwnProperty.call(data.localStorage,timelineKey)){
+12729:           if(typeof window.COI_TIMELINE_COI?.replace!=='function')throw new Error('La restauración autoritativa de Timeline no está disponible.');
+12730:           const raw=data.localStorage[timelineKey];
+12731:           const incoming=typeof raw==='string'?JSON.parse(raw):raw;
+12732:           if(!Array.isArray(incoming))throw new Error('El Timeline del backup no es una colección válida.');
+12733:           await window.COI_TIMELINE_COI.replace(incoming,'Timeline restaurado desde backup maestro V58.1');
+12734:           timelineRestored=true;
+12735:         }
+12736:         const omitted=data.datos&&typeof data.datos==='object'
+12737:           ?Object.entries(data.datos).filter(([,value])=>Array.isArray(value)&&value.length).map(([key])=>key)
+12738:           :[];
+12739:         saveJSONKey(LS_BACKUP_META,{fecha:now(),tipo:'Importado Supabase-first',version:data.version||data.appVersion||VERSION,archivo:file.name,usuario:'Supabase'});
+12740:         const detail=[
+12741:           timelineRestored?'Timeline restaurado y confirmado en Supabase.':'El archivo no contenía un snapshot Timeline para restaurar.',
+12742:           omitted.length?`No se aplicaron localmente datasets canónicos sin RPC de restore: ${omitted.join(', ')}.`:''
+12743:         ].filter(Boolean).join(' ');
+12744:         toast('Backup procesado',omitted.length||!timelineRestored?'warn':'ok',detail);
+12745:         if(timelineRestored)setTimeout(()=>location.reload(),700);
+12746:       }catch(e){
+12747:         toast('No se pudo importar backup','error',e.message||String(e));
+12748:       }
+12749:     };
+12750:     reader.readAsText(file);
+12751:   }
+12752:   function estadoLocal(){
+12753:     const bytes=new Blob(Object.keys(localStorage).map(k=>String(k)+String(localStorage.getItem(k)))).size;
+12754:     return {bytes,oc:getRows().length,um:getUMs().length,pos:getPositions().length,docs:getDocs().length,obs:getObs().length,st:getSTs().length,meta:safeJSON(LS_BACKUP_META,{})};
+12755:   }
+12756:   function showEstadoLocal(){const e=estadoLocal();toast('Estado de datos locales','info',`LocalStorage ${(e.bytes/1024).toFixed(1)} KB · OC ${e.oc} · UM ${e.um} · Pos ${e.pos} · Docs ${e.docs} · Obs ${e.obs} · ST ${e.st}`); const box=$('estadoDatosLocalesV581'); if(box)box.innerHTML=`<div class="v581-grid"><div class="v581-card"><b>${(e.bytes/1024).toFixed(1)} KB</b><span>LocalStorage</span></div><div class="v581-card"><b>${e.oc}</b><span>OC</span></div><div class="v581-card"><b>${e.um}</b><span>UM</span></div><div class="v581-card"><b>${e.pos}</b><span>Posiciones</span></div><div class="v581-card"><b>${e.docs}</b><span>Documentos</span></div><div class="v581-card"><b>${e.obs}</b><span>Observaciones</span></div><div class="v581-card"><b>${e.st}</b><span>ST asociados</span></div><div class="v581-card"><b>${esc(e.meta.fecha?new Date(e.meta.fecha).toLocaleString():'Sin datos')}</b><span>Último backup</span></div></div>`;}
+12757:   function limpiarLocal(){if(!isAdmin()){toast('Solo Administrador puede limpiar datos locales.','error');return;} const pin=prompt('Ingrese PIN de Administrador para limpiar datos locales'); if(pin===null)return; if(String(pin)!==String(pinAdmin())){toast('PIN incorrecto','error');return;} if(!confirm('Primera confirmación: se recomienda exportar backup JSON antes de limpiar. ¿Continuar?'))return; if(!confirm('Segunda confirmación: se eliminarán los datos locales de esta PC/navegador. ¿Limpiar?'))return; localStorage.clear();toast('Datos locales limpiados','warn','La página se recargará.');setTimeout(()=>location.reload(),700);}
+12758:   function inyectarAdmin(){
+12759:     const datos=$('adminTabDatos'); if(datos&&!$('adminBackupV581'))datos.insertAdjacentHTML('afterbegin',`<div class="admin-panel" id="adminBackupV581"><h3>Backup JSON maestro V58.1</h3><p class="muted">Exporta/importa la base completa local para piloto operativo.</p><div class="admin-actions"><button type="button" id="btnExportarBackupV581" class="primary">Exportar backup JSON completo</button><button type="button" id="btnImportarBackupV581">Importar backup JSON completo</button><button type="button" id="btnVerEstadoLocalV581">Ver estado de datos locales</button><button type="button" id="btnLimpiarLocalV581" class="btn-danger-soft">Limpiar datos locales</button></div><input type="file" id="fileImportarBackupV581" accept="application/json,.json" hidden><div id="estadoDatosLocalesV581" class="backup-json-note">Último backup: ${esc(safeJSON(LS_BACKUP_META,{}).fecha?new Date(safeJSON(LS_BACKUP_META,{}).fecha).toLocaleString():'Sin datos')}</div></div>`);
+12760:     if($('adminCfgVersion'))$('adminCfgVersion').value=VERSION;
+12761:     convertirEstadoSelect();setVersion();
+12762:   }
+12763: 
+12764:   function renderCentroAlertasV581(){
+12765:     const body=document.querySelector('#vistaCentroAlertas .view-body')||$('vistaCentroAlertas'); if(!body)return;
+12766:     let a=[];try{a=typeof generarAlertasCOI==='function'?generarAlertasCOI():[];}catch(e){a=[];} if(!Array.isArray(a))a=[];
+12767:     const rev=new Set(safeJSON(LS_ALERTAS_REV,[])); a=a.filter(x=>!rev.has(String(x.id||'')));
+---
+21445:       wrapNavigation();
+21446:       bindEvents();
+21447:       renderTimelineDashboardKPIs();
+21448:       aboutIntegration();
+21449:       renderTimelineFichaActual();
+21450:       highlightCriticalOrders();
+21451:       await initializeStore();
+21452:     }catch(error){
+21453:       console.warn('Timeline COI no pudo inicializarse; los dem\u00e1s m\u00f3dulos permanecen disponibles.',error);
+21454:     }
+21455:   }
+21456: 
+21457:   window.COI_TIMELINE_COI={
+21458:     table:TIMELINE_TABLE,
+21459:     storageKey:TIMELINE_STORAGE_KEY,
+21460:     legacyKey:TIMELINE_LEGACY_KEY,
+21461:     migrationKey:TIMELINE_MIGRATION_KEY,
+21462:     schema:TIMELINE_SCHEMA,
+21463:     statuses:[...TIMELINE_STATUSES],
+21464:     risks:[...TIMELINE_RISKS],
+21465:     eventTypes:[...TIMELINE_EVENT_TYPES],
+21466:     fields:[...TIMELINE_FIELDS],
+21467:     isAuthoritativeReady:()=>timelineAuthoritativeReady,
+21468:     assertAuthoritativeBackup:assertAuthoritativeTimelineBackup,
+21469:     load:loadEvents,
+21470:     save:saveTimelineEventsSupabase,
+21471:     replace:replaceTimelineEventsSupabase,
+21472:     render:renderTimelineCOI,
+21473:     open:openTimeline,
+21474:     metrics,
+21475:     normalizeTimelineDate,
+21476:     normalizeTimelineTime,
+21477:     parseTimelineBulkText,
+21478:     previewTimelineEvents,
+21479:     importTimelineEvents,
+21480:     reload:()=>loadEvents()
+21481:   };
+21482:   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>initialize(),{once:true});
+21483:   else initialize();
+21484: })();
+21485: 
+21486: </script>
+21487: 
+21488: <script id="coi-v581r24-estado-contractual-versionado">
+21489: (function(){
+21490:   'use strict';
+21491:   const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
+---
+===== renderTimeline :: [20196, 20197, 20198, 20203, 20633, 20948, 20972, 20993, 21029, 21138, 21150, 21166, 21177, 21178, 21213, 21214, 21215, 21318, 21337, 21338, 21346, 21358, 21359, 21364, 21365, 21366, 21375, 21386, 21406, 21446, 21448, 21471] =====
+20185:     return loadEvents({migrateLegacy:true});
+20186:   }
+20187:   function applyTimelineEvents(events,reason,{cache=true}={}){
+20188:     const normalized=sortEvents((Array.isArray(events)?events:[]).map(normalizeEvent));
+20189:     if(cache){
+20190:       try{localStorage.setItem(TIMELINE_STORAGE_KEY,JSON.stringify(normalized));}
+20191:       catch(error){console.warn('Timeline COI: no se pudo actualizar la cach\u00e9.',error);}
+20192:     }
+20193:     window.coiTimelineEvents=normalized;
+20194:     try{
+20195:       if(typeof window.registrarLogSistema==='function')window.registrarLogSistema('TIMELINE_COI',reason||'Timeline actualizado',`${normalized.length} evento(s)`);
+20196:     }catch(error){}
+20197:     renderTimelineDashboardKPIs();
+20198:     if(byId('vistaTimelineCOI')?.classList.contains('active'))renderTimelineCOI();
+20199:     renderTimelineFichaActual();
+20200:     return normalized;
+20201:   }
+20202:   function setTimelinePersistence(mode,message){
+20203:     state.persistence={mode,message:text(message)};
+20204:     if(byId('vistaTimelineCOI')?.classList.contains('active'))renderTimelineCOI();
+20205:   }
+20206:   function setTimelinePermissions(role){
+20207:     const normalized=fold(role).replace(/\s+/g,'');
+20208:     state.permissions={
+20209:       role:normalized,
+20210:       canRead:TIMELINE_READ_ROLES.includes(normalized),
+20211:       canWrite:TIMELINE_WRITE_ROLES.includes(normalized),
+20212:       canDelete:TIMELINE_DELETE_ROLES.includes(normalized)
+20213:     };
+20214:     return state.permissions;
+20215:   }
+20216:   async function requireTimelineSupabase(requiredPermission='read'){
+20217:     if(typeof window.initSupabase==='function')await window.initSupabase();
+20218:     const client=typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;
+20219:     if(!client)throw new Error('Cliente Supabase no disponible.');
+20220:     const {data,error}=await client.auth.getSession();
+20221:     if(error)throw error;
+20222:     if(!data?.session?.user)throw new Error('Inici\u00e1 sesi\u00f3n en Supabase para consultar o modificar el Timeline.');
+20223:     if(navigator.onLine===false)throw new Error('Sin conexi\u00f3n a Internet.');
+20224:     const roleResult=await client.rpc('coi_current_role');
+20225:     if(roleResult.error)throw roleResult.error;
+20226:     const permissions=setTimelinePermissions(roleResult.data);
+20227:     if(!permissions.canRead)throw new Error('El perfil Supabase no tiene acceso al Timeline.');
+20228:     if(requiredPermission==='write'&&!permissions.canWrite)throw new Error(`El rol ${permissions.role||'actual'} tiene acceso de solo lectura al Timeline.`);
+20229:     if(requiredPermission==='delete'&&!permissions.canDelete)throw new Error('La eliminaci\u00f3n de eventos requiere rol Administrador o Jefatura.');
+20230:     return {client,user:data.session.user,role:permissions.role,permissions};
+20231:   }
+---
+20186:   }
+20187:   function applyTimelineEvents(events,reason,{cache=true}={}){
+20188:     const normalized=sortEvents((Array.isArray(events)?events:[]).map(normalizeEvent));
+20189:     if(cache){
+20190:       try{localStorage.setItem(TIMELINE_STORAGE_KEY,JSON.stringify(normalized));}
+20191:       catch(error){console.warn('Timeline COI: no se pudo actualizar la cach\u00e9.',error);}
+20192:     }
+20193:     window.coiTimelineEvents=normalized;
+20194:     try{
+20195:       if(typeof window.registrarLogSistema==='function')window.registrarLogSistema('TIMELINE_COI',reason||'Timeline actualizado',`${normalized.length} evento(s)`);
+20196:     }catch(error){}
+20197:     renderTimelineDashboardKPIs();
+20198:     if(byId('vistaTimelineCOI')?.classList.contains('active'))renderTimelineCOI();
+20199:     renderTimelineFichaActual();
+20200:     return normalized;
+20201:   }
+20202:   function setTimelinePersistence(mode,message){
+20203:     state.persistence={mode,message:text(message)};
+20204:     if(byId('vistaTimelineCOI')?.classList.contains('active'))renderTimelineCOI();
+20205:   }
+20206:   function setTimelinePermissions(role){
+20207:     const normalized=fold(role).replace(/\s+/g,'');
+20208:     state.permissions={
+20209:       role:normalized,
+20210:       canRead:TIMELINE_READ_ROLES.includes(normalized),
+20211:       canWrite:TIMELINE_WRITE_ROLES.includes(normalized),
+20212:       canDelete:TIMELINE_DELETE_ROLES.includes(normalized)
+20213:     };
+20214:     return state.permissions;
+20215:   }
+20216:   async function requireTimelineSupabase(requiredPermission='read'){
+20217:     if(typeof window.initSupabase==='function')await window.initSupabase();
+20218:     const client=typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;
+20219:     if(!client)throw new Error('Cliente Supabase no disponible.');
+20220:     const {data,error}=await client.auth.getSession();
+20221:     if(error)throw error;
+20222:     if(!data?.session?.user)throw new Error('Inici\u00e1 sesi\u00f3n en Supabase para consultar o modificar el Timeline.');
+20223:     if(navigator.onLine===false)throw new Error('Sin conexi\u00f3n a Internet.');
+20224:     const roleResult=await client.rpc('coi_current_role');
+20225:     if(roleResult.error)throw roleResult.error;
+20226:     const permissions=setTimelinePermissions(roleResult.data);
+20227:     if(!permissions.canRead)throw new Error('El perfil Supabase no tiene acceso al Timeline.');
+20228:     if(requiredPermission==='write'&&!permissions.canWrite)throw new Error(`El rol ${permissions.role||'actual'} tiene acceso de solo lectura al Timeline.`);
+20229:     if(requiredPermission==='delete'&&!permissions.canDelete)throw new Error('La eliminaci\u00f3n de eventos requiere rol Administrador o Jefatura.');
+20230:     return {client,user:data.session.user,role:permissions.role,permissions};
+20231:   }
+20232:   function databaseToTimelineEvent(row,index){
+---
+20187:   function applyTimelineEvents(events,reason,{cache=true}={}){
+20188:     const normalized=sortEvents((Array.isArray(events)?events:[]).map(normalizeEvent));
+20189:     if(cache){
+20190:       try{localStorage.setItem(TIMELINE_STORAGE_KEY,JSON.stringify(normalized));}
+20191:       catch(error){console.warn('Timeline COI: no se pudo actualizar la cach\u00e9.',error);}
+20192:     }
+20193:     window.coiTimelineEvents=normalized;
+20194:     try{
+20195:       if(typeof window.registrarLogSistema==='function')window.registrarLogSistema('TIMELINE_COI',reason||'Timeline actualizado',`${normalized.length} evento(s)`);
+20196:     }catch(error){}
+20197:     renderTimelineDashboardKPIs();
+20198:     if(byId('vistaTimelineCOI')?.classList.contains('active'))renderTimelineCOI();
+20199:     renderTimelineFichaActual();
+20200:     return normalized;
+20201:   }
+20202:   function setTimelinePersistence(mode,message){
+20203:     state.persistence={mode,message:text(message)};
+20204:     if(byId('vistaTimelineCOI')?.classList.contains('active'))renderTimelineCOI();
+20205:   }
+20206:   function setTimelinePermissions(role){
+20207:     const normalized=fold(role).replace(/\s+/g,'');
+20208:     state.permissions={
+20209:       role:normalized,
+20210:       canRead:TIMELINE_READ_ROLES.includes(normalized),
+20211:       canWrite:TIMELINE_WRITE_ROLES.includes(normalized),
+20212:       canDelete:TIMELINE_DELETE_ROLES.includes(normalized)
+20213:     };
+20214:     return state.permissions;
+20215:   }
+20216:   async function requireTimelineSupabase(requiredPermission='read'){
+20217:     if(typeof window.initSupabase==='function')await window.initSupabase();
+20218:     const client=typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;
+20219:     if(!client)throw new Error('Cliente Supabase no disponible.');
+20220:     const {data,error}=await client.auth.getSession();
+20221:     if(error)throw error;
+20222:     if(!data?.session?.user)throw new Error('Inici\u00e1 sesi\u00f3n en Supabase para consultar o modificar el Timeline.');
+20223:     if(navigator.onLine===false)throw new Error('Sin conexi\u00f3n a Internet.');
+20224:     const roleResult=await client.rpc('coi_current_role');
+20225:     if(roleResult.error)throw roleResult.error;
+20226:     const permissions=setTimelinePermissions(roleResult.data);
+20227:     if(!permissions.canRead)throw new Error('El perfil Supabase no tiene acceso al Timeline.');
+20228:     if(requiredPermission==='write'&&!permissions.canWrite)throw new Error(`El rol ${permissions.role||'actual'} tiene acceso de solo lectura al Timeline.`);
+20229:     if(requiredPermission==='delete'&&!permissions.canDelete)throw new Error('La eliminaci\u00f3n de eventos requiere rol Administrador o Jefatura.');
+20230:     return {client,user:data.session.user,role:permissions.role,permissions};
+20231:   }
+20232:   function databaseToTimelineEvent(row,index){
+20233:     return normalizeEvent({...row,oc:row?.nro_oc||'',hora:text(row?.hora).slice(0,5)},index);
+---
+20192:     }
+20193:     window.coiTimelineEvents=normalized;
+20194:     try{
+20195:       if(typeof window.registrarLogSistema==='function')window.registrarLogSistema('TIMELINE_COI',reason||'Timeline actualizado',`${normalized.length} evento(s)`);
+20196:     }catch(error){}
+20197:     renderTimelineDashboardKPIs();
+20198:     if(byId('vistaTimelineCOI')?.classList.contains('active'))renderTimelineCOI();
+20199:     renderTimelineFichaActual();
+20200:     return normalized;
+20201:   }
+20202:   function setTimelinePersistence(mode,message){
+20203:     state.persistence={mode,message:text(message)};
+20204:     if(byId('vistaTimelineCOI')?.classList.contains('active'))renderTimelineCOI();
+20205:   }
+20206:   function setTimelinePermissions(role){
+20207:     const normalized=fold(role).replace(/\s+/g,'');
+20208:     state.permissions={
+20209:       role:normalized,
+20210:       canRead:TIMELINE_READ_ROLES.includes(normalized),
+20211:       canWrite:TIMELINE_WRITE_ROLES.includes(normalized),
+20212:       canDelete:TIMELINE_DELETE_ROLES.includes(normalized)
+20213:     };
+20214:     return state.permissions;
+20215:   }
+20216:   async function requireTimelineSupabase(requiredPermission='read'){
+20217:     if(typeof window.initSupabase==='function')await window.initSupabase();
+20218:     const client=typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;
+20219:     if(!client)throw new Error('Cliente Supabase no disponible.');
+20220:     const {data,error}=await client.auth.getSession();
+20221:     if(error)throw error;
+20222:     if(!data?.session?.user)throw new Error('Inici\u00e1 sesi\u00f3n en Supabase para consultar o modificar el Timeline.');
+20223:     if(navigator.onLine===false)throw new Error('Sin conexi\u00f3n a Internet.');
+20224:     const roleResult=await client.rpc('coi_current_role');
+20225:     if(roleResult.error)throw roleResult.error;
+20226:     const permissions=setTimelinePermissions(roleResult.data);
+20227:     if(!permissions.canRead)throw new Error('El perfil Supabase no tiene acceso al Timeline.');
+20228:     if(requiredPermission==='write'&&!permissions.canWrite)throw new Error(`El rol ${permissions.role||'actual'} tiene acceso de solo lectura al Timeline.`);
+20229:     if(requiredPermission==='delete'&&!permissions.canDelete)throw new Error('La eliminaci\u00f3n de eventos requiere rol Administrador o Jefatura.');
+20230:     return {client,user:data.session.user,role:permissions.role,permissions};
+20231:   }
+20232:   function databaseToTimelineEvent(row,index){
+20233:     return normalizeEvent({...row,oc:row?.nro_oc||'',hora:text(row?.hora).slice(0,5)},index);
+20234:   }
+20235:   function timelineEventToDatabase(raw){
+20236:     const event=normalizeEvent(raw);
+20237:     // Supabase/PostgreSQL resuelve la identidad de la OC desde nro_oc.
+20238:     // El cliente no envía UUIDs derivados de una caché que podría estar desactualizada.
+---
+20622:   }
+20623:   function openTimeline(filters){
+20624:     ensureStructure();
+20625:     if(filters&&typeof filters==='object')Object.assign(state.filters,filters);
+20626:     if(filters?.oc)state.view='oc';
+20627:     if(typeof window.mostrarVista==='function')window.mostrarVista('vistaTimelineCOI');
+20628:     else{
+20629:       document.querySelectorAll('.view').forEach(view=>view.classList.remove('active'));
+20630:       byId('vistaTimelineCOI')?.classList.add('active');
+20631:     }
+20632:     document.querySelectorAll('.module-nav button').forEach(button=>button.classList.remove('active'));
+20633:     byId('btnTimelineCOI')?.classList.add('active');
+20634:     renderTimelineCOI();
+20635:   }
+20636:   window.abrirTimelineCOI=openTimeline;
+20637: 
+20638:   function options(values,current,placeholder){
+20639:     return `<option value="">${html(placeholder||'Todos')}</option>`+values.map(value=>`<option value="${attr(value)}"${value===current?' selected':''}>${html(value)}</option>`).join('');
+20640:   }
+20641:   function riskClass(risk){return 'risk-'+fold(risk).replace(/[^a-z0-9]+/g,'-');}
+20642:   function eventMatches(event){
+20643:     const f=state.filters;
+20644:     if(f.fecha&&event.fecha!==f.fecha)return false;
+20645:     if(f.fecha_desde&&event.fecha<f.fecha_desde)return false;
+20646:     if(f.fecha_hasta&&event.fecha>f.fecha_hasta)return false;
+20647:     if(f.semana&&event.semana!==f.semana)return false;
+20648:     if(f.oc&&!fold(event.oc).includes(fold(f.oc)))return false;
+20649:     if(f.proveedor&&event.proveedor!==f.proveedor)return false;
+20650:     if(f.rubro&&event.rubro!==f.rubro)return false;
+20651:     if(f.estado&&event.estado!==f.estado)return false;
+20652:     if(f.riesgo&&event.riesgo!==f.riesgo)return false;
+20653:     if(f.tipo_evento&&event.tipo_evento!==f.tipo_evento)return false;
+20654:     if(f.origen&&event.origen!==f.origen)return false;
+20655:     if(f.responsable_accion&&event.responsable_accion!==f.responsable_accion)return false;
+20656:     return true;
+20657:   }
+20658:   function filteredEvents(){return sortEvents(window.coiTimelineEvents.filter(eventMatches));}
+20659:   function filtersMarkup(){
+20660:     const events=window.coiTimelineEvents;
+20661:     const f=state.filters;
+20662:     const field=(label,name,content)=>`<div class="timeline-field"><label for="timelineFilter_${name}">${html(label)}</label>${content}</div>`;
+20663:     return `<div class="timeline-filters" aria-label="Filtros del Timeline COI">
+20664:       ${field('Fecha desde','fecha_desde',`<input id="timelineFilter_fecha_desde" type="date" value="${attr(f.fecha_desde)}" data-timeline-filter="fecha_desde">`)}
+20665:       ${field('Fecha hasta','fecha_hasta',`<input id="timelineFilter_fecha_hasta" type="date" value="${attr(f.fecha_hasta)}" data-timeline-filter="fecha_hasta">`)}
+20666:       ${field('Semana','semana',`<input id="timelineFilter_semana" type="week" value="${attr(f.semana)}" data-timeline-filter="semana">`)}
+20667:       ${field('OC','oc',`<input id="timelineFilter_oc" type="search" value="${attr(f.oc)}" placeholder="Buscar N\u00ba OC" data-timeline-filter="oc" list="timelineOCFilterList">`)}
+20668:       ${field('Proveedor','proveedor',`<select id="timelineFilter_proveedor" data-timeline-filter="proveedor">${options(unique(events.map(e=>e.proveedor)),f.proveedor,'Todos')}</select>`)}
+---
+20937:     const counts=timelineBulkCounts(state.bulk.events);
+20938:     return `<div class="timeline-bulk-counters"><div class="timeline-bulk-counter"><b>${counts.detected}</b><span>Eventos detectados</span></div><div class="timeline-bulk-counter ok"><b>${counts.valid}</b><span>Eventos válidos</span></div><div class="timeline-bulk-counter warn"><b>${counts.observed}</b><span>Eventos observados</span></div><div class="timeline-bulk-counter"><b>${counts.duplicated}</b><span>Eventos duplicados</span></div><div class="timeline-bulk-counter bad"><b>${counts.error}</b><span>Eventos con error</span></div></div>`;
+20939:   }
+20940:   async function importTimelineEvents(events){
+20941:     const allow=!!state.bulk.allowDuplicates;
+20942:     const valid=(Array.isArray(events)?events:[]).filter(event=>event._bulk?.valid&&(allow||!event._bulk?.duplicate));
+20943:     if(!valid.length){alert('No hay eventos válidos para importar con la configuración actual.');return;}
+20944:     const clean=valid.map(event=>{const item={...event};delete item._bulk;return item;});
+20945:     try{
+20946:       const result=await saveTimelineEventsSupabase(clean,`Carga masiva Timeline: ${clean.length} evento(s)`);
+20947:       state.bulk.recent=clean.map(event=>({...event})).slice(0,12);
+20948:       state.bulk.lastMessage=`${result.count} evento(s) guardado(s) at\u00f3micamente en Supabase.${result.refreshed?'':' La lista completa requiere una actualizaci\u00f3n manual.'}${allow?' Se permitieron duplicados seleccionados.':''}`;
+20949:       renderTimelineCOI();
+20950:       if(typeof window.mostrarMensajeCOI==='function')window.mostrarMensajeCOI(`Timeline guardado en Supabase: ${result.count} evento(s).`,'ok');
+20951:       else alert(`Timeline guardado en Supabase: ${result.count} evento(s).`);
+20952:     }catch(error){
+20953:       console.error('Timeline COI: la carga masiva no se guardó.',error);
+20954:       alert(`No se guardó la carga masiva en Supabase. No se modificaron los datos visibles.\n\n${error?.message||error}`);
+20955:     }
+20956:   }
+20957:   function recentBulkMarkup(){
+20958:     const recent=state.bulk.recent||[];
+20959:     if(!recent.length)return '';
+20960:     return `<section class="timeline-bulk-recent"><h4>Eventos importados recientemente</h4><div class="timeline-bulk-recent-list">${recent.map(event=>`<div class="timeline-bulk-recent-item"><b>${html(event.oc||'Evento general')}</b> · ${html(displayDate(event.fecha))} ${html(event.hora)} · ${html(event.titulo)} · <span class="timeline-badge ${riskClass(event.riesgo)}">${html(event.riesgo)}</span></div>`).join('')}</div></section>`;
+20961:   }
+20962:   function bulkImportMarkup(){
+20963:     if(!state.permissions.canWrite)return '<section class="timeline-bulk-card"><div class="timeline-bulk-body"><div class="timeline-bulk-help">Tu rol Supabase tiene acceso de solo lectura. La carga manual, JSON y masiva est\u00e1n deshabilitadas.</div></div></section>';
+20964:     return `<section class="timeline-bulk-card" id="timelineBulkImportCard"><div class="timeline-bulk-head"><div><h3>Carga masiva desde ChatGPT / Excel</h3><p>Pegue filas tabuladas o separadas por punto y coma. Permite cargar mailings diarios/semanales en bloque sin reemplazar el formulario manual.</p></div><div class="timeline-bulk-actions"><button type="button" id="btnTimelineBulkCopy">Copiar plantilla</button><button type="button" id="btnTimelineBulkPreview" class="timeline-primary">Previsualizar eventos</button><button type="button" id="btnTimelineBulkImport">Importar eventos</button><button type="button" id="btnTimelineBulkClear">Limpiar</button></div></div><div class="timeline-bulk-body"><div class="timeline-bulk-help">Columnas esperadas: ${html(TIMELINE_BULK_COLUMNS.join(' | '))}. Si FECHA, HORA, RIESGO, ESTADO u ORIGEN vienen vacíos, el sistema aplica valores operativos por defecto.</div><textarea id="timelineBulkTextarea" class="timeline-bulk-textarea" spellcheck="false" placeholder="Pegue aquí las filas desde ChatGPT o Excel...">${html(state.bulk.text)}</textarea><div class="timeline-bulk-options"><label><input type="checkbox" id="timelineBulkAllowDuplicates" ${state.bulk.allowDuplicates?'checked':''}> Permitir importar posibles duplicados</label><span class="muted">Duplicado: FECHA + OC + TÍTULO + TIPO_EVENTO.</span></div>${bulkCountersMarkup()}<div class="timeline-bulk-preview">${state.bulk.previewed?previewTimelineEvents(state.bulk.events):'<div class="timeline-empty">Todavía no se previsualizaron eventos masivos.</div>'}</div>${state.bulk.lastMessage?`<div class="notice okmsg">${html(state.bulk.lastMessage)}</div>`:''}${recentBulkMarkup()}</div></section>`;
+20965:   }
+20966: 
+20967:   function persistenceMarkup(){
+20968:     const mode=state.persistence?.mode||'loading';
+20969:     const label=mode==='online'?'Supabase sincronizado':mode==='warning'?'Supabase sincronizado con advertencia':mode==='loading'?'Sincronizando…':mode==='cache'?'Caché de contingencia':'Supabase no disponible';
+20970:     return `<div class="timeline-persistence ${attr(mode)}" role="status"><div><b>${html(label)}</b><span>${html(state.persistence?.message||'')}</span></div><button type="button" data-timeline-refresh ${mode==='loading'?'disabled':''}>Actualizar desde Supabase</button></div>`;
+20971:   }
+20972: 
+20973:   function renderTimelineCOI(){
+20974:     ensureStructure();
+20975:     const mount=byId('timelineCOIBody');
+20976:     if(!mount)return;
+20977:     const events=filteredEvents();
+20978:     let result=dailyMarkup(events);
+20979:     if(state.view==='semanal')result=weeklyMarkup(events);
+20980:     if(state.view==='oc')result=ocMarkup(events);
+20981:     const writeActions=state.permissions.canWrite?'<button type="button" id="btnTimelineNuevo" class="timeline-primary">Nueva carga manual</button><button type="button" id="btnTimelineImportJSON">Importar JSON</button><input type="file" id="timelineImportFile" accept="application/json,.json" hidden>':'';
+20982:     mount.innerHTML=`<div class="timeline-view-shell">
+20983:       <section class="timeline-hero"><div><h2>Timeline COI / Trazabilidad por OC</h2><p>Mailings, sistemas, actas, certificados, remitos, facturas y acciones pendientes en una secuencia auditable.</p></div><div class="timeline-actions">${writeActions}<button type="button" id="btnTimelineExportJSON">Exportar JSON</button></div></section>
+---
+20961:   }
+20962:   function bulkImportMarkup(){
+20963:     if(!state.permissions.canWrite)return '<section class="timeline-bulk-card"><div class="timeline-bulk-body"><div class="timeline-bulk-help">Tu rol Supabase tiene acceso de solo lectura. La carga manual, JSON y masiva est\u00e1n deshabilitadas.</div></div></section>';
+20964:     return `<section class="timeline-bulk-card" id="timelineBulkImportCard"><div class="timeline-bulk-head"><div><h3>Carga masiva desde ChatGPT / Excel</h3><p>Pegue filas tabuladas o separadas por punto y coma. Permite cargar mailings diarios/semanales en bloque sin reemplazar el formulario manual.</p></div><div class="timeline-bulk-actions"><button type="button" id="btnTimelineBulkCopy">Copiar plantilla</button><button type="button" id="btnTimelineBulkPreview" class="timeline-primary">Previsualizar eventos</button><button type="button" id="btnTimelineBulkImport">Importar eventos</button><button type="button" id="btnTimelineBulkClear">Limpiar</button></div></div><div class="timeline-bulk-body"><div class="timeline-bulk-help">Columnas esperadas: ${html(TIMELINE_BULK_COLUMNS.join(' | '))}. Si FECHA, HORA, RIESGO, ESTADO u ORIGEN vienen vacíos, el sistema aplica valores operativos por defecto.</div><textarea id="timelineBulkTextarea" class="timeline-bulk-textarea" spellcheck="false" placeholder="Pegue aquí las filas desde ChatGPT o Excel...">${html(state.bulk.text)}</textarea><div class="timeline-bulk-options"><label><input type="checkbox" id="timelineBulkAllowDuplicates" ${state.bulk.allowDuplicates?'checked':''}> Permitir importar posibles duplicados</label><span class="muted">Duplicado: FECHA + OC + TÍTULO + TIPO_EVENTO.</span></div>${bulkCountersMarkup()}<div class="timeline-bulk-preview">${state.bulk.previewed?previewTimelineEvents(state.bulk.events):'<div class="timeline-empty">Todavía no se previsualizaron eventos masivos.</div>'}</div>${state.bulk.lastMessage?`<div class="notice okmsg">${html(state.bulk.lastMessage)}</div>`:''}${recentBulkMarkup()}</div></section>`;
+20965:   }
+20966: 
+20967:   function persistenceMarkup(){
+20968:     const mode=state.persistence?.mode||'loading';
+20969:     const label=mode==='online'?'Supabase sincronizado':mode==='warning'?'Supabase sincronizado con advertencia':mode==='loading'?'Sincronizando…':mode==='cache'?'Caché de contingencia':'Supabase no disponible';
+20970:     return `<div class="timeline-persistence ${attr(mode)}" role="status"><div><b>${html(label)}</b><span>${html(state.persistence?.message||'')}</span></div><button type="button" data-timeline-refresh ${mode==='loading'?'disabled':''}>Actualizar desde Supabase</button></div>`;
+20971:   }
+20972: 
+20973:   function renderTimelineCOI(){
+20974:     ensureStructure();
+20975:     const mount=byId('timelineCOIBody');
+20976:     if(!mount)return;
+20977:     const events=filteredEvents();
+20978:     let result=dailyMarkup(events);
+20979:     if(state.view==='semanal')result=weeklyMarkup(events);
+20980:     if(state.view==='oc')result=ocMarkup(events);
+20981:     const writeActions=state.permissions.canWrite?'<button type="button" id="btnTimelineNuevo" class="timeline-primary">Nueva carga manual</button><button type="button" id="btnTimelineImportJSON">Importar JSON</button><input type="file" id="timelineImportFile" accept="application/json,.json" hidden>':'';
+20982:     mount.innerHTML=`<div class="timeline-view-shell">
+20983:       <section class="timeline-hero"><div><h2>Timeline COI / Trazabilidad por OC</h2><p>Mailings, sistemas, actas, certificados, remitos, facturas y acciones pendientes en una secuencia auditable.</p></div><div class="timeline-actions">${writeActions}<button type="button" id="btnTimelineExportJSON">Exportar JSON</button></div></section>
+20984:       ${persistenceMarkup()}
+20985:       ${kpisMarkup(metrics())}
+20986:       <nav class="timeline-tabs" aria-label="Vistas del Timeline COI"><button type="button" data-timeline-view="diaria" class="${state.view==='diaria'?'active':''}">Vista diaria</button><button type="button" data-timeline-view="semanal" class="${state.view==='semanal'?'active':''}">Vista semanal</button><button type="button" data-timeline-view="oc" class="${state.view==='oc'?'active':''}">Vista por OC</button></nav>
+20987:       ${filtersMarkup()}
+20988:       ${editorMarkup()}
+20989:       ${bulkImportMarkup()}
+20990:       <div class="timeline-section-head"><div><h3>${state.view==='diaria'?'Movimientos diarios':state.view==='semanal'?'Resumen semanal':'Historial por OC'}</h3><p>${events.length} de ${window.coiTimelineEvents.length} evento(s) visibles</p></div></div>
+20991:       <div class="timeline-result">${result}</div>
+20992:     </div>`;
+20993:   }
+20994:   window.renderTimelineCOI=renderTimelineCOI;
+20995: 
+20996:   function readFilters(){
+20997:     Object.keys(state.filters).forEach(name=>{
+20998:       const input=byId('timelineFilter_'+name);
+20999:       if(input)state.filters[name]=text(input.value);
+21000:     });
+21001:   }
+21002:   function resetFilters(){Object.keys(state.filters).forEach(name=>{state.filters[name]='';});}
+21003:   function autocompleteOrder(oc){
+21004:     const order=findOrder(oc);
+21005:     if(!order)return;
+21006:     const values={expediente:order.expediente,proveedor:order.proveedor,rubro:order.rubro,estacion:order.estacion};
+21007:     Object.entries(values).forEach(([name,value])=>{
+---
+20982:     mount.innerHTML=`<div class="timeline-view-shell">
+20983:       <section class="timeline-hero"><div><h2>Timeline COI / Trazabilidad por OC</h2><p>Mailings, sistemas, actas, certificados, remitos, facturas y acciones pendientes en una secuencia auditable.</p></div><div class="timeline-actions">${writeActions}<button type="button" id="btnTimelineExportJSON">Exportar JSON</button></div></section>
+20984:       ${persistenceMarkup()}
+20985:       ${kpisMarkup(metrics())}
+20986:       <nav class="timeline-tabs" aria-label="Vistas del Timeline COI"><button type="button" data-timeline-view="diaria" class="${state.view==='diaria'?'active':''}">Vista diaria</button><button type="button" data-timeline-view="semanal" class="${state.view==='semanal'?'active':''}">Vista semanal</button><button type="button" data-timeline-view="oc" class="${state.view==='oc'?'active':''}">Vista por OC</button></nav>
+20987:       ${filtersMarkup()}
+20988:       ${editorMarkup()}
+20989:       ${bulkImportMarkup()}
+20990:       <div class="timeline-section-head"><div><h3>${state.view==='diaria'?'Movimientos diarios':state.view==='semanal'?'Resumen semanal':'Historial por OC'}</h3><p>${events.length} de ${window.coiTimelineEvents.length} evento(s) visibles</p></div></div>
+20991:       <div class="timeline-result">${result}</div>
+20992:     </div>`;
+20993:   }
+20994:   window.renderTimelineCOI=renderTimelineCOI;
+20995: 
+20996:   function readFilters(){
+20997:     Object.keys(state.filters).forEach(name=>{
+20998:       const input=byId('timelineFilter_'+name);
+20999:       if(input)state.filters[name]=text(input.value);
+21000:     });
+21001:   }
+21002:   function resetFilters(){Object.keys(state.filters).forEach(name=>{state.filters[name]='';});}
+21003:   function autocompleteOrder(oc){
+21004:     const order=findOrder(oc);
+21005:     if(!order)return;
+21006:     const values={expediente:order.expediente,proveedor:order.proveedor,rubro:order.rubro,estacion:order.estacion};
+21007:     Object.entries(values).forEach(([name,value])=>{
+21008:       const input=byId('timelineEventForm')?.querySelector(`[data-timeline-field="${name}"]`);
+21009:       if(input&&!text(input.value))input.value=value;
+21010:     });
+21011:   }
+21012:   async function saveForm(form){
+21013:     const data=Object.fromEntries(new FormData(form).entries());
+21014:     if(!validDate(data.fecha)||!text(data.titulo)||!text(data.tipo_evento)){
+21015:       alert('Complete Fecha, T\u00edtulo y Tipo de evento.');
+21016:       return;
+21017:     }
+21018:     const existing=window.coiTimelineEvents.find(event=>event.id===text(form.dataset.eventId));
+21019:     const event=normalizeEvent({
+21020:       ...(existing||{}),...data,id:existing?.id||makeId(),semana:isoWeek(data.fecha),
+21021:       creado_por:text(data.creado_por)||existing?.creado_por||userName(),
+21022:       actualizado_en:existing?.actualizado_en||''
+21023:     });
+21024:     const submit=form.querySelector('button[type="submit"]');
+21025:     if(submit)submit.disabled=true;
+21026:     try{
+21027:       const result=await saveTimelineEventsSupabase([event],existing?'Evento editado en Supabase':'Evento agregado en Supabase');
+21028:       state.editingId='';
+---
+===== timelineFilter :: [20661, 20663, 20664, 20665, 20666, 20667, 20668, 20669, 20670, 20671, 20672, 20673, 20997] =====
+20650:     if(f.rubro&&event.rubro!==f.rubro)return false;
+20651:     if(f.estado&&event.estado!==f.estado)return false;
+20652:     if(f.riesgo&&event.riesgo!==f.riesgo)return false;
+20653:     if(f.tipo_evento&&event.tipo_evento!==f.tipo_evento)return false;
+20654:     if(f.origen&&event.origen!==f.origen)return false;
+20655:     if(f.responsable_accion&&event.responsable_accion!==f.responsable_accion)return false;
+20656:     return true;
+20657:   }
+20658:   function filteredEvents(){return sortEvents(window.coiTimelineEvents.filter(eventMatches));}
+20659:   function filtersMarkup(){
+20660:     const events=window.coiTimelineEvents;
+20661:     const f=state.filters;
+20662:     const field=(label,name,content)=>`<div class="timeline-field"><label for="timelineFilter_${name}">${html(label)}</label>${content}</div>`;
+20663:     return `<div class="timeline-filters" aria-label="Filtros del Timeline COI">
+20664:       ${field('Fecha desde','fecha_desde',`<input id="timelineFilter_fecha_desde" type="date" value="${attr(f.fecha_desde)}" data-timeline-filter="fecha_desde">`)}
+20665:       ${field('Fecha hasta','fecha_hasta',`<input id="timelineFilter_fecha_hasta" type="date" value="${attr(f.fecha_hasta)}" data-timeline-filter="fecha_hasta">`)}
+20666:       ${field('Semana','semana',`<input id="timelineFilter_semana" type="week" value="${attr(f.semana)}" data-timeline-filter="semana">`)}
+20667:       ${field('OC','oc',`<input id="timelineFilter_oc" type="search" value="${attr(f.oc)}" placeholder="Buscar N\u00ba OC" data-timeline-filter="oc" list="timelineOCFilterList">`)}
+20668:       ${field('Proveedor','proveedor',`<select id="timelineFilter_proveedor" data-timeline-filter="proveedor">${options(unique(events.map(e=>e.proveedor)),f.proveedor,'Todos')}</select>`)}
+20669:       ${field('Rubro','rubro',`<select id="timelineFilter_rubro" data-timeline-filter="rubro">${options(unique(events.map(e=>e.rubro)),f.rubro,'Todos')}</select>`)}
+20670:       ${field('Estado','estado',`<select id="timelineFilter_estado" data-timeline-filter="estado">${options(TIMELINE_STATUSES,f.estado,'Todos')}</select>`)}
+20671:       ${field('Riesgo','riesgo',`<select id="timelineFilter_riesgo" data-timeline-filter="riesgo">${options(TIMELINE_RISKS,f.riesgo,'Todos')}</select>`)}
+20672:       ${field('Tipo de evento','tipo_evento',`<select id="timelineFilter_tipo_evento" data-timeline-filter="tipo_evento">${options(TIMELINE_EVENT_TYPES,f.tipo_evento,'Todos')}</select>`)}
+20673:       ${field('Sistema / origen','origen',`<select id="timelineFilter_origen" data-timeline-filter="origen">${options(unique([...TIMELINE_ORIGINS,...events.map(e=>e.origen)]),f.origen,'Todos')}</select>`)}
+20674:       ${field('Responsable','responsable_accion',`<select id="timelineFilter_responsable_accion" data-timeline-filter="responsable_accion">${options(unique(events.map(e=>e.responsable_accion)),f.responsable_accion,'Todos')}</select>`)}
+20675:       <div class="timeline-filter-actions"><button type="button" id="btnTimelineAplicarFiltros" class="timeline-primary">Aplicar filtros</button><button type="button" id="btnTimelineLimpiarFiltros">Limpiar</button></div>
+20676:       <datalist id="timelineOCFilterList">${unique([...events.map(e=>e.oc),...getOrderRows().map(row=>orderData(row).oc)]).map(oc=>`<option value="${attr(oc)}"></option>`).join('')}</datalist>
+20677:     </div>`;
+20678:   }
+20679:   function kpisMarkup(data){
+20680:     const values=[
+20681:       [data.total,'Total eventos',''],[data.weekly,'Eventos de la semana',''],[data.activeOCs,'OCs con movimiento','ok'],
+20682:       [data.pendingCT,'Pendientes CT','warn'],[data.pendingHSMA,'Pendientes HSMA','warn'],
+20683:       [data.critical,'Eventos cr\u00edticos','bad'],[data.due,'Acciones vencidas / pr\u00f3ximas','bad']
+20684:     ];
+20685:     return `<div class="timeline-kpis">${values.map(([value,label,kind])=>`<div class="timeline-kpi ${kind}"><b>${html(value)}</b><span>${html(label)}</span></div>`).join('')}</div>`;
+20686:   }
+20687:   function eventCard(event,compact){
+20688:     const orderButton=event.oc?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
+20689:     const rawLink=String(event.link_documental??'').trim();
+20690: const validLink=/^https?:\/\//i.test(rawLink)&&coiURLHTTPValida(rawLink);
+20691: const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
+20692:     const pending=event.accion_pendiente?`<p class="pending-action"><b>Pr\u00f3xima acci\u00f3n:</b> ${html(event.accion_pendiente)}${event.responsable_accion?`<br><small>Responsable: ${html(event.responsable_accion)}${event.fecha_limite?` \u00b7 L\u00edmite: ${html(displayDate(event.fecha_limite))}`:''}</small>`:''}</p>`:'';
+20693:     const editButton=state.permissions.canWrite?`<button type="button" data-timeline-edit="${attr(event.id)}">Editar</button>`:'';
+20694:     const deleteButton=state.permissions.canDelete?`<button type="button" class="timeline-danger" data-timeline-delete="${attr(event.id)}">Eliminar</button>`:'';
+20695:     return `<article class="timeline-event-card ${riskClass(event.riesgo)}" data-timeline-event-id="${attr(event.id)}">
+20696:       <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><b>Sin OC individual</b>'}</div>
+---
+20652:     if(f.riesgo&&event.riesgo!==f.riesgo)return false;
+20653:     if(f.tipo_evento&&event.tipo_evento!==f.tipo_evento)return false;
+20654:     if(f.origen&&event.origen!==f.origen)return false;
+20655:     if(f.responsable_accion&&event.responsable_accion!==f.responsable_accion)return false;
+20656:     return true;
+20657:   }
+20658:   function filteredEvents(){return sortEvents(window.coiTimelineEvents.filter(eventMatches));}
+20659:   function filtersMarkup(){
+20660:     const events=window.coiTimelineEvents;
+20661:     const f=state.filters;
+20662:     const field=(label,name,content)=>`<div class="timeline-field"><label for="timelineFilter_${name}">${html(label)}</label>${content}</div>`;
+20663:     return `<div class="timeline-filters" aria-label="Filtros del Timeline COI">
+20664:       ${field('Fecha desde','fecha_desde',`<input id="timelineFilter_fecha_desde" type="date" value="${attr(f.fecha_desde)}" data-timeline-filter="fecha_desde">`)}
+20665:       ${field('Fecha hasta','fecha_hasta',`<input id="timelineFilter_fecha_hasta" type="date" value="${attr(f.fecha_hasta)}" data-timeline-filter="fecha_hasta">`)}
+20666:       ${field('Semana','semana',`<input id="timelineFilter_semana" type="week" value="${attr(f.semana)}" data-timeline-filter="semana">`)}
+20667:       ${field('OC','oc',`<input id="timelineFilter_oc" type="search" value="${attr(f.oc)}" placeholder="Buscar N\u00ba OC" data-timeline-filter="oc" list="timelineOCFilterList">`)}
+20668:       ${field('Proveedor','proveedor',`<select id="timelineFilter_proveedor" data-timeline-filter="proveedor">${options(unique(events.map(e=>e.proveedor)),f.proveedor,'Todos')}</select>`)}
+20669:       ${field('Rubro','rubro',`<select id="timelineFilter_rubro" data-timeline-filter="rubro">${options(unique(events.map(e=>e.rubro)),f.rubro,'Todos')}</select>`)}
+20670:       ${field('Estado','estado',`<select id="timelineFilter_estado" data-timeline-filter="estado">${options(TIMELINE_STATUSES,f.estado,'Todos')}</select>`)}
+20671:       ${field('Riesgo','riesgo',`<select id="timelineFilter_riesgo" data-timeline-filter="riesgo">${options(TIMELINE_RISKS,f.riesgo,'Todos')}</select>`)}
+20672:       ${field('Tipo de evento','tipo_evento',`<select id="timelineFilter_tipo_evento" data-timeline-filter="tipo_evento">${options(TIMELINE_EVENT_TYPES,f.tipo_evento,'Todos')}</select>`)}
+20673:       ${field('Sistema / origen','origen',`<select id="timelineFilter_origen" data-timeline-filter="origen">${options(unique([...TIMELINE_ORIGINS,...events.map(e=>e.origen)]),f.origen,'Todos')}</select>`)}
+20674:       ${field('Responsable','responsable_accion',`<select id="timelineFilter_responsable_accion" data-timeline-filter="responsable_accion">${options(unique(events.map(e=>e.responsable_accion)),f.responsable_accion,'Todos')}</select>`)}
+20675:       <div class="timeline-filter-actions"><button type="button" id="btnTimelineAplicarFiltros" class="timeline-primary">Aplicar filtros</button><button type="button" id="btnTimelineLimpiarFiltros">Limpiar</button></div>
+20676:       <datalist id="timelineOCFilterList">${unique([...events.map(e=>e.oc),...getOrderRows().map(row=>orderData(row).oc)]).map(oc=>`<option value="${attr(oc)}"></option>`).join('')}</datalist>
+20677:     </div>`;
+20678:   }
+20679:   function kpisMarkup(data){
+20680:     const values=[
+20681:       [data.total,'Total eventos',''],[data.weekly,'Eventos de la semana',''],[data.activeOCs,'OCs con movimiento','ok'],
+20682:       [data.pendingCT,'Pendientes CT','warn'],[data.pendingHSMA,'Pendientes HSMA','warn'],
+20683:       [data.critical,'Eventos cr\u00edticos','bad'],[data.due,'Acciones vencidas / pr\u00f3ximas','bad']
+20684:     ];
+20685:     return `<div class="timeline-kpis">${values.map(([value,label,kind])=>`<div class="timeline-kpi ${kind}"><b>${html(value)}</b><span>${html(label)}</span></div>`).join('')}</div>`;
+20686:   }
+20687:   function eventCard(event,compact){
+20688:     const orderButton=event.oc?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
+20689:     const rawLink=String(event.link_documental??'').trim();
+20690: const validLink=/^https?:\/\//i.test(rawLink)&&coiURLHTTPValida(rawLink);
+20691: const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
+20692:     const pending=event.accion_pendiente?`<p class="pending-action"><b>Pr\u00f3xima acci\u00f3n:</b> ${html(event.accion_pendiente)}${event.responsable_accion?`<br><small>Responsable: ${html(event.responsable_accion)}${event.fecha_limite?` \u00b7 L\u00edmite: ${html(displayDate(event.fecha_limite))}`:''}</small>`:''}</p>`:'';
+20693:     const editButton=state.permissions.canWrite?`<button type="button" data-timeline-edit="${attr(event.id)}">Editar</button>`:'';
+20694:     const deleteButton=state.permissions.canDelete?`<button type="button" class="timeline-danger" data-timeline-delete="${attr(event.id)}">Eliminar</button>`:'';
+20695:     return `<article class="timeline-event-card ${riskClass(event.riesgo)}" data-timeline-event-id="${attr(event.id)}">
+20696:       <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><b>Sin OC individual</b>'}</div>
+20697:       <div class="timeline-event-main">
+20698:         <div class="timeline-badges"><span class="timeline-badge">${html(event.tipo_evento)}</span><span class="timeline-badge">${html(event.estado)}</span><span class="timeline-badge ${riskClass(event.riesgo)}">Riesgo ${html(event.riesgo)}</span>${event.origen?`<span class="timeline-badge">${html(event.origen)}</span>`:''}</div>
+---
+20653:     if(f.tipo_evento&&event.tipo_evento!==f.tipo_evento)return false;
+20654:     if(f.origen&&event.origen!==f.origen)return false;
+20655:     if(f.responsable_accion&&event.responsable_accion!==f.responsable_accion)return false;
+20656:     return true;
+20657:   }
+20658:   function filteredEvents(){return sortEvents(window.coiTimelineEvents.filter(eventMatches));}
+20659:   function filtersMarkup(){
+20660:     const events=window.coiTimelineEvents;
+20661:     const f=state.filters;
+20662:     const field=(label,name,content)=>`<div class="timeline-field"><label for="timelineFilter_${name}">${html(label)}</label>${content}</div>`;
+20663:     return `<div class="timeline-filters" aria-label="Filtros del Timeline COI">
+20664:       ${field('Fecha desde','fecha_desde',`<input id="timelineFilter_fecha_desde" type="date" value="${attr(f.fecha_desde)}" data-timeline-filter="fecha_desde">`)}
+20665:       ${field('Fecha hasta','fecha_hasta',`<input id="timelineFilter_fecha_hasta" type="date" value="${attr(f.fecha_hasta)}" data-timeline-filter="fecha_hasta">`)}
+20666:       ${field('Semana','semana',`<input id="timelineFilter_semana" type="week" value="${attr(f.semana)}" data-timeline-filter="semana">`)}
+20667:       ${field('OC','oc',`<input id="timelineFilter_oc" type="search" value="${attr(f.oc)}" placeholder="Buscar N\u00ba OC" data-timeline-filter="oc" list="timelineOCFilterList">`)}
+20668:       ${field('Proveedor','proveedor',`<select id="timelineFilter_proveedor" data-timeline-filter="proveedor">${options(unique(events.map(e=>e.proveedor)),f.proveedor,'Todos')}</select>`)}
+20669:       ${field('Rubro','rubro',`<select id="timelineFilter_rubro" data-timeline-filter="rubro">${options(unique(events.map(e=>e.rubro)),f.rubro,'Todos')}</select>`)}
+20670:       ${field('Estado','estado',`<select id="timelineFilter_estado" data-timeline-filter="estado">${options(TIMELINE_STATUSES,f.estado,'Todos')}</select>`)}
+20671:       ${field('Riesgo','riesgo',`<select id="timelineFilter_riesgo" data-timeline-filter="riesgo">${options(TIMELINE_RISKS,f.riesgo,'Todos')}</select>`)}
+20672:       ${field('Tipo de evento','tipo_evento',`<select id="timelineFilter_tipo_evento" data-timeline-filter="tipo_evento">${options(TIMELINE_EVENT_TYPES,f.tipo_evento,'Todos')}</select>`)}
+20673:       ${field('Sistema / origen','origen',`<select id="timelineFilter_origen" data-timeline-filter="origen">${options(unique([...TIMELINE_ORIGINS,...events.map(e=>e.origen)]),f.origen,'Todos')}</select>`)}
+20674:       ${field('Responsable','responsable_accion',`<select id="timelineFilter_responsable_accion" data-timeline-filter="responsable_accion">${options(unique(events.map(e=>e.responsable_accion)),f.responsable_accion,'Todos')}</select>`)}
+20675:       <div class="timeline-filter-actions"><button type="button" id="btnTimelineAplicarFiltros" class="timeline-primary">Aplicar filtros</button><button type="button" id="btnTimelineLimpiarFiltros">Limpiar</button></div>
+20676:       <datalist id="timelineOCFilterList">${unique([...events.map(e=>e.oc),...getOrderRows().map(row=>orderData(row).oc)]).map(oc=>`<option value="${attr(oc)}"></option>`).join('')}</datalist>
+20677:     </div>`;
+20678:   }
+20679:   function kpisMarkup(data){
+20680:     const values=[
+20681:       [data.total,'Total eventos',''],[data.weekly,'Eventos de la semana',''],[data.activeOCs,'OCs con movimiento','ok'],
+20682:       [data.pendingCT,'Pendientes CT','warn'],[data.pendingHSMA,'Pendientes HSMA','warn'],
+20683:       [data.critical,'Eventos cr\u00edticos','bad'],[data.due,'Acciones vencidas / pr\u00f3ximas','bad']
+20684:     ];
+20685:     return `<div class="timeline-kpis">${values.map(([value,label,kind])=>`<div class="timeline-kpi ${kind}"><b>${html(value)}</b><span>${html(label)}</span></div>`).join('')}</div>`;
+20686:   }
+20687:   function eventCard(event,compact){
+20688:     const orderButton=event.oc?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
+20689:     const rawLink=String(event.link_documental??'').trim();
+20690: const validLink=/^https?:\/\//i.test(rawLink)&&coiURLHTTPValida(rawLink);
+20691: const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
+20692:     const pending=event.accion_pendiente?`<p class="pending-action"><b>Pr\u00f3xima acci\u00f3n:</b> ${html(event.accion_pendiente)}${event.responsable_accion?`<br><small>Responsable: ${html(event.responsable_accion)}${event.fecha_limite?` \u00b7 L\u00edmite: ${html(displayDate(event.fecha_limite))}`:''}</small>`:''}</p>`:'';
+20693:     const editButton=state.permissions.canWrite?`<button type="button" data-timeline-edit="${attr(event.id)}">Editar</button>`:'';
+20694:     const deleteButton=state.permissions.canDelete?`<button type="button" class="timeline-danger" data-timeline-delete="${attr(event.id)}">Eliminar</button>`:'';
+20695:     return `<article class="timeline-event-card ${riskClass(event.riesgo)}" data-timeline-event-id="${attr(event.id)}">
+20696:       <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><b>Sin OC individual</b>'}</div>
+20697:       <div class="timeline-event-main">
+20698:         <div class="timeline-badges"><span class="timeline-badge">${html(event.tipo_evento)}</span><span class="timeline-badge">${html(event.estado)}</span><span class="timeline-badge ${riskClass(event.riesgo)}">Riesgo ${html(event.riesgo)}</span>${event.origen?`<span class="timeline-badge">${html(event.origen)}</span>`:''}</div>
+20699:         <h4>${html(event.titulo)}</h4>
+---
+20654:     if(f.origen&&event.origen!==f.origen)return false;
+20655:     if(f.responsable_accion&&event.responsable_accion!==f.responsable_accion)return false;
+20656:     return true;
+20657:   }
+20658:   function filteredEvents(){return sortEvents(window.coiTimelineEvents.filter(eventMatches));}
+20659:   function filtersMarkup(){
+20660:     const events=window.coiTimelineEvents;
+20661:     const f=state.filters;
+20662:     const field=(label,name,content)=>`<div class="timeline-field"><label for="timelineFilter_${name}">${html(label)}</label>${content}</div>`;
+20663:     return `<div class="timeline-filters" aria-label="Filtros del Timeline COI">
+20664:       ${field('Fecha desde','fecha_desde',`<input id="timelineFilter_fecha_desde" type="date" value="${attr(f.fecha_desde)}" data-timeline-filter="fecha_desde">`)}
+20665:       ${field('Fecha hasta','fecha_hasta',`<input id="timelineFilter_fecha_hasta" type="date" value="${attr(f.fecha_hasta)}" data-timeline-filter="fecha_hasta">`)}
+20666:       ${field('Semana','semana',`<input id="timelineFilter_semana" type="week" value="${attr(f.semana)}" data-timeline-filter="semana">`)}
+20667:       ${field('OC','oc',`<input id="timelineFilter_oc" type="search" value="${attr(f.oc)}" placeholder="Buscar N\u00ba OC" data-timeline-filter="oc" list="timelineOCFilterList">`)}
+20668:       ${field('Proveedor','proveedor',`<select id="timelineFilter_proveedor" data-timeline-filter="proveedor">${options(unique(events.map(e=>e.proveedor)),f.proveedor,'Todos')}</select>`)}
+20669:       ${field('Rubro','rubro',`<select id="timelineFilter_rubro" data-timeline-filter="rubro">${options(unique(events.map(e=>e.rubro)),f.rubro,'Todos')}</select>`)}
+20670:       ${field('Estado','estado',`<select id="timelineFilter_estado" data-timeline-filter="estado">${options(TIMELINE_STATUSES,f.estado,'Todos')}</select>`)}
+20671:       ${field('Riesgo','riesgo',`<select id="timelineFilter_riesgo" data-timeline-filter="riesgo">${options(TIMELINE_RISKS,f.riesgo,'Todos')}</select>`)}
+20672:       ${field('Tipo de evento','tipo_evento',`<select id="timelineFilter_tipo_evento" data-timeline-filter="tipo_evento">${options(TIMELINE_EVENT_TYPES,f.tipo_evento,'Todos')}</select>`)}
+20673:       ${field('Sistema / origen','origen',`<select id="timelineFilter_origen" data-timeline-filter="origen">${options(unique([...TIMELINE_ORIGINS,...events.map(e=>e.origen)]),f.origen,'Todos')}</select>`)}
+20674:       ${field('Responsable','responsable_accion',`<select id="timelineFilter_responsable_accion" data-timeline-filter="responsable_accion">${options(unique(events.map(e=>e.responsable_accion)),f.responsable_accion,'Todos')}</select>`)}
+20675:       <div class="timeline-filter-actions"><button type="button" id="btnTimelineAplicarFiltros" class="timeline-primary">Aplicar filtros</button><button type="button" id="btnTimelineLimpiarFiltros">Limpiar</button></div>
+20676:       <datalist id="timelineOCFilterList">${unique([...events.map(e=>e.oc),...getOrderRows().map(row=>orderData(row).oc)]).map(oc=>`<option value="${attr(oc)}"></option>`).join('')}</datalist>
+20677:     </div>`;
+20678:   }
+20679:   function kpisMarkup(data){
+20680:     const values=[
+20681:       [data.total,'Total eventos',''],[data.weekly,'Eventos de la semana',''],[data.activeOCs,'OCs con movimiento','ok'],
+20682:       [data.pendingCT,'Pendientes CT','warn'],[data.pendingHSMA,'Pendientes HSMA','warn'],
+20683:       [data.critical,'Eventos cr\u00edticos','bad'],[data.due,'Acciones vencidas / pr\u00f3ximas','bad']
+20684:     ];
+20685:     return `<div class="timeline-kpis">${values.map(([value,label,kind])=>`<div class="timeline-kpi ${kind}"><b>${html(value)}</b><span>${html(label)}</span></div>`).join('')}</div>`;
+20686:   }
+20687:   function eventCard(event,compact){
+20688:     const orderButton=event.oc?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
+20689:     const rawLink=String(event.link_documental??'').trim();
+20690: const validLink=/^https?:\/\//i.test(rawLink)&&coiURLHTTPValida(rawLink);
+20691: const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
+20692:     const pending=event.accion_pendiente?`<p class="pending-action"><b>Pr\u00f3xima acci\u00f3n:</b> ${html(event.accion_pendiente)}${event.responsable_accion?`<br><small>Responsable: ${html(event.responsable_accion)}${event.fecha_limite?` \u00b7 L\u00edmite: ${html(displayDate(event.fecha_limite))}`:''}</small>`:''}</p>`:'';
+20693:     const editButton=state.permissions.canWrite?`<button type="button" data-timeline-edit="${attr(event.id)}">Editar</button>`:'';
+20694:     const deleteButton=state.permissions.canDelete?`<button type="button" class="timeline-danger" data-timeline-delete="${attr(event.id)}">Eliminar</button>`:'';
+20695:     return `<article class="timeline-event-card ${riskClass(event.riesgo)}" data-timeline-event-id="${attr(event.id)}">
+20696:       <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><b>Sin OC individual</b>'}</div>
+20697:       <div class="timeline-event-main">
+20698:         <div class="timeline-badges"><span class="timeline-badge">${html(event.tipo_evento)}</span><span class="timeline-badge">${html(event.estado)}</span><span class="timeline-badge ${riskClass(event.riesgo)}">Riesgo ${html(event.riesgo)}</span>${event.origen?`<span class="timeline-badge">${html(event.origen)}</span>`:''}</div>
+20699:         <h4>${html(event.titulo)}</h4>
+20700:         <p><b>${html(event.proveedor||'Proveedor sin definir')}</b>${event.rubro?` \u00b7 ${html(event.rubro)}`:''}${event.estacion?` \u00b7 ${html(event.estacion)}`:''}</p>
+---
+20655:     if(f.responsable_accion&&event.responsable_accion!==f.responsable_accion)return false;
+20656:     return true;
+20657:   }
+20658:   function filteredEvents(){return sortEvents(window.coiTimelineEvents.filter(eventMatches));}
+20659:   function filtersMarkup(){
+20660:     const events=window.coiTimelineEvents;
+20661:     const f=state.filters;
+20662:     const field=(label,name,content)=>`<div class="timeline-field"><label for="timelineFilter_${name}">${html(label)}</label>${content}</div>`;
+20663:     return `<div class="timeline-filters" aria-label="Filtros del Timeline COI">
+20664:       ${field('Fecha desde','fecha_desde',`<input id="timelineFilter_fecha_desde" type="date" value="${attr(f.fecha_desde)}" data-timeline-filter="fecha_desde">`)}
+20665:       ${field('Fecha hasta','fecha_hasta',`<input id="timelineFilter_fecha_hasta" type="date" value="${attr(f.fecha_hasta)}" data-timeline-filter="fecha_hasta">`)}
+20666:       ${field('Semana','semana',`<input id="timelineFilter_semana" type="week" value="${attr(f.semana)}" data-timeline-filter="semana">`)}
+20667:       ${field('OC','oc',`<input id="timelineFilter_oc" type="search" value="${attr(f.oc)}" placeholder="Buscar N\u00ba OC" data-timeline-filter="oc" list="timelineOCFilterList">`)}
+20668:       ${field('Proveedor','proveedor',`<select id="timelineFilter_proveedor" data-timeline-filter="proveedor">${options(unique(events.map(e=>e.proveedor)),f.proveedor,'Todos')}</select>`)}
+20669:       ${field('Rubro','rubro',`<select id="timelineFilter_rubro" data-timeline-filter="rubro">${options(unique(events.map(e=>e.rubro)),f.rubro,'Todos')}</select>`)}
+20670:       ${field('Estado','estado',`<select id="timelineFilter_estado" data-timeline-filter="estado">${options(TIMELINE_STATUSES,f.estado,'Todos')}</select>`)}
+20671:       ${field('Riesgo','riesgo',`<select id="timelineFilter_riesgo" data-timeline-filter="riesgo">${options(TIMELINE_RISKS,f.riesgo,'Todos')}</select>`)}
+20672:       ${field('Tipo de evento','tipo_evento',`<select id="timelineFilter_tipo_evento" data-timeline-filter="tipo_evento">${options(TIMELINE_EVENT_TYPES,f.tipo_evento,'Todos')}</select>`)}
+20673:       ${field('Sistema / origen','origen',`<select id="timelineFilter_origen" data-timeline-filter="origen">${options(unique([...TIMELINE_ORIGINS,...events.map(e=>e.origen)]),f.origen,'Todos')}</select>`)}
+20674:       ${field('Responsable','responsable_accion',`<select id="timelineFilter_responsable_accion" data-timeline-filter="responsable_accion">${options(unique(events.map(e=>e.responsable_accion)),f.responsable_accion,'Todos')}</select>`)}
+20675:       <div class="timeline-filter-actions"><button type="button" id="btnTimelineAplicarFiltros" class="timeline-primary">Aplicar filtros</button><button type="button" id="btnTimelineLimpiarFiltros">Limpiar</button></div>
+20676:       <datalist id="timelineOCFilterList">${unique([...events.map(e=>e.oc),...getOrderRows().map(row=>orderData(row).oc)]).map(oc=>`<option value="${attr(oc)}"></option>`).join('')}</datalist>
+20677:     </div>`;
+20678:   }
+20679:   function kpisMarkup(data){
+20680:     const values=[
+20681:       [data.total,'Total eventos',''],[data.weekly,'Eventos de la semana',''],[data.activeOCs,'OCs con movimiento','ok'],
+20682:       [data.pendingCT,'Pendientes CT','warn'],[data.pendingHSMA,'Pendientes HSMA','warn'],
+20683:       [data.critical,'Eventos cr\u00edticos','bad'],[data.due,'Acciones vencidas / pr\u00f3ximas','bad']
+20684:     ];
+20685:     return `<div class="timeline-kpis">${values.map(([value,label,kind])=>`<div class="timeline-kpi ${kind}"><b>${html(value)}</b><span>${html(label)}</span></div>`).join('')}</div>`;
+20686:   }
+20687:   function eventCard(event,compact){
+20688:     const orderButton=event.oc?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
+20689:     const rawLink=String(event.link_documental??'').trim();
+20690: const validLink=/^https?:\/\//i.test(rawLink)&&coiURLHTTPValida(rawLink);
+20691: const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
+20692:     const pending=event.accion_pendiente?`<p class="pending-action"><b>Pr\u00f3xima acci\u00f3n:</b> ${html(event.accion_pendiente)}${event.responsable_accion?`<br><small>Responsable: ${html(event.responsable_accion)}${event.fecha_limite?` \u00b7 L\u00edmite: ${html(displayDate(event.fecha_limite))}`:''}</small>`:''}</p>`:'';
+20693:     const editButton=state.permissions.canWrite?`<button type="button" data-timeline-edit="${attr(event.id)}">Editar</button>`:'';
+20694:     const deleteButton=state.permissions.canDelete?`<button type="button" class="timeline-danger" data-timeline-delete="${attr(event.id)}">Eliminar</button>`:'';
+20695:     return `<article class="timeline-event-card ${riskClass(event.riesgo)}" data-timeline-event-id="${attr(event.id)}">
+20696:       <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><b>Sin OC individual</b>'}</div>
+20697:       <div class="timeline-event-main">
+20698:         <div class="timeline-badges"><span class="timeline-badge">${html(event.tipo_evento)}</span><span class="timeline-badge">${html(event.estado)}</span><span class="timeline-badge ${riskClass(event.riesgo)}">Riesgo ${html(event.riesgo)}</span>${event.origen?`<span class="timeline-badge">${html(event.origen)}</span>`:''}</div>
+20699:         <h4>${html(event.titulo)}</h4>
+20700:         <p><b>${html(event.proveedor||'Proveedor sin definir')}</b>${event.rubro?` \u00b7 ${html(event.rubro)}`:''}${event.estacion?` \u00b7 ${html(event.estacion)}`:''}</p>
+20701:         ${compact?'':`<p>${html(event.descripcion||'Sin descripci\u00f3n.')}</p>${event.documentos_mencionados?`<p><b>Documentos:</b> ${html(event.documentos_mencionados)}</p>`:''}${pending}`}
+---
+20656:     return true;
+20657:   }
+20658:   function filteredEvents(){return sortEvents(window.coiTimelineEvents.filter(eventMatches));}
+20659:   function filtersMarkup(){
+20660:     const events=window.coiTimelineEvents;
+20661:     const f=state.filters;
+20662:     const field=(label,name,content)=>`<div class="timeline-field"><label for="timelineFilter_${name}">${html(label)}</label>${content}</div>`;
+20663:     return `<div class="timeline-filters" aria-label="Filtros del Timeline COI">
+20664:       ${field('Fecha desde','fecha_desde',`<input id="timelineFilter_fecha_desde" type="date" value="${attr(f.fecha_desde)}" data-timeline-filter="fecha_desde">`)}
+20665:       ${field('Fecha hasta','fecha_hasta',`<input id="timelineFilter_fecha_hasta" type="date" value="${attr(f.fecha_hasta)}" data-timeline-filter="fecha_hasta">`)}
+20666:       ${field('Semana','semana',`<input id="timelineFilter_semana" type="week" value="${attr(f.semana)}" data-timeline-filter="semana">`)}
+20667:       ${field('OC','oc',`<input id="timelineFilter_oc" type="search" value="${attr(f.oc)}" placeholder="Buscar N\u00ba OC" data-timeline-filter="oc" list="timelineOCFilterList">`)}
+20668:       ${field('Proveedor','proveedor',`<select id="timelineFilter_proveedor" data-timeline-filter="proveedor">${options(unique(events.map(e=>e.proveedor)),f.proveedor,'Todos')}</select>`)}
+20669:       ${field('Rubro','rubro',`<select id="timelineFilter_rubro" data-timeline-filter="rubro">${options(unique(events.map(e=>e.rubro)),f.rubro,'Todos')}</select>`)}
+20670:       ${field('Estado','estado',`<select id="timelineFilter_estado" data-timeline-filter="estado">${options(TIMELINE_STATUSES,f.estado,'Todos')}</select>`)}
+20671:       ${field('Riesgo','riesgo',`<select id="timelineFilter_riesgo" data-timeline-filter="riesgo">${options(TIMELINE_RISKS,f.riesgo,'Todos')}</select>`)}
+20672:       ${field('Tipo de evento','tipo_evento',`<select id="timelineFilter_tipo_evento" data-timeline-filter="tipo_evento">${options(TIMELINE_EVENT_TYPES,f.tipo_evento,'Todos')}</select>`)}
+20673:       ${field('Sistema / origen','origen',`<select id="timelineFilter_origen" data-timeline-filter="origen">${options(unique([...TIMELINE_ORIGINS,...events.map(e=>e.origen)]),f.origen,'Todos')}</select>`)}
+20674:       ${field('Responsable','responsable_accion',`<select id="timelineFilter_responsable_accion" data-timeline-filter="responsable_accion">${options(unique(events.map(e=>e.responsable_accion)),f.responsable_accion,'Todos')}</select>`)}
+20675:       <div class="timeline-filter-actions"><button type="button" id="btnTimelineAplicarFiltros" class="timeline-primary">Aplicar filtros</button><button type="button" id="btnTimelineLimpiarFiltros">Limpiar</button></div>
+20676:       <datalist id="timelineOCFilterList">${unique([...events.map(e=>e.oc),...getOrderRows().map(row=>orderData(row).oc)]).map(oc=>`<option value="${attr(oc)}"></option>`).join('')}</datalist>
+20677:     </div>`;
+20678:   }
+20679:   function kpisMarkup(data){
+20680:     const values=[
+20681:       [data.total,'Total eventos',''],[data.weekly,'Eventos de la semana',''],[data.activeOCs,'OCs con movimiento','ok'],
+20682:       [data.pendingCT,'Pendientes CT','warn'],[data.pendingHSMA,'Pendientes HSMA','warn'],
+20683:       [data.critical,'Eventos cr\u00edticos','bad'],[data.due,'Acciones vencidas / pr\u00f3ximas','bad']
+20684:     ];
+20685:     return `<div class="timeline-kpis">${values.map(([value,label,kind])=>`<div class="timeline-kpi ${kind}"><b>${html(value)}</b><span>${html(label)}</span></div>`).join('')}</div>`;
+20686:   }
+20687:   function eventCard(event,compact){
+20688:     const orderButton=event.oc?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
+20689:     const rawLink=String(event.link_documental??'').trim();
+20690: const validLink=/^https?:\/\//i.test(rawLink)&&coiURLHTTPValida(rawLink);
+20691: const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
+20692:     const pending=event.accion_pendiente?`<p class="pending-action"><b>Pr\u00f3xima acci\u00f3n:</b> ${html(event.accion_pendiente)}${event.responsable_accion?`<br><small>Responsable: ${html(event.responsable_accion)}${event.fecha_limite?` \u00b7 L\u00edmite: ${html(displayDate(event.fecha_limite))}`:''}</small>`:''}</p>`:'';
+20693:     const editButton=state.permissions.canWrite?`<button type="button" data-timeline-edit="${attr(event.id)}">Editar</button>`:'';
+20694:     const deleteButton=state.permissions.canDelete?`<button type="button" class="timeline-danger" data-timeline-delete="${attr(event.id)}">Eliminar</button>`:'';
+20695:     return `<article class="timeline-event-card ${riskClass(event.riesgo)}" data-timeline-event-id="${attr(event.id)}">
+20696:       <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><b>Sin OC individual</b>'}</div>
+20697:       <div class="timeline-event-main">
+20698:         <div class="timeline-badges"><span class="timeline-badge">${html(event.tipo_evento)}</span><span class="timeline-badge">${html(event.estado)}</span><span class="timeline-badge ${riskClass(event.riesgo)}">Riesgo ${html(event.riesgo)}</span>${event.origen?`<span class="timeline-badge">${html(event.origen)}</span>`:''}</div>
+20699:         <h4>${html(event.titulo)}</h4>
+20700:         <p><b>${html(event.proveedor||'Proveedor sin definir')}</b>${event.rubro?` \u00b7 ${html(event.rubro)}`:''}${event.estacion?` \u00b7 ${html(event.estacion)}`:''}</p>
+20701:         ${compact?'':`<p>${html(event.descripcion||'Sin descripci\u00f3n.')}</p>${event.documentos_mencionados?`<p><b>Documentos:</b> ${html(event.documentos_mencionados)}</p>`:''}${pending}`}
+20702:       </div>
+---
+20657:   }
+20658:   function filteredEvents(){return sortEvents(window.coiTimelineEvents.filter(eventMatches));}
+20659:   function filtersMarkup(){
+20660:     const events=window.coiTimelineEvents;
+20661:     const f=state.filters;
+20662:     const field=(label,name,content)=>`<div class="timeline-field"><label for="timelineFilter_${name}">${html(label)}</label>${content}</div>`;
+20663:     return `<div class="timeline-filters" aria-label="Filtros del Timeline COI">
+20664:       ${field('Fecha desde','fecha_desde',`<input id="timelineFilter_fecha_desde" type="date" value="${attr(f.fecha_desde)}" data-timeline-filter="fecha_desde">`)}
+20665:       ${field('Fecha hasta','fecha_hasta',`<input id="timelineFilter_fecha_hasta" type="date" value="${attr(f.fecha_hasta)}" data-timeline-filter="fecha_hasta">`)}
+20666:       ${field('Semana','semana',`<input id="timelineFilter_semana" type="week" value="${attr(f.semana)}" data-timeline-filter="semana">`)}
+20667:       ${field('OC','oc',`<input id="timelineFilter_oc" type="search" value="${attr(f.oc)}" placeholder="Buscar N\u00ba OC" data-timeline-filter="oc" list="timelineOCFilterList">`)}
+20668:       ${field('Proveedor','proveedor',`<select id="timelineFilter_proveedor" data-timeline-filter="proveedor">${options(unique(events.map(e=>e.proveedor)),f.proveedor,'Todos')}</select>`)}
+20669:       ${field('Rubro','rubro',`<select id="timelineFilter_rubro" data-timeline-filter="rubro">${options(unique(events.map(e=>e.rubro)),f.rubro,'Todos')}</select>`)}
+20670:       ${field('Estado','estado',`<select id="timelineFilter_estado" data-timeline-filter="estado">${options(TIMELINE_STATUSES,f.estado,'Todos')}</select>`)}
+20671:       ${field('Riesgo','riesgo',`<select id="timelineFilter_riesgo" data-timeline-filter="riesgo">${options(TIMELINE_RISKS,f.riesgo,'Todos')}</select>`)}
+20672:       ${field('Tipo de evento','tipo_evento',`<select id="timelineFilter_tipo_evento" data-timeline-filter="tipo_evento">${options(TIMELINE_EVENT_TYPES,f.tipo_evento,'Todos')}</select>`)}
+20673:       ${field('Sistema / origen','origen',`<select id="timelineFilter_origen" data-timeline-filter="origen">${options(unique([...TIMELINE_ORIGINS,...events.map(e=>e.origen)]),f.origen,'Todos')}</select>`)}
+20674:       ${field('Responsable','responsable_accion',`<select id="timelineFilter_responsable_accion" data-timeline-filter="responsable_accion">${options(unique(events.map(e=>e.responsable_accion)),f.responsable_accion,'Todos')}</select>`)}
+20675:       <div class="timeline-filter-actions"><button type="button" id="btnTimelineAplicarFiltros" class="timeline-primary">Aplicar filtros</button><button type="button" id="btnTimelineLimpiarFiltros">Limpiar</button></div>
+20676:       <datalist id="timelineOCFilterList">${unique([...events.map(e=>e.oc),...getOrderRows().map(row=>orderData(row).oc)]).map(oc=>`<option value="${attr(oc)}"></option>`).join('')}</datalist>
+20677:     </div>`;
+20678:   }
+20679:   function kpisMarkup(data){
+20680:     const values=[
+20681:       [data.total,'Total eventos',''],[data.weekly,'Eventos de la semana',''],[data.activeOCs,'OCs con movimiento','ok'],
+20682:       [data.pendingCT,'Pendientes CT','warn'],[data.pendingHSMA,'Pendientes HSMA','warn'],
+20683:       [data.critical,'Eventos cr\u00edticos','bad'],[data.due,'Acciones vencidas / pr\u00f3ximas','bad']
+20684:     ];
+20685:     return `<div class="timeline-kpis">${values.map(([value,label,kind])=>`<div class="timeline-kpi ${kind}"><b>${html(value)}</b><span>${html(label)}</span></div>`).join('')}</div>`;
+20686:   }
+20687:   function eventCard(event,compact){
+20688:     const orderButton=event.oc?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
+20689:     const rawLink=String(event.link_documental??'').trim();
+20690: const validLink=/^https?:\/\//i.test(rawLink)&&coiURLHTTPValida(rawLink);
+20691: const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
+20692:     const pending=event.accion_pendiente?`<p class="pending-action"><b>Pr\u00f3xima acci\u00f3n:</b> ${html(event.accion_pendiente)}${event.responsable_accion?`<br><small>Responsable: ${html(event.responsable_accion)}${event.fecha_limite?` \u00b7 L\u00edmite: ${html(displayDate(event.fecha_limite))}`:''}</small>`:''}</p>`:'';
+20693:     const editButton=state.permissions.canWrite?`<button type="button" data-timeline-edit="${attr(event.id)}">Editar</button>`:'';
+20694:     const deleteButton=state.permissions.canDelete?`<button type="button" class="timeline-danger" data-timeline-delete="${attr(event.id)}">Eliminar</button>`:'';
+20695:     return `<article class="timeline-event-card ${riskClass(event.riesgo)}" data-timeline-event-id="${attr(event.id)}">
+20696:       <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><b>Sin OC individual</b>'}</div>
+20697:       <div class="timeline-event-main">
+20698:         <div class="timeline-badges"><span class="timeline-badge">${html(event.tipo_evento)}</span><span class="timeline-badge">${html(event.estado)}</span><span class="timeline-badge ${riskClass(event.riesgo)}">Riesgo ${html(event.riesgo)}</span>${event.origen?`<span class="timeline-badge">${html(event.origen)}</span>`:''}</div>
+20699:         <h4>${html(event.titulo)}</h4>
+20700:         <p><b>${html(event.proveedor||'Proveedor sin definir')}</b>${event.rubro?` \u00b7 ${html(event.rubro)}`:''}${event.estacion?` \u00b7 ${html(event.estacion)}`:''}</p>
+20701:         ${compact?'':`<p>${html(event.descripcion||'Sin descripci\u00f3n.')}</p>${event.documentos_mencionados?`<p><b>Documentos:</b> ${html(event.documentos_mencionados)}</p>`:''}${pending}`}
+20702:       </div>
+20703:       <div class="timeline-event-actions">${orderButton}${link}${editButton}${deleteButton}</div>
+---
+20658:   function filteredEvents(){return sortEvents(window.coiTimelineEvents.filter(eventMatches));}
+20659:   function filtersMarkup(){
+20660:     const events=window.coiTimelineEvents;
+20661:     const f=state.filters;
+20662:     const field=(label,name,content)=>`<div class="timeline-field"><label for="timelineFilter_${name}">${html(label)}</label>${content}</div>`;
+20663:     return `<div class="timeline-filters" aria-label="Filtros del Timeline COI">
+20664:       ${field('Fecha desde','fecha_desde',`<input id="timelineFilter_fecha_desde" type="date" value="${attr(f.fecha_desde)}" data-timeline-filter="fecha_desde">`)}
+20665:       ${field('Fecha hasta','fecha_hasta',`<input id="timelineFilter_fecha_hasta" type="date" value="${attr(f.fecha_hasta)}" data-timeline-filter="fecha_hasta">`)}
+20666:       ${field('Semana','semana',`<input id="timelineFilter_semana" type="week" value="${attr(f.semana)}" data-timeline-filter="semana">`)}
+20667:       ${field('OC','oc',`<input id="timelineFilter_oc" type="search" value="${attr(f.oc)}" placeholder="Buscar N\u00ba OC" data-timeline-filter="oc" list="timelineOCFilterList">`)}
+20668:       ${field('Proveedor','proveedor',`<select id="timelineFilter_proveedor" data-timeline-filter="proveedor">${options(unique(events.map(e=>e.proveedor)),f.proveedor,'Todos')}</select>`)}
+20669:       ${field('Rubro','rubro',`<select id="timelineFilter_rubro" data-timeline-filter="rubro">${options(unique(events.map(e=>e.rubro)),f.rubro,'Todos')}</select>`)}
+20670:       ${field('Estado','estado',`<select id="timelineFilter_estado" data-timeline-filter="estado">${options(TIMELINE_STATUSES,f.estado,'Todos')}</select>`)}
+20671:       ${field('Riesgo','riesgo',`<select id="timelineFilter_riesgo" data-timeline-filter="riesgo">${options(TIMELINE_RISKS,f.riesgo,'Todos')}</select>`)}
+20672:       ${field('Tipo de evento','tipo_evento',`<select id="timelineFilter_tipo_evento" data-timeline-filter="tipo_evento">${options(TIMELINE_EVENT_TYPES,f.tipo_evento,'Todos')}</select>`)}
+20673:       ${field('Sistema / origen','origen',`<select id="timelineFilter_origen" data-timeline-filter="origen">${options(unique([...TIMELINE_ORIGINS,...events.map(e=>e.origen)]),f.origen,'Todos')}</select>`)}
+20674:       ${field('Responsable','responsable_accion',`<select id="timelineFilter_responsable_accion" data-timeline-filter="responsable_accion">${options(unique(events.map(e=>e.responsable_accion)),f.responsable_accion,'Todos')}</select>`)}
+20675:       <div class="timeline-filter-actions"><button type="button" id="btnTimelineAplicarFiltros" class="timeline-primary">Aplicar filtros</button><button type="button" id="btnTimelineLimpiarFiltros">Limpiar</button></div>
+20676:       <datalist id="timelineOCFilterList">${unique([...events.map(e=>e.oc),...getOrderRows().map(row=>orderData(row).oc)]).map(oc=>`<option value="${attr(oc)}"></option>`).join('')}</datalist>
+20677:     </div>`;
+20678:   }
+20679:   function kpisMarkup(data){
+20680:     const values=[
+20681:       [data.total,'Total eventos',''],[data.weekly,'Eventos de la semana',''],[data.activeOCs,'OCs con movimiento','ok'],
+20682:       [data.pendingCT,'Pendientes CT','warn'],[data.pendingHSMA,'Pendientes HSMA','warn'],
+20683:       [data.critical,'Eventos cr\u00edticos','bad'],[data.due,'Acciones vencidas / pr\u00f3ximas','bad']
+20684:     ];
+20685:     return `<div class="timeline-kpis">${values.map(([value,label,kind])=>`<div class="timeline-kpi ${kind}"><b>${html(value)}</b><span>${html(label)}</span></div>`).join('')}</div>`;
+20686:   }
+20687:   function eventCard(event,compact){
+20688:     const orderButton=event.oc?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
+20689:     const rawLink=String(event.link_documental??'').trim();
+20690: const validLink=/^https?:\/\//i.test(rawLink)&&coiURLHTTPValida(rawLink);
+20691: const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
+20692:     const pending=event.accion_pendiente?`<p class="pending-action"><b>Pr\u00f3xima acci\u00f3n:</b> ${html(event.accion_pendiente)}${event.responsable_accion?`<br><small>Responsable: ${html(event.responsable_accion)}${event.fecha_limite?` \u00b7 L\u00edmite: ${html(displayDate(event.fecha_limite))}`:''}</small>`:''}</p>`:'';
+20693:     const editButton=state.permissions.canWrite?`<button type="button" data-timeline-edit="${attr(event.id)}">Editar</button>`:'';
+20694:     const deleteButton=state.permissions.canDelete?`<button type="button" class="timeline-danger" data-timeline-delete="${attr(event.id)}">Eliminar</button>`:'';
+20695:     return `<article class="timeline-event-card ${riskClass(event.riesgo)}" data-timeline-event-id="${attr(event.id)}">
+20696:       <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><b>Sin OC individual</b>'}</div>
+20697:       <div class="timeline-event-main">
+20698:         <div class="timeline-badges"><span class="timeline-badge">${html(event.tipo_evento)}</span><span class="timeline-badge">${html(event.estado)}</span><span class="timeline-badge ${riskClass(event.riesgo)}">Riesgo ${html(event.riesgo)}</span>${event.origen?`<span class="timeline-badge">${html(event.origen)}</span>`:''}</div>
+20699:         <h4>${html(event.titulo)}</h4>
+20700:         <p><b>${html(event.proveedor||'Proveedor sin definir')}</b>${event.rubro?` \u00b7 ${html(event.rubro)}`:''}${event.estacion?` \u00b7 ${html(event.estacion)}`:''}</p>
+20701:         ${compact?'':`<p>${html(event.descripcion||'Sin descripci\u00f3n.')}</p>${event.documentos_mencionados?`<p><b>Documentos:</b> ${html(event.documentos_mencionados)}</p>`:''}${pending}`}
+20702:       </div>
+20703:       <div class="timeline-event-actions">${orderButton}${link}${editButton}${deleteButton}</div>
+20704:     </article>`;
+---
+===== filtroTimeline :: [] =====
