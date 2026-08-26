@@ -1,0 +1,240 @@
+name: PR45 finalize patch
+
+on:
+  push:
+    branches:
+      - feat/timeline-supabase-first
+    paths:
+      - .github/workflows/pr45-finalize-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/timeline-supabase-first
+          persist-credentials: true
+
+      - name: Patch final review findings and mobile smoke
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          def replace_once(old, new, label):
+              global s
+              if old not in s:
+                  raise SystemExit(f'Missing target for {label}')
+              s = s.replace(old, new, 1)
+
+          replace_once(
+              "    const event=normalizeEvent(raw);\n    const order=event.oc?findOrder(event.oc):null;\n    return {",
+              "    const event=normalizeEvent(raw);\n    const order=event.oc?findOrder(event.oc):null;\n    const current=window.coiTimelineEvents.find(item=>item.id===event.id);\n    return {",
+              'timeline current version lookup'
+          )
+          replace_once(
+              "      expected_actualizado_en:event.actualizado_en||null",
+              "      expected_actualizado_en:event.actualizado_en&&current?.actualizado_en?current.actualizado_en:null",
+              'expected version only for existing rows'
+          )
+          replace_once(
+              "      actualizado_en:existing?.actualizado_en||nowISO()",
+              "      actualizado_en:existing?.actualizado_en||''",
+              'true create must not carry an expected version'
+          )
+          replace_once(
+              "          if(Array.isArray(parsed))incoming=parsed.map(normalizeEvent).filter(event=>text(event.titulo));",
+              "          if(Array.isArray(parsed)){\n            const invalidIndex=parsed.findIndex(item=>!text(item?.titulo));\n            if(invalidIndex>=0)throw new Error(`El evento Timeline #${invalidIndex+1} no tiene título.`);\n            incoming=parsed.map(normalizeEvent);\n          }",
+              'reject invalid backup rows'
+          )
+
+          start = s.index("  async function saveTimelineEventsSupabase(events,reason){")
+          end = s.index("  async function replaceTimelineEventsSupabase(events,reason){", start)
+          new_save = r'''  async function saveTimelineEventsSupabase(events,reason){
+    const writeGeneration=timelineAuthGeneration;
+    const {client}=await requireTimelineSupabase('write');
+    if(writeGeneration!==timelineAuthGeneration)throw new Error('La sesión cambió antes de iniciar la escritura del Timeline.');
+    const saved=await upsertTimelineEventsSupabase(client,events);
+    if(writeGeneration!==timelineAuthGeneration){
+      return {ok:true,count:saved.length,events:[],refreshed:false,discarded:true};
+    }
+    try{
+      const remote=await fetchTimelineEventsSupabase(client);
+      if(writeGeneration!==timelineAuthGeneration){
+        return {ok:true,count:saved.length,events:[],refreshed:false,discarded:true};
+      }
+      applyTimelineEvents(remote,reason||'Timeline guardado en Supabase');
+      setTimelinePersistence('online',`${remote.length} evento(s) sincronizado(s) con Supabase.`);
+      return {ok:true,count:saved.length,events:saved,refreshed:true};
+    }catch(refreshError){
+      if(writeGeneration!==timelineAuthGeneration){
+        return {ok:true,count:saved.length,events:[],refreshed:false,discarded:true,refreshError};
+      }
+      const committed=mergeCommittedTimelineEvents(window.coiTimelineEvents,saved);
+      applyTimelineEvents(committed,reason||'Timeline guardado en Supabase');
+      setTimelinePersistence('warning',`Supabase confirmó ${saved.length} evento(s), pero no se pudo refrescar la lista completa: ${refreshError?.message||refreshError}`);
+      return {ok:true,count:saved.length,events:saved,refreshed:false,refreshError};
+    }
+  }
+'''
+          s = s[:start] + new_save + s[end:]
+
+          start = s.index("  async function replaceTimelineEventsSupabase(events,reason){")
+          end = s.index("  window.coiTimelineEvents=[];", start)
+          new_replace = r'''  async function replaceTimelineEventsSupabase(events,reason){
+    const writeGeneration=timelineAuthGeneration;
+    const {client}=await requireTimelineSupabase('delete');
+    if(writeGeneration!==timelineAuthGeneration)throw new Error('La sesión cambió antes de iniciar la restauración del Timeline.');
+    const list=Array.isArray(events)?events:[];
+    if(list.length>5000)throw new Error('La restauración supera el límite transaccional de 5.000 eventos.');
+    const payload=list.map(timelineEventToDatabase);
+    const {data,error}=await client.rpc('coi_timeline_replace_events',{p_events:payload});
+    if(error)throw error;
+    const committed=(data||[]).map(databaseToTimelineEvent);
+    if(writeGeneration!==timelineAuthGeneration){
+      return {ok:true,count:committed.length,events:[],refreshed:false,discarded:true};
+    }
+    try{
+      const remote=await fetchTimelineEventsSupabase(client);
+      if(writeGeneration!==timelineAuthGeneration){
+        return {ok:true,count:committed.length,events:[],refreshed:false,discarded:true};
+      }
+      applyTimelineEvents(remote,reason||'Timeline reemplazado en Supabase');
+      setTimelinePersistence('online',`${remote.length} evento(s) restaurado(s) en Supabase.`);
+      return {ok:true,count:remote.length,events:remote,refreshed:true};
+    }catch(refreshError){
+      if(writeGeneration!==timelineAuthGeneration){
+        return {ok:true,count:committed.length,events:[],refreshed:false,discarded:true,refreshError};
+      }
+      applyTimelineEvents(committed,reason||'Timeline reemplazado en Supabase');
+      setTimelinePersistence('warning',`Supabase confirmó la restauración de ${committed.length} evento(s), pero falló el refresco posterior: ${refreshError?.message||refreshError}`);
+      return {ok:true,count:committed.length,events:committed,refreshed:false,refreshError};
+    }
+  }
+'''
+          s = s[:start] + new_replace + s[end:]
+
+          start = s.index("  async function deleteEvent(id){")
+          end = s.index("  function downloadJSON(){", start)
+          new_delete = r'''  async function deleteEvent(id){
+    const event=window.coiTimelineEvents.find(item=>item.id===id);
+    if(!event)return;
+    if(!confirm(`Eliminar el movimiento "${event.titulo}" del ${displayDate(event.fecha)}?\n\nSe eliminará el registro compartido de Supabase y quedará constancia en la auditoría.`))return;
+    const deleteGeneration=timelineAuthGeneration;
+    try{
+      const {client}=await requireTimelineSupabase('delete');
+      if(deleteGeneration!==timelineAuthGeneration)return;
+      const {data,error}=await client.from(TIMELINE_TABLE).delete().eq('id',id).eq('actualizado_en',event.actualizado_en).select('id');
+      if(error)throw error;
+      if(!Array.isArray(data)||data.length!==1)throw new Error('COI_TIMELINE_STALE_DELETE: el evento fue modificado por otra sesión. Actualizá el Timeline antes de eliminarlo.');
+      if(deleteGeneration!==timelineAuthGeneration)return;
+      try{
+        const remote=await fetchTimelineEventsSupabase(client);
+        if(deleteGeneration!==timelineAuthGeneration)return;
+        applyTimelineEvents(remote,'Evento eliminado en Supabase');
+        setTimelinePersistence('online',`${remote.length} evento(s) sincronizado(s) con Supabase.`);
+      }catch(refreshError){
+        if(deleteGeneration!==timelineAuthGeneration)return;
+        const committed=window.coiTimelineEvents.filter(item=>item.id!==id);
+        applyTimelineEvents(committed,'Evento eliminado en Supabase');
+        setTimelinePersistence('warning',`Supabase confirmó la eliminación, pero no se pudo refrescar la lista completa: ${refreshError?.message||refreshError}`);
+      }
+      if(deleteGeneration!==timelineAuthGeneration)return;
+      if(typeof window.mostrarMensajeCOI==='function')window.mostrarMensajeCOI('Evento eliminado de Supabase.','ok');
+    }catch(error){
+      if(deleteGeneration!==timelineAuthGeneration)return;
+      console.error('Timeline COI: no se eliminó el evento.',error);
+      alert(`No se eliminó el evento.\n\n${error?.message||error}`);
+    }
+  }
+'''
+          s = s[:start] + new_delete + s[end:]
+
+          # If a restore committed remotely but the auth generation changed, do not
+          # write legacy/migration cache markers for the old session.
+          replace_once(
+              "            await replaceTimelineEventsSupabase(incoming,'Timeline restaurado exactamente desde backup');\n            try{localStorage.removeItem(TIMELINE_LEGACY_KEY);}",
+              "            const replacement=await replaceTimelineEventsSupabase(incoming,'Timeline restaurado exactamente desde backup');\n            if(replacement?.discarded)return result;\n            try{localStorage.removeItem(TIMELINE_LEGACY_KEY);}",
+              'restore auth-generation discard'
+          )
+
+          p.write_text(s, encoding='utf-8')
+
+          # Chromium mobile: the drawer is already asserted open. Triggering the
+          # native DOM click tests navigation without Playwright hit-testing the
+          # element while the drawer transition is still settling.
+          p = Path('tests/delete_button.spec.js')
+          t = p.read_text(encoding='utf-8')
+          needle = "      await nav.click({ force: true });"
+          if t.count(needle) != 1:
+              raise SystemExit(f'Expected one mobile nav click in delete_button.spec.js, got {t.count(needle)}')
+          t = t.replace(needle, "      await nav.evaluate(el => el.click());", 1)
+          needle2 = "    await dashboardNav.click({ force: true });"
+          if t.count(needle2) != 1:
+              raise SystemExit('Missing dashboard mobile nav click')
+          t = t.replace(needle2, "    await dashboardNav.evaluate(el => el.click());", 1)
+          p.write_text(t, encoding='utf-8')
+
+          p = Path('tests/final_ux_alerts_orders_filter.spec.js')
+          t = p.read_text(encoding='utf-8')
+          old = "  await nav.click(mobile ? { force: true } : undefined);"
+          new = "  if (mobile) await nav.evaluate(el => el.click());\n  else await nav.click();"
+          if old not in t:
+              raise SystemExit('Missing mobile helper in final_ux test')
+          p.write_text(t.replace(old, new, 1), encoding='utf-8')
+
+          p = Path('tests/check_timeline_supabase_first.js')
+          t = p.read_text(encoding='utf-8')
+          old = "const privateLockHelper = fs.readFileSync('supabase/migrations/202608250008_timeline_private_lock_helper.sql', 'utf8');"
+          new = old + "\nconst finalHardening = fs.readFileSync('supabase/migrations/202608250009_timeline_final_review_hardening.sql', 'utf8');"
+          if old not in t:
+              raise SystemExit('Missing migration 008 reference')
+          t = t.replace(old, new, 1)
+          anchor = "for (const pattern of [\n  /create schema if not exists coi_private/"
+          if anchor not in t:
+              raise SystemExit('Missing private helper assertions anchor')
+          # Append final hardening assertions just before console.log.
+          marker = "\nconsole.log('Timeline/Mailing Supabase-first: caché aislada, CRUD concurrente, restore exacto y contrato SQL verificados.');"
+          insert = r'''
+for (const pattern of [
+  /jsonb_array_length\(p_events\) > 5000/,
+  /event\.id < p_before_id/,
+  /order by event\.id desc/,
+  /COI_TIMELINE_STALE_WRITE/,
+  /perform public\.coi_timeline_lock_orders\(p_events\)[\s\S]*lock table public\.coi_timeline_events/,
+  /source\.value - 'expected_actualizado_en'/
+]) assert.match(finalHardening, pattern);
+assert.match(html, /const writeGeneration=timelineAuthGeneration/);
+assert.match(html, /const deleteGeneration=timelineAuthGeneration/);
+assert.match(html, /replacement\?\.discarded/);
+assert.match(html, /invalidIndex=parsed\.findIndex\(item=>!text\(item\?\.titulo\)\)/);
+'''
+          if marker not in t:
+              raise SystemExit('Missing timeline check footer')
+          t = t.replace(marker, insert + marker, 1)
+          p.write_text(t, encoding='utf-8')
+          PY
+
+      - name: Validate Timeline static contract
+        run: |
+          npm ci
+          node tests/check_timeline_supabase_first.js
+          git diff --check
+
+      - name: Remove temporary workflow and commit
+        shell: bash
+        run: |
+          rm .github/workflows/pr45-finalize-patch.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html tests/delete_button.spec.js tests/final_ux_alerts_orders_filter.spec.js tests/check_timeline_supabase_first.js .github/workflows/pr45-finalize-patch.yml
+          git commit -m "fix: cerrar review final del timeline"
+          git push origin HEAD:feat/timeline-supabase-first
