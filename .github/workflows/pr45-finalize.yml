@@ -1,0 +1,184 @@
+name: PR45 Finalize Patch
+
+on:
+  push:
+    branches:
+      - feat/timeline-supabase-first
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply scoped final hardening
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+
+          def replace_once(old, new, label):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match, found {count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              "  let timelineLoadPromise=null;\n  let timelineLoadGeneration=-1;\n  let timelineAuthGeneration=0;",
+              "  let timelineLoadPromise=null;\n  let timelineLoadGeneration=-1;\n  let timelineLoadMutationGeneration=-1;\n  let timelineAuthGeneration=0;\n  let timelineMutationGeneration=0;",
+              'timeline generations'
+          )
+
+          replace_once(
+              "    if(pending.length)await upsertTimelineEventsSupabase(client,pending);\n    localStorage.setItem(TIMELINE_MIGRATION_KEY,JSON.stringify({completedAt:nowISO(),migrated:pending.length}));\n    localStorage.removeItem(TIMELINE_LEGACY_KEY);\n    return {migrated:pending.length};",
+              "    if(pending.length)await upsertTimelineEventsSupabase(client,pending);\n    try{localStorage.removeItem(TIMELINE_LEGACY_KEY);}catch(error){console.warn('Timeline COI: Supabase confirmó la migración, pero no se pudo retirar la entrada legacy.',error);}\n    try{localStorage.setItem(TIMELINE_MIGRATION_KEY,JSON.stringify({completedAt:nowISO(),migrated:pending.length}));}\n    catch(error){console.warn('Timeline COI: la migración quedó confirmada en Supabase; el marcador local es no autoritativo.',error);}\n    return {migrated:pending.length};",
+              'legacy retirement'
+          )
+
+          replace_once(
+              "  async function loadEvents(options={}){\n    const loadGeneration=timelineAuthGeneration;\n    if(timelineLoadPromise&&timelineLoadGeneration===loadGeneration)return timelineLoadPromise;\n    timelineLoadGeneration=loadGeneration;",
+              "  async function loadEvents(options={}){\n    const loadGeneration=timelineAuthGeneration;\n    const loadMutationGeneration=timelineMutationGeneration;\n    if(timelineLoadPromise&&timelineLoadGeneration===loadGeneration&&timelineLoadMutationGeneration===loadMutationGeneration)return timelineLoadPromise;\n    timelineLoadGeneration=loadGeneration;\n    timelineLoadMutationGeneration=loadMutationGeneration;",
+              'load generation start'
+          )
+
+          load_start = text.index("  async function loadEvents(options={}){")
+          load_end = text.index("  function mergeCommittedTimelineEvents", load_start)
+          load_section = text[load_start:load_end]
+          guard = "loadGeneration!==timelineAuthGeneration"
+          if guard not in load_section:
+              raise SystemExit('load mutation guard: no matches')
+          load_section = load_section.replace(guard, guard+"||loadMutationGeneration!==timelineMutationGeneration")
+          text = text[:load_start] + load_section + text[load_end:]
+
+          replace_once(
+              "    if(writeGeneration!==timelineAuthGeneration)throw new Error('La sesión cambió antes de iniciar la escritura del Timeline.');\n    const saved=await upsertTimelineEventsSupabase(client,events);",
+              "    if(writeGeneration!==timelineAuthGeneration)throw new Error('La sesión cambió antes de iniciar la escritura del Timeline.');\n    const writeMutationGeneration=++timelineMutationGeneration;\n    const saved=await upsertTimelineEventsSupabase(client,events);",
+              'save mutation generation'
+          )
+
+          exact_helper = r'''  function validateExactTimelineSnapshotEvent(item,index){
+    if(!item||typeof item!=='object'||Array.isArray(item))throw new Error(`El evento Timeline #${index+1} no es un objeto válido.`);
+    for(const field of TIMELINE_FIELDS){
+      if(!Object.prototype.hasOwnProperty.call(item,field))throw new Error(`El evento Timeline #${index+1} no contiene el campo ${field}.`);
+      if(typeof item[field]!=='string')throw new Error(`El campo ${field} del evento Timeline #${index+1} debe ser texto.`);
+      if(item[field]!==text(item[field]))throw new Error(`El campo ${field} del evento Timeline #${index+1} no está normalizado; se rechaza para no reescribir el backup.`);
+    }
+    if(!item.id)throw new Error(`El evento Timeline #${index+1} no tiene ID.`);
+    if(!item.titulo)throw new Error(`El evento Timeline #${index+1} no tiene título.`);
+    if(validDate(item.fecha)!==item.fecha)throw new Error(`El evento Timeline #${index+1} tiene una fecha inválida.`);
+    if(!/^\d{2}:\d{2}$/.test(item.hora))throw new Error(`El evento Timeline #${index+1} tiene una hora inválida.`);
+    if(!item.semana)throw new Error(`El evento Timeline #${index+1} no tiene semana ISO.`);
+    if(!TIMELINE_STATUSES.includes(item.estado))throw new Error(`El evento Timeline #${index+1} tiene un estado inválido.`);
+    if(!TIMELINE_RISKS.includes(item.riesgo))throw new Error(`El evento Timeline #${index+1} tiene un riesgo inválido.`);
+    if(!TIMELINE_EVENT_TYPES.includes(item.tipo_evento))throw new Error(`El evento Timeline #${index+1} tiene un tipo de evento inválido.`);
+    if(item.fecha_limite&&validDate(item.fecha_limite)!==item.fecha_limite)throw new Error(`El evento Timeline #${index+1} tiene una fecha límite inválida.`);
+    if(!item.creado_por)throw new Error(`El evento Timeline #${index+1} no tiene creado_por.`);
+    if(!item.origen_carga)throw new Error(`El evento Timeline #${index+1} no tiene origen_carga.`);
+    return item;
+  }
+'''
+          marker = "  async function replaceTimelineEventsSupabase(events,reason){"
+          if text.count(marker) != 1:
+              raise SystemExit('replace function marker mismatch')
+          text = text.replace(marker, exact_helper + marker, 1)
+
+          replace_once(
+              "    if(writeGeneration!==timelineAuthGeneration)throw new Error('La sesión cambió antes de iniciar la restauración del Timeline.');\n    const list=Array.isArray(events)?events:[];\n    if(list.length>5000)throw new Error('La restauración supera el límite transaccional de 5.000 eventos.');\n    const payload=list.map(timelineEventToDatabase);",
+              "    if(writeGeneration!==timelineAuthGeneration)throw new Error('La sesión cambió antes de iniciar la restauración del Timeline.');\n    const writeMutationGeneration=++timelineMutationGeneration;\n    const list=Array.isArray(events)?events:[];\n    list.forEach(validateExactTimelineSnapshotEvent);\n    const payload=list.map(timelineEventToDatabase);",
+              'replace validation and generation'
+          )
+
+          write_guard = "if(writeGeneration!==timelineAuthGeneration){"
+          write_count = text.count(write_guard)
+          if write_count < 2:
+              raise SystemExit(f'write mutation guards: expected >=2, found {write_count}')
+          text = text.replace(write_guard, "if(writeGeneration!==timelineAuthGeneration||writeMutationGeneration!==timelineMutationGeneration){")
+
+          delete_start = text.index("  async function deleteEvent(id){")
+          next_sync = text.find("\n  function ", delete_start + 20)
+          next_async = text.find("\n  async function ", delete_start + 20)
+          candidates = [x for x in (next_sync,next_async) if x != -1]
+          delete_end = min(candidates) if candidates else len(text)
+          delete_section = text[delete_start:delete_end]
+
+          old_delete_setup = "      const {client}=await requireTimelineSupabase('delete');\n      if(deleteGeneration!==timelineAuthGeneration)return;\n      const {data,error}=await client.from(TIMELINE_TABLE).delete().eq('id',id).eq('actualizado_en',event.actualizado_en).select('id');\n      if(error)throw error;"
+          new_delete_setup = "      const {client}=await requireTimelineSupabase('delete');\n      if(deleteGeneration!==timelineAuthGeneration)return;\n      const deleteMutationGeneration=++timelineMutationGeneration;\n      const {data,error}=await client.rpc('coi_timeline_delete_event',{p_id:id,p_expected_actualizado_en:event.actualizado_en||null});\n      if(error)throw error;"
+          if delete_section.count(old_delete_setup) != 1:
+              raise SystemExit('delete RPC setup mismatch')
+          delete_section = delete_section.replace(old_delete_setup,new_delete_setup,1)
+          guard_delete = "if(deleteGeneration!==timelineAuthGeneration)return;"
+          pieces = delete_section.split(guard_delete)
+          if len(pieces) < 3:
+              raise SystemExit('delete generation guards mismatch')
+          delete_section = pieces[0] + guard_delete + ("if(deleteGeneration!==timelineAuthGeneration||deleteMutationGeneration!==timelineMutationGeneration)return;").join(pieces[1:])
+          text = text[:delete_start] + delete_section + text[delete_end:]
+
+          replace_once(
+              "          if(Array.isArray(parsed)){\n            const invalidIndex=parsed.findIndex(item=>!text(item?.titulo));\n            if(invalidIndex>=0)throw new Error(`El evento Timeline #${invalidIndex+1} no tiene título.`);\n            incoming=parsed.map(normalizeEvent);\n          }",
+              "          if(Array.isArray(parsed)){\n            parsed.forEach(validateExactTimelineSnapshotEvent);\n            incoming=parsed.map(item=>({...item}));\n          }",
+              'restore raw validation'
+          )
+
+          replace_once(
+              "adminSetMsg(`Backup importado correctamente en Supabase: ${file.name}`,'ok');",
+              "adminSetMsg(`Backup procesado: Timeline restaurado en Supabase. Las demás secciones del archivo no reemplazan tablas remotas desde este flujo: ${file.name}`,'warn');",
+              'admin import message'
+          )
+          replace_once(
+              "adminSetMsg('Backup interno restaurado correctamente en Supabase.','ok');",
+              "adminSetMsg('Backup procesado: Timeline restaurado en Supabase. Las demás secciones del backup interno no reemplazan tablas remotas desde este flujo.','warn');",
+              'internal restore message'
+          )
+
+          path.write_text(text, encoding='utf-8')
+
+          test_path = Path('tests/check_timeline_supabase_first.js')
+          test = test_path.read_text(encoding='utf-8')
+          test = test.replace(
+              "const finalHardening = fs.readFileSync('supabase/migrations/202608250009_timeline_final_review_hardening.sql', 'utf8');",
+              "const finalHardening = fs.readFileSync('supabase/migrations/202608250009_timeline_final_review_hardening.sql', 'utf8');\nconst serialization = fs.readFileSync('supabase/migrations/202608260010_timeline_transaction_serialization.sql', 'utf8');"
+          )
+          test = test.replace(
+              "/\\.delete\\(\\)\\.eq\\('id',id\\)\\.eq\\('actualizado_en',event\\.actualizado_en\\)\\.select\\('id'\\)/,",
+              "/client\\.rpc\\('coi_timeline_delete_event',\\{p_id:id,p_expected_actualizado_en:event\\.actualizado_en\\|\\|null\\}\\)/,"
+          )
+          test = test.replace(
+              "assert.match(html, /invalidIndex=parsed\\.findIndex\\(item=>!text\\(item\\?\\.titulo\\)\\)/);",
+              "assert.match(html, /validateExactTimelineSnapshotEvent/);\nassert.match(html, /let timelineMutationGeneration=0/);\nassert.match(html, /loadMutationGeneration!==timelineMutationGeneration/);"
+          )
+          needle = "assert.match(html, /replacement\\?\\.discarded/);"
+          addition = """for (const pattern of [
+  /pg_advisory_xact_lock\\(hashtextextended\\('coi_timeline_mutation_v1'/,
+  /coi_timeline_replace_events/,
+  /coi_timeline_delete_event/,
+  /COI_TIMELINE_STALE_DELETE/,
+  /Restore administrativo atomico y sin limite artificial de 5000/
+]) assert.match(serialization, pattern);
+assert.match(html, /replacement\\?\\.discarded/);"""
+          if needle not in test:
+              raise SystemExit('test insertion marker missing')
+          test = test.replace(needle, addition, 1)
+          test_path.write_text(test, encoding='utf-8')
+          PY
+
+          node tests/check_timeline_supabase_first.js
+          git diff --check
+
+      - name: Commit scoped patch and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/pr45-finalize.yml
+          git add index.html tests/check_timeline_supabase_first.js
+          git commit -m "fix: finish timeline Supabase-first hardening"
+          git push origin HEAD:feat/timeline-supabase-first
