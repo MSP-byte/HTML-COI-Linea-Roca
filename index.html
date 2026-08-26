@@ -20676,15 +20676,44 @@ if(document.readyState==='loading'){
     ];
     return `<div class="timeline-kpis">${values.map(([value,label,kind])=>`<div class="timeline-kpi ${kind}"><b>${html(value)}</b><span>${html(label)}</span></div>`).join('')}</div>`;
   }
+  function isMailEvent(event){
+    return fold(event?.tipo_evento)==='mailing'||fold(event?.origen)==='mailing';
+  }
+  function timelineDateToken(value){
+    const raw=text(value);
+    if(validDate(raw))return raw;
+    const match=raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if(!match)return '';
+    const iso=`${match[3]}-${String(match[2]).padStart(2,'0')}-${String(match[1]).padStart(2,'0')}`;
+    return validDate(iso);
+  }
+  function isControlTercerosEvent(event){
+    if(!text(event?.oc))return false;
+    const source=fold([event?.origen,event?.tipo_evento,event?.titulo,event?.remitente,event?.descripcion,event?.observaciones].map(text).join(' '));
+    return fold(event?.origen)==='control de terceros'||source.includes('control de terceros')||source.includes('control de 3ros')||source.includes('control de 3eros');
+  }
+  function controlTercerosDateCandidate(event){
+    if(!isControlTercerosEvent(event))return '';
+    const structured=timelineDateToken(event?.fecha_limite);
+    if(structured)return structured;
+    const source=[event?.titulo,event?.descripcion,event?.observaciones,event?.accion_pendiente,event?.documentos_mencionados].map(text).filter(Boolean).join(' ');
+    const match=source.match(/(?:vigencia\s+)?(?:hasta(?:\s+el)?|vigente\s+hasta(?:\s+el)?|v[áa]lid[oa]\s+hasta(?:\s+el)?|vence(?:\s+el)?|vencimiento(?:\s+el)?)\s*[:\-]?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}|\d{4}-\d{2}-\d{2})/i);
+    return timelineDateToken(match?.[1]||'');
+  }
   function eventCard(event,compact){
     const orderButton=event.oc?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
     const rawLink=String(event.link_documental??'').trim();
 const validLink=/^https?:\/\//i.test(rawLink)&&coiURLHTTPValida(rawLink);
 const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
     const pending=event.accion_pendiente?`<p class="pending-action"><b>Pr\u00f3xima acci\u00f3n:</b> ${html(event.accion_pendiente)}${event.responsable_accion?`<br><small>Responsable: ${html(event.responsable_accion)}${event.fecha_limite?` \u00b7 L\u00edmite: ${html(displayDate(event.fecha_limite))}`:''}</small>`:''}</p>`:'';
+    const mailEvent=isMailEvent(event);
+    const ctDate=controlTercerosDateCandidate(event);
+    const riskBadge=mailEvent?'':`${riskBadge}`;
+    const cardRiskClass=mailEvent?'':riskClass(event.riesgo);
+    const ctUpdateButton=ctDate&&state.permissions.canWrite?`<button type="button" class="timeline-primary" data-timeline-ct-update="${attr(event.id)}">Actualizar CT hasta ${html(displayDate(ctDate))}</button>`:'';
     const editButton=state.permissions.canWrite?`<button type="button" data-timeline-edit="${attr(event.id)}">Editar</button>`:'';
     const deleteButton=state.permissions.canDelete?`<button type="button" class="timeline-danger" data-timeline-delete="${attr(event.id)}">Eliminar</button>`:'';
-    return `<article class="timeline-event-card ${riskClass(event.riesgo)}" data-timeline-event-id="${attr(event.id)}">
+    return `<article class="timeline-event-card ${cardRiskClass}" data-timeline-event-id="${attr(event.id)}">
       <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><b>Sin OC individual</b>'}</div>
       <div class="timeline-event-main">
         <div class="timeline-badges"><span class="timeline-badge">${html(event.tipo_evento)}</span><span class="timeline-badge">${html(event.estado)}</span><span class="timeline-badge ${riskClass(event.riesgo)}">Riesgo ${html(event.riesgo)}</span>${event.origen?`<span class="timeline-badge">${html(event.origen)}</span>`:''}</div>
@@ -20692,7 +20721,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
         <p><b>${html(event.proveedor||'Proveedor sin definir')}</b>${event.rubro?` \u00b7 ${html(event.rubro)}`:''}${event.estacion?` \u00b7 ${html(event.estacion)}`:''}</p>
         ${compact?'':`<p>${html(event.descripcion||'Sin descripci\u00f3n.')}</p>${event.documentos_mencionados?`<p><b>Documentos:</b> ${html(event.documentos_mencionados)}</p>`:''}${pending}`}
       </div>
-      <div class="timeline-event-actions">${orderButton}${link}${editButton}${deleteButton}</div>
+      <div class="timeline-event-actions">${ctUpdateButton}${orderButton}${link}${editButton}${deleteButton}</div>
     </article>`;
   }
   function dailyMarkup(events){
@@ -20704,23 +20733,6 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     });
     return [...groups.entries()].map(([date,list])=>`<section class="timeline-date-group"><div class="timeline-section-head"><div><h3>${html(displayDate(date))}</h3><p>${list.length} movimiento(s)</p></div></div>${list.map(event=>eventCard(event,false)).join('')}</section>`).join('');
   }
-  function weeklyMarkup(events){
-    if(!events.length)return '<div class="timeline-empty">No hay movimientos semanales para los filtros seleccionados.</div>';
-    const groups=new Map();
-    events.forEach(event=>{
-      const key=[event.semana,event.proveedor||'Sin proveedor',event.oc||'Sin OC individual'].join('|');
-      if(!groups.has(key))groups.set(key,[]);
-      groups.get(key).push(event);
-    });
-    const rows=[...groups.values()].sort((a,b)=>text(b[0].semana).localeCompare(text(a[0].semana))).map(list=>{
-      const ordered=sortEvents(list);
-      const last=ordered[0];
-      const pending=ordered.filter(isPending);
-      const risk=maxRisk(ordered);
-      return `<tr class="${risk==='Cr\u00edtico'?'timeline-critical-order-row':''}"><td>${html(last.semana)}</td><td>${html(last.proveedor||'—')}</td><td>${html(last.oc||'Sin OC individual')}</td><td>${ordered.length}</td><td>${html(last.estado)}</td><td><span class="timeline-badge ${riskClass(risk)}">${html(risk)}</span></td><td>${pending.length}</td><td>${html(nextAction(ordered)?.accion_pendiente||'Sin acci\u00f3n pendiente')}</td><td>${last.oc?`<button type="button" data-timeline-open-oc="${attr(last.oc)}">Ficha OC</button>`:'—'}</td></tr>`;
-    }).join('');
-    return `<div class="timeline-table-wrap"><table class="timeline-table"><thead><tr><th>Semana</th><th>Proveedor</th><th>OC</th><th>Movimientos</th><th>Estado final</th><th>Riesgo m\u00e1ximo</th><th>Pendientes</th><th>Pr\u00f3xima acci\u00f3n</th><th>Acci\u00f3n</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-  }
   function ocMarkup(events){
     if(!events.length)return '<div class="timeline-empty">No hay eventos vinculados a la OC indicada.</div>';
     const groups=new Map();
@@ -20731,9 +20743,8 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     });
     return [...groups.entries()].map(([oc,list])=>{
       const ordered=sortEvents(list);
-      const risk=maxRisk(ordered);
       const action=nextAction(ordered);
-      return `<section class="timeline-oc-group"><div class="timeline-section-head"><div><h3>${oc==='Sin OC individual'?html(oc):`OC ${html(oc)}`}</h3><p>${ordered.length} movimiento(s) \u00b7 \u00daltimo: ${html(displayDate(ordered[0].fecha))} \u00b7 Riesgo m\u00e1ximo: ${html(risk)}${action?` \u00b7 Pr\u00f3xima acci\u00f3n: ${html(action.accion_pendiente)}`:''}</p></div>${oc!=='Sin OC individual'?`<button type="button" data-timeline-open-oc="${attr(oc)}">Abrir ficha OC</button>`:''}</div><div class="timeline-vertical">${ordered.map(event=>eventCard(event,false)).join('')}</div></section>`;
+      return `<section class="timeline-oc-group"><div class="timeline-section-head"><div><h3>${oc==='Sin OC individual'?html(oc):`OC ${html(oc)}`}</h3><p>${ordered.length} movimiento(s) \u00b7 \u00daltimo: ${html(displayDate(ordered[0].fecha))}${action?` \u00b7 Pr\u00f3xima acci\u00f3n: ${html(action.accion_pendiente)}`:''}</p></div>${oc!=='Sin OC individual'?`<button type="button" data-timeline-open-oc="${attr(oc)}">Abrir ficha OC</button>`:''}</div><div class="timeline-vertical">${ordered.map(event=>eventCard(event,false)).join('')}</div></section>`;
     }).join('');
   }
 
@@ -20966,19 +20977,19 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     ensureStructure();
     const mount=byId('timelineCOIBody');
     if(!mount)return;
+    if(!['diaria','oc'].includes(state.view))state.view='diaria';
     const events=filteredEvents();
     let result=dailyMarkup(events);
-    if(state.view==='semanal')result=weeklyMarkup(events);
     if(state.view==='oc')result=ocMarkup(events);
     const writeActions=state.permissions.canWrite?'<button type="button" id="btnTimelineNuevo" class="timeline-primary">Nueva carga manual</button><button type="button" id="btnTimelineImportJSON">Importar JSON</button><input type="file" id="timelineImportFile" accept="application/json,.json" hidden>':'';
     mount.innerHTML=`<div class="timeline-view-shell">
       <section class="timeline-hero"><div><h2>Timeline COI / Trazabilidad por OC</h2><p>Mailings, sistemas, actas, certificados, remitos, facturas y acciones pendientes en una secuencia auditable.</p></div><div class="timeline-actions">${writeActions}<button type="button" id="btnTimelineExportJSON">Exportar JSON</button></div></section>
       ${persistenceMarkup()}
       ${kpisMarkup(metrics())}
-      <nav class="timeline-tabs" aria-label="Vistas del Timeline COI"><button type="button" data-timeline-view="diaria" class="${state.view==='diaria'?'active':''}">Vista diaria</button><button type="button" data-timeline-view="semanal" class="${state.view==='semanal'?'active':''}">Vista semanal</button><button type="button" data-timeline-view="oc" class="${state.view==='oc'?'active':''}">Vista por OC</button></nav>
+      <nav class="timeline-tabs" aria-label="Vistas del Timeline COI"><button type="button" data-timeline-view="diaria" class="${state.view==='diaria'?'active':''}">Vista diaria</button><button type="button" data-timeline-view="oc" class="${state.view==='oc'?'active':''}">Vista por OC</button></nav>
       ${filtersMarkup()}
       <section id="timelineResultsAnchor" class="timeline-results-section" aria-live="polite">
-        <div class="timeline-section-head"><div><h3>${state.view==='diaria'?'Movimientos diarios':state.view==='semanal'?'Resumen semanal':'Historial por OC'}</h3><p>${events.length} de ${window.coiTimelineEvents.length} evento(s) visibles</p></div></div>
+        <div class="timeline-section-head"><div><h3>${state.view==='diaria'?'Movimientos diarios':'Historial por OC'}</h3><p>${events.length} de ${window.coiTimelineEvents.length} evento(s) visibles</p></div></div>
         <div class="timeline-result">${result}</div>
       </section>
       ${editorMarkup()}
@@ -21350,6 +21361,28 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       if(remove){await deleteEvent(remove.dataset.timelineDelete);return;}
       const openOC=target.closest('[data-timeline-open-oc]');
       if(openOC){openOrder(openOC.dataset.timelineOpenOc);return;}
+      const ctUpdate=target.closest('[data-timeline-ct-update]');
+      if(ctUpdate){
+        event.preventDefault();
+        const timelineEvent=window.coiTimelineEvents.find(item=>item.id===text(ctUpdate.dataset.timelineCtUpdate));
+        const ctDate=controlTercerosDateCandidate(timelineEvent);
+        if(!timelineEvent?.oc||!ctDate){alert('No se pudo identificar una OC y una fecha válida de Control de Terceros en este mail.');return;}
+        if(typeof window.coiActualizarControlTercerosDesdeTimeline!=='function'){alert('La integración con Control de Terceros todavía no está disponible.');return;}
+        if(!window.confirm(`Actualizar Control de Terceros de la OC ${timelineEvent.oc} hasta ${displayDate(ctDate)}?`))return;
+        ctUpdate.disabled=true;
+        let completed=false;
+        try{
+          const result=await window.coiActualizarControlTercerosDesdeTimeline(timelineEvent.oc,ctDate);
+          completed=true;
+          if(ctUpdate.isConnected)ctUpdate.textContent=`CT actualizado hasta ${displayDate(result?.fecha||ctDate)}`;
+          alert(`Control de Terceros actualizado en la OC ${result?.nro_oc||timelineEvent.oc} hasta ${displayDate(result?.fecha||ctDate)}.`);
+        }catch(error){
+          alert(`No se pudo actualizar Control de Terceros en Supabase.\n\n${error?.message||error}`);
+        }finally{
+          if(ctUpdate.isConnected&&!completed)ctUpdate.disabled=false;
+        }
+        return;
+      }
       if(target.closest('#btnTimelineAplicarFiltros')){readFilters();state.editingId='';renderTimelineCOI();requestAnimationFrame(()=>byId('timelineResultsAnchor')?.scrollIntoView({block:'nearest'}));return;}
       if(target.closest('#btnTimelineLimpiarFiltros')){resetFilters();renderTimelineCOI();return;}
       if(target.closest('#btnTimelineExportJSON')){downloadJSON();return;}
@@ -22823,9 +22856,33 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
   window.normalizarTextoEstado=window.normalizarTextoEstado||normText;
   window.obtenerPasoContractualDesdeEstadoDocumental=function(estadoDocumental){return stageByCodeOrName(estadoDocumental);};
   window.actualizarEstadoDocumentalDesdePasoContractual=actualizarEstadoDocumentalDesdePasoContractualR28;
+  async function actualizarControlTercerosDesdeTimeline(nroOC,fechaRaw){
+    const oc=findOrder(nroOC);
+    if(!oc)throw new Error(`No se encontró la OC ${clean(nroOC)}.`);
+    if(!canEdit())throw new Error('Modo consulta: no posee permisos para editar Control de Terceros.');
+    let user=null;
+    try{user=await getUser();}
+    catch(error){throw new Error(`No se pudo validar la sesión de Supabase: ${clean(error?.message||error)}`);}
+    if(!user)throw new Error('Debe iniciar sesión en Supabase para editar Control de Terceros.');
+    const fecha=fechaISO(fechaRaw);
+    if(!fecha)throw new Error('La fecha detectada de Control de Terceros no es válida.');
+    const estado=calcularEstadoControlTerceros(fecha).estado;
+    const synced=await syncCTSupabase(oc,fecha,estado);
+    const persisted=synced.row||{};
+    const persistedDate=fechaISO(persisted.control_terceros_hasta)||fecha;
+    const persistedStatus=clean(persisted.control_terceros_estado)||estado;
+    setCT(oc,persistedDate);
+    setMany(oc,CT_STATUS_FIELDS,persistedStatus);
+    if(oc._supabaseRaw&&typeof oc._supabaseRaw==='object')Object.assign(oc._supabaseRaw,{control_terceros_hasta:persistedDate,control_terceros_estado:persistedStatus});
+    guardarLocal();
+    try{if(orderNro(findOrder(currentKey()))===orderNro(oc))injectCT(oc);}catch(e){}
+    try{if(typeof window.renderCentroAlertas==='function')window.renderCentroAlertas();}catch(e){}
+    return{nro_oc:orderNro(oc),fecha:persistedDate,estado:persistedStatus};
+  }
   window.coiR28InjectControlTerceros=injectCT;
   window.coiRestoreContractualCT=injectCT;
   window.coiR28GuardarControlTerceros=saveCTFromButton;
+  window.coiActualizarControlTercerosDesdeTimeline=actualizarControlTercerosDesdeTimeline;
   window.setControlTercerosEditMode=setControlTercerosEditMode;
   window.cancelarEdicionControlTerceros=cancelarEdicionControlTerceros;
 
