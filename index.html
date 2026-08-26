@@ -20077,7 +20077,7 @@ if(document.readyState==='loading'){
   const state={
     view:'diaria',
     editingId:'',
-    filters:{fecha:'',fecha_desde:'',fecha_hasta:'',semana:'',oc:'',proveedor:'',rubro:'',estado:'',riesgo:'',tipo_evento:'',origen:'',responsable_accion:''},
+    filters:{fecha:'',fecha_desde:'',oc:'',proveedor:'',rubro:'',tipo_evento:'',origen:'',responsable_accion:''},
     bulk:{text:'',events:[],previewed:false,allowDuplicates:false,recent:[],lastMessage:''},
     persistence:{mode:'loading',message:'Cargando Timeline desde Supabase…'},
     permissions:{role:'',canRead:false,canWrite:false,canDelete:false}
@@ -20643,13 +20643,9 @@ if(document.readyState==='loading'){
     const f=state.filters;
     if(f.fecha&&event.fecha!==f.fecha)return false;
     if(f.fecha_desde&&event.fecha<f.fecha_desde)return false;
-    if(f.fecha_hasta&&event.fecha>f.fecha_hasta)return false;
-    if(f.semana&&event.semana!==f.semana)return false;
     if(f.oc&&!fold(event.oc).includes(fold(f.oc)))return false;
     if(f.proveedor&&event.proveedor!==f.proveedor)return false;
     if(f.rubro&&event.rubro!==f.rubro)return false;
-    if(f.estado&&event.estado!==f.estado)return false;
-    if(f.riesgo&&event.riesgo!==f.riesgo)return false;
     if(f.tipo_evento&&event.tipo_evento!==f.tipo_evento)return false;
     if(f.origen&&event.origen!==f.origen)return false;
     if(f.responsable_accion&&event.responsable_accion!==f.responsable_accion)return false;
@@ -20662,13 +20658,9 @@ if(document.readyState==='loading'){
     const field=(label,name,content)=>`<div class="timeline-field"><label for="timelineFilter_${name}">${html(label)}</label>${content}</div>`;
     return `<div class="timeline-filters" aria-label="Filtros del Timeline COI">
       ${field('Fecha desde','fecha_desde',`<input id="timelineFilter_fecha_desde" type="date" value="${attr(f.fecha_desde)}" data-timeline-filter="fecha_desde">`)}
-      ${field('Fecha hasta','fecha_hasta',`<input id="timelineFilter_fecha_hasta" type="date" value="${attr(f.fecha_hasta)}" data-timeline-filter="fecha_hasta">`)}
-      ${field('Semana','semana',`<input id="timelineFilter_semana" type="week" value="${attr(f.semana)}" data-timeline-filter="semana">`)}
       ${field('OC','oc',`<input id="timelineFilter_oc" type="search" value="${attr(f.oc)}" placeholder="Buscar N\u00ba OC" data-timeline-filter="oc" list="timelineOCFilterList">`)}
       ${field('Proveedor','proveedor',`<select id="timelineFilter_proveedor" data-timeline-filter="proveedor">${options(unique(events.map(e=>e.proveedor)),f.proveedor,'Todos')}</select>`)}
       ${field('Rubro','rubro',`<select id="timelineFilter_rubro" data-timeline-filter="rubro">${options(unique(events.map(e=>e.rubro)),f.rubro,'Todos')}</select>`)}
-      ${field('Estado','estado',`<select id="timelineFilter_estado" data-timeline-filter="estado">${options(TIMELINE_STATUSES,f.estado,'Todos')}</select>`)}
-      ${field('Riesgo','riesgo',`<select id="timelineFilter_riesgo" data-timeline-filter="riesgo">${options(TIMELINE_RISKS,f.riesgo,'Todos')}</select>`)}
       ${field('Tipo de evento','tipo_evento',`<select id="timelineFilter_tipo_evento" data-timeline-filter="tipo_evento">${options(TIMELINE_EVENT_TYPES,f.tipo_evento,'Todos')}</select>`)}
       ${field('Sistema / origen','origen',`<select id="timelineFilter_origen" data-timeline-filter="origen">${options(unique([...TIMELINE_ORIGINS,...events.map(e=>e.origen)]),f.origen,'Todos')}</select>`)}
       ${field('Responsable','responsable_accion',`<select id="timelineFilter_responsable_accion" data-timeline-filter="responsable_accion">${options(unique(events.map(e=>e.responsable_accion)),f.responsable_accion,'Todos')}</select>`)}
@@ -20985,10 +20977,12 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       ${kpisMarkup(metrics())}
       <nav class="timeline-tabs" aria-label="Vistas del Timeline COI"><button type="button" data-timeline-view="diaria" class="${state.view==='diaria'?'active':''}">Vista diaria</button><button type="button" data-timeline-view="semanal" class="${state.view==='semanal'?'active':''}">Vista semanal</button><button type="button" data-timeline-view="oc" class="${state.view==='oc'?'active':''}">Vista por OC</button></nav>
       ${filtersMarkup()}
+      <section id="timelineResultsAnchor" class="timeline-results-section" aria-live="polite">
+        <div class="timeline-section-head"><div><h3>${state.view==='diaria'?'Movimientos diarios':state.view==='semanal'?'Resumen semanal':'Historial por OC'}</h3><p>${events.length} de ${window.coiTimelineEvents.length} evento(s) visibles</p></div></div>
+        <div class="timeline-result">${result}</div>
+      </section>
       ${editorMarkup()}
       ${bulkImportMarkup()}
-      <div class="timeline-section-head"><div><h3>${state.view==='diaria'?'Movimientos diarios':state.view==='semanal'?'Resumen semanal':'Historial por OC'}</h3><p>${events.length} de ${window.coiTimelineEvents.length} evento(s) visibles</p></div></div>
-      <div class="timeline-result">${result}</div>
     </div>`;
   }
   window.renderTimelineCOI=renderTimelineCOI;
@@ -21335,7 +21329,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       }
       if(target.closest('[data-timeline-refresh]')){await loadEvents();return;}
       const tab=target.closest('[data-timeline-view]');
-      if(tab){state.view=tab.dataset.timelineView;state.editingId='';renderTimelineCOI();return;}
+      if(tab){state.view=tab.dataset.timelineView;state.editingId='';renderTimelineCOI();requestAnimationFrame(()=>byId('timelineResultsAnchor')?.scrollIntoView({block:'nearest'}));return;}
       if(target.closest('#btnTimelineNuevo')){state.editingId='__new__';renderTimelineCOI();return;}
       const newForOC=target.closest('[data-timeline-new-for-oc]');
       if(newForOC){
@@ -21356,7 +21350,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       if(remove){await deleteEvent(remove.dataset.timelineDelete);return;}
       const openOC=target.closest('[data-timeline-open-oc]');
       if(openOC){openOrder(openOC.dataset.timelineOpenOc);return;}
-      if(target.closest('#btnTimelineAplicarFiltros')){readFilters();renderTimelineCOI();return;}
+      if(target.closest('#btnTimelineAplicarFiltros')){readFilters();state.editingId='';renderTimelineCOI();requestAnimationFrame(()=>byId('timelineResultsAnchor')?.scrollIntoView({block:'nearest'}));return;}
       if(target.closest('#btnTimelineLimpiarFiltros')){resetFilters();renderTimelineCOI();return;}
       if(target.closest('#btnTimelineExportJSON')){downloadJSON();return;}
       if(target.closest('#btnTimelineImportJSON')){byId('timelineImportFile')?.click();return;}
