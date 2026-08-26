@@ -236,14 +236,19 @@ async function main() {
       { id: 'TL-REPLACE-OLD-2', fecha: '2026-08-25', titulo: 'Anterior 2', estado: 'Informativo', riesgo: 'Bajo' }
     ]);
     await db.query('select id from public.coi_timeline_upsert_events($1::jsonb)', [replaceSeed]);
+    const exactRestoreStamp = '2026-08-26T12:34:56.000Z';
     const exactSnapshot = JSON.stringify([
-      { id: 'TL-REPLACE-ONLY', fecha: '2026-08-26', titulo: 'Snapshot exacto', estado: 'Cerrado', riesgo: 'Bajo' }
+      {
+        id: 'TL-REPLACE-ONLY', fecha: '2026-08-26', titulo: 'Snapshot exacto',
+        estado: 'Cerrado', riesgo: 'Bajo', actualizado_en: exactRestoreStamp
+      }
     ]);
     const replaced = await db.query(
-      'select id from public.coi_timeline_replace_events($1::jsonb)',
+      'select id,actualizado_en from public.coi_timeline_replace_events($1::jsonb)',
       [exactSnapshot]
     );
     assert.deepEqual(replaced.rows.map(row => row.id), ['TL-REPLACE-ONLY']);
+    assert.equal(new Date(replaced.rows[0].actualizado_en).toISOString(), exactRestoreStamp);
     assert.equal((await db.query('select count(*)::int n from public.coi_timeline_events')).rows[0].n, 1);
     await db.query("select id from public.coi_timeline_replace_events('[]'::jsonb)");
     assert.equal((await db.query('select count(*)::int n from public.coi_timeline_events')).rows[0].n, 0);
