@@ -1,0 +1,28 @@
+name: PR45 runtime fixture patch
+
+on:
+  push:
+    branches:
+      - feat/timeline-supabase-first
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/timeline-supabase-first
+          fetch-depth: 0
+      - name: Apply runtime fixture patch
+        run: python3 scripts/pr45_runtime_fixture_patch.py
+      - name: Commit clean patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "test: align Timeline exact restore runtime fixture"
+          git push origin HEAD:feat/timeline-supabase-first
