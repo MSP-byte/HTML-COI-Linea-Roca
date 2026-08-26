@@ -165,6 +165,22 @@ async function openTimelineFixture(page, { role = 'administrador', remoteRows = 
           state.operations.push({ action: 'upsert', table: 'coi_timeline_events', ids: saved.map(row => row.id) });
           return { data: clone(saved), error: null };
         }
+        if (name === 'coi_timeline_delete_event') {
+          if (!['administrador', 'jefatura'].includes(state.role)) {
+            return { data: null, error: { code: '42501', message: 'COI_ROLE_REQUIRED' } };
+          }
+          const id = args.p_id;
+          const previous = state.rows.find(row => row.id === id);
+          if (!previous || !args.p_expected_actualizado_en || previous.actualizado_en !== args.p_expected_actualizado_en) {
+            return {
+              data: null,
+              error: { code: '40001', message: 'COI_TIMELINE_STALE_DELETE: El evento fue modificado por otra sesión.' }
+            };
+          }
+          state.rows = state.rows.filter(row => row.id !== id);
+          state.operations.push({ action: 'delete', table: 'coi_timeline_events', ids: [id] });
+          return { data: clone([previous]), error: null };
+        }
         if (name === 'coi_timeline_replace_events') {
           if (!['administrador', 'jefatura'].includes(state.role)) {
             return { data: null, error: { code: '42501', message: 'COI_ROLE_REQUIRED' } };
@@ -174,7 +190,11 @@ async function openTimelineFixture(page, { role = 'administrador', remoteRows = 
             return { data: null, error: { code: '40001', message: 'fallo de replace simulado' } };
           }
           const previous = new Map(state.rows.map(row => [row.id, row]));
-          state.rows = (args.p_events || []).map(item => serverRow(item, previous.get(item.id) || {}));
+          state.rows = (args.p_events || []).map(item => {
+            const row = serverRow(item, previous.get(item.id) || {});
+            if (item.actualizado_en) row.actualizado_en = item.actualizado_en;
+            return row;
+          });
           state.operations.push({ action: 'replace', table: 'coi_timeline_events', ids: state.rows.map(row => row.id) });
           return { data: clone(state.rows), error: null };
         }
@@ -323,8 +343,11 @@ test('restore reemplaza exactamente Supabase y revierte todas las claves locales
   });
 
   await page.evaluate(async () => {
+    const template = { ...window.coiTimelineEvents[0] };
+    window.__TIMELINE_EXACT_TEMPLATE__ = template;
     await window.COI_TIMELINE_COI.replace([{
-      id: 'TL-SNAPSHOT-UNICO', fecha: '2026-08-26', hora: '09:00',
+      ...template,
+      id: 'TL-SNAPSHOT-UNICO', fecha: '2026-08-26', hora: '09:00', semana: '2026-W35',
       titulo: 'Snapshot único', tipo_evento: 'Mailing', origen: 'Mailing',
       estado: 'Cerrado', riesgo: 'Bajo'
     }]);
@@ -343,8 +366,9 @@ test('restore reemplaza exactamente Supabase y revierte todas las claves locales
     try {
       await window.adminApplyLocalStorageSnapshot({
         [storageKey]: JSON.stringify([{
-          id: 'TL-RESTORE-COMMITTED', fecha: '2026-08-27', titulo: 'Restore confirmado',
-          tipo_evento: 'Mailing', estado: 'Informativo', riesgo: 'Bajo'
+          ...window.__TIMELINE_EXACT_TEMPLATE__,
+          id: 'TL-RESTORE-COMMITTED', fecha: '2026-08-27', hora: '09:00', semana: '2026-W35',
+          titulo: 'Restore confirmado', tipo_evento: 'Mailing', estado: 'Informativo', riesgo: 'Bajo'
         }])
       }, { tipo: 'test cuota', archivo: 'quota.json' });
       return window.__TIMELINE_REMOTE_STATE__.rows.map(row => row.id);
@@ -364,8 +388,9 @@ test('restore reemplaza exactamente Supabase y revierte todas las claves locales
       await window.adminApplyLocalStorageSnapshot({
         coi_test_rollback: 'después',
         [storageKey]: JSON.stringify([{
-          id: 'TL-NO-DEBE-QUEDAR', fecha: '2026-08-27', titulo: 'No persistir',
-          tipo_evento: 'Mailing', estado: 'Informativo', riesgo: 'Bajo'
+          ...window.__TIMELINE_EXACT_TEMPLATE__,
+          id: 'TL-NO-DEBE-QUEDAR', fecha: '2026-08-27', hora: '09:00', semana: '2026-W35',
+          titulo: 'No persistir', tipo_evento: 'Mailing', estado: 'Informativo', riesgo: 'Bajo'
         }])
       }, { tipo: 'test', archivo: 'fixture.json' });
     } catch (caught) {
