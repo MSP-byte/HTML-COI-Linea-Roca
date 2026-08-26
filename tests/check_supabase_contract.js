@@ -13,7 +13,15 @@ const names = {
   rls: '202608100004_rls_policies.sql',
   operations: '202608100005_operational_integrity.sql',
   hardening: '202608110006_release_candidate_hardening.sql',
-  review: '202608160010_rc2_review_hardening.sql'
+  review: '202608160010_rc2_review_hardening.sql',
+  timeline: '202608250001_timeline_supabase_first.sql',
+  timelineIndexes: '202608250002_timeline_actor_indexes.sql',
+  timelineAtomic: '202608250003_timeline_atomic_upsert.sql',
+  timelineAtomicInvoker: '202608250004_timeline_atomic_upsert_invoker.sql',
+  timelineConsistency: '202608250005_timeline_consistency_hardening.sql',
+  timelineLockOrder: '202608250006_timeline_lock_order_hardening.sql',
+  timelineLockHelper: '202608250007_timeline_order_lock_helper.sql',
+  timelinePrivateLockHelper: '202608250008_timeline_private_lock_helper.sql'
 };
 
 const sql = {};
@@ -85,6 +93,81 @@ for (const pattern of [
 const updater = sql.review.slice(sql.review.indexOf('create or replace function public.coi_actualizar_orden_integral'));
 assert.doesNotMatch(updater, /'link_documental_principal'|'estado_link_documental'/);
 
+// Timeline/Mailing: tabla canónica, RLS por rol, auditoría y sincronización OC.
+for (const pattern of [
+  /create table if not exists public\.coi_timeline_events/,
+  /orden_id uuid references public\.coi_ordenes/,
+  /coi_timeline_prepare_row/,
+  /coi_timeline_audit_row/,
+  /TIMELINE_CREAR/,
+  /coi_timeline_sync_order_number/,
+  /coi_timeline_select_guard_v1/,
+  /notify pgrst, 'reload schema'/
+]) assert.match(sql.timeline, pattern);
+assert.match(sql.timeline, /revoke all on function public\.coi_timeline_prepare_row\(\) from public, anon, authenticated/i);
+assert.match(sql.timeline, /'administrador','jefatura','editor','planificacion','control','supervisor'/i);
+assert.match(sql.timelineIndexes, /coi_timeline_created_by_idx/);
+assert.match(sql.timelineIndexes, /coi_timeline_updated_by_idx/);
+for (const pattern of [
+  /coi_timeline_upsert_events/,
+  /jsonb_to_recordset\(p_events\)/,
+  /jsonb_array_length\(p_events\) > 5000/,
+  /perform public\.coi_assert_role/,
+  /security invoker/,
+  /on conflict \(id\) do update/,
+  /grant execute on function public\.coi_timeline_upsert_events\(jsonb\) to authenticated/
+]) assert.match(sql.timelineAtomic, pattern);
+assert.match(sql.timelineAtomicInvoker, /alter function public\.coi_timeline_upsert_events\(jsonb\) security invoker/);
+for (const pattern of [
+  /coi_timeline_page_idx/,
+  /coi_timeline_list_page/,
+  /\(event\.fecha, event\.hora, event\.id\) < \(p_before_fecha, p_before_hora, p_before_id\)/,
+  /COI_TIMELINE_STALE_WRITE/,
+  /for update of target/,
+  /coi_timeline_replace_events/,
+  /lock table public\.coi_timeline_events in share row exclusive mode/,
+  /grant execute on function public\.coi_timeline_replace_events\(jsonb\) to authenticated/
+]) assert.match(sql.timelineConsistency, pattern);
+for (const pattern of [
+  /coi_timeline_upsert_events/,
+  /from public\.coi_ordenes orders/,
+  /order by orders\.id\s+for key share of orders/,
+  /order by target\.id\s+for update of target/,
+  /security invoker/,
+  /grant execute on function public\.coi_timeline_upsert_events\(jsonb\) to authenticated/
+]) assert.match(sql.timelineLockOrder, pattern);
+assert.ok(
+  sql.timelineLockOrder.indexOf('for key share of orders') < sql.timelineLockOrder.indexOf('for update of target'),
+  'Timeline debe bloquear las OC antes que sus eventos.'
+);
+for (const pattern of [
+  /create or replace function public\.coi_timeline_lock_orders\(p_events jsonb\)/,
+  /security definer\s+set search_path = public, pg_temp/,
+  /perform public\.coi_assert_role/,
+  /for key share of orders/,
+  /revoke all on function public\.coi_timeline_lock_orders\(jsonb\)\s+from public, anon/,
+  /grant execute on function public\.coi_timeline_lock_orders\(jsonb\)\s+to authenticated/,
+  /create or replace function public\.coi_timeline_upsert_events\(p_events jsonb\)[\s\S]*security invoker/,
+  /perform public\.coi_timeline_lock_orders\(p_events\)/,
+  /for update of target/
+]) assert.match(sql.timelineLockHelper, pattern);
+assert.ok(
+  sql.timelineLockHelper.indexOf('perform public.coi_timeline_lock_orders(p_events)')
+    < sql.timelineLockHelper.indexOf('for update of target'),
+  'La RPC invoker debe llamar al helper de OC antes de bloquear Timeline.'
+);
+for (const pattern of [
+  /create schema if not exists coi_private/,
+  /revoke all on schema coi_private from public, anon, authenticated/,
+  /grant usage on schema coi_private to authenticated/,
+  /create or replace function coi_private\.coi_timeline_lock_orders\(p_events jsonb\)/,
+  /security definer\s+set search_path = public, pg_temp/,
+  /perform public\.coi_assert_role/,
+  /for key share of orders/,
+  /create or replace function public\.coi_timeline_lock_orders\(p_events jsonb\)[\s\S]*security invoker/,
+  /perform coi_private\.coi_timeline_lock_orders\(p_events\)/
+]) assert.match(sql.timelinePrivateLockHelper, pattern);
+
 // El frontend debe consumir las APIs sustitutas y no reabrir el DML financiero.
 for (const pattern of [
   /client\.rpc\('coi_certificar_posiciones_v2'/,
@@ -109,4 +192,4 @@ for (const [name, body] of Object.entries(sql)) {
   assert.doesNotMatch(body, /service_role|password\s*=|secret\s*=/i, `${name}: posible secreto`);
 }
 
-console.log('Contrato Supabase: 7 migraciones auditadas; hardening PR #27, RPC, RLS e integridad verificados.');
+console.log('Contrato Supabase: 15 migraciones auditadas; Timeline Supabase-first, concurrencia, restore exacto, helper privado de locks, RLS e integridad verificados.');

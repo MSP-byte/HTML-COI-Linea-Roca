@@ -33,7 +33,7 @@ test('los módulos principales mantienen una única vista activa', async ({ page
     await expect(nav).toBeVisible();
     if (mobile) {
       await expect(page.locator('body')).toHaveClass(/\bcoi-v2-mobile-open\b/);
-      await nav.click({ force: true });
+      await nav.evaluate(el => el.click());
     } else {
       await nav.click();
     }
@@ -48,7 +48,7 @@ test('los módulos principales mantienen una única vista activa', async ({ page
   }
   if (mobile) {
     await expect(page.locator('body')).toHaveClass(/\bcoi-v2-mobile-open\b/);
-    await dashboardNav.click({ force: true });
+    await dashboardNav.evaluate(el => el.click());
   } else {
     await dashboardNav.click();
   }

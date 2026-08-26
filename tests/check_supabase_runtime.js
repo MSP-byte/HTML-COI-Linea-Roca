@@ -120,6 +120,139 @@ async function main() {
     await db.exec('set role authenticated');
     await setUser(db, 'administrador');
 
+    // Timeline/Mailing: CRUD compartido, lectura por consulta y auditoría.
+    const timelineConstraints = await db.query(`
+      select count(*)::int n from pg_constraint
+       where conrelid='public.coi_timeline_events'::regclass
+         and conname in ('coi_timeline_id_required','coi_timeline_title_required','coi_timeline_status_valid','coi_timeline_risk_valid')
+    `);
+    assert.equal(timelineConstraints.rows[0].n, 4);
+
+    const invalidAtomicBatch = JSON.stringify([
+      { id: 'TL-ATOMIC-ROLLBACK-1', fecha: '2026-08-25', titulo: 'Debe revertirse', estado: 'Informativo', riesgo: 'Bajo' },
+      { id: 'TL-ATOMIC-ROLLBACK-2', fecha: '2026-08-25', titulo: 'Inválido', estado: 'Informativo', riesgo: 'RIESGO_INVALIDO' }
+    ]);
+    await assert.rejects(
+      db.query('select id from public.coi_timeline_upsert_events($1::jsonb)', [invalidAtomicBatch]),
+      /coi_timeline_risk_valid|check constraint/i
+    );
+    assert.equal((await db.query("select count(*)::int n from public.coi_timeline_events where id like 'TL-ATOMIC-ROLLBACK-%'")).rows[0].n, 0);
+
+    const validAtomicBatch = JSON.stringify([
+      { id: 'TL-ATOMIC-1', fecha: '2026-08-25', titulo: 'Lote atómico 1', estado: 'Informativo', riesgo: 'Bajo' },
+      { id: 'TL-ATOMIC-2', fecha: '2026-08-25', titulo: 'Lote atómico 2', estado: 'En revisión', riesgo: 'Medio' }
+    ]);
+    const atomicRows = await db.query('select id from public.coi_timeline_upsert_events($1::jsonb) order by id', [validAtomicBatch]);
+    assert.deepEqual(atomicRows.rows.map(row => row.id), ['TL-ATOMIC-1', 'TL-ATOMIC-2']);
+
+    const firstPage = await db.query(
+      'select id,fecha,hora from public.coi_timeline_list_page(null,null,null,1)'
+    );
+    const cursor = firstPage.rows[0];
+    const secondPage = await db.query(
+      'select id from public.coi_timeline_list_page($1::date,$2::time,$3::text,1)',
+      [cursor.fecha, cursor.hora, cursor.id]
+    );
+    assert.equal(firstPage.rows.length, 1);
+    assert.equal(secondPage.rows.length, 1);
+    assert.notEqual(firstPage.rows[0].id, secondPage.rows[0].id);
+
+    const staleStamp = (await db.query(
+      "select actualizado_en from public.coi_timeline_events where id='TL-ATOMIC-1'"
+    )).rows[0].actualizado_en;
+    await db.query(
+      "update public.coi_timeline_events set titulo='Edición ganadora' where id='TL-ATOMIC-1'"
+    );
+    const stalePayload = JSON.stringify([{
+      id: 'TL-ATOMIC-1', fecha: '2026-08-25', titulo: 'Edición obsoleta',
+      estado: 'Informativo', riesgo: 'Bajo', expected_actualizado_en: staleStamp
+    }]);
+    await assert.rejects(
+      db.query('select id from public.coi_timeline_upsert_events($1::jsonb)', [stalePayload]),
+      /COI_TIMELINE_STALE_WRITE/
+    );
+    assert.equal((await db.query(
+      "select titulo from public.coi_timeline_events where id='TL-ATOMIC-1'"
+    )).rows[0].titulo, 'Edición ganadora');
+
+    const timelineId = 'TL-RUNTIME-SUPABASE-FIRST';
+    const insertedTimeline = await db.query(`
+      insert into public.coi_timeline_events(
+        id, orden_id, nro_oc, fecha, hora, titulo, tipo_evento, origen,
+        estado, riesgo, descripcion, creado_por
+      ) values (
+        $1, $2, 'OC-IGNORADA', '2026-08-25', '09:30', 'Mailing runtime',
+        'Mailing', 'Mailing', 'Informativo', 'Bajo', 'Prueba transaccional', 'QA'
+      ) returning id, orden_id, nro_oc, semana, created_by
+    `, [timelineId, ORDER_ID]);
+    assert.equal(insertedTimeline.rows[0].nro_oc, '4530008964');
+    assert.equal(insertedTimeline.rows[0].orden_id, ORDER_ID);
+    assert.equal(insertedTimeline.rows[0].created_by, USERS.administrador[0]);
+    assert.equal(insertedTimeline.rows[0].semana, '2026-W35');
+
+    await setUser(db, 'consulta');
+    assert.equal((await db.query('select count(*)::int n from public.coi_timeline_events where id=$1', [timelineId])).rows[0].n, 1);
+    await assert.rejects(
+      db.query(`insert into public.coi_timeline_events(id,fecha,titulo) values ('TL-CONSULTA-BLOCKED','2026-08-25','No autorizado')`),
+      /row-level security|permission denied/i
+    );
+    await assert.rejects(
+      db.query("select id from public.coi_timeline_upsert_events('[{\"id\":\"TL-CONSULTA-RPC\",\"fecha\":\"2026-08-25\",\"titulo\":\"No autorizado\"}]'::jsonb)"),
+      /COI_ROLE_REQUIRED|permission denied/i
+    );
+    await assert.rejects(
+      db.query("select id from public.coi_timeline_replace_events('[]'::jsonb)"),
+      /COI_ROLE_REQUIRED|permission denied/i
+    );
+
+    await setUser(db, 'editor');
+    const editedTimeline = await db.query(
+      "update public.coi_timeline_events set estado='En revisión' where id=$1 returning estado,updated_by",
+      [timelineId]
+    );
+    assert.equal(editedTimeline.rows[0].estado, 'En revisión');
+    assert.equal(editedTimeline.rows[0].updated_by, USERS.editor[0]);
+    const editorDelete = await db.query('delete from public.coi_timeline_events where id=$1 returning id', [timelineId]);
+    assert.equal(editorDelete.rows.length, 0);
+
+    await setUser(db, 'administrador');
+    await db.exec('reset role');
+    await db.exec('alter table public.coi_ordenes disable trigger coi_order_number_dependency_guard');
+    await db.query("update public.coi_ordenes set nro_oc='4530008965' where id=$1", [ORDER_ID]);
+    assert.equal((await db.query('select nro_oc from public.coi_timeline_events where id=$1', [timelineId])).rows[0].nro_oc, '4530008965');
+    await db.query("update public.coi_ordenes set nro_oc='4530008964' where id=$1", [ORDER_ID]);
+    assert.equal((await db.query('select nro_oc from public.coi_timeline_events where id=$1', [timelineId])).rows[0].nro_oc, '4530008964');
+    await db.exec('alter table public.coi_ordenes enable trigger coi_order_number_dependency_guard');
+    await db.exec('set role authenticated');
+    await setUser(db, 'administrador');
+
+    const deletedTimeline = await db.query('delete from public.coi_timeline_events where id=$1 returning id', [timelineId]);
+    assert.equal(deletedTimeline.rows[0].id, timelineId);
+    await db.query("delete from public.coi_timeline_events where id in ('TL-ATOMIC-1','TL-ATOMIC-2')");
+    assert.equal((await db.query("select count(*)::int n from public.coi_operaciones_auditoria where entidad='coi_timeline_events' and registro_id=$1", [timelineId])).rows[0].n >= 4, true);
+
+    const replaceSeed = JSON.stringify([
+      { id: 'TL-REPLACE-OLD-1', fecha: '2026-08-25', titulo: 'Anterior 1', estado: 'Informativo', riesgo: 'Bajo' },
+      { id: 'TL-REPLACE-OLD-2', fecha: '2026-08-25', titulo: 'Anterior 2', estado: 'Informativo', riesgo: 'Bajo' }
+    ]);
+    await db.query('select id from public.coi_timeline_upsert_events($1::jsonb)', [replaceSeed]);
+    const exactRestoreStamp = '2026-08-26T12:34:56.000Z';
+    const exactSnapshot = JSON.stringify([
+      {
+        id: 'TL-REPLACE-ONLY', fecha: '2026-08-26', titulo: 'Snapshot exacto',
+        estado: 'Cerrado', riesgo: 'Bajo', actualizado_en: exactRestoreStamp
+      }
+    ]);
+    const replaced = await db.query(
+      'select id,actualizado_en from public.coi_timeline_replace_events($1::jsonb)',
+      [exactSnapshot]
+    );
+    assert.deepEqual(replaced.rows.map(row => row.id), ['TL-REPLACE-ONLY']);
+    assert.equal(new Date(replaced.rows[0].actualizado_en).toISOString(), exactRestoreStamp);
+    assert.equal((await db.query('select count(*)::int n from public.coi_timeline_events')).rows[0].n, 1);
+    await db.query("select id from public.coi_timeline_replace_events('[]'::jsonb)");
+    assert.equal((await db.query('select count(*)::int n from public.coi_timeline_events')).rows[0].n, 0);
+
     // Writer legacy permitido, pero trazado server-side.
     const legacy = await db.query("update public.coi_ordenes set proveedor='LEGACY OK' where id=$1 returning proveedor", [ORDER_ID]);
     assert.equal(legacy.rows[0].proveedor, 'LEGACY OK');
