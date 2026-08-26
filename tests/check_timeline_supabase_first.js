@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-// Final PR45 validation marker.
+// Final PR45 validation marker — Supabase serialization layer included.
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
