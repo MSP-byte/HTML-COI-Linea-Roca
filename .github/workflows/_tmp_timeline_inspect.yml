@@ -1,0 +1,35 @@
+name: TEMP Timeline Inspect
+on:
+  push:
+    branches: [fix/timeline-filters-views]
+permissions:
+  contents: write
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Extract Timeline snippets
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          src=Path('index.html').read_text(encoding='utf-8')
+          terms=['Vista diaria','Vista semanal','Vista por OC','Aplicar filtros','Timeline COI / Trazabilidad por OC','COI_TIMELINE_COI','renderTimeline','timelineFilter','filtroTimeline']
+          out=[]
+          lines=src.splitlines()
+          for term in terms:
+              hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
+              out.append(f'===== {term} :: {hits} =====')
+              for i in hits[:8]:
+                  a=max(0,i-12); b=min(len(lines),i+35)
+                  out.extend(f'{j+1:05d}: {lines[j]}' for j in range(a,b))
+                  out.append('---')
+          Path('timeline_inspect.txt').write_text('\n'.join(out),encoding='utf-8')
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add timeline_inspect.txt
+          git commit -m 'chore: capture timeline filter snippets [skip ci]'
+          git push
