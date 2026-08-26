@@ -36,7 +36,7 @@ for (const pattern of [
   /se conservan los datos remotos/,
   /state\.permissions\.canWrite/,
   /state\.permissions\.canDelete/,
-  /Supabase confirm\\u00f3 \$\{saved\.length\} evento/,
+  /Supabase confirm(?:ó|\\u00f3) \$\{saved\.length\} evento/,
   /const wrapped=async function\(\)/,
   /restoreLocalSnapshot/,
   /replaceTimelineEventsSupabase\(incoming/,
