@@ -1,0 +1,66 @@
+name: PR45 Supabase Order Authority Fix
+
+on:
+  push:
+    branches: ["feat/timeline-supabase-first"]
+    paths: [".github/workflows/pr45-order-authority-fix.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/timeline-supabase-first
+          persist-credentials: true
+          fetch-depth: 0
+      - name: Remove client-side OC UUID authority
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old="""    const order=event.oc?findOrder(event.oc):null;
+    const normalizedRequestedOC=text(event.oc).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const normalizedResolvedOC=text(
+      order?.oc||order?.row?.oc||order?.row?.nro_oc||order?.row?.numeroOC||
+      order?.item?.oc||order?.item?.nro_oc||order?.item?.numeroOC||order?.item?.numero_oc
+    ).toUpperCase().replace(/[^A-Z0-9]/g,'');
+    const resolvedOrderId=text(order?.orderId);
+    const exactOrderId=normalizedRequestedOC&&normalizedResolvedOC===normalizedRequestedOC&&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(resolvedOrderId)
+      ?resolvedOrderId:null;
+    const current=window.coiTimelineEvents.find(item=>item.id===event.id);"""
+          new="""    // Supabase/PostgreSQL resuelve la identidad de la OC desde nro_oc.
+    // El cliente no envía UUIDs derivados de una caché que podría estar desactualizada.
+    const current=window.coiTimelineEvents.find(item=>item.id===event.id);"""
+          if s.count(old)!=1: raise SystemExit(f'order resolver block matches={s.count(old)}')
+          s=s.replace(old,new,1)
+          old2='      orden_id:exactOrderId,'
+          if s.count(old2)!=1: raise SystemExit(f'orden_id payload matches={s.count(old2)}')
+          s=s.replace(old2,'      orden_id:null,',1)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Validate inline JavaScript
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,subprocess,tempfile
+          h=Path('index.html').read_text(encoding='utf-8')
+          for i,x in enumerate(re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',h,re.I),1):
+              if not x.strip(): continue
+              q=Path(tempfile.gettempdir())/f'coi-{i}.js'; q.write_text(x,encoding='utf-8')
+              r=subprocess.run(['node','--check',str(q)],capture_output=True,text=True)
+              if r.returncode: print(r.stderr); raise SystemExit(i)
+          PY
+      - name: Commit clean fix
+        run: |
+          git rm .github/workflows/pr45-order-authority-fix.yml
+          git add index.html
+          git config user.name "MSP-byte"
+          git config user.email "mespecial92@gmail.com"
+          git commit -m "fix: resolve Timeline OC identity in Supabase"
+          git push origin HEAD:feat/timeline-supabase-first
