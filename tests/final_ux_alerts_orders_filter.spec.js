@@ -22,7 +22,8 @@ async function openV2Module(page, navId) {
   const mobile = (page.viewportSize()?.width || 0) <= 760;
   if (mobile || !await nav.isVisible()) await page.locator('#coiV2Menu').click();
   await expect(nav).toBeVisible();
-  await nav.click(mobile ? { force: true } : undefined);
+  if (mobile) await nav.evaluate(el => el.click());
+  else await nav.click();
 }
 
 async function installOrdersFixture(page) {

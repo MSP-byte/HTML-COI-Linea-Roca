@@ -20199,6 +20199,7 @@ if(document.readyState==='loading'){
   function timelineEventToDatabase(raw){
     const event=normalizeEvent(raw);
     const order=event.oc?findOrder(event.oc):null;
+    const current=window.coiTimelineEvents.find(item=>item.id===event.id);
     return {
       id:event.id,
       orden_id:order?.orderId||null,
@@ -20227,7 +20228,7 @@ if(document.readyState==='loading'){
       creado_por:event.creado_por||userName(),
       origen_carga:event.origen_carga||'Carga manual',
       oc_registrada:event.oc_registrada||'',
-      expected_actualizado_en:event.actualizado_en||null
+      expected_actualizado_en:event.actualizado_en&&current?.actualizado_en?current.actualizado_en:null
     };
   }
   async function fetchTimelineEventsSupabase(client){
@@ -20320,36 +20321,58 @@ if(document.readyState==='loading'){
     return sortEvents([...byId.values()]);
   }
   async function saveTimelineEventsSupabase(events,reason){
+    const writeGeneration=timelineAuthGeneration;
     const {client}=await requireTimelineSupabase('write');
+    if(writeGeneration!==timelineAuthGeneration)throw new Error('La sesión cambió antes de iniciar la escritura del Timeline.');
     const saved=await upsertTimelineEventsSupabase(client,events);
+    if(writeGeneration!==timelineAuthGeneration){
+      return {ok:true,count:saved.length,events:[],refreshed:false,discarded:true};
+    }
     try{
       const remote=await fetchTimelineEventsSupabase(client);
+      if(writeGeneration!==timelineAuthGeneration){
+        return {ok:true,count:saved.length,events:[],refreshed:false,discarded:true};
+      }
       applyTimelineEvents(remote,reason||'Timeline guardado en Supabase');
       setTimelinePersistence('online',`${remote.length} evento(s) sincronizado(s) con Supabase.`);
       return {ok:true,count:saved.length,events:saved,refreshed:true};
     }catch(refreshError){
+      if(writeGeneration!==timelineAuthGeneration){
+        return {ok:true,count:saved.length,events:[],refreshed:false,discarded:true,refreshError};
+      }
       const committed=mergeCommittedTimelineEvents(window.coiTimelineEvents,saved);
       applyTimelineEvents(committed,reason||'Timeline guardado en Supabase');
-      setTimelinePersistence('warning',`Supabase confirm\u00f3 ${saved.length} evento(s), pero no se pudo refrescar la lista completa: ${refreshError?.message||refreshError}`);
+      setTimelinePersistence('warning',`Supabase confirmó ${saved.length} evento(s), pero no se pudo refrescar la lista completa: ${refreshError?.message||refreshError}`);
       return {ok:true,count:saved.length,events:saved,refreshed:false,refreshError};
     }
   }
   async function replaceTimelineEventsSupabase(events,reason){
+    const writeGeneration=timelineAuthGeneration;
     const {client}=await requireTimelineSupabase('delete');
+    if(writeGeneration!==timelineAuthGeneration)throw new Error('La sesión cambió antes de iniciar la restauración del Timeline.');
     const list=Array.isArray(events)?events:[];
-    if(list.length>5000)throw new Error('La restauraci\u00f3n supera el l\u00edmite transaccional de 5.000 eventos.');
+    if(list.length>5000)throw new Error('La restauración supera el límite transaccional de 5.000 eventos.');
     const payload=list.map(timelineEventToDatabase);
     const {data,error}=await client.rpc('coi_timeline_replace_events',{p_events:payload});
     if(error)throw error;
     const committed=(data||[]).map(databaseToTimelineEvent);
+    if(writeGeneration!==timelineAuthGeneration){
+      return {ok:true,count:committed.length,events:[],refreshed:false,discarded:true};
+    }
     try{
       const remote=await fetchTimelineEventsSupabase(client);
+      if(writeGeneration!==timelineAuthGeneration){
+        return {ok:true,count:committed.length,events:[],refreshed:false,discarded:true};
+      }
       applyTimelineEvents(remote,reason||'Timeline reemplazado en Supabase');
       setTimelinePersistence('online',`${remote.length} evento(s) restaurado(s) en Supabase.`);
       return {ok:true,count:remote.length,events:remote,refreshed:true};
     }catch(refreshError){
+      if(writeGeneration!==timelineAuthGeneration){
+        return {ok:true,count:committed.length,events:[],refreshed:false,discarded:true,refreshError};
+      }
       applyTimelineEvents(committed,reason||'Timeline reemplazado en Supabase');
-      setTimelinePersistence('warning',`Supabase confirm\u00f3 la restauraci\u00f3n de ${committed.length} evento(s), pero fall\u00f3 el refresco posterior: ${refreshError?.message||refreshError}`);
+      setTimelinePersistence('warning',`Supabase confirmó la restauración de ${committed.length} evento(s), pero falló el refresco posterior: ${refreshError?.message||refreshError}`);
       return {ok:true,count:committed.length,events:committed,refreshed:false,refreshError};
     }
   }
@@ -20868,7 +20891,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     const event=normalizeEvent({
       ...(existing||{}),...data,id:existing?.id||makeId(),semana:isoWeek(data.fecha),
       creado_por:text(data.creado_por)||existing?.creado_por||userName(),
-      actualizado_en:existing?.actualizado_en||nowISO()
+      actualizado_en:existing?.actualizado_en||''
     });
     const submit=form.querySelector('button[type="submit"]');
     if(submit)submit.disabled=true;
@@ -20886,23 +20909,30 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
   async function deleteEvent(id){
     const event=window.coiTimelineEvents.find(item=>item.id===id);
     if(!event)return;
-    if(!confirm(`Eliminar el movimiento "${event.titulo}" del ${displayDate(event.fecha)}?\n\nSe eliminará el registro compartido de Supabase y quedará constancia en la auditoría.`))return;
+    if(!confirm(`Eliminar el movimiento \"${event.titulo}\" del ${displayDate(event.fecha)}?\n\nSe eliminará el registro compartido de Supabase y quedará constancia en la auditoría.`))return;
+    const deleteGeneration=timelineAuthGeneration;
     try{
       const {client}=await requireTimelineSupabase('delete');
+      if(deleteGeneration!==timelineAuthGeneration)return;
       const {data,error}=await client.from(TIMELINE_TABLE).delete().eq('id',id).eq('actualizado_en',event.actualizado_en).select('id');
       if(error)throw error;
       if(!Array.isArray(data)||data.length!==1)throw new Error('COI_TIMELINE_STALE_DELETE: el evento fue modificado por otra sesión. Actualizá el Timeline antes de eliminarlo.');
+      if(deleteGeneration!==timelineAuthGeneration)return;
       try{
         const remote=await fetchTimelineEventsSupabase(client);
+        if(deleteGeneration!==timelineAuthGeneration)return;
         applyTimelineEvents(remote,'Evento eliminado en Supabase');
         setTimelinePersistence('online',`${remote.length} evento(s) sincronizado(s) con Supabase.`);
       }catch(refreshError){
+        if(deleteGeneration!==timelineAuthGeneration)return;
         const committed=window.coiTimelineEvents.filter(item=>item.id!==id);
         applyTimelineEvents(committed,'Evento eliminado en Supabase');
         setTimelinePersistence('warning',`Supabase confirmó la eliminación, pero no se pudo refrescar la lista completa: ${refreshError?.message||refreshError}`);
       }
+      if(deleteGeneration!==timelineAuthGeneration)return;
       if(typeof window.mostrarMensajeCOI==='function')window.mostrarMensajeCOI('Evento eliminado de Supabase.','ok');
     }catch(error){
+      if(deleteGeneration!==timelineAuthGeneration)return;
       console.error('Timeline COI: no se eliminó el evento.',error);
       alert(`No se eliminó el evento.\n\n${error?.message||error}`);
     }
@@ -21085,7 +21115,11 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
           const raw=hasTimelineSnapshot?arguments[0][TIMELINE_STORAGE_KEY]:null;
           const parsed=typeof raw==='string'?JSON.parse(raw):raw;
           if(hasTimelineSnapshot&&!Array.isArray(parsed))throw new Error('La colecci\u00f3n Timeline debe ser un arreglo.');
-          if(Array.isArray(parsed))incoming=parsed.map(normalizeEvent).filter(event=>text(event.titulo));
+          if(Array.isArray(parsed)){
+            const invalidIndex=parsed.findIndex(item=>!text(item?.titulo));
+            if(invalidIndex>=0)throw new Error(`El evento Timeline #${invalidIndex+1} no tiene título.`);
+            incoming=parsed.map(normalizeEvent);
+          }
         }catch(error){throw new Error(`El backup no contiene un Timeline compatible: ${error?.message||error}`);}
         const previousEvents=window.coiTimelineEvents.map(event=>({...event}));
         const previousLocal=typeof window.adminSnapshotLocalStorage==='function'
@@ -21103,7 +21137,8 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
         try{
           const result=await applySnapshot.apply(this,arguments);
           if(hasTimelineSnapshot){
-            await replaceTimelineEventsSupabase(incoming,'Timeline restaurado exactamente desde backup');
+            const replacement=await replaceTimelineEventsSupabase(incoming,'Timeline restaurado exactamente desde backup');
+            if(replacement?.discarded)return result;
             try{localStorage.removeItem(TIMELINE_LEGACY_KEY);}catch(error){console.warn('Timeline COI: no se pudo limpiar la clave legacy tras el restore confirmado.',error);}
             try{localStorage.setItem(TIMELINE_MIGRATION_KEY,JSON.stringify({completedAt:nowISO(),restored:incoming.length}));}
             catch(error){

@@ -13,6 +13,7 @@ const consistency = fs.readFileSync('supabase/migrations/202608250005_timeline_c
 const lockOrder = fs.readFileSync('supabase/migrations/202608250006_timeline_lock_order_hardening.sql', 'utf8');
 const lockHelper = fs.readFileSync('supabase/migrations/202608250007_timeline_order_lock_helper.sql', 'utf8');
 const privateLockHelper = fs.readFileSync('supabase/migrations/202608250008_timeline_private_lock_helper.sql', 'utf8');
+const finalHardening = fs.readFileSync('supabase/migrations/202608250009_timeline_final_review_hardening.sql', 'utf8');
 
 for (const pattern of [
   /const TIMELINE_TABLE='coi_timeline_events'/,
@@ -112,5 +113,18 @@ for (const pattern of [
   /public\.coi_timeline_lock_orders\(p_events jsonb\)[\s\S]*security invoker/,
   /perform coi_private\.coi_timeline_lock_orders\(p_events\)/
 ]) assert.match(privateLockHelper, pattern);
+
+for (const pattern of [
+  /jsonb_array_length\(p_events\) > 5000/,
+  /event\.id < p_before_id/,
+  /order by event\.id desc/,
+  /COI_TIMELINE_STALE_WRITE/,
+  /perform public\.coi_timeline_lock_orders\(p_events\)[\s\S]*lock table public\.coi_timeline_events/,
+  /source\.value - 'expected_actualizado_en'/
+]) assert.match(finalHardening, pattern);
+assert.match(html, /const writeGeneration=timelineAuthGeneration/);
+assert.match(html, /const deleteGeneration=timelineAuthGeneration/);
+assert.match(html, /replacement\?\.discarded/);
+assert.match(html, /invalidIndex=parsed\.findIndex\(item=>!text\(item\?\.titulo\)\)/);
 
 console.log('Timeline/Mailing Supabase-first: caché aislada, CRUD concurrente, restore exacto y contrato SQL verificados.');
