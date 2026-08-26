@@ -15,6 +15,7 @@ const lockOrder = fs.readFileSync('supabase/migrations/202608250006_timeline_loc
 const lockHelper = fs.readFileSync('supabase/migrations/202608250007_timeline_order_lock_helper.sql', 'utf8');
 const privateLockHelper = fs.readFileSync('supabase/migrations/202608250008_timeline_private_lock_helper.sql', 'utf8');
 const finalHardening = fs.readFileSync('supabase/migrations/202608250009_timeline_final_review_hardening.sql', 'utf8');
+const serialization = fs.readFileSync('supabase/migrations/202608260010_timeline_transaction_serialization.sql', 'utf8');
 
 for (const pattern of [
   /const TIMELINE_TABLE='coi_timeline_events'/,
@@ -25,7 +26,7 @@ for (const pattern of [
   /client\.rpc\('coi_timeline_upsert_events',\{p_events:payload\}\)/,
   /client\.rpc\('coi_timeline_replace_events',\{p_events:payload\}\)/,
   /expected_actualizado_en:event\.actualizado_en/,
-  /\.delete\(\)\.eq\('id',id\)\.eq\('actualizado_en',event\.actualizado_en\)\.select\('id'\)/,
+  /client\.rpc\('coi_timeline_delete_event',\{p_id:id,p_expected_actualizado_en:event\.actualizado_en\|\|null\}\)/,
   /COI_TIMELINE_STALE_DELETE/,
   /let timelineAuthGeneration=0/,
   /loadGeneration!==timelineAuthGeneration/,
@@ -125,7 +126,16 @@ for (const pattern of [
 ]) assert.match(finalHardening, pattern);
 assert.match(html, /const writeGeneration=timelineAuthGeneration/);
 assert.match(html, /const deleteGeneration=timelineAuthGeneration/);
+for (const pattern of [
+  /pg_advisory_xact_lock\(hashtextextended\('coi_timeline_mutation_v1'/,
+  /coi_timeline_replace_events/,
+  /coi_timeline_delete_event/,
+  /COI_TIMELINE_STALE_DELETE/,
+  /Restore administrativo atomico y sin limite artificial de 5000/
+]) assert.match(serialization, pattern);
 assert.match(html, /replacement\?\.discarded/);
-assert.match(html, /invalidIndex=parsed\.findIndex\(item=>!text\(item\?\.titulo\)\)/);
+assert.match(html, /validateExactTimelineSnapshotEvent/);
+assert.match(html, /let timelineMutationGeneration=0/);
+assert.match(html, /loadMutationGeneration!==timelineMutationGeneration/);
 
 console.log('Timeline/Mailing Supabase-first: caché aislada, CRUD concurrente, restore exacto y contrato SQL verificados.');
