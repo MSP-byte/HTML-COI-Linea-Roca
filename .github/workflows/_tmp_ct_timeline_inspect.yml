@@ -1,0 +1,42 @@
+name: TEMP CT Timeline Inspect
+on:
+  push:
+    branches: [fix/timeline-daily-oc-ct-mail]
+permissions:
+  contents: write
+jobs:
+  inspect:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Extract relevant snippets
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          src=Path('index.html').read_text(encoding='utf-8')
+          lines=src.splitlines()
+          terms=[
+            'weeklyMarkup','data-timeline-view="semanal"','riskClass(event.riesgo)',
+            'event.riesgo','control_terceros_hasta','control_terceros_estado',
+            'syncCTSupabase','saveCTFromButton','setControlTercerosEditMode',
+            'updateSupabaseFields','function eventCard','data-timeline-edit',
+            'Control de Terceros'
+          ]
+          out=[]
+          for term in terms:
+              hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
+              out.append(f'===== {term} :: {hits} =====')
+              for i in hits[:12]:
+                  a=max(0,i-25); b=min(len(lines),i+55)
+                  out.extend(f'{j+1:05d}: {lines[j]}' for j in range(a,b))
+                  out.append('---')
+          Path('ct_timeline_inspect.txt').write_text('\n'.join(out),encoding='utf-8')
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ct_timeline_inspect.txt
+          git commit -m 'chore: capture CT Timeline snippets [skip ci]'
+          git push
