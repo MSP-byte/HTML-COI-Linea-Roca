@@ -6,7 +6,10 @@ function between(a,b){const x=SOURCE.indexOf(a),y=SOURCE.indexOf(b,x);if(x<0||y<
 const FILTERS=between('  function filtersMarkup(){','  function kpisMarkup(');
 const MATCHES=between('  function eventMatches(event){','  function filteredEvents(');
 const RENDER=between('  function renderTimelineCOI(){','  window.renderTimelineCOI=renderTimelineCOI;');
-const BIND=between('  function bindEvents(){','  async function initializeStore(');
+const BIND_END=SOURCE.indexOf('  window.normalizeTimelineDate=');
+const BIND_START=SOURCE.lastIndexOf('  function bindEvents(){',BIND_END);
+if(BIND_START<0||BIND_END<0||BIND_END<=BIND_START)throw new Error('Bloque bindEvents de Timeline COI no encontrado');
+const BIND=SOURCE.slice(BIND_START,BIND_END);
 
 test('Timeline conserva solo los siete filtros operativos solicitados', async () => {
   for(const id of ['timelineFilter_fecha_desde','timelineFilter_oc','timelineFilter_proveedor','timelineFilter_rubro','timelineFilter_tipo_evento','timelineFilter_origen','timelineFilter_responsable_accion']) expect(FILTERS).toContain(id);
