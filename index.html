@@ -16591,8 +16591,32 @@ const APP_DATA_MODE = "supabase_first";
     const directo=clean(campoDocumentoStorage(documento,['actaNro','acta_nro','nroDocumento','nro_documento','numeroActa','numero_acta'],''));
     if(directo)return directo;
     const nombre=norm(campoDocumentoStorage(documento,['nombreArchivo','nombre_archivo','fileName','filename','nombre_documento','titulo'],''));
-    const match=nombre.match(/ACTA(?: DE MEDICION)?[^0-9]{0,12}([0-9]{1,3})(?![0-9])/);
-    return match?match[1]:'';
+    const matchNombre=nombre.match(/ACTA(?: DE MEDICION)?[^0-9]{0,12}([0-9]{1,3})(?![0-9])/);
+    if(matchNombre)return matchNombre[1];
+    // Metadata explícita escrita por el indexado automático de Storage
+    // ("Registro creado automáticamente... Acta detectada: NN.").
+    const observaciones=norm(campoDocumentoStorage(documento,['observaciones','observacion'],''));
+    const matchObs=observaciones.match(/ACTA\s+DETECTADA\s*:?\s*([0-9]{1,4})(?![0-9])/);
+    return matchObs?matchObs[1]:'';
+  }
+  function obtenerNombreFisicoDocumento(documento){
+    // Prioridad: 1) declaración explícita "Archivo: X" en observaciones (la
+    // importación piloto suele guardar el path bajo una convención propia,
+    // pero declara el nombre físico real de forma explícita); 2) basename del
+    // storage_path (confiable para filas indexadas automáticamente desde
+    // Storage); 3) nombre_documento cuando el propio valor es un nombre de
+    // archivo real (con extensión), nunca un título descriptivo.
+    const observaciones=String(campoDocumentoStorage(documento,['observaciones','observacion'],''));
+    const matchArchivo=observaciones.match(/Archivo:\s*([^\n]+?\.(?:pdf|jpg|jpeg|png|docx?|xlsx?))\b/i);
+    if(matchArchivo)return norm(matchArchivo[1].trim());
+    const ruta=obtenerRutaDocumento(documento);
+    if(ruta){
+      const partes=ruta.replace(/\\/g,'/').split('/').filter(Boolean);
+      if(partes.length)return norm(partes[partes.length-1]);
+    }
+    const nombre=clean(campoDocumentoStorage(documento,['nombreArchivo','nombre_archivo','fileName','filename','nombre_documento'],''));
+    if(/\.(pdf|jpg|jpeg|png|docx?|xlsx?)$/i.test(nombre))return norm(nombre);
+    return '';
   }
   function obtenerFechaDocumentoActa(documento){return clean(campoDocumentoStorage(documento,['fechaDocumento','fecha_documento','fechaActa','fecha_acta','fechaCarga','fecha_creacion','created_at'],''))}
   function obtenerPeriodoDocumentoActa(documento){
@@ -16622,6 +16646,69 @@ const APP_DATA_MODE = "supabase_first";
     if(id)return `ID:${id}`;
     return ['ACTA',ocNro||normalizarNroOCStorage(documento),obtenerNumeroActaDocumento(documento),obtenerNombreArchivoDocumento(documento),obtenerFechaDocumentoActa(documento)].map(norm).join('|');
   }
+  // Identidad secundaria: filas históricas del MISMO documento físico pueden
+  // tener storage_path distinto (o ausente) y por lo tanto distinta clave
+  // fuerte (bucket+storage_path/id). Se detecta evidencia real de que son el
+  // mismo archivo -OC + tipo + acta + nombre físico real, nunca solo el N° de
+  // Acta- antes de tratarlas como duplicado, para no colapsar documentos
+  // distintos que comparten número de Acta (ej. original vs. firmada).
+  function claveActaDocumentalSecundaria(documento,ocNro=''){
+    const nombreFisico=obtenerNombreFisicoDocumento(documento);
+    if(!nombreFisico)return '';
+    const acta=obtenerNumeroActaDocumento(documento);
+    if(!acta)return '';
+    const tipo=norm(campoDocumentoStorage(documento,['tipoDocumento','tipo_documento','tipo'],''));
+    return ['ACTA2',ocNro||normalizarNroOCStorage(documento),tipo,norm(acta),nombreFisico].join('|');
+  }
+  function puntuarDocumentoActa(documento){
+    // Prioriza contenido/metadata real (acta, período, fecha, nombre
+    // descriptivo) por sobre tener o no storage_path: el path faltante en el
+    // registro elegido se completa igual desde el duplicado (ver
+    // elegirDocumentoActaCanonico), así que no debe pesar más que la calidad
+    // de la información mostrada.
+    let score=0;
+    if(obtenerNumeroActaDocumento(documento))score+=5;
+    if(obtenerPeriodoDocumentoActa(documento))score+=3;
+    if(obtenerFechaDocumentoActa(documento))score+=2;
+    if(!/\.(pdf|jpg|jpeg|png|docx?|xlsx?)$/i.test(obtenerNombreArchivoDocumento(documento)))score+=1;
+    if(obtenerRutaDocumento(documento))score+=1;
+    return score;
+  }
+  function elegirDocumentoActaCanonico(grupo){
+    if(grupo.length===1)return grupo[0];
+    const ordenado=[...grupo].sort((a,b)=>puntuarDocumentoActa(b)-puntuarDocumentoActa(a));
+    const mejor=ordenado[0];
+    const rutaMejor=obtenerRutaDocumento(mejor);
+    if(rutaMejor)return mejor;
+    // El registro con mejor metadata no tiene storage_path: si algún duplicado
+    // del mismo documento sí lo tiene, se combina solo para lectura/render
+    // (nunca se escribe esta fusión en Supabase) para que "Abrir PDF" funcione.
+    const fuenteRuta=grupo.find(documento=>obtenerRutaDocumento(documento));
+    if(!fuenteRuta)return mejor;
+    const bucket=campoDocumentoStorage(fuenteRuta,['storageBucket','storage_bucket','bucket'],'coi-documentos');
+    const ruta=obtenerRutaDocumento(fuenteRuta);
+    return {...mejor,storage_path:ruta,objectPath:ruta,object_path:ruta,storageBucket:bucket,storage_bucket:bucket,bucket,_fusionadoSoloLectura:true};
+  }
+  function agruparDocumentosActaEquivalentes(docs,ocNro){
+    const parent=docs.map((_,i)=>i);
+    function find(i){while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i];}return i;}
+    function union(i,j){const a=find(i),b=find(j);if(a!==b)parent[a]=b;}
+    const porClave=new Map();
+    docs.forEach((documento,i)=>{
+      [claveActaDocumental(documento,ocNro),claveActaDocumentalSecundaria(documento,ocNro)].forEach(clave=>{
+        if(!clave)return;
+        if(porClave.has(clave))union(i,porClave.get(clave));
+        else porClave.set(clave,i);
+      });
+    });
+    const grupos=new Map();
+    docs.forEach((documento,i)=>{
+      const raiz=find(i);
+      if(!grupos.has(raiz))grupos.set(raiz,[]);
+      grupos.get(raiz).push(documento);
+    });
+    return [...grupos.values()].map(elegirDocumentoActaCanonico);
+  }
   function obtenerActasMedicionDocumentalesOC(ocNro,documentos=null){
     const orden=resolveOrder(ocNro)||ocNro;
     const targetOC=normalizarNroOCStorage(orden);
@@ -16629,18 +16716,14 @@ const APP_DATA_MODE = "supabase_first";
     const targetIdServicio=norm(campoDocumentoStorage(orden,['idServicio','id_servicio','ID_SERVICIO'],''));
     let source=Array.isArray(documentos)?documentos:null;
     if(!source)source=documentosStorageCache.get(targetOC)||[...documentosStorageCache.values()].flat();
-    const seen=new Set();
-    return source.filter(documento=>{
+    const vinculados=source.filter(documento=>{
       if(!esDocumentoActaMedicion(documento))return false;
       const docOC=normalizarNroOCStorage(campoDocumentoStorage(documento,['ocNro','oc_nro','nro_oc','OC','oc'],''));
       const docIdObra=norm(campoDocumentoStorage(documento,['idObra','id_obra','ID_OBRA'],''));
       const docIdServicio=norm(campoDocumentoStorage(documento,['idServicio','id_servicio','ID_SERVICIO'],''));
-      const vinculada=(!targetOC&&!targetIdObra&&!targetIdServicio)||(targetOC&&docOC===targetOC)||(targetIdObra&&docIdObra===targetIdObra)||(targetIdServicio&&docIdServicio===targetIdServicio);
-      if(!vinculada)return false;
-      const key=claveActaDocumental(documento,targetOC);
-      if(seen.has(key))return false;
-      seen.add(key);return true;
-    }).sort((a,b)=>{
+      return (!targetOC&&!targetIdObra&&!targetIdServicio)||(targetOC&&docOC===targetOC)||(targetIdObra&&docIdObra===targetIdObra)||(targetIdServicio&&docIdServicio===targetIdServicio);
+    });
+    return agruparDocumentosActaEquivalentes(vinculados,targetOC).sort((a,b)=>{
       const na=Number(obtenerNumeroActaDocumento(a)),nb=Number(obtenerNumeroActaDocumento(b));
       const va=Number.isFinite(na)&&obtenerNumeroActaDocumento(a)!=='',vb=Number.isFinite(nb)&&obtenerNumeroActaDocumento(b)!=='';
       if(va&&vb&&na!==nb)return na-nb;if(va!==vb)return va?-1:1;
@@ -16671,9 +16754,29 @@ const APP_DATA_MODE = "supabase_first";
     if(ocultas&&!note){note=document.createElement('div');note.dataset.actasConsolidadasNote='true';note.className='carga-certificacion-status ok';section.querySelector('.table-wrap')?.before(note)}
     if(note){note.hidden=!ocultas;note.textContent=`${ocultas} certificacion(es) vinculada(s) se muestran consolidadas con su PDF en Actas de medicion documentales.`}
   }
+  function sincronizarCacheDocumentosConCanonicos(ocNro,documentosCanonicos){
+    const key=normalizarNroOCStorage(ocNro);
+    if(!key)return;
+    const lista=documentosStorageCache.get(key);
+    if(!Array.isArray(lista)||!lista.length)return;
+    const porId=new Map();
+    documentosCanonicos.forEach(documento=>{
+      const id=clean(campoDocumentoStorage(documento,['idDocumento','id_documento','id'],''));
+      if(id)porId.set(id,documento);
+    });
+    if(!porId.size)return;
+    // Solo actualiza la caché en memoria del cliente para que "Abrir PDF"
+    // resuelva el storage_path fusionado; nunca escribe en Supabase.
+    documentosStorageCache.set(key,lista.map(documento=>{
+      const id=clean(campoDocumentoStorage(documento,['idDocumento','id_documento','id'],''));
+      const canonico=id?porId.get(id):null;
+      return canonico?{...documento,...canonico}:documento;
+    }));
+  }
   async function renderActasMedicionDocumentalesOC(orden,documentos=null,certificaciones=null){
     const section=asegurarContenedorActasDocumentales(orden);if(!section)return[];
     const nroOC=normalizarNroOCStorage(orden),actas=obtenerActasMedicionDocumentalesOC(orden,documentos);
+    sincronizarCacheDocumentosConCanonicos(nroOC,actas);
     let manuales=Array.isArray(certificaciones)?certificaciones:[];
     if(!manuales.length&&typeof window.cargarCertificacionesPorOC==='function')try{manuales=await window.cargarCertificacionesPorOC(orden)}catch(error){console.warn('COI: certificaciones manuales no disponibles para consolidacion.',error)}
     const manualPorNumero=new Map();manuales.forEach(row=>{const numero=norm(row?.acta_medicion_nro).replace(/^0+(?=\d)/,'');if(numero&&!manualPorNumero.has(numero))manualPorNumero.set(numero,row)});
@@ -20933,11 +21036,25 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     }
     const raw=text(event.oc);
     if(!raw)return [];
-    // Defensa ante datos ya persistidos sin pasar por normalizeTimelineOCSource
-    // (ej. comas/guiones/slashes en el campo oc). Un bloque de dígitos pegados sin
-    // separador no se puede partir sin inventar límites de OC, así que se conserva tal cual.
     const refs=extractTimelineOCRefs(raw);
-    return refs.length?refs:[raw];
+    if(refs.length)return refs;
+    // raw no tiene límites de OC detectables (ej. bloque histórico de dígitos
+    // pegados sin separador, previo a normalizeTimelineOCSource). Antes de darlo
+    // por perdido, se intenta recuperar sin inventar datos:
+    // 1) OCs mencionadas de forma legible en el resto del evento, validadas
+    //    contra las órdenes realmente cargadas desde Supabase.
+    const textualRefs=[...new Set(extractTimelineOCRefs([event.titulo,event.descripcion,event.documentos_mencionados,event.observaciones].filter(Boolean).join(' ')))];
+    const validTextualRefs=textualRefs.filter(ref=>findOrder(ref));
+    if(validTextualRefs.length)return validTextualRefs.sort();
+    // 2) Si raw es puramente numérico y múltiplo exacto de 10, partir en bloques
+    //    de 10 dígitos SOLO si TODOS corresponden a OCs reales ya cargadas.
+    //    Si algún bloque no valida como OC real, no se usa esta partición.
+    if(/^\d+$/.test(raw)&&raw.length>10&&raw.length%10===0){
+      const blocks=[];
+      for(let i=0;i<raw.length;i+=10)blocks.push(raw.slice(i,i+10));
+      if(blocks.every(block=>findOrder(block)))return [...new Set(blocks)].sort();
+    }
+    return [raw];
   }
   function normalizeTimelineOCSource(source){
     const input={...(source||{})};
@@ -22263,10 +22380,16 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
   }
 
   async function abrirDocumentoStorageOC_R27(idOrDoc){
+    const tieneRutaValida = d => !!clean(d?.storage_path || d?.objectPath || d?.object_path);
     let doc = typeof idOrDoc === 'object' ? normalizarDocumentoSupabase(idOrDoc) : (runtimeDocs.get(String(idOrDoc)) || runtimeDocs.get('id:' + String(idOrDoc)));
-    if(!doc && typeof idOrDoc !== 'object' && typeof window.buscarDocumentoStoragePorId === 'function'){
+    // Dos módulos independientes cachean documentos por su cuenta y pueden
+    // quedar desincronizados (uno con el registro fusionado/deduplicado que
+    // trae el storage_path real, otro con la fila cruda sin ruta). Si esta
+    // fuente no tiene una ruta válida, se prefiere la otra fuente en vez de
+    // fallar directamente.
+    if((!doc || !tieneRutaValida(doc)) && typeof idOrDoc !== 'object' && typeof window.buscarDocumentoStoragePorId === 'function'){
       const otraFuente = window.buscarDocumentoStoragePorId(idOrDoc);
-      if(otraFuente) doc = normalizarDocumentoSupabase(otraFuente);
+      if(otraFuente && (!doc || tieneRutaValida(otraFuente))) doc = normalizarDocumentoSupabase(otraFuente);
     }
     if(!doc) throw new Error('No se encontró el documento solicitado en la sincronización actual.');
     const client = getClient();

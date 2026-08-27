@@ -223,6 +223,118 @@ test.describe('CASO 1 — Timeline con mailing de varias OC', () => {
     expect(opened.sort()).toEqual([OC_A, OC_B, OC_C].sort());
   });
 
+  test('CASO A — histórico con event.oc concatenado se recupera desde texto legible (descripción/documentos), sin mostrar el bloque pegado', async ({ page }) => {
+    const HOC_A = '4530009805', HOC_B = '4530009304', HOC_C = '4530009014';
+    const CONCAT = HOC_A + HOC_B + HOC_C;
+    const HIST_EVENT = [{
+      id: 'TL-HIST-CONCAT',
+      fecha: '2026-04-15',
+      hora: '10:00',
+      oc: CONCAT,
+      titulo: 'Resumen pendiente escaleras FEMYP abril-mayo-junio',
+      tipo_evento: 'Mailing',
+      origen: 'Mailing',
+      estado: 'Informativo',
+      riesgo: 'Bajo',
+      proveedor: 'FEMYP S.R.L.',
+      descripcion: `Seguimiento de escaleras mecánicas de las OC ${HOC_A}, ${HOC_B} y ${HOC_C} para el trimestre abril-mayo-junio.`,
+      documentos_mencionados: `Actas de medición OC ${HOC_A}, OC ${HOC_B} y OC ${HOC_C}.`
+    }];
+    await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
+    await page.addInitScript(seed => {
+      localStorage.clear();
+      sessionStorage.clear();
+      localStorage.setItem('coi_timeline_events_v1', JSON.stringify(seed));
+    }, HIST_EVENT);
+    await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+
+    // Las tres OC deben existir como órdenes reales cargadas: la recuperación
+    // textual solo prevalece si valida contra findOrder (nunca inventa OCs).
+    await page.evaluate(ocs => {
+      window.todasLasOC = () => ocs.map(oc => ({ item: { oc }, oc }));
+    }, [HOC_A, HOC_B, HOC_C]);
+
+    const timelineButton = page.locator('[data-v2-nav="btnTimelineCOI"]');
+    await timelineButton.waitFor({ state: 'attached' });
+    const viewport = page.viewportSize();
+    if (viewport && viewport.width <= 760) await page.locator('#coiV2Menu').click();
+    await timelineButton.click();
+
+    const card = page.locator('[data-timeline-event-id="TL-HIST-CONCAT"]');
+    await expect(card).toBeVisible();
+
+    const chips = card.locator('.timeline-oc-chip');
+    await expect(chips).toHaveCount(3);
+    const chipTexts = (await chips.allTextContents()).map(t => t.trim());
+    expect(chipTexts.sort()).toEqual([`OC ${HOC_A}`, `OC ${HOC_B}`, `OC ${HOC_C}`].sort());
+
+    const cardText = (await card.textContent()) || '';
+    expect(cardText).not.toContain(CONCAT);
+  });
+
+  test('CASO A (fallback #5) — bloque de dígitos sin texto legible se parte en OC solo si TODOS los bloques son órdenes reales', async ({ page }) => {
+    const HOC_A = '4530009805', HOC_B = '4530009304', HOC_C = '4530009014';
+    const CONCAT = HOC_A + HOC_B + HOC_C;
+    const EVENT_OK = [{
+      id: 'TL-HIST-BLOCKS-OK', fecha: '2026-04-16', hora: '11:00', oc: CONCAT,
+      titulo: 'Aviso sin detalle legible de OC', tipo_evento: 'Mailing', origen: 'Mailing',
+      estado: 'Informativo', riesgo: 'Bajo', proveedor: 'FEMYP S.R.L.'
+    }];
+    await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
+    await page.addInitScript(seed => {
+      localStorage.clear();
+      sessionStorage.clear();
+      localStorage.setItem('coi_timeline_events_v1', JSON.stringify(seed));
+    }, EVENT_OK);
+    await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+    await page.evaluate(ocs => {
+      window.todasLasOC = () => ocs.map(oc => ({ item: { oc }, oc }));
+    }, [HOC_A, HOC_B, HOC_C]);
+
+    const timelineButton = page.locator('[data-v2-nav="btnTimelineCOI"]');
+    await timelineButton.waitFor({ state: 'attached' });
+    const viewport = page.viewportSize();
+    if (viewport && viewport.width <= 760) await page.locator('#coiV2Menu').click();
+    await timelineButton.click();
+
+    const card = page.locator('[data-timeline-event-id="TL-HIST-BLOCKS-OK"]');
+    await expect(card).toBeVisible();
+    await expect(card.locator('.timeline-oc-chip')).toHaveCount(3);
+  });
+
+  test('CASO A (fallback #5, negativo) — si algún bloque de 10 dígitos no es una OC real, NO se parte (no se inventan OCs)', async ({ page }) => {
+    const HOC_A = '4530009805', HOC_B = '4530009304', HOC_C = '4530009014';
+    const CONCAT = HOC_A + HOC_B + HOC_C;
+    const EVENT_BAD = [{
+      id: 'TL-HIST-BLOCKS-BAD', fecha: '2026-04-17', hora: '12:00', oc: CONCAT,
+      titulo: 'Aviso sin detalle legible de OC', tipo_evento: 'Mailing', origen: 'Mailing',
+      estado: 'Informativo', riesgo: 'Bajo', proveedor: 'FEMYP S.R.L.'
+    }];
+    await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
+    await page.addInitScript(seed => {
+      localStorage.clear();
+      sessionStorage.clear();
+      localStorage.setItem('coi_timeline_events_v1', JSON.stringify(seed));
+    }, EVENT_BAD);
+    await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+    // Solo A y B existen como órdenes reales; C no. No debe partirse el bloque.
+    await page.evaluate(ocs => {
+      window.todasLasOC = () => ocs.map(oc => ({ item: { oc }, oc }));
+    }, [HOC_A, HOC_B]);
+
+    const timelineButton = page.locator('[data-v2-nav="btnTimelineCOI"]');
+    await timelineButton.waitFor({ state: 'attached' });
+    const viewport = page.viewportSize();
+    if (viewport && viewport.width <= 760) await page.locator('#coiV2Menu').click();
+    await timelineButton.click();
+
+    const card = page.locator('[data-timeline-event-id="TL-HIST-BLOCKS-BAD"]');
+    await expect(card).toBeVisible();
+    await expect(card.locator('.timeline-oc-chip')).toHaveCount(0);
+    const cardText = (await card.textContent()) || '';
+    expect(cardText).toContain(CONCAT);
+  });
+
   test('el filtro por OC encuentra el mail aunque tenga varias OC asociadas, y no lo muestra para una OC ajena', async ({ page }) => {
     await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
     await page.addInitScript(seed => {
@@ -356,6 +468,101 @@ test.describe('CASO 3 — Documentos duplicados', () => {
     // Los dos archivos distintos de ACTA 07 se conservan ambos (no se pierden por compartir número).
     expect(result.actas.filter(a => a.numero === '07')).toHaveLength(2);
   });
+
+  test('CASO B — duplicado importación piloto + auto-registro (paths distintos) se muestra una sola vez', async ({ page }) => {
+    await openIsolated(page);
+    const nombreFisico = `FEMYP ME Nro11 Mant. Puertas Automaticas PC OC ${ORDER_NUMBER}.pdf`;
+    await installFixture(page, {
+      documents: [
+        {
+          id: 'row-piloto-11', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+          estado: 'Cargado', storage_bucket: 'coi-documentos',
+          nombre_documento: 'Acta de Medición N° 11 - Mantenimiento Puertas Automáticas',
+          storage_path: `legacy/oc/${ORDER_NUMBER}/acta11.pdf`,
+          observaciones: `Importación piloto desde Supabase Storage. Archivo: ${nombreFisico}`
+        },
+        {
+          id: 'row-auto-11', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+          estado: 'Cargado', storage_bucket: 'coi-documentos',
+          nombre_documento: nombreFisico,
+          storage_path: `oc/${ORDER_NUMBER}/${nombreFisico}`,
+          observaciones: 'Registro creado automáticamente desde Supabase Storage. Acta detectada: 11.'
+        }
+      ]
+    });
+
+    const result = await page.evaluate(async orderNumber => {
+      const documentos = await window.cargarDocumentosStorageOC(orderNumber);
+      const actas = window.obtenerActasMedicionDocumentalesOC(orderNumber, documentos);
+      return { count: actas.length, numeros: actas.map(a => window.obtenerNumeroActaDocumento(a)) };
+    }, ORDER_NUMBER);
+
+    expect(result.count).toBe(1);
+    expect(result.numeros).toEqual(['11']);
+  });
+
+  test('CASO C — dos archivos reales distintos de la misma Acta NO se colapsan (no se deduplica solo por N° de Acta)', async ({ page }) => {
+    await openIsolated(page);
+    await installFixture(page, {
+      documents: [
+        {
+          id: 'row-11-original', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+          estado: 'Cargado', storage_bucket: 'coi-documentos', nombre_documento: 'ACTA11_original.pdf',
+          storage_path: `oc/${ORDER_NUMBER}/ACTA11_original.pdf`
+        },
+        {
+          id: 'row-11-firmada', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+          estado: 'Cargado', storage_bucket: 'coi-documentos', nombre_documento: 'ACTA11_firmada.pdf',
+          storage_path: `oc/${ORDER_NUMBER}/ACTA11_firmada.pdf`
+        }
+      ]
+    });
+
+    const result = await page.evaluate(async orderNumber => {
+      const documentos = await window.cargarDocumentosStorageOC(orderNumber);
+      const actas = window.obtenerActasMedicionDocumentalesOC(orderNumber, documentos);
+      return { count: actas.length, nombres: actas.map(a => a.nombre_documento || a.nombreArchivo) };
+    }, ORDER_NUMBER);
+
+    expect(result.count).toBe(2);
+    expect(result.nombres.sort()).toEqual(['ACTA11_firmada.pdf', 'ACTA11_original.pdf']);
+  });
+
+  test('CASO D — "Acta detectada: NN" en observaciones recupera el número aunque el nombre de archivo no diga "Acta"', async ({ page }) => {
+    await openIsolated(page);
+    const numero = await page.evaluate(() => window.obtenerNumeroActaDocumento({
+      nombre_documento: 'FEMYP ME Nro11 Mant. Puertas Automaticas PC OC 4530099999.pdf',
+      observaciones: 'Registro creado automáticamente desde Supabase Storage. Acta detectada: 11.'
+    }));
+    expect(numero).toBe('11');
+
+    const numeroConCeros = await page.evaluate(() => window.obtenerNumeroActaDocumento({
+      nombre_documento: 'archivo_sin_pista.pdf',
+      observaciones: 'Registro creado automáticamente desde Supabase Storage. Acta detectada: 06.'
+    }));
+    expect(numeroConCeros).toBe('06');
+
+    const sinNumero = await page.evaluate(() => window.obtenerNumeroActaDocumento({
+      nombre_documento: 'archivo_sin_pista.pdf',
+      observaciones: 'Sin datos adicionales.'
+    }));
+    expect(sinNumero).toBe('');
+  });
+
+  test('CASO E — última Acta documental con series 05..11 y sin coi_certificaciones da Acta N° 11', async ({ page }) => {
+    await openIsolated(page);
+    const numeros = ['05', '06', '07', '08', '09', '10', '11'];
+    await installFixture(page, {
+      certifications: [],
+      documents: numeros.map(nn => ({
+        id: `row-serie-${nn}`, orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+        estado: 'Cargado', storage_bucket: 'coi-documentos', nombre_documento: `ACTA ${nn}.pdf`,
+        storage_path: `oc/${ORDER_NUMBER}/ACTA${nn}.pdf`
+      }))
+    });
+    await renderOrder(page);
+    await expect(page.locator('[data-coi-ficha-main-last-cert]')).toHaveText('Acta N° 11 (documental)');
+  });
 });
 
 // ===================== CASO 4: Abrir PDF =====================
@@ -404,5 +611,47 @@ test.describe('CASO 4 — Abrir PDF resuelve Storage o no se ofrece', () => {
     const openButton = page.locator('#panelFichaCertificaciones [data-storage-documento-id]').first();
     await expect(openButton).toBeVisible();
     await expect(openButton).toBeDisabled();
+  });
+
+  test('CASO F — el documento canónico deduplicado conserva el storage_path del duplicado y Abrir PDF lo usa', async ({ page }) => {
+    await openIsolated(page);
+    const nombreFisico = `FEMYP ME Nro11 Mant. Puertas Automaticas PC OC ${ORDER_NUMBER}.pdf`;
+    const rutaReal = `oc/${ORDER_NUMBER}/${nombreFisico}`;
+    await installFixture(page, {
+      documents: [
+        {
+          // Metadata más rica (acta, período, fecha, nombre descriptivo) pero SIN storage_path.
+          id: 'row-rich-11', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+          estado: 'Cargado', storage_bucket: 'coi-documentos',
+          nombre_documento: 'Acta de Medición N° 11 - Mantenimiento Puertas Automáticas',
+          fecha_documento: '2026-08-10', fecha_inicio: '2026-07-01', fecha_fin: '2026-07-31',
+          observaciones: `Importación piloto desde Supabase Storage. Archivo: ${nombreFisico}`
+        },
+        {
+          // Duplicado auto-registrado: sin la riqueza de metadata, pero con el path real.
+          id: 'row-auto-11', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+          estado: 'Cargado', storage_bucket: 'coi-documentos',
+          nombre_documento: nombreFisico, storage_path: rutaReal,
+          observaciones: 'Registro creado automáticamente desde Supabase Storage. Acta detectada: 11.'
+        }
+      ]
+    });
+    await renderOrder(page);
+    await page.evaluate(() => window.activarSubmoduloFichaOC('panelFichaCertificaciones'));
+
+    const rows = page.locator('#panelFichaCertificaciones .actas-documentales-table tbody tr');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText('11');
+
+    await page.evaluate(() => { window.__opened = []; window.open = url => { window.__opened.push(url); return { closed: false }; }; });
+    const openButton = page.locator('#panelFichaCertificaciones [data-storage-documento-id]').first();
+    await expect(openButton).toBeEnabled();
+    await openButton.click();
+
+    await expect.poll(() => page.evaluate(() => window.__MULTIOC_FIXTURE_STATE__.signedUrlCalls.length)).toBeGreaterThan(0);
+    const calls = await page.evaluate(() => window.__MULTIOC_FIXTURE_STATE__.signedUrlCalls);
+    expect(calls[0].path).toBe(rutaReal);
+    const opened = await page.evaluate(() => window.__opened);
+    expect(opened[0]).toContain('signed.example');
   });
 });
