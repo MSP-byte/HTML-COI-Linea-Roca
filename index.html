@@ -26038,7 +26038,7 @@ document.addEventListener('click',function(event){
     const start=clean(last.fecha_inicio||last.periodo_inicio);
     const end=clean(last.fecha_fin||last.periodo_fin||last.fecha_certificacion||last.fecha);
     const period=start&&end?`${fmtDate(start)} al ${fmtDate(end)}`:(start||end?fmtDate(start||end):'Sin período registrado');
-    return {row:last,acta,period,label:acta?'Acta N° '+acta:'Certificación',progress:progressFromPersistedCertification(last)};
+    return {row:last,acta,period,date:end?fmtDate(end):'',label:acta?'Acta N° '+acta:'Certificación',progress:progressFromPersistedCertification(last)};
   }
   let refreshSequence=0;
   async function refreshSummary(reference,itemOverride){
@@ -26073,7 +26073,7 @@ document.addEventListener('click',function(event){
       const latest=latestCertification(await window.cargarCertificacionesPorOC(item));
       if(sequence!==refreshSequence||!card.isConnected)return {obra,stale:true};
       if(obra){
-        if(certification)certification.textContent=latest.row?(latest.label+(latest.period!=='Sin período registrado'?' · '+latest.period:'')):'Sin certificación';
+        if(certification)certification.textContent=latest.row?(latest.label+(latest.date?' · '+latest.date:'')):'Sin certificación';
         if(progress)progress.textContent=latest.progress===null?'Sin dato':fmtPct(latest.progress);
         if(mainProgress)mainProgress.textContent=latest.progress===null?'—':fmtPct(latest.progress);
         if(mainProgressNote)mainProgressNote.textContent=latest.row?(latest.period==='Sin período registrado'?'Certificación sin período registrado':'Según certificación · '+latest.period):'Sin certificación registrada';

@@ -22,6 +22,10 @@ test('Obra sin certificación no inventa cero por ciento', async()=>{
   expect(HOTFIX).toContain("mainProgress.textContent='—'");
   expect(HOTFIX).not.toContain("mainProgress.textContent='0%'");
 });
+test('Obra conserva acta y fecha fin sin mostrar el rango completo', async()=>{
+  expect(HOTFIX).toContain("latest.date?' · '+latest.date");
+  expect(HOTFIX).not.toContain("latest.label+(latest.period!=='Sin período registrado'");
+});
 test('Servicio muestra última certificación con acta real y período', async()=>{
   expect(KPI_BLOCK).toContain('data-coi-ficha-main-last-cert');
   expect(HOTFIX).toContain('last.acta_medicion_nro');
