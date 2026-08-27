@@ -13228,7 +13228,8 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
     const anterior=normalizarNumeroCertificacion(campoHistorico(row,['servicio_ejecutado_anterior','serv_ejec_ant','SERV_EJEC_ANT']));
     const periodo=normalizarNumeroCertificacion(campoHistorico(row,['servicio_ejecutado_periodo','serv_ejec_pte','SERV_EJEC_PTE']));
     const acumulado=normalizarNumeroCertificacion(campoHistorico(row,['servicio_ejecutado_acumulado','serv_ejec_acum','SERV_EJEC_ACUM'],anterior+periodo));
-    const porcentaje=normalizarNumeroCertificacion(campoHistorico(row,['aux_porcentaje','aux','AUX'],cantidad>0?(acumulado/cantidad)*100:0));
+    const auxPorcentajePersistido=campoHistorico(row,['aux_porcentaje','aux','AUX'],null);
+    const porcentaje=normalizarNumeroCertificacion(auxPorcentajePersistido===null||auxPorcentajePersistido===undefined||clean(auxPorcentajePersistido)===''?(cantidad>0?(acumulado/cantidad)*100:0):auxPorcentajePersistido);
     return {
       id:row.id??null,
       _legacy:!!row._legacy,
@@ -13248,6 +13249,7 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
       servicio_ejecutado_periodo:periodo,
       servicio_ejecutado_acumulado:acumulado,
       aux_porcentaje:porcentaje,
+      _aux_porcentaje_persistido:auxPorcentajePersistido,
       tipo_um:clean(campoHistorico(row,['tipo_um','TIPO_UM','tipoUM'])),
       actores_firmantes:clean(campoHistorico(row,['actores_firmantes','actoresFirmantes','ACTORES_FIRMANTES'])),
       ejecutado_100:normalizarBooleanoCertificacion(campoHistorico(row,['ejecutado_100','ejecutado100','EJECUTADO_100'])),
@@ -26020,8 +26022,10 @@ document.addEventListener('click',function(event){
     return Math.ceil((due-today)/86400000);
   }
   function progressFromPersistedCertification(row){
-    if(!row||row.aux_porcentaje===null||row.aux_porcentaje===undefined||clean(row.aux_porcentaje)==='')return null;
-    const value=Number(row.aux_porcentaje);
+    if(!row)return null;
+    const persisted=Object.prototype.hasOwnProperty.call(row,'_aux_porcentaje_persistido')?row._aux_porcentaje_persistido:row.aux_porcentaje;
+    if(persisted===null||persisted===undefined||clean(persisted)==='')return null;
+    const value=Number(persisted);
     return Number.isFinite(value)?value:null;
   }
   function latestCertification(rows){
