@@ -20708,7 +20708,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     const pending=event.accion_pendiente?`<p class="pending-action"><b>Pr\u00f3xima acci\u00f3n:</b> ${html(event.accion_pendiente)}${event.responsable_accion?`<br><small>Responsable: ${html(event.responsable_accion)}${event.fecha_limite?` \u00b7 L\u00edmite: ${html(displayDate(event.fecha_limite))}`:''}</small>`:''}</p>`:'';
     const mailEvent=isMailEvent(event);
     const ctDate=controlTercerosDateCandidate(event);
-    const riskBadge=mailEvent?'':`${riskBadge}`;
+    const riskBadge=mailEvent?'':`<span class="timeline-badge ${riskClass(event.riesgo)}">Riesgo ${html(event.riesgo)}</span>`;
     const cardRiskClass=mailEvent?'':riskClass(event.riesgo);
     const ctUpdateButton=ctDate&&state.permissions.canWrite?`<button type="button" class="timeline-primary" data-timeline-ct-update="${attr(event.id)}">Actualizar CT hasta ${html(displayDate(ctDate))}</button>`:'';
     const editButton=state.permissions.canWrite?`<button type="button" data-timeline-edit="${attr(event.id)}">Editar</button>`:'';
@@ -20716,7 +20716,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     return `<article class="timeline-event-card ${cardRiskClass}" data-timeline-event-id="${attr(event.id)}">
       <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><b>Sin OC individual</b>'}</div>
       <div class="timeline-event-main">
-        <div class="timeline-badges"><span class="timeline-badge">${html(event.tipo_evento)}</span><span class="timeline-badge">${html(event.estado)}</span><span class="timeline-badge ${riskClass(event.riesgo)}">Riesgo ${html(event.riesgo)}</span>${event.origen?`<span class="timeline-badge">${html(event.origen)}</span>`:''}</div>
+        <div class="timeline-badges"><span class="timeline-badge">${html(event.tipo_evento)}</span><span class="timeline-badge">${html(event.estado)}</span>${riskBadge}${event.origen?`<span class="timeline-badge">${html(event.origen)}</span>`:''}</div>
         <h4>${html(event.titulo)}</h4>
         <p><b>${html(event.proveedor||'Proveedor sin definir')}</b>${event.rubro?` \u00b7 ${html(event.rubro)}`:''}${event.estacion?` \u00b7 ${html(event.estacion)}`:''}</p>
         ${compact?'':`<p>${html(event.descripcion||'Sin descripci\u00f3n.')}</p>${event.documentos_mencionados?`<p><b>Documentos:</b> ${html(event.documentos_mencionados)}</p>`:''}${pending}`}
