@@ -1,0 +1,51 @@
+name: TEMP PR51 Fix
+on:
+  push:
+    branches: [feat/ficha-oc-indicadores-obra-servicio]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Ajustar fecha de ultima certificacion de Obra
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old="return {row:last,acta,period,label:acta?'Acta N° '+acta:'Certificación',progress:progressFromPersistedCertification(last)};"
+          new="return {row:last,acta,period,date:end?fmtDate(end):'',label:acta?'Acta N° '+acta:'Certificación',progress:progressFromPersistedCertification(last)};"
+          if s.count(old)!=1:
+              raise SystemExit(f'latestCertification esperado 1 match, obtuvo {s.count(old)}')
+          s=s.replace(old,new,1)
+          old2="if(certification)certification.textContent=latest.row?(latest.label+(latest.period!=='Sin período registrado'?' · '+latest.period:'')):'Sin certificación';"
+          new2="if(certification)certification.textContent=latest.row?(latest.label+(latest.date?' · '+latest.date:'')):'Sin certificación';"
+          if s.count(old2)!=1:
+              raise SystemExit(f'render obra esperado 1 match, obtuvo {s.count(old2)}')
+          s=s.replace(old2,new2,1)
+          p.write_text(s,encoding='utf-8')
+
+          t=Path('tests/ficha_oc_indicadores_obra_servicio.spec.js')
+          ts=t.read_text(encoding='utf-8')
+          marker="test('Servicio muestra última certificación con acta real y período', async()=>{"
+          extra="test('Obra conserva acta y fecha fin sin mostrar el rango completo', async()=>{\n  expect(HOTFIX).toContain(\"latest.date?' · '+latest.date\");\n  expect(HOTFIX).not.toContain(\"latest.label+(latest.period!=='Sin período registrado'\");\n});\n"
+          if extra not in ts:
+              if marker not in ts:
+                  raise SystemExit('No se encontró marcador del test de Servicio')
+              ts=ts.replace(marker,extra+marker,1)
+              t.write_text(ts,encoding='utf-8')
+          PY
+          node --check tests/ficha_oc_indicadores_obra_servicio.spec.js
+          git diff --check
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html tests/ficha_oc_indicadores_obra_servicio.spec.js
+          git commit -m 'fix: preserve Obra latest certification end date'
+          git push
