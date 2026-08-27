@@ -1,4 +1,4 @@
-name: TEMP Ficha OC Validate
+name: TEMP Ficha OC Finalize
 on:
   push:
     branches:
@@ -6,7 +6,7 @@ on:
 permissions:
   contents: write
 jobs:
-  validate:
+  finalize:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
@@ -16,17 +16,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Apply patch and capture validation
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Apply patch
+        run: python .github/scripts/_tmp_apply_ficha_oc.py
+      - name: Validate
         run: |
-          python .github/scripts/_tmp_apply_ficha_oc.py
-          set +e
-          node --check tests/ficha_oc_indicadores_obra_servicio.spec.js > ficha_validate.log 2>&1
-          echo "NODE_CHECK_EXIT=$?" >> ficha_validate.log
-          npm run test:unit >> ficha_validate.log 2>&1
-          echo "UNIT_EXIT=$?" >> ficha_validate.log
-          set -e
+          node --check tests/ficha_oc_indicadores_obra_servicio.spec.js
+          npm run test:unit
+      - name: Commit product change
+        run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add ficha_validate.log
-          git commit -m 'chore: capture Ficha OC validation log [skip ci]'
+          git add index.html tests/ficha_oc_indicadores_obra_servicio.spec.js
+          git commit -m 'feat: add Obra Servicio indicators to Ficha OC'
           git push
