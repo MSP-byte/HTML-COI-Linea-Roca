@@ -1,0 +1,69 @@
+name: TEMP Fix PR51 persisted aux
+on:
+  push:
+    branches: [feat/ficha-oc-indicadores-obra-servicio]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Patch persisted aux handling
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old="""    const porcentaje=normalizarNumeroCertificacion(campoHistorico(row,['aux_porcentaje','aux','AUX'],cantidad>0?(acumulado/cantidad)*100:0));
+    return {
+"""
+          new="""    const auxPorcentajePersistido=campoHistorico(row,['aux_porcentaje','aux','AUX'],null);
+    const porcentaje=normalizarNumeroCertificacion(auxPorcentajePersistido===null||auxPorcentajePersistido===undefined||clean(auxPorcentajePersistido)===''?(cantidad>0?(acumulado/cantidad)*100:0):auxPorcentajePersistido);
+    return {
+"""
+          if s.count(old)!=1: raise SystemExit(f'normalizer anchor count={s.count(old)}')
+          s=s.replace(old,new,1)
+          old2="""      aux_porcentaje:porcentaje,
+      tipo_um:clean(campoHistorico(row,['tipo_um','TIPO_UM','tipoUM'])),
+"""
+          new2="""      aux_porcentaje:porcentaje,
+      _aux_porcentaje_persistido:auxPorcentajePersistido,
+      tipo_um:clean(campoHistorico(row,['tipo_um','TIPO_UM','tipoUM'])),
+"""
+          if s.count(old2)!=1: raise SystemExit(f'persisted marker anchor count={s.count(old2)}')
+          s=s.replace(old2,new2,1)
+          old3="""  function progressFromPersistedCertification(row){
+    if(!row||row.aux_porcentaje===null||row.aux_porcentaje===undefined||clean(row.aux_porcentaje)==='')return null;
+    const value=Number(row.aux_porcentaje);
+    return Number.isFinite(value)?value:null;
+  }
+"""
+          new3="""  function progressFromPersistedCertification(row){
+    if(!row)return null;
+    const persisted=Object.prototype.hasOwnProperty.call(row,'_aux_porcentaje_persistido')?row._aux_porcentaje_persistido:row.aux_porcentaje;
+    if(persisted===null||persisted===undefined||clean(persisted)==='')return null;
+    const value=Number(persisted);
+    return Number.isFinite(value)?value:null;
+  }
+"""
+          if s.count(old3)!=1: raise SystemExit(f'progress helper anchor count={s.count(old3)}')
+          s=s.replace(old3,new3,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Validate targeted regression
+        run: |
+          npm ci
+          npx playwright install chromium
+          npx playwright test tests/final_ui_obras_alertas.spec.js tests/ficha_oc_indicadores_obra_servicio.spec.js --project=chromium-desktop
+      - name: Commit fix and remove temp workflow
+        run: |
+          rm .github/workflows/_tmp_fix_pr51_aux.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html .github/workflows/_tmp_fix_pr51_aux.yml
+          git commit -m 'fix: use only persisted certification progress in Ficha OC'
+          git push
