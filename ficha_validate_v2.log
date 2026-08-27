@@ -1,0 +1,20 @@
+NODE_CHECK_EXIT=0
+
+> coi-linea-roca@60.0.1 test:unit
+> npm run validate:web && node tests/check_baseline.js && node tests/check_p0_containment.js && node tests/check_crud_ordenes.js && node tests/check_control_terceros_static.js && node tests/check_integrity_guards.js && node tests/check_proxima_certificacion.js && node tests/check_ordinary_save_route.js && node tests/check_timeline_supabase_first.js && node test_imputacion_posiciones.js
+
+
+> coi-linea-roca@60.0.1 validate:web
+> npm run validate:html && npm run validate:css
+
+
+> coi-linea-roca@60.0.1 validate:html
+> html-validate index.html
+
+TypeError: fs.globSync is not a function
+    at file:///home/runner/work/HTML-COI-Linea-Roca/HTML-COI-Linea-Roca/node_modules/html-validate/dist/esm/cli.js:46:26
+    at Array.reduce (<anonymous>)
+    at expandFiles (file:///home/runner/work/HTML-COI-Linea-Roca/HTML-COI-Linea-Roca/node_modules/html-validate/dist/esm/cli.js:35:26)
+    at CLI.expandFiles (file:///home/runner/work/HTML-COI-Linea-Roca/HTML-COI-Linea-Roca/node_modules/html-validate/dist/esm/cli.js:303:12)
+    at run (file:///home/runner/work/HTML-COI-Linea-Roca/HTML-COI-Linea-Roca/node_modules/html-validate/dist/esm/html-validate.js:212:27)
+UNIT_EXIT=1
