@@ -1,7 +1,8 @@
 name: TEMP Ficha OC Patch
 on:
   push:
-    branches: [feat/ficha-oc-indicadores-obra-servicio]
+    branches:
+      - feat/ficha-oc-indicadores-obra-servicio
 permissions:
   contents: write
 jobs:
@@ -15,168 +16,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Patch active Ficha OC indicators
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('index.html')
-          s=p.read_text(encoding='utf-8')
-
-          old_kpis='''    <div class="oc-kpis">
-      <div class="oc-kpi"><b>${esc(item.tipo||'—')}</b><span>Tipo</span></div>
-      <div class="oc-kpi"><b>${fmtFecha(calc.venc)}</b><span>Vencimiento</span></div>
-      <div class="oc-kpi"><b>${calc.dias===null?'—':calc.dias}</b><span>Días restantes</span></div>
-      <div class="oc-kpi"><b>${fmtFecha(calc.prox)}</b><span>Próx. certificación</span></div>
-      <div class="oc-kpi"><b>${esc(estadoDoc)}</b><span>Estado documental</span></div>
-    </div>'''
-          new_kpis='''    <div class="oc-kpis">
-      <div class="oc-kpi"><b>${esc(item.tipo||'—')}</b><span>Tipo</span></div>
-      ${esObra
-        ?`<div class="oc-kpi"><b data-coi-ficha-main-progress>—</b><span>Avance de obra</span><small data-coi-ficha-main-progress-note>Sin certificación registrada</small></div>`
-        :`<div class="oc-kpi"><b data-coi-ficha-main-last-cert>—</b><span>Última certificación</span><small data-coi-ficha-main-last-cert-period>Sin período registrado</small></div>`}
-      <div class="oc-kpi"><b>${fmtFecha(calc.venc)}</b><span>Vencimiento</span><small>${calc.dias===null?'Días restantes: —':`${calc.dias} días restantes`}</small></div>
-      <div class="oc-kpi"><b>${fmtFecha(calc.prox)}</b><span>Próx. certificación</span></div>
-      <div class="oc-kpi"><b>${esc(estadoDoc)}</b><span>Estado documental</span></div>
-    </div>'''
-          if s.count(old_kpis)!=1:
-              raise SystemExit(f'active KPI block: expected 1 match, got {s.count(old_kpis)}')
-          s=s.replace(old_kpis,new_kpis,1)
-
-          a=s.index('  function progressFromPersistedCertification()')
-          b=s.index('  let refreshSequence=0;',a)
-          new_helpers='''  function progressFromPersistedCertification(row){
-    if(!row||row.aux_porcentaje===null||row.aux_porcentaje===undefined||clean(row.aux_porcentaje)==='')return null;
-    const value=Number(row.aux_porcentaje);
-    return Number.isFinite(value)?value:null;
-  }
-  function latestCertification(rows){
-    const live=(Array.isArray(rows)?rows:[]).filter(row=>row&&row._legacy!==true);
-    if(!live.length)return {row:null,acta:'',period:'Sin período registrado',label:'Sin certificación',progress:null};
-    const dateOf=r=>clean(r.fecha_fin||r.periodo_fin||r.fecha_certificacion||r.fecha_inicio||r.periodo_inicio||r.fecha);
-    live.sort((a,b)=>dateOf(b).localeCompare(dateOf(a))||(Number(b.acta_medicion_nro)||0)-(Number(a.acta_medicion_nro)||0));
-    const last=live[0];
-    const acta=clean(last.acta_medicion_nro||last.acta_nro||last.numero_acta);
-    const start=clean(last.fecha_inicio||last.periodo_inicio);
-    const end=clean(last.fecha_fin||last.periodo_fin||last.fecha_certificacion||last.fecha);
-    const period=start&&end?`${fmtDate(start)} al ${fmtDate(end)}`:(start||end?fmtDate(start||end):'Sin período registrado');
-    return {row:last,acta,period,label:acta?'Acta N° '+acta:'Certificación',progress:progressFromPersistedCertification(last)};
-  }
-'''
-          s=s[:a]+new_helpers+s[b:]
-
-          a=s.index('  let refreshSequence=0;')
-          b=s.index('  const previous=window.renderFichaOC;',a)
-          new_refresh='''  let refreshSequence=0;
-  async function refreshSummary(reference,itemOverride){
-    const sequence=++refreshSequence;
-    const body=document.getElementById('fichaOCBody'),card=body&&summaryCard(body),item=itemOverride||resolveItem(reference);
-    if(!card||!item)return {obra:false};
-    const obra=isObra(item,card);
-    const certification=card.querySelector('[data-coi-obra-ultima-certificacion]');
-    const progress=card.querySelector('[data-coi-obra-avance]');
-    const dueDate=card.querySelector('[data-coi-obra-vencimiento]');
-    const remainingDays=card.querySelector('[data-coi-obra-dias-restantes]');
-    const mainProgress=card.querySelector('[data-coi-ficha-main-progress]');
-    const mainProgressNote=card.querySelector('[data-coi-ficha-main-progress-note]');
-    const mainLastCert=card.querySelector('[data-coi-ficha-main-last-cert]');
-    const mainLastCertPeriod=card.querySelector('[data-coi-ficha-main-last-cert-period]');
-
-    if(obra){
-      const persistedDue=persistedDueDate(item),days=remainingDaysFromPersistedDueDate(persistedDue);
-      if(dueDate)dueDate.textContent=fmtDate(persistedDue);
-      if(remainingDays)remainingDays.textContent=days===null?'Sin dato':String(days);
-      if(certification)certification.textContent='Sin certificación';
-      if(progress)progress.textContent='Sin dato';
-      if(mainProgress)mainProgress.textContent='—';
-      if(mainProgressNote)mainProgressNote.textContent='Sin certificación registrada';
-    }else{
-      if(mainLastCert)mainLastCert.textContent='—';
-      if(mainLastCertPeriod)mainLastCertPeriod.textContent='Sin período registrado';
-    }
-
-    if(typeof window.cargarCertificacionesPorOC!=='function')return {obra,latest:{row:null,acta:'',period:'Sin período registrado',label:'Sin certificación',progress:null}};
-    try{
-      const latest=latestCertification(await window.cargarCertificacionesPorOC(item));
-      if(sequence!==refreshSequence||!card.isConnected)return {obra,stale:true};
-      if(obra){
-        if(certification)certification.textContent=latest.row?(latest.label+(latest.period!=='Sin período registrado'?' · '+latest.period:'')):'Sin certificación';
-        if(progress)progress.textContent=latest.progress===null?'Sin dato':fmtPct(latest.progress);
-        if(mainProgress)mainProgress.textContent=latest.progress===null?'—':fmtPct(latest.progress);
-        if(mainProgressNote)mainProgressNote.textContent=latest.row?(latest.period==='Sin período registrado'?'Certificación sin período registrado':'Según certificación · '+latest.period):'Sin certificación registrada';
-      }else{
-        if(mainLastCert)mainLastCert.textContent=latest.row?latest.label:'—';
-        if(mainLastCertPeriod)mainLastCertPeriod.textContent=latest.row?latest.period:'Sin período registrado';
-      }
-      return {obra,latest};
-    }catch(error){
-      if(sequence===refreshSequence&&card.isConnected){
-        if(obra){
-          if(certification)certification.textContent='Sin certificación';
-          if(progress)progress.textContent='Sin dato';
-          if(mainProgress)mainProgress.textContent='—';
-          if(mainProgressNote)mainProgressNote.textContent='Sin certificación registrada';
-        }else{
-          if(mainLastCert)mainLastCert.textContent='—';
-          if(mainLastCertPeriod)mainLastCertPeriod.textContent='Sin período registrado';
-        }
-      }
-      return {obra,error:error?.message||String(error)};
-    }
-  }
-
-'''
-          s=s[:a]+new_refresh+s[b:]
-          p.write_text(s,encoding='utf-8')
-          PY
-
-          cat > tests/ficha_oc_indicadores_obra_servicio.spec.js <<'JS'
-          const { test, expect } = require('@playwright/test');
-          const fs = require('fs');
-          const path = require('path');
-          const SOURCE = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
-          function between(a,b){const x=SOURCE.indexOf(a),y=SOURCE.indexOf(b,x);if(x<0||y<0)throw new Error(`Bloque no encontrado: ${a}`);return SOURCE.slice(x,y);}
-          const ACTIVE=between("function renderFichaOC(title){\n    const found=findOC(title);",'function actualizarFiltroEstaciones');
-          const HOTFIX=between('<script id="coi-ficha-obra-supabase-summary">','</script>',SOURCE.indexOf('<script id="coi-ficha-obra-supabase-summary">'));
-
-          test('Obra muestra indicador superior de avance alimentado por aux_porcentaje real', async()=>{
-            expect(ACTIVE).toContain('data-coi-ficha-main-progress');
-            expect(HOTFIX).toContain('row.aux_porcentaje');
-            expect(HOTFIX).toContain("mainProgress.textContent=latest.progress===null?'—':fmtPct(latest.progress)");
-          });
-          test('Obra sin certificación no inventa cero por ciento', async()=>{
-            expect(HOTFIX).toContain("if(!live.length)return {row:null");
-            expect(HOTFIX).toContain("mainProgress.textContent='—'");
-            expect(HOTFIX).not.toContain("mainProgress.textContent='0%'");
-          });
-          test('Servicio muestra última certificación con acta real y período', async()=>{
-            expect(ACTIVE).toContain('data-coi-ficha-main-last-cert');
-            expect(HOTFIX).toContain('last.acta_medicion_nro');
-            expect(HOTFIX).toContain('data-coi-ficha-main-last-cert-period');
-            expect(HOTFIX).toContain("mainLastCert.textContent=latest.row?latest.label:'—'");
-          });
-          test('Servicio sin certificación muestra guiones y sin período registrado', async()=>{
-            expect(HOTFIX).toContain("mainLastCert.textContent='—'");
-            expect(HOTFIX).toContain("mainLastCertPeriod.textContent='Sin período registrado'");
-          });
-          test('Vencimiento y días restantes quedan en una única tarjeta superior', async()=>{
-            const kpis=between('<div class="oc-kpis">','</div>\n\n    <div class="expediente-grid">',ACTIVE.indexOf('<div class="oc-kpis">'));
-            expect(kpis).toContain('<span>Vencimiento</span>');
-            expect(kpis).toContain('días restantes');
-            expect(kpis).not.toContain('<span>Días restantes</span>');
-          });
-          test('Control de Terceros sigue siendo inyectado por injectCT sin modificación del KPI nuevo', async()=>{
-            expect(SOURCE).toContain('function injectCT');
-            expect(SOURCE).toContain('renderCTCard');
-            expect(ACTIVE).toContain('data-coi-ficha-main-progress');
-            expect(ACTIVE).toContain('data-coi-ficha-main-last-cert');
-          });
-          JS
-
-      - name: Validate JavaScript and unit controls
+      - name: Apply patch
+        run: python .github/scripts/_tmp_apply_ficha_oc.py
+      - name: Validate
         run: |
           node --check tests/ficha_oc_indicadores_obra_servicio.spec.js
           npm run test:unit
-      - name: Commit patch
+      - name: Commit product change
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
