@@ -1,91 +1,35 @@
-name: TEMP Historical Multi OC Display Patch
+name: TEMP Historical Multi OC Inspect
 on:
   push:
     branches: [fix/timeline-historical-multi-oc-display]
 permissions:
   contents: write
 jobs:
-  patch:
+  inspect:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Patch historical concatenated OC display
+      - name: Extract exact Timeline blocks
         run: |
           python - <<'PY'
           from pathlib import Path
-          p=Path('index.html')
-          s=p.read_text(encoding='utf-8')
-
-          def one(old,new,label):
-              global s
-              c=s.count(old)
-              if c!=1:
-                  raise SystemExit(f'{label}: expected 1 match, got {c}')
-              s=s.replace(old,new,1)
-
-          one("const matches=String(value??'').match(/\\b45\\d{8}\\b/g)||[];",
-              "const matches=String(value??'').match(/45\\d{8}/g)||[];",
-              'OC extractor regex')
-
-          one("  function eventCard(event,compact){\n    const orderButton=event.oc&&fold(event.oc)!=='varias'?`<button type=\"button\" data-timeline-open-oc=\"${attr(event.oc)}\">Abrir ficha OC</button>`:'';",
-              "  function eventCard(event,compact){\n    const eventOCRefs=extractTimelineOCRefs([event.oc,event.observaciones].filter(Boolean).join(' '));\n    const eventHasMultipleOCs=fold(event.oc)==='varias'||eventOCRefs.length>1;\n    const eventOCDisplay=eventHasMultipleOCs&&eventOCRefs.length?eventOCRefs.join(' · '):event.oc;\n    const orderButton=event.oc&&!eventHasMultipleOCs?`<button type=\"button\" data-timeline-open-oc=\"${attr(event.oc)}\">Abrir ficha OC</button>`:'';",
-              'eventCard header')
-
-          one("${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><span>Sin OC</span>'}",
-              "${event.oc?`<br><b>OC ${html(eventOCDisplay)}</b>`:'<br><span>Sin OC</span>'}",
-              'event card OC display')
-
-          old_group="return `<section class=\"timeline-oc-group\"><div class=\"timeline-section-head\"><div><h3>${oc==='Sin OC individual'?html(oc):`OC ${html(oc)}`}</h3><p>${ordered.length} movimiento(s) · Último: ${html(displayDate(ordered[0].fecha))}${action?` · Próxima acción: ${html(action.accion_pendiente)}`:''}</p></div>${oc!=='Sin OC individual'&&fold(oc)!=='varias'?`<button type=\"button\" data-timeline-open-oc=\"${attr(oc)}\">Abrir ficha OC</button>`:''}</div><div class=\"timeline-vertical\">${ordered.map(event=>eventCard(event,false)).join('')}</div></section>`;"
-          new_group="const groupOCRefs=extractTimelineOCRefs([oc,...ordered.map(event=>event.observaciones)].filter(Boolean).join(' '));\n      const groupHasMultipleOCs=fold(oc)==='varias'||groupOCRefs.length>1;\n      const groupOCDisplay=groupHasMultipleOCs&&groupOCRefs.length?groupOCRefs.join(' · '):oc;\n      return `<section class=\"timeline-oc-group\"><div class=\"timeline-section-head\"><div><h3>${oc==='Sin OC individual'?html(oc):`OC ${html(groupOCDisplay)}`}</h3><p>${ordered.length} movimiento(s) · Último: ${html(displayDate(ordered[0].fecha))}${action?` · Próxima acción: ${html(action.accion_pendiente)}`:''}</p></div>${oc!=='Sin OC individual'&&!groupHasMultipleOCs?`<button type=\"button\" data-timeline-open-oc=\"${attr(oc)}\">Abrir ficha OC</button>`:''}</div><div class=\"timeline-vertical\">${ordered.map(event=>eventCard(event,false)).join('')}</div></section>`;"
-          one(old_group,new_group,'OC group display')
-
-          p.write_text(s,encoding='utf-8')
+          s=Path('index.html').read_text(encoding='utf-8')
+          specs=[
+            ('extract','  function extractTimelineOCRefs','  function normalizeTimelineOCSource'),
+            ('card','  function eventCard(event,compact){','  function dailyMarkup(events){'),
+            ('ocview','  function ocMarkup(events){','  function nextAction('),
+          ]
+          out=[]
+          for name,a,b in specs:
+              x=s.index(a); y=s.index(b,x)
+              out += [f'===== {name} =====', s[x:y], '']
+          Path('multioc_inspect.txt').write_text('\n'.join(out),encoding='utf-8')
           PY
-
-          cat > tests/timeline_historical_multioc_display.spec.js <<'JS'
-          const { test, expect } = require('@playwright/test');
-          const fs = require('fs');
-          const path = require('path');
-          const SOURCE = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
-          function between(a,b){const x=SOURCE.indexOf(a),y=SOURCE.indexOf(b,x);if(x<0||y<0)throw new Error(`Bloque no encontrado: ${a}`);return SOURCE.slice(x,y);}
-          const EXTRACT=between('  function extractTimelineOCRefs','  function normalizeTimelineOCSource');
-          const CARD=between('  function eventCard(event,compact){','  function dailyMarkup(events){');
-          const OC_VIEW=between('  function ocMarkup(events){','  function nextAction(');
-
-          test('extractor reconoce OCs históricas concatenadas sin separadores', async () => {
-            const fn = new Function(`${EXTRACT}; return extractTimelineOCRefs;`)();
-            expect(fn('453000980545300093044530009014')).toEqual(['4530009014','4530009304','4530009805']);
-          });
-
-          test('tarjeta Timeline separa múltiples OCs y no abre una ficha inválida', async () => {
-            expect(CARD).toContain("eventOCRefs.join(' · ')");
-            expect(CARD).toContain("!eventHasMultipleOCs");
-            expect(CARD).toContain('html(eventOCDisplay)');
-          });
-
-          test('Vista por OC también separa múltiples OCs históricas', async () => {
-            expect(OC_VIEW).toContain("groupOCRefs.join(' · ')");
-            expect(OC_VIEW).toContain("!groupHasMultipleOCs");
-            expect(OC_VIEW).toContain('html(groupOCDisplay)');
-          });
-          JS
-
-      - name: Validate patch
-        run: |
-          npm ci
-          node --check tests/timeline_historical_multioc_display.spec.js
-          npm test
-          git diff --check
-      - name: Commit patch
-        run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add index.html tests/timeline_historical_multioc_display.spec.js
-          git commit -m 'fix: separate historical multi-OC labels in Timeline'
+          git add multioc_inspect.txt
+          git commit -m 'chore: capture current multi-OC blocks [skip ci]'
           git push
