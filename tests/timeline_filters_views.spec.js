@@ -19,9 +19,15 @@ test('eventMatches deja de aplicar filtros retirados', async () => {
   for(const token of ['f.fecha_desde','f.oc','f.proveedor','f.rubro','f.tipo_evento','f.origen','f.responsable_accion']) expect(MATCHES).toContain(token);
   for(const token of ['f.fecha_hasta','f.semana','f.estado','f.riesgo']) expect(MATCHES).not.toContain(token);
 });
-test('resultado visible se renderiza antes del editor y carga masiva', async () => {
-  const a=RENDER.indexOf('${filtersMarkup()}'), b=RENDER.indexOf('timelineResultsAnchor'), c=RENDER.indexOf('${editorMarkup()}'), d=RENDER.indexOf('${bulkImportMarkup()}');
-  expect(a).toBeGreaterThan(-1); expect(b).toBeGreaterThan(a); expect(c).toBeGreaterThan(b); expect(d).toBeGreaterThan(c);
+test('carga manual y masiva se renderizan antes de filtros y resultados', async () => {
+  const editor=RENDER.indexOf('${editorMarkup()}');
+  const bulk=RENDER.indexOf('${bulkImportMarkup()}');
+  const filters=RENDER.indexOf('${filtersMarkup()}');
+  const results=RENDER.indexOf('timelineResultsAnchor');
+  expect(editor).toBeGreaterThan(-1);
+  expect(bulk).toBeGreaterThan(editor);
+  expect(filters).toBeGreaterThan(bulk);
+  expect(results).toBeGreaterThan(filters);
 });
 test('botones de vistas y Aplicar filtros rerenderizan y enfocan resultados', async () => {
   expect(BIND).toContain("target.closest('[data-timeline-view]')");

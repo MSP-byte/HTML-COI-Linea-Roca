@@ -20701,7 +20701,7 @@ if(document.readyState==='loading'){
     return timelineDateToken(match?.[1]||'');
   }
   function eventCard(event,compact){
-    const orderButton=event.oc?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
+    const orderButton=event.oc&&fold(event.oc)!=='varias'?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
     const rawLink=String(event.link_documental??'').trim();
 const validLink=/^https?:\/\//i.test(rawLink)&&coiURLHTTPValida(rawLink);
 const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
@@ -20744,7 +20744,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     return [...groups.entries()].map(([oc,list])=>{
       const ordered=sortEvents(list);
       const action=nextAction(ordered);
-      return `<section class="timeline-oc-group"><div class="timeline-section-head"><div><h3>${oc==='Sin OC individual'?html(oc):`OC ${html(oc)}`}</h3><p>${ordered.length} movimiento(s) \u00b7 \u00daltimo: ${html(displayDate(ordered[0].fecha))}${action?` \u00b7 Pr\u00f3xima acci\u00f3n: ${html(action.accion_pendiente)}`:''}</p></div>${oc!=='Sin OC individual'?`<button type="button" data-timeline-open-oc="${attr(oc)}">Abrir ficha OC</button>`:''}</div><div class="timeline-vertical">${ordered.map(event=>eventCard(event,false)).join('')}</div></section>`;
+      return `<section class="timeline-oc-group"><div class="timeline-section-head"><div><h3>${oc==='Sin OC individual'?html(oc):`OC ${html(oc)}`}</h3><p>${ordered.length} movimiento(s) \u00b7 \u00daltimo: ${html(displayDate(ordered[0].fecha))}${action?` \u00b7 Pr\u00f3xima acci\u00f3n: ${html(action.accion_pendiente)}`:''}</p></div>${oc!=='Sin OC individual'&&fold(oc)!=='varias'?`<button type="button" data-timeline-open-oc="${attr(oc)}">Abrir ficha OC</button>`:''}</div><div class="timeline-vertical">${ordered.map(event=>eventCard(event,false)).join('')}</div></section>`;
     }).join('');
   }
 
@@ -20850,7 +20850,24 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     return hits>=5 || (normalized[0]==='FECHA'&&normalized[1]==='HORA');
   }
   function timelineDuplicateKey(event){return [event.fecha,fold(event.oc),fold(event.titulo),fold(event.tipo_evento)].join('|');}
+  function extractTimelineOCRefs(value){
+    const matches=String(value??'').match(/\b45\d{8}\b/g)||[];
+    return [...new Set(matches)].sort();
+  }
+  function normalizeTimelineOCSource(source){
+    const input={...(source||{})};
+    const refs=extractTimelineOCRefs([input.oc,input.titulo,input.descripcion,input.documentos_mencionados,input.observaciones].filter(Boolean).join(' '));
+    if(refs.length===1){input.oc=refs[0];return input;}
+    if(refs.length>1){
+      input.oc='VARIAS';
+      const marker=`OCs mencionadas: ${refs.join(', ')}`;
+      const clean=text(input.observaciones).replace(/(?:^|\n)OCs mencionadas:\s*[^\n]*/gi,'').trim();
+      input.observaciones=[clean,marker].filter(Boolean).join('\n');
+    }
+    return input;
+  }
   function completeEventFromOrder(event,validation){
+    if(fold(event.oc)==='varias'){event.oc_registrada='NO';validation.push('Varias OC; sin vínculo individual');return;}
     const order=event.oc?findOrder(event.oc):null;
     if(order){
       if(!event.expediente)event.expediente=order.expediente;
@@ -20895,11 +20912,12 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       const estado=normalizeTimelineEnum(rawObject.estado,TIMELINE_STATUSES,'Informativo');
       const riesgo=normalizeTimelineEnum(rawObject.riesgo,TIMELINE_RISKS,'Bajo');
       const tipo_evento=normalizeTimelineEnum(rawObject.tipo_evento,TIMELINE_EVENT_TYPES,'Mailing');
+      const normalizedSource=normalizeTimelineOCSource(rawObject);
       const event=normalizeEvent({
-        ...rawObject,
+        ...normalizedSource,
         id:makeId(),fecha,hora,semana:isoWeek(fecha),estado,riesgo,tipo_evento,
         origen:text(rawObject.origen)||'Mailing',fecha_limite:rawObject.fecha_limite?normalizeTimelineDate(rawObject.fecha_limite):'',
-        titulo:text(rawObject.titulo)||`${tipo_evento}${rawObject.oc?' OC '+rawObject.oc:''}`,
+        titulo:text(normalizedSource.titulo)||`${tipo_evento}${normalizedSource.oc?' OC '+normalizedSource.oc:''}`,
         creado_por:userName(),actualizado_en:nowISO(),origen_carga:'Carga masiva ChatGPT / Excel'
       },index);
       if(rawObject.estado&&estado!==rawObject.estado)validation.push('Estado normalizado');
@@ -20964,7 +20982,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
   }
   function bulkImportMarkup(){
     if(!state.permissions.canWrite)return '<section class="timeline-bulk-card"><div class="timeline-bulk-body"><div class="timeline-bulk-help">Tu rol Supabase tiene acceso de solo lectura. La carga manual, JSON y masiva est\u00e1n deshabilitadas.</div></div></section>';
-    return `<section class="timeline-bulk-card" id="timelineBulkImportCard"><div class="timeline-bulk-head"><div><h3>Carga masiva desde ChatGPT / Excel</h3><p>Pegue filas tabuladas o separadas por punto y coma. Permite cargar mailings diarios/semanales en bloque sin reemplazar el formulario manual.</p></div><div class="timeline-bulk-actions"><button type="button" id="btnTimelineBulkCopy">Copiar plantilla</button><button type="button" id="btnTimelineBulkPreview" class="timeline-primary">Previsualizar eventos</button><button type="button" id="btnTimelineBulkImport">Importar eventos</button><button type="button" id="btnTimelineBulkClear">Limpiar</button></div></div><div class="timeline-bulk-body"><div class="timeline-bulk-help">Columnas esperadas: ${html(TIMELINE_BULK_COLUMNS.join(' | '))}. Si FECHA, HORA, RIESGO, ESTADO u ORIGEN vienen vacíos, el sistema aplica valores operativos por defecto.</div><textarea id="timelineBulkTextarea" class="timeline-bulk-textarea" spellcheck="false" placeholder="Pegue aquí las filas desde ChatGPT o Excel...">${html(state.bulk.text)}</textarea><div class="timeline-bulk-options"><label><input type="checkbox" id="timelineBulkAllowDuplicates" ${state.bulk.allowDuplicates?'checked':''}> Permitir importar posibles duplicados</label><span class="muted">Duplicado: FECHA + OC + TÍTULO + TIPO_EVENTO.</span></div>${bulkCountersMarkup()}<div class="timeline-bulk-preview">${state.bulk.previewed?previewTimelineEvents(state.bulk.events):'<div class="timeline-empty">Todavía no se previsualizaron eventos masivos.</div>'}</div>${state.bulk.lastMessage?`<div class="notice okmsg">${html(state.bulk.lastMessage)}</div>`:''}${recentBulkMarkup()}</div></section>`;
+    return `<section class="timeline-bulk-card" id="timelineBulkImportCard"><div class="timeline-bulk-head"><div><h3>Carga masiva desde ChatGPT / Excel</h3><p>Pegue filas tabuladas o separadas por punto y coma. Permite cargar mailings diarios/semanales en bloque sin reemplazar el formulario manual. Si un mail menciona más de una OC, se guarda como VARIAS y se conserva la lista ordenada en Observaciones.</p></div><div class="timeline-bulk-actions"><button type="button" id="btnTimelineBulkCopy">Copiar plantilla</button><button type="button" id="btnTimelineBulkPreview" class="timeline-primary">Previsualizar eventos</button><button type="button" id="btnTimelineBulkImport">Importar eventos</button><button type="button" id="btnTimelineBulkClear">Limpiar</button></div></div><div class="timeline-bulk-body"><div class="timeline-bulk-help">Columnas esperadas: ${html(TIMELINE_BULK_COLUMNS.join(' | '))}. Si FECHA, HORA, RIESGO, ESTADO u ORIGEN vienen vacíos, el sistema aplica valores operativos por defecto.</div><textarea id="timelineBulkTextarea" class="timeline-bulk-textarea" spellcheck="false" placeholder="Pegue aquí las filas desde ChatGPT o Excel...">${html(state.bulk.text)}</textarea><div class="timeline-bulk-options"><label><input type="checkbox" id="timelineBulkAllowDuplicates" ${state.bulk.allowDuplicates?'checked':''}> Permitir importar posibles duplicados</label><span class="muted">Duplicado: FECHA + OC + TÍTULO + TIPO_EVENTO.</span></div>${bulkCountersMarkup()}<div class="timeline-bulk-preview">${state.bulk.previewed?previewTimelineEvents(state.bulk.events):'<div class="timeline-empty">Todavía no se previsualizaron eventos masivos.</div>'}</div>${state.bulk.lastMessage?`<div class="notice okmsg">${html(state.bulk.lastMessage)}</div>`:''}${recentBulkMarkup()}</div></section>`;
   }
 
   function persistenceMarkup(){
@@ -20985,6 +21003,8 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     mount.innerHTML=`<div class="timeline-view-shell">
       <section class="timeline-hero"><div><h2>Timeline COI / Trazabilidad por OC</h2><p>Mailings, sistemas, actas, certificados, remitos, facturas y acciones pendientes en una secuencia auditable.</p></div><div class="timeline-actions">${writeActions}<button type="button" id="btnTimelineExportJSON">Exportar JSON</button></div></section>
       ${persistenceMarkup()}
+      ${editorMarkup()}
+      ${bulkImportMarkup()}
       ${kpisMarkup(metrics())}
       <nav class="timeline-tabs" aria-label="Vistas del Timeline COI"><button type="button" data-timeline-view="diaria" class="${state.view==='diaria'?'active':''}">Vista diaria</button><button type="button" data-timeline-view="oc" class="${state.view==='oc'?'active':''}">Vista por OC</button></nav>
       ${filtersMarkup()}
@@ -20992,8 +21012,6 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
         <div class="timeline-section-head"><div><h3>${state.view==='diaria'?'Movimientos diarios':'Historial por OC'}</h3><p>${events.length} de ${window.coiTimelineEvents.length} evento(s) visibles</p></div></div>
         <div class="timeline-result">${result}</div>
       </section>
-      ${editorMarkup()}
-      ${bulkImportMarkup()}
     </div>`;
   }
   window.renderTimelineCOI=renderTimelineCOI;
@@ -21022,7 +21040,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     }
     const existing=window.coiTimelineEvents.find(event=>event.id===text(form.dataset.eventId));
     const event=normalizeEvent({
-      ...(existing||{}),...data,id:existing?.id||makeId(),semana:isoWeek(data.fecha),
+      ...(existing||{}),...normalizeTimelineOCSource(data),id:existing?.id||makeId(),semana:isoWeek(data.fecha),
       creado_por:text(data.creado_por)||existing?.creado_por||userName(),
       actualizado_en:existing?.actualizado_en||''
     });
