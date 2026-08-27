@@ -7,6 +7,8 @@ const RENDER=between('  function renderTimelineCOI(){','  window.renderTimelineC
 const MULTI=between('  function extractTimelineOCRefs','  function completeEventFromOrder');
 const COMPLETE=between('  function completeEventFromOrder','  function parseTimelineBulkText');
 const BULK=between('  function parseTimelineBulkText','  function timelineBulkCounts');
+const CARD=between('  function eventCard(event,compact){','  function dailyMarkup(events){');
+const OC=between('  function ocMarkup(events){','  function formField(');
 
 test('sistema de carga aparece antes del Timeline visible', async () => {
   const editor=RENDER.indexOf('${editorMarkup()}');
@@ -27,9 +29,17 @@ test('múltiples OC se normalizan a VARIAS y se listan ordenadas', async () => {
   expect(BULK).toContain('normalizeTimelineOCSource(rawObject)');
 });
 
-test('VARIAS no ofrece navegación a una ficha individual', async () => {
-  const CARD=between('  function eventCard(event,compact){','  function dailyMarkup(events){');
-  const OC=between('  function ocMarkup(events){','  function formField(');
-  expect(CARD).toContain("fold(event.oc)!=='varias'");
-  expect(OC).toContain("fold(oc)!=='varias'");
+test('VARIAS se individualiza: chips y acciones por cada OC detectada', async () => {
+  expect(MULTI).toContain('function timelineEventOCRefs(event)');
+  expect(CARD).toContain('const ocRefs=timelineEventOCRefs(event)');
+  expect(CARD).toContain('timeline-oc-chips');
+  expect(CARD).toContain('timeline-oc-actions');
+  expect(CARD).toContain('Abrir OC');
+  expect(OC).toContain('timelineEventOCRefs(event)');
+  expect(OC).not.toContain("fold(oc)!=='varias'");
+});
+
+test('el filtro por OC reconoce eventos con varias OCs asociadas', async () => {
+  const MATCHES=between('  function eventMatches(event){','  function filteredEvents(){');
+  expect(MATCHES).toContain('timelineEventOCRefs(event)');
 });

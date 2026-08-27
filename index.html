@@ -1169,6 +1169,33 @@ body.modo-consulta #alertTabCalidadDatos,body.modo-consulta #alertTabTodas{displ
 .timeline-badge.risk-alto { color: #8b3c0b; background: #fff0e5; border-color: #edc5aa; }
 .timeline-badge.risk-critico { color: #9b2424; background: #ffeaea; border-color: #efb7b7; }
 
+.timeline-oc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.timeline-oc-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 7px;
+  border: 1px solid #b9c8d4;
+  border-radius: 999px;
+  background: #eef4f8;
+  color: #17384f;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.timeline-event-actions .timeline-oc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .timeline-table-wrap {
   overflow-x: auto;
   border: 1px solid #dce5ec;
@@ -13952,7 +13979,18 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
       const rows=await cargarCertificacionesPorOC(reference);
       if(!section.isConnected)return;
       const sourceNote=rows.some(row=>row._legacy)?' Lectura histórica local de respaldo; no mezclada con registros Supabase en línea.':'';
-      section.innerHTML=`<h4>Certificaciones registradas</h4><p>${rows.length} movimiento(s) vinculados a esta OC.${escapeHTML(sourceNote)}</p>${tablaCertificacionesFicha(rows)}`;
+      let actasNote='';
+      if(!rows.length){
+        try{
+          if(typeof window.cargarDocumentosStorageOC==='function'&&typeof window.obtenerActasMedicionDocumentalesOC==='function'){
+            const documentos=await window.cargarDocumentosStorageOC(reference);
+            const actas=window.obtenerActasMedicionDocumentalesOC(reference,documentos)||[];
+            if(actas.length)actasNote=` No hay certificaciones estructuradas cargadas, pero se encontraron ${actas.length} Acta(s) de Medición documental(es) en "Actas de medición documentales" debajo.`;
+          }
+        }catch(error){}
+        if(!section.isConnected)return;
+      }
+      section.innerHTML=`<h4>Certificaciones registradas</h4><p>${rows.length} movimiento(s) vinculados a esta OC.${escapeHTML(sourceNote)}${escapeHTML(actasNote)}</p>${tablaCertificacionesFicha(rows)}`;
     }catch(error){
       if(!section.isConnected)return;
       section.innerHTML=`<h4>Certificaciones registradas</h4><div class="carga-certificacion-status error">${escapeHTML(detalleErrorEsquema(error))}</div>`;
@@ -16568,7 +16606,18 @@ const APP_DATA_MODE = "supabase_first";
   function obtenerRepositorioDocumento(documento){return clean(campoDocumentoStorage(documento,['repositorio','storageBucket','storage_bucket','bucket'],'Supabase Storage'))}
   function obtenerRutaDocumento(documento){return clean(campoDocumentoStorage(documento,['objectPath','object_path','storage_path','rutaDocumental','ruta_documental','path'],''))}
   function obtenerEstadoDocumento(documento){return clean(campoDocumentoStorage(documento,['estadoDocumento','estado_documento','estado'],'Sin estado'))}
+  function normalizarRutaStorageParaIdentidad(bucket,path){
+    const p=clean(path).replace(/\\/g,'/').replace(/\/+/g,'/').replace(/^\/|\/$/g,'');
+    if(!p)return '';
+    return norm(`${clean(bucket)||'coi-documentos'}/${p}`);
+  }
   function claveActaDocumental(documento,ocNro=''){
+    const ruta=obtenerRutaDocumento(documento);
+    if(ruta){
+      const bucket=clean(campoDocumentoStorage(documento,['storageBucket','storage_bucket','bucket','repositorio'],'coi-documentos'));
+      const claveRuta=normalizarRutaStorageParaIdentidad(bucket,ruta);
+      if(claveRuta)return `PATH:${claveRuta}`;
+    }
     const id=clean(campoDocumentoStorage(documento,['idDocumento','id_documento','id'],''));
     if(id)return `ID:${id}`;
     return ['ACTA',ocNro||normalizarNroOCStorage(documento),obtenerNumeroActaDocumento(documento),obtenerNombreArchivoDocumento(documento),obtenerFechaDocumentoActa(documento)].map(norm).join('|');
@@ -16646,7 +16695,7 @@ const APP_DATA_MODE = "supabase_first";
     const selector=`[data-storage-documento-card="${typeof CSS!=='undefined'&&CSS.escape?CSS.escape(String(id)):String(id)}"]`;
     setTimeout(()=>{const card=document.querySelector(selector);if(card){card.scrollIntoView({behavior:'smooth',block:'center'});card.classList.add('documento-storage-destacado');setTimeout(()=>card.classList.remove('documento-storage-destacado'),1800)}if(editar){const localEdit=document.querySelector(`[data-v64-doc-edit="${String(id)}"]`);if(localEdit)localEdit.click();else toast('Registro localizado en Documentos. Complete los metadatos disponibles sin modificar el PDF.','warning')}},60);
   }
-  Object.assign(window,{esDocumentoActaMedicion,obtenerNumeroActaDocumento,obtenerActasMedicionDocumentalesOC,renderActasMedicionDocumentalesOC});
+  Object.assign(window,{esDocumentoActaMedicion,obtenerNumeroActaDocumento,obtenerActasMedicionDocumentalesOC,renderActasMedicionDocumentalesOC,obtenerPeriodoDocumentoActa,obtenerFechaDocumentoActa,buscarDocumentoStoragePorId});
   function invalidarDocumentosStorageOC(orden){if(orden===undefined||orden===null){documentosStorageCache.clear();return}const key=normalizarNroOCStorage(orden);if(key)documentosStorageCache.delete(key)}
   async function cargarDocumentosStorageOC(orden,{force=false}={}){
     const nroOC=normalizarNroOCStorage(orden);
@@ -20556,7 +20605,8 @@ if(document.readyState==='loading'){
   }
   function eventsForOC(oc){
     const target=fold(oc);
-    return sortEvents(window.coiTimelineEvents.filter(event=>target&&fold(event.oc)===target));
+    if(!target)return [];
+    return sortEvents(window.coiTimelineEvents.filter(event=>timelineEventOCRefs(event).some(ref=>fold(ref)===target)));
   }
   function maxRisk(events){
     return [...events].sort((a,b)=>(riskWeight[b.riesgo]||0)-(riskWeight[a.riesgo]||0))[0]?.riesgo||'Bajo';
@@ -20647,7 +20697,12 @@ if(document.readyState==='loading'){
     const f=state.filters;
     if(f.fecha&&event.fecha!==f.fecha)return false;
     if(f.fecha_desde&&event.fecha<f.fecha_desde)return false;
-    if(f.oc&&!fold(event.oc).includes(fold(f.oc)))return false;
+    if(f.oc){
+      const target=fold(f.oc);
+      const refs=timelineEventOCRefs(event);
+      const matches=refs.length?refs.some(ref=>fold(ref).includes(target)):fold(event.oc).includes(target);
+      if(!matches)return false;
+    }
     if(f.proveedor&&event.proveedor!==f.proveedor)return false;
     if(f.rubro&&event.rubro!==f.rubro)return false;
     if(f.tipo_evento&&event.tipo_evento!==f.tipo_evento)return false;
@@ -20705,7 +20760,10 @@ if(document.readyState==='loading'){
     return timelineDateToken(match?.[1]||'');
   }
   function eventCard(event,compact){
-    const orderButton=event.oc&&fold(event.oc)!=='varias'?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
+    const ocRefs=timelineEventOCRefs(event);
+    const orderButton=ocRefs.length>1
+      ?`<span class="timeline-oc-actions">${ocRefs.map(oc=>`<button type="button" data-timeline-open-oc="${attr(oc)}">Abrir OC ${html(oc)}</button>`).join('')}</span>`
+      :(ocRefs.length===1?`<button type="button" data-timeline-open-oc="${attr(ocRefs[0])}">Abrir ficha OC</button>`:'');
     const rawLink=String(event.link_documental??'').trim();
 const validLink=/^https?:\/\//i.test(rawLink)&&coiURLHTTPValida(rawLink);
 const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
@@ -20718,7 +20776,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     const editButton=state.permissions.canWrite?`<button type="button" data-timeline-edit="${attr(event.id)}">Editar</button>`:'';
     const deleteButton=state.permissions.canDelete?`<button type="button" class="timeline-danger" data-timeline-delete="${attr(event.id)}">Eliminar</button>`:'';
     return `<article class="timeline-event-card ${cardRiskClass}" data-timeline-event-id="${attr(event.id)}">
-      <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><b>Sin OC individual</b>'}</div>
+      <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${ocRefs.length>1?`<div class="timeline-oc-chips">${ocRefs.map(oc=>`<span class="timeline-oc-chip">OC ${html(oc)}</span>`).join('')}</div>`:ocRefs.length===1?`<br><b>OC ${html(ocRefs[0])}</b>`:'<br><b>Sin OC individual</b>'}</div>
       <div class="timeline-event-main">
         <div class="timeline-badges"><span class="timeline-badge">${html(event.tipo_evento)}</span><span class="timeline-badge">${html(event.estado)}</span>${riskBadge}${event.origen?`<span class="timeline-badge">${html(event.origen)}</span>`:''}</div>
         <h4>${html(event.titulo)}</h4>
@@ -20741,14 +20799,21 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     if(!events.length)return '<div class="timeline-empty">No hay eventos vinculados a la OC indicada.</div>';
     const groups=new Map();
     events.forEach(event=>{
-      const key=event.oc||'Sin OC individual';
-      if(!groups.has(key))groups.set(key,[]);
-      groups.get(key).push(event);
+      const refs=timelineEventOCRefs(event);
+      const keys=refs.length?refs:['Sin OC individual'];
+      keys.forEach(key=>{
+        if(!groups.has(key))groups.set(key,[]);
+        groups.get(key).push(event);
+      });
     });
-    return [...groups.entries()].map(([oc,list])=>{
+    return [...groups.entries()].sort(([a],[b])=>{
+      if(a==='Sin OC individual')return 1;
+      if(b==='Sin OC individual')return -1;
+      return a.localeCompare(b);
+    }).map(([oc,list])=>{
       const ordered=sortEvents(list);
       const action=nextAction(ordered);
-      return `<section class="timeline-oc-group"><div class="timeline-section-head"><div><h3>${oc==='Sin OC individual'?html(oc):`OC ${html(oc)}`}</h3><p>${ordered.length} movimiento(s) \u00b7 \u00daltimo: ${html(displayDate(ordered[0].fecha))}${action?` \u00b7 Pr\u00f3xima acci\u00f3n: ${html(action.accion_pendiente)}`:''}</p></div>${oc!=='Sin OC individual'&&fold(oc)!=='varias'?`<button type="button" data-timeline-open-oc="${attr(oc)}">Abrir ficha OC</button>`:''}</div><div class="timeline-vertical">${ordered.map(event=>eventCard(event,false)).join('')}</div></section>`;
+      return `<section class="timeline-oc-group"><div class="timeline-section-head"><div><h3>${oc==='Sin OC individual'?html(oc):`OC ${html(oc)}`}</h3><p>${ordered.length} movimiento(s) \u00b7 \u00daltimo: ${html(displayDate(ordered[0].fecha))}${action?` \u00b7 Pr\u00f3xima acci\u00f3n: ${html(action.accion_pendiente)}`:''}</p></div>${oc!=='Sin OC individual'?`<button type="button" data-timeline-open-oc="${attr(oc)}">Abrir ficha OC</button>`:''}</div><div class="timeline-vertical">${ordered.map(event=>eventCard(event,false)).join('')}</div></section>`;
     }).join('');
   }
 
@@ -20858,9 +20923,27 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     const matches=String(value??'').match(/\b45\d{8}\b/g)||[];
     return [...new Set(matches)].sort();
   }
+  function timelineEventOCRefs(event){
+    if(!event)return [];
+    if(fold(event.oc)==='varias'){
+      const marker=text(event.observaciones).match(/OCs mencionadas:\s*([^\n]*)/i);
+      const listed=marker?marker[1].split(',').map(text).filter(Boolean):[];
+      if(listed.length)return [...new Set(listed)].sort();
+      return extractTimelineOCRefs([event.titulo,event.descripcion,event.documentos_mencionados,event.observaciones].filter(Boolean).join(' '));
+    }
+    const raw=text(event.oc);
+    if(!raw)return [];
+    // Defensa ante datos ya persistidos sin pasar por normalizeTimelineOCSource
+    // (ej. comas/guiones/slashes en el campo oc). Un bloque de dígitos pegados sin
+    // separador no se puede partir sin inventar límites de OC, así que se conserva tal cual.
+    const refs=extractTimelineOCRefs(raw);
+    return refs.length?refs:[raw];
+  }
   function normalizeTimelineOCSource(source){
     const input={...(source||{})};
-    const refs=extractTimelineOCRefs([input.oc,input.titulo,input.descripcion,input.documentos_mencionados,input.observaciones].filter(Boolean).join(' '));
+    const rawRefs=extractTimelineOCRefs([input.oc,input.titulo,input.descripcion,input.documentos_mencionados,input.observaciones].filter(Boolean).join(' '));
+    const knownRefs=rawRefs.filter(ref=>findOrder(ref));
+    const refs=knownRefs.length?knownRefs:rawRefs;
     if(refs.length===1){input.oc=refs[0];return input;}
     if(refs.length>1){
       input.oc='VARIAS';
@@ -21626,10 +21709,16 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     out.fechaCarga=out.fechaCarga||out.fecha_carga||out.fecha_creacion||out.created_at||'';
     return out;
   }
+  function normalizarRutaStorageSync(bucket,path){
+    const p=clean(path).replace(/\\/g,'/').replace(/\/+/g,'/').replace(/^\/|\/$/g,'');
+    if(!p)return '';
+    return norm(`${clean(bucket)||'coi-documentos'}/${p}`);
+  }
   function claveDocumentoOC(doc={}){
     const d=normalizarDocumentoSupabase(doc);
+    const claveRuta=normalizarRutaStorageSync(d.bucket,d.object_path);
+    if(claveRuta)return 'path:'+claveRuta;
     if(d.idDocumento)return 'id:'+clean(d.idDocumento);
-    if(d.object_path)return 'path:'+clean(d.bucket)+'/'+clean(d.object_path);
     return ['fallback',normalizarOCSync(d.ocNro),norm(d.tipoDocumento),norm(d.actaNro||d.nroDocumento),norm(d.nombreArchivo)].join('|');
   }
   function cargarCacheDocs(){try{const data=JSON.parse(localStorage.getItem(CACHE_KEY)||'{}');return data&&typeof data==='object'?data:{}}catch(e){return {}}}
@@ -21871,11 +21960,17 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     };
   }
 
+  function normalizarRutaStorageR27(bucket,path){
+    const p=clean(path).replace(/\\/g,'/').replace(/\/+/g,'/').replace(/^\/|\/$/g,'');
+    if(!p)return '';
+    return norm(`${clean(bucket)||BUCKET}/${p}`);
+  }
   function claveDocumentoOC(doc={}){
     const d = normalizarDocumentoSupabase(doc);
+    const claveRuta = normalizarRutaStorageR27(d.storage_bucket || BUCKET, d.storage_path);
+    if(claveRuta) return 'path:' + claveRuta;
     if(clean(d.id_documento)) return 'id_documento:' + clean(d.id_documento);
     if(clean(d.id) && !String(d.id).startsWith('doc_')) return 'id:' + clean(d.id);
-    if(clean(d.storage_path)) return 'path:' + clean(d.storage_bucket || BUCKET) + '/' + clean(d.storage_path);
     return ['fallback', normalizarOC(d.nro_oc || d.ocNro), norm(d.tipo_documento || d.tipoDocumento), norm(d.nombre_documento || d.nombreArchivo)].join('|');
   }
 
@@ -22046,9 +22141,9 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       console.warn('COI R27: consulta documental previa falló', error);
       return [];
     });
-    const pathsExistentes = new Set(existentes.map(d => clean(d.storage_path || d.objectPath)).filter(Boolean));
+    const pathsExistentes = new Set(existentes.map(d => normalizarRutaStorageR27(d.storage_bucket || BUCKET, d.storage_path || d.objectPath)).filter(Boolean));
     const archivos = await listarArchivosStorageOC(client, oc);
-    const faltantes = archivos.filter(file => !pathsExistentes.has(file.path));
+    const faltantes = archivos.filter(file => !pathsExistentes.has(normalizarRutaStorageR27(BUCKET, file.path)));
 
     const insertados = [];
     for(const file of faltantes){
@@ -22168,7 +22263,11 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
   }
 
   async function abrirDocumentoStorageOC_R27(idOrDoc){
-    const doc = typeof idOrDoc === 'object' ? normalizarDocumentoSupabase(idOrDoc) : runtimeDocs.get(String(idOrDoc)) || runtimeDocs.get('id:' + String(idOrDoc));
+    let doc = typeof idOrDoc === 'object' ? normalizarDocumentoSupabase(idOrDoc) : (runtimeDocs.get(String(idOrDoc)) || runtimeDocs.get('id:' + String(idOrDoc)));
+    if(!doc && typeof idOrDoc !== 'object' && typeof window.buscarDocumentoStoragePorId === 'function'){
+      const otraFuente = window.buscarDocumentoStoragePorId(idOrDoc);
+      if(otraFuente) doc = normalizarDocumentoSupabase(otraFuente);
+    }
     if(!doc) throw new Error('No se encontró el documento solicitado en la sincronización actual.');
     const client = getClient();
     await requireSession(client);
@@ -26040,6 +26139,28 @@ document.addEventListener('click',function(event){
     const period=start&&end?`${fmtDate(start)} al ${fmtDate(end)}`:(start||end?fmtDate(start||end):'Sin período registrado');
     return {row:last,acta,period,date:end?fmtDate(end):'',label:acta?'Acta N° '+acta:'Certificación',progress:progressFromPersistedCertification(last)};
   }
+  async function actaDocumentalFallback(item){
+    try{
+      if(typeof window.cargarDocumentosStorageOC!=='function'||typeof window.obtenerActasMedicionDocumentalesOC!=='function')return null;
+      const documentos=await window.cargarDocumentosStorageOC(item);
+      const actas=window.obtenerActasMedicionDocumentalesOC(item,documentos)||[];
+      if(!actas.length)return null;
+      const numeroDe=a=>Number(window.obtenerNumeroActaDocumento?.(a))||0;
+      const fechaDe=a=>clean(window.obtenerFechaDocumentoActa?.(a)||'');
+      const ordered=[...actas].sort((a,b)=>numeroDe(b)-numeroDe(a)||fechaDe(b).localeCompare(fechaDe(a)));
+      const last=ordered[0];
+      const numero=clean(window.obtenerNumeroActaDocumento?.(last)||'');
+      const periodo=clean(window.obtenerPeriodoDocumentoActa?.(last)||'');
+      const fecha=fechaDe(last);
+      if(!numero&&!fecha)return null;
+      return {
+        label:(numero?`Acta N° ${numero}`:'Acta de Medición')+' (documental)',
+        period:periodo||'Sin período registrado',
+        date:fecha?fmtDate(fecha):'',
+        note:'Fuente: Acta de Medición documental en Supabase Storage (sin certificación estructurada en coi_certificaciones).'
+      };
+    }catch(error){console.warn('COI: fallback de actas documentales no disponible.',error);return null;}
+  }
   let refreshSequence=0;
   async function refreshSummary(reference,itemOverride){
     const sequence=++refreshSequence;
@@ -26050,10 +26171,13 @@ document.addEventListener('click',function(event){
     const progress=card.querySelector('[data-coi-obra-avance]');
     const dueDate=card.querySelector('[data-coi-obra-vencimiento]');
     const remainingDays=card.querySelector('[data-coi-obra-dias-restantes]');
-    const mainProgress=card.querySelector('[data-coi-ficha-main-progress]');
-    const mainProgressNote=card.querySelector('[data-coi-ficha-main-progress-note]');
-    const mainLastCert=card.querySelector('[data-coi-ficha-main-last-cert]');
-    const mainLastCertPeriod=card.querySelector('[data-coi-ficha-main-last-cert-period]');
+    // Los KPI "main" viven en el strip .oc-kpis, hermano (no descendiente) de la
+    // sección "1. Resumen general": deben buscarse en todo el body de la Ficha,
+    // no dentro de card, o nunca se encuentran y el resumen nunca se actualiza.
+    const mainProgress=body.querySelector('[data-coi-ficha-main-progress]');
+    const mainProgressNote=body.querySelector('[data-coi-ficha-main-progress-note]');
+    const mainLastCert=body.querySelector('[data-coi-ficha-main-last-cert]');
+    const mainLastCertPeriod=body.querySelector('[data-coi-ficha-main-last-cert-period]');
 
     if(obra){
       const persistedDue=persistedDueDate(item),days=remainingDaysFromPersistedDueDate(persistedDue);
@@ -26072,16 +26196,18 @@ document.addEventListener('click',function(event){
     try{
       const latest=latestCertification(await window.cargarCertificacionesPorOC(item));
       if(sequence!==refreshSequence||!card.isConnected)return {obra,stale:true};
+      const fallback=latest.row?null:await actaDocumentalFallback(item);
+      if(sequence!==refreshSequence||!card.isConnected)return {obra,stale:true};
       if(obra){
-        if(certification)certification.textContent=latest.row?(latest.label+(latest.date?' · '+latest.date:'')):'Sin certificación';
+        if(certification)certification.textContent=latest.row?(latest.label+(latest.date?' · '+latest.date:'')):(fallback?fallback.label+(fallback.date?' · '+fallback.date:''):'Sin certificación');
         if(progress)progress.textContent=latest.progress===null?'Sin dato':fmtPct(latest.progress);
         if(mainProgress)mainProgress.textContent=latest.progress===null?'—':fmtPct(latest.progress);
-        if(mainProgressNote)mainProgressNote.textContent=latest.row?(latest.period==='Sin período registrado'?'Certificación sin período registrado':'Según certificación · '+latest.period):'Sin certificación registrada';
+        if(mainProgressNote)mainProgressNote.textContent=latest.row?(latest.period==='Sin período registrado'?'Certificación sin período registrado':'Según certificación · '+latest.period):(fallback?fallback.note:'Sin certificación registrada');
       }else{
-        if(mainLastCert)mainLastCert.textContent=latest.row?latest.label:'—';
-        if(mainLastCertPeriod)mainLastCertPeriod.textContent=latest.row?latest.period:'Sin período registrado';
+        if(mainLastCert)mainLastCert.textContent=latest.row?latest.label:(fallback?fallback.label:'—');
+        if(mainLastCertPeriod)mainLastCertPeriod.textContent=latest.row?latest.period:(fallback?fallback.period:'Sin período registrado');
       }
-      return {obra,latest};
+      return {obra,latest,fallback};
     }catch(error){
       if(sequence===refreshSequence&&card.isConnected){
         if(obra){
