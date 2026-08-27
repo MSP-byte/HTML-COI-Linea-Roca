@@ -251,6 +251,17 @@ test('Control de Terceros lee _supabaseRaw y deriva estado si Supabase devuelve 
   expect(state.writes).toHaveLength(0);
 });
 
+test('Control de Terceros usa "hoy" local y no UTC durante el cruce de medianoche en America/Argentina/Buenos_Aires', async ({ browser }) => {
+  const context = await browser.newContext({ timezoneId: 'America/Argentina/Buenos_Aires' });
+  const page = await context.newPage();
+  // 23:30 hora local (UTC-3) == 02:30 UTC del día siguiente: el bug tomaba "hoy" desde toISOString() (UTC).
+  await page.clock.setFixedTime(new Date('2026-08-26T23:30:00-03:00'));
+  await openFixture(page, { remoteDate: '2026-08-26', remoteStatus: null, localDate: '', localStatus: '' });
+  await expect(page.locator('[data-r28-ct-card] .ct-status')).toContainText('Próximo a vencer');
+  await expect(page.locator('[data-r28-ct-contractual] .ct-status')).toContainText('Próximo a vencer');
+  await context.close();
+});
+
 test('Control de Terceros sobrevive navegación, rerender y recarga simulada desde Supabase', async ({ page }) => {
   await openFixture(page, { remoteDate: '2026-08-26', remoteStatus: null, localDate: '', localStatus: '' });
   await page.evaluate(orderNumber => {
