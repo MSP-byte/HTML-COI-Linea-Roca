@@ -12,25 +12,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
-      - name: Extract relevant blocks
+      - name: Extract parser range
         run: |
           python - <<'PY'
           from pathlib import Path
-          src=Path('index.html').read_text(encoding='utf-8')
-          lines=src.splitlines()
-          terms=['function renderTimelineCOI','editorMarkup()','bulkImportMarkup()','Nueva carga manual','Carga masiva desde ChatGPT / Excel','mailEvent','Mailing','nro_oc','oc_registrada','extract','regex','matchAll']
-          out=[]
-          for term in terms:
-              hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
-              out.append(f'===== {term} :: {hits[:30]} =====')
-              for i in hits[:12]:
-                  a=max(0,i-20); b=min(len(lines),i+45)
-                  out.extend(f'{j+1:05d}: {lines[j]}' for j in range(a,b))
-                  out.append('---')
-          Path('timeline_load_multioc_inspect.txt').write_text('\n'.join(out),encoding='utf-8')
+          lines=Path('index.html').read_text(encoding='utf-8').splitlines()
+          a,b=20790,20970
+          out='\n'.join(f'{i+1:05d}: {lines[i]}' for i in range(a-1,min(b,len(lines))))
+          Path('timeline_load_multioc_inspect.txt').write_text(out,encoding='utf-8')
           PY
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add timeline_load_multioc_inspect.txt
-          git commit -m 'chore: capture Timeline load and multi-OC snippets [skip ci]'
+          git commit -m 'chore: capture Timeline bulk parser range [skip ci]'
           git push
