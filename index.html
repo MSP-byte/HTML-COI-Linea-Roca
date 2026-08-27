@@ -22462,7 +22462,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     const d=new Date(v);
     return Number.isNaN(d.getTime())?'':fechaISO(d.toISOString().slice(0,10));
   }
-  function todayISO(){return new Date().toISOString().slice(0,10);}
+  function todayISO(){const d=typeof COI_TODAY!=='undefined'?COI_TODAY:new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
   function parseISODate(value){
     const iso=fechaISO(value);
     if(!iso)return null;
