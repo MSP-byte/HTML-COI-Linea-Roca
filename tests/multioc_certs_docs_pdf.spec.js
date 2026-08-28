@@ -655,3 +655,167 @@ test.describe('CASO 4 — Abrir PDF resuelve Storage o no se ofrece', () => {
     expect(opened[0]).toContain('signed.example');
   });
 });
+
+// ===================== Identidad documental central: casos 1-6 (helper real) =====================
+// window.agruparDocumentosActaEquivalentes ES la misma función que usan tanto
+// "3. Certificaciones" (obtenerActasMedicionDocumentalesOC) como la carga de
+// "5. Documentos" (cargarDocumentosStorageOC): no son tres sistemas de dedup
+// distintos, es una sola identidad reutilizada en ambos módulos.
+
+test.describe('Identidad documental central — casos 1 a 6', () => {
+  test('CASO 1 — la misma fila llega dos veces por composición: 1 documento operativo', async ({ page }) => {
+    await openIsolated(page);
+    const count = await page.evaluate(orderNumber => {
+      const fila = { id: 'row-x', nro_oc: orderNumber, tipo_documento: 'acta_medicion', nombre_documento: 'ACTA 09.pdf', storage_path: `oc/${orderNumber}/ACTA09.pdf`, estado: 'Cargado' };
+      const duplicado = [fila, { ...fila }];
+      return window.agruparDocumentosActaEquivalentes(duplicado, orderNumber).length;
+    }, ORDER_NUMBER);
+    expect(count).toBe(1);
+  });
+
+  test('CASO 2 — mismo id/path/nombre dos veces: 1 documento, contador = 1', async ({ page }) => {
+    await openIsolated(page);
+    const result = await page.evaluate(orderNumber => {
+      const docs = [
+        { id: 'row-y1', nro_oc: orderNumber, tipo_documento: 'acta_inicio', nombre_documento: 'Acta de Inicio_OC_Firmada.pdf', storage_path: `oc/${orderNumber}/Acta_Inicio_Firmada.pdf`, estado: 'Cargado' },
+        { id: 'row-y2', nro_oc: orderNumber, tipo_documento: 'acta_inicio', nombre_documento: 'Acta de Inicio_OC_Firmada.pdf', storage_path: `oc/${orderNumber}/Acta_Inicio_Firmada.pdf`, estado: 'Cargado' }
+      ];
+      const agrupado = window.agruparDocumentosActaEquivalentes(docs, orderNumber);
+      return { count: agrupado.length };
+    }, ORDER_NUMBER);
+    expect(result.count).toBe(1);
+  });
+
+  test('CASO 3 — misma Acta, archivos realmente distintos: 2 documentos', async ({ page }) => {
+    await openIsolated(page);
+    const count = await page.evaluate(orderNumber => {
+      const docs = [
+        { id: 'row-z1', nro_oc: orderNumber, tipo_documento: 'acta_medicion', nombre_documento: 'ACTA11_original.pdf', storage_path: `oc/${orderNumber}/ACTA11_original.pdf`, estado: 'Cargado' },
+        { id: 'row-z2', nro_oc: orderNumber, tipo_documento: 'acta_medicion', nombre_documento: 'ACTA11_firmada.pdf', storage_path: `oc/${orderNumber}/ACTA11_firmada.pdf`, estado: 'Cargado' }
+      ];
+      return window.agruparDocumentosActaEquivalentes(docs, orderNumber).length;
+    }, ORDER_NUMBER);
+    expect(count).toBe(2);
+  });
+
+  test('CASO 4 — importación piloto + auto-registro con sufijo de colisión de Storage "(N)": 1 documento operativo', async ({ page }) => {
+    await openIsolated(page);
+    const result = await page.evaluate(orderNumber => {
+      const nombreFisico = `FEMYP ME Nro11 Mant. Puertas Automaticas PC OC ${orderNumber}.pdf`;
+      const nombreConSufijo = `FEMYP ME Nro11 Mant. Puertas Automaticas PC OC ${orderNumber} (7).pdf`;
+      const docs = [
+        {
+          id: 'row-piloto', nro_oc: orderNumber, tipo_documento: 'acta_medicion',
+          nombre_documento: 'Acta de Medición N° 11 - Mantenimiento Puertas Automáticas',
+          observaciones: `Importación piloto desde Supabase Storage. Archivo: ${nombreConSufijo}`,
+          estado: 'Cargado'
+        },
+        {
+          id: 'row-auto', nro_oc: orderNumber, tipo_documento: 'acta_medicion',
+          nombre_documento: nombreFisico, storage_path: `oc/${orderNumber}/${nombreFisico}`,
+          observaciones: 'Registro creado automáticamente desde Supabase Storage. Acta detectada: 11.',
+          estado: 'Cargado'
+        }
+      ];
+      const agrupado = window.agruparDocumentosActaEquivalentes(docs, orderNumber);
+      return { count: agrupado.length, numero: window.obtenerNumeroActaDocumento(agrupado[0]) };
+    }, ORDER_NUMBER);
+    expect(result.count).toBe(1);
+    expect(result.numero).toBe('11');
+  });
+
+  test('CASO 5 — sin evidencia suficiente de equivalencia, NO se fusiona', async ({ page }) => {
+    await openIsolated(page);
+    const count = await page.evaluate(orderNumber => {
+      const docs = [
+        { id: 'row-w1', nro_oc: orderNumber, tipo_documento: 'remito_factura', nombre_documento: 'Remito 001.pdf', storage_path: `oc/${orderNumber}/remito001.pdf`, estado: 'Cargado' },
+        { id: 'row-w2', nro_oc: orderNumber, tipo_documento: 'remito_factura', nombre_documento: 'Factura A-002.pdf', storage_path: `oc/${orderNumber}/facturaA002.pdf`, estado: 'Cargado' }
+      ];
+      return window.agruparDocumentosActaEquivalentes(docs, orderNumber).length;
+    }, ORDER_NUMBER);
+    expect(count).toBe(2);
+  });
+
+  test('CASO 6 — submódulo 3: Actas 05..11 con Acta 11 duplicada por sufijo de colisión, sin duplicados inequívocos', async ({ page }) => {
+    await openIsolated(page);
+    const nombreFisico = `FEMYP ME Nro11 Mant. Puertas Automaticas PC OC ${ORDER_NUMBER}.pdf`;
+    await installFixture(page, {
+      certifications: [],
+      documents: [
+        ...['05', '06', '07', '08', '09', '10'].map(nn => ({
+          id: `row-serie-${nn}`, orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+          estado: 'Cargado', storage_bucket: 'coi-documentos', nombre_documento: `ACTA ${nn}.pdf`,
+          storage_path: `oc/${ORDER_NUMBER}/ACTA${nn}.pdf`
+        })),
+        {
+          id: 'row-11-piloto', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+          estado: 'Cargado', storage_bucket: 'coi-documentos',
+          nombre_documento: 'Acta de Medición N° 11 - Mantenimiento Puertas Automáticas',
+          observaciones: `Importación piloto desde Supabase Storage. Archivo: ${nombreFisico.replace('.pdf', ' (7).pdf')}`
+        },
+        {
+          id: 'row-11-auto', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+          estado: 'Cargado', storage_bucket: 'coi-documentos', nombre_documento: nombreFisico,
+          storage_path: `oc/${ORDER_NUMBER}/${nombreFisico}`,
+          observaciones: 'Registro creado automáticamente desde Supabase Storage. Acta detectada: 11.'
+        }
+      ]
+    });
+    await renderOrder(page);
+    await expect(page.locator('[data-coi-ficha-main-last-cert]')).toHaveText('Acta N° 11 (documental)');
+    await page.evaluate(() => window.activarSubmoduloFichaOC('panelFichaCertificaciones'));
+    const rows = page.locator('#panelFichaCertificaciones .actas-documentales-table tbody tr');
+    await expect(rows).toHaveCount(7);
+  });
+});
+
+// ===================== CASO 7 y 8: módulo 5.Documentos real =====================
+
+test.describe('Módulo 5.Documentos — casos 7 y 8', () => {
+  test('CASO 7 — cantidad de cards == documentos únicos y los KPI coinciden con el listado', async ({ page }) => {
+    await openIsolated(page);
+    const nombreFisico11 = `FEMYP ME Nro11 Mant. Puertas Automaticas PC OC ${ORDER_NUMBER}.pdf`;
+    await installFixture(page, {
+      documents: [
+        // Duplicado exacto de Acta de Inicio (mismo storage_path).
+        { id: 'row-inicio-a', nro_oc: ORDER_NUMBER, orden_id: ORDER_ID, tipo_documento: 'acta_inicio', nombre_documento: 'Acta de Inicio_OC_Firmada.pdf', storage_path: `oc/${ORDER_NUMBER}/ActaInicioFirmada.pdf`, estado: 'Cargado', storage_bucket: 'coi-documentos' },
+        { id: 'row-inicio-b', nro_oc: ORDER_NUMBER, orden_id: ORDER_ID, tipo_documento: 'acta_inicio', nombre_documento: 'Acta de Inicio_OC_Firmada.pdf', storage_path: `oc/${ORDER_NUMBER}/ActaInicioFirmada.pdf`, estado: 'Cargado', storage_bucket: 'coi-documentos' },
+        // Acta 05 duplicada (mismo path, dos filas DB).
+        { id: 'row-05-a', nro_oc: ORDER_NUMBER, orden_id: ORDER_ID, tipo_documento: 'acta_medicion', nombre_documento: 'ACTA 05.pdf', storage_path: `oc/${ORDER_NUMBER}/ACTA05_v1.pdf`, estado: 'Cargado', storage_bucket: 'coi-documentos' },
+        { id: 'row-05-b', nro_oc: ORDER_NUMBER, orden_id: ORDER_ID, tipo_documento: 'acta_medicion', nombre_documento: 'ACTA 05.pdf', storage_path: `oc/${ORDER_NUMBER}/ACTA05_v1.pdf`, estado: 'Cargado', storage_bucket: 'coi-documentos' },
+        // Acta 11 única.
+        { id: 'row-11', nro_oc: ORDER_NUMBER, orden_id: ORDER_ID, tipo_documento: 'acta_medicion', nombre_documento: nombreFisico11, storage_path: `oc/${ORDER_NUMBER}/${nombreFisico11}`, estado: 'Cargado', storage_bucket: 'coi-documentos' }
+      ]
+    });
+    await renderOrder(page);
+    await page.evaluate(() => window.activarSubmoduloFichaOC('panelFichaDocumentos'));
+
+    const cards = page.locator('#panelFichaDocumentos .documentos-storage-card');
+    await expect(cards).toHaveCount(3);
+
+    const total = await page.locator('#panelFichaDocumentos .documentos-storage-summary > div').first().locator('b').textContent();
+    expect(Number(total)).toBe(3);
+  });
+
+  test('CASO 8 — el documento canónico en 5.Documentos conserva storage_path y Abrir PDF genera signed URL', async ({ page }) => {
+    await openIsolated(page);
+    await installFixture(page, {
+      documents: [
+        { id: 'row-a', nro_oc: ORDER_NUMBER, orden_id: ORDER_ID, tipo_documento: 'acta_medicion', nombre_documento: 'ACTA 05.pdf', storage_path: `oc/${ORDER_NUMBER}/ACTA05.pdf`, estado: 'Cargado', storage_bucket: 'coi-documentos' },
+        { id: 'row-b', nro_oc: ORDER_NUMBER, orden_id: ORDER_ID, tipo_documento: 'acta_medicion', nombre_documento: 'ACTA 05.pdf', storage_path: `oc/${ORDER_NUMBER}/ACTA05.pdf`, estado: 'Cargado', storage_bucket: 'coi-documentos' }
+      ]
+    });
+    await renderOrder(page);
+    await page.evaluate(() => window.activarSubmoduloFichaOC('panelFichaDocumentos'));
+    await page.evaluate(() => { window.__opened = []; window.open = url => { window.__opened.push(url); return { closed: false }; }; });
+
+    const openButton = page.locator('#panelFichaDocumentos [data-storage-documento-id]');
+    await expect(openButton).toHaveCount(1);
+    await expect(openButton).toBeEnabled();
+    await openButton.click();
+
+    await expect.poll(() => page.evaluate(() => window.__MULTIOC_FIXTURE_STATE__.signedUrlCalls.length)).toBeGreaterThan(0);
+    const calls = await page.evaluate(() => window.__MULTIOC_FIXTURE_STATE__.signedUrlCalls);
+    expect(calls[0].path).toBe(`oc/${ORDER_NUMBER}/ACTA05.pdf`);
+  });
+});

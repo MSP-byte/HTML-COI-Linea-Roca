@@ -16660,6 +16660,28 @@ const APP_DATA_MODE = "supabase_first";
     const tipo=norm(campoDocumentoStorage(documento,['tipoDocumento','tipo_documento','tipo'],''));
     return ['ACTA2',ocNro||normalizarNroOCStorage(documento),tipo,norm(acta),nombreFisico].join('|');
   }
+  function quitarSufijoColisionStorage(nombreFisico){
+    // Supabase Storage (como cualquier almacenamiento tipo S3) renombra
+    // automáticamente un archivo al chocar con un nombre ya existente,
+    // agregando un contador entre paréntesis antes de la extensión
+    // (ej. "archivo (7).pdf"). Es evidencia -no certeza- de reimportación del
+    // mismo documento: se usa solo como clave adicional más débil (ver
+    // claveActaDocumentalTerciaria), nunca reemplaza a la coincidencia exacta.
+    return nombreFisico.replace(/\s*\(\d+\)(?=\.[A-Z0-9]+$)/,'');
+  }
+  function claveActaDocumentalTerciaria(documento,ocNro=''){
+    const nombreFisico=obtenerNombreFisicoDocumento(documento);
+    if(!nombreFisico)return '';
+    // Se calcula SIEMPRE (tenga o no sufijo esta fila puntual) para que una
+    // fila sin sufijo pueda unirse con otra fila del mismo documento que sí
+    // lo tenga: lo que importa es que ambas, sin el sufijo de colisión,
+    // queden con el mismo nombre físico.
+    const sinSufijo=quitarSufijoColisionStorage(nombreFisico);
+    const acta=obtenerNumeroActaDocumento(documento);
+    if(!acta)return '';
+    const tipo=norm(campoDocumentoStorage(documento,['tipoDocumento','tipo_documento','tipo'],''));
+    return ['ACTA3',ocNro||normalizarNroOCStorage(documento),tipo,norm(acta),sinSufijo].join('|');
+  }
   function puntuarDocumentoActa(documento){
     // Prioriza contenido/metadata real (acta, período, fecha, nombre
     // descriptivo) por sobre tener o no storage_path: el path faltante en el
@@ -16695,7 +16717,7 @@ const APP_DATA_MODE = "supabase_first";
     function union(i,j){const a=find(i),b=find(j);if(a!==b)parent[a]=b;}
     const porClave=new Map();
     docs.forEach((documento,i)=>{
-      [claveActaDocumental(documento,ocNro),claveActaDocumentalSecundaria(documento,ocNro)].forEach(clave=>{
+      [claveActaDocumental(documento,ocNro),claveActaDocumentalSecundaria(documento,ocNro),claveActaDocumentalTerciaria(documento,ocNro)].forEach(clave=>{
         if(!clave)return;
         if(porClave.has(clave))union(i,porClave.get(clave));
         else porClave.set(clave,i);
@@ -16798,7 +16820,7 @@ const APP_DATA_MODE = "supabase_first";
     const selector=`[data-storage-documento-card="${typeof CSS!=='undefined'&&CSS.escape?CSS.escape(String(id)):String(id)}"]`;
     setTimeout(()=>{const card=document.querySelector(selector);if(card){card.scrollIntoView({behavior:'smooth',block:'center'});card.classList.add('documento-storage-destacado');setTimeout(()=>card.classList.remove('documento-storage-destacado'),1800)}if(editar){const localEdit=document.querySelector(`[data-v64-doc-edit="${String(id)}"]`);if(localEdit)localEdit.click();else toast('Registro localizado en Documentos. Complete los metadatos disponibles sin modificar el PDF.','warning')}},60);
   }
-  Object.assign(window,{esDocumentoActaMedicion,obtenerNumeroActaDocumento,obtenerActasMedicionDocumentalesOC,renderActasMedicionDocumentalesOC,obtenerPeriodoDocumentoActa,obtenerFechaDocumentoActa,buscarDocumentoStoragePorId});
+  Object.assign(window,{esDocumentoActaMedicion,obtenerNumeroActaDocumento,obtenerActasMedicionDocumentalesOC,renderActasMedicionDocumentalesOC,obtenerPeriodoDocumentoActa,obtenerFechaDocumentoActa,buscarDocumentoStoragePorId,agruparDocumentosActaEquivalentes});
   function invalidarDocumentosStorageOC(orden){if(orden===undefined||orden===null){documentosStorageCache.clear();return}const key=normalizarNroOCStorage(orden);if(key)documentosStorageCache.delete(key)}
   async function cargarDocumentosStorageOC(orden,{force=false}={}){
     const nroOC=normalizarNroOCStorage(orden);
@@ -16813,7 +16835,12 @@ const APP_DATA_MODE = "supabase_first";
       if(!navigator.onLine)throw new Error('Los documentos PDF requieren conexión con Supabase.');
       const {data,error}=await c.from(T_DOCUMENTOS_STORAGE).select('*').eq('nro_oc',nroOC).order('tipo_documento',{ascending:true}).order('fecha_documento',{ascending:true}).order('nombre_documento',{ascending:true});
       if(error)throw error;
-      const documentos=Array.isArray(data)?data:[];
+      // Identidad/dedup documental centralizada: se aplica una sola vez acá,
+      // al ingresar los datos, para que el listado y los contadores de "5.
+      // Documentos" y las Actas de "3. Certificaciones" usen siempre la misma
+      // colección normalizada (nunca se borra nada en Supabase; es solo la
+      // colección que se cachea y renderiza en el cliente).
+      const documentos=agruparDocumentosActaEquivalentes(Array.isArray(data)?data:[],nroOC);
       documentosStorageCache.set(nroOC,documentos);
       return documentos;
     })();
