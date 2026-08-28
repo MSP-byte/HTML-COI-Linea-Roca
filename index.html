@@ -16700,8 +16700,17 @@ const APP_DATA_MODE = "supabase_first";
     if(grupo.length===1)return grupo[0];
     const ordenado=[...grupo].sort((a,b)=>puntuarDocumentoActa(b)-puntuarDocumentoActa(a));
     const mejor=ordenado[0];
+    // Otros storage_path vistos dentro del mismo grupo fusionado: se guardan
+    // SOLO en memoria (nunca en Supabase) como candidatos de respaldo, por si
+    // el path elegido como principal resultara inexistente en Storage
+    // (ej. un registro histórico con una ruta que ya no existe). "Abrir PDF"
+    // los prueba en orden antes de fallar, sin listar Storage.
+    const otrasRutas=[...new Set(grupo.map(obtenerRutaDocumento).filter(Boolean))];
     const rutaMejor=obtenerRutaDocumento(mejor);
-    if(rutaMejor)return mejor;
+    if(rutaMejor){
+      const candidatos=otrasRutas.filter(ruta=>ruta!==rutaMejor);
+      return candidatos.length?{...mejor,_candidateStorageLocations:candidatos}:mejor;
+    }
     // El registro con mejor metadata no tiene storage_path: si algún duplicado
     // del mismo documento sí lo tiene, se combina solo para lectura/render
     // (nunca se escribe esta fusión en Supabase) para que "Abrir PDF" funcione.
@@ -16709,7 +16718,8 @@ const APP_DATA_MODE = "supabase_first";
     if(!fuenteRuta)return mejor;
     const bucket=campoDocumentoStorage(fuenteRuta,['storageBucket','storage_bucket','bucket'],'coi-documentos');
     const ruta=obtenerRutaDocumento(fuenteRuta);
-    return {...mejor,storage_path:ruta,objectPath:ruta,object_path:ruta,storageBucket:bucket,storage_bucket:bucket,bucket,_fusionadoSoloLectura:true};
+    const candidatos=otrasRutas.filter(r=>r!==ruta);
+    return {...mejor,storage_path:ruta,objectPath:ruta,object_path:ruta,storageBucket:bucket,storage_bucket:bucket,bucket,_fusionadoSoloLectura:true,...(candidatos.length?{_candidateStorageLocations:candidatos}:{})};
   }
   function agruparDocumentosActaEquivalentes(docs,ocNro){
     const parent=docs.map((_,i)=>i);
@@ -22406,28 +22416,52 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     }
   }
 
-  async function abrirDocumentoStorageOC_R27(idOrDoc){
-    const tieneRutaValida = d => !!clean(d?.storage_path || d?.objectPath || d?.object_path);
-    let doc = typeof idOrDoc === 'object' ? normalizarDocumentoSupabase(idOrDoc) : (runtimeDocs.get(String(idOrDoc)) || runtimeDocs.get('id:' + String(idOrDoc)));
-    // Dos módulos independientes cachean documentos por su cuenta y pueden
-    // quedar desincronizados (uno con el registro fusionado/deduplicado que
-    // trae el storage_path real, otro con la fila cruda sin ruta). Si esta
-    // fuente no tiene una ruta válida, se prefiere la otra fuente en vez de
-    // fallar directamente.
-    if((!doc || !tieneRutaValida(doc)) && typeof idOrDoc !== 'object' && typeof window.buscarDocumentoStoragePorId === 'function'){
-      const otraFuente = window.buscarDocumentoStoragePorId(idOrDoc);
-      if(otraFuente && (!doc || tieneRutaValida(otraFuente))) doc = normalizarDocumentoSupabase(otraFuente);
+  async function abrirDocumentoStorageOC_R27(idOrDoc, popup){
+    let doc = typeof idOrDoc === 'object' ? normalizarDocumentoSupabase(idOrDoc) : null;
+    if(!doc && typeof idOrDoc !== 'object'){
+      // Dos módulos independientes cachean documentos por su cuenta. La
+      // caché de módulo A es la que aplica la identidad/dedup documental
+      // central (agruparDocumentosActaEquivalentes) y lleva los candidatos de
+      // storage_path de respaldo del grupo fusionado; se prefiere siempre que
+      // exista -aunque este módulo también tenga una entrada propia con una
+      // ruta que a simple vista "parece" válida pero puede ya no existir en
+      // Storage-, y solo se recurre a la caché propia de este módulo si la
+      // otra no tiene el documento.
+      if(typeof window.buscarDocumentoStoragePorId === 'function'){
+        const desdeModuloA = window.buscarDocumentoStoragePorId(idOrDoc);
+        if(desdeModuloA) doc = normalizarDocumentoSupabase(desdeModuloA);
+      }
+      if(!doc) doc = runtimeDocs.get(String(idOrDoc)) || runtimeDocs.get('id:' + String(idOrDoc));
     }
     if(!doc) throw new Error('No se encontró el documento solicitado en la sincronización actual.');
     const client = getClient();
     await requireSession(client);
     const bucket = clean(doc.storage_bucket || doc.bucket || BUCKET);
-    const storagePath = clean(doc.storage_path || doc.objectPath || doc.object_path);
-    if(!storagePath) throw new Error('El documento no posee una ruta válida en Storage.');
-    const {data, error} = await client.storage.from(bucket).createSignedUrl(storagePath, 300);
-    if(error) throw error;
-    if(!data?.signedUrl) throw new Error('Supabase no devolvió una URL firmada.');
-    const win = window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+    // El path del registro canónico se prueba primero; si el objeto ya no
+    // existe en Storage, se prueban -sin listar Storage- los paths que
+    // compartían identidad dentro del mismo grupo deduplicado (ver
+    // elegirDocumentoActaCanonico). Nunca se inventa una ruta nueva.
+    const candidatos = [...new Set([
+      clean(doc.storage_path || doc.objectPath || doc.object_path),
+      ...(Array.isArray(doc._candidateStorageLocations) ? doc._candidateStorageLocations.map(clean) : [])
+    ].filter(Boolean))];
+    if(!candidatos.length) throw new Error('El documento no posee una ruta válida en Storage.');
+    let signedUrl = null, lastError = null;
+    for(const storagePath of candidatos){
+      try{
+        const {data, error} = await client.storage.from(bucket).createSignedUrl(storagePath, 300);
+        if(error){ lastError = error; continue; }
+        if(data?.signedUrl){ signedUrl = data.signedUrl; break; }
+      }catch(error){ lastError = error; }
+    }
+    if(!signedUrl) throw (lastError || new Error('Supabase no devolvió una URL firmada.'));
+    if(popup && !popup.closed){
+      popup.location.href = signedUrl;
+      return;
+    }
+    // Sin pestaña pre-abierta (llamada directa, no desde el click real): se
+    // intenta abrir igual, aceptando el riesgo de bloqueo de popup.
+    const win = window.open(signedUrl, '_blank', 'noopener,noreferrer');
     if(!win) throw new Error('El navegador bloqueó la pestaña. Permití ventanas emergentes.');
   }
 
@@ -22450,18 +22484,37 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     event.stopPropagation();
     event.stopImmediatePropagation();
 
-    try{
-      if(openBtn){
-        openBtn.disabled = true;
-        try{ await abrirDocumentoStorageOC_R27(openBtn.dataset.storageDocumentoId); }
-        finally{ if(openBtn.isConnected) openBtn.disabled = false; }
-        return;
+    if(openBtn){
+      // La pestaña se abre EN BLANCO de forma sincrónica, dentro del mismo
+      // gesto de click, antes de cualquier await: es la única forma confiable
+      // de que Chrome no la trate como popup bloqueado, ya que la activación
+      // de usuario ("user activation") no sobrevive garantizada más allá del
+      // primer await. Recién después se resuelve la signed URL de forma
+      // asíncrona y se navega esa misma pestaña ya abierta.
+      let popup = null;
+      try{
+        popup = window.open('', '_blank');
+        if(popup){ try{ popup.opener = null; }catch(e){} }
+      }catch(e){ popup = null; }
+      openBtn.disabled = true;
+      try{
+        await abrirDocumentoStorageOC_R27(openBtn.dataset.storageDocumentoId, popup);
+      }catch(error){
+        console.error('COI R27 abrir PDF', error);
+        if(popup && !popup.closed){ try{ popup.close(); }catch(e){} }
+        toast(error?.message || 'No se pudo abrir el PDF desde Supabase Storage.', 'error');
+      }finally{
+        if(openBtn.isConnected) openBtn.disabled = false;
       }
+      return;
+    }
 
+    try{
       const oc = syncBtn?.dataset.syncDocsOc || refreshBtn?.dataset.storageDocRefresh || window.ocActualId || window.fichaOCActualKeyV64 || '';
       await sincronizarDocumentosSupabaseOC_R27(oc);
     }catch(error){
       console.error('COI R27 evento documentos', error);
+      toast(error?.message || 'No se pudo sincronizar documentación desde Supabase.', 'error');
     }
   }
 

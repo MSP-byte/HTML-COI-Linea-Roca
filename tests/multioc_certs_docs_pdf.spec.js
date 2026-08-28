@@ -25,8 +25,8 @@ async function openIsolated(page) {
   );
 }
 
-async function installFixture(page, { documents = [], certifications = [] } = {}) {
-  await page.evaluate(async ({ orderId, orderNumber, documents, certifications }) => {
+async function installFixture(page, { documents = [], certifications = [], signedUrlConfig = null } = {}) {
+  await page.evaluate(async ({ orderId, orderNumber, documents, certifications, signedUrlConfig }) => {
     const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
     const user = {
       id: 'a0000000-2222-4222-8222-000000000002',
@@ -121,6 +121,13 @@ async function installFixture(page, { documents = [], certifications = [] } = {}
           list: async () => ({ data: [], error: null }),
           createSignedUrl: async (path, ttl) => {
             state.signedUrlCalls.push({ bucket, path, ttl });
+            if (signedUrlConfig) {
+              if (signedUrlConfig.delayMs) await new Promise(resolve => setTimeout(resolve, signedUrlConfig.delayMs));
+              if ((signedUrlConfig.failFor || []).includes(path)) {
+                return { data: null, error: { message: 'Object not found', statusCode: '404' } };
+              }
+              return { data: { signedUrl: `${signedUrlConfig.okBase}?signed=${encodeURIComponent(path)}` }, error: null };
+            }
             return { data: { signedUrl: `https://signed.example/${bucket}/${encodeURIComponent(path)}` }, error: null };
           }
         })
@@ -136,7 +143,7 @@ async function installFixture(page, { documents = [], certifications = [] } = {}
 
     await window.recargarDatosDesdeSupabase({ silencioso: true });
     if (typeof window.syncExecutiveMetadata === 'function') await window.syncExecutiveMetadata();
-  }, { orderId: ORDER_ID, orderNumber: ORDER_NUMBER, documents, certifications });
+  }, { orderId: ORDER_ID, orderNumber: ORDER_NUMBER, documents, certifications, signedUrlConfig });
 
   await expect.poll(() => page.evaluate(() =>
     typeof window.todasLasOC === 'function' ? window.todasLasOC().length : 0
@@ -151,6 +158,25 @@ async function renderOrder(page) {
     window.renderFichaOC(reference);
   }, ORDER_NUMBER);
   await expect(page.locator('#fichaOCBody [data-coi-ficha-main-last-cert]')).toBeVisible();
+}
+
+// "Abrir PDF" abre una pestaña en blanco de forma sincrónica (para no ser
+// bloqueada como popup) y recién después navega esa misma pestaña a la
+// signed URL vía `popup.location.href = ...`. El mock reproduce ambos pasos:
+// registra la llamada inicial (si viniera con URL directa) y la navegación
+// posterior sobre el objeto ya devuelto.
+async function installPopupMock(page) {
+  await page.evaluate(() => {
+    window.__opened = [];
+    window.open = url => {
+      const popup = { closed: false, close() { this.closed = true; } };
+      Object.defineProperty(popup, 'location', {
+        value: Object.defineProperty({}, 'href', { set(value) { window.__opened.push(value); } })
+      });
+      if (url) window.__opened.push(url);
+      return popup;
+    };
+  });
 }
 
 // ===================== CASO 1: Timeline con varias OC =====================
@@ -580,7 +606,7 @@ test.describe('CASO 4 — Abrir PDF resuelve Storage o no se ofrece', () => {
     await renderOrder(page);
     await page.evaluate(() => window.activarSubmoduloFichaOC('panelFichaCertificaciones'));
 
-    await page.evaluate(() => { window.__opened = []; window.open = url => { window.__opened.push(url); return { closed: false }; }; });
+    await installPopupMock(page);
 
     const openButton = page.locator('#panelFichaCertificaciones [data-storage-documento-id]').first();
     await expect(openButton).toBeVisible();
@@ -643,7 +669,7 @@ test.describe('CASO 4 — Abrir PDF resuelve Storage o no se ofrece', () => {
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toContainText('11');
 
-    await page.evaluate(() => { window.__opened = []; window.open = url => { window.__opened.push(url); return { closed: false }; }; });
+    await installPopupMock(page);
     const openButton = page.locator('#panelFichaCertificaciones [data-storage-documento-id]').first();
     await expect(openButton).toBeEnabled();
     await openButton.click();
@@ -807,7 +833,7 @@ test.describe('Módulo 5.Documentos — casos 7 y 8', () => {
     });
     await renderOrder(page);
     await page.evaluate(() => window.activarSubmoduloFichaOC('panelFichaDocumentos'));
-    await page.evaluate(() => { window.__opened = []; window.open = url => { window.__opened.push(url); return { closed: false }; }; });
+    await installPopupMock(page);
 
     const openButton = page.locator('#panelFichaDocumentos [data-storage-documento-id]');
     await expect(openButton).toHaveCount(1);
@@ -817,5 +843,215 @@ test.describe('Módulo 5.Documentos — casos 7 y 8', () => {
     await expect.poll(() => page.evaluate(() => window.__MULTIOC_FIXTURE_STATE__.signedUrlCalls.length)).toBeGreaterThan(0);
     const calls = await page.evaluate(() => window.__MULTIOC_FIXTURE_STATE__.signedUrlCalls);
     expect(calls[0].path).toBe(`oc/${ORDER_NUMBER}/ACTA05.pdf`);
+  });
+});
+
+// ===================== Abrir PDF: comportamiento REAL de popup =====================
+// Estos tests NO reemplazan window.open por un mock: usan page.waitForEvent
+// ('popup') para verificar que el navegador realmente crea una pestaña nueva
+// (no bloqueada) y que esa misma pestaña termina navegando a la signed URL
+// resuelta. La signed URL se sirve desde el propio servidor local de test
+// (misma pestaña http://127.0.0.1) para poder observar la navegación real sin
+// depender de un endpoint externo.
+
+test.describe('Abrir PDF — comportamiento real de popup (sin mockear window.open)', () => {
+  test('CASO 1 — el click abre una pestaña real del navegador que navega a la signed URL', async ({ page }) => {
+    await openIsolated(page);
+    const origin = new URL(page.url()).origin;
+    const rutaReal = `oc/${ORDER_NUMBER}/ACTA11.pdf`;
+    await installFixture(page, {
+      documents: [{
+        id: 'doc-popup-1', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+        nombre_documento: 'ACTA 11.pdf', estado: 'Cargado', storage_bucket: 'coi-documentos',
+        storage_path: rutaReal
+      }],
+      signedUrlConfig: { okBase: `${origin}/index.html` }
+    });
+    await renderOrder(page);
+    await page.evaluate(() => window.activarSubmoduloFichaOC('panelFichaCertificaciones'));
+
+    const openButton = page.locator('#panelFichaCertificaciones [data-storage-documento-id]').first();
+    await expect(openButton).toBeEnabled();
+
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
+      openButton.click()
+    ]);
+    await expect.poll(() => popup.url(), { timeout: 15000 }).toContain('signed=');
+    expect(popup.url()).toContain(encodeURIComponent(rutaReal));
+    await popup.close();
+  });
+
+  test('CASO 2 — con demora real en createSignedUrl, la pestaña se abre de inmediato y navega después', async ({ page }) => {
+    await openIsolated(page);
+    const origin = new URL(page.url()).origin;
+    const rutaReal = `oc/${ORDER_NUMBER}/ACTA06.pdf`;
+    await installFixture(page, {
+      documents: [{
+        id: 'doc-popup-2', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+        nombre_documento: 'ACTA 06.pdf', estado: 'Cargado', storage_bucket: 'coi-documentos',
+        storage_path: rutaReal
+      }],
+      signedUrlConfig: { okBase: `${origin}/index.html`, delayMs: 900 }
+    });
+    await renderOrder(page);
+    await page.evaluate(() => window.activarSubmoduloFichaOC('panelFichaCertificaciones'));
+
+    const openButton = page.locator('#panelFichaCertificaciones [data-storage-documento-id]').first();
+    await expect(openButton).toBeEnabled();
+
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
+      openButton.click()
+    ]);
+    // La pestaña ya existe (creada de forma sincrónica en el click) antes de
+    // que resuelva la signed URL, que se demora artificialmente 900ms.
+    expect(popup.url()).toBe('about:blank');
+    await expect.poll(() => popup.url(), { timeout: 15000 }).toContain('signed=');
+    expect(popup.url()).toContain(encodeURIComponent(rutaReal));
+    await popup.close();
+  });
+
+  test('CASO 3 — si Storage devuelve error, la pestaña temporal se cierra y aparece un mensaje visible (no solo en consola)', async ({ page }) => {
+    await openIsolated(page);
+    const origin = new URL(page.url()).origin;
+    const rutaInvalida = `oc/${ORDER_NUMBER}/ACTA_NOEXISTE.pdf`;
+    await installFixture(page, {
+      documents: [{
+        id: 'doc-popup-3', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+        nombre_documento: 'ACTA sin storage.pdf', estado: 'Cargado', storage_bucket: 'coi-documentos',
+        storage_path: rutaInvalida
+      }],
+      signedUrlConfig: { okBase: `${origin}/index.html`, failFor: [rutaInvalida] }
+    });
+    await renderOrder(page);
+    await page.evaluate(() => window.activarSubmoduloFichaOC('panelFichaCertificaciones'));
+
+    const openButton = page.locator('#panelFichaCertificaciones [data-storage-documento-id]').first();
+    await expect(openButton).toBeEnabled();
+
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
+      openButton.click()
+    ]);
+    await expect.poll(() => popup.isClosed()).toBe(true);
+    await expect(page.locator('.coi-toast.error')).toBeVisible();
+    await expect(page.locator('.coi-toast.error')).toContainText('Object not found');
+  });
+
+  test('CASO 4 — documento fusionado: la navegación real usa el storage_path del duplicado que sí es válido', async ({ page }) => {
+    await openIsolated(page);
+    const origin = new URL(page.url()).origin;
+    const nombreFisico = `FEMYP ME Nro11 Mant. Puertas Automaticas PC OC ${ORDER_NUMBER}.pdf`;
+    const rutaReal = `oc/${ORDER_NUMBER}/${nombreFisico}`;
+    await installFixture(page, {
+      documents: [
+        {
+          id: 'row-rich-popup', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+          estado: 'Cargado', storage_bucket: 'coi-documentos',
+          nombre_documento: 'Acta de Medición N° 11 - Mantenimiento Puertas Automáticas',
+          fecha_documento: '2026-08-10', fecha_inicio: '2026-07-01', fecha_fin: '2026-07-31',
+          observaciones: `Importación piloto desde Supabase Storage. Archivo: ${nombreFisico}`
+        },
+        {
+          id: 'row-auto-popup', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+          estado: 'Cargado', storage_bucket: 'coi-documentos',
+          nombre_documento: nombreFisico, storage_path: rutaReal,
+          observaciones: 'Registro creado automáticamente desde Supabase Storage. Acta detectada: 11.'
+        }
+      ],
+      signedUrlConfig: { okBase: `${origin}/index.html` }
+    });
+    await renderOrder(page);
+    await page.evaluate(() => window.activarSubmoduloFichaOC('panelFichaCertificaciones'));
+    const rows = page.locator('#panelFichaCertificaciones .actas-documentales-table tbody tr');
+    await expect(rows).toHaveCount(1);
+
+    const openButton = page.locator('#panelFichaCertificaciones [data-storage-documento-id]').first();
+    await expect(openButton).toBeEnabled();
+
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
+      openButton.click()
+    ]);
+    await expect.poll(() => popup.url(), { timeout: 15000 }).toContain('signed=');
+    expect(popup.url()).toContain(encodeURIComponent(rutaReal));
+    await popup.close();
+  });
+
+  test('CASO 5 — si el path principal no existe en Storage, prueba el candidato del duplicado y navega ahí realmente', async ({ page }) => {
+    await openIsolated(page);
+    const origin = new URL(page.url()).origin;
+    const nombreFisico = `FEMYP ME Nro11 Mant. Puertas Automaticas PC OC ${ORDER_NUMBER}.pdf`;
+    const rutaVieja = `oc/${ORDER_NUMBER}/ACTA11_ruta_vieja.pdf`;
+    const rutaReal = `oc/${ORDER_NUMBER}/${nombreFisico}`;
+    await installFixture(page, {
+      documents: [
+        {
+          // Metadata más rica (gana el puntaje) pero con un storage_path que
+          // ya no existe realmente en Storage.
+          id: 'row-rich-invalid-path', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+          estado: 'Cargado', storage_bucket: 'coi-documentos',
+          nombre_documento: 'Acta de Medición N° 11 - Mantenimiento Puertas Automáticas',
+          fecha_documento: '2026-08-10', fecha_inicio: '2026-07-01', fecha_fin: '2026-07-31',
+          storage_path: rutaVieja,
+          observaciones: `Importación piloto desde Supabase Storage. Archivo: ${nombreFisico}`
+        },
+        {
+          // Duplicado con menos metadata, pero con el path real y vigente.
+          id: 'row-auto-valid-path', orden_id: ORDER_ID, nro_oc: ORDER_NUMBER, tipo_documento: 'acta_medicion',
+          estado: 'Cargado', storage_bucket: 'coi-documentos',
+          nombre_documento: nombreFisico, storage_path: rutaReal,
+          observaciones: 'Registro creado automáticamente desde Supabase Storage. Acta detectada: 11.'
+        }
+      ],
+      signedUrlConfig: { okBase: `${origin}/index.html`, failFor: [rutaVieja] }
+    });
+    await renderOrder(page);
+    await page.evaluate(() => window.activarSubmoduloFichaOC('panelFichaCertificaciones'));
+    const rows = page.locator('#panelFichaCertificaciones .actas-documentales-table tbody tr');
+    await expect(rows).toHaveCount(1);
+
+    const openButton = page.locator('#panelFichaCertificaciones [data-storage-documento-id]').first();
+    await expect(openButton).toBeEnabled();
+
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
+      openButton.click()
+    ]);
+    await expect.poll(() => popup.url(), { timeout: 15000 }).toContain('signed=');
+    expect(popup.url()).toContain(encodeURIComponent(rutaReal));
+    await popup.close();
+
+    const intentos = await page.evaluate(() => window.__MULTIOC_FIXTURE_STATE__.signedUrlCalls.map(c => c.path));
+    expect(intentos).toContain(rutaVieja);
+    expect(intentos).toContain(rutaReal);
+  });
+
+  // CASO 6: el producto se usa mayormente abriendo index.html por doble click
+  // (file://), no servido por un puerto local. Playwright con la config
+  // actual navega por http://127.0.0.1 (ver playwright.config.js), así que no
+  // podemos abrir file:// directamente en estos tests. Lo que sí podemos
+  // verificar de forma determinística es la propiedad estructural de la que
+  // depende que esto funcione bajo file:// exactamente igual que bajo http:
+  // que la pestaña se abre de forma SÍNCRONA, dentro del gesto de click, antes
+  // de cualquier `await` (la activación de usuario no depende del origen).
+  // La validación funcional bajo file:// real queda como requisito de
+  // aceptación manual (doble click sobre index.html, sesión Supabase
+  // autenticada, click en "Abrir PDF").
+  test('CASO 6 — la pestaña se abre sincrónicamente antes de cualquier await (no depende de estar servido por localhost)', async () => {
+    const fs = require('fs');
+    const path = require('path');
+    const source = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
+    const start = source.indexOf('  async function handleWindowCapture(event){');
+    const end = source.indexOf('\n  function initR27(){', start);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const block = source.slice(start, end);
+    const popupOpenIndex = block.indexOf("popup = window.open('', '_blank')");
+    const firstAwaitIndex = block.indexOf('await abrirDocumentoStorageOC_R27');
+    expect(popupOpenIndex).toBeGreaterThan(-1);
+    expect(firstAwaitIndex).toBeGreaterThan(-1);
+    expect(popupOpenIndex).toBeLessThan(firstAwaitIndex);
   });
 });
