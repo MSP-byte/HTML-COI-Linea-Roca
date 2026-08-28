@@ -1909,7 +1909,7 @@ body.orders-analytics-focus .orders-agenda-card{margin-bottom:24px}
         <table class="coi-table ordenes-table">
           <thead>
             <tr>
-              <th class="orden-check-cell">Sel.</th><th class="orden-id-col">ID_OBRA</th><th class="orden-oc-col">N° OC</th><th>Estación</th><th>Proveedor</th><th>Sector</th><th>UM vinculada</th><th>Tipo de trabajo</th><th>Estado COI</th><th>Próxima certificación</th><th>Vencimiento</th><th>Vigencia operativa</th><th class="orden-actions-col">Acciones</th>
+              <th class="orden-check-cell">Sel.</th><th class="orden-id-col">ID_OBRA</th><th class="orden-oc-col">N° OC</th><th>Estación</th><th>Proveedor</th><th>Sector</th><th>Tipo de trabajo</th><th>Estado COI</th><th>Próxima certificación</th><th>Vencimiento</th><th>Vigencia operativa</th><th class="orden-actions-col">Acciones</th>
             </tr>
           </thead>
           <tbody id="ordenesTbody"></tbody>
@@ -5757,7 +5757,7 @@ function renderFichaOC(idObra){
       <div class="oc-kpi"><b>${esc(item.tipo||'—')}</b><span>Tipo</span></div>
       ${esObra
         ?`<div class="oc-kpi"><b data-coi-ficha-main-progress>—</b><span>Avance de obra</span><small data-coi-ficha-main-progress-note>Sin certificación registrada</small></div>`
-        :`<div class="oc-kpi"><b data-coi-ficha-main-last-cert>—</b><span>Última certificación</span><small data-coi-ficha-main-last-cert-period>Sin período registrado</small></div>`}
+        :`<div class="oc-kpi"><b data-coi-ficha-main-last-cert>—</b><span>Última certificación</span><div class="doc-actions" data-coi-ficha-main-last-cert-actions hidden><button type="button" class="primary" data-coi-ficha-main-last-cert-pdf>Abrir PDF</button></div></div>`}
       <div class="oc-kpi"><b>${fmtFecha(calc.venc)}</b><span>Vencimiento</span><small>${calc.dias===null?'Días restantes: —':`${calc.dias} días restantes`}</small></div>
       <div class="oc-kpi"><b>${fmtFecha(calc.prox)}</b><span>Próx. certificación</span></div>
       <div class="oc-kpi"><b>${esc(estadoDoc)}</b><span>Estado documental</span></div>
@@ -10000,7 +10000,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     const set=(id,val)=>{const el=$fix(id); if(el) el.textContent=val;};
     set('ordKTotal',rows.length); set('ordKObras',rows.filter(r=>normFix(r.tipo).includes('OBRA')).length); set('ordKServicios',rows.filter(r=>normFix(r.tipo).includes('SERV')).length); set('ordKProxCert',rows.filter(r=>{const d=diffFix(r.prox); return d!==null && d>=0 && d<=30;}).length);
     const tbody=$fix('ordenesTbody'); if(!tbody) return;
-    tbody.innerHTML = rows.map(r=>`<tr class="row-clickable" data-open-oc="${html(r.id)}"><td class="orden-check-cell"><input type="checkbox" class="chk-orden-row" data-orden-key="${html(r.id)}" ${ordenesSeleccionadasFix.has(r.id)?'checked':''}></td><td class="orden-id-col"><b>${html(r.id)}</b></td><td class="orden-oc-col orden-oc-num">${html(r.oc)}</td><td>${html(r.est)}</td><td>${html(r.prov)}</td><td>${html(r.sector)}</td><td>${html(r.um)}</td><td>${html(r.trab)}</td><td>${html(r.estado)}</td><td>${fmtFix(r.prox)}</td><td>${fmtFix(r.venc)}</td><td class="orden-vigencia-cell">${badgeVigenciaFix(r.item,r.row)}</td><td class="orden-actions-col"><button type="button" class="btn-open-oc" data-open-oc="${html(r.id)}">Ver ficha OC</button></td></tr>`).join('') || '<tr><td colspan="13">Sin resultados para los filtros seleccionados.</td></tr>';
+    tbody.innerHTML = rows.map(r=>`<tr class="row-clickable" data-open-oc="${html(r.id)}"><td class="orden-check-cell"><input type="checkbox" class="chk-orden-row" data-orden-key="${html(r.id)}" ${ordenesSeleccionadasFix.has(r.id)?'checked':''}></td><td class="orden-id-col"><b>${html(r.id)}</b></td><td class="orden-oc-col orden-oc-num">${html(r.oc)}</td><td>${html(r.est)}</td><td>${html(r.prov)}</td><td>${html(r.sector)}</td><td>${html(r.trab)}</td><td>${html(r.estado)}</td><td>${fmtFix(r.prox)}</td><td>${fmtFix(r.venc)}</td><td class="orden-vigencia-cell">${badgeVigenciaFix(r.item,r.row)}</td><td class="orden-actions-col"><button type="button" class="btn-open-oc" data-open-oc="${html(r.id)}">Ver ficha OC</button></td></tr>`).join('') || '<tr><td colspan="12">Sin resultados para los filtros seleccionados.</td></tr>';
     actualizarSeleccionOrdenesFix(); actualizarFooterFix();
   }
   function actualizarSeleccionOrdenesFix(){
@@ -16777,6 +16777,28 @@ const APP_DATA_MODE = "supabase_first";
     const panel=$('panelFichaCertificaciones');if(!panel)return;
     const setValue=(label,value)=>{const title=[...panel.querySelectorAll('.grid b')].find(node=>norm(node.textContent)===label);if(!title)return;const cell=title.parentElement;[...cell.childNodes].filter(node=>node!==title).forEach(node=>node.remove());cell.append(document.createTextNode(value))};
     setValue('ULTIMA ACTA',numero);if(fecha)setValue('FECHA ULTIMA ACTA',fmtDate(fecha));
+    actualizarAtajoPDFUltimaActa(ultima);
+  }
+  /* Atajo "Abrir PDF" en la tarjeta Ultima certificacion: no resuelve el archivo
+     por su cuenta, solo publica el id documental de la ultima acta para que lo
+     tome el mismo handler delegado [data-storage-documento-id] que ya usa el
+     boton "Abrir PDF" de Actas de medicion documentales. */
+  function actualizarAtajoPDFUltimaActa(ultima){
+    const host=document.querySelector('#fichaOCBody [data-coi-ficha-main-last-cert-actions]');
+    const boton=host&&host.querySelector('[data-coi-ficha-main-last-cert-pdf]');
+    if(!host||!boton)return;
+    const id=clean(campoDocumentoStorage(ultima,['idDocumento','id_documento','id'],''));
+    const ruta=obtenerRutaDocumento(ultima);
+    if(id&&ruta){
+      boton.dataset.storageDocumentoId=id;
+      boton.disabled=false;
+      boton.removeAttribute('title');
+    }else{
+      boton.removeAttribute('data-storage-documento-id');
+      boton.disabled=true;
+      boton.title='Archivo no disponible en Storage';
+    }
+    host.hidden=false;
   }
   function ocultarCertificacionesManualesDuplicadas(actas){
     const numeros=new Set(actas.map(obtenerNumeroActaDocumento).map(value=>norm(value).replace(/^0+(?=\d)/,'')).filter(Boolean));
@@ -18207,8 +18229,8 @@ const APP_DATA_MODE = "supabase_first";
       const summary=calcularResumenOrdenesFiltradas(rows);if($('ordKTotal'))$('ordKTotal').textContent=summary.total;if($('ordKMontoTotal'))$('ordKMontoTotal').textContent=formatearARS(summary.montoTotal);if($('ordKSubtotalObras'))$('ordKSubtotalObras').textContent=formatearARS(summary.subtotalObras);if($('ordKSubtotalServicios'))$('ordKSubtotalServicios').textContent=formatearARS(summary.subtotalServicios);
       const table=document.querySelector('#vistaOrdenes table.ordenes-table'),tbody=$('ordenesTbody');if(!table||!tbody)return;
       table.className='coi-table ordenes-table table-ordenes-clean';
-      table.tHead.innerHTML='<tr><th class="col-sel">Sel.</th><th class="col-id">ID_OBRA / ID_SERVICIO</th><th class="col-oc">N° OC</th><th class="col-tipo">Tipo</th><th class="col-estacion">Estación</th><th class="col-proveedor">Proveedor</th><th class="col-monto">Monto $</th><th class="col-sector">Sector</th><th class="col-um">UM vinculada</th><th class="col-trabajo">Tipo de trabajo</th><th class="col-estado">Estado COI</th><th class="col-fecha">Próxima certificación</th><th class="col-fecha">Vencimiento</th><th class="col-vigencia">Vigencia operativa</th><th class="col-ficha">Ficha</th></tr>';
-      tbody.innerHTML=rows.map(row=>{const i=rowItem(row),key=rowId(row),type=rowType(row);return`<tr class="ordenes-row-clickable ${fold(row.estadoVigenciaOperativa).includes('CERRAD')?'oc-cerrada-row':''}" data-open-oc="${html(key)}"><td class="col-sel"><input type="checkbox" class="chk-orden-row" data-orden-key="${html(key)}" data-orden-id="${html(i?.supabaseId||i?.id||'')}" data-orden-oc="${html(rowOC(row))}" ${selectionChecked(row)?'checked':''} aria-label="Seleccionar OC ${html(rowOC(row))}"></td><td class="col-id"><b>${html(key||'—')}</b></td><td class="col-oc"><b>${html(rowOC(row)||'—')}</b></td><td class="col-tipo">${html(type)}</td><td class="col-estacion">${html(row.estacion||i.estacion||'—')}</td><td class="col-proveedor">${html(row.proveedor||i.proveedor||'—')}</td><td class="col-monto">${html(formatearARS(obtenerMontoOC(row)))}</td><td class="col-sector">${html(row.sector||i.sector||'—')}</td><td class="col-um">${html(row.umVinculada||i.umVinculada||i.unidadMantenimiento||i.especialidad||'—')}</td><td class="col-trabajo">${html(row.tipoTrabajo||i.tipoTrabajo||i.tipo_trabajo||i.descripcion||row.especialidad||'—')}</td><td class="col-estado">${html(row.estado||i.estado_coi||i.estado||'—')}</td><td class="col-fecha">${html(formatDate(rowCert(row)))}</td><td class="col-fecha">${html(formatDate(rowVenc(row)))}</td><td class="col-vigencia">${vigenciaHTML(row)}</td><td class="col-ficha"><button type="button" class="btn-open-oc" data-open-oc="${html(key)}">Ver OC</button></td></tr>`;}).join('')||'<tr><td colspan="15">Sin resultados para los filtros seleccionados.</td></tr>';
+      table.tHead.innerHTML='<tr><th class="col-sel">Sel.</th><th class="col-id">ID_OBRA / ID_SERVICIO</th><th class="col-oc">N° OC</th><th class="col-tipo">Tipo</th><th class="col-estacion">Estación</th><th class="col-proveedor">Proveedor</th><th class="col-monto">Monto $</th><th class="col-sector">Sector</th><th class="col-trabajo">Tipo de trabajo</th><th class="col-estado">Estado COI</th><th class="col-fecha">Próxima certificación</th><th class="col-fecha">Vencimiento</th><th class="col-vigencia">Vigencia operativa</th><th class="col-ficha">Ficha</th></tr>';
+      tbody.innerHTML=rows.map(row=>{const i=rowItem(row),key=rowId(row),type=rowType(row);return`<tr class="ordenes-row-clickable ${fold(row.estadoVigenciaOperativa).includes('CERRAD')?'oc-cerrada-row':''}" data-open-oc="${html(key)}"><td class="col-sel"><input type="checkbox" class="chk-orden-row" data-orden-key="${html(key)}" data-orden-id="${html(i?.supabaseId||i?.id||'')}" data-orden-oc="${html(rowOC(row))}" ${selectionChecked(row)?'checked':''} aria-label="Seleccionar OC ${html(rowOC(row))}"></td><td class="col-id"><b>${html(key||'—')}</b></td><td class="col-oc"><b>${html(rowOC(row)||'—')}</b></td><td class="col-tipo">${html(type)}</td><td class="col-estacion">${html(row.estacion||i.estacion||'—')}</td><td class="col-proveedor">${html(row.proveedor||i.proveedor||'—')}</td><td class="col-monto">${html(formatearARS(obtenerMontoOC(row)))}</td><td class="col-sector">${html(row.sector||i.sector||'—')}</td><td class="col-trabajo">${html(row.tipoTrabajo||i.tipoTrabajo||i.tipo_trabajo||i.descripcion||row.especialidad||'—')}</td><td class="col-estado">${html(row.estado||i.estado_coi||i.estado||'—')}</td><td class="col-fecha">${html(formatDate(rowCert(row)))}</td><td class="col-fecha">${html(formatDate(rowVenc(row)))}</td><td class="col-vigencia">${vigenciaHTML(row)}</td><td class="col-ficha"><button type="button" class="btn-open-oc" data-open-oc="${html(key)}">Ver OC</button></td></tr>`;}).join('')||'<tr><td colspan="14">Sin resultados para los filtros seleccionados.</td></tr>';
       try{if(typeof window.v45ActualizarSeleccionOrdenes==='function')window.v45ActualizarSeleccionOrdenes();}catch(e){}
     }finally{renderOrdersBusy=false;}
   }
@@ -18538,11 +18560,11 @@ function renderOrdersFinal(){
     let total=0,works=0,services=0;rows.forEach(r=>{const m=amount(r);total+=m;if(clasificarOrdenFinal(r)==='Obra')works+=m;else services+=m;});
     $('ordKTotal')&&($('ordKTotal').textContent=String(rows.length));$('ordKMontoTotal')&&($('ordKMontoTotal').textContent=money(total));$('ordKSubtotalObras')&&($('ordKSubtotalObras').textContent=money(works));$('ordKSubtotalServicios')&&($('ordKSubtotalServicios').textContent=money(services));$('ordKPromedio')?.closest('.ordenes-kpi-financiero')?.remove();
     table.className='coi-table ordenes-table table-ordenes-clean';
-    if(table.tHead)table.tHead.innerHTML='<tr><th class="col-sel">Sel.</th><th class="col-id">ID_OBRA / ID_SERVICIO</th><th class="col-oc">N° OC</th><th class="col-tipo">Tipo</th><th class="col-estacion">Estación</th><th class="col-proveedor">Proveedor</th><th class="col-monto">Monto $</th><th class="col-sector">Sector</th><th class="col-um">UM vinculada</th><th class="col-trabajo">Tipo de trabajo</th><th class="col-estado">Estado COI</th><th class="col-fecha">Próxima certificación</th><th class="col-fecha">Vencimiento</th><th class="col-vigencia">Vigencia operativa</th><th class="col-ficha">Ficha</th></tr>';
+    if(table.tHead)table.tHead.innerHTML='<tr><th class="col-sel">Sel.</th><th class="col-id">ID_OBRA / ID_SERVICIO</th><th class="col-oc">N° OC</th><th class="col-tipo">Tipo</th><th class="col-estacion">Estación</th><th class="col-proveedor">Proveedor</th><th class="col-monto">Monto $</th><th class="col-sector">Sector</th><th class="col-trabajo">Tipo de trabajo</th><th class="col-estado">Estado COI</th><th class="col-fecha">Próxima certificación</th><th class="col-fecha">Vencimiento</th><th class="col-vigencia">Vigencia operativa</th><th class="col-ficha">Ficha</th></tr>';
     tbody.innerHTML=rows.map(row=>{
       const key=rowId(row),oc=rowOC(row),type=clasificarOrdenFinal(row),station=field(row,['estacion'],'—'),provider=field(row,['proveedor','PROVEEDOR','razon_social','razonSocial'],'—'),sector=field(row,['sector'],'—'),umv=field(row,['umVinculada','um_vinculada','unidadMantenimiento','especialidad'],'—'),work=field(row,['tipoTrabajo','tipo_trabajo','descripcion'],'—'),state=field(row,['estado_coi','estadoCOI','estado'],'—'),cert=dateValue(row,['proxima_certificacion','proximaCertificacion','proxCertificacion']),venc=dateValue(row,['fecha_vencimiento','fechaVencimiento','vencimiento','fechaFin','fin']);
-      return`<tr class="ordenes-row-clickable" data-open-oc="${esc(key)}" data-coi-tipo-final="${type}"><td class="col-sel"><input type="checkbox" class="chk-orden-row" data-orden-key="${esc(key)}" data-orden-id="${esc(field(row,['supabaseId','id'],''))}" data-orden-oc="${esc(oc)}" ${selectionChecked(row)?'checked':''} aria-label="Seleccionar OC ${esc(oc)}"></td><td class="col-id"><b>${esc(key||'—')}</b></td><td class="col-oc"><b>${esc(oc||'—')}</b></td><td class="col-tipo">${esc(type)}</td><td class="col-estacion">${esc(station)}</td><td class="col-proveedor">${esc(provider)}</td><td class="col-monto">${esc(money(amount(row)))}</td><td class="col-sector">${esc(sector)}</td><td class="col-um">${esc(umv)}</td><td class="col-trabajo">${esc(work)}</td><td class="col-estado">${esc(state)}</td><td class="col-fecha">${esc(fmtDate(cert))}</td><td class="col-fecha">${esc(fmtDate(venc))}</td><td class="col-vigencia">${vigencia(row)}</td><td class="col-ficha"><button type="button" class="btn-open-oc" data-open-oc="${esc(key)}">Ver OC</button></td></tr>`;
-    }).join('')||'<tr><td colspan="15">Sin resultados para los filtros seleccionados.</td></tr>';
+      return`<tr class="ordenes-row-clickable" data-open-oc="${esc(key)}" data-coi-tipo-final="${type}"><td class="col-sel"><input type="checkbox" class="chk-orden-row" data-orden-key="${esc(key)}" data-orden-id="${esc(field(row,['supabaseId','id'],''))}" data-orden-oc="${esc(oc)}" ${selectionChecked(row)?'checked':''} aria-label="Seleccionar OC ${esc(oc)}"></td><td class="col-id"><b>${esc(key||'—')}</b></td><td class="col-oc"><b>${esc(oc||'—')}</b></td><td class="col-tipo">${esc(type)}</td><td class="col-estacion">${esc(station)}</td><td class="col-proveedor">${esc(provider)}</td><td class="col-monto">${esc(money(amount(row)))}</td><td class="col-sector">${esc(sector)}</td><td class="col-trabajo">${esc(work)}</td><td class="col-estado">${esc(state)}</td><td class="col-fecha">${esc(fmtDate(cert))}</td><td class="col-fecha">${esc(fmtDate(venc))}</td><td class="col-vigencia">${vigencia(row)}</td><td class="col-ficha"><button type="button" class="btn-open-oc" data-open-oc="${esc(key)}">Ver OC</button></td></tr>`;
+    }).join('')||'<tr><td colspan="14">Sin resultados para los filtros seleccionados.</td></tr>';
     tbody.dataset.coiFinalRender=String(Date.now());
     try{if(typeof window.v45ActualizarSeleccionOrdenes==='function')window.v45ActualizarSeleccionOrdenes();}catch(e){}
   }finally{orderRenderBusy=false;}
@@ -24224,8 +24246,25 @@ function coiR31UpdateVersion(){
     if(!list.length){host.appendChild(create('div','d33-empty','No hay actividad reciente para los filtros seleccionados.'));return;}const wrap=create('div','d33-list');list.forEach(item=>{const row=create('article','d33-activity');row.tabIndex=0;row.setAttribute('role','button');const icon=create('span','d33-priority-icon','↗');const main=create('div');main.append(create('div','d33-item-title',`${item.title}${item.oc?` · OC ${item.oc}`:''}`),create('div','d33-item-meta',item.meta||'Movimiento registrado'));const date=create('span','d33-item-date',item.date?iso(item.date):'');row.append(icon,main,date);const open=()=>item.source==='timeline'&&typeof window.abrirTimelineCOI==='function'?window.abrirTimelineCOI(item.oc?{oc:item.oc}:{}):(item.oc?openOC(item.raw?.item,item.oc):openCalendar(item.date,item.raw?.tipoEvento));row.addEventListener('click',open);row.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();open();}});wrap.appendChild(row);});host.appendChild(wrap);
   }
   function documentPending(record){const item=record.item||{},s=fold(item.estadoDocumental||item.ESTADO_DOCUMENTAL||record.state);return s.includes('PENDIENT')||s.includes('INCOMPLET')||s.includes('OBSERVAD')||!clean(item.expediente||item.expte||item.EXPEDIENTE);}
+  /* KPI Estaciones: catalogo fisico/canonico de la Red Linea Roca.
+     Fuente primaria: catalogoEstaciones, el snapshot normalizado y deduplicado que se
+     construye durante el parseo desde el array ferroviario estatico, antes de cualquier
+     mutacion de runtime (bucket 'Sin definir', importaciones desde localStorage, OC).
+     Fallback defensivo: el catalogo maestro contando solo estaciones del plano
+     (tieneHotspot = coordenadas SVG validas), el mismo criterio que usa validarPlano(). */
+  function totalEstacionesRedRoca(){
+    const contar=lista=>{
+      if(typeof window.contarEstacionesUnicas==='function'){try{const total=window.contarEstacionesUnicas(lista);if(Number.isFinite(total))return total;}catch(e){}}
+      return unique(lista.map(e=>clean(e&&e.nombre))).length;
+    };
+    let snapshot=[];
+    try{if(typeof catalogoEstaciones!=='undefined'&&Array.isArray(catalogoEstaciones))snapshot=catalogoEstaciones;}catch(e){}
+    if(snapshot.length)return contar(snapshot);
+    const maestro=Array.isArray(window.CATALOGO_MAESTRO_ESTACIONES)?window.CATALOGO_MAESTRO_ESTACIONES:[];
+    return contar(maestro.filter(e=>e&&e.tieneHotspot));
+  }
   function renderSecondary(records,events,alerts){
-    const host=$('d33Secondary');host.textContent='';const stationCount=unique(records.flatMap(r=>[...r.stations])).length,certCount=events.filter(e=>eventSeries(e)==='cert').length,expired=records.filter(r=>['expired','certifiable'].includes(r.statusKey)).length,doc=records.filter(documentPending).length,ums=(typeof unidadesMantenimiento!=='undefined'&&Array.isArray(unidadesMantenimiento))?unidadesMantenimiento:(Array.isArray(window.unidadesMantenimiento)?window.unidadesMantenimiento:[]),um=ums.filter(u=>!state.filters.station||clean(u.estacion)===state.filters.station).length;const data=[[records.length,'Total OC','orders'],[records.filter(r=>r.type==='Obra').length,'Obras','works'],[records.filter(r=>r.type==='Servicio').length,'Servicios','services'],[um,'UM','um'],[certCount,'Certificaciones','calendar'],[stationCount,'Estaciones','network'],[expired,'OC vencidas','expired'],[doc,'Documentación pendiente','documents']];data.forEach(([v,l,a])=>{const chip=create('div','d33-chip');chip.tabIndex=0;chip.setAttribute('role','button');chip.dataset.action=a;chip.append(create('b','',v),create('span','',l));host.appendChild(chip);});
+    const host=$('d33Secondary');host.textContent='';const stationCount=totalEstacionesRedRoca(),certCount=events.filter(e=>eventSeries(e)==='cert').length,expired=records.filter(r=>['expired','certifiable'].includes(r.statusKey)).length,doc=records.filter(documentPending).length,ums=(typeof unidadesMantenimiento!=='undefined'&&Array.isArray(unidadesMantenimiento))?unidadesMantenimiento:(Array.isArray(window.unidadesMantenimiento)?window.unidadesMantenimiento:[]),um=ums.filter(u=>!state.filters.station||clean(u.estacion)===state.filters.station).length;const data=[[records.length,'Total OC','orders'],[records.filter(r=>r.type==='Obra').length,'Obras','works'],[records.filter(r=>r.type==='Servicio').length,'Servicios','services'],[um,'UM','um'],[certCount,'Certificaciones','calendar'],[stationCount,'Estaciones','network'],[expired,'OC vencidas','expired'],[doc,'Documentación pendiente','documents']];data.forEach(([v,l,a])=>{const chip=create('div','d33-chip');chip.tabIndex=0;chip.setAttribute('role','button');chip.dataset.action=a;chip.append(create('b','',v),create('span','',l));host.appendChild(chip);});
   }
   function renderRanking(records){const host=$('d33Ranking');host.textContent='';const counts=new Map();records.forEach(r=>r.stations.forEach(s=>counts.set(s,(counts.get(s)||0)+1)));const top=[...counts.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,5),max=Math.max(1,...top.map(x=>x[1]));if(!top.length){host.appendChild(create('div','d33-empty','Sin estaciones para el filtro seleccionado.'));return;}top.forEach(([station,value])=>{const row=create('div','d33-rank-row');row.tabIndex=0;row.setAttribute('role','button');const label=create('b','',station),track=create('div','d33-rank-track'),fill=create('div','d33-rank-fill');fill.style.width=`${value/max*100}%`;track.appendChild(fill);row.append(label,track,create('span','',value));const open=()=>openNetwork(station);row.addEventListener('click',open);row.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();open();}});host.appendChild(row);});
   }
@@ -26380,7 +26419,6 @@ document.addEventListener('click',function(event){
     const mainProgress=body.querySelector('[data-coi-ficha-main-progress]');
     const mainProgressNote=body.querySelector('[data-coi-ficha-main-progress-note]');
     const mainLastCert=body.querySelector('[data-coi-ficha-main-last-cert]');
-    const mainLastCertPeriod=body.querySelector('[data-coi-ficha-main-last-cert-period]');
 
     if(obra){
       const persistedDue=persistedDueDate(item),days=remainingDaysFromPersistedDueDate(persistedDue);
@@ -26392,7 +26430,6 @@ document.addEventListener('click',function(event){
       if(mainProgressNote)mainProgressNote.textContent='Sin certificación registrada';
     }else{
       if(mainLastCert)mainLastCert.textContent='—';
-      if(mainLastCertPeriod)mainLastCertPeriod.textContent='Sin período registrado';
     }
 
     if(typeof window.cargarCertificacionesPorOC!=='function')return {obra,latest:{row:null,acta:'',period:'Sin período registrado',label:'Sin certificación',progress:null}};
@@ -26408,7 +26445,6 @@ document.addEventListener('click',function(event){
         if(mainProgressNote)mainProgressNote.textContent=latest.row?(latest.period==='Sin período registrado'?'Certificación sin período registrado':'Según certificación · '+latest.period):(fallback?fallback.note:'Sin certificación registrada');
       }else{
         if(mainLastCert)mainLastCert.textContent=latest.row?latest.label:(fallback?fallback.label:'—');
-        if(mainLastCertPeriod)mainLastCertPeriod.textContent=latest.row?latest.period:(fallback?fallback.period:'Sin período registrado');
       }
       return {obra,latest,fallback};
     }catch(error){
@@ -26420,7 +26456,6 @@ document.addEventListener('click',function(event){
           if(mainProgressNote)mainProgressNote.textContent='Sin certificación registrada';
         }else{
           if(mainLastCert)mainLastCert.textContent='—';
-          if(mainLastCertPeriod)mainLastCertPeriod.textContent='Sin período registrado';
         }
       }
       return {obra,error:error?.message||String(error)};

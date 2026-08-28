@@ -26,15 +26,16 @@ test('Obra conserva acta y fecha fin sin mostrar el rango completo', async()=>{
   expect(HOTFIX).toContain("latest.date?' · '+latest.date");
   expect(HOTFIX).not.toContain("latest.label+(latest.period!=='Sin período registrado'");
 });
-test('Servicio muestra última certificación con acta real y período', async()=>{
+test('Servicio muestra última certificación con el acta real y sin línea de período', async()=>{
   expect(KPI_BLOCK).toContain('data-coi-ficha-main-last-cert');
   expect(HOTFIX).toContain('last.acta_medicion_nro');
-  expect(HOTFIX).toContain('mainLastCertPeriod');
+  expect(KPI_BLOCK).not.toContain('data-coi-ficha-main-last-cert-period');
+  expect(HOTFIX).not.toContain('mainLastCertPeriod');
   expect(HOTFIX).toContain("mainLastCert.textContent=latest.row?latest.label:(fallback?fallback.label:'—')");
 });
-test('Servicio sin certificación muestra guiones y sin período registrado', async()=>{
+test('Servicio sin certificación muestra guiones sin reintroducir el período', async()=>{
   expect(HOTFIX).toContain("mainLastCert.textContent='—'");
-  expect(HOTFIX).toContain("mainLastCertPeriod.textContent='Sin período registrado'");
+  expect(HOTFIX).not.toContain("mainLastCertPeriod.textContent='Sin período registrado'");
 });
 test('Servicio sin certificación estructurada cae a la última Acta de Medición documental (nunca inventa período)', async()=>{
   expect(HOTFIX).toContain('async function actaDocumentalFallback(item)');
@@ -43,7 +44,7 @@ test('Servicio sin certificación estructurada cae a la última Acta de Medició
   expect(HOTFIX).toContain("period:periodo||'Sin período registrado'");
   expect(HOTFIX).not.toMatch(/period:\s*fecha/);
   expect(HOTFIX).toContain('const fallback=latest.row?null:await actaDocumentalFallback(item)');
-  expect(HOTFIX).toContain("mainLastCertPeriod.textContent=latest.row?latest.period:(fallback?fallback.period:'Sin período registrado')");
+  expect(HOTFIX).toContain("mainLastCert.textContent=latest.row?latest.label:(fallback?fallback.label:'—')");
 });
 test('Vencimiento y días restantes quedan en una única tarjeta superior', async()=>{
   expect(KPI_BLOCK).toContain('<span>Vencimiento</span>');
@@ -53,4 +54,18 @@ test('Vencimiento y días restantes quedan en una única tarjeta superior', asyn
 test('Control de Terceros sigue siendo inyectado por injectCT', async()=>{
   expect(SOURCE).toContain('function injectCT');
   expect(SOURCE).toContain('renderCTCard');
+});
+
+test('La tarjeta de última certificación ofrece el atajo Abrir PDF reutilizando el handler documental', async()=>{
+  expect(KPI_BLOCK).toContain('data-coi-ficha-main-last-cert-actions');
+  expect(KPI_BLOCK).toContain('data-coi-ficha-main-last-cert-pdf');
+  expect(KPI_BLOCK).toContain('Abrir PDF');
+  expect(KPI_BLOCK).not.toContain('onclick');
+  // El atajo no implementa una segunda resolución de archivo: publica el id
+  // documental que ya consume el handler delegado [data-storage-documento-id].
+  expect(SOURCE).toContain('function actualizarAtajoPDFUltimaActa(ultima)');
+  expect(SOURCE).toContain('boton.dataset.storageDocumentoId=id');
+  expect(SOURCE).toContain('actualizarAtajoPDFUltimaActa(ultima);');
+  // Sin archivo en Storage se replica el patrón UX existente en la tabla de actas.
+  expect(SOURCE).toContain("boton.title='Archivo no disponible en Storage'");
 });
