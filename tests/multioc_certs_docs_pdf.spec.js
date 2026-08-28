@@ -387,7 +387,7 @@ test.describe('CASO 1 — Timeline con mailing de varias OC', () => {
 // ===================== CASO 2 y parte de CASO 3: Ficha OC =====================
 
 test.describe('CASO 2 — Última certificación cae a Acta de Medición documental', () => {
-  test('sin coi_certificaciones pero con Actas documentales, el resumen muestra la última Acta con su período real', async ({ page }) => {
+  test('sin coi_certificaciones pero con Actas documentales, el resumen muestra la última Acta y su atajo al PDF', async ({ page }) => {
     await openIsolated(page);
     await installFixture(page, {
       certifications: [],
@@ -418,7 +418,14 @@ test.describe('CASO 2 — Última certificación cae a Acta de Medición documen
     await renderOrder(page);
 
     await expect(page.locator('[data-coi-ficha-main-last-cert]')).toHaveText('Acta N° 11 (documental)');
-    await expect(page.locator('[data-coi-ficha-main-last-cert-period]')).toHaveText('1/7/2026 al 31/7/2026');
+
+    // La tarjeta ya no muestra el período: en su lugar ofrece el atajo al PDF de
+    // la última Acta, apuntando al mismo id documental que abre la tabla de actas.
+    await expect(page.locator('[data-coi-ficha-main-last-cert-period]')).toHaveCount(0);
+    const atajoPDF = page.locator('[data-coi-ficha-main-last-cert-pdf]');
+    await expect(atajoPDF).toBeVisible();
+    await expect(atajoPDF).toBeEnabled();
+    await expect(atajoPDF).toHaveAttribute('data-storage-documento-id', 'doc-acta-11');
 
     // No debe haber quedado seleccionada un acta anterior (07).
     const text = await page.locator('[data-coi-ficha-main-last-cert]').textContent();
