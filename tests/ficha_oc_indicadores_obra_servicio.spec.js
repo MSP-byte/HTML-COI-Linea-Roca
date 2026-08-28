@@ -30,11 +30,20 @@ test('Servicio muestra última certificación con acta real y período', async()
   expect(KPI_BLOCK).toContain('data-coi-ficha-main-last-cert');
   expect(HOTFIX).toContain('last.acta_medicion_nro');
   expect(HOTFIX).toContain('mainLastCertPeriod');
-  expect(HOTFIX).toContain("mainLastCert.textContent=latest.row?latest.label:'—'");
+  expect(HOTFIX).toContain("mainLastCert.textContent=latest.row?latest.label:(fallback?fallback.label:'—')");
 });
 test('Servicio sin certificación muestra guiones y sin período registrado', async()=>{
   expect(HOTFIX).toContain("mainLastCert.textContent='—'");
   expect(HOTFIX).toContain("mainLastCertPeriod.textContent='Sin período registrado'");
+});
+test('Servicio sin certificación estructurada cae a la última Acta de Medición documental (nunca inventa período)', async()=>{
+  expect(HOTFIX).toContain('async function actaDocumentalFallback(item)');
+  expect(HOTFIX).toContain('window.obtenerActasMedicionDocumentalesOC');
+  expect(HOTFIX).toContain("' (documental)'");
+  expect(HOTFIX).toContain("period:periodo||'Sin período registrado'");
+  expect(HOTFIX).not.toMatch(/period:\s*fecha/);
+  expect(HOTFIX).toContain('const fallback=latest.row?null:await actaDocumentalFallback(item)');
+  expect(HOTFIX).toContain("mainLastCertPeriod.textContent=latest.row?latest.period:(fallback?fallback.period:'Sin período registrado')");
 });
 test('Vencimiento y días restantes quedan en una única tarjeta superior', async()=>{
   expect(KPI_BLOCK).toContain('<span>Vencimiento</span>');

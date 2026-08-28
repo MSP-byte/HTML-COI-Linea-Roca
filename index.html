@@ -1169,6 +1169,33 @@ body.modo-consulta #alertTabCalidadDatos,body.modo-consulta #alertTabTodas{displ
 .timeline-badge.risk-alto { color: #8b3c0b; background: #fff0e5; border-color: #edc5aa; }
 .timeline-badge.risk-critico { color: #9b2424; background: #ffeaea; border-color: #efb7b7; }
 
+.timeline-oc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.timeline-oc-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 7px;
+  border: 1px solid #b9c8d4;
+  border-radius: 999px;
+  background: #eef4f8;
+  color: #17384f;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.timeline-event-actions .timeline-oc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .timeline-table-wrap {
   overflow-x: auto;
   border: 1px solid #dce5ec;
@@ -13952,7 +13979,18 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
       const rows=await cargarCertificacionesPorOC(reference);
       if(!section.isConnected)return;
       const sourceNote=rows.some(row=>row._legacy)?' Lectura histórica local de respaldo; no mezclada con registros Supabase en línea.':'';
-      section.innerHTML=`<h4>Certificaciones registradas</h4><p>${rows.length} movimiento(s) vinculados a esta OC.${escapeHTML(sourceNote)}</p>${tablaCertificacionesFicha(rows)}`;
+      let actasNote='';
+      if(!rows.length){
+        try{
+          if(typeof window.cargarDocumentosStorageOC==='function'&&typeof window.obtenerActasMedicionDocumentalesOC==='function'){
+            const documentos=await window.cargarDocumentosStorageOC(reference);
+            const actas=window.obtenerActasMedicionDocumentalesOC(reference,documentos)||[];
+            if(actas.length)actasNote=` No hay certificaciones estructuradas cargadas, pero se encontraron ${actas.length} Acta(s) de Medición documental(es) en "Actas de medición documentales" debajo.`;
+          }
+        }catch(error){}
+        if(!section.isConnected)return;
+      }
+      section.innerHTML=`<h4>Certificaciones registradas</h4><p>${rows.length} movimiento(s) vinculados a esta OC.${escapeHTML(sourceNote)}${escapeHTML(actasNote)}</p>${tablaCertificacionesFicha(rows)}`;
     }catch(error){
       if(!section.isConnected)return;
       section.innerHTML=`<h4>Certificaciones registradas</h4><div class="carga-certificacion-status error">${escapeHTML(detalleErrorEsquema(error))}</div>`;
@@ -16553,8 +16591,32 @@ const APP_DATA_MODE = "supabase_first";
     const directo=clean(campoDocumentoStorage(documento,['actaNro','acta_nro','nroDocumento','nro_documento','numeroActa','numero_acta'],''));
     if(directo)return directo;
     const nombre=norm(campoDocumentoStorage(documento,['nombreArchivo','nombre_archivo','fileName','filename','nombre_documento','titulo'],''));
-    const match=nombre.match(/ACTA(?: DE MEDICION)?[^0-9]{0,12}([0-9]{1,3})(?![0-9])/);
-    return match?match[1]:'';
+    const matchNombre=nombre.match(/ACTA(?: DE MEDICION)?[^0-9]{0,12}([0-9]{1,3})(?![0-9])/);
+    if(matchNombre)return matchNombre[1];
+    // Metadata explícita escrita por el indexado automático de Storage
+    // ("Registro creado automáticamente... Acta detectada: NN.").
+    const observaciones=norm(campoDocumentoStorage(documento,['observaciones','observacion'],''));
+    const matchObs=observaciones.match(/ACTA\s+DETECTADA\s*:?\s*([0-9]{1,4})(?![0-9])/);
+    return matchObs?matchObs[1]:'';
+  }
+  function obtenerNombreFisicoDocumento(documento){
+    // Prioridad: 1) declaración explícita "Archivo: X" en observaciones (la
+    // importación piloto suele guardar el path bajo una convención propia,
+    // pero declara el nombre físico real de forma explícita); 2) basename del
+    // storage_path (confiable para filas indexadas automáticamente desde
+    // Storage); 3) nombre_documento cuando el propio valor es un nombre de
+    // archivo real (con extensión), nunca un título descriptivo.
+    const observaciones=String(campoDocumentoStorage(documento,['observaciones','observacion'],''));
+    const matchArchivo=observaciones.match(/Archivo:\s*([^\n]+?\.(?:pdf|jpg|jpeg|png|docx?|xlsx?))\b/i);
+    if(matchArchivo)return norm(matchArchivo[1].trim());
+    const ruta=obtenerRutaDocumento(documento);
+    if(ruta){
+      const partes=ruta.replace(/\\/g,'/').split('/').filter(Boolean);
+      if(partes.length)return norm(partes[partes.length-1]);
+    }
+    const nombre=clean(campoDocumentoStorage(documento,['nombreArchivo','nombre_archivo','fileName','filename','nombre_documento'],''));
+    if(/\.(pdf|jpg|jpeg|png|docx?|xlsx?)$/i.test(nombre))return norm(nombre);
+    return '';
   }
   function obtenerFechaDocumentoActa(documento){return clean(campoDocumentoStorage(documento,['fechaDocumento','fecha_documento','fechaActa','fecha_acta','fechaCarga','fecha_creacion','created_at'],''))}
   function obtenerPeriodoDocumentoActa(documento){
@@ -16568,10 +16630,116 @@ const APP_DATA_MODE = "supabase_first";
   function obtenerRepositorioDocumento(documento){return clean(campoDocumentoStorage(documento,['repositorio','storageBucket','storage_bucket','bucket'],'Supabase Storage'))}
   function obtenerRutaDocumento(documento){return clean(campoDocumentoStorage(documento,['objectPath','object_path','storage_path','rutaDocumental','ruta_documental','path'],''))}
   function obtenerEstadoDocumento(documento){return clean(campoDocumentoStorage(documento,['estadoDocumento','estado_documento','estado'],'Sin estado'))}
+  function normalizarRutaStorageParaIdentidad(bucket,path){
+    const p=clean(path).replace(/\\/g,'/').replace(/\/+/g,'/').replace(/^\/|\/$/g,'');
+    if(!p)return '';
+    return norm(`${clean(bucket)||'coi-documentos'}/${p}`);
+  }
   function claveActaDocumental(documento,ocNro=''){
+    const ruta=obtenerRutaDocumento(documento);
+    if(ruta){
+      const bucket=clean(campoDocumentoStorage(documento,['storageBucket','storage_bucket','bucket','repositorio'],'coi-documentos'));
+      const claveRuta=normalizarRutaStorageParaIdentidad(bucket,ruta);
+      if(claveRuta)return `PATH:${claveRuta}`;
+    }
     const id=clean(campoDocumentoStorage(documento,['idDocumento','id_documento','id'],''));
     if(id)return `ID:${id}`;
     return ['ACTA',ocNro||normalizarNroOCStorage(documento),obtenerNumeroActaDocumento(documento),obtenerNombreArchivoDocumento(documento),obtenerFechaDocumentoActa(documento)].map(norm).join('|');
+  }
+  // Identidad secundaria: filas históricas del MISMO documento físico pueden
+  // tener storage_path distinto (o ausente) y por lo tanto distinta clave
+  // fuerte (bucket+storage_path/id). Se detecta evidencia real de que son el
+  // mismo archivo -OC + tipo + acta + nombre físico real, nunca solo el N° de
+  // Acta- antes de tratarlas como duplicado, para no colapsar documentos
+  // distintos que comparten número de Acta (ej. original vs. firmada).
+  function claveActaDocumentalSecundaria(documento,ocNro=''){
+    const nombreFisico=obtenerNombreFisicoDocumento(documento);
+    if(!nombreFisico)return '';
+    const acta=obtenerNumeroActaDocumento(documento);
+    if(!acta)return '';
+    const tipo=norm(campoDocumentoStorage(documento,['tipoDocumento','tipo_documento','tipo'],''));
+    return ['ACTA2',ocNro||normalizarNroOCStorage(documento),tipo,norm(acta),nombreFisico].join('|');
+  }
+  function quitarSufijoColisionStorage(nombreFisico){
+    // Supabase Storage (como cualquier almacenamiento tipo S3) renombra
+    // automáticamente un archivo al chocar con un nombre ya existente,
+    // agregando un contador entre paréntesis antes de la extensión
+    // (ej. "archivo (7).pdf"). Es evidencia -no certeza- de reimportación del
+    // mismo documento: se usa solo como clave adicional más débil (ver
+    // claveActaDocumentalTerciaria), nunca reemplaza a la coincidencia exacta.
+    return nombreFisico.replace(/\s*\(\d+\)(?=\.[A-Z0-9]+$)/,'');
+  }
+  function claveActaDocumentalTerciaria(documento,ocNro=''){
+    const nombreFisico=obtenerNombreFisicoDocumento(documento);
+    if(!nombreFisico)return '';
+    // Se calcula SIEMPRE (tenga o no sufijo esta fila puntual) para que una
+    // fila sin sufijo pueda unirse con otra fila del mismo documento que sí
+    // lo tenga: lo que importa es que ambas, sin el sufijo de colisión,
+    // queden con el mismo nombre físico.
+    const sinSufijo=quitarSufijoColisionStorage(nombreFisico);
+    const acta=obtenerNumeroActaDocumento(documento);
+    if(!acta)return '';
+    const tipo=norm(campoDocumentoStorage(documento,['tipoDocumento','tipo_documento','tipo'],''));
+    return ['ACTA3',ocNro||normalizarNroOCStorage(documento),tipo,norm(acta),sinSufijo].join('|');
+  }
+  function puntuarDocumentoActa(documento){
+    // Prioriza contenido/metadata real (acta, período, fecha, nombre
+    // descriptivo) por sobre tener o no storage_path: el path faltante en el
+    // registro elegido se completa igual desde el duplicado (ver
+    // elegirDocumentoActaCanonico), así que no debe pesar más que la calidad
+    // de la información mostrada.
+    let score=0;
+    if(obtenerNumeroActaDocumento(documento))score+=5;
+    if(obtenerPeriodoDocumentoActa(documento))score+=3;
+    if(obtenerFechaDocumentoActa(documento))score+=2;
+    if(!/\.(pdf|jpg|jpeg|png|docx?|xlsx?)$/i.test(obtenerNombreArchivoDocumento(documento)))score+=1;
+    if(obtenerRutaDocumento(documento))score+=1;
+    return score;
+  }
+  function elegirDocumentoActaCanonico(grupo){
+    if(grupo.length===1)return grupo[0];
+    const ordenado=[...grupo].sort((a,b)=>puntuarDocumentoActa(b)-puntuarDocumentoActa(a));
+    const mejor=ordenado[0];
+    // Otros storage_path vistos dentro del mismo grupo fusionado: se guardan
+    // SOLO en memoria (nunca en Supabase) como candidatos de respaldo, por si
+    // el path elegido como principal resultara inexistente en Storage
+    // (ej. un registro histórico con una ruta que ya no existe). "Abrir PDF"
+    // los prueba en orden antes de fallar, sin listar Storage.
+    const otrasRutas=[...new Set(grupo.map(obtenerRutaDocumento).filter(Boolean))];
+    const rutaMejor=obtenerRutaDocumento(mejor);
+    if(rutaMejor){
+      const candidatos=otrasRutas.filter(ruta=>ruta!==rutaMejor);
+      return candidatos.length?{...mejor,_candidateStorageLocations:candidatos}:mejor;
+    }
+    // El registro con mejor metadata no tiene storage_path: si algún duplicado
+    // del mismo documento sí lo tiene, se combina solo para lectura/render
+    // (nunca se escribe esta fusión en Supabase) para que "Abrir PDF" funcione.
+    const fuenteRuta=grupo.find(documento=>obtenerRutaDocumento(documento));
+    if(!fuenteRuta)return mejor;
+    const bucket=campoDocumentoStorage(fuenteRuta,['storageBucket','storage_bucket','bucket'],'coi-documentos');
+    const ruta=obtenerRutaDocumento(fuenteRuta);
+    const candidatos=otrasRutas.filter(r=>r!==ruta);
+    return {...mejor,storage_path:ruta,objectPath:ruta,object_path:ruta,storageBucket:bucket,storage_bucket:bucket,bucket,_fusionadoSoloLectura:true,...(candidatos.length?{_candidateStorageLocations:candidatos}:{})};
+  }
+  function agruparDocumentosActaEquivalentes(docs,ocNro){
+    const parent=docs.map((_,i)=>i);
+    function find(i){while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i];}return i;}
+    function union(i,j){const a=find(i),b=find(j);if(a!==b)parent[a]=b;}
+    const porClave=new Map();
+    docs.forEach((documento,i)=>{
+      [claveActaDocumental(documento,ocNro),claveActaDocumentalSecundaria(documento,ocNro),claveActaDocumentalTerciaria(documento,ocNro)].forEach(clave=>{
+        if(!clave)return;
+        if(porClave.has(clave))union(i,porClave.get(clave));
+        else porClave.set(clave,i);
+      });
+    });
+    const grupos=new Map();
+    docs.forEach((documento,i)=>{
+      const raiz=find(i);
+      if(!grupos.has(raiz))grupos.set(raiz,[]);
+      grupos.get(raiz).push(documento);
+    });
+    return [...grupos.values()].map(elegirDocumentoActaCanonico);
   }
   function obtenerActasMedicionDocumentalesOC(ocNro,documentos=null){
     const orden=resolveOrder(ocNro)||ocNro;
@@ -16580,18 +16748,14 @@ const APP_DATA_MODE = "supabase_first";
     const targetIdServicio=norm(campoDocumentoStorage(orden,['idServicio','id_servicio','ID_SERVICIO'],''));
     let source=Array.isArray(documentos)?documentos:null;
     if(!source)source=documentosStorageCache.get(targetOC)||[...documentosStorageCache.values()].flat();
-    const seen=new Set();
-    return source.filter(documento=>{
+    const vinculados=source.filter(documento=>{
       if(!esDocumentoActaMedicion(documento))return false;
       const docOC=normalizarNroOCStorage(campoDocumentoStorage(documento,['ocNro','oc_nro','nro_oc','OC','oc'],''));
       const docIdObra=norm(campoDocumentoStorage(documento,['idObra','id_obra','ID_OBRA'],''));
       const docIdServicio=norm(campoDocumentoStorage(documento,['idServicio','id_servicio','ID_SERVICIO'],''));
-      const vinculada=(!targetOC&&!targetIdObra&&!targetIdServicio)||(targetOC&&docOC===targetOC)||(targetIdObra&&docIdObra===targetIdObra)||(targetIdServicio&&docIdServicio===targetIdServicio);
-      if(!vinculada)return false;
-      const key=claveActaDocumental(documento,targetOC);
-      if(seen.has(key))return false;
-      seen.add(key);return true;
-    }).sort((a,b)=>{
+      return (!targetOC&&!targetIdObra&&!targetIdServicio)||(targetOC&&docOC===targetOC)||(targetIdObra&&docIdObra===targetIdObra)||(targetIdServicio&&docIdServicio===targetIdServicio);
+    });
+    return agruparDocumentosActaEquivalentes(vinculados,targetOC).sort((a,b)=>{
       const na=Number(obtenerNumeroActaDocumento(a)),nb=Number(obtenerNumeroActaDocumento(b));
       const va=Number.isFinite(na)&&obtenerNumeroActaDocumento(a)!=='',vb=Number.isFinite(nb)&&obtenerNumeroActaDocumento(b)!=='';
       if(va&&vb&&na!==nb)return na-nb;if(va!==vb)return va?-1:1;
@@ -16622,9 +16786,29 @@ const APP_DATA_MODE = "supabase_first";
     if(ocultas&&!note){note=document.createElement('div');note.dataset.actasConsolidadasNote='true';note.className='carga-certificacion-status ok';section.querySelector('.table-wrap')?.before(note)}
     if(note){note.hidden=!ocultas;note.textContent=`${ocultas} certificacion(es) vinculada(s) se muestran consolidadas con su PDF en Actas de medicion documentales.`}
   }
+  function sincronizarCacheDocumentosConCanonicos(ocNro,documentosCanonicos){
+    const key=normalizarNroOCStorage(ocNro);
+    if(!key)return;
+    const lista=documentosStorageCache.get(key);
+    if(!Array.isArray(lista)||!lista.length)return;
+    const porId=new Map();
+    documentosCanonicos.forEach(documento=>{
+      const id=clean(campoDocumentoStorage(documento,['idDocumento','id_documento','id'],''));
+      if(id)porId.set(id,documento);
+    });
+    if(!porId.size)return;
+    // Solo actualiza la caché en memoria del cliente para que "Abrir PDF"
+    // resuelva el storage_path fusionado; nunca escribe en Supabase.
+    documentosStorageCache.set(key,lista.map(documento=>{
+      const id=clean(campoDocumentoStorage(documento,['idDocumento','id_documento','id'],''));
+      const canonico=id?porId.get(id):null;
+      return canonico?{...documento,...canonico}:documento;
+    }));
+  }
   async function renderActasMedicionDocumentalesOC(orden,documentos=null,certificaciones=null){
     const section=asegurarContenedorActasDocumentales(orden);if(!section)return[];
     const nroOC=normalizarNroOCStorage(orden),actas=obtenerActasMedicionDocumentalesOC(orden,documentos);
+    sincronizarCacheDocumentosConCanonicos(nroOC,actas);
     let manuales=Array.isArray(certificaciones)?certificaciones:[];
     if(!manuales.length&&typeof window.cargarCertificacionesPorOC==='function')try{manuales=await window.cargarCertificacionesPorOC(orden)}catch(error){console.warn('COI: certificaciones manuales no disponibles para consolidacion.',error)}
     const manualPorNumero=new Map();manuales.forEach(row=>{const numero=norm(row?.acta_medicion_nro).replace(/^0+(?=\d)/,'');if(numero&&!manualPorNumero.has(numero))manualPorNumero.set(numero,row)});
@@ -16646,7 +16830,7 @@ const APP_DATA_MODE = "supabase_first";
     const selector=`[data-storage-documento-card="${typeof CSS!=='undefined'&&CSS.escape?CSS.escape(String(id)):String(id)}"]`;
     setTimeout(()=>{const card=document.querySelector(selector);if(card){card.scrollIntoView({behavior:'smooth',block:'center'});card.classList.add('documento-storage-destacado');setTimeout(()=>card.classList.remove('documento-storage-destacado'),1800)}if(editar){const localEdit=document.querySelector(`[data-v64-doc-edit="${String(id)}"]`);if(localEdit)localEdit.click();else toast('Registro localizado en Documentos. Complete los metadatos disponibles sin modificar el PDF.','warning')}},60);
   }
-  Object.assign(window,{esDocumentoActaMedicion,obtenerNumeroActaDocumento,obtenerActasMedicionDocumentalesOC,renderActasMedicionDocumentalesOC});
+  Object.assign(window,{esDocumentoActaMedicion,obtenerNumeroActaDocumento,obtenerActasMedicionDocumentalesOC,renderActasMedicionDocumentalesOC,obtenerPeriodoDocumentoActa,obtenerFechaDocumentoActa,buscarDocumentoStoragePorId,agruparDocumentosActaEquivalentes});
   function invalidarDocumentosStorageOC(orden){if(orden===undefined||orden===null){documentosStorageCache.clear();return}const key=normalizarNroOCStorage(orden);if(key)documentosStorageCache.delete(key)}
   async function cargarDocumentosStorageOC(orden,{force=false}={}){
     const nroOC=normalizarNroOCStorage(orden);
@@ -16661,7 +16845,12 @@ const APP_DATA_MODE = "supabase_first";
       if(!navigator.onLine)throw new Error('Los documentos PDF requieren conexión con Supabase.');
       const {data,error}=await c.from(T_DOCUMENTOS_STORAGE).select('*').eq('nro_oc',nroOC).order('tipo_documento',{ascending:true}).order('fecha_documento',{ascending:true}).order('nombre_documento',{ascending:true});
       if(error)throw error;
-      const documentos=Array.isArray(data)?data:[];
+      // Identidad/dedup documental centralizada: se aplica una sola vez acá,
+      // al ingresar los datos, para que el listado y los contadores de "5.
+      // Documentos" y las Actas de "3. Certificaciones" usen siempre la misma
+      // colección normalizada (nunca se borra nada en Supabase; es solo la
+      // colección que se cachea y renderiza en el cliente).
+      const documentos=agruparDocumentosActaEquivalentes(Array.isArray(data)?data:[],nroOC);
       documentosStorageCache.set(nroOC,documentos);
       return documentos;
     })();
@@ -20556,7 +20745,8 @@ if(document.readyState==='loading'){
   }
   function eventsForOC(oc){
     const target=fold(oc);
-    return sortEvents(window.coiTimelineEvents.filter(event=>target&&fold(event.oc)===target));
+    if(!target)return [];
+    return sortEvents(window.coiTimelineEvents.filter(event=>timelineEventOCRefs(event).some(ref=>fold(ref)===target)));
   }
   function maxRisk(events){
     return [...events].sort((a,b)=>(riskWeight[b.riesgo]||0)-(riskWeight[a.riesgo]||0))[0]?.riesgo||'Bajo';
@@ -20647,7 +20837,12 @@ if(document.readyState==='loading'){
     const f=state.filters;
     if(f.fecha&&event.fecha!==f.fecha)return false;
     if(f.fecha_desde&&event.fecha<f.fecha_desde)return false;
-    if(f.oc&&!fold(event.oc).includes(fold(f.oc)))return false;
+    if(f.oc){
+      const target=fold(f.oc);
+      const refs=timelineEventOCRefs(event);
+      const matches=refs.length?refs.some(ref=>fold(ref).includes(target)):fold(event.oc).includes(target);
+      if(!matches)return false;
+    }
     if(f.proveedor&&event.proveedor!==f.proveedor)return false;
     if(f.rubro&&event.rubro!==f.rubro)return false;
     if(f.tipo_evento&&event.tipo_evento!==f.tipo_evento)return false;
@@ -20705,7 +20900,10 @@ if(document.readyState==='loading'){
     return timelineDateToken(match?.[1]||'');
   }
   function eventCard(event,compact){
-    const orderButton=event.oc&&fold(event.oc)!=='varias'?`<button type="button" data-timeline-open-oc="${attr(event.oc)}">Abrir ficha OC</button>`:'';
+    const ocRefs=timelineEventOCRefs(event);
+    const orderButton=ocRefs.length>1
+      ?`<span class="timeline-oc-actions">${ocRefs.map(oc=>`<button type="button" data-timeline-open-oc="${attr(oc)}">Abrir OC ${html(oc)}</button>`).join('')}</span>`
+      :(ocRefs.length===1?`<button type="button" data-timeline-open-oc="${attr(ocRefs[0])}">Abrir ficha OC</button>`:'');
     const rawLink=String(event.link_documental??'').trim();
 const validLink=/^https?:\/\//i.test(rawLink)&&coiURLHTTPValida(rawLink);
 const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener noreferrer">Abrir documento</a>`:'';
@@ -20718,7 +20916,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     const editButton=state.permissions.canWrite?`<button type="button" data-timeline-edit="${attr(event.id)}">Editar</button>`:'';
     const deleteButton=state.permissions.canDelete?`<button type="button" class="timeline-danger" data-timeline-delete="${attr(event.id)}">Eliminar</button>`:'';
     return `<article class="timeline-event-card ${cardRiskClass}" data-timeline-event-id="${attr(event.id)}">
-      <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${event.oc?`<br><b>OC ${html(event.oc)}</b>`:'<br><b>Sin OC individual</b>'}</div>
+      <div class="timeline-event-meta"><strong>${html(displayDate(event.fecha))}</strong><span>${html(event.hora||'—')}</span><br><span>${html(event.semana)}</span>${ocRefs.length>1?`<div class="timeline-oc-chips">${ocRefs.map(oc=>`<span class="timeline-oc-chip">OC ${html(oc)}</span>`).join('')}</div>`:ocRefs.length===1?`<br><b>OC ${html(ocRefs[0])}</b>`:'<br><b>Sin OC individual</b>'}</div>
       <div class="timeline-event-main">
         <div class="timeline-badges"><span class="timeline-badge">${html(event.tipo_evento)}</span><span class="timeline-badge">${html(event.estado)}</span>${riskBadge}${event.origen?`<span class="timeline-badge">${html(event.origen)}</span>`:''}</div>
         <h4>${html(event.titulo)}</h4>
@@ -20741,14 +20939,21 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     if(!events.length)return '<div class="timeline-empty">No hay eventos vinculados a la OC indicada.</div>';
     const groups=new Map();
     events.forEach(event=>{
-      const key=event.oc||'Sin OC individual';
-      if(!groups.has(key))groups.set(key,[]);
-      groups.get(key).push(event);
+      const refs=timelineEventOCRefs(event);
+      const keys=refs.length?refs:['Sin OC individual'];
+      keys.forEach(key=>{
+        if(!groups.has(key))groups.set(key,[]);
+        groups.get(key).push(event);
+      });
     });
-    return [...groups.entries()].map(([oc,list])=>{
+    return [...groups.entries()].sort(([a],[b])=>{
+      if(a==='Sin OC individual')return 1;
+      if(b==='Sin OC individual')return -1;
+      return a.localeCompare(b);
+    }).map(([oc,list])=>{
       const ordered=sortEvents(list);
       const action=nextAction(ordered);
-      return `<section class="timeline-oc-group"><div class="timeline-section-head"><div><h3>${oc==='Sin OC individual'?html(oc):`OC ${html(oc)}`}</h3><p>${ordered.length} movimiento(s) \u00b7 \u00daltimo: ${html(displayDate(ordered[0].fecha))}${action?` \u00b7 Pr\u00f3xima acci\u00f3n: ${html(action.accion_pendiente)}`:''}</p></div>${oc!=='Sin OC individual'&&fold(oc)!=='varias'?`<button type="button" data-timeline-open-oc="${attr(oc)}">Abrir ficha OC</button>`:''}</div><div class="timeline-vertical">${ordered.map(event=>eventCard(event,false)).join('')}</div></section>`;
+      return `<section class="timeline-oc-group"><div class="timeline-section-head"><div><h3>${oc==='Sin OC individual'?html(oc):`OC ${html(oc)}`}</h3><p>${ordered.length} movimiento(s) \u00b7 \u00daltimo: ${html(displayDate(ordered[0].fecha))}${action?` \u00b7 Pr\u00f3xima acci\u00f3n: ${html(action.accion_pendiente)}`:''}</p></div>${oc!=='Sin OC individual'?`<button type="button" data-timeline-open-oc="${attr(oc)}">Abrir ficha OC</button>`:''}</div><div class="timeline-vertical">${ordered.map(event=>eventCard(event,false)).join('')}</div></section>`;
     }).join('');
   }
 
@@ -20858,9 +21063,41 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     const matches=String(value??'').match(/\b45\d{8}\b/g)||[];
     return [...new Set(matches)].sort();
   }
+  function timelineEventOCRefs(event){
+    if(!event)return [];
+    if(fold(event.oc)==='varias'){
+      const marker=text(event.observaciones).match(/OCs mencionadas:\s*([^\n]*)/i);
+      const listed=marker?marker[1].split(',').map(text).filter(Boolean):[];
+      if(listed.length)return [...new Set(listed)].sort();
+      return extractTimelineOCRefs([event.titulo,event.descripcion,event.documentos_mencionados,event.observaciones].filter(Boolean).join(' '));
+    }
+    const raw=text(event.oc);
+    if(!raw)return [];
+    const refs=extractTimelineOCRefs(raw);
+    if(refs.length)return refs;
+    // raw no tiene límites de OC detectables (ej. bloque histórico de dígitos
+    // pegados sin separador, previo a normalizeTimelineOCSource). Antes de darlo
+    // por perdido, se intenta recuperar sin inventar datos:
+    // 1) OCs mencionadas de forma legible en el resto del evento, validadas
+    //    contra las órdenes realmente cargadas desde Supabase.
+    const textualRefs=[...new Set(extractTimelineOCRefs([event.titulo,event.descripcion,event.documentos_mencionados,event.observaciones].filter(Boolean).join(' ')))];
+    const validTextualRefs=textualRefs.filter(ref=>findOrder(ref));
+    if(validTextualRefs.length)return validTextualRefs.sort();
+    // 2) Si raw es puramente numérico y múltiplo exacto de 10, partir en bloques
+    //    de 10 dígitos SOLO si TODOS corresponden a OCs reales ya cargadas.
+    //    Si algún bloque no valida como OC real, no se usa esta partición.
+    if(/^\d+$/.test(raw)&&raw.length>10&&raw.length%10===0){
+      const blocks=[];
+      for(let i=0;i<raw.length;i+=10)blocks.push(raw.slice(i,i+10));
+      if(blocks.every(block=>findOrder(block)))return [...new Set(blocks)].sort();
+    }
+    return [raw];
+  }
   function normalizeTimelineOCSource(source){
     const input={...(source||{})};
-    const refs=extractTimelineOCRefs([input.oc,input.titulo,input.descripcion,input.documentos_mencionados,input.observaciones].filter(Boolean).join(' '));
+    const rawRefs=extractTimelineOCRefs([input.oc,input.titulo,input.descripcion,input.documentos_mencionados,input.observaciones].filter(Boolean).join(' '));
+    const knownRefs=rawRefs.filter(ref=>findOrder(ref));
+    const refs=knownRefs.length?knownRefs:rawRefs;
     if(refs.length===1){input.oc=refs[0];return input;}
     if(refs.length>1){
       input.oc='VARIAS';
@@ -21626,10 +21863,16 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     out.fechaCarga=out.fechaCarga||out.fecha_carga||out.fecha_creacion||out.created_at||'';
     return out;
   }
+  function normalizarRutaStorageSync(bucket,path){
+    const p=clean(path).replace(/\\/g,'/').replace(/\/+/g,'/').replace(/^\/|\/$/g,'');
+    if(!p)return '';
+    return norm(`${clean(bucket)||'coi-documentos'}/${p}`);
+  }
   function claveDocumentoOC(doc={}){
     const d=normalizarDocumentoSupabase(doc);
+    const claveRuta=normalizarRutaStorageSync(d.bucket,d.object_path);
+    if(claveRuta)return 'path:'+claveRuta;
     if(d.idDocumento)return 'id:'+clean(d.idDocumento);
-    if(d.object_path)return 'path:'+clean(d.bucket)+'/'+clean(d.object_path);
     return ['fallback',normalizarOCSync(d.ocNro),norm(d.tipoDocumento),norm(d.actaNro||d.nroDocumento),norm(d.nombreArchivo)].join('|');
   }
   function cargarCacheDocs(){try{const data=JSON.parse(localStorage.getItem(CACHE_KEY)||'{}');return data&&typeof data==='object'?data:{}}catch(e){return {}}}
@@ -21871,11 +22114,17 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     };
   }
 
+  function normalizarRutaStorageR27(bucket,path){
+    const p=clean(path).replace(/\\/g,'/').replace(/\/+/g,'/').replace(/^\/|\/$/g,'');
+    if(!p)return '';
+    return norm(`${clean(bucket)||BUCKET}/${p}`);
+  }
   function claveDocumentoOC(doc={}){
     const d = normalizarDocumentoSupabase(doc);
+    const claveRuta = normalizarRutaStorageR27(d.storage_bucket || BUCKET, d.storage_path);
+    if(claveRuta) return 'path:' + claveRuta;
     if(clean(d.id_documento)) return 'id_documento:' + clean(d.id_documento);
     if(clean(d.id) && !String(d.id).startsWith('doc_')) return 'id:' + clean(d.id);
-    if(clean(d.storage_path)) return 'path:' + clean(d.storage_bucket || BUCKET) + '/' + clean(d.storage_path);
     return ['fallback', normalizarOC(d.nro_oc || d.ocNro), norm(d.tipo_documento || d.tipoDocumento), norm(d.nombre_documento || d.nombreArchivo)].join('|');
   }
 
@@ -22046,9 +22295,9 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       console.warn('COI R27: consulta documental previa falló', error);
       return [];
     });
-    const pathsExistentes = new Set(existentes.map(d => clean(d.storage_path || d.objectPath)).filter(Boolean));
+    const pathsExistentes = new Set(existentes.map(d => normalizarRutaStorageR27(d.storage_bucket || BUCKET, d.storage_path || d.objectPath)).filter(Boolean));
     const archivos = await listarArchivosStorageOC(client, oc);
-    const faltantes = archivos.filter(file => !pathsExistentes.has(file.path));
+    const faltantes = archivos.filter(file => !pathsExistentes.has(normalizarRutaStorageR27(BUCKET, file.path)));
 
     const insertados = [];
     for(const file of faltantes){
@@ -22167,18 +22416,52 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     }
   }
 
-  async function abrirDocumentoStorageOC_R27(idOrDoc){
-    const doc = typeof idOrDoc === 'object' ? normalizarDocumentoSupabase(idOrDoc) : runtimeDocs.get(String(idOrDoc)) || runtimeDocs.get('id:' + String(idOrDoc));
+  async function abrirDocumentoStorageOC_R27(idOrDoc, popup){
+    let doc = typeof idOrDoc === 'object' ? normalizarDocumentoSupabase(idOrDoc) : null;
+    if(!doc && typeof idOrDoc !== 'object'){
+      // Dos módulos independientes cachean documentos por su cuenta. La
+      // caché de módulo A es la que aplica la identidad/dedup documental
+      // central (agruparDocumentosActaEquivalentes) y lleva los candidatos de
+      // storage_path de respaldo del grupo fusionado; se prefiere siempre que
+      // exista -aunque este módulo también tenga una entrada propia con una
+      // ruta que a simple vista "parece" válida pero puede ya no existir en
+      // Storage-, y solo se recurre a la caché propia de este módulo si la
+      // otra no tiene el documento.
+      if(typeof window.buscarDocumentoStoragePorId === 'function'){
+        const desdeModuloA = window.buscarDocumentoStoragePorId(idOrDoc);
+        if(desdeModuloA) doc = normalizarDocumentoSupabase(desdeModuloA);
+      }
+      if(!doc) doc = runtimeDocs.get(String(idOrDoc)) || runtimeDocs.get('id:' + String(idOrDoc));
+    }
     if(!doc) throw new Error('No se encontró el documento solicitado en la sincronización actual.');
     const client = getClient();
     await requireSession(client);
     const bucket = clean(doc.storage_bucket || doc.bucket || BUCKET);
-    const storagePath = clean(doc.storage_path || doc.objectPath || doc.object_path);
-    if(!storagePath) throw new Error('El documento no posee una ruta válida en Storage.');
-    const {data, error} = await client.storage.from(bucket).createSignedUrl(storagePath, 300);
-    if(error) throw error;
-    if(!data?.signedUrl) throw new Error('Supabase no devolvió una URL firmada.');
-    const win = window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+    // El path del registro canónico se prueba primero; si el objeto ya no
+    // existe en Storage, se prueban -sin listar Storage- los paths que
+    // compartían identidad dentro del mismo grupo deduplicado (ver
+    // elegirDocumentoActaCanonico). Nunca se inventa una ruta nueva.
+    const candidatos = [...new Set([
+      clean(doc.storage_path || doc.objectPath || doc.object_path),
+      ...(Array.isArray(doc._candidateStorageLocations) ? doc._candidateStorageLocations.map(clean) : [])
+    ].filter(Boolean))];
+    if(!candidatos.length) throw new Error('El documento no posee una ruta válida en Storage.');
+    let signedUrl = null, lastError = null;
+    for(const storagePath of candidatos){
+      try{
+        const {data, error} = await client.storage.from(bucket).createSignedUrl(storagePath, 300);
+        if(error){ lastError = error; continue; }
+        if(data?.signedUrl){ signedUrl = data.signedUrl; break; }
+      }catch(error){ lastError = error; }
+    }
+    if(!signedUrl) throw (lastError || new Error('Supabase no devolvió una URL firmada.'));
+    if(popup && !popup.closed){
+      popup.location.href = signedUrl;
+      return;
+    }
+    // Sin pestaña pre-abierta (llamada directa, no desde el click real): se
+    // intenta abrir igual, aceptando el riesgo de bloqueo de popup.
+    const win = window.open(signedUrl, '_blank', 'noopener,noreferrer');
     if(!win) throw new Error('El navegador bloqueó la pestaña. Permití ventanas emergentes.');
   }
 
@@ -22201,18 +22484,37 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     event.stopPropagation();
     event.stopImmediatePropagation();
 
-    try{
-      if(openBtn){
-        openBtn.disabled = true;
-        try{ await abrirDocumentoStorageOC_R27(openBtn.dataset.storageDocumentoId); }
-        finally{ if(openBtn.isConnected) openBtn.disabled = false; }
-        return;
+    if(openBtn){
+      // La pestaña se abre EN BLANCO de forma sincrónica, dentro del mismo
+      // gesto de click, antes de cualquier await: es la única forma confiable
+      // de que Chrome no la trate como popup bloqueado, ya que la activación
+      // de usuario ("user activation") no sobrevive garantizada más allá del
+      // primer await. Recién después se resuelve la signed URL de forma
+      // asíncrona y se navega esa misma pestaña ya abierta.
+      let popup = null;
+      try{
+        popup = window.open('', '_blank');
+        if(popup){ try{ popup.opener = null; }catch(e){} }
+      }catch(e){ popup = null; }
+      openBtn.disabled = true;
+      try{
+        await abrirDocumentoStorageOC_R27(openBtn.dataset.storageDocumentoId, popup);
+      }catch(error){
+        console.error('COI R27 abrir PDF', error);
+        if(popup && !popup.closed){ try{ popup.close(); }catch(e){} }
+        toast(error?.message || 'No se pudo abrir el PDF desde Supabase Storage.', 'error');
+      }finally{
+        if(openBtn.isConnected) openBtn.disabled = false;
       }
+      return;
+    }
 
+    try{
       const oc = syncBtn?.dataset.syncDocsOc || refreshBtn?.dataset.storageDocRefresh || window.ocActualId || window.fichaOCActualKeyV64 || '';
       await sincronizarDocumentosSupabaseOC_R27(oc);
     }catch(error){
       console.error('COI R27 evento documentos', error);
+      toast(error?.message || 'No se pudo sincronizar documentación desde Supabase.', 'error');
     }
   }
 
@@ -26040,6 +26342,28 @@ document.addEventListener('click',function(event){
     const period=start&&end?`${fmtDate(start)} al ${fmtDate(end)}`:(start||end?fmtDate(start||end):'Sin período registrado');
     return {row:last,acta,period,date:end?fmtDate(end):'',label:acta?'Acta N° '+acta:'Certificación',progress:progressFromPersistedCertification(last)};
   }
+  async function actaDocumentalFallback(item){
+    try{
+      if(typeof window.cargarDocumentosStorageOC!=='function'||typeof window.obtenerActasMedicionDocumentalesOC!=='function')return null;
+      const documentos=await window.cargarDocumentosStorageOC(item);
+      const actas=window.obtenerActasMedicionDocumentalesOC(item,documentos)||[];
+      if(!actas.length)return null;
+      const numeroDe=a=>Number(window.obtenerNumeroActaDocumento?.(a))||0;
+      const fechaDe=a=>clean(window.obtenerFechaDocumentoActa?.(a)||'');
+      const ordered=[...actas].sort((a,b)=>numeroDe(b)-numeroDe(a)||fechaDe(b).localeCompare(fechaDe(a)));
+      const last=ordered[0];
+      const numero=clean(window.obtenerNumeroActaDocumento?.(last)||'');
+      const periodo=clean(window.obtenerPeriodoDocumentoActa?.(last)||'');
+      const fecha=fechaDe(last);
+      if(!numero&&!fecha)return null;
+      return {
+        label:(numero?`Acta N° ${numero}`:'Acta de Medición')+' (documental)',
+        period:periodo||'Sin período registrado',
+        date:fecha?fmtDate(fecha):'',
+        note:'Fuente: Acta de Medición documental en Supabase Storage (sin certificación estructurada en coi_certificaciones).'
+      };
+    }catch(error){console.warn('COI: fallback de actas documentales no disponible.',error);return null;}
+  }
   let refreshSequence=0;
   async function refreshSummary(reference,itemOverride){
     const sequence=++refreshSequence;
@@ -26050,10 +26374,13 @@ document.addEventListener('click',function(event){
     const progress=card.querySelector('[data-coi-obra-avance]');
     const dueDate=card.querySelector('[data-coi-obra-vencimiento]');
     const remainingDays=card.querySelector('[data-coi-obra-dias-restantes]');
-    const mainProgress=card.querySelector('[data-coi-ficha-main-progress]');
-    const mainProgressNote=card.querySelector('[data-coi-ficha-main-progress-note]');
-    const mainLastCert=card.querySelector('[data-coi-ficha-main-last-cert]');
-    const mainLastCertPeriod=card.querySelector('[data-coi-ficha-main-last-cert-period]');
+    // Los KPI "main" viven en el strip .oc-kpis, hermano (no descendiente) de la
+    // sección "1. Resumen general": deben buscarse en todo el body de la Ficha,
+    // no dentro de card, o nunca se encuentran y el resumen nunca se actualiza.
+    const mainProgress=body.querySelector('[data-coi-ficha-main-progress]');
+    const mainProgressNote=body.querySelector('[data-coi-ficha-main-progress-note]');
+    const mainLastCert=body.querySelector('[data-coi-ficha-main-last-cert]');
+    const mainLastCertPeriod=body.querySelector('[data-coi-ficha-main-last-cert-period]');
 
     if(obra){
       const persistedDue=persistedDueDate(item),days=remainingDaysFromPersistedDueDate(persistedDue);
@@ -26072,16 +26399,18 @@ document.addEventListener('click',function(event){
     try{
       const latest=latestCertification(await window.cargarCertificacionesPorOC(item));
       if(sequence!==refreshSequence||!card.isConnected)return {obra,stale:true};
+      const fallback=latest.row?null:await actaDocumentalFallback(item);
+      if(sequence!==refreshSequence||!card.isConnected)return {obra,stale:true};
       if(obra){
-        if(certification)certification.textContent=latest.row?(latest.label+(latest.date?' · '+latest.date:'')):'Sin certificación';
+        if(certification)certification.textContent=latest.row?(latest.label+(latest.date?' · '+latest.date:'')):(fallback?fallback.label+(fallback.date?' · '+fallback.date:''):'Sin certificación');
         if(progress)progress.textContent=latest.progress===null?'Sin dato':fmtPct(latest.progress);
         if(mainProgress)mainProgress.textContent=latest.progress===null?'—':fmtPct(latest.progress);
-        if(mainProgressNote)mainProgressNote.textContent=latest.row?(latest.period==='Sin período registrado'?'Certificación sin período registrado':'Según certificación · '+latest.period):'Sin certificación registrada';
+        if(mainProgressNote)mainProgressNote.textContent=latest.row?(latest.period==='Sin período registrado'?'Certificación sin período registrado':'Según certificación · '+latest.period):(fallback?fallback.note:'Sin certificación registrada');
       }else{
-        if(mainLastCert)mainLastCert.textContent=latest.row?latest.label:'—';
-        if(mainLastCertPeriod)mainLastCertPeriod.textContent=latest.row?latest.period:'Sin período registrado';
+        if(mainLastCert)mainLastCert.textContent=latest.row?latest.label:(fallback?fallback.label:'—');
+        if(mainLastCertPeriod)mainLastCertPeriod.textContent=latest.row?latest.period:(fallback?fallback.period:'Sin período registrado');
       }
-      return {obra,latest};
+      return {obra,latest,fallback};
     }catch(error){
       if(sequence===refreshSequence&&card.isConnected){
         if(obra){
