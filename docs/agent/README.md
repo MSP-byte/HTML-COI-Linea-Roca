@@ -4,6 +4,9 @@ El archivo principal es `CLAUDE.md` en la raíz del repo.
 
 Esta carpeta contiene instrucciones especializadas.
 
+## Lectura obligatoria de inicio
+`AGENT_STARTUP_CHECKLIST.md` — antes de cualquier tarea, junto con `CLAUDE.md`.
+
 ## Orden
 1. Project Overview
 2. Architecture
@@ -23,6 +26,9 @@ Esta carpeta contiene instrucciones especializadas.
 16. Agent Roles
 17. Definition of Done
 18. Prompt Library
+
+## Ejemplos
+Ver `examples/` para prompts completos de referencia (auditoría, bugfix, release, cambio Supabase).
 
 ## Regla
 Documentación viva. Si cambia arquitectura, schema, proceso o regla funcional, actualizar los docs afectados.
