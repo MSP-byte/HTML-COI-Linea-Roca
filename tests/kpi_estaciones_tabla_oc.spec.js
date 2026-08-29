@@ -110,8 +110,10 @@ test('ESCENARIO A — sin localStorage el KPI muestra el total real de la Red L�
 test('ESCENARIO B — la contaminación de localStorage no altera el KPI Estaciones', async ({ page }) => {
   const { resumen, errores } = await abrirInicioOperativo(page, true);
 
-  // El catálogo maestro sí queda contaminado: es exactamente lo que el KPI ya no sigue.
-  expect(resumen.maestroTotal).toBeGreaterThan(ESTACIONES_RED_ROCA + 1);
+  // Desde PR-H01 (COI-AUD-002) la ruta legacy ya no consume la clave, así que la
+  // contaminación tampoco llega al catálogo maestro. El KPI conserva además su propia
+  // defensa: se alimenta del snapshot de parseo, no del maestro.
+  expect(resumen.maestroTotal).toBe(ESTACIONES_RED_ROCA + 1); // + el bucket técnico "Sin definir"
   // El snapshot de parseo y el criterio del plano se mantienen intactos.
   expect(resumen.snapshotCanonico).toBe(ESTACIONES_RED_ROCA);
   expect(resumen.maestroConHotspot).toBe(ESTACIONES_RED_ROCA);
