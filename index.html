@@ -26944,19 +26944,19 @@ document.addEventListener('click',function(event){
 <script id="coi-h03-observaciones-supabase-first">
 /* H03 - Observaciones OC: Supabase como unica fuente de verdad.
 
-   Antes de esta capa, observacionesOC vivia en localStorage['coi_observaciones_oc']
-   y ahi se guardaba todo: lo que cargaba un operador no existia para nadie mas y
-   desaparecia si se limpiaba el navegador.
+   Antes de esta capa, observacionesOC vivia en localStorage['coi_observaciones_oc']:
+   lo que cargaba un operador no existia para nadie mas y desaparecia al limpiar el
+   navegador.
 
-   Ahora:
-     lectura   -> select sobre public.coi_observaciones_oc
-     mutacion  -> insert/update fila por fila, nunca "guardar el array entero"
-     memoria   -> window.observacionesOC es solo el modelo de la UI
+     lectura      -> select paginado sobre public.coi_observaciones_oc
+     mutacion     -> insert/update fila por fila, nunca "guardar el array entero"
+     memoria      -> window.observacionesOC es solo el modelo de la UI
      localStorage -> fallback de solo lectura del legado, jamas destino de escritura
 
-   El choke point historico v65GuardarObservacionesOC queda neutralizado: sigue
-   existiendo (media docena de capas lo invocan y algunas escriben en localStorage
-   solo si no es una funcion) pero ya no persiste nada. */
+   Las acciones reales de la UI viven dentro de IIFEs que no se pueden reasignar
+   desde window y que ademas llaman a stopImmediatePropagation. Por eso los clicks
+   se interceptan en fase de captura sobre window, que corre antes que cualquier
+   listener de document: es el mismo mecanismo que ya usa el modulo R27 de PDF. */
 (function(){
   'use strict';
 
@@ -26964,28 +26964,60 @@ document.addEventListener('click',function(event){
   const LEGACY_KEY = 'coi_observaciones_oc';
   const MARKER_KEY = 'coi_observaciones_h03_imported_v1';
   const CAMPOS = 'id,orden_id,nro_oc,observacion,estado,prioridad,creado_por,resuelto_por,fecha_creacion,fecha_resolucion';
+  const PAGE_SIZE = 1000;
 
-  const runtime = { origen: 'inicial', ultimoError: null, cargando: null };
+  // Referencia propia a getItem: el fallback legado la usa aunque mas abajo se
+  // instale el escudo que impide que otros lectores elijan el legado.
+  const getItemNativo = Storage.prototype.getItem;
+  const leerLegacyCrudo = () => {
+    try { return getItemNativo.call(window.localStorage, LEGACY_KEY); } catch (e) { return null; }
+  };
+
+  const runtime = {
+    origen: 'inicial',        // supabase | legacy-readonly | error-sin-sincronizar
+    ultimoError: null,
+    sincronizado: false,      // el modelo en memoria refleja una lectura remota confirmada
+    generacion: 0,            // token de request: descarta respuestas viejas
+    cargando: null,
+    confirmado: null          // ultimo modelo remoto confirmado
+  };
   window.__COI_OBS_H03__ = runtime;
 
   const texto = (v) => String(v == null ? '' : v).trim();
-  const norm = (v) => texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  const norm = (v) => texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, '');
   const ahora = () => new Date().toISOString();
+  const esUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(texto(v));
 
   function cliente() {
-    try {
-      if (typeof window.getSupabaseClient === 'function') return window.getSupabaseClient();
-    } catch (e) { /* el bootstrap todavia no corrio */ }
+    try { if (typeof window.getSupabaseClient === 'function') return window.getSupabaseClient(); } catch (e) {}
     return window.__COI_SUPABASE_CLIENT__ || null;
   }
 
+  // Los toast de la aplicacion viven dentro de IIFEs y no hay ninguno expuesto en
+  // window, de modo que delegar a window.toast dejaba al operador sin feedback.
+  // Se reutiliza el contenedor y las clases que ya usa la UI de Alertas.
   function avisar(mensaje, tipo) {
-    try { if (typeof window.toast === 'function') return window.toast(mensaje, tipo || 'info'); } catch (e) {}
+    const clase = tipo === 'error' ? 'error' : (tipo === 'warn' ? 'warn' : 'ok');
+    for (const fn of ['coiToast', 'mostrarToast', 'toast']) {
+      try {
+        if (typeof window[fn] === 'function') return window[fn](mensaje, tipo || 'info');
+      } catch (e) { /* se intenta el siguiente */ }
+    }
+    try {
+      let caja = document.getElementById('coiToastV581');
+      if (!caja) {
+        caja = document.createElement('div');
+        caja.id = 'coiToastV581';
+        document.body.appendChild(caja);
+      }
+      caja.className = 'coi-toast-v581 show ' + clase;
+      caja.textContent = mensaje;
+      clearTimeout(caja._coiObsT);
+      caja._coiObsT = setTimeout(() => caja.classList.remove('show'), 3600);
+    } catch (e) { /* sin DOM disponible */ }
     if (tipo === 'error') console.error('COI observaciones:', mensaje);
   }
 
-  // Toda mutacion exige sesion y conexion: una observacion no es un dato que
-  // pueda crearse offline.
   async function exigirEscritura() {
     const c = cliente();
     if (!c) throw new Error('Supabase no esta disponible. Recargue la pagina e inicie sesion.');
@@ -26996,13 +27028,68 @@ document.addEventListener('click',function(event){
     return { c, uid: data.session.user && data.session.user.id };
   }
 
-  // Supabase -> modelo que ya consume la UI existente.
+  // ---------------------------------------------------------- identidades
+  const perfiles = new Map();
+  async function cargarPerfiles(c, ids) {
+    const faltan = ids.filter((id) => esUuid(id) && !perfiles.has(id));
+    if (!faltan.length) return;
+    try {
+      const { data, error } = await c.from('profiles').select('id,email,nombre,apellido').in('id', faltan);
+      if (error) throw error;
+      (data || []).forEach((r) => {
+        const nombre = [texto(r.nombre), texto(r.apellido)].filter(Boolean).join(' ');
+        perfiles.set(r.id, nombre || texto(r.email) || null);
+      });
+    } catch (e) { /* sin perfiles se usa la representacion neutra */ }
+    faltan.forEach((id) => { if (!perfiles.has(id)) perfiles.set(id, null); });
+  }
+  // Nunca se inventa un nombre: si no se resuelve, se muestra el UUID abreviado.
+  function mostrarUsuario(id) {
+    if (!esUuid(id)) return '';
+    const nombre = perfiles.get(id);
+    return nombre || ('Usuario ' + String(id).slice(0, 8));
+  }
+
+  // ---------------------------------------------------------- resolucion de OC
+  function filasOC() {
+    try { return (typeof window.todasLasOC === 'function' ? window.todasLasOC() : []) || []; } catch (e) { return []; }
+  }
+  function idMaestroDe(item) {
+    const i = item || {};
+    return i.supabaseId || i.id || (i._supabaseRaw && i._supabaseRaw.id) || null;
+  }
+  // La identidad canonica es orden_id. nro_oc solo se usa como respaldo legado,
+  // de modo que una renumeracion no desvincula la observacion de su OC.
+  function ocPorOrdenId(ordenId) {
+    if (!esUuid(ordenId)) return null;
+    return filasOC().find((r) => {
+      const i = (r && r.item) || r || {};
+      return String(idMaestroDe(i)) === String(ordenId);
+    }) || null;
+  }
+  function ocPorNro(nroOC) {
+    const k = norm(nroOC);
+    if (!k) return null;
+    return filasOC().find((r) => {
+      const i = (r && r.item) || r || {};
+      return [r && r.oc, i.numeroOC, i.oc, i.nro_oc, i.OC_NRO].some((v) => norm(v) === k);
+    }) || null;
+  }
+  function ordenIdDe(nroOC) {
+    const encontrada = ocPorNro(nroOC);
+    return idMaestroDe((encontrada && (encontrada.item || encontrada)) || {});
+  }
+
   function desdeSupabase(row) {
-    const oc = buscarOC(row.nro_oc);
-    const item = (oc && (oc.item || oc)) || null;
+    // 1) por UUID maestro; 2) recien entonces por nro_oc legado.
+    const encontrada = ocPorOrdenId(row.orden_id) || ocPorNro(row.nro_oc);
+    const item = (encontrada && (encontrada.item || encontrada)) || null;
+    const nroCanonico = item
+      ? texto(item.numeroOC || item.oc || item.nro_oc || item.OC_NRO) || texto(row.nro_oc)
+      : texto(row.nro_oc);
     const base = {
       idObservacion: row.id,
-      ocNro: texto(row.nro_oc),
+      ocNro: nroCanonico,
       idObra: (item && (item.idObra || item.idOC)) || '',
       idServicio: (item && (item.idServicio || item.ID_SERVICIO)) || '',
       texto: texto(row.observacion),
@@ -27010,41 +27097,35 @@ document.addEventListener('click',function(event){
       prioridadObservacion: texto(row.prioridad) || 'Normal',
       fechaCarga: row.fecha_creacion || '',
       fechaResolucion: row.fecha_resolucion || '',
+      creadoPorId: row.creado_por || '',
+      resueltoPorId: row.resuelto_por || '',
+      usuarioCarga: mostrarUsuario(row.creado_por),
+      usuarioResolucion: mostrarUsuario(row.resuelto_por),
       _supabaseId: row.id,
       _ordenId: row.orden_id,
       _origen: 'supabase'
     };
     try {
       if (typeof window.v65NormalizarObservacion === 'function') {
-        return window.v65NormalizarObservacion(base, item);
+        const out = window.v65NormalizarObservacion(base, item);
+        // La normalizacion legacy pone 'Local' cuando no hay usuario: se preserva
+        // la identidad remota real, o una representacion neutra.
+        out.usuarioCarga = base.usuarioCarga || '';
+        out.usuarioResolucion = base.usuarioResolucion || '';
+        out.creadoPorId = base.creadoPorId;
+        out.resueltoPorId = base.resueltoPorId;
+        return out;
       }
-    } catch (e) { /* se usa el objeto plano */ }
+    } catch (e) {}
     return base;
   }
 
-  function buscarOC(nroOC) {
-    const k = norm(nroOC).replace(/\s+/g, '');
-    if (!k) return null;
-    let filas = [];
-    try { filas = typeof window.todasLasOC === 'function' ? window.todasLasOC() : []; } catch (e) { filas = []; }
-    return (filas || []).find((r) => {
-      const i = (r && r.item) || r || {};
-      return [r && r.oc, i.numeroOC, i.oc, i.nro_oc, i.OC_NRO].some((v) => norm(v).replace(/\s+/g, '') === k);
-    }) || null;
-  }
-
-  // orden_id se resuelve desde la OC ya cargada; no se duplica informacion de la OC.
-  function ordenIdDe(nroOC) {
-    const encontrada = buscarOC(nroOC);
-    const item = (encontrada && (encontrada.item || encontrada)) || {};
-    return item.supabaseId || item.id || (item._supabaseRaw && item._supabaseRaw.id) || null;
-  }
-
+  // ---------------------------------------------------------- memoria y UI
   function aplicarEnMemoria(lista, origen) {
     runtime.origen = origen;
     const arr = Array.isArray(lista) ? lista : [];
     window.observacionesOC = arr;
-    try { if (typeof observacionesOC !== 'undefined') observacionesOC = arr; } catch (e) { /* const en otra capa */ }
+    try { if (typeof observacionesOC !== 'undefined') observacionesOC = arr; } catch (e) {}
     return arr;
   }
 
@@ -27058,73 +27139,108 @@ document.addEventListener('click',function(event){
     } catch (e) {}
   }
 
-  function marcadorPuesto() {
-    try { return localStorage.getItem(MARKER_KEY) === '1'; } catch (e) { return false; }
-  }
-  function ponerMarcador() {
-    try { localStorage.setItem(MARKER_KEY, '1'); } catch (e) {}
-  }
+  const marcadorPuesto = () => { try { return getItemNativo.call(window.localStorage, MARKER_KEY) === '1'; } catch (e) { return false; } };
+  const ponerMarcador = () => { try { window.localStorage.setItem(MARKER_KEY, '1'); } catch (e) {} };
 
-  // Legado: solo lectura. Nunca se escribe ni se migra automaticamente desde el
-  // navegador, porque cada browser tiene su propia copia y eso duplicaria filas.
   function legadoSoloLectura() {
     let crudo = [];
-    try { crudo = JSON.parse(localStorage.getItem(LEGACY_KEY) || '[]'); } catch (e) { crudo = []; }
+    try { crudo = JSON.parse(leerLegacyCrudo() || '[]'); } catch (e) { crudo = []; }
     if (!Array.isArray(crudo)) return [];
-    return crudo.map((o) => {
-      const copia = Object.assign({}, o);
-      copia._origen = 'legacy-readonly';
-      copia._soloLectura = true;
-      return copia;
-    });
+    return crudo.map((o) => Object.assign({}, o, { _origen: 'legacy-readonly', _soloLectura: true }));
   }
 
-  async function cargar(opciones) {
-    const forzar = opciones && opciones.forzar;
-    if (runtime.cargando && !forzar) return runtime.cargando;
-    runtime.cargando = (async () => {
+  // ---------------------------------------------------------- lectura paginada
+  async function leerPaginado(c) {
+    const filas = [];
+    // Se avanza por la cantidad de filas REALMENTE devueltas, no por PAGE_SIZE:
+    // PostgREST aplica su propio tope (max-rows) y puede entregar menos de lo
+    // pedido, en cuyo caso cortar por «pagina.length < PAGE_SIZE» perderia el
+    // resto del conjunto. Solo una pagina vacia termina el recorrido.
+    for (let desde = 0, vueltas = 0; vueltas < 1000; vueltas++) {
+      const { data, error } = await c
+        .from(TABLA)
+        .select(CAMPOS)
+        .order('fecha_creacion', { ascending: false })
+        .order('id', { ascending: true })
+        .range(desde, desde + PAGE_SIZE - 1);
+      if (error) throw error;
+      const pagina = Array.isArray(data) ? data : [];
+      if (!pagina.length) break;
+      filas.push.apply(filas, pagina);
+      desde += pagina.length;
+    }
+    // Union sin duplicados: el paginado puede solaparse si alguien inserta mientras se lee.
+    const vistos = new Set();
+    return filas.filter((r) => (vistos.has(r.id) ? false : (vistos.add(r.id), true)));
+  }
+
+  async function cargar() {
+    const generacion = ++runtime.generacion;
+    const vigente = () => generacion === runtime.generacion;
+
+    const promesa = (async () => {
       const c = cliente();
       if (!c) {
+        if (!vigente()) return window.observacionesOC;
         runtime.ultimoError = 'Supabase no disponible';
-        return aplicarEnMemoria(marcadorPuesto() ? [] : legadoSoloLectura(), 'legacy-readonly');
+        runtime.sincronizado = false;
+        if (marcadorPuesto()) {
+          // Nunca se representa un error como "cero observaciones".
+          return aplicarEnMemoria(runtime.confirmado || [], 'error-sin-sincronizar');
+        }
+        return aplicarEnMemoria(legadoSoloLectura(), 'legacy-readonly');
       }
       try {
-        const { data, error } = await c.from(TABLA).select(CAMPOS).order('fecha_creacion', { ascending: false });
-        if (error) throw error;
-        const filas = (data || []).map(desdeSupabase);
+        const crudas = await leerPaginado(c);
+        await cargarPerfiles(c, crudas.flatMap((r) => [r.creado_por, r.resuelto_por]).filter(Boolean));
+        if (!vigente()) return window.observacionesOC;
+        const filas = crudas.map(desdeSupabase);
         runtime.ultimoError = null;
-        if (filas.length) {
-          // A partir de aca Supabase tiene datos reales: el legado deja de mostrarse.
-          ponerMarcador();
-          return aplicarEnMemoria(filas, 'supabase');
-        }
-        // Supabase vacio: solo se muestra el legado si todavia no hubo importacion.
-        if (marcadorPuesto()) return aplicarEnMemoria([], 'supabase');
+        runtime.sincronizado = true;
+        runtime.confirmado = filas;
+        if (filas.length) ponerMarcador();
+        if (filas.length || marcadorPuesto()) return aplicarEnMemoria(filas, 'supabase');
         return aplicarEnMemoria(legadoSoloLectura(), 'legacy-readonly');
       } catch (error) {
+        if (!vigente()) return window.observacionesOC;
         runtime.ultimoError = (error && error.message) || String(error);
+        runtime.sincronizado = false;
         console.warn('COI observaciones: no se pudo leer Supabase.', error);
-        return aplicarEnMemoria(marcadorPuesto() ? [] : legadoSoloLectura(), 'legacy-readonly');
-      } finally {
-        runtime.cargando = null;
+        if (marcadorPuesto()) {
+          // Se conserva el ultimo modelo remoto confirmado y se avisa.
+          avisar('No se pudieron actualizar las observaciones: se muestran las ultimas conocidas.', 'warn');
+          return aplicarEnMemoria(runtime.confirmado || [], 'error-sin-sincronizar');
+        }
+        return aplicarEnMemoria(legadoSoloLectura(), 'legacy-readonly');
       }
     })();
-    return runtime.cargando;
+
+    runtime.cargando = promesa;
+    promesa.catch(() => {}).then(() => {
+      // El finally solo limpia el puntero si sigue siendo el de ESTA peticion.
+      if (runtime.cargando === promesa) runtime.cargando = null;
+    });
+    return promesa;
   }
 
   async function recargarYRefrescar() {
-    await cargar({ forzar: true });
+    await cargar();
     refrescarUI();
   }
 
-  // ---------------------------------------------------------------- mutaciones
+  // ---------------------------------------------------------- mutaciones
   async function crear(datos) {
     const { c, uid } = await exigirEscritura();
-    const nroOC = texto(datos && datos.nroOC);
     const observacion = texto(datos && datos.texto);
     if (!observacion) throw new Error('Escriba una observacion antes de guardar.');
+    const nroOC = texto(datos && datos.nroOC);
+    const ordenId = ordenIdDe(nroOC);
+    // orden_id es la identidad canonica: sin UUID valido no se crea la fila.
+    if (!esUuid(ordenId)) {
+      throw new Error('No se pudo identificar la OC (' + (nroOC || 'sin numero') + '). Actualice los datos e intente de nuevo.');
+    }
     const fila = {
-      orden_id: ordenIdDe(nroOC),
+      orden_id: ordenId,
       nro_oc: nroOC || null,
       observacion: observacion,
       estado: texto(datos && datos.estado) || 'Pendiente',
@@ -27141,151 +27257,220 @@ document.addEventListener('click',function(event){
     if (!texto(id)) throw new Error('Observacion sin identificador remoto.');
     const { data, error } = await c.from(TABLA).update(patch).eq('id', id).select(CAMPOS);
     if (error) throw error;
-    // Sin filas devueltas la RLS rechazo el update: no se puede reportar exito.
     if (!data || !data.length) throw new Error('El servidor no aplico el cambio (permisos insuficientes).');
     return data[0];
   }
 
-  function idRemoto(idObservacion) {
-    const lista = Array.isArray(window.observacionesOC) ? window.observacionesOC : [];
-    const obs = lista.find((o) => String(o.idObservacion) === String(idObservacion));
-    if (!obs) return null;
-    if (obs._soloLectura) return null;
+  const listaActual = () => (Array.isArray(window.observacionesOC) ? window.observacionesOC : []);
+  const buscarObs = (id) => listaActual().find((o) => String(o.idObservacion) === String(id)) || null;
+  const esLegado = (id) => Boolean(buscarObs(id) && buscarObs(id)._soloLectura);
+  function idRemoto(id) {
+    const obs = buscarObs(id);
+    if (!obs || obs._soloLectura) return null;
     return obs._supabaseId || obs.idObservacion || null;
   }
 
-  function bloqueadaPorLegado(idObservacion) {
-    const lista = Array.isArray(window.observacionesOC) ? window.observacionesOC : [];
-    const obs = lista.find((o) => String(o.idObservacion) === String(idObservacion));
-    return Boolean(obs && obs._soloLectura);
-  }
-
-  async function conManejoDeError(accion, exito) {
+  const enCurso = new Set();
+  async function conManejoDeError(clave, accion, exito) {
+    // Evita que un doble click dispare dos veces la misma mutacion.
+    if (clave && enCurso.has(clave)) return false;
+    if (clave) enCurso.add(clave);
     try {
       await accion();
       if (exito) avisar(exito, 'ok');
       await recargarYRefrescar();
       return true;
     } catch (error) {
-      const mensaje = (error && error.message) || String(error);
-      avisar('No se pudo guardar la observacion: ' + mensaje, 'error');
-      // Nunca se deja la UI creyendo que guardo: se vuelve al estado del servidor.
+      avisar('No se pudo guardar en Observaciones: ' + ((error && error.message) || String(error)), 'error');
       await recargarYRefrescar();
       return false;
+    } finally {
+      if (clave) enCurso.delete(clave);
     }
   }
 
-  // ------------------------------------------------- reemplazo de los writers
+  function avisoLegado() {
+    avisar('Esta observacion proviene del legado local y todavia no esta en Supabase.', 'warn');
+  }
+
+  // ---------------------------------------------------------- acciones publicas
+  function crearDesdeTexto(nroOC, valor, exito) {
+    return conManejoDeError('crear:' + norm(nroOC) + ':' + norm(valor).slice(0, 40),
+      () => crear({ nroOC: nroOC, texto: valor }), exito || 'Observacion guardada.');
+  }
+
+  function editar(idObservacion) {
+    if (esLegado(idObservacion)) return avisoLegado();
+    const id = idRemoto(idObservacion);
+    if (!id) return avisar('Observacion sin identificador remoto.', 'error');
+    const actual = buscarObs(idObservacion);
+    const nuevo = prompt('Editar observacion', (actual && actual.texto) || '');
+    if (nuevo === null) return;
+    const valor = texto(nuevo);
+    if (!valor) return avisar('La observacion no puede quedar vacia.', 'warn');
+    conManejoDeError('editar:' + id, () => actualizar(id, { observacion: valor }), 'Observacion actualizada.');
+  }
+
+  function resolver(idObservacion) {
+    if (esLegado(idObservacion)) return avisoLegado();
+    const id = idRemoto(idObservacion);
+    if (!id) return avisar('Observacion sin identificador remoto.', 'error');
+    const actual = buscarObs(idObservacion);
+    const detalle = texto(prompt('Observacion de resolucion opcional', '') || '');
+    conManejoDeError('resolver:' + id, async () => {
+      const { uid } = await exigirEscritura();
+      const patch = { estado: 'Resuelta', resuelto_por: uid || null, fecha_resolucion: ahora() };
+      // La tabla no tiene columna para el detalle: se anexa al texto en lugar de
+      // pedirlo y descartarlo. Si ya estaba anexado no se duplica.
+      const base = texto(actual && actual.texto);
+      if (detalle && base.indexOf('[Resolucion] ' + detalle) === -1) {
+        patch.observacion = base + '\n[Resolucion] ' + detalle;
+      }
+      await actualizar(id, patch);
+    }, 'Observacion resuelta.');
+  }
+
+  function reabrir(idObservacion) {
+    if (esLegado(idObservacion)) return avisoLegado();
+    const id = idRemoto(idObservacion);
+    if (!id) return avisar('Observacion sin identificador remoto.', 'error');
+    conManejoDeError('reabrir:' + id,
+      () => actualizar(id, { estado: 'Reabierta', resuelto_por: null, fecha_resolucion: null }),
+      'Observacion reabierta.');
+  }
+
+  function textoDeAlerta(alerta, origen) {
+    const oc = texto(alerta && (alerta.oc || alerta.ocNro || alerta.OC_NRO || alerta.idRegistro || alerta.ocId));
+    const msg = texto(alerta && (alerta.mensaje || alerta.descripcion));
+    const acc = texto(alerta && (alerta.accionSugerida || alerta.accion));
+    const tipo = texto(alerta && (alerta.tipoAlerta || alerta.tipo)) || 'Alerta';
+    const cuerpo = 'Origen: ' + (origen || 'Centro de Alertas') +
+      '\nTipo de alerta: ' + tipo + '\nMensaje: ' + msg + '\nAccion sugerida: ' + acc;
+    return { oc: oc, texto: cuerpo };
+  }
+
+  // ---------------------------------------------------------- instalacion
   function instalar() {
-    // Choke point historico: sigue existiendo para las capas que lo invocan,
-    // pero deja de persistir en localStorage.
+    // Choke point historico: sigue existiendo porque varias capas lo invocan y
+    // algunas escriben en localStorage solo si no es una funcion, pero ya no
+    // persiste nada.
     window.v65GuardarObservacionesOC = function () {
-      const arr = Array.isArray(window.observacionesOC) ? window.observacionesOC : [];
+      const arr = listaActual();
       try { if (typeof observacionesOC !== 'undefined') observacionesOC = arr; } catch (e) {}
       return arr;
     };
-
-    // La carga inicial ya no lee localStorage como autoridad.
-    window.v65CargarObservacionesOC = function () {
-      cargar();
-      return Array.isArray(window.observacionesOC) ? window.observacionesOC : [];
-    };
-
-    // La migracion legacy en memoria queda desactivada: importar es una
-    // operacion controlada y unica, no algo que haga cada navegador.
+    window.v65CargarObservacionesOC = function () { cargar(); return listaActual(); };
     window.v65MigrarObservacionesLegacy = function () { return false; };
 
     window.guardarObservacionOC = function (ocNro) {
       const encontrada = (typeof window.v65BuscarOC === 'function')
-        ? window.v65BuscarOC(ocNro || window.fichaOCActualKeyV64 || '')
-        : null;
+        ? window.v65BuscarOC(ocNro || window.fichaOCActualKeyV64 || '') : null;
       const oc = (encontrada && (encontrada.item || encontrada)) || null;
       const nro = (typeof window.v65OCNro === 'function' && oc) ? window.v65OCNro(oc) : texto(ocNro);
       const ta = document.getElementById('v65NuevaObservacion') || document.getElementById('v59ObsOC');
       const valor = texto(ta && ta.value);
-      if (!valor) { avisar('Escriba una observacion antes de guardar.', 'warn'); return; }
-      conManejoDeError(
-        async () => { await crear({ nroOC: nro, texto: valor }); if (ta) ta.value = ''; },
-        'Observacion guardada.'
-      );
+      if (!valor) return avisar('Escriba una observacion antes de guardar.', 'warn');
+      crearDesdeTexto(nro, valor).then((ok) => { if (ok && ta) ta.value = ''; });
     };
 
-    window.resolverObservacionOC = function (idObservacion) {
-      if (bloqueadaPorLegado(idObservacion)) {
-        avisar('Esta observacion proviene del legado local y todavia no esta en Supabase.', 'warn');
-        return;
-      }
-      const id = idRemoto(idObservacion);
-      if (!id) { avisar('Observacion sin identificador remoto.', 'error'); return; }
-      const detalle = texto(prompt('Observacion de resolucion opcional', '') || '');
-      const lista = Array.isArray(window.observacionesOC) ? window.observacionesOC : [];
-      const actual = lista.find((o) => String(o.idObservacion) === String(idObservacion));
-      conManejoDeError(async () => {
-        const { uid } = await exigirEscritura();
-        const patch = { estado: 'Resuelta', resuelto_por: uid || null, fecha_resolucion: ahora() };
-        // La tabla no tiene columna para el detalle de resolucion: en lugar de
-        // pedirlo y descartarlo, se anexa al propio texto de la observacion.
-        if (detalle) patch.observacion = texto(actual && actual.texto) + '\n[Resolucion] ' + detalle;
-        await actualizar(id, patch);
-      }, 'Observacion resuelta.');
-    };
-
-    window.reabrirObservacionOC = function (idObservacion) {
-      if (bloqueadaPorLegado(idObservacion)) {
-        avisar('Esta observacion proviene del legado local y todavia no esta en Supabase.', 'warn');
-        return;
-      }
-      const id = idRemoto(idObservacion);
-      if (!id) { avisar('Observacion sin identificador remoto.', 'error'); return; }
-      conManejoDeError(
-        () => actualizar(id, { estado: 'Reabierta', resuelto_por: null, fecha_resolucion: null }),
-        'Observacion reabierta.'
-      );
-    };
-
-    // Las policies productivas permiten select/insert/update, no delete: se
-    // informa en lugar de simular un borrado que el servidor rechazaria.
+    window.resolverObservacionOC = resolver;
+    window.reabrirObservacionOC = reabrir;
+    window.editarObservacionR13 = editar;
     window.borrarObservacionOC = function () {
-      avisar('El borrado de observaciones no esta habilitado en el servidor. Use Resolver.', 'warn');
+      avisar('Las observaciones se conservan por trazabilidad y no se borran. Use Resolver.', 'warn');
     };
-
-    window.editarObservacionR13 = function (idObservacion) {
-      if (bloqueadaPorLegado(idObservacion)) {
-        avisar('Esta observacion proviene del legado local y todavia no esta en Supabase.', 'warn');
-        return;
-      }
-      const id = idRemoto(idObservacion);
-      if (!id) { avisar('Observacion sin identificador remoto.', 'error'); return; }
-      const lista = Array.isArray(window.observacionesOC) ? window.observacionesOC : [];
-      const actual = lista.find((o) => String(o.idObservacion) === String(idObservacion));
-      const nuevo = prompt('Editar observacion', (actual && actual.texto) || '');
-      if (nuevo === null) return;
-      const valor = texto(nuevo);
-      if (!valor) { avisar('La observacion no puede quedar vacia.', 'warn'); return; }
-      conManejoDeError(() => actualizar(id, { observacion: valor }), 'Observacion actualizada.');
-    };
-
-    // Centro de Alertas: un unico INSERT remoto, sin copia local.
     window.agregarObservacionDesdeAlertaR13 = function (key, textoAlerta) {
       const valor = texto(textoAlerta);
-      if (!valor) { avisar('La alerta no tiene texto para enviar a Observaciones.', 'warn'); return; }
+      if (!valor) return avisar('La alerta no tiene texto para enviar a Observaciones.', 'warn');
       const encontrada = (typeof window.v65BuscarOC === 'function') ? window.v65BuscarOC(key) : null;
       const oc = (encontrada && (encontrada.item || encontrada)) || null;
       const nro = (typeof window.v65OCNro === 'function' && oc) ? window.v65OCNro(oc) : texto(key);
-      conManejoDeError(
-        () => crear({ nroOC: nro, texto: valor }),
-        'Observacion creada desde el Centro de Alertas.'
-      );
+      crearDesdeTexto(nro, valor, 'Observacion creada desde el Centro de Alertas.');
     };
-
     window.recargarObservacionesOC = recargarYRefrescar;
+
+    // --- Clicks reales. Captura en window: corre antes que los listeners de
+    // document, que estan dentro de IIFEs y llaman a stopImmediatePropagation.
+    window.addEventListener('click', function (ev) {
+      const t = ev.target;
+      if (!t || !t.closest) return;
+
+      const editBtn = t.closest('[data-r13-edit-obs]');
+      if (editBtn) {
+        ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+        editar(editBtn.dataset.r13EditObs);
+        return;
+      }
+      const delBtn = t.closest('[data-v65-borrar-obs]');
+      if (delBtn) {
+        ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+        window.borrarObservacionOC();
+        return;
+      }
+      const alertBtn = t.closest('[data-v581-alert-obs]') || t.closest('[data-v581-problem-obs]');
+      if (alertBtn) {
+        ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+        const crudo = alertBtn.dataset.v581AlertObs || alertBtn.dataset.v581ProblemObs || '%7B%7D';
+        let alerta = {};
+        try { alerta = JSON.parse(decodeURIComponent(crudo)); } catch (e) { alerta = {}; }
+        const origen = alertBtn.dataset.v581ProblemObs ? 'Diagnostico' : 'Centro de Alertas';
+        const datos = textoDeAlerta(alerta, origen);
+        if (!datos.oc) return avisar('La alerta no tiene OC asociada.', 'warn');
+        crearDesdeTexto(datos.oc, datos.texto, 'Observacion creada desde el Centro de Alertas.');
+        return;
+      }
+      const alertaR13 = t.closest('[data-r13-alert-to-obs]');
+      if (alertaR13) {
+        ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+        const key = alertaR13.dataset.r13AlertToObs;
+        const valor = texto(alertaR13.dataset.r13AlertText);
+        if (!valor) return avisar('La alerta no tiene texto para enviar a Observaciones.', 'warn');
+        window.agregarObservacionDesdeAlertaR13(key, valor);
+        return;
+      }
+    }, true);
+
+    // --- El legado nunca puede ganar como fuente autoritativa una vez que
+    // Supabase manda. No se borra la clave: se impide que otros lectores la
+    // elijan (por ejemplo getObs de V58.1, que prefiere el array mas largo).
+    if (!Storage.prototype.__coiObsH03Shield) {
+      const original = Storage.prototype.getItem;
+      Storage.prototype.getItem = function (clave) {
+        if (clave === LEGACY_KEY && marcadorPuesto()) return '[]';
+        return original.call(this, clave);
+      };
+      Storage.prototype.__coiObsH03Shield = true;
+    }
+
+    // --- Refresh canonico: los controles visibles (btnSupabaseSync, refresh V2)
+    // llaman a recargarDatosDesdeSupabase. Se envuelve en lugar de agregar otro boton.
+    const baseRefresh = window.recargarDatosDesdeSupabase;
+    if (typeof baseRefresh === 'function' && !baseRefresh.__coiObsH03) {
+      const envuelto = function () {
+        const r = baseRefresh.apply(this, arguments);
+        Promise.resolve(r).then(() => recargarYRefrescar()).catch(() => { recargarYRefrescar().catch(() => {}); });
+        return r;
+      };
+      envuelto.__coiObsH03 = true;
+      envuelto.__coiObsH03Base = baseRefresh;
+      window.recargarDatosDesdeSupabase = envuelto;
+    }
   }
 
   function arrancar() {
     instalar();
     cargar().then(refrescarUI).catch(() => {});
-    // La sesion puede establecerse despues del arranque.
-    window.addEventListener('coi:supabase-auth', () => { recargarYRefrescar().catch(() => {}); });
+    window.addEventListener('coi:supabase-auth', () => {
+      // Al cambiar la sesion se invalidan las cargas pendientes: una respuesta
+      // autenticada lenta no debe repoblar despues de un SIGNED_OUT.
+      runtime.generacion++;
+      runtime.confirmado = null;
+      runtime.sincronizado = false;
+      recargarYRefrescar().catch(() => {});
+    });
+    // El wrap del refresh se reintenta: recargarDatosDesdeSupabase puede
+    // definirse despues de esta capa.
+    [400, 1500, 4000].forEach((ms) => setTimeout(instalar, ms));
   }
 
   if (document.readyState === 'loading') {
