@@ -63,7 +63,17 @@ async function prepararEntorno(page, opciones) {
     let sesionActiva = true;
     const registrar = (op, payload) => window.__H03_LLAMADAS__.push({ op, payload });
     let filas = c.filas.slice();
-    window.__H03_SET_FILAS__ = (nuevas) => { filas = nuevas.slice(); };
+    // Con backend compartido las filas viven en Node y se leen/escriben por RPC:
+    // dos contextos distintos golpean entonces el mismo estado de servidor.
+    const leerFilas = async () => (window.__h03Rpc ? await window.__h03Rpc(null) : filas);
+    const escribirFilas = async (f) => {
+      if (window.__h03Rpc) { await window.__h03Rpc(f.slice()); return; }
+      filas = f.slice();
+    };
+    window.__H03_SET_FILAS__ = (nuevas) => {
+      filas = nuevas.slice();
+      if (window.__h03Rpc) window.__h03Rpc(nuevas.slice());
+    };
     const espera = (ms) => new Promise((r) => setTimeout(r, ms));
 
     function consulta(tabla) {
@@ -73,6 +83,7 @@ async function prepararEntorno(page, opciones) {
         order() { return api; },
         range(a, b) { st.rango = [a, b]; return api; },
         in(col, vals) { st.inIds = vals; return api; },
+        limit(n) { st.limite = n; return api; },
         eq(col, val) { st.filtro = { col, val }; return api; },
         single() { return api._run(true); },
         insert(f) { st.op = 'insert'; st.payload = f; return api; },
@@ -88,20 +99,23 @@ async function prepararEntorno(page, opciones) {
           if (st.op === 'insert') {
             registrar('insert', st.payload);
             if (c.fallaMutacion) return { data: null, error: { message: 'RLS denegado' } };
+            const previas = await leerFilas();
             const creada = Object.assign({
-              id: '99999999-9999-4999-8999-' + String(filas.length).padStart(12, '0'),
+              id: '99999999-9999-4999-8999-' + String(previas.length).padStart(12, '0'),
               fecha_creacion: new Date().toISOString(), fecha_resolucion: null, resuelto_por: null
             }, st.payload);
-            filas = [creada].concat(filas);
+            await escribirFilas([creada].concat(previas));
             return { data: unico ? creada : [creada], error: null };
           }
           if (st.op === 'update') {
             registrar('update', { filtro: st.filtro, patch: st.patch });
             if (c.fallaMutacion) return { data: null, error: { message: 'RLS denegado' } };
-            const i = filas.findIndex((f) => f.id === (st.filtro && st.filtro.val));
+            const actuales = await leerFilas();
+            const i = actuales.findIndex((f) => f.id === (st.filtro && st.filtro.val));
             if (i < 0) return { data: [], error: null };
-            filas[i] = Object.assign({}, filas[i], st.patch);
-            return { data: [filas[i]], error: null };
+            actuales[i] = Object.assign({}, actuales[i], st.patch);
+            await escribirFilas(actuales);
+            return { data: [actuales[i]], error: null };
           }
           if (st.op === 'delete') { registrar('delete', st.filtro); return { data: [], error: null }; }
 
@@ -110,10 +124,15 @@ async function prepararEntorno(page, opciones) {
           if (window.__H03_CFG__.fallaSelect) return { data: null, error: { message: 'fallo de red' } };
           // Sin sesion PostgREST responde 401: el fake lo refleja.
           if (!sesionActiva) return { data: null, error: { message: 'JWT ausente' } };
+          // El select tambien filtra por eq y respeta limit, que es lo que usa
+          // leerFila para releer una unica fila por UUID.
+          let base = await leerFilas();
+          if (st.filtro) base = base.filter((f) => f[st.filtro.col] === st.filtro.val);
+          if (st.limite) return { data: base.slice(0, st.limite), error: null };
           const [a, b] = st.rango || [0, 999999];
           // Se respeta el pageSize simulado para poder ejercitar el paginado.
           const tope = Math.min(b, a + window.__H03_CFG__.pageSize - 1);
-          return { data: filas.slice(a, tope + 1), error: null };
+          return { data: base.slice(a, tope + 1), error: null };
         },
         then(res, rej) { return api._run(false).then(res, rej); }
       };
@@ -142,6 +161,15 @@ async function prepararEntorno(page, opciones) {
     window.esAutorizacionAdministrativaSupabaseV60 = () => c.admin === true;
   }, cfg);
 
+  if (opciones && opciones.backend) {
+    const b = opciones.backend;
+    // Un unico arreglo en Node: pasar filas lo reemplaza, null solo lo lee.
+    await page.exposeFunction('__h03Rpc', (f) => {
+      if (f) b.filas = f;
+      return b.filas;
+    });
+  }
+
   await page.route('**/rest/v1/**', (route) => route.fulfill({ status: 200, body: '[]' }));
   await page.route('**/auth/v1/**', (route) => route.fulfill({ status: 200, body: '{}' }));
 }
@@ -156,6 +184,15 @@ async function abrir(page) {
     null, { timeout: 20000 }
   );
   return errores;
+}
+
+// El arranque de la aplicacion reasigna esAutorizacionAdministrativaSupabaseV60
+// (index.html:8558), de modo que fijarlo en addInitScript no sirve: hay que
+// hacerlo despues de la carga.
+async function fijarAdmin(page, valor) {
+  await page.evaluate((v) => {
+    window.esAutorizacionAdministrativaSupabaseV60 = () => v;
+  }, valor);
 }
 
 // Catalogo de OC en memoria: la identidad canonica es el UUID.
@@ -289,18 +326,43 @@ test('9 · ningun writer activo persiste observaciones en localStorage', async (
   expect(SOURCE).toContain('window.v65GuardarObservacionesOC = function ()');
 });
 
-test('10 · un segundo contexto ve la observacion que vino de Supabase', async ({ browser }) => {
+test('10 · un segundo contexto ve la observacion creada por el primero', async ({ browser }) => {
   test.slow();
+  // Los dos contextos comparten el mismo arreglo de filas en Node: si el insert
+  // se quedara en el navegador, el segundo contexto no veria nada.
+  const backend = { filas: [] };
+
+  const ctx1 = await browser.newContext();
+  const page1 = await ctx1.newPage();
+  await prepararEntorno(page1, { backend, marker: true });
+  await abrir(page1);
+  await sembrarOC(page1);
+  await page1.evaluate(() => {
+    const ta = document.createElement('textarea');
+    ta.id = 'v65NuevaObservacion';
+    ta.value = 'OBSERVACION COMPARTIDA ENTRE OPERADORES';
+    document.body.appendChild(ta);
+    window.guardarObservacionOC('4530008964');
+  });
+  await page1.waitForFunction(
+    () => (window.observacionesOC || []).some((o) => o.texto === 'OBSERVACION COMPARTIDA ENTRE OPERADORES'),
+    null, { timeout: 15000 }
+  );
+  await ctx1.close();
+
+  // El insert quedo del lado del servidor simulado, no del navegador.
+  expect(backend.filas).toHaveLength(1);
+
   const ctx2 = await browser.newContext();
   const page2 = await ctx2.newPage();
-  await prepararEntorno(page2, { filas: [REMOTA] });
+  await prepararEntorno(page2, { backend, marker: true });
   await abrir(page2);
+  await sembrarOC(page2);
   const e = await estado(page2);
   await ctx2.close();
 
   expect(e.origen).toBe('supabase');
-  expect(e.observaciones).toHaveLength(1);
-  expect(e.observaciones[0].texto).toBe('OBSERVACION REMOTA DE SUPABASE');
+  expect(e.observaciones.map((o) => o.texto)).toEqual(['OBSERVACION COMPARTIDA ENTRE OPERADORES']);
   expect(JSON.parse(e.legacyKey || '[]')).toHaveLength(0);
 });
 
@@ -309,6 +371,7 @@ test('10 · un segundo contexto ve la observacion que vino de Supabase', async (
 test('F1 · el click real en Editar termina en el UPDATE remoto, no en el legacy', async ({ page }) => {
   await prepararEntorno(page, { filas: [REMOTA] });
   await abrir(page);
+  await fijarAdmin(page, true);
 
   // Boton exactamente como lo renderiza la aplicacion (index.html:11676).
   await page.evaluate((id) => {
@@ -633,6 +696,7 @@ test('N1b · el click real en el boton R15 genera exactamente un INSERT remoto',
 test('N2 · sin rol administrador el click real en Editar no pide texto ni actualiza', async ({ page }) => {
   await prepararEntorno(page, { filas: [REMOTA], admin: false });
   await abrir(page);
+  await fijarAdmin(page, false);
 
   const resultado = await page.evaluate((id) => {
     let promptAbierto = false;
@@ -654,6 +718,7 @@ test('N2 · sin rol administrador el click real en Editar no pide texto ni actua
 test('N2b · con rol administrador el click real en Editar produce exactamente un UPDATE', async ({ page }) => {
   await prepararEntorno(page, { filas: [REMOTA], admin: true });
   await abrir(page);
+  await fijarAdmin(page, true);
 
   await page.evaluate((id) => {
     window.prompt = () => 'EDITADO POR ADMIN';
@@ -776,4 +841,75 @@ test('N6b · si la relectura del servidor falla, resolver no escribe texto obsol
   }, REMOTA.id);
 
   expect(resultado).toHaveLength(0);
+});
+
+// =============================================== findings sobre a4bd955
+
+test('N7 · un remapeo diferido no repuebla despues de un SIGNED_OUT', async ({ page }) => {
+  test.slow();
+  const conNroViejo = Object.assign({}, REMOTA, { nro_oc: '4530000000-VIEJO' });
+  await prepararEntorno(page, { filas: [conNroViejo] });
+  // Sin catalogo el mapper no puede canonizar el nro_oc: queda remapeo pendiente.
+  await page.addInitScript(() => { window.todasLasOC = () => ([]); });
+  await abrir(page);
+  expect((await estado(page)).observaciones).toHaveLength(1);
+
+  const resultado = await page.evaluate(async () => {
+    window.__H03_SIGN_OUT__();
+    // Recien despues del cierre de sesion aparece el catalogo de OC: el timer
+    // diferido de la sesion anterior no debe reinstalar esas filas.
+    window.todasLasOC = () => ([{ oc: '4530099999', item: { numeroOC: '4530099999', supabaseId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', idObra: 'OB-1' } }]);
+    await new Promise((r) => setTimeout(r, 12000));
+    return (window.observacionesOC || []).map((o) => o.texto);
+  });
+
+  expect(resultado).toEqual([]);
+});
+
+test('N8 · el cambio de sesion descarta los nombres de perfil resueltos', async ({ page }) => {
+  await prepararEntorno(page, {
+    filas: [REMOTA],
+    perfiles: [{ id: USUARIO, nombre: 'ADMIN VISIBLE', email: 'admin@coiroca.com' }]
+  });
+  await abrir(page);
+  let e = await estado(page);
+  expect(e.observaciones[0].usuarioCarga).toBe('ADMIN VISIBLE');
+
+  // La nueva sesion no puede ver ese perfil: la cache no debe filtrarlo.
+  await page.evaluate(async () => {
+    window.__H03_CFG__.perfiles = [];
+    window.dispatchEvent(new CustomEvent('coi:supabase-auth', { detail: { event: 'SIGNED_IN' } }));
+    await new Promise((r) => setTimeout(r, 1500));
+  });
+  e = await estado(page);
+  expect(e.observaciones[0].usuarioCarga).not.toBe('ADMIN VISIBLE');
+});
+
+test('N9 · editar no borra el detalle de resolucion ya persistido', async ({ page }) => {
+  const resuelta = Object.assign({}, REMOTA, {
+    observacion: 'TEXTO ORIGINAL' + String.fromCharCode(10) + '[Resolucion] Cerrado con acta',
+    estado: 'Resuelta'
+  });
+  await prepararEntorno(page, { filas: [resuelta], admin: true });
+  await abrir(page);
+  await fijarAdmin(page, true);
+
+  const propuesto = await page.evaluate(async (id) => {
+    let visto = null;
+    window.prompt = (_t, valor) => { visto = valor; return 'TEXTO CORREGIDO'; };
+    const cont = document.createElement('div');
+    cont.innerHTML = '<button type="button" id="btnEditRes" data-r13-edit-obs="' + id + '">Editar</button>';
+    document.body.appendChild(cont);
+    document.getElementById('btnEditRes').click();
+    await new Promise((r) => setTimeout(r, 900));
+    return visto;
+  }, REMOTA.id);
+  const e = await estado(page);
+
+  // El prompt propone solo el texto editable, sin la traza de resolucion.
+  expect(propuesto).toBe('TEXTO ORIGINAL');
+  const ups = soloOp(e, 'update');
+  expect(ups).toHaveLength(1);
+  expect(ups[0].payload.patch.observacion).toContain('TEXTO CORREGIDO');
+  expect(ups[0].payload.patch.observacion).toContain('[Resolucion] Cerrado con acta');
 });

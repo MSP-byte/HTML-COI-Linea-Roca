@@ -27242,7 +27242,12 @@ document.addEventListener('click',function(event){
   function programarRemapeo() {
     if (remapeoArmado || !hayPendientesDeMapear()) return;
     remapeoArmado = true;
+    // Las filas crudas pertenecen a una sesion concreta: si la sesion cambia
+    // (por ejemplo un SIGNED_OUT) el callback diferido no debe reinstalar datos
+    // autenticados sobre la UI ya limpiada.
+    const gen = runtime.generacion;
     REINTENTOS_REMAPEO.forEach((ms) => setTimeout(() => {
+      if (gen !== runtime.generacion) return;
       if (!runtime.crudas || !runtime.crudas.length) return;
       if (hayPendientesDeMapear()) return; // el catalogo sigue sin la OC
       remapeoArmado = false;
@@ -27356,6 +27361,14 @@ document.addEventListener('click',function(event){
     } catch (e) { return false; }
   }
 
+  const MARCA_RESOLUCION = String.fromCharCode(10) + '[Resolucion] ';
+  function partirResolucion(t) {
+    const s = texto(t);
+    const i = s.indexOf(MARCA_RESOLUCION);
+    if (i === -1) return { base: s, cola: '' };
+    return { base: s.slice(0, i), cola: s.slice(i) };
+  }
+
   function editar(idObservacion) {
     if (!esAdministrador()) {
       // Sin prompt y sin UPDATE: se conserva la semantica del flujo anterior.
@@ -27366,11 +27379,15 @@ document.addEventListener('click',function(event){
     const id = idRemoto(idObservacion);
     if (!id) return avisar('Observacion sin identificador remoto.', 'error');
     const actual = buscarObs(idObservacion);
-    const nuevo = prompt('Editar observacion', (actual && actual.texto) || '');
+    // El detalle de resolucion vive dentro de la misma columna observacion: se
+    // separa antes de editar y se vuelve a anexar, para que editar el texto
+    // original no borre la unica traza persistida de la resolucion.
+    const partes = partirResolucion(actual && actual.texto);
+    const nuevo = prompt('Editar observacion', partes.base);
     if (nuevo === null) return;
     const valor = texto(nuevo);
     if (!valor) return avisar('La observacion no puede quedar vacia.', 'warn');
-    conManejoDeError('editar:' + id, () => actualizar(id, { observacion: valor }), 'Observacion actualizada.');
+    conManejoDeError('editar:' + id, () => actualizar(id, { observacion: valor + partes.cola }), 'Observacion actualizada.');
   }
 
   function resolver(idObservacion) {
@@ -27550,6 +27567,12 @@ document.addEventListener('click',function(event){
       runtime.generacion++;
       runtime.confirmado = null;
       runtime.sincronizado = false;
+      // Las filas crudas y el remapeo diferido son de la sesion anterior.
+      runtime.crudas = null;
+      remapeoArmado = false;
+      // Los nombres resueltos por profiles dependen de lo que la RLS permitia ver
+      // a la sesion anterior: se descartan para no filtrarlos a la nueva.
+      perfiles.clear();
       recargarYRefrescar().catch(() => {});
     });
     // El wrap del refresh se reintenta: recargarDatosDesdeSupabase puede
