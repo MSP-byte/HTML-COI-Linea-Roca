@@ -1,0 +1,1211 @@
+{
+  "_doc": "Snapshot de information_schema y pg_catalog tomado en lectura sobre produccion (ooepgbzqlpjrtpaoqawc), verificado identico en staging (brmrroikctfbtzwfewan). Contrato autoritativo de las 10 tablas que el baseline 202608090000_core_schema_baseline.sql debe reproducir. nn=NOT NULL, def=fragmento esperado del default, gen=generated always stored, tipo=fragmento de data_type. fk=[columna, tabla_destino, accion ON DELETE]. policies solo se declaran para las cuatro tablas que ninguna migracion posterior gobierna; las demas las administra coi_apply_optional_role_rls.",
+  "coi_ordenes": {
+    "columnas": {
+      "id": {
+        "nn": true,
+        "def": "gen_random_uuid",
+        "tipo": "uuid"
+      },
+      "nro_oc": {
+        "nn": true,
+        "tipo": "text"
+      },
+      "id_obra": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "tipo": {
+        "nn": true,
+        "tipo": "text"
+      },
+      "tipo_trabajo": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "especialidad": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "descripcion": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "proveedor": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "estacion": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "ramal": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "sector": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "expediente": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "monto_total": {
+        "nn": false,
+        "def": "0",
+        "tipo": "numeric"
+      },
+      "moneda": {
+        "nn": false,
+        "def": "ARS",
+        "tipo": "text"
+      },
+      "fecha_acta_inicio": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "plazo_dias": {
+        "nn": false,
+        "tipo": "integer"
+      },
+      "fecha_vencimiento": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "proxima_certificacion": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "fecha_recepcion_documentacion": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "fecha_envio_planificacion": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "estado_coi": {
+        "nn": false,
+        "def": "En ejecución",
+        "tipo": "text"
+      },
+      "estado_documental": {
+        "nn": false,
+        "def": "Pendiente",
+        "tipo": "text"
+      },
+      "estado_registro": {
+        "nn": false,
+        "def": "Activo",
+        "tipo": "text"
+      },
+      "observaciones": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "certificable_con_saldo": {
+        "nn": false,
+        "def": "false",
+        "tipo": "boolean"
+      },
+      "justificacion_administrativa": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "link_documental_principal": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "estado_link_documental": {
+        "nn": false,
+        "def": "Sin link",
+        "tipo": "text"
+      },
+      "calidad_datos_estado": {
+        "nn": false,
+        "def": "Sin auditar",
+        "tipo": "text"
+      },
+      "calidad_datos_score": {
+        "nn": false,
+        "def": "0",
+        "tipo": "integer"
+      },
+      "prioridad_operativa": {
+        "nn": false,
+        "def": "Normal",
+        "tipo": "text"
+      },
+      "responsable_coi": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "fecha_ultimo_control": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "requiere_accion": {
+        "nn": false,
+        "def": "false",
+        "tipo": "boolean"
+      },
+      "motivo_requiere_accion": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "estado_envio_pyc": {
+        "nn": false,
+        "def": "No enviado",
+        "tipo": "text"
+      },
+      "fecha_cierre_operativo": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "observacion_cierre": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "control_terceros_hasta": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "control_terceros_estado": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "creado_por": {
+        "nn": false,
+        "tipo": "uuid"
+      },
+      "fecha_creacion": {
+        "nn": false,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      },
+      "actualizado_por": {
+        "nn": false,
+        "tipo": "uuid"
+      },
+      "fecha_actualizacion": {
+        "nn": false,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      },
+      "saldo_remanente": {
+        "nn": false,
+        "tipo": "numeric"
+      }
+    },
+    "pk": [
+      "id"
+    ],
+    "unique": [
+      [
+        "id_obra"
+      ]
+    ],
+    "fk": [
+      [
+        "creado_por",
+        "users",
+        "NO ACTION"
+      ],
+      [
+        "actualizado_por",
+        "users",
+        "NO ACTION"
+      ]
+    ],
+    "check_columnas": [
+      "tipo"
+    ],
+    "rls": true
+  },
+  "coi_ordenes_estaciones": {
+    "columnas": {
+      "id": {
+        "nn": true,
+        "def": "gen_random_uuid",
+        "tipo": "uuid"
+      },
+      "orden_id": {
+        "nn": false,
+        "tipo": "uuid"
+      },
+      "nro_oc": {
+        "nn": true,
+        "tipo": "text"
+      },
+      "estacion": {
+        "nn": true,
+        "tipo": "text"
+      },
+      "ramal": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "sector": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "tipo_alcance": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "descripcion_alcance": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "es_principal": {
+        "nn": false,
+        "def": "false",
+        "tipo": "boolean"
+      },
+      "estado": {
+        "nn": false,
+        "def": "Activa",
+        "tipo": "text"
+      },
+      "observaciones": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "fecha_inicio": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "fecha_fin": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "fecha_creacion": {
+        "nn": false,
+        "tipo": "timestamp with time zone"
+      },
+      "fecha_actualizacion": {
+        "nn": false,
+        "tipo": "timestamp with time zone"
+      },
+      "creado_por": {
+        "nn": false,
+        "tipo": "uuid"
+      },
+      "actualizado_por": {
+        "nn": false,
+        "tipo": "uuid"
+      }
+    },
+    "pk": [
+      "id"
+    ],
+    "unique": [
+      [
+        "nro_oc",
+        "estacion",
+        "sector"
+      ]
+    ],
+    "fk": [
+      [
+        "orden_id",
+        "coi_ordenes",
+        "CASCADE"
+      ]
+    ],
+    "rls": true
+  },
+  "coi_posiciones_oc": {
+    "columnas": {
+      "id": {
+        "nn": true,
+        "def": "gen_random_uuid",
+        "tipo": "uuid"
+      },
+      "orden_id": {
+        "nn": true,
+        "tipo": "uuid"
+      },
+      "nro_oc": {
+        "nn": true,
+        "tipo": "text"
+      },
+      "posicion": {
+        "nn": true,
+        "tipo": "text"
+      },
+      "descripcion": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "cantidad_total": {
+        "nn": false,
+        "def": "0",
+        "tipo": "numeric"
+      },
+      "cantidad_consumida": {
+        "nn": false,
+        "def": "0",
+        "tipo": "numeric"
+      },
+      "cantidad_disponible": {
+        "nn": false,
+        "def": "0",
+        "tipo": "numeric"
+      },
+      "monto_total": {
+        "nn": false,
+        "def": "0",
+        "tipo": "numeric"
+      },
+      "monto_consumido": {
+        "nn": false,
+        "def": "0",
+        "tipo": "numeric"
+      },
+      "monto_disponible": {
+        "nn": false,
+        "def": "0",
+        "tipo": "numeric"
+      },
+      "moneda": {
+        "nn": false,
+        "def": "ARS",
+        "tipo": "text"
+      },
+      "estado": {
+        "nn": false,
+        "def": "LIBRE",
+        "tipo": "text"
+      },
+      "observaciones": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "fecha_creacion": {
+        "nn": false,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      },
+      "fecha_actualizacion": {
+        "nn": false,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      },
+      "unidad_medida": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "precio_unitario": {
+        "nn": true,
+        "def": "0",
+        "tipo": "numeric"
+      },
+      "remito": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "usuario_email": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "origen_carga": {
+        "nn": true,
+        "def": "Carga Financiera",
+        "tipo": "text"
+      },
+      "cantidad_consumida_inicial": {
+        "nn": true,
+        "def": "0",
+        "tipo": "numeric"
+      },
+      "monto_consumido_inicial": {
+        "nn": true,
+        "def": "0",
+        "tipo": "numeric"
+      }
+    },
+    "pk": [
+      "id"
+    ],
+    "fk": [
+      [
+        "orden_id",
+        "coi_ordenes",
+        "CASCADE"
+      ]
+    ],
+    "rls": true
+  },
+  "coi_documentos_oc": {
+    "columnas": {
+      "id": {
+        "nn": true,
+        "def": "gen_random_uuid",
+        "tipo": "uuid"
+      },
+      "orden_id": {
+        "nn": false,
+        "tipo": "uuid"
+      },
+      "nro_oc": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "tipo_documento": {
+        "nn": true,
+        "tipo": "text"
+      },
+      "nombre_documento": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "expediente": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "estado": {
+        "nn": false,
+        "def": "Pendiente",
+        "tipo": "text"
+      },
+      "fecha_documento": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "fecha_recepcion": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "fecha_envio_planificacion": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "storage_bucket": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "storage_path": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "url_externa": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "observaciones": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "fecha_creacion": {
+        "nn": false,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      },
+      "fecha_actualizacion": {
+        "nn": false,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      }
+    },
+    "pk": [
+      "id"
+    ],
+    "fk": [
+      [
+        "orden_id",
+        "coi_ordenes",
+        "CASCADE"
+      ]
+    ],
+    "rls": true
+  },
+  "coi_certificaciones": {
+    "columnas": {
+      "id": {
+        "nn": true,
+        "def": "gen_random_uuid",
+        "tipo": "uuid"
+      },
+      "orden_id": {
+        "nn": false,
+        "tipo": "uuid"
+      },
+      "nro_oc": {
+        "nn": true,
+        "tipo": "text"
+      },
+      "tipo_servicio": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "acta_medicion_nro": {
+        "nn": true,
+        "tipo": "text"
+      },
+      "proxima_acta_medicion_fecha": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "fecha_inicio": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "fecha_fin": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "item_nro": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "descripcion": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "posicion": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "cantidad": {
+        "nn": true,
+        "def": "0",
+        "tipo": "numeric"
+      },
+      "unidad_medida": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "servicio_ejecutado_anterior": {
+        "nn": true,
+        "def": "0",
+        "tipo": "numeric"
+      },
+      "servicio_ejecutado_periodo": {
+        "nn": true,
+        "def": "0",
+        "tipo": "numeric"
+      },
+      "servicio_ejecutado_acumulado": {
+        "gen": true,
+        "tipo": "numeric"
+      },
+      "aux_porcentaje": {
+        "gen": true,
+        "tipo": "numeric"
+      },
+      "tipo_um": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "actores_firmantes": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "ejecutado_100": {
+        "nn": true,
+        "def": "false",
+        "tipo": "boolean"
+      },
+      "anexo_fotografia_actas": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "estado_envio_pyc": {
+        "nn": true,
+        "def": "Pendiente",
+        "tipo": "text"
+      },
+      "anio": {
+        "nn": false,
+        "tipo": "integer"
+      },
+      "documento_id": {
+        "nn": false,
+        "tipo": "uuid"
+      },
+      "observaciones": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "usuario_email": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "fecha_creacion": {
+        "nn": true,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      },
+      "fecha_actualizacion": {
+        "nn": true,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      },
+      "fecha_envio_pyc": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "posicion_id": {
+        "nn": false,
+        "tipo": "uuid"
+      },
+      "cantidad_certificada": {
+        "nn": true,
+        "def": "0",
+        "tipo": "numeric"
+      },
+      "monto_certificado": {
+        "nn": true,
+        "def": "0",
+        "tipo": "numeric"
+      },
+      "remito": {
+        "nn": false,
+        "tipo": "text"
+      }
+    },
+    "pk": [
+      "id"
+    ],
+    "fk": [
+      [
+        "orden_id",
+        "coi_ordenes",
+        "SET NULL"
+      ],
+      [
+        "documento_id",
+        "coi_documentos_oc",
+        "SET NULL"
+      ],
+      [
+        "posicion_id",
+        "coi_posiciones_oc",
+        "SET NULL"
+      ]
+    ],
+    "check_columnas": [
+      "estado_envio_pyc",
+      "anio"
+    ],
+    "rls": true
+  },
+  "coi_alertas": {
+    "columnas": {
+      "id": {
+        "nn": true,
+        "def": "gen_random_uuid",
+        "tipo": "uuid"
+      },
+      "orden_id": {
+        "nn": false,
+        "tipo": "uuid"
+      },
+      "nro_oc": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "tipo_alerta": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "severidad": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "mensaje": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "accion_sugerida": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "estado": {
+        "nn": false,
+        "def": "Activa",
+        "tipo": "text"
+      },
+      "revisada": {
+        "nn": false,
+        "def": "false",
+        "tipo": "boolean"
+      },
+      "revisada_por": {
+        "nn": false,
+        "tipo": "uuid"
+      },
+      "fecha_revision": {
+        "nn": false,
+        "tipo": "timestamp with time zone"
+      },
+      "fecha_creacion": {
+        "nn": false,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      }
+    },
+    "pk": [
+      "id"
+    ],
+    "fk": [
+      [
+        "orden_id",
+        "coi_ordenes",
+        "CASCADE"
+      ],
+      [
+        "revisada_por",
+        "users",
+        "NO ACTION"
+      ]
+    ],
+    "rls": true,
+    "policies": [
+      {
+        "nombre": "coi_alertas_select_auth",
+        "cmd": "SELECT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": true,
+        "using": "true",
+        "with_check": null
+      },
+      {
+        "nombre": "coi_alertas_insert_auth",
+        "cmd": "INSERT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": true,
+        "using": null,
+        "with_check": "auth.uid() IS NOT NULL"
+      },
+      {
+        "nombre": "coi_alertas_update_auth",
+        "cmd": "UPDATE",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": true,
+        "using": "true",
+        "with_check": "auth.uid() IS NOT NULL"
+      }
+    ]
+  },
+  "coi_observaciones_oc": {
+    "columnas": {
+      "id": {
+        "nn": true,
+        "def": "gen_random_uuid",
+        "tipo": "uuid"
+      },
+      "orden_id": {
+        "nn": false,
+        "tipo": "uuid"
+      },
+      "nro_oc": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "observacion": {
+        "nn": true,
+        "tipo": "text"
+      },
+      "estado": {
+        "nn": false,
+        "def": "Pendiente",
+        "tipo": "text"
+      },
+      "prioridad": {
+        "nn": false,
+        "def": "Normal",
+        "tipo": "text"
+      },
+      "creado_por": {
+        "nn": false,
+        "tipo": "uuid"
+      },
+      "resuelto_por": {
+        "nn": false,
+        "tipo": "uuid"
+      },
+      "fecha_creacion": {
+        "nn": false,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      },
+      "fecha_resolucion": {
+        "nn": false,
+        "tipo": "timestamp with time zone"
+      }
+    },
+    "pk": [
+      "id"
+    ],
+    "fk": [
+      [
+        "orden_id",
+        "coi_ordenes",
+        "CASCADE"
+      ],
+      [
+        "creado_por",
+        "users",
+        "NO ACTION"
+      ],
+      [
+        "resuelto_por",
+        "users",
+        "NO ACTION"
+      ]
+    ],
+    "rls": true,
+    "policies": [
+      {
+        "nombre": "coi_observaciones_select_auth",
+        "cmd": "SELECT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": true,
+        "using": "true",
+        "with_check": null
+      },
+      {
+        "nombre": "coi_observaciones_insert_auth",
+        "cmd": "INSERT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": true,
+        "using": null,
+        "with_check": "auth.uid() IS NOT NULL"
+      },
+      {
+        "nombre": "coi_observaciones_update_auth",
+        "cmd": "UPDATE",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": true,
+        "using": "true",
+        "with_check": "auth.uid() IS NOT NULL"
+      }
+    ]
+  },
+  "coi_unidades_mantenimiento": {
+    "columnas": {
+      "id": {
+        "nn": true,
+        "def": "gen_random_uuid",
+        "tipo": "uuid"
+      },
+      "codigo_um": {
+        "nn": true,
+        "tipo": "text"
+      },
+      "tipo_um": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "estacion": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "ramal": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "sector": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "descripcion": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "marca": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "modelo": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "nro_serie": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "estado": {
+        "nn": false,
+        "def": "Activo",
+        "tipo": "text"
+      },
+      "proveedor_mantenimiento": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "observaciones": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "fecha_creacion": {
+        "nn": false,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      },
+      "fecha_actualizacion": {
+        "nn": false,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      }
+    },
+    "pk": [
+      "id"
+    ],
+    "unique": [
+      [
+        "codigo_um"
+      ]
+    ],
+    "fk": [],
+    "rls": true,
+    "policies": [
+      {
+        "nombre": "coi_um_select_auth",
+        "cmd": "SELECT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": true,
+        "using": "true",
+        "with_check": null
+      },
+      {
+        "nombre": "coi_um_insert_auth",
+        "cmd": "INSERT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": true,
+        "using": null,
+        "with_check": "auth.uid() IS NOT NULL"
+      },
+      {
+        "nombre": "coi_um_update_auth",
+        "cmd": "UPDATE",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": true,
+        "using": "true",
+        "with_check": "auth.uid() IS NOT NULL"
+      }
+    ]
+  },
+  "coi_servicios_tecnicos_um": {
+    "columnas": {
+      "id": {
+        "nn": true,
+        "def": "gen_random_uuid",
+        "tipo": "uuid"
+      },
+      "unidad_id": {
+        "nn": false,
+        "tipo": "uuid"
+      },
+      "nro_st": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "nro_oc": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "fecha": {
+        "nn": false,
+        "tipo": "date"
+      },
+      "descripcion": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "tecnico": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "proveedor": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "estado": {
+        "nn": false,
+        "def": "Pendiente",
+        "tipo": "text"
+      },
+      "observaciones": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "fecha_creacion": {
+        "nn": false,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      },
+      "fecha_actualizacion": {
+        "nn": false,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      }
+    },
+    "pk": [
+      "id"
+    ],
+    "fk": [
+      [
+        "unidad_id",
+        "coi_unidades_mantenimiento",
+        "CASCADE"
+      ]
+    ],
+    "rls": true,
+    "policies": [
+      {
+        "nombre": "coi_st_select_auth",
+        "cmd": "SELECT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": true,
+        "using": "true",
+        "with_check": null
+      },
+      {
+        "nombre": "coi_st_insert_auth",
+        "cmd": "INSERT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": true,
+        "using": null,
+        "with_check": "auth.uid() IS NOT NULL"
+      },
+      {
+        "nombre": "coi_st_update_auth",
+        "cmd": "UPDATE",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": true,
+        "using": "true",
+        "with_check": "auth.uid() IS NOT NULL"
+      }
+    ]
+  },
+  "coi_auditorias_calidad": {
+    "columnas": {
+      "id": {
+        "nn": true,
+        "def": "gen_random_uuid",
+        "tipo": "uuid"
+      },
+      "fecha_auditoria": {
+        "nn": false,
+        "def": "now()",
+        "tipo": "timestamp with time zone"
+      },
+      "total_ocs": {
+        "nn": false,
+        "def": "0",
+        "tipo": "integer"
+      },
+      "ocs_verdes": {
+        "nn": false,
+        "def": "0",
+        "tipo": "integer"
+      },
+      "ocs_amarillas": {
+        "nn": false,
+        "def": "0",
+        "tipo": "integer"
+      },
+      "ocs_rojas": {
+        "nn": false,
+        "def": "0",
+        "tipo": "integer"
+      },
+      "ocs_grises": {
+        "nn": false,
+        "def": "0",
+        "tipo": "integer"
+      },
+      "ocs_sin_acta": {
+        "nn": false,
+        "def": "0",
+        "tipo": "integer"
+      },
+      "ocs_sin_plazo": {
+        "nn": false,
+        "def": "0",
+        "tipo": "integer"
+      },
+      "ocs_sin_vencimiento": {
+        "nn": false,
+        "def": "0",
+        "tipo": "integer"
+      },
+      "ocs_sin_proveedor": {
+        "nn": false,
+        "def": "0",
+        "tipo": "integer"
+      },
+      "ocs_sin_estacion": {
+        "nn": false,
+        "def": "0",
+        "tipo": "integer"
+      },
+      "ocs_sin_link_documental": {
+        "nn": false,
+        "def": "0",
+        "tipo": "integer"
+      },
+      "ocs_monto_cero": {
+        "nn": false,
+        "def": "0",
+        "tipo": "integer"
+      },
+      "ocs_vencidas_sin_justificacion": {
+        "nn": false,
+        "def": "0",
+        "tipo": "integer"
+      },
+      "resumen": {
+        "nn": false,
+        "tipo": "jsonb"
+      },
+      "usuario_email": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "creado_por": {
+        "nn": false,
+        "tipo": "uuid"
+      }
+    },
+    "pk": [
+      "id"
+    ],
+    "fk": [
+      [
+        "creado_por",
+        "users",
+        "NO ACTION"
+      ]
+    ],
+    "rls": true
+  }
+}
