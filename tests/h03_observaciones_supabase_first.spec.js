@@ -43,7 +43,7 @@ async function prepararEntorno(page, opciones) {
   const cfg = Object.assign({
     filas: [], legado: null, marker: false,
     fallaSelect: false, fallaMutacion: false,
-    retardoSelectMs: 0, pageSize: 1000, perfiles: []
+    retardoSelectMs: 0, pageSize: 1000, perfiles: [], admin: true
   }, opciones);
 
   await page.addInitScript((c) => {
@@ -138,6 +138,8 @@ async function prepararEntorno(page, opciones) {
     };
     window.__COI_SUPABASE_CLIENT__ = fake;
     window.getSupabaseClient = () => fake;
+    // Gate canonico de administrador: el mismo que consultan esAdminR13 e isAdminR14.
+    window.esAutorizacionAdministrativaSupabaseV60 = () => c.admin === true;
   }, cfg);
 
   await page.route('**/rest/v1/**', (route) => route.fulfill({ status: 200, body: '[]' }));
@@ -578,4 +580,200 @@ test('F-extra · el borrado informa trazabilidad y no emite ninguna llamada remo
   expect(soloOp(e, 'delete')).toHaveLength(0);
   expect(e.observaciones).toHaveLength(1);
   expect(SOURCE).toContain('Las observaciones se conservan por trazabilidad');
+});
+
+// =============================================== findings sobre c695318
+
+// Boton tal como lo emite procesarAlertas en cada capa.
+async function botonAlerta(page, variante, key, textoAccion) {
+  await page.evaluate((x) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'btnAlerta_' + x.variante;
+    b.setAttribute('data-' + x.variante + '-alert-to-obs', x.key);
+    b.setAttribute('data-' + x.variante + '-alert-text', x.textoAccion);
+    b.textContent = 'Enviar a Observaciones';
+    document.body.appendChild(b);
+  }, { variante, key, textoAccion });
+}
+
+test('N1 · el click real en el boton R14 genera exactamente un INSERT remoto', async ({ page }) => {
+  await prepararEntorno(page, { filas: [], marker: true });
+  await abrir(page);
+  await sembrarOC(page);
+  await botonAlerta(page, 'r14', '4530008964', 'ACCION SUGERIDA R14');
+
+  await page.evaluate(() => document.getElementById('btnAlerta_r14').click());
+  await page.waitForTimeout(800);
+  const e = await estado(page);
+
+  const ins = soloOp(e, 'insert');
+  expect(ins).toHaveLength(1);
+  expect(ins[0].payload.observacion).toBe('ACCION SUGERIDA R14');
+  expect(ins[0].payload.orden_id).toBe(ORDEN_ID);
+  expect(e.escriturasLegacy).toEqual([]);
+});
+
+test('N1b · el click real en el boton R15 genera exactamente un INSERT remoto', async ({ page }) => {
+  await prepararEntorno(page, { filas: [], marker: true });
+  await abrir(page);
+  await sembrarOC(page);
+  await botonAlerta(page, 'r15', '4530008964', 'ACCION SUGERIDA R15');
+
+  await page.evaluate(() => document.getElementById('btnAlerta_r15').click());
+  await page.waitForTimeout(800);
+  const e = await estado(page);
+
+  const ins = soloOp(e, 'insert');
+  expect(ins).toHaveLength(1);
+  expect(ins[0].payload.observacion).toBe('ACCION SUGERIDA R15');
+  expect(e.escriturasLegacy).toEqual([]);
+});
+
+test('N2 · sin rol administrador el click real en Editar no pide texto ni actualiza', async ({ page }) => {
+  await prepararEntorno(page, { filas: [REMOTA], admin: false });
+  await abrir(page);
+
+  const resultado = await page.evaluate((id) => {
+    let promptAbierto = false;
+    window.prompt = () => { promptAbierto = true; return 'NO DEBERIA LLEGAR'; };
+    const cont = document.createElement('div');
+    cont.innerHTML = '<button type="button" id="btnEditNoAdmin" data-r13-edit-obs="' + id + '">Editar</button>';
+    document.body.appendChild(cont);
+    document.getElementById('btnEditNoAdmin').click();
+    return { promptAbierto };
+  }, REMOTA.id);
+  await page.waitForTimeout(600);
+  const e = await estado(page);
+
+  expect(resultado.promptAbierto).toBe(false);
+  expect(soloOp(e, 'update')).toHaveLength(0);
+  expect(e.observaciones[0].texto).toBe('OBSERVACION REMOTA DE SUPABASE');
+});
+
+test('N2b · con rol administrador el click real en Editar produce exactamente un UPDATE', async ({ page }) => {
+  await prepararEntorno(page, { filas: [REMOTA], admin: true });
+  await abrir(page);
+
+  await page.evaluate((id) => {
+    window.prompt = () => 'EDITADO POR ADMIN';
+    const cont = document.createElement('div');
+    cont.innerHTML = '<button type="button" id="btnEditAdmin" data-r13-edit-obs="' + id + '">Editar</button>';
+    document.body.appendChild(cont);
+    document.getElementById('btnEditAdmin').click();
+  }, REMOTA.id);
+  await page.waitForTimeout(800);
+  const e = await estado(page);
+
+  expect(soloOp(e, 'update')).toHaveLength(1);
+  expect(e.observaciones[0].texto).toBe('EDITADO POR ADMIN');
+});
+
+test('N3 · el click real en btnSupabaseSync recarga las observaciones', async ({ page }) => {
+  test.slow();
+  await prepararEntorno(page, { filas: [REMOTA], marker: true });
+  await abrir(page);
+  let e = await estado(page);
+  expect(e.observaciones.map((o) => o.texto)).toEqual(['OBSERVACION REMOTA DE SUPABASE']);
+
+  await page.evaluate(() => {
+    window.__H03_SET_FILAS__([
+      {
+        id: '11111111-1111-4111-8111-111111111111', orden_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        nro_oc: '4530008964', observacion: 'OBSERVACION REMOTA DE SUPABASE', estado: 'Pendiente',
+        prioridad: 'Normal', creado_por: null, resuelto_por: null,
+        fecha_creacion: '2026-08-30T10:00:00.000Z', fecha_resolucion: null
+      },
+      {
+        id: '55555555-5555-4555-8555-555555555555', orden_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        nro_oc: '4530008964', observacion: 'OBS B DE OTRO OPERADOR', estado: 'Pendiente',
+        prioridad: 'Normal', creado_por: null, resuelto_por: null,
+        fecha_creacion: '2026-08-30T14:00:00.000Z', fecha_resolucion: null
+      }
+    ]);
+    // Boton real del header, con su id de produccion.
+    if (!document.getElementById('btnSupabaseSync')) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.id = 'btnSupabaseSync'; b.textContent = 'Recargar';
+      document.body.appendChild(b);
+    }
+    document.getElementById('btnSupabaseSync').click();
+  });
+
+  await page.waitForFunction(
+    () => (window.observacionesOC || []).some((o) => o.texto === 'OBS B DE OTRO OPERADOR'),
+    null, { timeout: 15000 }
+  );
+  e = await estado(page);
+  expect(e.observaciones.map((o) => o.texto)).toContain('OBS B DE OTRO OPERADOR');
+});
+
+test('N4 · si el catalogo de OC llega despues, la observacion se remapea sin recargar', async ({ page }) => {
+  test.slow();
+  const conNroViejo = Object.assign({}, REMOTA, { nro_oc: '4530000000-VIEJO' });
+  await prepararEntorno(page, { filas: [conNroViejo] });
+  // El catalogo arranca vacio: el mapper no puede derivar el nro_oc canonico.
+  await page.addInitScript(() => { window.todasLasOC = () => ([]); });
+  await abrir(page);
+
+  let e = await estado(page);
+  expect(e.observaciones[0].ocNro).toBe('4530000000-VIEJO');
+  const selectsAntes = soloOp(e, 'select').length;
+
+  // Recien ahora termina de cargar el catalogo maestro de OC.
+  await sembrarOC(page, { nro: '4530099999', id: ORDEN_ID });
+  await page.waitForFunction(
+    () => (window.observacionesOC || [])[0] && window.observacionesOC[0].ocNro === '4530099999',
+    null, { timeout: 15000 }
+  );
+  e = await estado(page);
+
+  expect(e.observaciones[0].ocNro).toBe('4530099999');
+  // El remapeo usa las filas crudas guardadas: no dispara otra consulta remota.
+  expect(soloOp(e, 'select').length).toBe(selectsAntes);
+});
+
+test('N5 · el panel ya no afirma que las observaciones se guardan en localStorage', () => {
+  expect(SOURCE).not.toContain('Las observaciones se guardan en localStorage');
+  expect(SOURCE).toContain('Las observaciones se sincronizan con Supabase');
+});
+
+test('N6 · resolver compone sobre el texto vigente en el servidor, no sobre el de memoria', async ({ page }) => {
+  await prepararEntorno(page, { filas: [REMOTA] });
+  await abrir(page);
+
+  const resultado = await page.evaluate(async (id) => {
+    // La memoria queda con el texto viejo; el servidor tiene una edicion posterior.
+    (window.observacionesOC || []).forEach((o) => { if (o.idObservacion === id) o.texto = 'Texto viejo'; });
+    window.__H03_SET_FILAS__([{
+      id: id, orden_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', nro_oc: '4530008964',
+      observacion: 'Texto editado por otro operador', estado: 'Pendiente', prioridad: 'Normal',
+      creado_por: null, resuelto_por: null, fecha_creacion: '2026-08-30T10:00:00.000Z', fecha_resolucion: null
+    }]);
+    window.prompt = () => 'Finalizado';
+    window.resolverObservacionOC(id);
+    await new Promise((r) => setTimeout(r, 1500));
+    return window.__H03_LLAMADAS__.filter((l) => l.op === 'update');
+  }, REMOTA.id);
+
+  expect(resultado).toHaveLength(1);
+  const nuevo = resultado[0].payload.patch.observacion;
+  expect(nuevo).toContain('Texto editado por otro operador');
+  expect(nuevo).toContain('[Resolucion] Finalizado');
+  expect(nuevo).not.toContain('Texto viejo');
+});
+
+test('N6b · si la relectura del servidor falla, resolver no escribe texto obsoleto', async ({ page }) => {
+  await prepararEntorno(page, { filas: [REMOTA] });
+  await abrir(page);
+
+  const resultado = await page.evaluate(async (id) => {
+    window.__H03_CFG__.fallaSelect = true;
+    window.prompt = () => 'Finalizado';
+    window.resolverObservacionOC(id);
+    await new Promise((r) => setTimeout(r, 1500));
+    return window.__H03_LLAMADAS__.filter((l) => l.op === 'update');
+  }, REMOTA.id);
+
+  expect(resultado).toHaveLength(0);
 });

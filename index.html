@@ -8275,7 +8275,7 @@ function v65ObsFiltradas(obs){const f=v65Norm(v65FiltroObservaciones);if(f==='TO
 function v65EstadoClass(estado){const n=v65Norm(estado);if(n.includes('RESUELTA'))return'resuelta';if(n.includes('REABIERTA'))return'reabierta';return'pendiente';}
 function v65PuedeBorrar(){return typeof adminIsEnabled==='function'&&adminIsEnabled();}
 function v65RenderObservacionCard(o){const cls=v65EstadoClass(o.estadoObservacion);return `<article class="obs-card ${cls}" data-v65-obs-card="${v65Esc(o.idObservacion)}"><div class="obs-card-head"><span class="obs-badge ${cls}">${v65Esc(o.estadoObservacion)}</span><div class="obs-actions">${v65Norm(o.estadoObservacion)==='RESUELTA'?`<button type="button" data-v65-reabrir-obs="${v65Esc(o.idObservacion)}">Reabrir</button>`:`<button type="button" class="primary" data-v65-resolver-obs="${v65Esc(o.idObservacion)}">Marcar como resuelta</button>`}${v65PuedeBorrar()?`<button type="button" class="btn-danger-soft" data-v65-borrar-obs="${v65Esc(o.idObservacion)}">Borrar</button>`:''}</div></div><div class="obs-text">${v65Esc(o.texto)}</div><div class="obs-meta"><span><b>Carga:</b> ${v65FmtFecha(o.fechaCarga)}</span><span><b>Usuario:</b> ${v65Esc(o.usuarioCarga||'—')} ${o.rolCarga?`/ ${v65Esc(o.rolCarga)}`:''}</span>${o.fechaResolucion?`<span><b>Resoluci\u00f3n:</b> ${v65FmtFecha(o.fechaResolucion)}</span>`:''}${o.usuarioResolucion?`<span><b>Resolvió:</b> ${v65Esc(o.usuarioResolucion)} ${o.rolResolucion?`/ ${v65Esc(o.rolResolucion)}`:''}</span>`:''}${o.observacionResolucion?`<span><b>Obs. resolución:</b> ${v65Esc(o.observacionResolucion)}</span>`:''}</div></article>`;}
-function renderPanelObservacionesFichaOC(oc){v65MigrarObservacionesLegacy(oc);const key=v65KeyOC(oc),obs=v65ObservacionesDeOC(oc),k=v65KpisObs(obs),filtradas=v65ObsFiltradas(obs);return `<h3>7. Observaciones generales</h3><p class="muted">Registro libre de observaciones de la OC. Las observaciones se guardan en localStorage y no reemplazan el historial anterior.</p><div class="obs-kpi-grid">${[['Total',k.total],['Pendientes',k.pendientes],['Reabiertas',k.reabiertas],['Resueltas',k.resueltas]].map(x=>`<div class="obs-kpi"><b>${v65Esc(x[1])}</b><span>${v65Esc(x[0])}</span></div>`).join('')}</div><div class="obs-composer"><textarea id="v65NuevaObservacion" placeholder="Escribir nueva observaci\u00f3n general de la OC..."></textarea><div class="admin-actions"><button type="button" class="primary" data-v65-guardar-obs="${v65Esc(key)}">Guardar observaci\u00f3n</button><button type="button" data-v65-export-obs="${v65Esc(key)}">Exportar observaciones CSV</button></div></div><div class="obs-toolbar"><div class="obs-filters">${['Todas','Pendientes','Reabiertas','Resueltas'].map(f=>`<button type="button" class="${v65FiltroObservaciones===f?'active':''}" data-v65-obs-filter="${f}">${f}</button>`).join('')}</div><span class="${k.pendientes?'obs-pending-badge':'obs-pending-badge ok'}">Observaciones pendientes: ${k.pendientes}</span></div>${filtradas.length?`<div class="obs-list">${filtradas.map(v65RenderObservacionCard).join('')}</div>`:'<div class="obs-empty">No hay observaciones para el filtro seleccionado.</div>'}`;}
+function renderPanelObservacionesFichaOC(oc){v65MigrarObservacionesLegacy(oc);const key=v65KeyOC(oc),obs=v65ObservacionesDeOC(oc),k=v65KpisObs(obs),filtradas=v65ObsFiltradas(obs);return `<h3>7. Observaciones generales</h3><p class="muted">Registro libre de observaciones de la OC. Las observaciones se sincronizan con Supabase y no reemplazan el historial anterior.</p><div class="obs-kpi-grid">${[['Total',k.total],['Pendientes',k.pendientes],['Reabiertas',k.reabiertas],['Resueltas',k.resueltas]].map(x=>`<div class="obs-kpi"><b>${v65Esc(x[1])}</b><span>${v65Esc(x[0])}</span></div>`).join('')}</div><div class="obs-composer"><textarea id="v65NuevaObservacion" placeholder="Escribir nueva observaci\u00f3n general de la OC..."></textarea><div class="admin-actions"><button type="button" class="primary" data-v65-guardar-obs="${v65Esc(key)}">Guardar observaci\u00f3n</button><button type="button" data-v65-export-obs="${v65Esc(key)}">Exportar observaciones CSV</button></div></div><div class="obs-toolbar"><div class="obs-filters">${['Todas','Pendientes','Reabiertas','Resueltas'].map(f=>`<button type="button" class="${v65FiltroObservaciones===f?'active':''}" data-v65-obs-filter="${f}">${f}</button>`).join('')}</div><span class="${k.pendientes?'obs-pending-badge':'obs-pending-badge ok'}">Observaciones pendientes: ${k.pendientes}</span></div>${filtradas.length?`<div class="obs-list">${filtradas.map(v65RenderObservacionCard).join('')}</div>`:'<div class="obs-empty">No hay observaciones para el filtro seleccionado.</div>'}`;}
 function renderSubmodulosFichaOC(oc){const ocNro=oc?.numeroOC||oc?.oc||oc?.OC_NRO||oc?.idObra||oc?.idOC||'';return `<div class="ficha-oc-subnav-wrap" aria-label="Submódulos de Ficha OC"><nav class="ficha-oc-subnav" data-ficha-oc-subnav data-oc="${v65Esc(ocNro)}">${FICHA_OC_SUBMODULOS_V65.map(s=>`<button type="button" id="${s.btn}" data-ficha-submodulo="${s.id}">${v65Esc(s.label)}</button>`).join('')}</nav></div>`;}
 const _activarSubmoduloFichaOCV65Base=typeof activarSubmoduloFichaOC==='function'?activarSubmoduloFichaOC:null;
 activarSubmoduloFichaOC=function(idSubmodulo){const id=idSubmodulo==='seccionFichaObservaciones'?'panelFichaObservaciones':idSubmodulo;if(_activarSubmoduloFichaOCV65Base)_activarSubmoduloFichaOCV65Base(id);if(id==='panelFichaObservaciones'){try{fichaOCPanelActivoV64=id;}catch(e){}document.querySelectorAll('[data-ficha-submodulo]').forEach(btn=>btn.classList.toggle('active',btn.dataset.fichaSubmodulo===id));document.querySelectorAll('#fichaOCBody .ficha-oc-panel').forEach(sec=>{const on=sec.id===id;sec.classList.toggle('active',on);sec.classList.toggle('is-active',on);});}};
@@ -27198,6 +27198,10 @@ document.addEventListener('click',function(event){
         runtime.ultimoError = null;
         runtime.sincronizado = true;
         runtime.confirmado = filas;
+        // Se guardan las filas crudas para poder remapear sin otra consulta si el
+        // catalogo de OC termina de cargar despues que las observaciones.
+        runtime.crudas = crudas;
+        programarRemapeo();
         if (filas.length) ponerMarcador();
         if (filas.length || marcadorPuesto()) return aplicarEnMemoria(filas, 'supabase');
         return aplicarEnMemoria(legadoSoloLectura(), 'legacy-readonly');
@@ -27222,6 +27226,40 @@ document.addEventListener('click',function(event){
     });
     return promesa;
   }
+
+  // El catalogo de OC puede terminar de cargar despues que las observaciones: en
+  // ese caso el mapper no pudo derivar el nro_oc canonico desde orden_id. No
+  // existe en la aplicacion ningun evento de fin de carga reutilizable (solo
+  // coi:supabase-auth), asi que se usa una secuencia acotada de reintentos que se
+  // detiene apenas hay catalogo o se agotan los intentos. No hay timer infinito.
+  const REINTENTOS_REMAPEO = [400, 1200, 3000, 6000, 10000];
+  let remapeoArmado = false;
+  function hayPendientesDeMapear() {
+    const crudas = runtime.crudas || [];
+    if (!crudas.length) return false;
+    return crudas.some((r) => esUuid(r.orden_id) && !ocPorOrdenId(r.orden_id));
+  }
+  function programarRemapeo() {
+    if (remapeoArmado || !hayPendientesDeMapear()) return;
+    remapeoArmado = true;
+    REINTENTOS_REMAPEO.forEach((ms) => setTimeout(() => {
+      if (!runtime.crudas || !runtime.crudas.length) return;
+      if (hayPendientesDeMapear()) return; // el catalogo sigue sin la OC
+      remapeoArmado = false;
+      const filas = runtime.crudas.map(desdeSupabase);
+      runtime.confirmado = filas;
+      aplicarEnMemoria(filas, runtime.origen === 'supabase' ? 'supabase' : runtime.origen);
+      refrescarUI();
+    }, ms));
+  }
+  window.__COI_OBS_H03_REMAPEAR__ = function () {
+    if (!runtime.crudas || !runtime.crudas.length) return false;
+    const filas = runtime.crudas.map(desdeSupabase);
+    runtime.confirmado = filas;
+    aplicarEnMemoria(filas, runtime.origen);
+    refrescarUI();
+    return true;
+  };
 
   async function recargarYRefrescar() {
     await cargar();
@@ -27250,6 +27288,16 @@ document.addEventListener('click',function(event){
     const { data, error } = await c.from(TABLA).insert(fila).select(CAMPOS).single();
     if (error) throw error;
     return data;
+  }
+
+  // Lectura puntual por UUID: resolver debe componer sobre el texto vigente en
+  // el servidor, no sobre el que quedo en memoria, para no revertir una edicion
+  // remota posterior.
+  async function leerFila(c, id) {
+    const { data, error } = await c.from(TABLA).select(CAMPOS).eq('id', id).limit(1);
+    if (error) throw error;
+    if (!data || !data.length) throw new Error('La observacion ya no existe en el servidor.');
+    return data[0];
   }
 
   async function actualizar(id, patch) {
@@ -27299,7 +27347,21 @@ document.addEventListener('click',function(event){
       () => crear({ nroOC: nroOC, texto: valor }), exito || 'Observacion guardada.');
   }
 
+  // Mismo gate canonico que usaban esAdminR13/isAdminR14: la autorizacion sale
+  // de la sesion Supabase, no de un segundo modelo de permisos.
+  function esAdministrador() {
+    try {
+      return typeof window.esAutorizacionAdministrativaSupabaseV60 === 'function' &&
+        window.esAutorizacionAdministrativaSupabaseV60() === true;
+    } catch (e) { return false; }
+  }
+
   function editar(idObservacion) {
+    if (!esAdministrador()) {
+      // Sin prompt y sin UPDATE: se conserva la semantica del flujo anterior.
+      avisar('Solo Administrador puede editar observaciones.', 'warn');
+      return;
+    }
     if (esLegado(idObservacion)) return avisoLegado();
     const id = idRemoto(idObservacion);
     if (!id) return avisar('Observacion sin identificador remoto.', 'error');
@@ -27315,16 +27377,19 @@ document.addEventListener('click',function(event){
     if (esLegado(idObservacion)) return avisoLegado();
     const id = idRemoto(idObservacion);
     if (!id) return avisar('Observacion sin identificador remoto.', 'error');
-    const actual = buscarObs(idObservacion);
     const detalle = texto(prompt('Observacion de resolucion opcional', '') || '');
     conManejoDeError('resolver:' + id, async () => {
-      const { uid } = await exigirEscritura();
+      const { c, uid } = await exigirEscritura();
       const patch = { estado: 'Resuelta', resuelto_por: uid || null, fecha_resolucion: ahora() };
-      // La tabla no tiene columna para el detalle: se anexa al texto en lugar de
-      // pedirlo y descartarlo. Si ya estaba anexado no se duplica.
-      const base = texto(actual && actual.texto);
-      if (detalle && base.indexOf('[Resolucion] ' + detalle) === -1) {
-        patch.observacion = base + '\n[Resolucion] ' + detalle;
+      if (detalle) {
+        // Se relee la fila: si otro operador edito el texto, el detalle se anexa
+        // sobre esa version y no sobre la copia vieja de memoria. Si la lectura
+        // falla no se resuelve, en lugar de escribir texto obsoleto en silencio.
+        const fila = await leerFila(c, id);
+        const base = texto(fila.observacion);
+        if (base.indexOf('[Resolucion] ' + detalle) === -1) {
+          patch.observacion = base + '\n[Resolucion] ' + detalle;
+        }
       }
       await actualizar(id, patch);
     }, 'Observacion resuelta.');
@@ -27419,11 +27484,15 @@ document.addEventListener('click',function(event){
         crearDesdeTexto(datos.oc, datos.texto, 'Observacion creada desde el Centro de Alertas.');
         return;
       }
-      const alertaR13 = t.closest('[data-r13-alert-to-obs]');
-      if (alertaR13) {
+      // R13, R14 y R15 emiten el mismo tipo de accion desde el Centro de Alertas:
+      // procesarAlertas reescribe la celda y puede dejar cualquiera de las tres.
+      const alertaLegacy = t.closest('[data-r13-alert-to-obs]') ||
+        t.closest('[data-r15-alert-to-obs]') || t.closest('[data-r14-alert-to-obs]');
+      if (alertaLegacy) {
         ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
-        const key = alertaR13.dataset.r13AlertToObs;
-        const valor = texto(alertaR13.dataset.r13AlertText);
+        const d = alertaLegacy.dataset;
+        const key = d.r13AlertToObs || d.r15AlertToObs || d.r14AlertToObs;
+        const valor = texto(d.r13AlertText || d.r15AlertText || d.r14AlertText);
         if (!valor) return avisar('La alerta no tiene texto para enviar a Observaciones.', 'warn');
         window.agregarObservacionDesdeAlertaR13(key, valor);
         return;
@@ -27442,8 +27511,23 @@ document.addEventListener('click',function(event){
       Storage.prototype.__coiObsH03Shield = true;
     }
 
-    // --- Refresh canonico: los controles visibles (btnSupabaseSync, refresh V2)
-    // llaman a recargarDatosDesdeSupabase. Se envuelve en lugar de agregar otro boton.
+    // --- Refresh real: btnSupabaseSync y el refresh V2 no llaman a
+    // window.recargarDatosDesdeSupabase sino a una referencia cerrada dentro de su
+    // IIFE, de modo que envolver el global no alcanza. Se escucha el click real de
+    // esos botones SIN detener la propagacion, para que su handler original siga
+    // corriendo, y se encadena la recarga de observaciones.
+    if (!window.__COI_OBS_H03_REFRESH_BOUND__) {
+      window.__COI_OBS_H03_REFRESH_BOUND__ = true;
+      window.addEventListener('click', function (ev) {
+        const t = ev.target;
+        if (!t || !t.closest) return;
+        if (!t.closest('#btnSupabaseSync, #coiV2Refresh, [data-storage-doc-refresh], #execReload')) return;
+        // Se difiere para no duplicar peticiones: primero corre la recarga general.
+        setTimeout(() => { recargarYRefrescar().catch(() => {}); }, 350);
+      }, true);
+    }
+
+    // --- Ademas se envuelve el global, que si usan otras rutas internas.
     const baseRefresh = window.recargarDatosDesdeSupabase;
     if (typeof baseRefresh === 'function' && !baseRefresh.__coiObsH03) {
       const envuelto = function () {
