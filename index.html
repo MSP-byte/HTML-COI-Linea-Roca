@@ -8275,7 +8275,7 @@ function v65ObsFiltradas(obs){const f=v65Norm(v65FiltroObservaciones);if(f==='TO
 function v65EstadoClass(estado){const n=v65Norm(estado);if(n.includes('RESUELTA'))return'resuelta';if(n.includes('REABIERTA'))return'reabierta';return'pendiente';}
 function v65PuedeBorrar(){return typeof adminIsEnabled==='function'&&adminIsEnabled();}
 function v65RenderObservacionCard(o){const cls=v65EstadoClass(o.estadoObservacion);return `<article class="obs-card ${cls}" data-v65-obs-card="${v65Esc(o.idObservacion)}"><div class="obs-card-head"><span class="obs-badge ${cls}">${v65Esc(o.estadoObservacion)}</span><div class="obs-actions">${v65Norm(o.estadoObservacion)==='RESUELTA'?`<button type="button" data-v65-reabrir-obs="${v65Esc(o.idObservacion)}">Reabrir</button>`:`<button type="button" class="primary" data-v65-resolver-obs="${v65Esc(o.idObservacion)}">Marcar como resuelta</button>`}${v65PuedeBorrar()?`<button type="button" class="btn-danger-soft" data-v65-borrar-obs="${v65Esc(o.idObservacion)}">Borrar</button>`:''}</div></div><div class="obs-text">${v65Esc(o.texto)}</div><div class="obs-meta"><span><b>Carga:</b> ${v65FmtFecha(o.fechaCarga)}</span><span><b>Usuario:</b> ${v65Esc(o.usuarioCarga||'—')} ${o.rolCarga?`/ ${v65Esc(o.rolCarga)}`:''}</span>${o.fechaResolucion?`<span><b>Resoluci\u00f3n:</b> ${v65FmtFecha(o.fechaResolucion)}</span>`:''}${o.usuarioResolucion?`<span><b>Resolvió:</b> ${v65Esc(o.usuarioResolucion)} ${o.rolResolucion?`/ ${v65Esc(o.rolResolucion)}`:''}</span>`:''}${o.observacionResolucion?`<span><b>Obs. resolución:</b> ${v65Esc(o.observacionResolucion)}</span>`:''}</div></article>`;}
-function renderPanelObservacionesFichaOC(oc){v65MigrarObservacionesLegacy(oc);const key=v65KeyOC(oc),obs=v65ObservacionesDeOC(oc),k=v65KpisObs(obs),filtradas=v65ObsFiltradas(obs);return `<h3>7. Observaciones generales</h3><p class="muted">Registro libre de observaciones de la OC. Las observaciones se guardan en localStorage y no reemplazan el historial anterior.</p><div class="obs-kpi-grid">${[['Total',k.total],['Pendientes',k.pendientes],['Reabiertas',k.reabiertas],['Resueltas',k.resueltas]].map(x=>`<div class="obs-kpi"><b>${v65Esc(x[1])}</b><span>${v65Esc(x[0])}</span></div>`).join('')}</div><div class="obs-composer"><textarea id="v65NuevaObservacion" placeholder="Escribir nueva observaci\u00f3n general de la OC..."></textarea><div class="admin-actions"><button type="button" class="primary" data-v65-guardar-obs="${v65Esc(key)}">Guardar observaci\u00f3n</button><button type="button" data-v65-export-obs="${v65Esc(key)}">Exportar observaciones CSV</button></div></div><div class="obs-toolbar"><div class="obs-filters">${['Todas','Pendientes','Reabiertas','Resueltas'].map(f=>`<button type="button" class="${v65FiltroObservaciones===f?'active':''}" data-v65-obs-filter="${f}">${f}</button>`).join('')}</div><span class="${k.pendientes?'obs-pending-badge':'obs-pending-badge ok'}">Observaciones pendientes: ${k.pendientes}</span></div>${filtradas.length?`<div class="obs-list">${filtradas.map(v65RenderObservacionCard).join('')}</div>`:'<div class="obs-empty">No hay observaciones para el filtro seleccionado.</div>'}`;}
+function renderPanelObservacionesFichaOC(oc){v65MigrarObservacionesLegacy(oc);const key=v65KeyOC(oc),obs=v65ObservacionesDeOC(oc),k=v65KpisObs(obs),filtradas=v65ObsFiltradas(obs);return `<h3>7. Observaciones generales</h3><p class="muted">Registro libre de observaciones de la OC. Las observaciones se sincronizan con Supabase y no reemplazan el historial anterior.</p><div class="obs-kpi-grid">${[['Total',k.total],['Pendientes',k.pendientes],['Reabiertas',k.reabiertas],['Resueltas',k.resueltas]].map(x=>`<div class="obs-kpi"><b>${v65Esc(x[1])}</b><span>${v65Esc(x[0])}</span></div>`).join('')}</div><div class="obs-composer"><textarea id="v65NuevaObservacion" placeholder="Escribir nueva observaci\u00f3n general de la OC..."></textarea><div class="admin-actions"><button type="button" class="primary" data-v65-guardar-obs="${v65Esc(key)}">Guardar observaci\u00f3n</button><button type="button" data-v65-export-obs="${v65Esc(key)}">Exportar observaciones CSV</button></div></div><div class="obs-toolbar"><div class="obs-filters">${['Todas','Pendientes','Reabiertas','Resueltas'].map(f=>`<button type="button" class="${v65FiltroObservaciones===f?'active':''}" data-v65-obs-filter="${f}">${f}</button>`).join('')}</div><span class="${k.pendientes?'obs-pending-badge':'obs-pending-badge ok'}">Observaciones pendientes: ${k.pendientes}</span></div>${filtradas.length?`<div class="obs-list">${filtradas.map(v65RenderObservacionCard).join('')}</div>`:'<div class="obs-empty">No hay observaciones para el filtro seleccionado.</div>'}`;}
 function renderSubmodulosFichaOC(oc){const ocNro=oc?.numeroOC||oc?.oc||oc?.OC_NRO||oc?.idObra||oc?.idOC||'';return `<div class="ficha-oc-subnav-wrap" aria-label="Submódulos de Ficha OC"><nav class="ficha-oc-subnav" data-ficha-oc-subnav data-oc="${v65Esc(ocNro)}">${FICHA_OC_SUBMODULOS_V65.map(s=>`<button type="button" id="${s.btn}" data-ficha-submodulo="${s.id}">${v65Esc(s.label)}</button>`).join('')}</nav></div>`;}
 const _activarSubmoduloFichaOCV65Base=typeof activarSubmoduloFichaOC==='function'?activarSubmoduloFichaOC:null;
 activarSubmoduloFichaOC=function(idSubmodulo){const id=idSubmodulo==='seccionFichaObservaciones'?'panelFichaObservaciones':idSubmodulo;if(_activarSubmoduloFichaOCV65Base)_activarSubmoduloFichaOCV65Base(id);if(id==='panelFichaObservaciones'){try{fichaOCPanelActivoV64=id;}catch(e){}document.querySelectorAll('[data-ficha-submodulo]').forEach(btn=>btn.classList.toggle('active',btn.dataset.fichaSubmodulo===id));document.querySelectorAll('#fichaOCBody .ficha-oc-panel').forEach(sec=>{const on=sec.id===id;sec.classList.toggle('active',on);sec.classList.toggle('is-active',on);});}};
@@ -26937,6 +26937,725 @@ document.addEventListener('click',function(event){
     document.addEventListener('DOMContentLoaded', start, { once: true });
   } else {
     start();
+  }
+})();
+</script>
+
+<script id="coi-h03-observaciones-supabase-first">
+/* H03 - Observaciones OC: Supabase como unica fuente de verdad.
+
+   Antes de esta capa, observacionesOC vivia en localStorage['coi_observaciones_oc']:
+   lo que cargaba un operador no existia para nadie mas y desaparecia al limpiar el
+   navegador.
+
+     lectura      -> select paginado sobre public.coi_observaciones_oc
+     mutacion     -> insert/update fila por fila, nunca "guardar el array entero"
+     memoria      -> window.observacionesOC es solo el modelo de la UI
+     localStorage -> fallback de solo lectura del legado, jamas destino de escritura
+
+   Las acciones reales de la UI viven dentro de IIFEs que no se pueden reasignar
+   desde window y que ademas llaman a stopImmediatePropagation. Por eso los clicks
+   se interceptan en fase de captura sobre window, que corre antes que cualquier
+   listener de document: es el mismo mecanismo que ya usa el modulo R27 de PDF. */
+(function(){
+  'use strict';
+
+  const TABLA = 'coi_observaciones_oc';
+  const LEGACY_KEY = 'coi_observaciones_oc';
+  const MARKER_KEY = 'coi_observaciones_h03_imported_v1';
+  const CAMPOS = 'id,orden_id,nro_oc,observacion,estado,prioridad,creado_por,resuelto_por,fecha_creacion,fecha_resolucion';
+  const PAGE_SIZE = 1000;
+
+  // Referencia propia a getItem: el fallback legado la usa aunque mas abajo se
+  // instale el escudo que impide que otros lectores elijan el legado.
+  const getItemNativo = Storage.prototype.getItem;
+  const leerLegacyCrudo = () => {
+    try { return getItemNativo.call(window.localStorage, LEGACY_KEY); } catch (e) { return null; }
+  };
+
+  const runtime = {
+    origen: 'inicial',        // supabase | legacy-readonly | error-sin-sincronizar
+    ultimoError: null,
+    sincronizado: false,      // el modelo en memoria refleja una lectura remota confirmada
+    generacion: 0,            // token de request: descarta respuestas viejas
+    cargando: null,
+    confirmado: null,         // ultimo modelo remoto confirmado
+    crudas: null,             // filas remotas sin mapear, para remapeo diferido
+    authUserId: null          // UID de la sesion que produjo el modelo vigente
+  };
+  window.__COI_OBS_H03__ = runtime;
+
+  const texto = (v) => String(v == null ? '' : v).trim();
+  const norm = (v) => texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, '');
+  const ahora = () => new Date().toISOString();
+  const esUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(texto(v));
+
+  function cliente() {
+    try { if (typeof window.getSupabaseClient === 'function') return window.getSupabaseClient(); } catch (e) {}
+    return window.__COI_SUPABASE_CLIENT__ || null;
+  }
+
+  // Los toast de la aplicacion viven dentro de IIFEs y no hay ninguno expuesto en
+  // window, de modo que delegar a window.toast dejaba al operador sin feedback.
+  // Se reutiliza el contenedor y las clases que ya usa la UI de Alertas.
+  function avisar(mensaje, tipo) {
+    const clase = tipo === 'error' ? 'error' : (tipo === 'warn' ? 'warn' : 'ok');
+    for (const fn of ['coiToast', 'mostrarToast', 'toast']) {
+      try {
+        if (typeof window[fn] === 'function') return window[fn](mensaje, tipo || 'info');
+      } catch (e) { /* se intenta el siguiente */ }
+    }
+    try {
+      let caja = document.getElementById('coiToastV581');
+      if (!caja) {
+        caja = document.createElement('div');
+        caja.id = 'coiToastV581';
+        document.body.appendChild(caja);
+      }
+      caja.className = 'coi-toast-v581 show ' + clase;
+      caja.textContent = mensaje;
+      clearTimeout(caja._coiObsT);
+      caja._coiObsT = setTimeout(() => caja.classList.remove('show'), 3600);
+    } catch (e) { /* sin DOM disponible */ }
+    if (tipo === 'error') console.error('COI observaciones:', mensaje);
+  }
+
+  // UID de la sesion vigente. Se usa para distinguir un cambio real de usuario
+  // de un simple TOKEN_REFRESHED / USER_UPDATED del mismo operador.
+  async function uidDeSesion() {
+    try {
+      const c = cliente();
+      if (!c || !c.auth || typeof c.auth.getSession !== 'function') return null;
+      const { data } = await c.auth.getSession();
+      return (data && data.session && data.session.user && data.session.user.id) || null;
+    } catch (e) { return null; }
+  }
+
+  async function exigirEscritura() {
+    const c = cliente();
+    if (!c) throw new Error('Supabase no esta disponible. Recargue la pagina e inicie sesion.');
+    if (navigator.onLine === false) throw new Error('Sin conexion: no se pueden guardar observaciones.');
+    const { data, error } = await c.auth.getSession();
+    if (error) throw error;
+    if (!data || !data.session) throw new Error('Inicie sesion en Supabase para guardar observaciones.');
+    return { c, uid: data.session.user && data.session.user.id };
+  }
+
+  // ---------------------------------------------------------- identidades
+  const perfiles = new Map();
+  // La request de profiles la autoriza la RLS de la sesion que la inicio. Si
+  // termina despues de un cambio de sesion, escribir su resultado filtraria a la
+  // sesion nueva nombres que su propia policy no le deja ver. Por eso la
+  // respuesta se valida ANTES de tocar el mapa (generacion + UID de origen) y,
+  // si no corresponde, se descarta entera: nunca se escribe parcialmente.
+  async function cargarPerfiles(c, ids, contexto) {
+    const faltan = ids.filter((id) => esUuid(id) && !perfiles.has(id));
+    if (!faltan.length) return;
+    let filas = null;
+    try {
+      const { data, error } = await c.from('profiles').select('id,email,nombre,apellido').in('id', faltan);
+      if (error) throw error;
+      filas = data || [];
+    } catch (e) { filas = null; /* sin perfiles se usa la representacion neutra */ }
+    if (contexto) {
+      const mismaGeneracion = contexto.generacion === runtime.generacion;
+      const mismaIdentidad = (contexto.uid || null) === (runtime.authUserId || null);
+      if (!mismaGeneracion || !mismaIdentidad) return;
+    }
+    (filas || []).forEach((r) => {
+      const nombre = [texto(r.nombre), texto(r.apellido)].filter(Boolean).join(' ');
+      perfiles.set(r.id, nombre || texto(r.email) || null);
+    });
+    faltan.forEach((id) => { if (!perfiles.has(id)) perfiles.set(id, null); });
+  }
+  // Nunca se inventa un nombre: si no se resuelve, se muestra el UUID abreviado.
+  function mostrarUsuario(id) {
+    if (!esUuid(id)) return '';
+    const nombre = perfiles.get(id);
+    return nombre || ('Usuario ' + String(id).slice(0, 8));
+  }
+
+  // ---------------------------------------------------------- resolucion de OC
+  function filasOC() {
+    try { return (typeof window.todasLasOC === 'function' ? window.todasLasOC() : []) || []; } catch (e) { return []; }
+  }
+  function idMaestroDe(item) {
+    const i = item || {};
+    return i.supabaseId || i.id || (i._supabaseRaw && i._supabaseRaw.id) || null;
+  }
+  // La identidad canonica es orden_id. nro_oc solo se usa como respaldo legado,
+  // de modo que una renumeracion no desvincula la observacion de su OC.
+  function ocPorOrdenId(ordenId) {
+    if (!esUuid(ordenId)) return null;
+    return filasOC().find((r) => {
+      const i = (r && r.item) || r || {};
+      return String(idMaestroDe(i)) === String(ordenId);
+    }) || null;
+  }
+  function ocPorNro(nroOC) {
+    const k = norm(nroOC);
+    if (!k) return null;
+    return filasOC().find((r) => {
+      const i = (r && r.item) || r || {};
+      return [r && r.oc, i.numeroOC, i.oc, i.nro_oc, i.OC_NRO].some((v) => norm(v) === k);
+    }) || null;
+  }
+  function ordenIdDe(nroOC) {
+    const encontrada = ocPorNro(nroOC);
+    return idMaestroDe((encontrada && (encontrada.item || encontrada)) || {});
+  }
+
+  function desdeSupabase(row) {
+    // 1) por UUID maestro; 2) recien entonces por nro_oc legado.
+    const encontrada = ocPorOrdenId(row.orden_id) || ocPorNro(row.nro_oc);
+    const item = (encontrada && (encontrada.item || encontrada)) || null;
+    const nroCanonico = item
+      ? texto(item.numeroOC || item.oc || item.nro_oc || item.OC_NRO) || texto(row.nro_oc)
+      : texto(row.nro_oc);
+    const base = {
+      idObservacion: row.id,
+      ocNro: nroCanonico,
+      idObra: (item && (item.idObra || item.idOC)) || '',
+      idServicio: (item && (item.idServicio || item.ID_SERVICIO)) || '',
+      texto: texto(row.observacion),
+      estadoObservacion: texto(row.estado) || 'Pendiente',
+      prioridadObservacion: texto(row.prioridad) || 'Normal',
+      fechaCarga: row.fecha_creacion || '',
+      fechaResolucion: row.fecha_resolucion || '',
+      creadoPorId: row.creado_por || '',
+      resueltoPorId: row.resuelto_por || '',
+      usuarioCarga: mostrarUsuario(row.creado_por),
+      usuarioResolucion: mostrarUsuario(row.resuelto_por),
+      _supabaseId: row.id,
+      _ordenId: row.orden_id,
+      _origen: 'supabase'
+    };
+    try {
+      if (typeof window.v65NormalizarObservacion === 'function') {
+        const out = window.v65NormalizarObservacion(base, item);
+        // La normalizacion legacy pone 'Local' cuando no hay usuario: se preserva
+        // la identidad remota real, o una representacion neutra.
+        out.usuarioCarga = base.usuarioCarga || '';
+        out.usuarioResolucion = base.usuarioResolucion || '';
+        out.creadoPorId = base.creadoPorId;
+        out.resueltoPorId = base.resueltoPorId;
+        return out;
+      }
+    } catch (e) {}
+    return base;
+  }
+
+  // ---------------------------------------------------------- memoria y UI
+  function aplicarEnMemoria(lista, origen) {
+    runtime.origen = origen;
+    const arr = Array.isArray(lista) ? lista : [];
+    window.observacionesOC = arr;
+    try { if (typeof observacionesOC !== 'undefined') observacionesOC = arr; } catch (e) {}
+    return arr;
+  }
+
+  function refrescarUI() {
+    try { if (typeof window.v65RefrescarPanelObsActual === 'function') window.v65RefrescarPanelObsActual(); } catch (e) {}
+    try {
+      const vista = document.getElementById('vistaCentroAlertas');
+      if (vista && vista.classList.contains('active') && typeof window.renderCentroAlertas === 'function') {
+        window.renderCentroAlertas();
+      }
+    } catch (e) {}
+  }
+
+  const marcadorPuesto = () => { try { return getItemNativo.call(window.localStorage, MARKER_KEY) === '1'; } catch (e) { return false; } };
+  const ponerMarcador = () => { try { window.localStorage.setItem(MARKER_KEY, '1'); } catch (e) {} };
+
+  function legadoSoloLectura() {
+    let crudo = [];
+    try { crudo = JSON.parse(leerLegacyCrudo() || '[]'); } catch (e) { crudo = []; }
+    if (!Array.isArray(crudo)) return [];
+    return crudo.map((o) => Object.assign({}, o, { _origen: 'legacy-readonly', _soloLectura: true }));
+  }
+
+  // ---------------------------------------------------------- lectura paginada
+  async function leerPaginado(c) {
+    const filas = [];
+    // Se avanza por la cantidad de filas REALMENTE devueltas, no por PAGE_SIZE:
+    // PostgREST aplica su propio tope (max-rows) y puede entregar menos de lo
+    // pedido, en cuyo caso cortar por «pagina.length < PAGE_SIZE» perderia el
+    // resto del conjunto. Solo una pagina vacia termina el recorrido.
+    for (let desde = 0, vueltas = 0; vueltas < 1000; vueltas++) {
+      const { data, error } = await c
+        .from(TABLA)
+        .select(CAMPOS)
+        .order('fecha_creacion', { ascending: false })
+        .order('id', { ascending: true })
+        .range(desde, desde + PAGE_SIZE - 1);
+      if (error) throw error;
+      const pagina = Array.isArray(data) ? data : [];
+      if (!pagina.length) break;
+      filas.push.apply(filas, pagina);
+      desde += pagina.length;
+    }
+    // Union sin duplicados: el paginado puede solaparse si alguien inserta mientras se lee.
+    const vistos = new Set();
+    return filas.filter((r) => (vistos.has(r.id) ? false : (vistos.add(r.id), true)));
+  }
+
+  async function cargar() {
+    const generacion = ++runtime.generacion;
+    const vigente = () => generacion === runtime.generacion;
+
+    const promesa = (async () => {
+      const c = cliente();
+      // La identidad vigente se toma al inicio de la lectura: es el origen que
+      // despues valida la respuesta de profiles.
+      const uidLectura = await uidDeSesion();
+      if (vigente()) runtime.authUserId = uidLectura;
+      if (!c) {
+        if (!vigente()) return window.observacionesOC;
+        runtime.ultimoError = 'Supabase no disponible';
+        runtime.sincronizado = false;
+        if (marcadorPuesto()) {
+          // Nunca se representa un error como "cero observaciones".
+          return aplicarEnMemoria(runtime.confirmado || [], 'error-sin-sincronizar');
+        }
+        return aplicarEnMemoria(legadoSoloLectura(), 'legacy-readonly');
+      }
+      try {
+        const crudas = await leerPaginado(c);
+        await cargarPerfiles(
+          c,
+          crudas.flatMap((r) => [r.creado_por, r.resuelto_por]).filter(Boolean),
+          { generacion: generacion, uid: uidLectura }
+        );
+        if (!vigente()) return window.observacionesOC;
+        const filas = crudas.map(desdeSupabase);
+        runtime.ultimoError = null;
+        runtime.sincronizado = true;
+        runtime.confirmado = filas;
+        // Se guardan las filas crudas para poder remapear sin otra consulta si el
+        // catalogo de OC termina de cargar despues que las observaciones.
+        runtime.crudas = crudas;
+        programarRemapeo();
+        if (filas.length) ponerMarcador();
+        if (filas.length || marcadorPuesto()) return aplicarEnMemoria(filas, 'supabase');
+        return aplicarEnMemoria(legadoSoloLectura(), 'legacy-readonly');
+      } catch (error) {
+        if (!vigente()) return window.observacionesOC;
+        runtime.ultimoError = (error && error.message) || String(error);
+        runtime.sincronizado = false;
+        console.warn('COI observaciones: no se pudo leer Supabase.', error);
+        if (marcadorPuesto()) {
+          // Se conserva el ultimo modelo remoto confirmado y se avisa.
+          avisar('No se pudieron actualizar las observaciones: se muestran las ultimas conocidas.', 'warn');
+          return aplicarEnMemoria(runtime.confirmado || [], 'error-sin-sincronizar');
+        }
+        return aplicarEnMemoria(legadoSoloLectura(), 'legacy-readonly');
+      }
+    })();
+
+    runtime.cargando = promesa;
+    promesa.catch(() => {}).then(() => {
+      // El finally solo limpia el puntero si sigue siendo el de ESTA peticion.
+      if (runtime.cargando === promesa) runtime.cargando = null;
+    });
+    return promesa;
+  }
+
+  // El catalogo de OC puede terminar de cargar despues que las observaciones: en
+  // ese caso el mapper no pudo derivar el nro_oc canonico desde orden_id. No
+  // existe en la aplicacion ningun evento de fin de carga reutilizable (solo
+  // coi:supabase-auth), asi que se usa una secuencia acotada de reintentos que se
+  // detiene apenas hay catalogo o se agotan los intentos. No hay timer infinito.
+  const REINTENTOS_REMAPEO = [400, 1200, 3000, 6000, 10000];
+  let remapeoArmado = false;
+  function hayPendientesDeMapear() {
+    const crudas = runtime.crudas || [];
+    if (!crudas.length) return false;
+    return crudas.some((r) => esUuid(r.orden_id) && !ocPorOrdenId(r.orden_id));
+  }
+  function programarRemapeo() {
+    if (remapeoArmado || !hayPendientesDeMapear()) return;
+    remapeoArmado = true;
+    // Las filas crudas pertenecen a una sesion concreta: si la sesion cambia
+    // (por ejemplo un SIGNED_OUT) el callback diferido no debe reinstalar datos
+    // autenticados sobre la UI ya limpiada.
+    const gen = runtime.generacion;
+    REINTENTOS_REMAPEO.forEach((ms) => setTimeout(() => {
+      if (gen !== runtime.generacion) return;
+      if (!runtime.crudas || !runtime.crudas.length) return;
+      if (hayPendientesDeMapear()) return; // el catalogo sigue sin la OC
+      remapeoArmado = false;
+      const filas = runtime.crudas.map(desdeSupabase);
+      runtime.confirmado = filas;
+      aplicarEnMemoria(filas, runtime.origen === 'supabase' ? 'supabase' : runtime.origen);
+      refrescarUI();
+    }, ms));
+  }
+  window.__COI_OBS_H03_REMAPEAR__ = function () {
+    if (!runtime.crudas || !runtime.crudas.length) return false;
+    const filas = runtime.crudas.map(desdeSupabase);
+    runtime.confirmado = filas;
+    aplicarEnMemoria(filas, runtime.origen);
+    refrescarUI();
+    return true;
+  };
+
+  async function recargarYRefrescar() {
+    await cargar();
+    refrescarUI();
+  }
+
+  // ---------------------------------------------------------- mutaciones
+  async function crear(datos) {
+    const { c, uid } = await exigirEscritura();
+    const observacion = texto(datos && datos.texto);
+    if (!observacion) throw new Error('Escriba una observacion antes de guardar.');
+    const nroOC = texto(datos && datos.nroOC);
+    const ordenId = ordenIdDe(nroOC);
+    // orden_id es la identidad canonica: sin UUID valido no se crea la fila.
+    if (!esUuid(ordenId)) {
+      throw new Error('No se pudo identificar la OC (' + (nroOC || 'sin numero') + '). Actualice los datos e intente de nuevo.');
+    }
+    const fila = {
+      orden_id: ordenId,
+      nro_oc: nroOC || null,
+      observacion: observacion,
+      estado: texto(datos && datos.estado) || 'Pendiente',
+      prioridad: texto(datos && datos.prioridad) || 'Normal',
+      creado_por: uid || null
+    };
+    const { data, error } = await c.from(TABLA).insert(fila).select(CAMPOS).single();
+    if (error) throw error;
+    return data;
+  }
+
+  // Lectura puntual por UUID: resolver debe componer sobre el texto vigente en
+  // el servidor, no sobre el que quedo en memoria, para no revertir una edicion
+  // remota posterior.
+  async function leerFila(c, id) {
+    const { data, error } = await c.from(TABLA).select(CAMPOS).eq('id', id).limit(1);
+    if (error) throw error;
+    if (!data || !data.length) throw new Error('La observacion ya no existe en el servidor.');
+    return data[0];
+  }
+
+  async function actualizar(id, patch) {
+    const { c } = await exigirEscritura();
+    if (!texto(id)) throw new Error('Observacion sin identificador remoto.');
+    const { data, error } = await c.from(TABLA).update(patch).eq('id', id).select(CAMPOS);
+    if (error) throw error;
+    if (!data || !data.length) throw new Error('El servidor no aplico el cambio (permisos insuficientes).');
+    return data[0];
+  }
+
+  const listaActual = () => (Array.isArray(window.observacionesOC) ? window.observacionesOC : []);
+  const buscarObs = (id) => listaActual().find((o) => String(o.idObservacion) === String(id)) || null;
+  const esLegado = (id) => Boolean(buscarObs(id) && buscarObs(id)._soloLectura);
+  function idRemoto(id) {
+    const obs = buscarObs(id);
+    if (!obs || obs._soloLectura) return null;
+    return obs._supabaseId || obs.idObservacion || null;
+  }
+
+  const enCurso = new Set();
+  async function conManejoDeError(clave, accion, exito) {
+    // Evita que un doble click dispare dos veces la misma mutacion.
+    if (clave && enCurso.has(clave)) return false;
+    if (clave) enCurso.add(clave);
+    try {
+      await accion();
+      if (exito) avisar(exito, 'ok');
+      await recargarYRefrescar();
+      return true;
+    } catch (error) {
+      // Los conflictos de concurrencia ya traen su propio mensaje operativo.
+      if (error && error.coiMensajeDirecto) avisar(error.message, 'warn');
+      else avisar('No se pudo guardar en Observaciones: ' + ((error && error.message) || String(error)), 'error');
+      await recargarYRefrescar();
+      return false;
+    } finally {
+      if (clave) enCurso.delete(clave);
+    }
+  }
+
+  function avisoLegado() {
+    avisar('Esta observacion proviene del legado local y todavia no esta en Supabase.', 'warn');
+  }
+
+  // Cutover H03: mientras se muestre el legado historico y Supabase todavia no
+  // sea autoridad, ninguna mutacion operativa puede correr. Guardar ahora
+  // pondria el marcador en la proxima lectura y dejaria esas filas historicas
+  // fuera del alcance de los paneles antes de haberlas importado.
+  function cutoverPendiente() {
+    return runtime.origen === 'legacy-readonly' && legadoSoloLectura().length > 0;
+  }
+  function avisoCutover() {
+    avisar('Hay observaciones históricas pendientes de migración a Supabase. La edición está temporalmente bloqueada.', 'warn');
+    return false;
+  }
+
+  // ---------------------------------------------------------- acciones publicas
+  function crearDesdeTexto(nroOC, valor, exito) {
+    if (cutoverPendiente()) return Promise.resolve(avisoCutover());
+    return conManejoDeError('crear:' + norm(nroOC) + ':' + norm(valor).slice(0, 40),
+      () => crear({ nroOC: nroOC, texto: valor }), exito || 'Observacion guardada.');
+  }
+
+  // Mismo gate canonico que usaban esAdminR13/isAdminR14: la autorizacion sale
+  // de la sesion Supabase, no de un segundo modelo de permisos.
+  function esAdministrador() {
+    try {
+      return typeof window.esAutorizacionAdministrativaSupabaseV60 === 'function' &&
+        window.esAutorizacionAdministrativaSupabaseV60() === true;
+    } catch (e) { return false; }
+  }
+
+  const MARCA_RESOLUCION = String.fromCharCode(10) + '[Resolucion] ';
+  function partirResolucion(t) {
+    const s = texto(t);
+    const i = s.indexOf(MARCA_RESOLUCION);
+    if (i === -1) return { base: s, cola: '' };
+    return { base: s.slice(0, i), cola: s.slice(i) };
+  }
+
+  function editar(idObservacion) {
+    if (!esAdministrador()) {
+      // Sin prompt y sin UPDATE: se conserva la semantica del flujo anterior.
+      avisar('Solo Administrador puede editar observaciones.', 'warn');
+      return;
+    }
+    if (esLegado(idObservacion)) return avisoLegado();
+    if (cutoverPendiente()) return avisoCutover();
+    const id = idRemoto(idObservacion);
+    if (!id) return avisar('Observacion sin identificador remoto.', 'error');
+    const actual = buscarObs(idObservacion);
+    // El detalle de resolucion vive dentro de la misma columna observacion: se
+    // separa antes de editar y se vuelve a anexar, para que editar el texto
+    // original no borre la unica traza persistida de la resolucion.
+    const visto = partirResolucion(actual && actual.texto);
+    const nuevo = prompt('Editar observacion', visto.base);
+    if (nuevo === null) return;
+    const valor = texto(nuevo);
+    if (!valor) return avisar('La observacion no puede quedar vacia.', 'warn');
+    conManejoDeError('editar:' + id, async () => {
+      const { c } = await exigirEscritura();
+      // El texto pudo cambiar en otro puesto mientras el prompt estaba abierto:
+      // se relee la fila y se compara contra la parte editable que el operador
+      // realmente vio. Si difiere se aborta, en lugar de pisarla en silencio.
+      const fila = await leerFila(c, id);
+      const servidor = partirResolucion(fila.observacion);
+      if (servidor.base !== visto.base) {
+        const conflicto = new Error('La observación cambió en otro puesto. Actualice y vuelva a intentar.');
+        conflicto.coiMensajeDirecto = true;
+        throw conflicto;
+      }
+      // La cola de resolucion se toma del servidor, no de la copia en memoria.
+      await actualizar(id, { observacion: valor + servidor.cola });
+    }, 'Observacion actualizada.');
+  }
+
+  function resolver(idObservacion) {
+    if (esLegado(idObservacion)) return avisoLegado();
+    if (cutoverPendiente()) return avisoCutover();
+    const id = idRemoto(idObservacion);
+    if (!id) return avisar('Observacion sin identificador remoto.', 'error');
+    const detalle = texto(prompt('Observacion de resolucion opcional', '') || '');
+    conManejoDeError('resolver:' + id, async () => {
+      const { c, uid } = await exigirEscritura();
+      const patch = { estado: 'Resuelta', resuelto_por: uid || null, fecha_resolucion: ahora() };
+      if (detalle) {
+        // Se relee la fila: si otro operador edito el texto, el detalle se anexa
+        // sobre esa version y no sobre la copia vieja de memoria. Si la lectura
+        // falla no se resuelve, en lugar de escribir texto obsoleto en silencio.
+        const fila = await leerFila(c, id);
+        const base = texto(fila.observacion);
+        if (base.indexOf('[Resolucion] ' + detalle) === -1) {
+          patch.observacion = base + '\n[Resolucion] ' + detalle;
+        }
+      }
+      await actualizar(id, patch);
+    }, 'Observacion resuelta.');
+  }
+
+  function reabrir(idObservacion) {
+    if (esLegado(idObservacion)) return avisoLegado();
+    if (cutoverPendiente()) return avisoCutover();
+    const id = idRemoto(idObservacion);
+    if (!id) return avisar('Observacion sin identificador remoto.', 'error');
+    conManejoDeError('reabrir:' + id,
+      () => actualizar(id, { estado: 'Reabierta', resuelto_por: null, fecha_resolucion: null }),
+      'Observacion reabierta.');
+  }
+
+  function textoDeAlerta(alerta, origen) {
+    const oc = texto(alerta && (alerta.oc || alerta.ocNro || alerta.OC_NRO || alerta.idRegistro || alerta.ocId));
+    const msg = texto(alerta && (alerta.mensaje || alerta.descripcion));
+    const acc = texto(alerta && (alerta.accionSugerida || alerta.accion));
+    const tipo = texto(alerta && (alerta.tipoAlerta || alerta.tipo)) || 'Alerta';
+    const cuerpo = 'Origen: ' + (origen || 'Centro de Alertas') +
+      '\nTipo de alerta: ' + tipo + '\nMensaje: ' + msg + '\nAccion sugerida: ' + acc;
+    return { oc: oc, texto: cuerpo };
+  }
+
+  // ---------------------------------------------------------- instalacion
+  function instalar() {
+    // Choke point historico: sigue existiendo porque varias capas lo invocan y
+    // algunas escriben en localStorage solo si no es una funcion, pero ya no
+    // persiste nada.
+    window.v65GuardarObservacionesOC = function () {
+      const arr = listaActual();
+      try { if (typeof observacionesOC !== 'undefined') observacionesOC = arr; } catch (e) {}
+      return arr;
+    };
+    window.v65CargarObservacionesOC = function () { cargar(); return listaActual(); };
+    window.v65MigrarObservacionesLegacy = function () { return false; };
+
+    window.guardarObservacionOC = function (ocNro) {
+      const encontrada = (typeof window.v65BuscarOC === 'function')
+        ? window.v65BuscarOC(ocNro || window.fichaOCActualKeyV64 || '') : null;
+      const oc = (encontrada && (encontrada.item || encontrada)) || null;
+      const nro = (typeof window.v65OCNro === 'function' && oc) ? window.v65OCNro(oc) : texto(ocNro);
+      const ta = document.getElementById('v65NuevaObservacion') || document.getElementById('v59ObsOC');
+      const valor = texto(ta && ta.value);
+      if (!valor) return avisar('Escriba una observacion antes de guardar.', 'warn');
+      crearDesdeTexto(nro, valor).then((ok) => { if (ok && ta) ta.value = ''; });
+    };
+
+    window.resolverObservacionOC = resolver;
+    window.reabrirObservacionOC = reabrir;
+    window.editarObservacionR13 = editar;
+    window.borrarObservacionOC = function () {
+      avisar('Las observaciones se conservan por trazabilidad y no se borran. Use Resolver.', 'warn');
+    };
+    window.agregarObservacionDesdeAlertaR13 = function (key, textoAlerta) {
+      const valor = texto(textoAlerta);
+      if (!valor) return avisar('La alerta no tiene texto para enviar a Observaciones.', 'warn');
+      const encontrada = (typeof window.v65BuscarOC === 'function') ? window.v65BuscarOC(key) : null;
+      const oc = (encontrada && (encontrada.item || encontrada)) || null;
+      const nro = (typeof window.v65OCNro === 'function' && oc) ? window.v65OCNro(oc) : texto(key);
+      crearDesdeTexto(nro, valor, 'Observacion creada desde el Centro de Alertas.');
+    };
+    window.recargarObservacionesOC = recargarYRefrescar;
+
+    // --- Clicks reales. Captura en window: corre antes que los listeners de
+    // document, que estan dentro de IIFEs y llaman a stopImmediatePropagation.
+    window.addEventListener('click', function (ev) {
+      const t = ev.target;
+      if (!t || !t.closest) return;
+
+      const editBtn = t.closest('[data-r13-edit-obs]');
+      if (editBtn) {
+        ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+        editar(editBtn.dataset.r13EditObs);
+        return;
+      }
+      const delBtn = t.closest('[data-v65-borrar-obs]');
+      if (delBtn) {
+        ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+        window.borrarObservacionOC();
+        return;
+      }
+      const alertBtn = t.closest('[data-v581-alert-obs]') || t.closest('[data-v581-problem-obs]');
+      if (alertBtn) {
+        ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+        const crudo = alertBtn.dataset.v581AlertObs || alertBtn.dataset.v581ProblemObs || '%7B%7D';
+        let alerta = {};
+        try { alerta = JSON.parse(decodeURIComponent(crudo)); } catch (e) { alerta = {}; }
+        const origen = alertBtn.dataset.v581ProblemObs ? 'Diagnostico' : 'Centro de Alertas';
+        const datos = textoDeAlerta(alerta, origen);
+        if (!datos.oc) return avisar('La alerta no tiene OC asociada.', 'warn');
+        crearDesdeTexto(datos.oc, datos.texto, 'Observacion creada desde el Centro de Alertas.');
+        return;
+      }
+      // R13, R14 y R15 emiten el mismo tipo de accion desde el Centro de Alertas:
+      // procesarAlertas reescribe la celda y puede dejar cualquiera de las tres.
+      const alertaLegacy = t.closest('[data-r13-alert-to-obs]') ||
+        t.closest('[data-r15-alert-to-obs]') || t.closest('[data-r14-alert-to-obs]');
+      if (alertaLegacy) {
+        ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+        const d = alertaLegacy.dataset;
+        const key = d.r13AlertToObs || d.r15AlertToObs || d.r14AlertToObs;
+        const valor = texto(d.r13AlertText || d.r15AlertText || d.r14AlertText);
+        if (!valor) return avisar('La alerta no tiene texto para enviar a Observaciones.', 'warn');
+        window.agregarObservacionDesdeAlertaR13(key, valor);
+        return;
+      }
+    }, true);
+
+    // --- El legado nunca puede ganar como fuente autoritativa una vez que
+    // Supabase manda. No se borra la clave: se impide que otros lectores la
+    // elijan (por ejemplo getObs de V58.1, que prefiere el array mas largo).
+    if (!Storage.prototype.__coiObsH03Shield) {
+      const original = Storage.prototype.getItem;
+      Storage.prototype.getItem = function (clave) {
+        if (clave === LEGACY_KEY && marcadorPuesto()) return '[]';
+        return original.call(this, clave);
+      };
+      Storage.prototype.__coiObsH03Shield = true;
+    }
+
+    // --- Refresh real: btnSupabaseSync y el refresh V2 no llaman a
+    // window.recargarDatosDesdeSupabase sino a una referencia cerrada dentro de su
+    // IIFE, de modo que envolver el global no alcanza. Se escucha el click real de
+    // esos botones SIN detener la propagacion, para que su handler original siga
+    // corriendo, y se encadena la recarga de observaciones.
+    if (!window.__COI_OBS_H03_REFRESH_BOUND__) {
+      window.__COI_OBS_H03_REFRESH_BOUND__ = true;
+      window.addEventListener('click', function (ev) {
+        const t = ev.target;
+        if (!t || !t.closest) return;
+        if (!t.closest('#btnSupabaseSync, #coiV2Refresh, [data-storage-doc-refresh], #execReload')) return;
+        // Se difiere para no duplicar peticiones: primero corre la recarga general.
+        setTimeout(() => { recargarYRefrescar().catch(() => {}); }, 350);
+      }, true);
+    }
+
+    // --- Ademas se envuelve el global, que si usan otras rutas internas.
+    const baseRefresh = window.recargarDatosDesdeSupabase;
+    if (typeof baseRefresh === 'function' && !baseRefresh.__coiObsH03) {
+      const envuelto = function () {
+        const r = baseRefresh.apply(this, arguments);
+        Promise.resolve(r).then(() => recargarYRefrescar()).catch(() => { recargarYRefrescar().catch(() => {}); });
+        return r;
+      };
+      envuelto.__coiObsH03 = true;
+      envuelto.__coiObsH03Base = baseRefresh;
+      window.recargarDatosDesdeSupabase = envuelto;
+    }
+  }
+
+  function arrancar() {
+    instalar();
+    cargar().then(refrescarUI).catch(() => {});
+    window.addEventListener('coi:supabase-auth', () => {
+      // Solo un cambio REAL de identidad invalida el modelo: SIGNED_OUT, o un
+      // SIGNED_IN con otro UID. TOKEN_REFRESHED y USER_UPDATED del mismo
+      // operador no descartan nada, porque hacerlo convertia un refresh de token
+      // en un falso cero si la relectura siguiente fallaba.
+      uidDeSesion().then((uid) => {
+        if ((uid || null) !== (runtime.authUserId || null)) {
+          runtime.generacion++;
+          runtime.confirmado = null;
+          runtime.sincronizado = false;
+          // Las filas crudas y el remapeo diferido son de la sesion anterior.
+          runtime.crudas = null;
+          remapeoArmado = false;
+          // Los nombres resueltos por profiles dependen de lo que la RLS permitia
+          // ver a la sesion anterior: se descartan para no filtrarlos a la nueva.
+          perfiles.clear();
+          runtime.authUserId = uid || null;
+        }
+        return recargarYRefrescar();
+      }).catch(() => {});
+    });
+    // El wrap del refresh se reintenta: recargarDatosDesdeSupabase puede
+    // definirse despues de esta capa.
+    [400, 1500, 4000].forEach((ms) => setTimeout(instalar, ms));
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', arrancar, { once: true });
+  } else {
+    arrancar();
   }
 })();
 </script>
