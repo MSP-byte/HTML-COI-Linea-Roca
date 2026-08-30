@@ -5,50 +5,53 @@
 -- PROPOSITO
 --   Crear las tablas raiz que historicamente nunca se versionaron, de modo que
 --   las 27 migraciones posteriores puedan aplicarse en orden sobre una base
---   vacia. Antes de este archivo, la cadena se cortaba en la segunda migracion
+--   vacia. Antes de este archivo la cadena se cortaba en la segunda migracion
 --   (202608100002_financial_ledger.sql) con «relation "public.coi_ordenes" does
 --   not exist», y solo 1 de 27 migraciones llegaba a aplicarse.
 --
--- ALCANCE DELIBERADAMENTE MINIMO
---   Este archivo crea unicamente la FORMA MINIMA que cada tabla necesita para
---   que las migraciones siguientes puedan hacer su trabajo. No adelanta nada de
---   lo que ya hacen ellas: no define policies, ni RLS, ni grants, ni indices,
---   ni triggers, ni funciones, ni RPC, ni logica de negocio. Todo eso ya esta
---   versionado aguas abajo y debe seguir siendo su responsabilidad.
+-- FUENTE
+--   El contrato de columnas, tipos, nullability, defaults, generated columns,
+--   PK, FK, UNIQUE y CHECK reproduce el snapshot de information_schema tomado
+--   en lectura sobre produccion. No es una reconstruccion inferida.
 --
---   En particular NO se declaran aca las columnas que las migraciones agregan
---   con «add column if not exists», para no provocar divergencias silenciosas:
+-- REPARTO DE RESPONSABILIDADES CON LAS MIGRACIONES POSTERIORES
+--   Este archivo NO define policies, grants, indices, triggers, funciones ni
+--   RPC: todo eso ya esta versionado aguas abajo y sigue siendo su trabajo.
+--   Tampoco duplica los constraints que ellas crean:
+--     coi_ordenes_estado_coi_required   (20260817002000)
+--     coi_ordenes_estaciones_fechas_ck  (202608110006)
+--     coi_ordenes_estaciones_scope_uq   (202608110005, sobre orden_id)
+--     coi_ordenes_nro_oc_uq y _normalizado_uq, coi_posiciones_oc_*_uq
+--
+--   Se dejan enteramente a las migraciones las columnas cuyo «add column if
+--   not exists» coincide con el contrato productivo:
 --     coi_ordenes            -> saldo_remanente            (202608100002)
---     coi_posiciones_oc      -> cantidad_consumida, monto_consumido,
---                               cantidad_disponible, monto_disponible, estado,
---                               cantidad_consumida_inicial,
+--     coi_posiciones_oc      -> cantidad_consumida_inicial,
 --                               monto_consumido_inicial   (202608100002)
---     coi_ordenes_estaciones -> nro_oc, tipo_alcance, descripcion_alcance,
---                               estado                     (202608110005)
+--     coi_ordenes_estaciones -> descripcion_alcance        (202608110005)
 --                               observaciones, fecha_inicio, fecha_fin,
---                               creado_por, actualizado_por, fecha_creacion,
---                               fecha_actualizacion        (202608110006)
+--                               creado_por, actualizado_por (202608110006)
+--
+--   EXCEPCIONES DELIBERADAS — columnas declaradas aca a proposito:
+--     · coi_ordenes_estaciones.nro_oc: lo necesita la UNIQUE productiva
+--       (nro_oc, estacion, sector), que este archivo debe crear.
+--     · coi_ordenes_estaciones.tipo_alcance, estado, fecha_creacion,
+--       fecha_actualizacion y coi_posiciones_oc.cantidad_consumida,
+--       cantidad_disponible, monto_consumido, monto_disponible, estado:
+--       las migraciones las agregan con «not null», pero produccion las tiene
+--       nullable. Al existir ya, ese «add column if not exists» es un no-op y
+--       prevalece el contrato real. Sin esto la cadena producia 9 columnas con
+--       nullability distinta a la de produccion.
+--
+--   En ambos casos el mecanismo es el mismo y es seguro: «add column if not
+--   exists» sobre una columna existente no la modifica. El recuento final se
+--   mantiene en 17 y 23 columnas respectivamente.
 --
 -- INOCUIDAD SOBRE ENTORNOS EXISTENTES
 --   Produccion y staging ya tienen estas 10 tablas. Todo aca es
 --   «create table if not exists»: al registrarse en un entorno existente el
---   archivo es un NO-OP estructural. No hay ALTER, ni DROP, ni TRUNCATE, ni
---   escritura de datos, ni cambios de constraints sobre objetos ya presentes.
---
--- FIDELIDAD DE COLUMNAS — LEER ANTES DE USAR EN UN ENTORNO NUEVO
---   La definicion de coi_ordenes y coi_ordenes_estaciones se deriva de evidencia
---   completa dentro del repositorio (allowlist del trigger
---   coi_direct_order_update_guard y los «add column» de las migraciones), y
---   reproduce el recuento real de columnas de produccion.
---
---   Para las tablas restantes el repositorio NO contiene su DDL: las columnas
---   declaradas aca son las efectivamente demostrables desde las migraciones, el
---   contrato del frontend y los tests. Son suficientes para que la cadena de
---   migraciones aplique y para levantar un entorno de trabajo, pero NO cubren
---   todavia el total de columnas de produccion. El deficit exacto esta medido en
---   tests/check_schema_reproducibility.js y se cierra con un pg_dump
---   --schema-only del esquema real. Hasta entonces este archivo describe la
---   estructura raiz, no el esquema completo de esas tablas.
+--   archivo es un NO-OP estructural. No hay ALTER, DROP, TRUNCATE, ni
+--   escritura de datos, ni cambios sobre objetos ya presentes.
 --
 -- FUERA DEL BASELINE
 --   coi_documentos_oc_backup_20260723 y
@@ -56,13 +59,13 @@
 --   puntuales y no forman parte de una instalacion nueva.
 
 -- ---------------------------------------------------------------------
--- Raiz del modelo operativo
+-- 1. Raiz del modelo operativo
 -- ---------------------------------------------------------------------
 create table if not exists public.coi_ordenes (
-  id uuid primary key default gen_random_uuid(),
+  id uuid not null default gen_random_uuid(),
   nro_oc text not null,
   id_obra text,
-  tipo text,
+  tipo text not null,
   tipo_trabajo text,
   especialidad text,
   descripcion text,
@@ -71,167 +74,286 @@ create table if not exists public.coi_ordenes (
   ramal text,
   sector text,
   expediente text,
-  monto_total numeric(20,2),
-  moneda text,
+  monto_total numeric default 0,
+  moneda text default 'ARS',
   fecha_acta_inicio date,
   plazo_dias integer,
   fecha_vencimiento date,
   proxima_certificacion date,
   fecha_recepcion_documentacion date,
   fecha_envio_planificacion date,
-  estado_coi text,
-  estado_documental text,
-  estado_registro text,
+  estado_coi text default 'En ejecución',
+  estado_documental text default 'Pendiente',
+  estado_registro text default 'Activo',
   observaciones text,
-  certificable_con_saldo boolean,
+  certificable_con_saldo boolean default false,
   justificacion_administrativa text,
   link_documental_principal text,
-  estado_link_documental text,
-  calidad_datos_estado text,
-  calidad_datos_score numeric,
-  prioridad_operativa text,
+  estado_link_documental text default 'Sin link',
+  calidad_datos_estado text default 'Sin auditar',
+  calidad_datos_score integer default 0,
+  prioridad_operativa text default 'Normal',
   responsable_coi text,
   fecha_ultimo_control date,
-  requiere_accion boolean,
+  requiere_accion boolean default false,
   motivo_requiere_accion text,
-  estado_envio_pyc text,
+  estado_envio_pyc text default 'No enviado',
   fecha_cierre_operativo date,
   observacion_cierre text,
   control_terceros_hasta date,
   control_terceros_estado text,
   creado_por uuid references auth.users(id),
-  fecha_creacion timestamptz not null default clock_timestamp(),
+  fecha_creacion timestamptz default now(),
   actualizado_por uuid references auth.users(id),
-  fecha_actualizacion timestamptz not null default clock_timestamp()
+  fecha_actualizacion timestamptz default now(),
+  constraint coi_ordenes_pkey primary key (id),
+  constraint coi_ordenes_id_obra_key unique (id_obra),
+  constraint coi_ordenes_tipo_check check (tipo in ('Obra', 'Servicio', 'Financiera', 'Otro'))
 );
 
 -- ---------------------------------------------------------------------
--- Dependientes directas de coi_ordenes
+-- 2. Alcance por estacion
 -- ---------------------------------------------------------------------
 create table if not exists public.coi_ordenes_estaciones (
-  id uuid primary key default gen_random_uuid(),
-  orden_id uuid not null references public.coi_ordenes(id) on delete cascade,
-  estacion text,
+  id uuid not null default gen_random_uuid(),
+  orden_id uuid,
+  nro_oc text not null,
+  estacion text not null,
   ramal text,
   sector text,
-  es_principal boolean not null default false
+  es_principal boolean default false,
+  -- Estas cuatro las agrega 202608110005/202608110006 con «not null», pero en
+  -- produccion son nullable. Declararlas aca hace que ese «add column if not
+  -- exists» sea un no-op y prevalezca el contrato real.
+  tipo_alcance text,
+  estado text default 'Activa',
+  fecha_creacion timestamptz default now(),
+  fecha_actualizacion timestamptz default now(),
+  constraint coi_ordenes_estaciones_pkey primary key (id),
+  constraint coi_ordenes_estaciones_orden_id_fkey foreign key (orden_id) references public.coi_ordenes(id) on delete cascade,
+  constraint coi_ordenes_estaciones_alcance_key unique (nro_oc, estacion, sector)
 );
 
+-- ---------------------------------------------------------------------
+-- 3. Posiciones financieras de la OC
+-- ---------------------------------------------------------------------
 create table if not exists public.coi_posiciones_oc (
-  id uuid primary key default gen_random_uuid(),
-  orden_id uuid not null references public.coi_ordenes(id) on delete cascade,
+  id uuid not null default gen_random_uuid(),
+  orden_id uuid not null,
   nro_oc text not null,
   posicion text not null,
   descripcion text,
-  cantidad_total numeric(20,6) not null default 0,
-  unidad_medida text,
-  precio_unitario numeric(20,6) not null default 0,
-  monto_total numeric(20,2) not null default 0,
-  moneda text,
-  remito text,
+  cantidad_total numeric default 0,
+  monto_total numeric default 0,
+  moneda text default 'ARS',
   observaciones text,
-  usuario_email text,
-  origen_carga text
-);
-
-create table if not exists public.coi_alertas (
-  id uuid primary key default gen_random_uuid(),
-  orden_id uuid references public.coi_ordenes(id) on delete cascade,
-  nro_oc text
-);
-
-create table if not exists public.coi_certificaciones (
-  id uuid primary key default gen_random_uuid(),
-  orden_id uuid references public.coi_ordenes(id) on delete cascade,
-  nro_oc text,
-  acta_medicion_nro text,
-  item_nro text,
-  posicion text,
-  fecha_inicio date,
-  fecha_fin date,
+  fecha_creacion timestamptz default now(),
+  fecha_actualizacion timestamptz default now(),
   unidad_medida text,
-  tipo_servicio text,
-  aux_porcentaje numeric,
-  servicio_ejecutado_anterior numeric,
-  servicio_ejecutado_periodo numeric,
-  servicio_ejecutado_acumulado numeric,
-  proxima_acta_medicion_fecha date,
-  actores_firmantes text,
-  anexo_fotografia_actas text,
+  precio_unitario numeric not null default 0,
+  remito text,
   usuario_email text,
-  creado_por uuid references auth.users(id),
-  fecha_creacion timestamptz not null default clock_timestamp(),
-  actualizado_por uuid references auth.users(id),
-  fecha_actualizacion timestamptz not null default clock_timestamp()
+  origen_carga text not null default 'Carga Financiera',
+  -- Igual que arriba: 202608100002 las agrega con «not null» y produccion las
+  -- tiene nullable. Se declaran aca para conservar el contrato productivo.
+  cantidad_consumida numeric default 0,
+  cantidad_disponible numeric default 0,
+  monto_consumido numeric default 0,
+  monto_disponible numeric default 0,
+  estado text default 'LIBRE',
+  constraint coi_posiciones_oc_pkey primary key (id),
+  constraint coi_posiciones_oc_orden_id_fkey foreign key (orden_id) references public.coi_ordenes(id) on delete cascade
 );
 
+-- ---------------------------------------------------------------------
+-- 4. Documentacion de la OC
+-- ---------------------------------------------------------------------
 create table if not exists public.coi_documentos_oc (
-  id uuid primary key default gen_random_uuid(),
-  orden_id uuid references public.coi_ordenes(id) on delete cascade,
+  id uuid not null default gen_random_uuid(),
+  orden_id uuid,
   nro_oc text,
-  id_documento text,
-  tipo_documento text,
+  tipo_documento text not null,
   nombre_documento text,
-  estado text,
+  expediente text,
+  estado text default 'Pendiente',
+  fecha_documento date,
+  fecha_recepcion date,
+  fecha_envio_planificacion date,
   storage_bucket text,
   storage_path text,
+  url_externa text,
   observaciones text,
-  fecha_documento date,
-  usuario_email text,
-  fecha_creacion timestamptz not null default clock_timestamp()
-);
-
-create table if not exists public.coi_observaciones_oc (
-  id uuid primary key default gen_random_uuid(),
-  orden_id uuid references public.coi_ordenes(id) on delete cascade,
-  nro_oc text,
-  texto text,
-  estado text,
-  usuario_email text,
-  creado_por uuid references auth.users(id),
-  fecha_creacion timestamptz not null default clock_timestamp()
+  fecha_creacion timestamptz default now(),
+  fecha_actualizacion timestamptz default now(),
+  constraint coi_documentos_oc_pkey primary key (id),
+  constraint coi_documentos_oc_orden_id_fkey foreign key (orden_id) references public.coi_ordenes(id) on delete cascade
 );
 
 -- ---------------------------------------------------------------------
--- Unidades de mantenimiento y su dependiente
+-- 5. Certificaciones / actas de medicion
+--    servicio_ejecutado_acumulado y aux_porcentaje son columnas generadas
+--    STORED: se calculan en la base, nunca se escriben desde el frontend.
+-- ---------------------------------------------------------------------
+create table if not exists public.coi_certificaciones (
+  id uuid not null default gen_random_uuid(),
+  orden_id uuid,
+  nro_oc text not null,
+  tipo_servicio text,
+  acta_medicion_nro text not null,
+  proxima_acta_medicion_fecha date,
+  fecha_inicio date,
+  fecha_fin date,
+  item_nro text,
+  descripcion text,
+  posicion text,
+  cantidad numeric not null default 0,
+  unidad_medida text,
+  servicio_ejecutado_anterior numeric not null default 0,
+  servicio_ejecutado_periodo numeric not null default 0,
+  servicio_ejecutado_acumulado numeric generated always as (
+    coalesce(servicio_ejecutado_anterior, 0) + coalesce(servicio_ejecutado_periodo, 0)
+  ) stored,
+  aux_porcentaje numeric generated always as (
+    case
+      when coalesce(cantidad, 0) > 0
+      then ((coalesce(servicio_ejecutado_anterior, 0) + coalesce(servicio_ejecutado_periodo, 0)) / cantidad) * 100
+      else 0
+    end
+  ) stored,
+  tipo_um text,
+  actores_firmantes text,
+  ejecutado_100 boolean not null default false,
+  anexo_fotografia_actas text,
+  estado_envio_pyc text not null default 'Pendiente',
+  anio integer,
+  documento_id uuid,
+  observaciones text,
+  usuario_email text,
+  fecha_creacion timestamptz not null default now(),
+  fecha_actualizacion timestamptz not null default now(),
+  fecha_envio_pyc date,
+  posicion_id uuid,
+  cantidad_certificada numeric not null default 0,
+  monto_certificado numeric not null default 0,
+  remito text,
+  constraint coi_certificaciones_pkey primary key (id),
+  constraint coi_certificaciones_orden_id_fkey foreign key (orden_id) references public.coi_ordenes(id) on delete cascade,
+  constraint coi_certificaciones_documento_id_fkey foreign key (documento_id) references public.coi_documentos_oc(id) on delete set null,
+  constraint coi_certificaciones_posicion_id_fkey foreign key (posicion_id) references public.coi_posiciones_oc(id) on delete set null,
+  constraint coi_certificaciones_estado_envio_pyc_check check (
+    estado_envio_pyc in ('Pendiente', 'Enviado', 'Observado', 'Devuelto', 'Cerrado')
+  ),
+  constraint coi_certificaciones_anio_check check (anio is null or (anio between 2000 and 2100))
+);
+
+-- ---------------------------------------------------------------------
+-- 6. Alertas operativas
+-- ---------------------------------------------------------------------
+create table if not exists public.coi_alertas (
+  id uuid not null default gen_random_uuid(),
+  orden_id uuid,
+  nro_oc text,
+  tipo_alerta text,
+  severidad text,
+  mensaje text,
+  accion_sugerida text,
+  estado text default 'Activa',
+  revisada boolean default false,
+  revisada_por uuid,
+  fecha_revision timestamptz,
+  fecha_creacion timestamptz default now(),
+  constraint coi_alertas_pkey primary key (id),
+  constraint coi_alertas_orden_id_fkey foreign key (orden_id) references public.coi_ordenes(id) on delete cascade,
+  constraint coi_alertas_revisada_por_fkey foreign key (revisada_por) references auth.users(id)
+);
+
+-- ---------------------------------------------------------------------
+-- 7. Observaciones de la OC
+-- ---------------------------------------------------------------------
+create table if not exists public.coi_observaciones_oc (
+  id uuid not null default gen_random_uuid(),
+  orden_id uuid,
+  nro_oc text,
+  observacion text not null,
+  estado text default 'Pendiente',
+  prioridad text default 'Normal',
+  creado_por uuid,
+  resuelto_por uuid,
+  fecha_creacion timestamptz default now(),
+  fecha_resolucion timestamptz,
+  constraint coi_observaciones_oc_pkey primary key (id),
+  constraint coi_observaciones_oc_orden_id_fkey foreign key (orden_id) references public.coi_ordenes(id) on delete cascade,
+  constraint coi_observaciones_oc_creado_por_fkey foreign key (creado_por) references auth.users(id),
+  constraint coi_observaciones_oc_resuelto_por_fkey foreign key (resuelto_por) references auth.users(id)
+);
+
+-- ---------------------------------------------------------------------
+-- 8. Unidades de mantenimiento
 -- ---------------------------------------------------------------------
 create table if not exists public.coi_unidades_mantenimiento (
-  id uuid primary key default gen_random_uuid(),
-  id_um text,
-  nombre text,
+  id uuid not null default gen_random_uuid(),
+  codigo_um text not null,
+  tipo_um text,
   estacion text,
   ramal text,
-  tipo text,
-  estado text,
+  sector text,
+  descripcion text,
+  marca text,
+  modelo text,
+  nro_serie text,
+  estado text default 'Activo',
+  proveedor_mantenimiento text,
   observaciones text,
-  usuario_email text,
-  fecha_creacion timestamptz not null default clock_timestamp()
+  fecha_creacion timestamptz default now(),
+  fecha_actualizacion timestamptz default now(),
+  constraint coi_unidades_mantenimiento_pkey primary key (id),
+  constraint coi_unidades_mantenimiento_codigo_um_key unique (codigo_um)
 );
 
+-- ---------------------------------------------------------------------
+-- 9. Servicios tecnicos asociados a una unidad de mantenimiento
+-- ---------------------------------------------------------------------
 create table if not exists public.coi_servicios_tecnicos_um (
-  id uuid primary key default gen_random_uuid(),
-  um_id uuid references public.coi_unidades_mantenimiento(id) on delete cascade,
+  id uuid not null default gen_random_uuid(),
+  unidad_id uuid,
+  nro_st text,
   nro_oc text,
   fecha date,
-  tipo_um text,
   descripcion text,
   tecnico text,
-  estado text,
-  usuario_email text,
-  fecha_creacion timestamptz not null default clock_timestamp()
+  proveedor text,
+  estado text default 'Pendiente',
+  observaciones text,
+  fecha_creacion timestamptz default now(),
+  fecha_actualizacion timestamptz default now(),
+  constraint coi_servicios_tecnicos_um_pkey primary key (id),
+  constraint coi_servicios_tecnicos_um_unidad_id_fkey foreign key (unidad_id) references public.coi_unidades_mantenimiento(id) on delete cascade
 );
 
 -- ---------------------------------------------------------------------
--- Auditoria de calidad de datos
+-- 10. Auditorias de calidad de datos
 -- ---------------------------------------------------------------------
 create table if not exists public.coi_auditorias_calidad (
-  id uuid primary key default gen_random_uuid(),
-  nro_oc text,
-  orden_id uuid references public.coi_ordenes(id) on delete set null,
-  resultado jsonb,
-  score numeric,
+  id uuid not null default gen_random_uuid(),
+  fecha_auditoria timestamptz default now(),
+  total_ocs integer default 0,
+  ocs_verdes integer default 0,
+  ocs_amarillas integer default 0,
+  ocs_rojas integer default 0,
+  ocs_grises integer default 0,
+  ocs_sin_acta integer default 0,
+  ocs_sin_plazo integer default 0,
+  ocs_sin_vencimiento integer default 0,
+  ocs_sin_proveedor integer default 0,
+  ocs_sin_estacion integer default 0,
+  ocs_sin_link_documental integer default 0,
+  ocs_monto_cero integer default 0,
+  ocs_vencidas_sin_justificacion integer default 0,
+  resumen jsonb,
   usuario_email text,
-  fecha_creacion timestamptz not null default clock_timestamp()
+  creado_por uuid,
+  constraint coi_auditorias_calidad_pkey primary key (id),
+  constraint coi_auditorias_calidad_creado_por_fkey foreign key (creado_por) references auth.users(id)
 );
 
 -- ---------------------------------------------------------------------
@@ -241,11 +363,10 @@ create table if not exists public.coi_auditorias_calidad (
 -- posteriores lo habilitan para 14; estas 4 quedaban fuera, de modo que un
 -- entorno recreado desde el repositorio nacia sin RLS sobre ellas.
 --
--- «enable row level security» es idempotente: en un entorno donde ya esta
--- activo es un NO-OP, no toca datos y no altera las policies existentes.
--- Sin policies el efecto es denegar por defecto, que es la postura correcta
--- para un entorno nuevo: falla cerrado, no abierto. Las policies reales de
--- estas tablas se versionan junto con su DDL completo.
+-- «enable row level security» es idempotente: donde ya esta activo es un
+-- NO-OP, no toca datos y no altera las policies existentes. Sin policies el
+-- efecto es denegar por defecto, que es la postura correcta para un entorno
+-- nuevo: falla cerrado, no abierto.
 alter table public.coi_alertas enable row level security;
 alter table public.coi_observaciones_oc enable row level security;
 alter table public.coi_unidades_mantenimiento enable row level security;

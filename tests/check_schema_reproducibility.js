@@ -20,12 +20,12 @@
   segunda migracion con «relation "public.coi_ordenes" does not exist» y solo
   1 de 27 migraciones llegaba a aplicarse.
 
-  DEFICIT DE COLUMNAS CONOCIDO
-    El repositorio no contiene el DDL de 8 de las 10 tablas que faltaba
-    versionar, asi que sus columnas son las demostrables desde migraciones,
-    frontend y tests. COLUMNAS_OBJETIVO registra el recuento real de produccion
-    y COLUMNAS_ACTUALES lo que produce hoy el repositorio: la diferencia queda
-    medida y visible, y se cierra con un pg_dump --schema-only.
+  CONTRATO AUTORITATIVO
+    tests/fixtures/production_schema_contract.json guarda el snapshot de
+    information_schema tomado en lectura sobre produccion y verificado identico
+    en staging. El CASO A compara contra el, columna por columna: nombres,
+    tipos, nullability, defaults y generated columns, mas PK, FK, UNIQUE y CHECK.
+    Comprobar solo la cantidad de columnas producia falsos positivos.
 */
 
 const assert = require('node:assert/strict');
@@ -56,21 +56,22 @@ const TABLAS_FANTASMA = [
   'coi_auditoria_global', 'coi_sesiones', 'coi_documentos_versiones', 'coi_security_health_checks'
 ];
 
-// Recuento real verificado en produccion y staging.
-const COLUMNAS_OBJETIVO = {
-  coi_ordenes: 45, coi_ordenes_estaciones: 17, coi_posiciones_oc: 23,
-  coi_alertas: 12, coi_certificaciones: 33, coi_documentos_oc: 16,
-  coi_observaciones_oc: 10, coi_unidades_mantenimiento: 15,
-  coi_servicios_tecnicos_um: 12, coi_auditorias_calidad: 18
-};
+// Contrato autoritativo de produccion (snapshot de information_schema en lectura,
+// verificado identico en staging). Es la unica fuente de verdad de este control.
+const CONTRATO = require('./fixtures/production_schema_contract.json');
+const TABLAS_BASELINE = Object.keys(CONTRATO).filter((k) => !k.startsWith('_'));
 
-// Lo que el repositorio produce hoy. Donde coincide con el objetivo, la tabla
-// esta completamente versionada. Actualizar al incorporar el DDL real.
-const COLUMNAS_ACTUALES = {
-  coi_ordenes: 45, coi_ordenes_estaciones: 17, coi_posiciones_oc: 21,
-  coi_alertas: 3, coi_certificaciones: 22, coi_documentos_oc: 13,
-  coi_observaciones_oc: 8, coi_unidades_mantenimiento: 10,
-  coi_servicios_tecnicos_um: 10, coi_auditorias_calidad: 7
+// Columnas que el baseline llego a declarar por inferencia y que NO existen en
+// produccion. El control falla si alguna reaparece.
+// Ojo: tipo_um SI existe en coi_unidades_mantenimiento y en coi_certificaciones;
+// lo que no existe es tipo_um en coi_servicios_tecnicos_um.
+const COLUMNAS_FANTASMA = {
+  coi_documentos_oc: ['id_documento', 'usuario_email'],
+  coi_observaciones_oc: ['texto', 'usuario_email'],
+  coi_unidades_mantenimiento: ['id_um', 'nombre', 'tipo', 'usuario_email'],
+  coi_servicios_tecnicos_um: ['um_id', 'tipo_um', 'usuario_email'],
+  coi_auditorias_calidad: ['nro_oc', 'orden_id', 'resultado', 'score', 'fecha_creacion'],
+  coi_certificaciones: ['creado_por', 'actualizado_por']
 };
 
 const RPC_CRITICAS = [
@@ -176,30 +177,77 @@ async function casoA() {
   const fantasmas = TABLAS_FANTASMA.filter((t) => creadas.includes(t));
   check(fantasmas.length === 0, `ninguna migracion debe crear tablas inexistentes en produccion: ${fantasmas.join(', ')}`);
 
-  // Columnas: coincidencia exacta con lo que el repositorio puede producir hoy,
-  // y registro del deficit frente a produccion.
-  let deficit = 0;
-  for (const [tabla, esperado] of Object.entries(COLUMNAS_ACTUALES)) {
-    const q = await db.query(
-      "select count(*)::int n from information_schema.columns where table_schema='public' and table_name=$1",
-      [tabla]
+  // Contrato exacto por tabla: nombres, tipos, nullability, defaults y generated.
+  for (const tabla of TABLAS_BASELINE) {
+    const esperado = CONTRATO[tabla].columnas;
+    const { rows: cols } = await db.query(
+      "select column_name, data_type, is_nullable, column_default, is_generated " +
+      "from information_schema.columns where table_schema='public' and table_name=$1", [tabla]
     );
-    check(
-      q.rows[0].n === esperado,
-      `${tabla}: ${q.rows[0].n} columnas (el repositorio deberia producir ${esperado})`
-    );
-    deficit += COLUMNAS_OBJETIVO[tabla] - esperado;
-  }
-  const deficitDeclarado = Object.keys(COLUMNAS_OBJETIVO)
-    .reduce((a, t) => a + (COLUMNAS_OBJETIVO[t] - COLUMNAS_ACTUALES[t]), 0);
-  check(deficit === deficitDeclarado, 'el deficit medido no coincide con el declarado');
+    const real = new Map(cols.map((r) => [r.column_name, r]));
+    const nombresEsperados = Object.keys(esperado);
 
-  // Las dos tablas con DDL derivable por completo deben reproducir produccion exacta.
-  for (const tabla of ['coi_ordenes', 'coi_ordenes_estaciones']) {
-    check(
-      COLUMNAS_ACTUALES[tabla] === COLUMNAS_OBJETIVO[tabla],
-      `${tabla} deberia reproducir exactamente las ${COLUMNAS_OBJETIVO[tabla]} columnas de produccion`
+    const faltan = nombresEsperados.filter((c) => !real.has(c));
+    check(faltan.length === 0, `${tabla}: faltan columnas de produccion: ${faltan.join(', ')}`);
+    const sobran = [...real.keys()].filter((c) => !nombresEsperados.includes(c));
+    check(sobran.length === 0, `${tabla}: columnas que produccion no tiene: ${sobran.join(', ')}`);
+
+    for (const [col, spec] of Object.entries(esperado)) {
+      const r = real.get(col);
+      if (!r) continue;
+      if (spec.nn !== undefined) {
+        check(
+          (r.is_nullable === 'NO') === spec.nn,
+          `${tabla}.${col}: nullability ${r.is_nullable === 'NO' ? 'NOT NULL' : 'NULL'}, produccion espera ${spec.nn ? 'NOT NULL' : 'NULL'}`
+        );
+      }
+      if (spec.tipo) {
+        check(
+          r.data_type.toLowerCase().includes(spec.tipo),
+          `${tabla}.${col}: tipo ${r.data_type}, produccion espera ${spec.tipo}`
+        );
+      }
+      if (spec.def !== undefined) {
+        check(
+          (r.column_default || '').toLowerCase().includes(String(spec.def).toLowerCase()),
+          `${tabla}.${col}: default ${r.column_default || 'ninguno'}, produccion espera ${spec.def}`
+        );
+      }
+      const generada = r.is_generated === 'ALWAYS';
+      check(
+        generada === Boolean(spec.gen),
+        `${tabla}.${col}: ${generada ? 'es' : 'no es'} GENERATED y produccion espera lo contrario`
+      );
+    }
+  }
+
+  // Las columnas inferidas que produccion no tiene no deben reaparecer.
+  for (const [tabla, fantasmas] of Object.entries(COLUMNAS_FANTASMA)) {
+    const { rows: cols } = await db.query(
+      "select column_name from information_schema.columns where table_schema='public' and table_name=$1", [tabla]
     );
+    const presentes = new Set(cols.map((r) => r.column_name));
+    const reaparecidas = fantasmas.filter((c) => presentes.has(c));
+    check(reaparecidas.length === 0, `${tabla}: columnas inexistentes en produccion: ${reaparecidas.join(', ')}`);
+  }
+
+  // UNIQUE y CHECK declarados por el contrato productivo.
+  const { rows: constraints } = await db.query(`
+    select conrelid::regclass::text tabla, conname, contype,
+           pg_get_constraintdef(oid) def
+      from pg_constraint where connamespace = 'public'::regnamespace`);
+  const porTabla = (t) => constraints.filter((c) => c.tabla.replace(/^public\./, '') === t);
+  for (const tabla of TABLAS_BASELINE) {
+    const spec = CONTRATO[tabla];
+    for (const cols of (spec.unique || [])) {
+      const hay = porTabla(tabla).some((c) => (c.contype === 'u' || c.contype === 'p') &&
+        cols.every((col) => new RegExp('\\b' + col + '\\b').test(c.def)));
+      check(hay, `${tabla}: falta UNIQUE (${cols.join(', ')})`);
+    }
+    for (const col of (spec.check_columnas || [])) {
+      const hay = porTabla(tabla).some((c) => c.contype === 'c' && new RegExp('\\b' + col + '\\b').test(c.def));
+      check(hay, `${tabla}: falta CHECK sobre ${col}`);
+    }
   }
 
   // PK: todas las operativas tienen clave primaria.
@@ -266,7 +314,7 @@ async function casoA() {
 
   const radio = await radiografia(db);
   await db.close();
-  return { files, creadas, deficit, radio };
+  return { files, creadas, radio };
 }
 
 // ---------------------------------------------------------------- CASO B
@@ -278,10 +326,10 @@ async function casoB() {
   await db.exec(`
     insert into auth.users(id, email)
       values ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'admin@coiroca.com');
-    insert into public.coi_ordenes(id, nro_oc, id_obra, estacion, estado_coi)
-      values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '4530008964', 'OB-1', 'Banfield', 'OBRA/SERVICIO EN EJECUCIÓN');
-    insert into public.coi_ordenes_estaciones(id, orden_id, estacion, es_principal)
-      values ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Banfield', true);
+    insert into public.coi_ordenes(id, nro_oc, id_obra, tipo, estacion, estado_coi)
+      values ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '4530008964', 'OB-1', 'Obra', 'Banfield', 'OBRA/SERVICIO EN EJECUCIÓN');
+    insert into public.coi_ordenes_estaciones(id, orden_id, nro_oc, estacion, es_principal)
+      values ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '4530008964', 'Banfield', true);
     insert into public.coi_posiciones_oc(id, orden_id, nro_oc, posicion, cantidad_total, precio_unitario, monto_total)
       values ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '4530008964', '160.10', 10, 100, 1000);
   `);
@@ -345,11 +393,13 @@ async function main() {
   console.log(`  CASO A · tablas operativas creadas : ${TABLAS_OPERATIVAS.length}/${TABLAS_OPERATIVAS.length}`);
   console.log(`  CASO A · tablas de respaldo        : 0`);
   console.log(`  CASO A · tablas inexistentes en prod: 0`);
-  console.log(`  CASO A · coi_ordenes                : 45/45 columnas (exacto)`);
-  console.log(`  CASO A · coi_ordenes_estaciones     : 17/17 columnas (exacto)`);
+  const totalCols = TABLAS_BASELINE.reduce((a, t) => a + Object.keys(CONTRATO[t].columnas).length, 0);
+  console.log(`  CASO A · contrato exacto            : ${TABLAS_BASELINE.length} tablas, ${totalCols} columnas verificadas`);
+  console.log(`  CASO A · nombres/tipos/nullability/defaults/generated: 0 diferencias con produccion`);
+  console.log(`  CASO A · columnas inexistentes en prod: 0`);
   console.log(`  CASO B · baseline reaplicado        : NO-OP (columnas, constraints, indices y datos intactos)`);
   console.log(`  CASO B · tablas condicionales       : ${b.creates} create table if not exists, 0 operaciones destructivas`);
-  console.log(`  deficit de columnas pendiente       : ${a.deficit} en 8 tablas (requiere pg_dump --schema-only)`);
+
   console.log(`${aprobados} controles de reproducibilidad aprobados; 0 fallidos.`);
 }
 
