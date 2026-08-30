@@ -130,7 +130,12 @@ async function radiografia(db) {
   const indices = await db.query(
     "select indexname, indexdef from pg_indexes where schemaname='public' order by 1"
   );
+  const policies = await db.query(
+    "select tablename, policyname, cmd, permissive, roles::text, qual, with_check " +
+    "from pg_policies where schemaname='public' order by 1,2"
+  );
   return {
+    policies: policies.rows.map((r) => [r.tablename, r.policyname, r.cmd, r.permissive, r.roles, r.qual, r.with_check].join('|')),
     columnas: columnas.rows.map((r) => [r.table_name, r.column_name, r.data_type, r.is_nullable, r.column_default].join('|')),
     constraints: constraints.rows.map((r) => [r.tabla, r.conname, r.contype].join('|')),
     indices: indices.rows.map((r) => r.indexname + '|' + r.indexdef)
@@ -259,36 +264,88 @@ async function casoA() {
   const sinPk = TABLAS_OPERATIVAS.filter((t) => !conPk.has(t));
   check(sinPk.length === 0, `tablas operativas sin PK: ${sinPk.join(', ')}`);
 
-  // FK: el arbol de relaciones raiz declarado por el esquema real.
-  const fk = await db.query(`
-    select c.relname origen, cf.relname destino
-      from pg_constraint k
-      join pg_class c on c.oid = k.conrelid
-      join pg_class cf on cf.oid = k.confrelid
+  // FK: destino y accion ON DELETE exactos, segun el contrato productivo.
+  const { rows: fks } = await db.query(`
+    select c.relname tabla, k.conname, pg_get_constraintdef(k.oid) def
+      from pg_constraint k join pg_class c on c.oid = k.conrelid
      where k.contype = 'f' and c.relnamespace = 'public'::regnamespace`);
-  const pares = new Set(fk.rows.map((r) => r.origen + '->' + r.destino));
-  const HIJAS_DE_ORDENES = [
-    'coi_ordenes_estaciones', 'coi_posiciones_oc', 'coi_alertas',
-    'coi_certificaciones', 'coi_documentos_oc', 'coi_observaciones_oc'
-  ];
-  for (const hija of HIJAS_DE_ORDENES) {
-    check(pares.has(hija + '->coi_ordenes'), `falta la FK ${hija} -> coi_ordenes`);
+  const accionDe = (def) => {
+    const m = /on delete (cascade|set null|set default|restrict)/i.exec(def);
+    return m ? m[1].toUpperCase() : 'NO ACTION';
+  };
+  for (const tabla of TABLAS_BASELINE) {
+    const propias = fks.filter((f) => f.tabla === tabla);
+    const esperadas = CONTRATO[tabla].fk || [];
+    check(
+      propias.length === esperadas.length,
+      `${tabla}: ${propias.length} FK, produccion tiene ${esperadas.length}`
+    );
+    for (const [col, destino, accion] of esperadas) {
+      const fk = propias.find((f) => new RegExp('FOREIGN KEY \\(' + col + '\\)', 'i').test(f.def));
+      check(Boolean(fk), `${tabla}: falta la FK sobre ${col} -> ${destino}`);
+      if (!fk) continue;
+      check(
+        new RegExp('REFERENCES (?:[a-z_]+\\.)?' + destino + '\\(', 'i').test(fk.def),
+        `${tabla}.${col}: referencia ${fk.def}, produccion espera ${destino}`
+      );
+      check(
+        accionDe(fk.def) === accion,
+        `${tabla}.${col}: ON DELETE ${accionDe(fk.def)}, produccion espera ${accion}`
+      );
+    }
   }
-  check(
-    pares.has('coi_servicios_tecnicos_um->coi_unidades_mantenimiento'),
-    'falta la FK coi_servicios_tecnicos_um -> coi_unidades_mantenimiento'
-  );
-  check(pares.has('coi_ordenes->users'), 'coi_ordenes debe conservar FK hacia auth.users');
 
-  // Unicidad de nro_oc.
-  const uq = await db.query(
-    "select indexname from pg_indexes where schemaname='public' and indexname like '%nro_oc%uq%'"
-  );
-  const nombresUq = uq.rows.map((r) => r.indexname);
-  check(
-    nombresUq.includes('coi_ordenes_nro_oc_uq'),
-    `falta el indice unico coi_ordenes_nro_oc_uq (encontrados: ${nombresUq.join(', ') || 'ninguno'})`
-  );
+  // RLS y policies: nombre, comando, roles, permissive, USING y WITH CHECK.
+  const { rows: rlsRows } = await db.query(`
+    select c.relname, c.relrowsecurity from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relkind = 'r'`);
+  const rlsPorTabla = new Map(rlsRows.map((r) => [r.relname, r.relrowsecurity]));
+  const { rows: policies } = await db.query(`
+    select tablename, policyname, cmd, permissive, roles, qual, with_check
+      from pg_policies where schemaname = 'public'`);
+  const norm = (v) => String(v == null ? '' : v).replace(/[()\s]/g, '').toLowerCase();
+
+  for (const tabla of TABLAS_BASELINE) {
+    const spec = CONTRATO[tabla];
+    if (spec.rls) {
+      check(rlsPorTabla.get(tabla) === true, `${tabla}: produccion tiene RLS habilitado y aca no lo esta`);
+    }
+    for (const esperada of (spec.policies || [])) {
+      const real = policies.find((x) => x.tablename === tabla && x.policyname === esperada.nombre);
+      check(Boolean(real), `${tabla}: falta la policy ${esperada.nombre}`);
+      if (!real) continue;
+      check(
+        real.cmd.toUpperCase() === esperada.cmd,
+        `${esperada.nombre}: comando ${real.cmd}, produccion espera ${esperada.cmd}`
+      );
+      const roles = (Array.isArray(real.roles) ? real.roles : String(real.roles).replace(/[{}]/g, '').split(','))
+        .map((r) => String(r).trim()).filter(Boolean);
+      check(
+        roles.length === esperada.roles.length && esperada.roles.every((r) => roles.includes(r)),
+        `${esperada.nombre}: roles [${roles.join(', ')}], produccion espera [${esperada.roles.join(', ')}]`
+      );
+      const permissive = String(real.permissive).toUpperCase().startsWith('PERMISSIVE') || real.permissive === true;
+      check(
+        permissive === esperada.permissive,
+        `${esperada.nombre}: ${permissive ? 'PERMISSIVE' : 'RESTRICTIVE'} y produccion espera lo contrario`
+      );
+      check(
+        norm(real.qual) === norm(esperada.using),
+        `${esperada.nombre}: USING ${real.qual || 'ninguno'}, produccion espera ${esperada.using || 'ninguno'}`
+      );
+      check(
+        norm(real.with_check) === norm(esperada.with_check),
+        `${esperada.nombre}: WITH CHECK ${real.with_check || 'ninguno'}, produccion espera ${esperada.with_check || 'ninguno'}`
+      );
+    }
+    // Ninguna policy de mas sobre las tablas cuyo contrato de policies conocemos.
+    if (spec.policies) {
+      const reales = policies.filter((x) => x.tablename === tabla).map((x) => x.policyname);
+      const sobran = reales.filter((n) => !spec.policies.some((e) => e.nombre === n));
+      check(sobran.length === 0, `${tabla}: policies que produccion no tiene: ${sobran.join(', ')}`);
+    }
+  }
 
   // RLS en las 18.
   const rls = await db.query(
@@ -366,6 +423,10 @@ async function casoB() {
     'reaplicar el baseline modifico indices: debe ser un NO-OP estructural'
   );
   check(
+    JSON.stringify(antes.policies) === JSON.stringify(despues.policies),
+    'reaplicar el baseline modifico policies: debe ser un NO-OP estructural'
+  );
+  check(
     JSON.stringify(datosAntes.rows) === JSON.stringify(datosDespues.rows),
     'reaplicar el baseline modifico datos: nunca debe tocarlos'
   );
@@ -397,6 +458,10 @@ async function main() {
   console.log(`  CASO A · contrato exacto            : ${TABLAS_BASELINE.length} tablas, ${totalCols} columnas verificadas`);
   console.log(`  CASO A · nombres/tipos/nullability/defaults/generated: 0 diferencias con produccion`);
   console.log(`  CASO A · columnas inexistentes en prod: 0`);
+  const totalFk = TABLAS_BASELINE.reduce((a, t) => a + (CONTRATO[t].fk || []).length, 0);
+  const totalPol = TABLAS_BASELINE.reduce((a, t) => a + (CONTRATO[t].policies || []).length, 0);
+  console.log(`  CASO A · FK con accion ON DELETE     : ${totalFk} verificadas, 0 diferencias`);
+  console.log(`  CASO A · policies (nombre/cmd/roles/permissive/using/with check): ${totalPol} verificadas, 0 diferencias`);
   console.log(`  CASO B · baseline reaplicado        : NO-OP (columnas, constraints, indices y datos intactos)`);
   console.log(`  CASO B · tablas condicionales       : ${b.creates} create table if not exists, 0 operaciones destructivas`);
 

@@ -53,6 +53,21 @@
 --   archivo es un NO-OP estructural. No hay ALTER, DROP, TRUNCATE, ni
 --   escritura de datos, ni cambios sobre objetos ya presentes.
 --
+-- GRANTS
+--   Este archivo no versiona grants. Los de coi_ordenes, coi_ordenes_estaciones
+--   y coi_posiciones_oc los fijan explicitamente las migraciones posteriores, y
+--   los de coi_certificaciones, coi_documentos_oc y coi_auditorias_calidad los
+--   aplica coi_apply_optional_role_rls (202608100005) de forma dinamica.
+--
+--   Las cuatro tablas restantes (coi_alertas, coi_observaciones_oc,
+--   coi_unidades_mantenimiento, coi_servicios_tecnicos_um) no reciben grants de
+--   ninguna migracion: en produccion los obtienen de los default privileges que
+--   Supabase aplica al esquema public. Son privilegios de plataforma, no DDL de
+--   la aplicacion, y versionarlos a ciegas arriesgaria divergir del entorno real.
+--   Consecuencia conocida: al recrear el esquema fuera de Supabase (PGlite) esas
+--   cuatro tablas quedan con RLS y policies pero sin grants, de modo que las
+--   policies no llegan a ejercitarse. En un proyecto Supabase real no ocurre.
+--
 -- FUERA DEL BASELINE
 --   coi_documentos_oc_backup_20260723 y
 --   coi_documentos_oc_backup_4550000286_20260723 son respaldos historicos
@@ -237,7 +252,7 @@ create table if not exists public.coi_certificaciones (
   monto_certificado numeric not null default 0,
   remito text,
   constraint coi_certificaciones_pkey primary key (id),
-  constraint coi_certificaciones_orden_id_fkey foreign key (orden_id) references public.coi_ordenes(id) on delete cascade,
+  constraint coi_certificaciones_orden_id_fkey foreign key (orden_id) references public.coi_ordenes(id) on delete set null,
   constraint coi_certificaciones_documento_id_fkey foreign key (documento_id) references public.coi_documentos_oc(id) on delete set null,
   constraint coi_certificaciones_posicion_id_fkey foreign key (posicion_id) references public.coi_posiciones_oc(id) on delete set null,
   constraint coi_certificaciones_estado_envio_pyc_check check (
@@ -371,3 +386,88 @@ alter table public.coi_alertas enable row level security;
 alter table public.coi_observaciones_oc enable row level security;
 alter table public.coi_unidades_mantenimiento enable row level security;
 alter table public.coi_servicios_tecnicos_um enable row level security;
+
+-- ---------------------------------------------------------------------
+-- Policies de esas mismas cuatro tablas
+-- ---------------------------------------------------------------------
+-- coi_apply_optional_role_rls (202608100005) aplica la matriz por rol a un
+-- listado curado de tablas en el que estas cuatro nunca entraron. Produccion
+-- las gobierna con estas 12 policies simples, que no estaban versionadas en
+-- ninguna migracion: sin ellas un entorno recreado tenia RLS activo y cero
+-- policies, es decir denegaba todo.
+--
+-- Se crean solo si faltan, comprobando por nombre exacto en pg_policies, de
+-- modo que sobre un entorno que ya las tiene el bloque es un NO-OP: no las
+-- reemplaza ni altera su definicion.
+
+-- coi_alertas
+do $pol$
+begin
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='coi_alertas' and policyname='coi_alertas_select_auth') then
+    create policy coi_alertas_select_auth on public.coi_alertas
+      for select to authenticated using (true);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='coi_alertas' and policyname='coi_alertas_insert_auth') then
+    create policy coi_alertas_insert_auth on public.coi_alertas
+      for insert to authenticated with check (auth.uid() is not null);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='coi_alertas' and policyname='coi_alertas_update_auth') then
+    create policy coi_alertas_update_auth on public.coi_alertas
+      for update to authenticated using (true) with check (auth.uid() is not null);
+  end if;
+end
+$pol$;
+
+-- coi_observaciones_oc
+do $pol$
+begin
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='coi_observaciones_oc' and policyname='coi_observaciones_select_auth') then
+    create policy coi_observaciones_select_auth on public.coi_observaciones_oc
+      for select to authenticated using (true);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='coi_observaciones_oc' and policyname='coi_observaciones_insert_auth') then
+    create policy coi_observaciones_insert_auth on public.coi_observaciones_oc
+      for insert to authenticated with check (auth.uid() is not null);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='coi_observaciones_oc' and policyname='coi_observaciones_update_auth') then
+    create policy coi_observaciones_update_auth on public.coi_observaciones_oc
+      for update to authenticated using (true) with check (auth.uid() is not null);
+  end if;
+end
+$pol$;
+
+-- coi_unidades_mantenimiento
+do $pol$
+begin
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='coi_unidades_mantenimiento' and policyname='coi_um_select_auth') then
+    create policy coi_um_select_auth on public.coi_unidades_mantenimiento
+      for select to authenticated using (true);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='coi_unidades_mantenimiento' and policyname='coi_um_insert_auth') then
+    create policy coi_um_insert_auth on public.coi_unidades_mantenimiento
+      for insert to authenticated with check (auth.uid() is not null);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='coi_unidades_mantenimiento' and policyname='coi_um_update_auth') then
+    create policy coi_um_update_auth on public.coi_unidades_mantenimiento
+      for update to authenticated using (true) with check (auth.uid() is not null);
+  end if;
+end
+$pol$;
+
+-- coi_servicios_tecnicos_um
+do $pol$
+begin
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='coi_servicios_tecnicos_um' and policyname='coi_st_select_auth') then
+    create policy coi_st_select_auth on public.coi_servicios_tecnicos_um
+      for select to authenticated using (true);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='coi_servicios_tecnicos_um' and policyname='coi_st_insert_auth') then
+    create policy coi_st_insert_auth on public.coi_servicios_tecnicos_um
+      for insert to authenticated with check (auth.uid() is not null);
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='coi_servicios_tecnicos_um' and policyname='coi_st_update_auth') then
+    create policy coi_st_update_auth on public.coi_servicios_tecnicos_um
+      for update to authenticated using (true) with check (auth.uid() is not null);
+  end if;
+end
+$pol$;
