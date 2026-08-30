@@ -43,7 +43,7 @@ async function prepararEntorno(page, opciones) {
   const cfg = Object.assign({
     filas: [], legado: null, marker: false,
     fallaSelect: false, fallaMutacion: false,
-    retardoSelectMs: 0, pageSize: 1000, perfiles: [], admin: true
+    retardoSelectMs: 0, retardoPerfilesMs: 0, pageSize: 1000, perfiles: [], admin: true
   }, opciones);
 
   await page.addInitScript((c) => {
@@ -61,6 +61,9 @@ async function prepararEntorno(page, opciones) {
     };
 
     let sesionActiva = true;
+    // El UID de la sesion se puede cambiar para simular que entra otro usuario.
+    let uidSesion = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    window.__H03_SET_UID__ = (v) => { uidSesion = v; };
     const registrar = (op, payload) => window.__H03_LLAMADAS__.push({ op, payload });
     let filas = c.filas.slice();
     // Con backend compartido las filas viven en Node y se leen/escriben por RPC:
@@ -92,7 +95,12 @@ async function prepararEntorno(page, opciones) {
         async _run(unico) {
           if (st.tabla === 'profiles') {
             registrar('profiles', st.inIds);
-            return { data: (c.perfiles || []).filter((p) => !st.inIds || st.inIds.includes(p.id)), error: null };
+            const cfg = window.__H03_CFG__;
+            // Lo que el servidor puede devolver se resuelve con la RLS VIGENTE al
+            // iniciar la request, no con la de la sesion que llegue despues.
+            const disponibles = (cfg.perfiles || []).slice();
+            if (cfg.retardoPerfilesMs) await espera(cfg.retardoPerfilesMs);
+            return { data: disponibles.filter((p) => !st.inIds || st.inIds.includes(p.id)), error: null };
           }
           if (st.tabla !== 'coi_observaciones_oc') return { data: [], error: null };
 
@@ -148,10 +156,10 @@ async function prepararEntorno(page, opciones) {
       from: (t) => consulta(t),
       auth: {
         getSession: async () => ({
-          data: { session: sesionActiva ? { user: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', email: 'admin@coiroca.com' } } : null },
+          data: { session: sesionActiva ? { user: { id: uidSesion, email: 'admin@coiroca.com' } } : null },
           error: null
         }),
-        getUser: async () => ({ data: { user: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } }, error: null }),
+        getUser: async () => ({ data: { user: { id: uidSesion } }, error: null }),
         onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } })
       }
     };
@@ -184,6 +192,13 @@ async function abrir(page) {
     null, { timeout: 20000 }
   );
   return errores;
+}
+
+// Abre la aplicacion sin esperar a que la primera lectura termine: hace falta
+// para intervenir MIENTRAS una request remota sigue en vuelo.
+async function abrirSinEsperarCarga(page) {
+  await page.goto('/index.html');
+  await page.waitForFunction(() => Boolean(window.__COI_OBS_H03__), null, { timeout: 20000 });
 }
 
 // El arranque de la aplicacion reasigna esAutorizacionAdministrativaSupabaseV60
@@ -866,7 +881,8 @@ test('N7 · un remapeo diferido no repuebla despues de un SIGNED_OUT', async ({ 
   expect(resultado).toEqual([]);
 });
 
-test('N8 · el cambio de sesion descarta los nombres de perfil resueltos', async ({ page }) => {
+test('N8 · el cambio de USUARIO descarta los nombres de perfil resueltos', async ({ page }) => {
+  test.slow();
   await prepararEntorno(page, {
     filas: [REMOTA],
     perfiles: [{ id: USUARIO, nombre: 'ADMIN VISIBLE', email: 'admin@coiroca.com' }]
@@ -875,9 +891,18 @@ test('N8 · el cambio de sesion descarta los nombres de perfil resueltos', async
   let e = await estado(page);
   expect(e.observaciones[0].usuarioCarga).toBe('ADMIN VISIBLE');
 
-  // La nueva sesion no puede ver ese perfil: la cache no debe filtrarlo.
+  // Mismo usuario: un TOKEN_REFRESHED no puede tirar la cache ni el modelo.
+  await page.evaluate(async () => {
+    window.dispatchEvent(new CustomEvent('coi:supabase-auth', { detail: { event: 'TOKEN_REFRESHED' } }));
+    await new Promise((r) => setTimeout(r, 1200));
+  });
+  e = await estado(page);
+  expect(e.observaciones[0].usuarioCarga).toBe('ADMIN VISIBLE');
+
+  // Otro usuario: su RLS no autoriza ese perfil, la cache no debe filtrarlo.
   await page.evaluate(async () => {
     window.__H03_CFG__.perfiles = [];
+    window.__H03_SET_UID__('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
     window.dispatchEvent(new CustomEvent('coi:supabase-auth', { detail: { event: 'SIGNED_IN' } }));
     await new Promise((r) => setTimeout(r, 1500));
   });
@@ -912,4 +937,181 @@ test('N9 · editar no borra el detalle de resolucion ya persistido', async ({ pa
   expect(ups).toHaveLength(1);
   expect(ups[0].payload.patch.observacion).toContain('TEXTO CORREGIDO');
   expect(ups[0].payload.patch.observacion).toContain('[Resolucion] Cerrado con acta');
+});
+
+// =============================================== findings sobre 43cdc08
+
+test('N10 · un TOKEN_REFRESHED del mismo usuario no convierte un fallo de lectura en cero', async ({ page }) => {
+  test.slow();
+  await prepararEntorno(page, { filas: [REMOTA] });
+  await abrir(page);
+  let e = await estado(page);
+  expect(e.observaciones).toHaveLength(1);
+  expect(e.marker).toBe('1');
+
+  await page.evaluate(async () => {
+    // Mismo usuario: solo se renovo el token. La relectura posterior falla.
+    window.__H03_CFG__.fallaSelect = true;
+    window.dispatchEvent(new CustomEvent('coi:supabase-auth', { detail: { event: 'TOKEN_REFRESHED' } }));
+    await new Promise((r) => setTimeout(r, 2500));
+  });
+  e = await estado(page);
+
+  // El dataset confirmado sigue en pantalla: un refresh de token no puede
+  // producir un cero falso.
+  expect(e.observaciones.map((o) => o.texto)).toEqual(['OBSERVACION REMOTA DE SUPABASE']);
+  expect(e.sincronizado).toBe(false);
+  expect(e.origen).toBe('error-sin-sincronizar');
+});
+
+test('N10b · un SIGNED_IN con otro usuario si descarta el dataset de la sesion anterior', async ({ page }) => {
+  test.slow();
+  await prepararEntorno(page, { filas: [REMOTA] });
+  await abrir(page);
+  expect((await estado(page)).observaciones).toHaveLength(1);
+
+  await page.evaluate(async () => {
+    window.__H03_CFG__.fallaSelect = true;
+    window.__H03_SET_UID__('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
+    window.dispatchEvent(new CustomEvent('coi:supabase-auth', { detail: { event: 'SIGNED_IN' } }));
+    await new Promise((r) => setTimeout(r, 2500));
+  });
+  const e = await estado(page);
+
+  // Otro usuario no puede heredar lo que vio el anterior.
+  expect(e.observaciones).toHaveLength(0);
+});
+
+test('N11 · una respuesta de profiles de la sesion anterior no escribe en la cache nueva', async ({ page }) => {
+  test.slow();
+  await prepararEntorno(page, {
+    filas: [REMOTA],
+    perfiles: [{ id: USUARIO, nombre: 'ADMIN VISIBLE', email: 'admin@coiroca.com' }],
+    retardoPerfilesMs: 3000
+  });
+  await abrirSinEsperarCarga(page);
+
+  const resultado = await page.evaluate(async () => {
+    // La request de profiles de la sesion A sigue en vuelo. Entra el usuario B,
+    // cuya RLS no autoriza ese perfil, y su propia lectura tarda mas que la
+    // respuesta pendiente de A.
+    await new Promise((r) => setTimeout(r, 300));
+    window.__H03_CFG__.perfiles = [];
+    window.__H03_CFG__.retardoPerfilesMs = 0;
+    window.__H03_CFG__.retardoSelectMs = 4000;
+    window.__H03_SET_UID__('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
+    window.dispatchEvent(new CustomEvent('coi:supabase-auth', { detail: { event: 'SIGNED_IN' } }));
+    await new Promise((r) => setTimeout(r, 9000));
+    return (window.observacionesOC || []).map((o) => o.usuarioCarga);
+  });
+
+  expect(resultado).toHaveLength(1);
+  expect(resultado[0]).not.toBe('ADMIN VISIBLE');
+  // Identidad neutra derivada del UUID, nunca un nombre de la sesion anterior.
+  expect(resultado[0]).toContain('Usuario');
+});
+
+test('N12 · editar no pisa en silencio una edicion concurrente de otro puesto', async ({ page }) => {
+  test.slow();
+  await prepararEntorno(page, { filas: [REMOTA], admin: true });
+  await abrir(page);
+  await fijarAdmin(page, true);
+
+  const propuesto = await page.evaluate(async (id) => {
+    // Lo que este puesto tiene en memoria es lo que vio el operador.
+    let visto = null;
+    window.prompt = (_t, valor) => { visto = valor; return 'TEXTO C DE ESTE PUESTO'; };
+    // Otro operador ya dejo otra version en el servidor.
+    window.__H03_SET_FILAS__([{
+      id: id, orden_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', nro_oc: '4530008964',
+      observacion: 'TEXTO B DE OTRO PUESTO', estado: 'Pendiente', prioridad: 'Normal',
+      creado_por: null, resuelto_por: null,
+      fecha_creacion: '2026-08-30T10:00:00.000Z', fecha_resolucion: null
+    }]);
+    const cont = document.createElement('div');
+    cont.innerHTML = '<button type="button" id="btnEditConflicto" data-r13-edit-obs="' + id + '">Editar</button>';
+    document.body.appendChild(cont);
+    document.getElementById('btnEditConflicto').click();
+    await new Promise((r) => setTimeout(r, 1500));
+    return visto;
+  }, REMOTA.id);
+  const e = await estado(page);
+
+  expect(propuesto).toBe('OBSERVACION REMOTA DE SUPABASE');
+  // Ningun UPDATE: no hay last-writer-wins silencioso.
+  expect(soloOp(e, 'update')).toHaveLength(0);
+  // El texto del otro puesto sobrevive y es lo que se muestra tras la recarga.
+  expect(e.observaciones.map((o) => o.texto)).toEqual(['TEXTO B DE OTRO PUESTO']);
+  const aviso = await page.evaluate(() => {
+    const caja = document.getElementById('coiToastV581');
+    return caja ? caja.textContent : '';
+  });
+  expect(aviso).toContain('cambió en otro puesto');
+});
+
+test('N13 · con legado pendiente de migrar ninguna mutacion llega a Supabase', async ({ page }) => {
+  test.slow();
+  // Supabase vacio y sin marcador: el legado historico se muestra en solo lectura.
+  await prepararEntorno(page, { filas: [], legado: LEGACY });
+  await abrir(page);
+  await sembrarOC(page);
+  await fijarAdmin(page, true);
+  let e = await estado(page);
+  expect(e.origen).toBe('legacy-readonly');
+  expect(e.observaciones).toHaveLength(2);
+
+  await page.evaluate(async (id) => {
+    window.prompt = () => 'NO DEBERIA LLEGAR';
+    // 1) alta comun desde la ficha de OC
+    const ta = document.createElement('textarea');
+    ta.id = 'v65NuevaObservacion';
+    ta.value = 'ALTA DURANTE EL CUTOVER';
+    document.body.appendChild(ta);
+    window.guardarObservacionOC('4530008964');
+    // 2) accion del Centro de Alertas
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'btnAlertaCutover';
+    b.setAttribute('data-r15-alert-to-obs', '4530008964');
+    b.setAttribute('data-r15-alert-text', 'ALERTA DURANTE EL CUTOVER');
+    document.body.appendChild(b);
+    b.click();
+    // 3) editar y resolver sobre la fila legada
+    window.editarObservacionR13(id);
+    window.resolverObservacionOC(id);
+    window.reabrirObservacionOC(id);
+    await new Promise((r) => setTimeout(r, 1500));
+  }, LEGACY[0].idObservacion);
+  e = await estado(page);
+
+  expect(soloOp(e, 'insert')).toHaveLength(0);
+  expect(soloOp(e, 'update')).toHaveLength(0);
+  expect(soloOp(e, 'delete')).toHaveLength(0);
+  // El legado sigue visible y nada se escribio en localStorage.
+  expect(e.observaciones).toHaveLength(2);
+  expect(e.marker).toBeNull();
+  expect(e.escriturasLegacy).toEqual([]);
+});
+
+test('N13b · sin legado pendiente el alta comun sigue funcionando', async ({ page }) => {
+  // Instalacion limpia: Supabase vacio y sin legado. El gate del cutover no
+  // debe bloquear el caso legitimo.
+  await prepararEntorno(page, { filas: [] });
+  await abrir(page);
+  await sembrarOC(page);
+
+  await page.evaluate(() => {
+    const ta = document.createElement('textarea');
+    ta.id = 'v65NuevaObservacion';
+    ta.value = 'PRIMERA OBSERVACION DE LA INSTALACION';
+    document.body.appendChild(ta);
+    window.guardarObservacionOC('4530008964');
+  });
+  await page.waitForTimeout(900);
+  const e = await estado(page);
+
+  const ins = soloOp(e, 'insert');
+  expect(ins).toHaveLength(1);
+  expect(ins[0].payload.observacion).toBe('PRIMERA OBSERVACION DE LA INSTALACION');
+  expect(e.escriturasLegacy).toEqual([]);
 });

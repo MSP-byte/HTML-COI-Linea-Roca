@@ -26979,7 +26979,9 @@ document.addEventListener('click',function(event){
     sincronizado: false,      // el modelo en memoria refleja una lectura remota confirmada
     generacion: 0,            // token de request: descarta respuestas viejas
     cargando: null,
-    confirmado: null          // ultimo modelo remoto confirmado
+    confirmado: null,         // ultimo modelo remoto confirmado
+    crudas: null,             // filas remotas sin mapear, para remapeo diferido
+    authUserId: null          // UID de la sesion que produjo el modelo vigente
   };
   window.__COI_OBS_H03__ = runtime;
 
@@ -27018,6 +27020,17 @@ document.addEventListener('click',function(event){
     if (tipo === 'error') console.error('COI observaciones:', mensaje);
   }
 
+  // UID de la sesion vigente. Se usa para distinguir un cambio real de usuario
+  // de un simple TOKEN_REFRESHED / USER_UPDATED del mismo operador.
+  async function uidDeSesion() {
+    try {
+      const c = cliente();
+      if (!c || !c.auth || typeof c.auth.getSession !== 'function') return null;
+      const { data } = await c.auth.getSession();
+      return (data && data.session && data.session.user && data.session.user.id) || null;
+    } catch (e) { return null; }
+  }
+
   async function exigirEscritura() {
     const c = cliente();
     if (!c) throw new Error('Supabase no esta disponible. Recargue la pagina e inicie sesion.');
@@ -27030,17 +27043,29 @@ document.addEventListener('click',function(event){
 
   // ---------------------------------------------------------- identidades
   const perfiles = new Map();
-  async function cargarPerfiles(c, ids) {
+  // La request de profiles la autoriza la RLS de la sesion que la inicio. Si
+  // termina despues de un cambio de sesion, escribir su resultado filtraria a la
+  // sesion nueva nombres que su propia policy no le deja ver. Por eso la
+  // respuesta se valida ANTES de tocar el mapa (generacion + UID de origen) y,
+  // si no corresponde, se descarta entera: nunca se escribe parcialmente.
+  async function cargarPerfiles(c, ids, contexto) {
     const faltan = ids.filter((id) => esUuid(id) && !perfiles.has(id));
     if (!faltan.length) return;
+    let filas = null;
     try {
       const { data, error } = await c.from('profiles').select('id,email,nombre,apellido').in('id', faltan);
       if (error) throw error;
-      (data || []).forEach((r) => {
-        const nombre = [texto(r.nombre), texto(r.apellido)].filter(Boolean).join(' ');
-        perfiles.set(r.id, nombre || texto(r.email) || null);
-      });
-    } catch (e) { /* sin perfiles se usa la representacion neutra */ }
+      filas = data || [];
+    } catch (e) { filas = null; /* sin perfiles se usa la representacion neutra */ }
+    if (contexto) {
+      const mismaGeneracion = contexto.generacion === runtime.generacion;
+      const mismaIdentidad = (contexto.uid || null) === (runtime.authUserId || null);
+      if (!mismaGeneracion || !mismaIdentidad) return;
+    }
+    (filas || []).forEach((r) => {
+      const nombre = [texto(r.nombre), texto(r.apellido)].filter(Boolean).join(' ');
+      perfiles.set(r.id, nombre || texto(r.email) || null);
+    });
     faltan.forEach((id) => { if (!perfiles.has(id)) perfiles.set(id, null); });
   }
   // Nunca se inventa un nombre: si no se resuelve, se muestra el UUID abreviado.
@@ -27180,6 +27205,10 @@ document.addEventListener('click',function(event){
 
     const promesa = (async () => {
       const c = cliente();
+      // La identidad vigente se toma al inicio de la lectura: es el origen que
+      // despues valida la respuesta de profiles.
+      const uidLectura = await uidDeSesion();
+      if (vigente()) runtime.authUserId = uidLectura;
       if (!c) {
         if (!vigente()) return window.observacionesOC;
         runtime.ultimoError = 'Supabase no disponible';
@@ -27192,7 +27221,11 @@ document.addEventListener('click',function(event){
       }
       try {
         const crudas = await leerPaginado(c);
-        await cargarPerfiles(c, crudas.flatMap((r) => [r.creado_por, r.resuelto_por]).filter(Boolean));
+        await cargarPerfiles(
+          c,
+          crudas.flatMap((r) => [r.creado_por, r.resuelto_por]).filter(Boolean),
+          { generacion: generacion, uid: uidLectura }
+        );
         if (!vigente()) return window.observacionesOC;
         const filas = crudas.map(desdeSupabase);
         runtime.ultimoError = null;
@@ -27334,7 +27367,9 @@ document.addEventListener('click',function(event){
       await recargarYRefrescar();
       return true;
     } catch (error) {
-      avisar('No se pudo guardar en Observaciones: ' + ((error && error.message) || String(error)), 'error');
+      // Los conflictos de concurrencia ya traen su propio mensaje operativo.
+      if (error && error.coiMensajeDirecto) avisar(error.message, 'warn');
+      else avisar('No se pudo guardar en Observaciones: ' + ((error && error.message) || String(error)), 'error');
       await recargarYRefrescar();
       return false;
     } finally {
@@ -27346,8 +27381,21 @@ document.addEventListener('click',function(event){
     avisar('Esta observacion proviene del legado local y todavia no esta en Supabase.', 'warn');
   }
 
+  // Cutover H03: mientras se muestre el legado historico y Supabase todavia no
+  // sea autoridad, ninguna mutacion operativa puede correr. Guardar ahora
+  // pondria el marcador en la proxima lectura y dejaria esas filas historicas
+  // fuera del alcance de los paneles antes de haberlas importado.
+  function cutoverPendiente() {
+    return runtime.origen === 'legacy-readonly' && legadoSoloLectura().length > 0;
+  }
+  function avisoCutover() {
+    avisar('Hay observaciones históricas pendientes de migración a Supabase. La edición está temporalmente bloqueada.', 'warn');
+    return false;
+  }
+
   // ---------------------------------------------------------- acciones publicas
   function crearDesdeTexto(nroOC, valor, exito) {
+    if (cutoverPendiente()) return Promise.resolve(avisoCutover());
     return conManejoDeError('crear:' + norm(nroOC) + ':' + norm(valor).slice(0, 40),
       () => crear({ nroOC: nroOC, texto: valor }), exito || 'Observacion guardada.');
   }
@@ -27376,22 +27424,38 @@ document.addEventListener('click',function(event){
       return;
     }
     if (esLegado(idObservacion)) return avisoLegado();
+    if (cutoverPendiente()) return avisoCutover();
     const id = idRemoto(idObservacion);
     if (!id) return avisar('Observacion sin identificador remoto.', 'error');
     const actual = buscarObs(idObservacion);
     // El detalle de resolucion vive dentro de la misma columna observacion: se
     // separa antes de editar y se vuelve a anexar, para que editar el texto
     // original no borre la unica traza persistida de la resolucion.
-    const partes = partirResolucion(actual && actual.texto);
-    const nuevo = prompt('Editar observacion', partes.base);
+    const visto = partirResolucion(actual && actual.texto);
+    const nuevo = prompt('Editar observacion', visto.base);
     if (nuevo === null) return;
     const valor = texto(nuevo);
     if (!valor) return avisar('La observacion no puede quedar vacia.', 'warn');
-    conManejoDeError('editar:' + id, () => actualizar(id, { observacion: valor + partes.cola }), 'Observacion actualizada.');
+    conManejoDeError('editar:' + id, async () => {
+      const { c } = await exigirEscritura();
+      // El texto pudo cambiar en otro puesto mientras el prompt estaba abierto:
+      // se relee la fila y se compara contra la parte editable que el operador
+      // realmente vio. Si difiere se aborta, en lugar de pisarla en silencio.
+      const fila = await leerFila(c, id);
+      const servidor = partirResolucion(fila.observacion);
+      if (servidor.base !== visto.base) {
+        const conflicto = new Error('La observación cambió en otro puesto. Actualice y vuelva a intentar.');
+        conflicto.coiMensajeDirecto = true;
+        throw conflicto;
+      }
+      // La cola de resolucion se toma del servidor, no de la copia en memoria.
+      await actualizar(id, { observacion: valor + servidor.cola });
+    }, 'Observacion actualizada.');
   }
 
   function resolver(idObservacion) {
     if (esLegado(idObservacion)) return avisoLegado();
+    if (cutoverPendiente()) return avisoCutover();
     const id = idRemoto(idObservacion);
     if (!id) return avisar('Observacion sin identificador remoto.', 'error');
     const detalle = texto(prompt('Observacion de resolucion opcional', '') || '');
@@ -27414,6 +27478,7 @@ document.addEventListener('click',function(event){
 
   function reabrir(idObservacion) {
     if (esLegado(idObservacion)) return avisoLegado();
+    if (cutoverPendiente()) return avisoCutover();
     const id = idRemoto(idObservacion);
     if (!id) return avisar('Observacion sin identificador remoto.', 'error');
     conManejoDeError('reabrir:' + id,
@@ -27562,18 +27627,25 @@ document.addEventListener('click',function(event){
     instalar();
     cargar().then(refrescarUI).catch(() => {});
     window.addEventListener('coi:supabase-auth', () => {
-      // Al cambiar la sesion se invalidan las cargas pendientes: una respuesta
-      // autenticada lenta no debe repoblar despues de un SIGNED_OUT.
-      runtime.generacion++;
-      runtime.confirmado = null;
-      runtime.sincronizado = false;
-      // Las filas crudas y el remapeo diferido son de la sesion anterior.
-      runtime.crudas = null;
-      remapeoArmado = false;
-      // Los nombres resueltos por profiles dependen de lo que la RLS permitia ver
-      // a la sesion anterior: se descartan para no filtrarlos a la nueva.
-      perfiles.clear();
-      recargarYRefrescar().catch(() => {});
+      // Solo un cambio REAL de identidad invalida el modelo: SIGNED_OUT, o un
+      // SIGNED_IN con otro UID. TOKEN_REFRESHED y USER_UPDATED del mismo
+      // operador no descartan nada, porque hacerlo convertia un refresh de token
+      // en un falso cero si la relectura siguiente fallaba.
+      uidDeSesion().then((uid) => {
+        if ((uid || null) !== (runtime.authUserId || null)) {
+          runtime.generacion++;
+          runtime.confirmado = null;
+          runtime.sincronizado = false;
+          // Las filas crudas y el remapeo diferido son de la sesion anterior.
+          runtime.crudas = null;
+          remapeoArmado = false;
+          // Los nombres resueltos por profiles dependen de lo que la RLS permitia
+          // ver a la sesion anterior: se descartan para no filtrarlos a la nueva.
+          perfiles.clear();
+          runtime.authUserId = uid || null;
+        }
+        return recargarYRefrescar();
+      }).catch(() => {});
     });
     // El wrap del refresh se reintenta: recargarDatosDesdeSupabase puede
     // definirse despues de esta capa.

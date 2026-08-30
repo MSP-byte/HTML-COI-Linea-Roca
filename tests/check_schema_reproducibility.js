@@ -61,6 +61,16 @@ const TABLAS_FANTASMA = [
 const CONTRATO = require('./fixtures/production_schema_contract.json');
 const TABLAS_BASELINE = Object.keys(CONTRATO).filter((k) => !k.startsWith('_'));
 
+// Desvios deliberados: una migracion del repositorio todavia no aplicada a los
+// entornos remotos. El contrato sigue siendo el snapshot de produccion; aca se
+// declara el valor que el repositorio DEBE producir mientras dure la diferencia,
+// de modo que la brecha quede visible en lugar de disimulada dentro del snapshot.
+const PENDIENTES = (CONTRATO._divergencias_pendientes || {}).fk || [];
+const accionEsperada = (tabla, columna, accionProduccion) => {
+  const d = PENDIENTES.find((x) => x.tabla === tabla && x.columna === columna);
+  return d ? d.repo : accionProduccion;
+};
+
 // Columnas que el baseline llego a declarar por inferencia y que NO existen en
 // produccion. El control falla si alguna reaparece.
 // Ojo: tipo_um SI existe en coi_unidades_mantenimiento y en coi_certificaciones;
@@ -288,9 +298,10 @@ async function casoA() {
         new RegExp('REFERENCES (?:[a-z_]+\\.)?' + destino + '\\(', 'i').test(fk.def),
         `${tabla}.${col}: referencia ${fk.def}, produccion espera ${destino}`
       );
+      const esperada = accionEsperada(tabla, col, accion);
       check(
-        accionDe(fk.def) === accion,
-        `${tabla}.${col}: ON DELETE ${accionDe(fk.def)}, produccion espera ${accion}`
+        accionDe(fk.def) === esperada,
+        `${tabla}.${col}: ON DELETE ${accionDe(fk.def)}, se espera ${esperada}`
       );
     }
   }
@@ -460,7 +471,14 @@ async function main() {
   console.log(`  CASO A · columnas inexistentes en prod: 0`);
   const totalFk = TABLAS_BASELINE.reduce((a, t) => a + (CONTRATO[t].fk || []).length, 0);
   const totalPol = TABLAS_BASELINE.reduce((a, t) => a + (CONTRATO[t].policies || []).length, 0);
-  console.log(`  CASO A · FK con accion ON DELETE     : ${totalFk} verificadas, 0 diferencias`);
+  const dif = PENDIENTES.length;
+  console.log(
+    `  CASO A · FK con accion ON DELETE     : ${totalFk} verificadas, ` +
+    (dif ? `${dif} divergencia(s) pendientes de aplicar en remoto` : '0 diferencias')
+  );
+  PENDIENTES.forEach((d) => console.log(
+    `    pendiente · ${d.tabla}.${d.columna}: repo ${d.repo}, produccion ${d.produccion} (${d.migracion})`
+  ));
   console.log(`  CASO A · policies (nombre/cmd/roles/permissive/using/with check): ${totalPol} verificadas, 0 diferencias`);
   console.log(`  CASO B · baseline reaplicado        : NO-OP (columnas, constraints, indices y datos intactos)`);
   console.log(`  CASO B · tablas condicionales       : ${b.creates} create table if not exists, 0 operaciones destructivas`);
