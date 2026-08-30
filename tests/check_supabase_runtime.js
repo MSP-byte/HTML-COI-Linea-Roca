@@ -25,6 +25,9 @@ const POSITION_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const KEY1 = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const KEY2 = 'e1111111-1111-4111-8111-111111111111';
 
+// Solo los prerequisitos que Supabase provee de fabrica. El esquema de aplicacion
+// lo crea ahora 202608090000_core_schema_baseline.sql, de modo que este control
+// ejercita las migraciones reales en lugar de un andamiaje propio.
 const baselineSchema = `
   create role anon nologin;
   create role authenticated nologin;
@@ -36,53 +39,6 @@ const baselineSchema = `
   create function auth.jwt() returns jsonb language sql stable as $$
     select jsonb_build_object('email', current_setting('request.jwt.claim.email', true))
   $$;
-
-  create table public.coi_ordenes(
-    id uuid primary key, nro_oc text not null, id_obra text, tipo text,
-    tipo_trabajo text, especialidad text, descripcion text, proveedor text,
-    estacion text, ramal text, sector text, expediente text,
-    monto_total numeric(20,2), moneda text, fecha_acta_inicio date,
-    plazo_dias integer, fecha_vencimiento date, proxima_certificacion date,
-    fecha_recepcion_documentacion date, fecha_envio_planificacion date,
-    estado_coi text, estado_documental text, estado_registro text,
-    observaciones text, certificable_con_saldo boolean,
-    justificacion_administrativa text, link_documental_principal text,
-    estado_link_documental text, calidad_datos_estado text,
-    calidad_datos_score numeric, prioridad_operativa text,
-    responsable_coi text, fecha_ultimo_control date, requiere_accion boolean,
-    motivo_requiere_accion text, estado_envio_pyc text,
-    fecha_cierre_operativo date, observacion_cierre text,
-    control_terceros_hasta date, control_terceros_estado text,
-    actualizado_por uuid, fecha_actualizacion timestamptz
-  );
-  create table public.coi_ordenes_estaciones(
-    id uuid primary key,
-    orden_id uuid not null references public.coi_ordenes(id),
-    estacion text, ramal text, sector text,
-    es_principal boolean not null default false
-  );
-  create table public.coi_posiciones_oc(
-    id uuid primary key,
-    orden_id uuid not null references public.coi_ordenes(id),
-    nro_oc text not null, posicion text not null, descripcion text,
-    cantidad_total numeric(20,6) not null default 0, unidad_medida text,
-    precio_unitario numeric(20,6) not null default 0,
-    monto_total numeric(20,2) not null default 0, moneda text, remito text,
-    observaciones text, usuario_email text, origen_carga text,
-    cantidad_consumida numeric(20,6) not null default 0,
-    monto_consumido numeric(20,2) not null default 0,
-    cantidad_disponible numeric(20,6) not null default 0,
-    monto_disponible numeric(20,2) not null default 0,
-    estado text not null default 'LIBRE'
-  );
-  create table public.coi_certificaciones(id uuid primary key, orden_id uuid, nro_oc text);
-  create table public.coi_documentos_oc(id uuid primary key, orden_id uuid, nro_oc text);
-  create table public.coi_timeline_events(id text primary key, orden_id uuid, nro_oc text);
-  create table public.coi_auditorias_calidad(id uuid primary key);
-  create table public.coi_auditoria_global(id uuid primary key, usuario_id uuid);
-  create table public.coi_sesiones(id uuid primary key, usuario_id uuid, estado text);
-  create table public.coi_documentos_versiones(id uuid primary key, orden_id uuid, nro_oc text);
-  create table public.coi_security_health_checks(id uuid primary key);
 `;
 
 async function setUser(db, role) {
@@ -98,7 +54,9 @@ async function main() {
     const migrations = fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort();
     for (const file of migrations) {
       await db.exec(fs.readFileSync(path.join('supabase/migrations', file), 'utf8'));
-      if (file === '202608100001_preflight_reports.sql') {
+      // Las columnas de consumo las agrega el ledger financiero: los fixtures se
+      // siembran recien despues de esa migracion.
+      if (file === '202608100002_financial_ledger.sql') {
         const values = Object.entries(USERS).map(([role,[id,email]]) => `('${id}','${email}','${role}')`).join(',');
         await db.exec(`
           insert into auth.users(id,email)
