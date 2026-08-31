@@ -78,7 +78,8 @@ async function prepararEntorno(page, opciones) {
   const cfg = Object.assign({
     ums: [], sts: [], legadoUM: null, legadoST: null,
     fallaSelect: false, fallaMutacion: false, errorMutacion: 'RLS denegado',
-    retardoSelectMs: 0, pageSize: 1000, admin: true, sinSesion: false, rol: 'administrador'
+    retardoSelectMs: 0, pageSize: 1000, admin: true, sinSesion: false, rol: 'administrador',
+    ordenes: [], fallaSelectOC: false
   }, opciones);
 
   await page.addInitScript((c) => {
@@ -119,6 +120,10 @@ async function prepararEntorno(page, opciones) {
     const registrar = (op, payload) => window.__H05_LLAMADAS__.push({ op, payload });
     let ums = c.ums.slice();
     let sts = c.sts.slice();
+    // Catalogo REMOTO de Ordenes: deliberadamente distinto de todasLasOC(),
+    // que es la cache local del modulo.
+    let ordenes = (c.ordenes || []).slice();
+    window.__H05_SET_ORDENES__ = (v) => { ordenes = v.slice(); };
     window.__H05_SET_UMS__ = (v) => { ums = v.slice(); };
     window.__H05_SET_STS__ = (v) => { sts = v.slice(); };
     const espera = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -132,9 +137,14 @@ async function prepararEntorno(page, opciones) {
         st.filtros.push({ op, col, val });
         if (op === 'eq' && !st.filtro) st.filtro = { col, val };
       };
-      const cumple = (fila) => st.filtros.every((f) => (
-        f.op === 'is' ? (fila[f.col] === null || fila[f.col] === undefined) : fila[f.col] === f.val
-      ));
+      const cumple = (fila) => st.filtros.every((f) => {
+        if (f.op === 'is') return fila[f.col] === null || fila[f.col] === undefined;
+        if (f.op === 'ilike') {
+          return String(fila[f.col] == null ? '' : fila[f.col]).toUpperCase() ===
+            String(f.val == null ? '' : f.val).toUpperCase();
+        }
+        return fila[f.col] === f.val;
+      });
       const api = {
         select() { return api; },
         order() { return api; },
@@ -142,6 +152,7 @@ async function prepararEntorno(page, opciones) {
         in() { return api; },
         limit(n) { st.limite = n; return api; },
         eq(col, val) { anotar('eq', col, val); return api; },
+        ilike(col, val) { anotar('ilike', col, val); return api; },
         is(col, val) { anotar(val === null ? 'is' : 'eq', col, val); return api; },
         single() { return api._run(true); },
         insert(f) { st.op = 'insert'; st.payload = f; return api; },
@@ -150,6 +161,14 @@ async function prepararEntorno(page, opciones) {
         async _run(unico) {
           const esUM = st.tabla === 'coi_unidades_mantenimiento';
           const esST = st.tabla === 'coi_servicios_tecnicos_um';
+          if (st.tabla === 'coi_ordenes') {
+            registrar('select:coi_ordenes', st.filtros);
+            if (window.__H05_CFG__.fallaSelectOC) {
+              return { data: null, error: { message: 'fallo de red al leer Ordenes' } };
+            }
+            const halladas = ordenes.filter((o) => cumple(o));
+            return { data: st.limite ? halladas.slice(0, st.limite) : halladas, error: null };
+          }
           if (!esUM && !esST) return { data: [], error: null };
           const leer = () => (esUM ? ums : sts);
           const escribir = (v) => { if (esUM) ums = v; else sts = v; };
@@ -256,12 +275,20 @@ async function fijarAdmin(page, valor) {
 }
 
 // Catalogo de OC en memoria: un ST solo puede citar una OC que exista aca.
-async function sembrarOC(page, numeros) {
-  await page.evaluate((ns) => {
+// Siembra el catalogo de OC. Por defecto lo hace en LAS DOS puntas —la cache en
+// memoria y coi_ordenes en Supabase— porque una OC del sistema normalmente existe
+// en ambas. Con { soloCache: true } se reproduce el caso del finding: una OC que
+// sobrevive en la cache local del modulo de Ordenes pero ya no esta en el remoto.
+async function sembrarOC(page, numeros, opciones) {
+  const soloCache = Boolean(opciones && opciones.soloCache);
+  await page.evaluate(({ ns, soloCache }) => {
     window.todasLasOC = () => ns.map((n) => ({
       oc: n, item: { numeroOC: n, supabaseId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', idObra: 'OB-' + n }
     }));
-  }, numeros);
+    if (!soloCache && typeof window.__H05_SET_ORDENES__ === 'function') {
+      window.__H05_SET_ORDENES__(ns.map((n) => ({ nro_oc: n })));
+    }
+  }, { ns: numeros, soloCache: soloCache });
 }
 
 // Abre la ficha de la primera UM con un click DOM real sobre lo que renderiza
@@ -1208,7 +1235,9 @@ test('43 · cambiar la OC si exige el catalogo: nunca se acepta una OC sin valid
   await page.click('[data-h05-guardar-st-ficha]');
   await page.waitForTimeout(700);
 
-  await expect(page.locator('#stFichaMsgH05')).toContainText('catálogo de Órdenes todavía no está disponible');
+  // Sin catalogo en memoria la decision la toma Supabase, que tampoco tiene esa
+  // OC: se rechaza igual y no se persiste nada.
+  await expect(page.locator('#coiToastV581')).toContainText('no existe en Órdenes');
   expect(soloOp(await estado(page), 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
 });
 
@@ -2058,4 +2087,343 @@ test('80 · un codigo de UM realmente distinto se sigue permitiendo', async ({ p
   const e = await estado(page);
   expect(soloOp(e, 'insert:coi_unidades_mantenimiento')).toHaveLength(1);
   expect(e.ums.map((u) => u.codigo).sort()).toEqual(['ASC-001', 'ASC-002']);
+});
+
+// ================================== tercera ronda de review del PR #59
+
+// --- F1 (P1): el modo edicion de ST no sobrevive al cambio de contexto.
+
+test('81 · un alta desde el panel independiente no se convierte en UPDATE del ST que se editaba', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A, UM_B], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+
+  // 1-2) ficha de la UM A y Editar sobre su ST.
+  await editarSTEnFicha(page, ST_A.id);
+  await expect(page.locator('#fichaUMBody')).toContainText('Editar el Servicio Técnico ST-0001');
+
+  // 3) se sale de la ficha sin guardar.
+  await page.click('#btnVolverUM');
+  await page.waitForTimeout(400);
+  await irAUM(page);
+
+  // 4-5) alta nueva en el panel independiente, sobre OTRA UM.
+  await page.selectOption('#sth5_um', UM_B.id);
+  await page.fill('#sth5_nro', 'ST-NUEVO-1');
+  await page.fill('#sth5_descripcion', 'Alta desde el panel independiente');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1000);
+
+  const e = await estado(page);
+  // Exactamente un INSERT, para la UM B.
+  const inserts = soloOp(e, 'insert:coi_servicios_tecnicos_um');
+  expect(inserts).toHaveLength(1);
+  expect(inserts[0].payload.unidad_id).toBe(UM_B.id);
+  expect(inserts[0].payload.nro_st).toBe('ST-NUEVO-1');
+  // Y ni un solo UPDATE contra el ST que se estaba editando.
+  expect(soloOp(e, 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
+
+  // El ST A quedo intacto.
+  const stA = e.sts.find((s) => s.uuid === ST_A.id);
+  expect(stA.nroST).toBe('ST-0001');
+  expect(stA.unidadId).toBe(UM_A.id);
+  expect(e.sts).toHaveLength(2);
+});
+
+test('82 · renderizar el panel de alta cierra cualquier edicion de ST abierta', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  // Se vuelve al listado, que es donde vive el panel de alta.
+  const enAlta = await page.evaluate(() => {
+    if (typeof window.mostrarVista === 'function') window.mostrarVista('vistaUnidadesMantenimiento');
+    window.renderUnidadesMantenimiento();
+    return document.getElementById('umCargaSTPanelH05') !== null;
+  });
+  expect(enAlta).toBe(true);
+
+  // El formulario de alta esta vacio: no heredo el ST que se editaba.
+  await expect(page.locator('#sth5_nro')).toHaveValue('');
+  await expect(page.locator('#sth5_descripcion')).toHaveValue('');
+});
+
+test('83 · Limpiar del panel de alta tambien cierra la edicion', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+  await irAUM(page);
+
+  await page.click('#btnNuevoSTH05');
+  await page.waitForTimeout(300);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-NUEVO-2');
+  await page.fill('#sth5_descripcion', 'Tras limpiar');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1000);
+
+  const e = await estado(page);
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(1);
+  expect(soloOp(e, 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
+});
+
+test('84 · la ficha sigue pudiendo editar normalmente', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_descripcion', 'Edicion normal desde la ficha');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1000);
+
+  const e = await estado(page);
+  expect(soloOp(e, 'update:coi_servicios_tecnicos_um')).toHaveLength(1);
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+});
+
+// --- F2 (P2): localStorage.clear() no puede llevarse el legado.
+
+test('85 · clear() conserva las claves legadas y limpia el resto', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], legadoUM: UM_LEGACY, legadoST: ST_LEGACY });
+  const originalUM = JSON.stringify(UM_LEGACY);
+  const originalST = JSON.stringify(ST_LEGACY);
+  await abrir(page);
+
+  const r = await page.evaluate(({ um, st }) => {
+    localStorage.setItem('coi_clave_normal_h05', 'contenido normal');
+    const antesNormal = localStorage.getItem('coi_clave_normal_h05');
+    // Camino administrativo legado: limpiarLocal() llama directo a clear().
+    localStorage.clear();
+    return {
+      antesNormal: antesNormal,
+      normalDespues: localStorage.getItem('coi_clave_normal_h05'),
+      rawUM: window.__COI_UM_H05_LEGACY_RAW__('coi_roca_unidades_mantenimiento'),
+      rawST: window.__COI_UM_H05_LEGACY_RAW__('coi_servicios_tecnicos_um'),
+      intactoUM: window.__COI_UM_H05_LEGACY_RAW__('coi_roca_unidades_mantenimiento') === um,
+      intactoST: window.__COI_UM_H05_LEGACY_RAW__('coi_servicios_tecnicos_um') === st,
+      operativoUM: localStorage.getItem('coi_roca_unidades_mantenimiento'),
+      bloqueadas: window.__COI_UM_H05_ESCRITURAS_BLOQUEADAS__.slice()
+    };
+  }, { um: originalUM, st: originalST });
+
+  // La clave ajena se fue, como corresponde a un clear().
+  expect(r.antesNormal).toBe('contenido normal');
+  expect(r.normalDespues).toBeNull();
+  // El legado sigue fisicamente, byte a byte.
+  expect(r.intactoUM).toBe(true);
+  expect(r.intactoST).toBe(true);
+  expect(r.rawUM).toBe(originalUM);
+  expect(r.rawST).toBe(originalST);
+  // Y sigue sin ser autoritativo para los lectores operativos.
+  expect(JSON.parse(r.operativoUM)).toEqual([]);
+  // El intento queda registrado.
+  expect(r.bloqueadas.some((k) => String(k).indexOf('clear:') === 0)).toBe(true);
+});
+
+test('86 · tras un clear() el modelo remoto sigue siendo la autoridad', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], legadoUM: UM_LEGACY });
+  await abrir(page);
+  await irAUM(page);
+
+  await page.evaluate(() => localStorage.clear());
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForTimeout(900);
+
+  const e = await estado(page);
+  expect(e.sincronizado).toBe(true);
+  expect(e.ums.map((u) => u.codigo)).toEqual(['ASC-001']);
+  expect(JSON.stringify(e.ums)).not.toContain('LEGACY');
+});
+
+// --- F3 (P2): la OC se valida contra Supabase, no contra la cache.
+
+test('87 · una OC que solo existe en la cache local se rechaza', async ({ page }) => {
+  // Supabase NO tiene la OC; el catalogo en memoria si (cache del modulo Ordenes).
+  await prepararEntorno(page, { ums: [UM_A], sts: [], ordenes: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530009999'], { soloCache: true });
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-OC-CACHE');
+  await page.fill('#sth5_oc', '4530009999');
+  await page.fill('#sth5_descripcion', 'OC solo en cache');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  // Se consulto coi_ordenes de verdad y no se persistio nada.
+  expect(soloOp(e, 'select:coi_ordenes')
+    .filter((l) => (l.payload || []).some((f) => f.col === 'nro_oc')).length).toBeGreaterThan(0);
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(soloOp(e, 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
+  await expect(page.locator('#coiToastV581')).toContainText('no existe en Órdenes');
+});
+
+test('88 · una OC ausente de la cache pero presente en Supabase se acepta', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], ordenes: [{ nro_oc: '4530007777' }] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  // El catalogo en memoria queda vacio a proposito: la autoridad es Supabase.
+  await page.evaluate(() => { window.todasLasOC = () => []; });
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-OC-REMOTA');
+  await page.fill('#sth5_oc', '4530007777');
+  await page.fill('#sth5_descripcion', 'OC confirmada en Supabase');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const inserts = soloOp(e, 'insert:coi_servicios_tecnicos_um');
+  expect(inserts).toHaveLength(1);
+  expect(inserts[0].payload.nro_oc).toBe('4530007777');
+});
+
+test('89 · si la validacion remota de la OC falla, no se guarda', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [], ordenes: [{ nro_oc: '4530007777' }], fallaSelectOC: true
+  });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530007777']);
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-OC-FALLA');
+  await page.fill('#sth5_oc', '4530007777');
+  await page.fill('#sth5_descripcion', 'La validacion no se pudo hacer');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+  await expect(page.locator('#coiToastV581')).toContainText('No se pudo verificar la OC');
+});
+
+test('90 · editar otro campo con la OC sin modificar no exige validacion remota', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A], ordenes: [], fallaSelectOC: true });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  // Ni cache ni validacion remota disponibles.
+  await page.evaluate(() => { window.todasLasOC = () => []; });
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_descripcion', 'Editada sin tocar la OC');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  // La OC persistida se conserva tal cual, sin revalidar.
+  expect(updates[0].payload.patch.nro_oc).toBe(ST_A.nro_oc);
+  expect(updates[0].payload.patch.descripcion).toBe('Editada sin tocar la OC');
+  // El modulo de Ordenes lee coi_ordenes por su cuenta; lo que no puede haber
+  // es una busqueda por nro_oc, que es como valida la capa una OC cambiada.
+  const busquedasDeOC = soloOp(e, 'select:coi_ordenes')
+    .filter((l) => (l.payload || []).some((f) => f.col === 'nro_oc'));
+  expect(busquedasDeOC).toHaveLength(0);
+});
+
+test('91 · cambiar la OC de un ST existente si exige confirmacion remota', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [ST_A], ordenes: [{ nro_oc: '4530008964' }]
+  });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964', '4530009999'], { soloCache: true });
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  // 4530009999 esta en la cache pero NO en Supabase.
+  await page.fill('#stfh5_oc', '4530009999');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  expect(soloOp(e, 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(soloOp(e, 'select:coi_ordenes')
+    .filter((l) => (l.payload || []).some((f) => f.col === 'nro_oc')).length).toBeGreaterThan(0);
+  await expect(page.locator('#coiToastV581')).toContainText('no existe en Órdenes');
+});
+
+// --- F4 (P2): la estacion se compara normalizada.
+
+const UM_ESTACION_RARA = Object.assign({}, UM_A, {
+  id: 'aaaa1111-1111-4111-8111-111111111111',
+  codigo_um: 'ASC-900',
+  estacion: 'ESTACION SIN CATALOGO'
+});
+
+test('92 · la UM aparece aunque la estacion difiera en acentos o mayusculas', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_ESTACION_RARA], sts: [] });
+  await abrir(page);
+  await irAUM(page);
+
+  const r = await page.evaluate(() => {
+    const probar = (n) => (window.umsPorEstacion(n) || []).length;
+    return {
+      exacto: probar('ESTACION SIN CATALOGO'),
+      acentuado: probar('Estación Sin Catálogo'),
+      minusculas: probar('estacion sin catalogo'),
+      espacios: probar('  ESTACION   SIN CATALOGO  '),
+      otra: probar('TEMPERLEY')
+    };
+  });
+
+  expect(r.exacto).toBe(1);
+  expect(r.acentuado).toBe(1);
+  expect(r.minusculas).toBe(1);
+  expect(r.espacios).toBe(1);
+  // Una estacion realmente distinta sigue sin coincidir.
+  expect(r.otra).toBe(0);
+});
+
+test('93 · una estacion del catalogo maestro coincide escrita como la guarda Supabase', async ({ page }) => {
+  // Supabase guarda PLAZA CONSTITUCION; el catalogo dice Plaza Constitución.
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+  await irAUM(page);
+
+  const r = await page.evaluate(() => {
+    const probar = (n) => (window.umsPorEstacion(n) || []).length;
+    return {
+      comoSupabase: probar('PLAZA CONSTITUCION'),
+      comoCatalogo: probar('Plaza Constitución'),
+      minusculas: probar('plaza constitucion'),
+      otra: probar('QUILMES')
+    };
+  });
+
+  expect(r.comoSupabase).toBe(1);
+  expect(r.comoCatalogo).toBe(1);
+  expect(r.minusculas).toBe(1);
+  expect(r.otra).toBe(0);
+});
+
+test('94 · el texto de la estacion en Supabase no se reescribe', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_ESTACION_RARA], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+
+  // Se normaliza la COMPARACION, no el dato.
+  const e = await estado(page);
+  expect(e.ums[0].estacion).toBe('ESTACION SIN CATALOGO');
+  await expect(page.locator('#umTbody')).toContainText('ESTACION SIN CATALOGO');
+  // Y no se emitio ningun UPDATE para «corregir» la estacion.
+  expect(soloOp(e, 'update:coi_unidades_mantenimiento')).toHaveLength(0);
 });

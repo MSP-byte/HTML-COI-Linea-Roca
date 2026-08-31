@@ -156,10 +156,23 @@ for (const clave of [
 ]) check(textoGuard.includes(`'${clave}'`), `el congelamiento no cubre la clave legada ${clave}`);
 check(/Storage\.prototype\.getItem = function/.test(textoGuard), 'el congelamiento no intercepta getItem');
 check(/Storage\.prototype\.setItem = function/.test(textoGuard), 'el congelamiento no intercepta setItem');
-// Nunca se borra el legado: se congela.
-for (const destructivo of [/localStorage\.removeItem/, /localStorage\.clear/, /\.clear\(\)/]) {
-  check(!destructivo.test(textoGuard), `el congelamiento no puede borrar el legado: ${destructivo}`);
+// Nunca se borra el legado: se congela. Se analiza CODIGO, no prosa: los
+// comentarios del bloque nombran a proposito localStorage.clear() para explicar
+// de que camino administrativo se defiende.
+const codigoGuard = textoGuard.replace(/\/\/[^\n]*/g, '');
+for (const destructivo of [/localStorage\.removeItem/, /localStorage\.clear/]) {
+  check(!destructivo.test(codigoGuard), `el congelamiento no puede borrar el legado: ${destructivo}`);
 }
+// clear() tampoco puede llevarse las claves legadas: no pasa por removeItem, de
+// modo que necesita su propia intercepcion.
+check(/Storage\.prototype\.clear = function/.test(codigoGuard),
+  'el congelamiento no intercepta clear(): limpiarLocal() borraria el legado');
+check(/var clearNativo = Storage\.prototype\.clear;/.test(codigoGuard),
+  'falta la referencia nativa a clear()');
+check(/clearNativo\.call\(this\);/.test(codigoGuard),
+  'clear() debe delegar en el nativo, no llamarse a si mismo');
+check(/setItemNativo\.call\(this, conservados/.test(codigoGuard),
+  'las claves legadas deben reponerse con el setItem NATIVO, que el wrapper bloquea');
 check(/__COI_UM_H05_LEGACY_RAW__/.test(textoGuard) && /__COI_UM_H05_LEGACY_WRITE__/.test(textoGuard),
   'el congelamiento debe dejar una via deliberada de acceso al legado para H06');
 
@@ -421,6 +434,57 @@ check(umCanonico.indice === 'coi_unidades_mantenimiento_codigo_um_canonico_uidx'
   'la divergencia debe nombrar el indice tal como lo crea la migracion');
 check(umCanonico.produccion === 'ausente' && umCanonico.repo === 'presente',
   'la divergencia de UM debe declarar produccion ausente y repo presente');
+
+
+// ------------------------------------------- 5e) tercera ronda de review
+// F1 · El modo edicion de ST pertenece a la ficha donde se inicio.
+check(/function limpiarEdicionST\(\)/.test(capa.texto),
+  'falta el reset explicito del modo edicion de ST');
+check(/const contextoDeFicha = prefijo === 'stfh5';/.test(capa.texto),
+  'guardarST debe distinguir el contexto de ficha del panel de alta');
+check(/if \(!contextoDeFicha\) limpiarEdicionST\(\);/.test(capa.texto),
+  'el panel de alta tiene que entrar inequivocamente en modo INSERT');
+// Y el reset ocurre al cambiar de contexto, no solo al guardar.
+check(/limpiarEdicionST\(\);[\s\S]{0,200}const firma = firmaPanelST\(\);/.test(capa.texto),
+  'renderizar el panel de alta debe cerrar cualquier edicion abierta');
+check(/#btnVolverUM[\s\S]{0,320}limpiarEdicionST\(\);/.test(capa.texto),
+  'salir de la ficha debe cerrar la edicion de ST');
+check(/#btnNuevoSTH05'\)\) \{ tomar\(\); limpiarEdicionST\(\);/.test(capa.texto),
+  'Limpiar del panel de alta debe cerrar la edicion');
+
+// F3 · La OC se valida contra Supabase, no contra la cache de Ordenes.
+check(/const TABLA_OC = 'coi_ordenes';/.test(capa.texto),
+  'falta la tabla remota de Ordenes para validar la OC');
+check(/async function ocExisteEnSupabase\(c, valor\)/.test(capa.texto),
+  'falta la confirmacion remota de la OC');
+check(/from\(TABLA_OC\)\.select\('nro_oc'\)/.test(capa.texto),
+  'la validacion de OC debe consultar coi_ordenes en Supabase');
+check(/async function confirmarOC\(\)/.test(capa.texto),
+  'la confirmacion de OC debe correr antes de persistir');
+check(/No se pudo verificar la OC/.test(capa.texto),
+  'si la validacion remota falla no se puede guardar en silencio');
+check(/preparado\.ocPorConfirmar/.test(capa.texto),
+  'solo una OC nueva o cambiada exige confirmacion remota');
+// La decision previa se mantiene: una OC sin modificar no bloquea la edicion.
+check(/Sin cambios: se conserva la OC ya persistida y no se revalida/.test(capa.texto),
+  'una OC no modificada debe conservarse sin revalidar');
+// Y nunca se crea una OC.
+check(!/from\(TABLA_OC\)\.insert/.test(capa.texto),
+  'un Servicio Tecnico no puede crear una Orden de Compra');
+
+// F4 · La estacion se compara normalizada, no por texto exacto.
+check(/window\.umsPorEstacion = function \(nombre\)/.test(capa.texto),
+  'la capa debe gobernar la busqueda de UM por estacion');
+check(/const claveEstacion = /.test(capa.texto),
+  'falta la clave de comparacion de estaciones');
+check(/window\.normalizarNombreEstacion/.test(capa.texto),
+  'se debe reutilizar el canonicalizador de estaciones del proyecto');
+check(/window\.resolverEstacionMaestra/.test(capa.texto),
+  'se debe reutilizar el resolvedor de estaciones del proyecto');
+check(/claveEstacion\(u\.estacion\) === claveBuscada/.test(capa.texto),
+  'la comparacion de respaldo debe ser normalizada, nunca exacta');
+check(!/u\.estacion === nombre/.test(capa.texto),
+  'no puede quedar ninguna comparacion exacta de estacion en la capa');
 
 // ------------------------------------------- 6) el guard de integridad acompaña
 const migracion = fs.readFileSync('supabase/migrations/202608300003_h05_um_delete_guard.sql', 'utf8');

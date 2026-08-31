@@ -272,5 +272,69 @@ Decisión explícita de **no** autoasignarlos a una UM ni crear una UM contenedo
 elegir un destino es una decisión operativa con consecuencias de trazabilidad, y
 adivinarla sería peor que mostrar el problema.
 
+## TD-024 — El modo edición de ST pertenece a la ficha donde se inició
+Fecha: 2026-08-31.
+
+`stEditandoUuid` sobrevivía a salir de la ficha, así que un alta hecha después en
+el panel independiente se interpretaba como UPDATE y podía sobrescribir en
+silencio el ST que se estaba editando.
+
+Decisión: el estado se resetea al cambiar de contexto —salir de la ficha,
+renderizar el panel de alta, pulsar Limpiar— y no dentro de `guardarST()`.
+Además `guardarST()` distingue estructuralmente el contexto por prefijo del
+formulario (`stfh5` = ficha, `sth5` = alta): el panel de alta **nunca** hereda
+una edición previa. Son dos capas: la primera arregla el estado, la segunda hace
+que el contrato sea explícito en lugar de implícito.
+
+## TD-025 — Congelar el legado incluye `clear()`
+Fecha: 2026-08-31.
+
+El escudo cubría `getItem`, `setItem` y `removeItem`, pero `limpiarLocal()` de
+Administración llama directo a `localStorage.clear()`, que no pasa por
+`removeItem`. Como `setItem` sobre esas claves ya estaba bloqueado, un `clear()`
+habría destruido el legado **sin manera de reponerlo** antes de H06.
+
+Decisión: `clear()` también se intercepta. Se releen las claves legadas con la
+API nativa, se ejecuta el `clear` nativo y se reponen solo esas claves con el
+`setItem` **nativo** —el wrapper las bloquea a propósito—. El resto del
+almacenamiento se limpia normalmente y el intento queda registrado.
+
+Esto es preservación física hasta H06, no reactivación operacional: los lectores
+operativos siguen viendo `[]`.
+
+## TD-026 — La OC de un ST se valida contra Supabase, no contra la caché
+Fecha: 2026-08-31.
+
+`resolverOC()` validaba contra `todasLasOC()`, que el módulo de Órdenes puede
+estar sirviendo desde su caché local cuando su propia lectura remota falla. Una
+OC eliminada o cerrada seguiría figurando ahí y quedaría persistida como
+asociación obsoleta del ST.
+
+Decisión: crear un ST con OC, o cambiar la OC de uno existente, exige confirmar
+contra `coi_ordenes` en Supabase. Si la lectura remota falla **no se guarda**:
+una asociación sin validar es peor que no guardar nada. Nunca se crea una OC.
+
+Se mantiene [[TD-013]]: si la OC persistida no fue modificada, se conserva sin
+revalidar. Eso no relaja nada —no entra ninguna OC nueva sin confirmar— y evita
+bloquear la edición de otro campo por una validación que no hace falta.
+
+El catálogo en memoria se sigue usando para avisar temprano, pero ya no decide.
+
+## TD-027 — La estación se compara normalizada, el dato no se toca
+Fecha: 2026-08-31.
+
+`umsPorEstacion()` resolvía bien por el catálogo maestro, pero caía a comparación
+**exacta** cuando la estación no estaba catalogada. Verificado: con
+`ESTACION SIN CATALOGO` en Supabase, buscar `Estación Sin Catálogo` o
+`estacion sin catalogo` devolvía 0 UM, así que la Red podía mostrar el activo
+como inexistente mientras Administración lo listaba.
+
+Decisión: se normaliza la **comparación**, nunca el valor almacenado. Se
+reutiliza el canonicalizador del proyecto (`resolverEstacionMaestra` y
+`normalizarNombreEstacion`) y solo se cae a una clave equivalente —sin acentos,
+mayúsculas, espacios colapsados— si esos helpers no estuvieran disponibles.
+Primero se compara por identidad del catálogo maestro; el nombre normalizado es
+el respaldo. Ninguna rama compara texto exacto.
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.

@@ -11367,6 +11367,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   var getItemNativo = Storage.prototype.getItem;
   var setItemNativo = Storage.prototype.setItem;
   var removeItemNativo = Storage.prototype.removeItem;
+  var clearNativo = Storage.prototype.clear;
 
   window.__COI_UM_H05_LEGACY_RAW__ = function (k) {
     try { return getItemNativo.call(window.localStorage, k); } catch (e) { return null; }
@@ -11400,6 +11401,28 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
         return undefined;
       }
       return removeItemNativo.call(this, k);
+    };
+    // clear() no pasa por removeItem: limpiarLocal() de Administracion llama
+    // directo a localStorage.clear() y se llevaria por delante las claves que
+    // prometimos conservar intactas hasta H06. Se preservan releyendo con la API
+    // NATIVA antes de limpiar y reponiendolas con el setItem NATIVO, porque el
+    // wrapper de arriba las bloquea a proposito.
+    Storage.prototype.clear = function () {
+      var conservados = [];
+      for (var i = 0; i < CLAVES_LEGADAS.length; i++) {
+        var k = CLAVES_LEGADAS[i];
+        var v = null;
+        try { v = getItemNativo.call(this, k); } catch (e) { v = null; }
+        if (v !== null) conservados.push([k, v]);
+      }
+      clearNativo.call(this);
+      for (var j = 0; j < conservados.length; j++) {
+        try { setItemNativo.call(this, conservados[j][0], conservados[j][1]); } catch (e) {}
+      }
+      if (conservados.length) {
+        window.__COI_UM_H05_ESCRITURAS_BLOQUEADAS__.push('clear:' + conservados.length);
+      }
+      return undefined;
     };
     Storage.prototype.__coiUmH05Shield = true;
   }
@@ -27851,6 +27874,7 @@ document.addEventListener('click',function(event){
 
   const TABLA_UM = 'coi_unidades_mantenimiento';
   const TABLA_ST = 'coi_servicios_tecnicos_um';
+  const TABLA_OC = 'coi_ordenes';
   const CAMPOS_UM = 'id,codigo_um,tipo_um,estacion,ramal,sector,descripcion,marca,modelo,nro_serie,estado,proveedor_mantenimiento,observaciones,fecha_creacion,fecha_actualizacion';
   const CAMPOS_ST = 'id,unidad_id,nro_st,nro_oc,fecha,descripcion,tecnico,proveedor,estado,observaciones,fecha_creacion,fecha_actualizacion';
   const PAGE_SIZE = 1000;
@@ -28084,6 +28108,24 @@ document.addEventListener('click',function(event){
     return null;
   }
   const hayCatalogoOC = () => filasOC().length > 0;
+
+  // Confirma contra Supabase que la OC existe HOY. Devuelve el nro_oc canonico
+  // del servidor, o null si no existe. Lanza si la lectura falla: ante una
+  // validacion que no se pudo hacer, no se persiste la asociacion.
+  async function ocExisteEnSupabase(c, valor) {
+    const buscado = texto(valor);
+    if (!buscado) return null;
+    const exacta = await c.from(TABLA_OC).select('nro_oc').eq('nro_oc', buscado).limit(1);
+    if (exacta.error) throw exacta.error;
+    const directa = (exacta.data || []).find((r) => clave(r.nro_oc) === clave(buscado));
+    if (directa) return texto(directa.nro_oc);
+    // Segundo intento tolerante a mayusculas/minusculas: la comparacion final
+    // sigue siendo la normalizada, para no aceptar un parecido.
+    const laxa = await c.from(TABLA_OC).select('nro_oc').ilike('nro_oc', buscado).limit(20);
+    if (laxa.error) throw laxa.error;
+    const encontrada = (laxa.data || []).find((r) => clave(r.nro_oc) === clave(buscado));
+    return encontrada ? texto(encontrada.nro_oc) : null;
+  }
 
   // ---------------------------------------------------------- memoria y UI
   // Snapshot remoto: arreglo y filas congelados. No se comparte ninguna
@@ -28694,6 +28736,12 @@ document.addEventListener('click',function(event){
       card.style.margin = '18px 0 0';
       host.appendChild(card);
     }
+    // El panel de alta entra siempre en modo INSERT, pero solo cuenta como
+    // «cambio de contexto» si la ficha NO esta a la vista: refrescarUI() puede
+    // renderizar el listado con la ficha abierta, y ahi la edicion en curso sigue
+    // siendo legitima.
+    const fichaAbierta = Boolean($('vistaFichaUM') && $('vistaFichaUM').classList.contains('active'));
+    if (!fichaAbierta) limpiarEdicionST();
     const firma = firmaPanelST();
     if (!forzar && card.dataset.h05Firma === firma && card.childElementCount) return;
     const activo = document.activeElement;
@@ -28759,15 +28807,21 @@ document.addEventListener('click',function(event){
     // nro_oc es nullable. Si se informa, tiene que existir en el catalogo remoto
     // de OC: un ST nunca crea una OC ni acepta las OC de demostracion legadas.
     let nroOC = null;
+    let ocPorConfirmar = null;
     if (datos.oc && texto(ocOriginal) && clave(datos.oc) === clave(ocOriginal)) {
-      // Sin cambios: se conserva la OC que ya estaba guardada.
+      // Sin cambios: se conserva la OC ya persistida y no se revalida. Es mas
+      // seguro (no entra ninguna OC nueva sin confirmar) y evita bloquear la
+      // edicion de otro campo por una validacion que no hace falta.
       nroOC = texto(ocOriginal);
     } else if (datos.oc) {
-      if (!hayCatalogoOC()) {
-        return { error: 'El catálogo de Órdenes todavía no está disponible: reintente en unos segundos o deje la OC vacía.' };
+      // OC nueva o cambiada: el catalogo en memoria sirve para avisar temprano,
+      // pero la decision la toma Supabase mas abajo. todasLasOC() puede venir de
+      // la cache local del modulo de Ordenes y contener una OC que ya no existe.
+      if (hayCatalogoOC() && !resolverOC(datos.oc)) {
+        return { error: 'La OC ' + datos.oc + ' no existe en Órdenes. Corrija el número o deje el campo vacío.' };
       }
-      nroOC = resolverOC(datos.oc);
-      if (!nroOC) return { error: 'La OC ' + datos.oc + ' no existe en Órdenes. Corrija el número o deje el campo vacío.' };
+      ocPorConfirmar = texto(datos.oc);
+      nroOC = ocPorConfirmar;
     }
 
     // La tabla admite una fila por (unidad_id, nro_st). Se comprueba antes de
@@ -28782,6 +28836,7 @@ document.addEventListener('click',function(event){
     }
 
     return {
+      ocPorConfirmar: ocPorConfirmar,
       fila: {
         unidad_id: um._supabaseId,
         nro_st: datos.nroST,
@@ -28801,9 +28856,14 @@ document.addEventListener('click',function(event){
   // edicion nunca inserta una fila nueva ni borra la anterior.
   function guardarST(prefijo, unidadFija, mensaje) {
     if (!esAdministrador()) return avisar('Solo Administrador puede cargar Servicios Técnicos.', 'warn');
-    const editando = stEditandoUuid ? stPorUuid(stEditandoUuid) : null;
-    if (stEditandoUuid && !editando) {
-      stEditandoUuid = null;
+    // El modo edicion solo es valido en el formulario de la ficha (prefijo
+    // stfh5) y mientras esa ficha siga siendo el contexto. El panel de alta
+    // usa otro prefijo y nunca hereda una edicion previa.
+    const contextoDeFicha = prefijo === 'stfh5';
+    if (!contextoDeFicha) limpiarEdicionST();
+    const editando = (contextoDeFicha && stEditandoUuid) ? stPorUuid(stEditandoUuid) : null;
+    if (contextoDeFicha && stEditandoUuid && !editando) {
+      limpiarEdicionST();
       return avisar('El Servicio Técnico que estaba editando ya no existe en Supabase.', 'error');
     }
     // En edicion la UM es la del propio ST, no lo que diga el formulario.
@@ -28817,22 +28877,48 @@ document.addEventListener('click',function(event){
       avisar(preparado.error, 'warn');
       return;
     }
+    // Una OC nueva o cambiada se confirma contra Supabase antes de persistirla.
+    // Si la lectura falla, no se guarda: una asociacion sin validar es peor que
+    // no guardar nada.
+    async function confirmarOC() {
+      if (!preparado.ocPorConfirmar) return;
+      const { c } = await exigirEscritura();
+      let real = null;
+      try {
+        real = await ocExisteEnSupabase(c, preparado.ocPorConfirmar);
+      } catch (error) {
+        const e = new Error('No se pudo verificar la OC ' + preparado.ocPorConfirmar +
+          ' contra Órdenes. No se guardó: reintente cuando haya conexión.');
+        e.coiMensajeDirecto = true;
+        throw e;
+      }
+      if (!real) {
+        const e = new Error('La OC ' + preparado.ocPorConfirmar +
+          ' no existe en Órdenes. Corrija el número o deje el campo vacío.');
+        e.coiMensajeDirecto = true;
+        throw e;
+      }
+      preparado.fila.nro_oc = real;
+    }
+
     if (editando) {
       const uuid = editando._supabaseId;
       conManejoDeError('stEditar:' + uuid, async () => {
+        await confirmarOC();
         // unidad_id no viaja en el patch: editar no reasigna la UM.
         const patch = Object.assign({}, preparado.fila);
         delete patch.unidad_id;
         await actualizarST(uuid, patch, stEditandoVersion);
-        stEditandoUuid = null;
-        stEditandoVersion = null;
-        stEditandoEstadoOriginal = null;
+        limpiarEdicionST();
       }, 'Servicio Técnico actualizado.');
       return;
     }
     conManejoDeError(
       'st:' + preparado.fila.unidad_id + ':' + claveST(preparado.fila.nro_st),
-      () => crearST(preparado.fila),
+      async () => {
+        await confirmarOC();
+        await crearST(preparado.fila);
+      },
       'Servicio Técnico guardado.'
     );
   }
@@ -28845,12 +28931,18 @@ document.addEventListener('click',function(event){
     renderFichaUM(st._unidadId, true);
   }
 
-  function salirDeEdicionST() {
-    if (!stEditandoUuid) return;
-    const st = stPorUuid(stEditandoUuid);
+  // Reset del modo edicion. `motivo` queda solo como documentacion del punto
+  // desde el que se llamo.
+  function limpiarEdicionST() {
     stEditandoUuid = null;
     stEditandoVersion = null;
     stEditandoEstadoOriginal = null;
+  }
+
+  function salirDeEdicionST() {
+    if (!stEditandoUuid) return;
+    const st = stPorUuid(stEditandoUuid);
+    limpiarEdicionST();
     renderFichaUM(st ? st._unidadId : fichaUuid, true);
   }
 
@@ -29263,6 +29355,44 @@ document.addEventListener('click',function(event){
     };
     window.recargarUnidadesMantenimiento = recargarYRefrescar;
 
+    // Clave de comparacion de estaciones: se prefiere el canonicalizador que ya
+    // usa el proyecto y, si no estuviera, se cae a una normalizacion equivalente
+    // (sin acentos, mayusculas, espacios colapsados).
+    const claveEstacion = (v) => {
+      try {
+        if (typeof window.normalizarNombreEstacion === 'function') {
+          return window.normalizarNombreEstacion(v);
+        }
+      } catch (e) {}
+      return norm(v).replace(/[^A-Z0-9]+/g, ' ').trim();
+    };
+    const idMaestroEstacion = (v) => {
+      try {
+        if (typeof window.resolverEstacionMaestra === 'function') {
+          const e = window.resolverEstacionMaestra(v);
+          return (e && e.idEstacion) || null;
+        }
+      } catch (e) {}
+      return null;
+    };
+    window.umsPorEstacion = function (nombre) {
+      const idBuscado = idMaestroEstacion(nombre);
+      const claveBuscada = claveEstacion(
+        idBuscado && typeof window.getNombreEstacionMaestra === 'function'
+          ? window.getNombreEstacionMaestra(idBuscado)
+          : nombre
+      );
+      if (!claveBuscada && !idBuscado) return [];
+      return listaUM().filter((u) => {
+        // Primero por identidad del catalogo maestro; si alguna de las dos
+        // puntas no esta catalogada, por nombre normalizado. Nunca exacto.
+        const idUM = idMaestroEstacion(u.estacion);
+        if (idBuscado && idUM) return idUM === idBuscado;
+        return Boolean(claveBuscada) && claveEstacion(u.estacion) === claveBuscada;
+      });
+    };
+    try { umsPorEstacion = window.umsPorEstacion; } catch (e) {}
+
     if (window.__COI_UM_H05_BOUND__) return;
     window.__COI_UM_H05_BOUND__ = true;
 
@@ -29284,7 +29414,7 @@ document.addEventListener('click',function(event){
       if (t.closest('#btnNuevaUMH05')) { tomar(); limpiarFormUM(); return; }
       if (t.closest('#btnBajaUMH05')) { tomar(); darDeBajaUM(); return; }
       if (t.closest('#btnGuardarSTH05')) { tomar(); guardarST('sth5', '', mensajeFormST); return; }
-      if (t.closest('#btnNuevoSTH05')) { tomar(); renderPanelST(true); return; }
+      if (t.closest('#btnNuevoSTH05')) { tomar(); limpiarEdicionST(); renderPanelST(true); return; }
       if (t.closest('#btnRefrescarUMH05')) { tomar(); recargarYRefrescar().catch(() => {}); return; }
 
       const guardarFicha = t.closest('[data-h05-guardar-st-ficha]');
@@ -29322,6 +29452,12 @@ document.addEventListener('click',function(event){
       if (t.closest('[data-r16-del-st]')) {
         tomar();
         avisar('Los Servicios Técnicos no se eliminan: use Cancelar en la ficha de la UM.', 'warn');
+        return;
+      }
+      if (t.closest('#btnVolverUM')) {
+        // Se abandona la ficha: la edicion de ST que hubiera alli termina aca.
+        // No se detiene la propagacion: el boton conserva su comportamiento.
+        limpiarEdicionST();
         return;
       }
       if (t.closest('#btnEditarUM')) {
