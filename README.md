@@ -12,7 +12,7 @@ https://msp-byte.github.io/HTML-COI-Linea-Roca/?v=594
 ## Gestión Integral de Obras y Servicios
 
 1. Introducción
-El Sistema COI Línea Roca es una herramienta de gestión operativa diseñada para la Gerencia de Obras e Ingeniería, que permite visualizar, administrar y realizar el seguimiento integral de obras, servicios y compromisos contractuales asociados a la red ferroviaria.
+El Sistema COI Línea Roca es una herramienta de gestión operativa diseñada para la Coordinación de Obras e Ingeniería, que permite visualizar, administrar y realizar el seguimiento integral de obras, servicios y compromisos contractuales asociados a la red ferroviaria.
 Se trata de un sistema liviano, desarrollado en HTML, CSS y JavaScript, sin dependencia de servidores externos, lo que garantiza rapidez, autonomía y disponibilidad inmediata.
 
 2. Objetivo del sistema
