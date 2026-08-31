@@ -1,7 +1,8 @@
 {
   "_doc": "Snapshot de information_schema y pg_catalog tomado en lectura sobre produccion (ooepgbzqlpjrtpaoqawc), verificado identico en staging (brmrroikctfbtzwfewan). Contrato autoritativo de las 10 tablas que el baseline 202608090000_core_schema_baseline.sql debe reproducir. nn=NOT NULL, def=fragmento esperado del default, gen=generated always stored, tipo=fragmento de data_type. fk=[columna, tabla_destino, accion ON DELETE]. policies solo se declaran para las cuatro tablas que ninguna migracion posterior gobierna; las demas las administra coi_apply_optional_role_rls.",
   "_divergencias_pendientes": {
-    "_doc": "Desvios DELIBERADOS entre el repositorio y el snapshot productivo, introducidos por una migracion todavia NO aplicada a produccion ni a staging. check_schema_reproducibility.js espera el valor «repo» y deja constancia del valor «produccion» hasta que la migracion se aplique; entonces se actualiza el snapshot y la entrada pasa de «fk» a «_resueltas».",
+    "_doc": "Desvios DELIBERADOS entre el repositorio y el snapshot productivo, introducidos por una migracion todavia NO aplicada a produccion ni a staging. check_schema_reproducibility.js espera el valor «repo» y deja constancia del valor «produccion» hasta que la migracion se aplique; entonces se actualiza el snapshot y la entrada pasa de «fk»/«unique» a «_resueltas».",
+    "_doc_unique": "Constraints UNIQUE que el repositorio crea y produccion todavia no tiene. El bloque «unique» de cada tabla mas abajo sigue siendo el snapshot productivo: aca se declara lo que el repositorio DEBE producir de mas. check_schema_reproducibility.js verifica que el constraint exista realmente tras aplicar las migraciones, para que la divergencia quede probada y no solo escrita.",
     "_doc_resueltas": "Divergencias YA aplicadas en remoto. No las verifica check_schema_reproducibility.js: el snapshot productivo de mas abajo ya refleja el valor definitivo. Se conservan como historia de la reconciliacion.",
     "fk": [
       {
@@ -11,6 +12,20 @@
         "repo": "RESTRICT",
         "migracion": "202608300003_h05_um_delete_guard.sql",
         "motivo": "Los Servicios Tecnicos son el historial tecnico de la Unidad de Mantenimiento: dar de baja o eliminar una UM no puede destruirlos por cascada. H05 deja la UM como dato Supabase-first y sustituye el borrado fisico por estado BAJA."
+      }
+    ],
+    "unique": [
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "columnas": [
+          "unidad_id",
+          "nro_st"
+        ],
+        "constraint": "coi_servicios_tecnicos_um_unidad_nro_st_key",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310001_h04_st_unique_guard.sql",
+        "motivo": "La capa H04 comprueba el duplicado antes de insertar, pero con dos operadores concurrentes ambos leen «no existe» y despues insertan. La autoridad ante concurrencia tiene que estar en la base."
       }
     ],
     "_resueltas": [

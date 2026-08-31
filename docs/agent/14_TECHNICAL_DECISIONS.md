@@ -70,5 +70,45 @@ Toda escritura viaja con el `id` uuid. `codigo_um` es atributo UNIQUE y etiqueta
 visible. El selector de UM del formulario de ST expone el UUID como `value`: la
 UI no vuelve a manejar identificadores legados tipo `UM-001`.
 
+## TD-012 — La unicidad del ST es de la base, no del frontend
+Fecha: 2026-08-31.
+
+`coi_servicios_tecnicos_um` no tenía UNIQUE (unidad_id, nro_st): la capa H04
+evitaba duplicados comprobando antes de insertar. Con dos operadores
+concurrentes eso no es integridad —ambos leen «no existe» y después insertan—.
+
+Decisión: la autoridad pasa a PostgreSQL
+(`202608310001_h04_st_unique_guard.sql`). La comprobación previa se conserva
+porque da un mensaje operativo mucho mejor que un error de base, pero ya no es
+la garantía; el 23505 se traduce a un mensaje entendible tanto en alta como en
+edición.
+
+Los NULL siguen siendo distintos entre sí: dos ST sin número no colisionan. Es
+deliberado, porque `nro_st` es nullable en el esquema aunque la UI lo exija.
+
+Si la migración encontrara duplicados preexistentes, **aborta** informando
+cuáles son en lugar de crear el constraint a la fuerza o de «arreglar» filas:
+resolverlos es una decisión operativa. Ver [[KI-011]].
+
+## TD-013 — Editar un ST no reasigna su Unidad de Mantenimiento
+Fecha: 2026-08-31.
+
+La ficha de UM ahora permite editar un Servicio Técnico existente. La edición va
+por UPDATE contra el `id` uuid: nunca inserta una fila nueva ni borra la
+anterior. El formulario de edición no ofrece cambiar la UM, porque mover un ST
+de un activo a otro no es editar sino reasignar historial técnico, y sería una
+operación distinta con otras consecuencias de trazabilidad.
+
+Al comprobar el duplicado (unidad_id, nro_st) se excluye el propio uuid: dejar
+el mismo número no es un choque consigo mismo.
+
+Si la OC no se modifica, se conserva la ya persistida sin volver a consultar el
+catálogo de Órdenes. Es más seguro (no se acepta ninguna OC nueva sin validar) y
+evita bloquear la edición de la descripción solo porque Órdenes todavía no
+terminó de cargar. Cambiar la OC sí exige el catálogo, igual que en el alta.
+
+`cambiarEstadoST()` se retiró: existía sin control asociado y el estado pasó a
+ser un campo más del formulario de edición.
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.

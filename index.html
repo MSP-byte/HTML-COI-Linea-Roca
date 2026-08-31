@@ -27832,9 +27832,6 @@ document.addEventListener('click',function(event){
   const ESTADOS_ST = ['Pendiente', 'En curso', 'Resuelto', 'Cancelado'];
   const TIPOS_UM_SUGERIDOS = ['Ascensor', 'Escalera mecánica', 'Montacarga', 'Puertas automáticas', 'Instalación fija', 'Otro'];
 
-  // Referencia propia a getItem, tomada antes de instalar el escudo.
-  const getItemNativo = Storage.prototype.getItem;
-
   const runtime = {
     origen: 'inicial',      // supabase | error-sin-sincronizar
     ultimoError: null,
@@ -28204,7 +28201,13 @@ document.addEventListener('click',function(event){
     if (!esUuid(id)) throw new Error('Servicio Tecnico sin identificador remoto.');
     const cuerpo = Object.assign({}, patch, { fecha_actualizacion: new Date().toISOString() });
     const { data, error } = await c.from(TABLA_ST).update(cuerpo).eq('id', id).select(CAMPOS_ST);
-    if (error) throw error;
+    if (error) {
+      // El UNIQUE (unidad_id, nro_st) puede rechazar la edicion aunque la
+      // comprobacion previa haya pasado: otro puesto pudo tomar ese numero.
+      throw errorUnico(error,
+        'Otro Servicio Técnico de esa Unidad de Mantenimiento ya usa el número ' +
+        texto(patch && patch.nro_st) + '. Actualice y vuelva a intentar.') || error;
+    }
     if (!data || !data.length) throw new Error('El servidor no aplico el cambio (permisos insuficientes).');
     return data[0];
   }
@@ -28428,19 +28431,23 @@ document.addEventListener('click',function(event){
     }).join('');
   }
 
-  function camposST(prefijo, unidadSeleccionada, conSelectorUM) {
+  // `st` precarga el formulario cuando se esta editando un Servicio Tecnico
+  // existente. En modo edicion la UM queda fija: cambiar de unidad seria mover
+  // historial tecnico de un activo a otro, que no es editar sino otra operacion.
+  function camposST(prefijo, unidadSeleccionada, conSelectorUM, st) {
     const d = esAdministrador() ? '' : ' disabled';
+    const v = st || {};
     return (conSelectorUM
       ? '<div><label>UM asociada *</label><select id="' + prefijo + '_um"' + d + '>' + opcionesUM(unidadSeleccionada) + '</select></div>'
       : '') +
-      '<div><label>N° ST *</label><input id="' + prefijo + '_nro" placeholder="ST-0001"' + d + '></div>' +
-      '<div><label>Fecha *</label><input id="' + prefijo + '_fecha" type="date" value="' + esc(hoyISO()) + '"' + d + '></div>' +
-      '<div><label>OC asociada</label><input id="' + prefijo + '_oc" placeholder="Opcional · debe existir en Órdenes"' + d + '></div>' +
-      '<div><label>Estado *</label><select id="' + prefijo + '_estado"' + d + '>' + opcionesSelect(ESTADOS_ST, 'Pendiente', null) + '</select></div>' +
-      '<div><label>Técnico</label><input id="' + prefijo + '_tecnico"' + d + '></div>' +
-      '<div><label>Proveedor</label><input id="' + prefijo + '_proveedor"' + d + '></div>' +
-      '<div class="full"><label>Descripción *</label><textarea id="' + prefijo + '_descripcion" placeholder="Trabajos realizados y repuestos utilizados"' + d + '></textarea></div>' +
-      '<div class="full"><label>Observaciones</label><textarea id="' + prefijo + '_observaciones"' + d + '></textarea></div>';
+      '<div><label>N° ST *</label><input id="' + prefijo + '_nro" placeholder="ST-0001" value="' + esc(v.nroST) + '"' + d + '></div>' +
+      '<div><label>Fecha *</label><input id="' + prefijo + '_fecha" type="date" value="' + esc(v.fecha || hoyISO()) + '"' + d + '></div>' +
+      '<div><label>OC asociada</label><input id="' + prefijo + '_oc" placeholder="Opcional · debe existir en Órdenes" value="' + esc(v.nroOC) + '"' + d + '></div>' +
+      '<div><label>Estado *</label><select id="' + prefijo + '_estado"' + d + '>' + opcionesSelect(ESTADOS_ST, v.estado || 'Pendiente', null) + '</select></div>' +
+      '<div><label>Técnico</label><input id="' + prefijo + '_tecnico" value="' + esc(v.tecnico) + '"' + d + '></div>' +
+      '<div><label>Proveedor</label><input id="' + prefijo + '_proveedor" value="' + esc(v.proveedor) + '"' + d + '></div>' +
+      '<div class="full"><label>Descripción *</label><textarea id="' + prefijo + '_descripcion" placeholder="Trabajos realizados y repuestos utilizados"' + d + '>' + esc(v.descripcion) + '</textarea></div>' +
+      '<div class="full"><label>Observaciones</label><textarea id="' + prefijo + '_observaciones"' + d + '>' + esc(v.observaciones) + '</textarea></div>';
   }
 
   function leerFormST(prefijo, unidadFija) {
@@ -28521,7 +28528,12 @@ document.addEventListener('click',function(event){
   }
 
   // Valida y arma la fila remota. Devuelve {fila} o {error}.
-  function prepararFilaST(datos) {
+  // `excluirUuid` es el ST que se esta editando: no puede chocar consigo mismo.
+  // `ocOriginal` es la OC ya persistida de ese ST: si el operador no la toca, se
+  // conserva tal cual sin volver a consultar el catalogo. Es mas seguro (no se
+  // acepta ninguna OC nueva sin validar) y evita bloquear la edicion de la
+  // descripcion solo porque el catalogo de Ordenes todavia no termino de cargar.
+  function prepararFilaST(datos, excluirUuid, ocOriginal) {
     if (!esUuid(datos.unidadId)) {
       return { error: 'Seleccione una Unidad de Mantenimiento del catálogo remoto.' };
     }
@@ -28543,7 +28555,10 @@ document.addEventListener('click',function(event){
     // nro_oc es nullable. Si se informa, tiene que existir en el catalogo remoto
     // de OC: un ST nunca crea una OC ni acepta las OC de demostracion legadas.
     let nroOC = null;
-    if (datos.oc) {
+    if (datos.oc && texto(ocOriginal) && clave(datos.oc) === clave(ocOriginal)) {
+      // Sin cambios: se conserva la OC que ya estaba guardada.
+      nroOC = texto(ocOriginal);
+    } else if (datos.oc) {
       if (!hayCatalogoOC()) {
         return { error: 'El catálogo de Órdenes todavía no está disponible: reintente en unos segundos o deje la OC vacía.' };
       }
@@ -28553,7 +28568,10 @@ document.addEventListener('click',function(event){
 
     // La tabla admite una fila por (unidad_id, nro_st). Se comprueba antes de
     // salir a la red para dar un mensaje operativo en vez de un error de base.
-    const duplicado = stDeUM(um._supabaseId).find((s) => clave(s.nroST) === clave(datos.nroST));
+    // El UNIQUE (unidad_id, nro_st) de 202608310001_h04_st_unique_guard.sql es la
+    // autoridad ante concurrencia; esta comprobacion solo da un mensaje operativo.
+    const duplicado = stDeUM(um._supabaseId).find((s) =>
+      clave(s.nroST) === clave(datos.nroST) && String(s._supabaseId) !== String(excluirUuid));
     if (duplicado) {
       return { error: 'La UM ' + um.codigoUM + ' ya tiene un Servicio Técnico ' + datos.nroST + '.' };
     }
@@ -28573,13 +28591,35 @@ document.addEventListener('click',function(event){
     };
   }
 
+  // Alta y edicion comparten validacion. La diferencia es el destino: sin
+  // stEditandoUuid es un INSERT; con el, un UPDATE contra ese mismo uuid. Una
+  // edicion nunca inserta una fila nueva ni borra la anterior.
   function guardarST(prefijo, unidadFija, mensaje) {
     if (!esAdministrador()) return avisar('Solo Administrador puede cargar Servicios Técnicos.', 'warn');
-    const datos = leerFormST(prefijo, unidadFija);
-    const preparado = prepararFilaST(datos);
+    const editando = stEditandoUuid ? stPorUuid(stEditandoUuid) : null;
+    if (stEditandoUuid && !editando) {
+      stEditandoUuid = null;
+      return avisar('El Servicio Técnico que estaba editando ya no existe en Supabase.', 'error');
+    }
+    // En edicion la UM es la del propio ST, no lo que diga el formulario.
+    const datos = leerFormST(prefijo, editando ? editando._unidadId : unidadFija);
+    const preparado = prepararFilaST(datos,
+      editando ? editando._supabaseId : null,
+      editando ? editando.nroOC : null);
     if (preparado.error) {
       mensaje(preparado.error, 'warn');
       avisar(preparado.error, 'warn');
+      return;
+    }
+    if (editando) {
+      const uuid = editando._supabaseId;
+      conManejoDeError('stEditar:' + uuid, async () => {
+        // unidad_id no viaja en el patch: editar no reasigna la UM.
+        const patch = Object.assign({}, preparado.fila);
+        delete patch.unidad_id;
+        await actualizarST(uuid, patch);
+        stEditandoUuid = null;
+      }, 'Servicio Técnico actualizado.');
       return;
     }
     conManejoDeError(
@@ -28589,6 +28629,21 @@ document.addEventListener('click',function(event){
     );
   }
 
+  function editarST(uuid) {
+    if (!esAdministrador()) return avisar('Solo Administrador puede editar un Servicio Técnico.', 'warn');
+    const st = stPorUuid(uuid);
+    if (!st) return avisar('Servicio Técnico sin identificador remoto.', 'error');
+    stEditandoUuid = st._supabaseId;
+    renderFichaUM(st._unidadId, true);
+  }
+
+  function salirDeEdicionST() {
+    if (!stEditandoUuid) return;
+    const st = stPorUuid(stEditandoUuid);
+    stEditandoUuid = null;
+    renderFichaUM(st ? st._unidadId : fichaUuid, true);
+  }
+
   // Un ST fuera de uso se cancela: nunca se borra fisicamente.
   function cancelarST(uuid) {
     if (!esAdministrador()) return avisar('Solo Administrador puede cancelar un Servicio Técnico.', 'warn');
@@ -28596,16 +28651,14 @@ document.addEventListener('click',function(event){
     if (!st) return avisar('Servicio Técnico sin identificador remoto.', 'error');
     if (st.estado === 'Cancelado') return avisar('El Servicio Técnico ya está cancelado.', 'warn');
     if (!confirm('Cancelar el Servicio Técnico ' + (st.nroST || '') + '?\n\nNo se elimina: queda en estado Cancelado y se conserva como historial.')) return;
-    conManejoDeError('stCancelar:' + uuid, () => actualizarST(uuid, { estado: 'Cancelado' }), 'Servicio Técnico cancelado.');
+    conManejoDeError('stCancelar:' + uuid, async () => {
+      await actualizarST(uuid, { estado: 'Cancelado' });
+      // Si se cancelo justamente el ST que se estaba editando, el formulario
+      // vuelve a modo alta en lugar de quedar apuntando a un registro cerrado.
+      if (String(stEditandoUuid) === String(uuid)) stEditandoUuid = null;
+    }, 'Servicio Técnico cancelado.');
   }
 
-  function cambiarEstadoST(uuid, estado) {
-    if (!esAdministrador()) return avisar('Solo Administrador puede modificar un Servicio Técnico.', 'warn');
-    if (ESTADOS_ST.indexOf(estado) < 0) return;
-    const st = stPorUuid(uuid);
-    if (!st || st.estado === estado) return;
-    conManejoDeError('stEstado:' + uuid, () => actualizarST(uuid, { estado: estado }), 'Servicio Técnico actualizado.');
-  }
 
   // ---------------------------------------------------------- render de lista
   function badgeUM(estado) {
@@ -28757,6 +28810,8 @@ document.addEventListener('click',function(event){
 
   // ---------------------------------------------------------- ficha UM
   let fichaUuid = null;
+  // uuid del Servicio Tecnico en edicion, o null si el formulario esta en alta.
+  let stEditandoUuid = null;
 
   function tablaSTFicha(u) {
     const filas = stDeUM(u._supabaseId).slice().sort((a, b) => texto(b.fecha).localeCompare(texto(a.fecha)));
@@ -28767,12 +28822,18 @@ document.addEventListener('click',function(event){
         .map((t) => '<th>' + esc(t) + '</th>').join('') +
       '</tr></thead><tbody>' +
       filas.map((s) => {
+        const editando = String(s._supabaseId) === String(stEditandoUuid);
+        // Un ST cancelado se conserva como historial y ya no se edita ni se
+        // vuelve a cancelar; sigue visible con su estado.
         const acciones = puede
           ? (s.estado === 'Cancelado'
             ? '<span class="muted">Cancelado</span>'
-            : '<button type="button" class="danger" data-h05-cancelar-st="' + esc(s._supabaseId) + '">Cancelar</button>')
+            : '<button type="button" data-h05-editar-st="' + esc(s._supabaseId) + '">' +
+              (editando ? 'Editando' : 'Editar') + '</button> ' +
+              '<button type="button" class="danger" data-h05-cancelar-st="' + esc(s._supabaseId) + '">Cancelar</button>')
           : '';
-        return '<tr><td><b>' + esc(s.nroST || '—') + '</b></td>' +
+        return '<tr' + (editando ? ' class="row-clickable" data-h05-st-en-edicion="1"' : '') + '>' +
+          '<td><b>' + esc(s.nroST || '—') + '</b></td>' +
           '<td>' + esc(s.fecha || '—') + '</td>' +
           '<td>' + esc(s.nroOC || '—') + '</td>' +
           '<td>' + esc(s.descripcion || '—') + '</td>' +
@@ -28784,7 +28845,29 @@ document.addEventListener('click',function(event){
       '</tbody></table></div>';
   }
 
-  function renderFichaUM(uuid) {
+  // Formulario de la seccion C. En edicion precarga el ST y guarda contra su
+  // uuid; en alta queda vacio y crea una fila nueva. La UM es siempre la de la
+  // ficha: el formulario no ofrece cambiarla.
+  function formularioSTFicha(u, st) {
+    const editando = Boolean(st);
+    return '<div class="st-r16-ficha-form">' +
+      '<h4>' + (editando
+        ? 'Editar el Servicio Técnico ' + esc(st.nroST || '')
+        : 'Cargar ST para esta UM') + '</h4>' +
+      '<div class="um-form">' + camposST('stfh5', u._supabaseId, false, st) + '</div>' +
+      '<button type="button" class="primary" data-h05-guardar-st-ficha="' + esc(u._supabaseId) + '">' +
+      (editando ? 'Guardar cambios del ST' : 'Guardar ST de esta UM') + '</button>' +
+      (editando
+        ? ' <button type="button" data-h05-salir-edicion-st="1">Cancelar edición</button>'
+        : '') +
+      '<div id="stFichaMsgH05" class="notice">' +
+      (editando
+        ? 'Se actualiza el mismo Servicio Técnico: no se crea uno nuevo. La UM no cambia.'
+        : 'La OC es opcional y se valida contra Órdenes.') +
+      '</div></div>';
+  }
+
+  function renderFichaUM(uuid, forzar) {
     const body = $('fichaUMBody');
     if (!body) return;
     const id = uuid || fichaUuid;
@@ -28802,18 +28885,25 @@ document.addEventListener('click',function(event){
     const firma = JSON.stringify([
       u._supabaseId, u.codigoUM, u.estado, u.tipoUM, u.estacion, u.ramal, u.sector,
       u.marca, u.modelo, u.nroSerie, u.proveedorMantenimiento, u.descripcion,
-      u.observaciones, u.fechaActualizacion, esAdministrador(),
+      u.observaciones, u.fechaActualizacion, esAdministrador(), stEditandoUuid,
       stDeUM(u._supabaseId).map((s) => s._supabaseId + '|' + s.nroST + '|' + s.estado + '|' + s.fecha + '|' + s.nroOC)
     ]);
-    if (body.dataset.h05Firma === firma && body.childElementCount) return;
+    if (!forzar && body.dataset.h05Firma === firma && body.childElementCount) return;
     const activo = document.activeElement;
-    if (body.contains(activo) && activo !== document.body && activo.tagName !== 'BUTTON') return;
+    if (!forzar && body.contains(activo) && activo !== document.body && activo.tagName !== 'BUTTON') return;
     body.dataset.h05Firma = firma;
     fichaUuid = u._supabaseId;
     try { window.umActualId = u.codigoUM; } catch (e) {}
 
     const dato = (etiqueta, valor) => '<div><b>' + esc(etiqueta) + '</b>' + esc(valor || '—') + '</div>';
     const puede = esAdministrador();
+    // El ST en edicion tiene que seguir existiendo y pertenecer a esta UM: si se
+    // cancelo o desaparecio en otro puesto, el formulario vuelve a modo alta.
+    let editandoST = stEditandoUuid ? stPorUuid(stEditandoUuid) : null;
+    if (editandoST && (String(editandoST._unidadId) !== String(u._supabaseId) || editandoST.estado === 'Cancelado')) {
+      editandoST = null;
+      stEditandoUuid = null;
+    }
 
     body.innerHTML =
       '<div class="oc-kpis">' +
@@ -28837,12 +28927,7 @@ document.addEventListener('click',function(event){
       '<section class="um-ficha-card full"><h3>C. Servicios Técnicos Asociados</h3>' +
       '<p class="muted">Historial técnico de esta UM. Los Servicios Técnicos no se eliminan: se cancelan.</p>' +
       tablaSTFicha(u) +
-      (puede
-        ? '<div class="st-r16-ficha-form"><h4>Cargar ST para esta UM</h4>' +
-          '<div class="um-form">' + camposST('stfh5', u._supabaseId, false) + '</div>' +
-          '<button type="button" class="primary" data-h05-guardar-st-ficha="' + esc(u._supabaseId) + '">Guardar ST de esta UM</button>' +
-          '<div id="stFichaMsgH05" class="notice">La OC es opcional y se valida contra Órdenes.</div></div>'
-        : '<div class="notice">Ingrese como Administrador para cargar Servicios Técnicos.</div>') +
+      (puede ? formularioSTFicha(u, editandoST) : '<div class="notice">Ingrese como Administrador para cargar Servicios Técnicos.</div>') +
       '</section>' +
       '<section class="um-ficha-card full"><h3>D. Observaciones</h3>' +
       '<div class="exp-observaciones">' + esc(u.observaciones || 'Sin observaciones cargadas.') + '</div></section>' +
@@ -28936,6 +29021,11 @@ document.addEventListener('click',function(event){
         });
         return;
       }
+
+      const editar = t.closest('[data-h05-editar-st]');
+      if (editar) { tomar(); editarST(editar.dataset.h05EditarSt); return; }
+
+      if (t.closest('[data-h05-salir-edicion-st]')) { tomar(); salirDeEdicionST(); return; }
 
       const cancelar = t.closest('[data-h05-cancelar-st]');
       if (cancelar) { tomar(); cancelarST(cancelar.dataset.h05CancelarSt); return; }
@@ -29038,6 +29128,7 @@ document.addEventListener('click',function(event){
           runtime.sincronizado = false;
           runtime.authUserId = uid || null;
           umEditandoUuid = null;
+          stEditandoUuid = null;
           fichaUuid = null;
           // El modelo de la sesion anterior no puede sobrevivir al cambio de
           // identidad: se limpia el espejo antes de releer.

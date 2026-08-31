@@ -71,6 +71,12 @@ const accionEsperada = (tabla, columna, accionProduccion) => {
   return d ? d.repo : accionProduccion;
 };
 
+// Mismo criterio para los UNIQUE que el repositorio crea de mas: el snapshot de
+// cada tabla sigue siendo produccion y aca se declara el excedente. Se verifica
+// que el constraint exista de verdad tras aplicar las migraciones, de modo que
+// la divergencia quede probada y no sea solamente una anotacion.
+const PENDIENTES_UNIQUE = (CONTRATO._divergencias_pendientes || {}).unique || [];
+
 // Columnas que el baseline llego a declarar por inferencia y que NO existen en
 // produccion. El control falla si alguna reaparece.
 // Ojo: tipo_um SI existe en coi_unidades_mantenimiento y en coi_certificaciones;
@@ -263,6 +269,26 @@ async function casoA() {
       const hay = porTabla(tabla).some((c) => c.contype === 'c' && new RegExp('\\b' + col + '\\b').test(c.def));
       check(hay, `${tabla}: falta CHECK sobre ${col}`);
     }
+  }
+
+  // Los UNIQUE declarados como divergencia pendiente tienen que existir en el
+  // repositorio: es lo que prueba que la migracion todavia no aplicada hace lo
+  // que dice. Si alguno desapareciera, la divergencia seria falsa.
+  for (const d of PENDIENTES_UNIQUE) {
+    const real = porTabla(d.tabla).find((c) => c.conname === d.constraint);
+    check(Boolean(real), `${d.tabla}: la divergencia pendiente declara ${d.constraint} y el repositorio no lo crea`);
+    if (!real) continue;
+    check(real.contype === 'u', `${d.constraint}: deberia ser UNIQUE y es «${real.contype}»`);
+    for (const col of d.columnas) {
+      check(new RegExp('\\b' + col + '\\b').test(real.def), `${d.constraint}: no cubre ${col} (${real.def})`);
+    }
+    // Y NO debe estar declarado en el snapshot productivo: si lo estuviera, ya
+    // no seria una divergencia sino parte del contrato.
+    const enSnapshot = (CONTRATO[d.tabla].unique || []).some(
+      (cols) => JSON.stringify(cols.slice().sort()) === JSON.stringify(d.columnas.slice().sort())
+    );
+    check(!enSnapshot,
+      `${d.tabla}: UNIQUE (${d.columnas.join(', ')}) esta en el snapshot productivo y ademas declarado como pendiente`);
   }
 
   // PK: todas las operativas tienen clave primaria.
@@ -479,6 +505,14 @@ async function main() {
   PENDIENTES.forEach((d) => console.log(
     `    pendiente · ${d.tabla}.${d.columna}: repo ${d.repo}, produccion ${d.produccion} (${d.migracion})`
   ));
+  if (PENDIENTES_UNIQUE.length) {
+    console.log(
+      `  CASO A · UNIQUE excedentes del repo  : ${PENDIENTES_UNIQUE.length} divergencia(s) pendientes de aplicar en remoto`
+    );
+    PENDIENTES_UNIQUE.forEach((d) => console.log(
+      `    pendiente · ${d.tabla} UNIQUE (${d.columnas.join(', ')}): repo ${d.repo}, produccion ${d.produccion} (${d.migracion})`
+    ));
+  }
   console.log(`  CASO A · policies (nombre/cmd/roles/permissive/using/with check): ${totalPol} verificadas, 0 diferencias`);
   console.log(`  CASO B · baseline reaplicado        : NO-OP (columnas, constraints, indices y datos intactos)`);
   console.log(`  CASO B · tablas condicionales       : ${b.creates} create table if not exists, 0 operaciones destructivas`);

@@ -103,5 +103,24 @@ La relacion con Ordenes se registra ahora en cada Servicio Tecnico (`nro_oc`),
 validada contra el catalogo remoto.
 Si el negocio necesita criticidad o fotos de UM, requiere migracion autorizada.
 
+## KI-011 — Migracion H04 (UNIQUE de Servicios Tecnicos) pendiente en remoto
+Estado: abierto. Rama `fix/h05-unidades-mantenimiento-supabase-first`.
+`supabase/migrations/202608310001_h04_st_unique_guard.sql` crea
+UNIQUE (unidad_id, nro_st) sobre `coi_servicios_tecnicos_um`, pero NO fue
+aplicada a PRODUCCION ni a STAGING. Mientras eso siga asi, la unica defensa
+contra dos Servicios Tecnicos con el mismo numero en la misma UM es la
+comprobacion previa del frontend, que es UX y no integridad: con dos operadores
+concurrentes ambos leen «no existe» y despues insertan.
+
+Ambos entornos tienen hoy 0 ST, de modo que el riesgo real es nulo hasta que se
+empiece a cargar. La migracion es segura igualmente: si encontrara duplicados
+preexistentes aborta con `COI_ST_DUPLICADOS_PREEXISTENTES` y no modifica filas.
+
+La divergencia esta declarada en
+`tests/fixtures/production_schema_contract.json` → `_divergencias_pendientes.unique`
+y la reporta `check_schema_reproducibility.js` en cada corrida.
+Al aplicarla: agregar el UNIQUE al snapshot productivo de la tabla y mover la
+entrada a `_divergencias_pendientes._resueltas`.
+
 ## Actualización
 Registrar PR, fecha, resolución y test de regresión.

@@ -219,6 +219,33 @@ check(/value="' \+ esc\(u\._supabaseId\)/.test(capa.texto),
 // No se inventa un sistema de roles nuevo ni se amplian permisos.
 check(!/coi_admin_pin|adminPin/.test(capa.texto), 'la capa H05 no puede usar el PIN local como autorizacion');
 
+// ------------------------------------------- 5b) edicion de Servicios Tecnicos
+// La ficha tiene que ofrecer una edicion real, no solo alta y cancelacion.
+for (const [patron, detalle] of [
+  [/function editarST\(uuid\)/, 'falta la accion de editar un Servicio Tecnico'],
+  [/function salirDeEdicionST\(\)/, 'falta la salida del modo edicion'],
+  [/data-h05-editar-st/, 'la tabla de ST no ofrece Editar'],
+  [/data-h05-salir-edicion-st/, 'no se puede abandonar la edicion sin guardar'],
+  [/let stEditandoUuid = null;/, 'falta el estado del ST en edicion'],
+  [/function prepararFilaST\(datos, excluirUuid, ocOriginal\)/, 'la validacion no admite excluir el propio ST ni conservar su OC'],
+  [/String\(s\._supabaseId\) !== String\(excluirUuid\)/, 'al editar, el ST no debe chocar consigo mismo'],
+  [/delete patch\.unidad_id;/, 'editar un ST no puede reasignarlo a otra UM'],
+  [/ya usa el número/, 'falta la traduccion operativa del UNIQUE remoto del ST']
+]) check(patron.test(capa.texto), detalle);
+
+// La edicion actualiza la misma fila: nunca inserta una nueva.
+check(/conManejoDeError\('stEditar:' \+ uuid/.test(capa.texto),
+  'la edicion de ST debe pasar por el lock de mutacion con su propio uuid');
+check(/await actualizarST\(uuid, patch\);/.test(capa.texto),
+  'la edicion de ST debe ir por UPDATE contra el uuid');
+
+// Codigo muerto retirado: el escudo lo instala el bloque de congelamiento y el
+// estado del ST se edita por formulario.
+check(!/const getItemNativo = Storage\.prototype\.getItem;[\s\S]{0,80}const runtime = \{/.test(capa.texto),
+  'la capa H05 conserva la referencia muerta a getItem');
+check(!/function cambiarEstadoST/.test(capa.texto),
+  'cambiarEstadoST quedo sin uso al existir la edicion completa del ST');
+
 // ------------------------------------------- 6) el guard de integridad acompaña
 const migracion = fs.readFileSync('supabase/migrations/202608300003_h05_um_delete_guard.sql', 'utf8');
 check(/on delete restrict/i.test(migracion), 'la migracion H05 debe dejar la FK en RESTRICT');
@@ -239,6 +266,27 @@ check(
 check(
   contrato.coi_observaciones_oc.fk.some((f) => f[0] === 'orden_id' && f[2] === 'RESTRICT'),
   'el snapshot productivo debe reflejar que H03 ya esta aplicado (RESTRICT)'
+);
+
+// El UNIQUE de H04 es la autoridad ante concurrencia: la comprobacion previa del
+// frontend no alcanza con dos clientes simultaneos.
+const migracionH04 = fs.readFileSync('supabase/migrations/202608310001_h04_st_unique_guard.sql', 'utf8');
+check(/add constraint coi_servicios_tecnicos_um_unidad_nro_st_key/i.test(migracionH04),
+  'la migracion H04 debe crear el UNIQUE con nombre estable');
+check(/unique \(unidad_id, nro_st\)/i.test(migracionH04), 'el UNIQUE debe cubrir (unidad_id, nro_st)');
+check(/COI_ST_DUPLICADOS_PREEXISTENTES/.test(migracionH04),
+  'la migracion H04 debe abortar explicitamente si encuentra duplicados');
+for (const destructivo of [/\btruncate\b/i, /\bdelete\s+from\b/i, /\bupdate\s+public\./i, /\bdrop\s+table\b/i]) {
+  check(!destructivo.test(migracionH04), `la migracion H04 no puede contener: ${destructivo}`);
+}
+const uniquePendientes = (contrato._divergencias_pendientes || {}).unique || [];
+const h04 = uniquePendientes.find((d) => d.tabla === 'coi_servicios_tecnicos_um');
+check(Boolean(h04), 'la divergencia pendiente H04 debe estar declarada en el contrato productivo');
+check(h04.produccion === 'ausente' && h04.repo === 'presente',
+  'la divergencia H04 debe declarar produccion ausente y repo presente');
+check(
+  !(contrato.coi_servicios_tecnicos_um.unique || []).length,
+  'el snapshot productivo de coi_servicios_tecnicos_um no tiene UNIQUE: no debe declararse como si lo tuviera'
 );
 
 console.log('H05/H04 UM y ST Supabase-first: capa verificada contra el esquema real.');

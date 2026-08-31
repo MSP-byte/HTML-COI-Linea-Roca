@@ -244,6 +244,39 @@ async function sembrarOC(page, numeros) {
   }, numeros);
 }
 
+// Abre la ficha de la primera UM con un click DOM real sobre lo que renderiza
+// la aplicacion. Las capas legadas repintan #umTbody y pueden cambiar la vista
+// activa desde sus propias closures, de modo que la fila queda detached o fuera
+// de pantalla entre el resolve y el click. Se reafirma la vista y se reintenta
+// de forma acotada; si nunca se logra, la prueba falla de manera explicita en
+// vez de disimularlo con un click forzado.
+async function abrirFichaPrimeraUM(page) {
+  let ultimo = null;
+  for (let intento = 0; intento < 5; intento++) {
+    await page.evaluate(() => {
+      if (typeof window.mostrarVista === 'function') window.mostrarVista('vistaUnidadesMantenimiento');
+      if (typeof window.renderUnidadesMantenimiento === 'function') window.renderUnidadesMantenimiento();
+    });
+    try {
+      const boton = page.locator('#umTbody tr button[data-h05-open-um]').first();
+      await boton.waitFor({ state: 'visible', timeout: 3000 });
+      await boton.click({ timeout: 3000 });
+      await page.waitForFunction(
+        () => {
+          const b = document.getElementById('fichaUMBody');
+          return Boolean(b && b.childElementCount > 0);
+        },
+        null, { timeout: 5000 }
+      );
+      await page.waitForTimeout(200);
+      return;
+    } catch (error) {
+      ultimo = error;
+    }
+  }
+  throw new Error('No se pudo abrir la ficha de la primera UM: ' + (ultimo && ultimo.message));
+}
+
 async function irAUM(page) {
   await page.evaluate(() => {
     if (typeof window.mostrarVista === 'function') window.mostrarVista('vistaUnidadesMantenimiento');
@@ -362,10 +395,10 @@ test('5 · la UM usa el UUID como identidad canonica en la tabla y en la ficha',
   await abrir(page);
   await irAUM(page);
 
-  const fila = page.locator('#umTbody tr').first();
-  await expect(fila).toHaveAttribute('data-h05-open-um', UM_A.id);
-  await fila.locator('button.btn-open-um').click();
-  await page.waitForTimeout(300);
+  // La fila la identifica el UUID canonico, no el codigo de negocio.
+  await expect(page.locator('#umTbody tr[data-h05-open-um]').first())
+    .toHaveAttribute('data-h05-open-um', UM_A.id);
+  await abrirFichaPrimeraUM(page);
   await expect(page.locator('#fichaUMBody')).toContainText(UM_A.id);
   await expect(page.locator('#fichaUMBody')).toContainText('ST-0001');
 });
@@ -402,8 +435,7 @@ test('7 · actualizar UM va por UPDATE contra el UUID, no por insert', async ({ 
   await fijarAdmin(page, true);
   await irAUM(page);
 
-  await page.locator('#umTbody tr').first().locator('button.btn-open-um').click();
-  await page.waitForTimeout(300);
+  await abrirFichaPrimeraUM(page);
   await page.click('#btnEditarUM');
   await page.waitForTimeout(400);
 
@@ -427,8 +459,7 @@ test('8 · la UM se da de BAJA: no existe DELETE fisico y el ST sobrevive', asyn
   page.on('dialog', (d) => d.accept(''));
   await irAUM(page);
 
-  await page.locator('#umTbody tr').first().locator('button.btn-open-um').click();
-  await page.waitForTimeout(300);
+  await abrirFichaPrimeraUM(page);
   await page.click('#btnEditarUM');
   await page.waitForTimeout(400);
   await page.click('#btnBajaUMH05');
@@ -596,8 +627,7 @@ test('17 · el ST se cancela: no hay DELETE y la fila se conserva', async ({ pag
   page.on('dialog', (d) => d.accept());
   await irAUM(page);
 
-  await page.locator('#umTbody tr').first().locator('button.btn-open-um').click();
-  await page.waitForTimeout(300);
+  await abrirFichaPrimeraUM(page);
   await page.click('[data-h05-cancelar-st]');
   await page.waitForTimeout(900);
 
@@ -616,8 +646,7 @@ test('18 · el ST se carga tambien desde la ficha, con la UM ya fijada', async (
   await fijarAdmin(page, true);
   await irAUM(page);
 
-  await page.locator('#umTbody tr').first().locator('button.btn-open-um').click();
-  await page.waitForTimeout(300);
+  await abrirFichaPrimeraUM(page);
   await page.fill('#stfh5_nro', 'ST-0100');
   await page.fill('#stfh5_descripcion', 'Cargado desde la ficha');
   await page.click('[data-h05-guardar-st-ficha]');
@@ -816,8 +845,7 @@ test('27 · un fallo de mutacion no deja la UI mostrando un cambio que el servid
   await fijarAdmin(page, true);
   await irAUM(page);
 
-  await page.locator('#umTbody tr').first().locator('button.btn-open-um').click();
-  await page.waitForTimeout(300);
+  await abrirFichaPrimeraUM(page);
   await page.click('#btnEditarUM');
   await page.waitForTimeout(400);
   await page.fill('#umh5_proveedor', 'NO DEBE PERSISTIR');
@@ -876,4 +904,290 @@ test('30 · no se rompen los modulos vecinos ni el arranque general', async ({ p
 
   expect(errores).toEqual([]);
   expect((await estado(page)).ums).toHaveLength(1);
+});
+
+// =========================================================== ST · edicion (H04)
+
+const ST_B = {
+  id: '55555555-5555-4555-8555-555555555555',
+  unidad_id: UM_A.id,
+  nro_st: 'ST-0002',
+  nro_oc: null,
+  fecha: '2026-08-12',
+  descripcion: 'Ajuste de puertas',
+  tecnico: 'M. Gomez',
+  proveedor: 'ASCENSORES SA',
+  estado: 'Pendiente',
+  observaciones: '',
+  fecha_creacion: '2026-08-12T10:00:00.000Z',
+  fecha_actualizacion: '2026-08-12T10:00:00.000Z'
+};
+
+// Abre la ficha de la UM y entra en modo edicion del ST indicado.
+async function editarSTEnFicha(page, uuidST) {
+  await abrirFichaPrimeraUM(page);
+  await page.click('[data-h05-editar-st="' + uuidST + '"]');
+  await page.waitForTimeout(400);
+}
+
+test('31 · Editar un ST precarga sus datos reales en el formulario de la ficha', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await expect(page.locator('#stfh5_nro')).toHaveValue(ST_A.nro_st);
+  await expect(page.locator('#stfh5_fecha')).toHaveValue(ST_A.fecha);
+  await expect(page.locator('#stfh5_oc')).toHaveValue(ST_A.nro_oc);
+  await expect(page.locator('#stfh5_descripcion')).toHaveValue(ST_A.descripcion);
+  await expect(page.locator('#stfh5_tecnico')).toHaveValue(ST_A.tecnico);
+  await expect(page.locator('#stfh5_proveedor')).toHaveValue(ST_A.proveedor);
+  await expect(page.locator('#stfh5_estado')).toHaveValue(ST_A.estado);
+  // La UM no se ofrece: editar no reasigna historial tecnico a otro activo.
+  await expect(page.locator('#stfh5_um')).toHaveCount(0);
+});
+
+test('32 · guardar la edicion es UN update contra el UUID, sin insert ni delete ni localStorage', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_descripcion', 'Cambio de rodamientos y engrase');
+  await page.fill('#stfh5_tecnico', 'R. Lopez');
+  await page.fill('#stfh5_proveedor', 'NUEVO PROVEEDOR SA');
+  await page.selectOption('#stfh5_estado', 'En curso');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(900);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  expect(updates[0].payload.filtro).toEqual({ col: 'id', val: ST_A.id });
+  expect(updates[0].payload.patch.descripcion).toBe('Cambio de rodamientos y engrase');
+  expect(updates[0].payload.patch.tecnico).toBe('R. Lopez');
+  expect(updates[0].payload.patch.proveedor).toBe('NUEVO PROVEEDOR SA');
+  expect(updates[0].payload.patch.estado).toBe('En curso');
+  // La edicion no reasigna la UM.
+  expect(updates[0].payload.patch.unidad_id).toBeUndefined();
+
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(e.llamadas.filter((l) => String(l.op).indexOf('delete') === 0)).toHaveLength(0);
+  expect(e.escriturasLegacy).toEqual([]);
+
+  // Estado confirmado desde Supabase, sin filas de mas.
+  expect(e.sts).toHaveLength(1);
+  expect(e.sts[0].uuid).toBe(ST_A.id);
+  expect(e.sts[0].estado).toBe('En curso');
+});
+
+test('33 · tras guardar, la ficha sale del modo edicion y muestra el ST actualizado', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+  await expect(page.locator('#fichaUMBody')).toContainText('Editar el Servicio Técnico ST-0001');
+
+  await page.fill('#stfh5_descripcion', 'Descripción confirmada');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1000);
+
+  await expect(page.locator('#fichaUMBody')).toContainText('Cargar ST para esta UM');
+  await expect(page.locator('#fichaUMBody')).not.toContainText('Editar el Servicio Técnico');
+  await expect(page.locator('#fichaUMBody')).toContainText('Descripción confirmada');
+});
+
+test('34 · Cancelar edición vuelve al alta sin tocar Supabase', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  const antes = (await estado(page)).llamadas.length;
+  await page.click('[data-h05-salir-edicion-st]');
+  await page.waitForTimeout(400);
+
+  await expect(page.locator('#fichaUMBody')).toContainText('Cargar ST para esta UM');
+  const e = await estado(page);
+  expect(soloOp(e, 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(e.llamadas.filter((l) => String(l.op).indexOf('delete') === 0)).toHaveLength(0);
+  // No se comprueba la cantidad total de llamadas: otra capa puede releer en
+  // segundo plano. Lo que Cancelar edicion no puede hacer es mutar.
+  expect(e.llamadas.length).toBeGreaterThanOrEqual(antes);
+});
+
+test('35 · renombrar un ST al numero de otro de la misma UM queda bloqueado', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A, ST_B] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_B.id);
+
+  await page.fill('#stfh5_nro', ST_A.nro_st);
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(600);
+
+  await expect(page.locator('#stFichaMsgH05')).toContainText('ya tiene un Servicio Técnico ST-0001');
+  const e = await estado(page);
+  expect(soloOp(e, 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+  // Ninguno de los dos cambio de numero.
+  expect(e.sts.map((s) => s.nroST).sort()).toEqual(['ST-0001', 'ST-0002']);
+});
+
+test('36 · conservar su propio nro_st al editar NO se considera duplicado', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A, ST_B] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  // Se deja el mismo numero y se cambia solo la descripcion.
+  await page.fill('#stfh5_descripcion', 'Mismo numero, otra descripción');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(900);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  expect(updates[0].payload.filtro).toEqual({ col: 'id', val: ST_A.id });
+  expect(updates[0].payload.patch.nro_st).toBe('ST-0001');
+});
+
+test('37 · la edicion valida la OC igual que el alta', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_oc', 'OC-2025-101'); // OC de demo legada: no existe
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(600);
+
+  await expect(page.locator('#stFichaMsgH05')).toContainText('no existe en Órdenes');
+  expect(soloOp(await estado(page), 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
+
+  // Vaciarla es valido: nro_oc es nullable.
+  await page.fill('#stfh5_oc', '');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(900);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  expect(updates[0].payload.patch.nro_oc).toBeNull();
+});
+
+test('38 · doble click sobre Guardar cambios produce un unico update', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A], retardoSelectMs: 250 });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_descripcion', 'Un solo update');
+  const boton = page.locator('[data-h05-guardar-st-ficha]');
+  await boton.click();
+  await boton.click({ force: true });
+  await page.waitForTimeout(1800);
+
+  const e = await estado(page);
+  expect(soloOp(e, 'update:coi_servicios_tecnicos_um')).toHaveLength(1);
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+});
+
+test('39 · un UNIQUE violado en el servidor se traduce a un mensaje operativo', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [ST_A, ST_B],
+    fallaMutacion: true,
+    errorMutacion: 'duplicate key value violates unique constraint "coi_servicios_tecnicos_um_unidad_nro_st_key"'
+  });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_B.id);
+
+  await page.fill('#stfh5_nro', 'ST-0099');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1000);
+
+  // El servidor rechaza y la UI lo explica en terminos operativos, no con el
+  // texto crudo de Postgres.
+  await expect(page.locator('#coiToastV581')).toContainText('ya usa el número ST-0099');
+  const e = await estado(page);
+  expect(e.sts.map((s) => s.nroST).sort()).toEqual(['ST-0001', 'ST-0002']);
+});
+
+test('40 · sin rol administrador no se ofrece Editar ni Cancelar', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A], admin: false });
+  await abrir(page);
+  await fijarAdmin(page, false);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+
+  await expect(page.locator('[data-h05-editar-st]')).toHaveCount(0);
+  await expect(page.locator('[data-h05-cancelar-st]')).toHaveCount(0);
+  await expect(page.locator('#fichaUMBody')).toContainText('Ingrese como Administrador');
+});
+
+test('41 · un ST cancelado se conserva y ya no ofrece edicion', async ({ page }) => {
+  const cancelado = Object.assign({}, ST_A, { estado: 'Cancelado' });
+  await prepararEntorno(page, { ums: [UM_A], sts: [cancelado] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+
+  await expect(page.locator('#fichaUMBody')).toContainText('ST-0001');
+  await expect(page.locator('#fichaUMBody')).toContainText('Cancelado');
+  await expect(page.locator('[data-h05-editar-st]')).toHaveCount(0);
+});
+
+test('42 · editar sin tocar la OC no exige que el catalogo de Ordenes este cargado', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  // A proposito NO se siembra el catalogo de OC: es el caso del operador que
+  // edita la descripcion mientras Ordenes todavia esta cargando.
+  await page.evaluate(() => { window.todasLasOC = () => []; });
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_descripcion', 'Editada sin catálogo de OC');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(900);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  // La OC ya persistida se conserva tal cual: no se revalida ni se pierde.
+  expect(updates[0].payload.patch.nro_oc).toBe(ST_A.nro_oc);
+  expect(updates[0].payload.patch.descripcion).toBe('Editada sin catálogo de OC');
+});
+
+test('43 · cambiar la OC si exige el catalogo: nunca se acepta una OC sin validar', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await page.evaluate(() => { window.todasLasOC = () => []; });
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_oc', '4530009999');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(700);
+
+  await expect(page.locator('#stFichaMsgH05')).toContainText('catálogo de Órdenes todavía no está disponible');
+  expect(soloOp(await estado(page), 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
 });
