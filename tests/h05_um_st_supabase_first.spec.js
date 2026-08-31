@@ -79,7 +79,7 @@ async function prepararEntorno(page, opciones) {
     ums: [], sts: [], legadoUM: null, legadoST: null,
     fallaSelect: false, fallaMutacion: false, errorMutacion: 'RLS denegado',
     retardoSelectMs: 0, pageSize: 1000, admin: true, sinSesion: false, rol: 'administrador',
-    ordenes: [], fallaSelectOC: false, fallaRol: false
+    ordenes: [], fallaSelectOC: false, fallaRol: false, fallaNormalizacion: false
   }, opciones);
 
   await page.addInitScript((c) => {
@@ -227,8 +227,22 @@ async function prepararEntorno(page, opciones) {
       from: (t) => consulta(t),
       // Misma funcion que usan las policies RESTRICTIVE. rol null representa un
       // usuario autenticado SIN perfil activo.
-      rpc: async (nombre) => {
-        registrar('rpc:' + nombre, null);
+      rpc: async (nombre, args) => {
+        registrar('rpc:' + nombre, args || null);
+        if (nombre === 'coi_normalize_order_number') {
+          if (c.fallaNormalizacion) {
+            return { data: null, error: { message: 'fallo de red al normalizar el numero' } };
+          }
+          // Mismo criterio que la funcion SQL: se saca el prefijo de orden de
+          // compra, se borra todo lo que no sea alfanumerico y se pasa a
+          // mayusculas. Cadena vacia se devuelve como null, igual que el
+          // nullif del original.
+          const crudo = String((args && args.p_value) == null ? '' : args.p_value).trim();
+          const sinPrefijo = crudo.replace(
+            /^(O(RDEN)?\s*(DE\s*)?C(OMPRA)?|OC)\s*[:#-]?\s*/i, '');
+          const canonico = sinPrefijo.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+          return { data: canonico || null, error: null };
+        }
         if (nombre !== 'coi_current_role') return { data: null, error: null };
         if (!sesionActiva) return { data: null, error: null };
         if (c.fallaRol) return { data: null, error: { message: 'fallo de red al leer el perfil' } };
@@ -2609,6 +2623,145 @@ test('102 · cambiar la OC si la incluye en el patch, ya confirmada', async ({ p
   await editarSTEnFicha(page, ST_A.id);
 
   await page.fill('#stfh5_oc', '4530003333');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  expect(updates[0].payload.patch.nro_oc).toBe('4530003333');
+});
+
+// ================================== quinta ronda de review del PR #59
+
+// La prevalidacion usa la MISMA identidad que PostgreSQL: le pregunta a la base
+// cual es el numero canonico y recien despues busca la orden.
+
+test('105 · una variante con prefijo y puntuacion se acepta y persiste el canonico', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], ordenes: [{ nro_oc: '4530008964' }] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  // El catalogo en memoria queda vacio: la autoridad es la base.
+  await page.evaluate(() => { window.todasLasOC = () => []; });
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-CANON-1');
+  await page.fill('#sth5_oc', 'OC 4530-00.89/64');
+  await page.fill('#sth5_descripcion', 'Variante con prefijo y puntuacion');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  // Se le pregunto a la base por el numero canonico.
+  expect(soloOp(e, 'rpc:coi_normalize_order_number').length).toBeGreaterThan(0);
+  const inserts = soloOp(e, 'insert:coi_servicios_tecnicos_um');
+  expect(inserts).toHaveLength(1);
+  // Y persiste el nro_oc remoto vigente, no lo que tecleo el operador.
+  expect(inserts[0].payload.nro_oc).toBe('4530008964');
+});
+
+test('106 · varias variantes equivalentes resuelven a la misma OC', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], ordenes: [{ nro_oc: '4530008964' }] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await page.evaluate(() => { window.todasLasOC = () => []; });
+  await irAUM(page);
+
+  const variantes = ['4530-008964', '4530.008964', 'oc 4530008964'];
+  for (let i = 0; i < variantes.length; i++) {
+    await page.selectOption('#sth5_um', UM_A.id);
+    await page.fill('#sth5_nro', 'ST-CANON-' + (i + 10));
+    await page.fill('#sth5_oc', variantes[i]);
+    await page.fill('#sth5_descripcion', 'Variante ' + variantes[i]);
+    await page.click('#btnGuardarSTH05');
+    await page.waitForTimeout(900);
+  }
+
+  const e = await estado(page);
+  const inserts = soloOp(e, 'insert:coi_servicios_tecnicos_um');
+  expect(inserts).toHaveLength(3);
+  for (const ins of inserts) expect(ins.payload.nro_oc).toBe('4530008964');
+});
+
+test('107 · una OC inexistente se rechaza aunque normalice bien', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], ordenes: [{ nro_oc: '4530008964' }] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await page.evaluate(() => { window.todasLasOC = () => []; });
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-CANON-NO');
+  await page.fill('#sth5_oc', 'OC 4530-99.99/99');
+  await page.fill('#sth5_descripcion', 'OC que no existe');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+  await expect(page.locator('#coiToastV581')).toContainText('no existe en Órdenes');
+});
+
+test('108 · si la normalizacion remota falla no se guarda nada', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [], ordenes: [{ nro_oc: '4530008964' }], fallaNormalizacion: true
+  });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964'], { soloCache: true });
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-CANON-FALLA');
+  await page.fill('#sth5_oc', '4530008964');
+  await page.fill('#sth5_descripcion', 'La normalizacion no responde');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  // Fail-closed: ni INSERT ni UPDATE.
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(soloOp(e, 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
+  await expect(page.locator('#coiToastV581')).toContainText('No se pudo verificar la OC');
+});
+
+test('109 · editar la descripcion con la OC sin tocar no consulta la normalizacion', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [ST_A], ordenes: [{ nro_oc: '4530008964' }], fallaNormalizacion: true
+  });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await page.evaluate(() => { window.todasLasOC = () => []; });
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_descripcion', 'Editada sin tocar la OC');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  // Sigue permitido aunque la normalizacion este caida: no hay nada que validar.
+  expect(updates).toHaveLength(1);
+  expect(updates[0].payload.patch.descripcion).toBe('Editada sin tocar la OC');
+  expect(Object.prototype.hasOwnProperty.call(updates[0].payload.patch, 'nro_oc')).toBe(false);
+  expect(soloOp(e, 'rpc:coi_normalize_order_number')).toHaveLength(0);
+  // Y la asociacion persistida no cambio.
+  expect(e.sts[0].oc).toBe(ST_A.nro_oc);
+});
+
+test('110 · cambiar la OC de un ST existente resuelve por la identidad canonica', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [ST_A], ordenes: [{ nro_oc: '4530008964' }, { nro_oc: '4530003333' }]
+  });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await page.evaluate(() => { window.todasLasOC = () => []; });
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_oc', 'OC 4530-00.33/33');
   await page.click('[data-h05-guardar-st-ficha]');
   await page.waitForTimeout(1200);
 

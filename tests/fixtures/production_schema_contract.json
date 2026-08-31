@@ -189,6 +189,21 @@
         "migracion": "202608310002_h04_h05_role_guard.sql",
         "motivo": "Segunda capa detras de la RLS: anon no tiene por que alcanzar el historial tecnico y authenticated no necesita DELETE, TRUNCATE, REFERENCES ni TRIGGER."
       }
+    ],
+    "_doc_grants_funciones": "Grants sobre FUNCIONES que el repositorio concede y produccion todavia no. Mismo criterio que los grants de tabla: check_schema_reproducibility.js verifica que tras reproducir el repo el permiso exista realmente, y que anon siga sin el.",
+    "grants_funciones": [
+      {
+        "funcion": "coi_normalize_order_number(text)",
+        "produccion": "revocada a authenticated",
+        "repo": {
+          "anon": [],
+          "authenticated": [
+            "EXECUTE"
+          ]
+        },
+        "migracion": "202608310005_h04_normalize_order_number_grant.sql",
+        "motivo": "La prevalidacion del frontend resolvia la OC con eq/ilike sobre el texto crudo, una segunda definicion de identidad mas estrecha que la de PostgreSQL: rechazaba antes de escribir variantes que el trigger habria aceptado. En vez de reimplementar la normalizacion en JavaScript se le concede al rol authenticated la MISMA funcion. Es pura —sql, immutable, strict, sin security definer, sin acceso a tablas—, de modo que exponerla no revela ningun dato."
+      }
     ]
   },
   "coi_ordenes": {

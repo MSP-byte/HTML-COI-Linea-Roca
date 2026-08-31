@@ -552,6 +552,41 @@ check(fkOC.on_update === 'CASCADE' && fkOC.on_delete === 'RESTRICT',
 check(!(contrato.coi_servicios_tecnicos_um.fk || []).some((f) => f[0] === 'nro_oc'),
   'el snapshot productivo no puede incluir una FK que todavia no se aplico');
 
+
+// ------------------------------------------- 5g) quinta ronda de review
+// La prevalidacion de OC usa la MISMA identidad que PostgreSQL: se le pregunta
+// a la base cual es el numero canonico en vez de resolver por texto crudo.
+// Se comparan como texto, no como regex: estas expresiones estan llenas de
+// parentesis, comillas y llaves, y escaparlas a mano es justo lo que se rompe.
+const contiene = (fragmento) => capa.texto.indexOf(fragmento) >= 0;
+check(contiene("rpc('coi_normalize_order_number', { p_value: buscado })"),
+  'la prevalidacion debe obtener el numero canonico de la propia base');
+check(contiene('if (normalizada.error) throw normalizada.error;'),
+  'fail-closed: si no se pudo normalizar, no se guarda');
+check(contiene(".eq('nro_oc', canonico)"),
+  'la busqueda de la OC debe hacerse por el numero ya canonico');
+check(contiene('if (halladas.length !== 1) return null;'),
+  'solo se acepta cuando el numero identifica exactamente una orden');
+// Y desaparece la resolucion por texto crudo, que era la segunda definicion.
+check(!contiene(".ilike('nro_oc'"),
+  'no puede quedar resolucion de OC por ilike sobre el texto crudo');
+check(!contiene(".eq('nro_oc', buscado)"),
+  'no puede quedar resolucion de OC por igualdad sobre el texto crudo');
+
+// El grant es minimo y no toca a anon.
+const migracionGrant = fs.readFileSync('supabase/migrations/202608310005_h04_normalize_order_number_grant.sql', 'utf8');
+const sinComentariosGrant = migracionGrant.replace(/--[^\n]*/g, '');
+check(
+  sinComentariosGrant.toLowerCase().indexOf(
+    'grant execute on function public.coi_normalize_order_number(text) to authenticated;') >= 0,
+  'falta el grant de la normalizacion a authenticated');
+check(!/to anon/i.test(sinComentariosGrant), 'anon no puede recibir el permiso');
+check(!/create\s+or\s+replace\s+function/i.test(sinComentariosGrant),
+  'la migracion no puede redefinir la funcion: solo concede el permiso');
+const grantsFn = (contrato._divergencias_pendientes || {}).grants_funciones || [];
+check(grantsFn.some((d) => d.funcion.indexOf('coi_normalize_order_number') === 0),
+  'el grant debe declararse como divergencia pendiente');
+
 // ------------------------------------------- 6) el guard de integridad acompaña
 const migracion = fs.readFileSync('supabase/migrations/202608300003_h05_um_delete_guard.sql', 'utf8');
 check(/on delete restrict/i.test(migracion), 'la migracion H05 debe dejar la FK en RESTRICT');

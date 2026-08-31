@@ -85,6 +85,8 @@ const PENDIENTES_UNIQUE = (CONTRATO._divergencias_pendientes || {}).unique || []
 // verifica— lo que el repositorio produce de mas.
 const PENDIENTES_POLICIES = (CONTRATO._divergencias_pendientes || {}).policies || [];
 const PENDIENTES_GRANTS = (CONTRATO._divergencias_pendientes || {}).grants || [];
+// Grants sobre funciones: mismo criterio que los de tabla.
+const PENDIENTES_GRANTS_FN = (CONTRATO._divergencias_pendientes || {}).grants_funciones || [];
 
 // Columnas que el baseline llego a declarar por inferencia y que NO existen en
 // produccion. El control falla si alguna reaparece.
@@ -328,6 +330,24 @@ async function casoA() {
       check(!enSnapshot,
         `${d.tabla}: UNIQUE (${d.columnas.join(', ')}) esta en el snapshot productivo y ademas declarado como pendiente`);
     }
+  }
+
+  // Grants de funcion pendientes: tienen que existir de verdad tras aplicar las
+  // migraciones, y anon no puede haber recibido nada.
+  for (const d of PENDIENTES_GRANTS_FN) {
+    const nombre = d.funcion.replace(/\(.*$/, '');
+    const { rows } = await db.query(`
+      select has_function_privilege('authenticated', p.oid, 'EXECUTE') auth,
+             has_function_privilege('anon', p.oid, 'EXECUTE') anon
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.proname = $1`, [nombre]);
+    check(rows.length === 1, `${d.funcion}: se esperaba una unica firma y hay ${rows.length}`);
+    if (!rows.length) continue;
+    const esperaAuth = (d.repo.authenticated || []).indexOf('EXECUTE') >= 0;
+    check(rows[0].auth === esperaAuth,
+      `${d.funcion}: authenticated ${rows[0].auth ? 'puede' : 'no puede'} ejecutarla y el repo declara lo contrario`);
+    check(rows[0].anon === ((d.repo.anon || []).indexOf('EXECUTE') >= 0),
+      `${d.funcion}: anon no puede quedar con EXECUTE`);
   }
 
   // Grants pendientes: tras reproducir el repo tienen que ser EXACTAMENTE los
@@ -631,6 +651,12 @@ async function main() {
     console.log(`  CASO A · policies excedentes del repo : ${PENDIENTES_POLICIES.length} divergencia(s) pendientes de aplicar en remoto`);
     PENDIENTES_POLICIES.forEach((d) => console.log(
       `    pendiente · ${d.tabla}.${d.nombre} (${d.cmd}, ${d.permissive ? 'PERMISSIVE' : 'RESTRICTIVE'}): repo ${d.repo}, produccion ${d.produccion} (${d.migracion})`
+    ));
+  }
+  if (PENDIENTES_GRANTS_FN.length) {
+    console.log(`  CASO A · grants de funcion del repo  : ${PENDIENTES_GRANTS_FN.length} divergencia(s) pendientes de aplicar en remoto`);
+    PENDIENTES_GRANTS_FN.forEach((d) => console.log(
+      `    pendiente · ${d.funcion}: authenticated [${(d.repo.authenticated || []).join(', ') || 'ninguno'}], produccion ${d.produccion} (${d.migracion})`
     ));
   }
   if (PENDIENTES_GRANTS.length) {

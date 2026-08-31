@@ -414,5 +414,45 @@ Decisión: la comparación normalizada es para **buscar y contar**; el valor
 seleccionado se decide por **igualdad exacta** con el dato remoto, y si no figura
 literalmente entre las opciones se agrega una sola vez.
 
+## TD-032 — La prevalidación de OC usa la identidad canónica de PostgreSQL
+Fecha: 2026-08-31.
+
+La integridad final ya vive en [[TD-028]] (trigger + FK). Pero la prevalidación
+remota del frontend **debe seguir existiendo**: mientras las migraciones de este
+PR no estén desplegadas, es la única defensa fail-closed contra asociar un ST a
+una OC inexistente.
+
+El problema era que resolvía con `eq()` e `ilike()` sobre el texto crudo. Eso es
+una **segunda definición de identidad, más estrecha** que la de PostgreSQL:
+`OC 4530008964` o `4530-00.89/64` designan la misma orden para
+`coi_normalize_order_number` y para el trigger, pero la UI las rechazaba antes de
+intentar escribirlas. Decía que no a algo que la base habría aceptado.
+
+**Antes de elegir se buscó una vía ya expuesta**: no hay vista sobre
+`coi_ordenes`, no hay columna generada con el número normalizado, ninguna RPC
+concedida a `authenticated` resuelve una orden por su número, y PostgREST no
+permite filtrar por una expresión de función. `coi_normalize_order_number` estaba
+revocada a `authenticated` en las dos migraciones que la definen, sin ningún
+grant posterior.
+
+Decisión: **conceder EXECUTE de esa misma función**, en lugar de reimplementar la
+normalización en JavaScript —que sería exactamente el problema que el hallazgo
+señala: dos definiciones que pueden separarse—.
+
+Es seguro porque la función es `language sql`, `immutable`, `strict`, **no** es
+`security definer` y no lee ninguna tabla: transforma texto y devuelve texto.
+Conocer el resultado no revela ningún dato; para saber si la orden existe hace
+falta el SELECT sobre `coi_ordenes`, que ya está gobernado por su propia RLS.
+`anon` queda explícitamente revocado.
+
+El flujo pasa a ser: normalizar contra la base → buscar por `nro_oc` igual al
+canónico → aceptar solo si hay **exactamente una** orden. `coi_ordenes` almacena
+el número ya normalizado (`coi_order_number_guard`), así que la igualdad es
+exacta y `coi_ordenes_nro_oc_uq` garantiza la unicidad.
+
+Se mantienen las reglas previas: una OC no modificada no se revalida, una OC
+nueva o cambiada exige validación remota, un fallo remoto no guarda, y nunca se
+crea una OC. Ver [[KI-016]].
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.

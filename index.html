@@ -28115,16 +28115,31 @@ document.addEventListener('click',function(event){
   async function ocExisteEnSupabase(c, valor) {
     const buscado = texto(valor);
     if (!buscado) return null;
-    const exacta = await c.from(TABLA_OC).select('nro_oc').eq('nro_oc', buscado).limit(1);
-    if (exacta.error) throw exacta.error;
-    const directa = (exacta.data || []).find((r) => clave(r.nro_oc) === clave(buscado));
-    if (directa) return texto(directa.nro_oc);
-    // Segundo intento tolerante a mayusculas/minusculas: la comparacion final
-    // sigue siendo la normalizada, para no aceptar un parecido.
-    const laxa = await c.from(TABLA_OC).select('nro_oc').ilike('nro_oc', buscado).limit(20);
-    if (laxa.error) throw laxa.error;
-    const encontrada = (laxa.data || []).find((r) => clave(r.nro_oc) === clave(buscado));
-    return encontrada ? texto(encontrada.nro_oc) : null;
+
+    // La identidad de una OC la define public.coi_normalize_order_number(): es
+    // la que usan el guard de coi_ordenes y el trigger de resolucion de ST.
+    // Resolver aca por eq/ilike sobre el texto crudo seria una SEGUNDA
+    // definicion, mas estrecha: «OC 4530008964» designa la misma orden para la
+    // base y la UI lo rechazaba antes de intentar escribirlo.
+    //
+    // Se le pregunta a la propia base cual es el numero canonico y recien
+    // despues se busca la orden. coi_ordenes almacena el numero YA normalizado
+    // —lo hace coi_order_number_guard—, de modo que la igualdad es exacta y
+    // coi_ordenes_nro_oc_uq garantiza que haya a lo sumo una fila.
+    const normalizada = await c.rpc('coi_normalize_order_number', { p_value: buscado });
+    // Fail-closed: si no se pudo obtener la forma canonica no se inventa una.
+    // Quien llama traduce esto en «no se pudo verificar» y no guarda nada.
+    if (normalizada.error) throw normalizada.error;
+    const canonico = texto(Array.isArray(normalizada.data) ? normalizada.data[0] : normalizada.data);
+    if (!canonico) return null;
+
+    const filas = await c.from(TABLA_OC).select('nro_oc').eq('nro_oc', canonico).limit(2);
+    if (filas.error) throw filas.error;
+    const halladas = filas.data || [];
+    // Exactamente una: si hubiera mas de una, el numero no identificaria una
+    // orden y asociar el ST seria adivinar.
+    if (halladas.length !== 1) return null;
+    return texto(halladas[0].nro_oc);
   }
 
   // ---------------------------------------------------------- memoria y UI

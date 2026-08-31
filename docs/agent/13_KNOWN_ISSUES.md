@@ -224,5 +224,27 @@ documentar el efecto.
 Declarada en `tests/fixtures/production_schema_contract.json` →
 `_divergencias_pendientes.fk` como FK nueva (`produccion: "sin FK"`).
 
+## KI-016 — Grant de coi_normalize_order_number pendiente en remoto
+Estado: abierto. Rama `fix/h05-unidades-mantenimiento-supabase-first`.
+`supabase/migrations/202608310005_h04_normalize_order_number_grant.sql` concede
+EXECUTE de `public.coi_normalize_order_number(text)` al rol `authenticated`, para
+que la prevalidacion del frontend use la MISMA identidad de OC que la base. NO
+fue aplicada a PRODUCCION ni a STAGING.
+
+Mientras eso siga asi, la llamada RPC de la capa fallara y —por diseño
+fail-closed— **no se podra asociar ninguna OC nueva a un Servicio Tecnico**: la
+UI dira «No se pudo verificar la OC» y no guardara. Editar cualquier otro campo
+de un ST, o guardarlo sin OC, sigue funcionando; tambien sigue funcionando toda
+la gestion de UM.
+
+Es el comportamiento deliberado: preferimos no guardar una asociacion sin validar
+antes que aceptarla a ciegas. Pero conviene desplegar esta migracion junto con
+las demas del PR, no despues, para no dejar la carga de ST con OC bloqueada.
+
+La migracion es un unico grant sobre una funcion pura —sql, immutable, strict,
+sin security definer y sin acceso a tablas—; `anon` queda explicitamente
+revocado. Declarada en `tests/fixtures/production_schema_contract.json` →
+`_divergencias_pendientes.grants_funciones`.
+
 ## Actualización
 Registrar PR, fecha, resolución y test de regresión.
