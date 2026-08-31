@@ -65,7 +65,11 @@ const TABLAS_BASELINE = Object.keys(CONTRATO).filter((k) => !k.startsWith('_'));
 // entornos remotos. El contrato sigue siendo el snapshot de produccion; aca se
 // declara el valor que el repositorio DEBE producir mientras dure la diferencia,
 // de modo que la brecha quede visible en lugar de disimulada dentro del snapshot.
-const PENDIENTES = (CONTRATO._divergencias_pendientes || {}).fk || [];
+const PENDIENTES_TODAS = (CONTRATO._divergencias_pendientes || {}).fk || [];
+// «sin FK» en produccion = el repositorio agrega una FK nueva; el resto son
+// cambios de accion sobre una FK que produccion ya tiene.
+const PENDIENTES_FK_NUEVAS = PENDIENTES_TODAS.filter((d) => d.produccion === 'sin FK');
+const PENDIENTES = PENDIENTES_TODAS.filter((d) => d.produccion !== 'sin FK');
 const accionEsperada = (tabla, columna, accionProduccion) => {
   const d = PENDIENTES.find((x) => x.tabla === tabla && x.columna === columna);
   return d ? d.repo : accionProduccion;
@@ -370,10 +374,30 @@ async function casoA() {
   for (const tabla of TABLAS_BASELINE) {
     const propias = fks.filter((f) => f.tabla === tabla);
     const esperadas = CONTRATO[tabla].fk || [];
+    const nuevas = PENDIENTES_FK_NUEVAS.filter((d) => d.tabla === tabla);
     check(
-      propias.length === esperadas.length,
-      `${tabla}: ${propias.length} FK, produccion tiene ${esperadas.length}`
+      propias.length === esperadas.length + nuevas.length,
+      `${tabla}: ${propias.length} FK, produccion tiene ${esperadas.length}` +
+        (nuevas.length ? ` mas ${nuevas.length} declarada(s) como pendiente(s)` : '')
     );
+    // Y las declaradas como pendientes tienen que existir de verdad, con la
+    // forma exacta que se anuncio: si no, la divergencia seria una anotacion.
+    for (const d of nuevas) {
+      const real = propias.find((f) => new RegExp('FOREIGN KEY \\(' + d.columna + '\\)', 'i').test(f.def));
+      check(Boolean(real), `${tabla}: se declara pendiente la FK sobre ${d.columna} y el repositorio no la crea`);
+      if (!real) continue;
+      // El destino se compara sin regex: «coi_ordenes(nro_oc)» trae parentesis
+      // y escaparlos a mano es justo la clase de detalle que se rompe sola.
+      check(real.def.toUpperCase().indexOf(d.destino.toUpperCase()) >= 0,
+        `${tabla}.${d.columna}: referencia ${real.def}, se declara ${d.destino}`);
+      check(new RegExp('ON UPDATE ' + d.on_update, 'i').test(real.def),
+        `${tabla}.${d.columna}: se declara ON UPDATE ${d.on_update} y es ${real.def}`);
+      check(new RegExp('ON DELETE ' + d.on_delete, 'i').test(real.def),
+        `${tabla}.${d.columna}: se declara ON DELETE ${d.on_delete} y es ${real.def}`);
+      // Y no puede figurar ya en el snapshot productivo.
+      check(!esperadas.some((e) => e[0] === d.columna),
+        `${tabla}: la FK sobre ${d.columna} esta en el snapshot y ademas declarada como pendiente`);
+    }
     for (const [col, destino, accion] of esperadas) {
       const fk = propias.find((f) => new RegExp('FOREIGN KEY \\(' + col + '\\)', 'i').test(f.def));
       check(Boolean(fk), `${tabla}: falta la FK sobre ${col} -> ${destino}`);
@@ -589,6 +613,12 @@ async function main() {
   PENDIENTES.forEach((d) => console.log(
     `    pendiente · ${d.tabla}.${d.columna}: repo ${d.repo}, produccion ${d.produccion} (${d.migracion})`
   ));
+  if (PENDIENTES_FK_NUEVAS.length) {
+    console.log(`  CASO A · FK nuevas del repo          : ${PENDIENTES_FK_NUEVAS.length} divergencia(s) pendientes de aplicar en remoto`);
+    PENDIENTES_FK_NUEVAS.forEach((d) => console.log(
+      `    pendiente · ${d.tabla}.${d.columna} -> ${d.destino} ON UPDATE ${d.on_update} ON DELETE ${d.on_delete} (${d.migracion})`
+    ));
+  }
   if (PENDIENTES_UNIQUE.length) {
     console.log(
       `  CASO A · UNIQUE excedentes del repo  : ${PENDIENTES_UNIQUE.length} divergencia(s) pendientes de aplicar en remoto`

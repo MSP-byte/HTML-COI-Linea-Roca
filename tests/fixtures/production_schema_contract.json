@@ -12,6 +12,18 @@
         "repo": "RESTRICT",
         "migracion": "202608300003_h05_um_delete_guard.sql",
         "motivo": "Los Servicios Tecnicos son el historial tecnico de la Unidad de Mantenimiento: dar de baja o eliminar una UM no puede destruirlos por cascada. H05 deja la UM como dato Supabase-first y sustituye el borrado fisico por estado BAJA."
+      },
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "columna": "nro_oc",
+        "produccion": "sin FK",
+        "repo": "CASCADE",
+        "destino": "coi_ordenes(nro_oc)",
+        "on_update": "CASCADE",
+        "on_delete": "RESTRICT",
+        "trigger": "coi_st_resolver_nro_oc",
+        "migracion": "202608310004_h04_st_oc_referencial.sql",
+        "motivo": "La asociacion ST -> OC era texto libre validado por el frontend: no respetaba coi_normalize_order_number, dejaba una ventana de carrera entre validar y escribir, y permitia restaurar un numero viejo despues de una renumeracion. Pasa a ser integridad referencial: un trigger BEFORE resuelve el numero canonico y la FK propaga renumeraciones (ON UPDATE CASCADE) e impide borrar una OC con historial tecnico (ON DELETE RESTRICT)."
       }
     ],
     "unique": [

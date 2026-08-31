@@ -366,8 +366,14 @@ check(/rpc\('coi_current_role'\)/.test(capa.texto),
   'el rol debe confirmarse con la misma funcion que usan las policies');
 check(/no tiene un perfil activo habilitado/.test(capa.texto),
   'falta el mensaje operativo de perfil inactivo');
-check(/if \(perfil\.ok && !perfil\.rol\)/.test(capa.texto),
+check(/if \(!perfil\.rol\)/.test(capa.texto),
   'sin rol no se puede aceptar la lectura como autoritativa');
+// Fail-closed: si la comprobacion del rol no se pudo hacer, tampoco se consulta.
+// Continuar «por las dudas» reintroduce el falso cero que el guard viene a evitar.
+check(/if \(!perfil\.ok\)/.test(capa.texto),
+  'un error de la RPC de rol tiene que cortar igual que un rol nulo');
+check(/No se pudo verificar el perfil del usuario/.test(capa.texto),
+  'falta el mensaje operativo cuando la verificacion del rol falla');
 
 // F3 · La version del CAS se captura al pintar el formulario.
 check(/let umEditandoVersion = null;/.test(capa.texto),
@@ -485,6 +491,66 @@ check(/claveEstacion\(u\.estacion\) === claveBuscada/.test(capa.texto),
   'la comparacion de respaldo debe ser normalizada, nunca exacta');
 check(!/u\.estacion === nombre/.test(capa.texto),
   'no puede quedar ninguna comparacion exacta de estacion en la capa');
+
+
+// ------------------------------------------- 5f) cuarta ronda de review
+// F1 · Tras una mutacion propia el formulario se repinta aunque el boton
+//      siga enfocado: si no, queda con la version vieja y el siguiente
+//      guardado falla con un conflicto que no existe.
+check(/let repintarFormTrasMutacion = false;/.test(capa.texto),
+  'falta la marca de repintado tras una mutacion confirmada');
+check(/repintarFormTrasMutacion = true;/.test(capa.texto),
+  'una mutacion confirmada de UM debe pedir el repintado');
+check(/const forzarForm = repintarFormTrasMutacion;/.test(capa.texto),
+  'el render de la vista debe consumir la marca de repintado');
+check(/activo\.tagName !== 'BUTTON';/.test(capa.texto),
+  'un boton enfocado no puede bloquear el repintado del formulario');
+
+// F5 · El select marca el valor EXACTO del remoto, no una variante equivalente.
+check(/v === texto\(seleccionado\) \? ' selected' : ''/.test(capa.texto),
+  'el option seleccionado debe compararse por igualdad exacta con el dato remoto');
+check(!/clave\(v\) === clave\(seleccionado\)/.test(capa.texto),
+  'no puede elegirse el option por comparacion normalizada: reescribiria el texto remoto');
+
+// F4 · Si la OC no se toco, no viaja en el patch del UPDATE.
+check(/if \(preparado\.ocSinCambios\) delete patch\.nro_oc;/.test(capa.texto),
+  'una edicion que no toca la OC no puede reenviar el nro_oc');
+// Pero vaciarla SI es un cambio y tiene que persistirse como null: omitirla ahi
+// dejaria la asociacion vieja para siempre.
+check(/let ocSinCambios = false;/.test(capa.texto),
+  'hay que distinguir «la OC no se toco» de «la OC se vacio»');
+
+// F3+F4+F6 · La integridad de la asociacion ST -> OC es de PostgreSQL.
+const migracionOC = fs.readFileSync('supabase/migrations/202608310004_h04_st_oc_referencial.sql', 'utf8');
+const sinComentariosOC = migracionOC.replace(/--[^\n]*/g, '');
+check(/coi_normalize_order_number/.test(sinComentariosOC),
+  'la resolucion del nro_oc debe usar la normalizacion canonica del proyecto');
+check(/create trigger coi_st_resolver_nro_oc/i.test(sinComentariosOC),
+  'falta el trigger que resuelve el nro_oc entrante');
+check(/before insert or update of nro_oc/i.test(sinComentariosOC),
+  'el trigger tiene que correr BEFORE, en la misma sentencia que la escritura');
+check(/references public\.coi_ordenes\(nro_oc\)/i.test(sinComentariosOC),
+  'la FK debe apuntar a coi_ordenes(nro_oc)');
+check(/on update cascade/i.test(sinComentariosOC),
+  'ON UPDATE CASCADE es lo que hace que la renumeracion arrastre el ST');
+check(/on delete restrict/i.test(sinComentariosOC),
+  'ON DELETE RESTRICT impide borrar una OC con historial tecnico');
+check(/COI_ST_OC_INEXISTENTE/.test(sinComentariosOC),
+  'una OC inexistente debe rechazarse con un error explicito');
+check(/COI_ST_OC_HUERFANAS_PREEXISTENTES/.test(sinComentariosOC),
+  'con datos sucios preexistentes la migracion debe abortar');
+for (const destructivo of [/\btruncate\b/i, /\bdrop\s+table\b/i, /\bdelete\s+from\b/i, /\bgrant\b/i]) {
+  check(!destructivo.test(sinComentariosOC), `la migracion ST/OC no puede contener: ${destructivo}`);
+}
+// Y la divergencia queda declarada como FK nueva, no como cambio de accion.
+const fkPendientes = (contrato._divergencias_pendientes || {}).fk || [];
+const fkOC = fkPendientes.find((d) => d.tabla === 'coi_servicios_tecnicos_um' && d.columna === 'nro_oc');
+check(Boolean(fkOC), 'la FK de nro_oc debe declararse como divergencia pendiente');
+check(fkOC.produccion === 'sin FK', 'produccion todavia no tiene esa FK: hay que decirlo asi');
+check(fkOC.on_update === 'CASCADE' && fkOC.on_delete === 'RESTRICT',
+  'la divergencia debe declarar las acciones reales de la FK');
+check(!(contrato.coi_servicios_tecnicos_um.fk || []).some((f) => f[0] === 'nro_oc'),
+  'el snapshot productivo no puede incluir una FK que todavia no se aplico');
 
 // ------------------------------------------- 6) el guard de integridad acompaña
 const migracion = fs.readFileSync('supabase/migrations/202608300003_h05_um_delete_guard.sql', 'utf8');

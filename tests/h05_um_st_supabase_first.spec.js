@@ -79,7 +79,7 @@ async function prepararEntorno(page, opciones) {
     ums: [], sts: [], legadoUM: null, legadoST: null,
     fallaSelect: false, fallaMutacion: false, errorMutacion: 'RLS denegado',
     retardoSelectMs: 0, pageSize: 1000, admin: true, sinSesion: false, rol: 'administrador',
-    ordenes: [], fallaSelectOC: false
+    ordenes: [], fallaSelectOC: false, fallaRol: false
   }, opciones);
 
   await page.addInitScript((c) => {
@@ -231,6 +231,7 @@ async function prepararEntorno(page, opciones) {
         registrar('rpc:' + nombre, null);
         if (nombre !== 'coi_current_role') return { data: null, error: null };
         if (!sesionActiva) return { data: null, error: null };
+        if (c.fallaRol) return { data: null, error: { message: 'fallo de red al leer el perfil' } };
         return { data: c.rol === null ? null : c.rol, error: null };
       },
       auth: {
@@ -1218,9 +1219,12 @@ test('42 · editar sin tocar la OC no exige que el catalogo de Ordenes este carg
   const e = await estado(page);
   const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
   expect(updates).toHaveLength(1);
-  // La OC ya persistida se conserva tal cual: no se revalida ni se pierde.
-  expect(updates[0].payload.patch.nro_oc).toBe(ST_A.nro_oc);
+  // La OC sin tocar ya no viaja en el patch: asi un formulario abierto antes de
+  // una renumeracion no puede reenviar el numero viejo.
+  expect(Object.prototype.hasOwnProperty.call(updates[0].payload.patch, 'nro_oc')).toBe(false);
   expect(updates[0].payload.patch.descripcion).toBe('Editada sin catálogo de OC');
+  // Y la asociacion persistida sigue intacta.
+  expect(e.sts[0].oc).toBe(ST_A.nro_oc);
 });
 
 test('43 · cambiar la OC si exige el catalogo: nunca se acepta una OC sin validar', async ({ page }) => {
@@ -2328,9 +2332,10 @@ test('90 · editar otro campo con la OC sin modificar no exige validacion remota
   const e = await estado(page);
   const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
   expect(updates).toHaveLength(1);
-  // La OC persistida se conserva tal cual, sin revalidar.
-  expect(updates[0].payload.patch.nro_oc).toBe(ST_A.nro_oc);
+  // La OC sin tocar no viaja en el patch, y la asociacion persistida no cambia.
+  expect(Object.prototype.hasOwnProperty.call(updates[0].payload.patch, 'nro_oc')).toBe(false);
   expect(updates[0].payload.patch.descripcion).toBe('Editada sin tocar la OC');
+  expect(e.sts[0].oc).toBe(ST_A.nro_oc);
   // El modulo de Ordenes lee coi_ordenes por su cuenta; lo que no puede haber
   // es una busqueda por nro_oc, que es como valida la capa una OC cambiada.
   const busquedasDeOC = soloOp(e, 'select:coi_ordenes')
@@ -2426,4 +2431,189 @@ test('94 · el texto de la estacion en Supabase no se reescribe', async ({ page 
   await expect(page.locator('#umTbody')).toContainText('ESTACION SIN CATALOGO');
   // Y no se emitio ningun UPDATE para «corregir» la estacion.
   expect(soloOp(e, 'update:coi_unidades_mantenimiento')).toHaveLength(0);
+});
+
+// ================================== cuarta ronda de review del PR #59
+
+// --- F1: el formulario se repinta tras una mutacion propia confirmada.
+
+test('95 · tras CREAR una UM el formulario queda con la version confirmada', async ({ page }) => {
+  await prepararEntorno(page, { ums: [], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+
+  await page.fill('#umh5_codigo', 'ASC-500');
+  await page.selectOption('#umh5_tipo', 'Ascensor');
+  await page.selectOption('#umh5_estacion', { index: 1 });
+  await page.click('#btnGuardarUMH05');
+  // Se deja el foco en el boton a proposito: es la situacion del finding, y
+  // Playwright no garantiza donde queda tras un click.
+  await page.focus('#btnGuardarUMH05');
+  await page.waitForTimeout(1100);
+
+  const r = await page.evaluate(() => ({
+    versionRuntime: window.__COI_UM_H05__.confirmadoUM[0].fechaActualizacion,
+    codigo: document.getElementById('umh5_codigo').value,
+    enBoton: document.activeElement && document.activeElement.tagName === 'BUTTON'
+  }));
+  expect(r.enBoton).toBe(true);
+  expect(r.codigo).toBe('ASC-500');
+
+  // Y un segundo guardado NO da falso conflicto: usa la version nueva.
+  await page.fill('#umh5_proveedor', 'PROVEEDOR TRAS ALTA');
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(1100);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_unidades_mantenimiento');
+  expect(updates).toHaveLength(1);
+  const cond = updates[0].payload.filtros.find((f) => f.col === 'fecha_actualizacion');
+  expect(cond.val).toBe(r.versionRuntime);
+  const proveedor = await page.evaluate(() => window.__COI_UM_H05__.confirmadoUM[0].proveedorMantenimiento);
+  expect(proveedor).toBe('PROVEEDOR TRAS ALTA');
+});
+
+test('96 · dos UPDATE seguidos de UM no producen un falso conflicto', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+  await page.click('#btnEditarUM');
+  await page.waitForTimeout(400);
+
+  await page.fill('#umh5_proveedor', 'PRIMERA EDICION');
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(1100);
+
+  await page.fill('#umh5_proveedor', 'SEGUNDA EDICION');
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(1100);
+
+  const e = await estado(page);
+  // Dos UPDATE, ambos aplicados: el segundo uso la version que dejo el primero.
+  expect(soloOp(e, 'update:coi_unidades_mantenimiento')).toHaveLength(2);
+  const proveedor = await page.evaluate(() => window.__COI_UM_H05__.confirmadoUM[0].proveedorMantenimiento);
+  expect(proveedor).toBe('SEGUNDA EDICION');
+  // Y nunca aparecio el aviso de conflicto.
+  const toast = await page.locator('#coiToastV581').textContent().catch(() => '');
+  expect(String(toast)).not.toContain('modificada por otro usuario');
+});
+
+// --- F2: el chequeo de rol es fail-closed.
+
+test('97 · si la RPC de rol falla no se consulta UM/ST', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A], legadoUM: UM_LEGACY, fallaRol: true });
+  await abrir(page);
+  await irAUM(page);
+  const e = await estado(page);
+
+  expect(soloOp(e, 'select:coi_unidades_mantenimiento')).toHaveLength(0);
+  expect(soloOp(e, 'select:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(e.sincronizado).toBe(false);
+  expect(e.origen).toBe('error-sin-sincronizar');
+  expect(e.ultimoError).toContain('No se pudo verificar el perfil');
+  expect(e.ums).toHaveLength(0);
+  expect(JSON.stringify(e.ums)).not.toContain('LEGACY');
+});
+
+test('98 · con la RPC de rol sana la lectura sigue funcionando', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A], rol: 'consulta' });
+  await abrir(page);
+  const e = await estado(page);
+  expect(e.sincronizado).toBe(true);
+  expect(e.ums.map((u) => u.codigo)).toEqual(['ASC-001']);
+});
+
+// --- F5: el select marca el valor exacto del remoto.
+
+test('99 · el select de estacion marca el valor exacto que guarda Supabase', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+
+  // El catalogo maestro contiene «Plaza Constitución»; Supabase guarda
+  // «PLAZA CONSTITUCION». Las dos designan la misma estacion.
+  const r = await page.evaluate(() => ({
+    encontradasNormalizado: (window.umsPorEstacion('Plaza Constitución') || []).length,
+    catalogoTiene: typeof window.resolverEstacionMaestra === 'function'
+      ? Boolean(window.resolverEstacionMaestra('Plaza Constitución'))
+      : false
+  }));
+  expect(r.encontradasNormalizado).toBe(1);
+  expect(r.catalogoTiene).toBe(true);
+
+  await abrirFichaPrimeraUM(page);
+  await page.click('#btnEditarUM');
+  await page.waitForTimeout(400);
+
+  // El select tiene que quedar en el texto EXACTO del remoto.
+  await expect(page.locator('#umh5_estacion')).toHaveValue('PLAZA CONSTITUCION');
+});
+
+test('100 · editar otro campo conserva exactamente el texto de estacion remoto', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+  await page.click('#btnEditarUM');
+  await page.waitForTimeout(400);
+
+  await page.fill('#umh5_proveedor', 'PROVEEDOR SIN TOCAR ESTACION');
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(1100);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_unidades_mantenimiento');
+  expect(updates).toHaveLength(1);
+  // No se reescribio el texto remoto por una variante del catalogo.
+  expect(updates[0].payload.patch.estacion).toBe('PLAZA CONSTITUCION');
+  expect(updates[0].payload.patch.proveedor_mantenimiento).toBe('PROVEEDOR SIN TOCAR ESTACION');
+  expect(e.ums[0].estacion).toBe('PLAZA CONSTITUCION');
+});
+
+// --- F4 (parte frontend): la OC no viaja si no se toco.
+
+test('101 · editar un ST sin tocar la OC no reenvia el nro_oc', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A], ordenes: [{ nro_oc: '4530008964' }] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_descripcion', 'Solo cambia la descripcion');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1100);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  // nro_oc NO viaja: un formulario abierto antes de una renumeracion no puede
+  // reenviar el numero viejo.
+  expect(Object.prototype.hasOwnProperty.call(updates[0].payload.patch, 'nro_oc')).toBe(false);
+  expect(updates[0].payload.patch.descripcion).toBe('Solo cambia la descripcion');
+});
+
+test('102 · cambiar la OC si la incluye en el patch, ya confirmada', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [ST_A], ordenes: [{ nro_oc: '4530008964' }, { nro_oc: '4530003333' }]
+  });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964', '4530003333']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_oc', '4530003333');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  expect(updates[0].payload.patch.nro_oc).toBe('4530003333');
 });

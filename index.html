@@ -28242,7 +28242,13 @@ document.addEventListener('click',function(event){
       // rol, no se consulta UM/ST en absoluto.
       const perfil = await rolDeSesion();
       if (!vigente()) return listaUM();
-      if (perfil.ok && !perfil.rol) {
+      // Fail-closed: si la comprobacion no se pudo hacer, tampoco se consulta.
+      // Continuar «por las dudas» reintroduce exactamente el falso cero que
+      // este guard viene a evitar.
+      if (!perfil.ok) {
+        return conservarUltimoConfirmado('No se pudo verificar el perfil del usuario. No se muestran datos sin confirmar.');
+      }
+      if (!perfil.rol) {
         return conservarUltimoConfirmado('El usuario no tiene un perfil activo habilitado.');
       }
       if (vigente()) runtime.rol = perfil.rol;
@@ -28414,14 +28420,23 @@ document.addEventListener('click',function(event){
   // Estado que mostraba el formulario. Las reglas de transicion se evaluan
   // contra lo que el operador vio, no contra lo que el runtime tenga ahora.
   let umEditandoEstadoOriginal = null;
+  // Lo enciende una mutacion propia confirmada: obliga a repintar el formulario
+  // desde el snapshot remoto, aunque el boton siga enfocado.
+  let repintarFormTrasMutacion = false;
 
+  // El valor seleccionado se decide por igualdad EXACTA con el dato remoto. Si
+  // se marcara una variante equivalente —«Plaza Constitución» por
+  // «PLAZA CONSTITUCION»—, guardar cualquier otro campo reescribiria en Supabase
+  // un texto que el operador nunca toco. La comparacion normalizada es para
+  // buscar y contar, no para elegir que se guarda.
   function opcionesSelect(valores, seleccionado, etiquetaVacia) {
     const vistos = [];
     (valores || []).forEach((v) => { if (texto(v) && vistos.indexOf(texto(v)) < 0) vistos.push(texto(v)); });
+    // El valor remoto se agrega una sola vez si no figura literalmente.
     if (texto(seleccionado) && vistos.indexOf(texto(seleccionado)) < 0) vistos.push(texto(seleccionado));
     const cabecera = etiquetaVacia == null ? '' : '<option value="">' + esc(etiquetaVacia) + '</option>';
     return cabecera + vistos.map((v) =>
-      '<option value="' + esc(v) + '"' + (clave(v) === clave(seleccionado) ? ' selected' : '') + '>' + esc(v) + '</option>'
+      '<option value="' + esc(v) + '"' + (v === texto(seleccionado) ? ' selected' : '') + '>' + esc(v) + '</option>'
     ).join('');
   }
 
@@ -28473,8 +28488,13 @@ document.addEventListener('click',function(event){
     const firma = firmaFormUM();
     if (!forzar && card.dataset.h05Firma === firma && card.childElementCount) return;
     const activo = document.activeElement;
-    // Tampoco se repinta mientras el foco esta dentro del formulario.
-    if (!forzar && card.contains(activo) && activo !== document.body) return;
+    // No se repinta mientras el operador esta escribiendo. Un boton enfocado no
+    // cuenta: despues de Guardar el foco queda justamente ahi, y bloquear el
+    // repintado dejaba el formulario con la version vieja y hacia fallar el
+    // siguiente guardado con un conflicto que no existia.
+    const escribiendo = card.contains(activo) && activo !== document.body &&
+      activo.tagName !== 'BUTTON';
+    if (!forzar && escribiendo) return;
     card.dataset.h05Firma = firma;
 
     const u = umEditandoUuid ? umPorUuid(umEditandoUuid) : null;
@@ -28612,6 +28632,9 @@ document.addEventListener('click',function(event){
           const fila = await crearUM(datos);
           umEditandoUuid = fila && fila.id ? fila.id : null;
         }
+        // Mutacion propia confirmada: el formulario tiene que volver a salir
+        // del snapshot recien leido, con la fecha_actualizacion nueva.
+        repintarFormTrasMutacion = true;
       },
       id ? 'Unidad de Mantenimiento actualizada.' : 'Unidad de Mantenimiento creada.'
     );
@@ -28808,11 +28831,13 @@ document.addEventListener('click',function(event){
     // de OC: un ST nunca crea una OC ni acepta las OC de demostracion legadas.
     let nroOC = null;
     let ocPorConfirmar = null;
+    let ocSinCambios = false;
     if (datos.oc && texto(ocOriginal) && clave(datos.oc) === clave(ocOriginal)) {
       // Sin cambios: se conserva la OC ya persistida y no se revalida. Es mas
       // seguro (no entra ninguna OC nueva sin confirmar) y evita bloquear la
       // edicion de otro campo por una validacion que no hace falta.
       nroOC = texto(ocOriginal);
+      ocSinCambios = true;
     } else if (datos.oc) {
       // OC nueva o cambiada: el catalogo en memoria sirve para avisar temprano,
       // pero la decision la toma Supabase mas abajo. todasLasOC() puede venir de
@@ -28837,6 +28862,7 @@ document.addEventListener('click',function(event){
 
     return {
       ocPorConfirmar: ocPorConfirmar,
+      ocSinCambios: ocSinCambios,
       fila: {
         unidad_id: um._supabaseId,
         nro_st: datos.nroST,
@@ -28908,6 +28934,10 @@ document.addEventListener('click',function(event){
         // unidad_id no viaja en el patch: editar no reasigna la UM.
         const patch = Object.assign({}, preparado.fila);
         delete patch.unidad_id;
+        // Y si la OC no se toco, tampoco viaja: un formulario abierto antes de
+        // una renumeracion reenviaria el numero viejo. La FK de la base lo
+        // rechazaria igual, pero no hay razon para mandar algo que no cambio.
+        if (preparado.ocSinCambios) delete patch.nro_oc;
         await actualizarST(uuid, patch, stEditandoVersion);
         limpiarEdicionST();
       }, 'Servicio Técnico actualizado.');
@@ -29155,7 +29185,9 @@ document.addEventListener('click',function(event){
   function renderVistaUM() {
     reafirmarEspejo();
     renderTablaUM();
-    renderFormUM();
+    const forzarForm = repintarFormTrasMutacion;
+    repintarFormTrasMutacion = false;
+    renderFormUM(forzarForm);
     renderPanelST();
     renderPanelHuerfanos();
   }

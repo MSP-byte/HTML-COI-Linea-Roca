@@ -195,5 +195,34 @@ visibilidad para que alguien pueda regularizarlos.
 Falta definir el circuito de reasignacion. Hasta entonces, esas filas quedan a la
 vista y fuera de cualquier ficha.
 
+## KI-015 — Integridad referencial ST → OC (H04) pendiente en remoto
+Estado: abierto. Rama `fix/h05-unidades-mantenimiento-supabase-first`.
+`supabase/migrations/202608310004_h04_st_oc_referencial.sql` convierte la
+asociacion `coi_servicios_tecnicos_um.nro_oc` en una foreign key real contra
+`coi_ordenes(nro_oc)`, con `ON UPDATE CASCADE` y `ON DELETE RESTRICT`, mas un
+trigger `BEFORE` que resuelve el numero entrante con
+`coi_normalize_order_number`. NO fue aplicada a PRODUCCION ni a STAGING.
+
+Mientras eso siga asi, la asociacion sigue siendo texto libre validado por el
+frontend: la validacion no respeta la normalizacion canonica de la misma forma
+que la base, queda una ventana de carrera entre validar y escribir, y una
+renumeracion historica podria dejar un ST citando un numero que ya no existe.
+
+Ambos entornos tienen hoy 0 ST, de modo que el riesgo real es nulo hasta que se
+empiece a cargar. Si encontrara ST citando una OC inexistente, la migracion
+aborta con `COI_ST_OC_HUERFANAS_PREEXISTENTES` y no vacia ni borra filas.
+
+**Efecto a tener presente al desplegar**: `coi_renumerar_oc` actualiza primero
+`coi_ordenes` y despues las tablas dependientes. Con la FK, la cascada ya
+renumero los Servicios Tecnicos cuando llega el UPDATE explicito del RPC, asi que
+ese UPDATE pasara a afectar 0 filas y el contador `coi_servicios_tecnicos_um` de
+su payload informara 0. **El dato queda igual de renumerado** —lo hace la
+cascada—, pero si algun tablero lee ese contador, mostrara 0 donde antes mostraba
+N. No se modifico el RPC: reescribir una migracion ya desplegada seria peor que
+documentar el efecto.
+
+Declarada en `tests/fixtures/production_schema_contract.json` →
+`_divergencias_pendientes.fk` como FK nueva (`produccion: "sin FK"`).
+
 ## Actualización
 Registrar PR, fecha, resolución y test de regresión.

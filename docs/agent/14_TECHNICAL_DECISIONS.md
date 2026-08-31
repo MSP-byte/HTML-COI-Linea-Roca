@@ -336,5 +336,83 @@ mayúsculas, espacios colapsados— si esos helpers no estuvieran disponibles.
 Primero se compara por identidad del catálogo maestro; el nombre normalizado es
 el respaldo. Ninguna rama compara texto exacto.
 
+## TD-028 — La asociación ST → OC es integridad referencial, no texto validado
+Fecha: 2026-08-31.
+
+La asociación la sostenía el frontend: `SELECT` para validar y después
+`INSERT/UPDATE` para escribir. Eso dejaba tres agujeros que ninguna validación de
+navegador cierra:
+
+1. **Normalización.** La identidad de una OC la define
+   `coi_normalize_order_number()`. Comparar por texto —exacto o `ilike`— acepta o
+   rechaza según cómo el operador escribió el número.
+2. **Carrera.** Entre el SELECT que valida y el INSERT que escribe hay una
+   ventana: si la OC se elimina en el medio, queda un ST huérfano.
+3. **Renumeración.** `coi_renumerar_oc` actualiza `coi_servicios_tecnicos_um.nro_oc`
+   pero no necesariamente mueve `fecha_actualizacion`, así que un formulario
+   abierto podía reenviar el número viejo.
+
+**Decisión: FK + trigger, no RPC.** Se verificó primero que la arquitectura fuera
+viable: `coi_ordenes` ya tiene `coi_ordenes_nro_oc_uq`, un índice único sobre la
+columna, y PostgreSQL acepta un índice único como destino de una foreign key
+—comprobado sobre PGlite antes de escribir la migración—.
+
+- un trigger `BEFORE INSERT/UPDATE` resuelve el número entrante a la forma exacta
+  almacenada, usando `coi_normalize_order_number`;
+- la FK con `ON UPDATE CASCADE` propaga las renumeraciones sola;
+- la FK con `ON DELETE RESTRICT` impide borrar una OC con historial técnico.
+
+Trigger y FK corren **dentro de la misma sentencia** que la escritura: no queda
+ventana de carrera y no hace falta un `SECURITY DEFINER` nuevo con su propia
+superficie de permisos. Un número viejo o inexistente deja de poder restaurarse
+sin depender de `fecha_actualizacion`.
+
+Dato del schema que conviene tener presente: `coi_order_number_guard` **normaliza
+`nro_oc` al escribir la orden**, así que la forma almacenada es siempre la
+canónica. El valor del trigger es aceptar lo que el operador escriba
+—`4530-008964`, `OC 4530008964`— cuando sin él la FK lo rechazaría.
+
+Consecuencia documentada: con la FK, la cascada renumera los ST antes de que
+`coi_renumerar_oc` llegue a su UPDATE explícito, así que ese UPDATE pasa a
+afectar 0 filas y su contador informará 0. El dato queda igual de renumerado, por
+la cascada. No se reescribe el RPC ya desplegado. Ver [[KI-015]].
+
+En el frontend, además, si el operador no tocó la OC el `nro_oc` **no viaja** en
+el patch del UPDATE.
+
+## TD-029 — El chequeo de rol es fail-closed
+Fecha: 2026-08-31.
+
+[[TD-019]] cortaba cuando `coi_current_role()` devolvía null, pero seguía adelante
+si la RPC fallaba. Un error de red devolvía el control al mismo falso cero que el
+guard venía a evitar.
+
+Decisión: la verificación es obligatoria. Sin rol confirmado —null **o** error—
+no se consulta UM/ST y el estado queda `error-sin-sincronizar`.
+
+## TD-030 — El formulario se repinta tras una mutación propia
+Fecha: 2026-08-31.
+
+El guard que evita repintar mientras el operador escribe también se activaba con
+el **botón** enfocado, que es justo donde queda el foco después de Guardar. El
+formulario se quedaba con la versión vieja y el siguiente guardado fallaba con un
+conflicto de [[TD-020]] que no existía.
+
+Decisión: un botón enfocado no cuenta como «escribiendo», y una mutación propia
+confirmada fuerza el repintado desde el snapshot recién leído.
+
+## TD-031 — Comparar estaciones normalizado, seleccionar exacto
+Fecha: 2026-08-31.
+
+[[TD-027]] normalizó la comparación, pero el `<select>` heredó esa comparación
+para decidir qué opción marcar. Si el catálogo dice `Plaza Constitución` y
+Supabase guarda `PLAZA CONSTITUCION`, marcar la variante del catálogo hacía que
+guardar cualquier otro campo reescribiera en Supabase un texto que el operador
+nunca tocó.
+
+Decisión: la comparación normalizada es para **buscar y contar**; el valor
+seleccionado se decide por **igualdad exacta** con el dato remoto, y si no figura
+literalmente entre las opciones se agrega una sola vez.
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.
