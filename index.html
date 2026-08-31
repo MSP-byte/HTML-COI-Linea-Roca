@@ -11419,21 +11419,44 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   var MODELO = { ums: [], sts: [] };
   window.__COI_UM_H05_MODELO__ = MODELO;
 
+  // Copia profunda de una fila plana. El legado sigue haciendo push, splice y
+  // asignacion por indice sobre estos arreglos —v33GuardarUM, los helpers ST de
+  // R15/R16—, y tambien muta los objetos fila. Si compartieran referencia con el
+  // snapshot remoto, una escritura local contaminaria lo que la capa declara
+  // «confirmado por Supabase» mientras sincronizado sigue en true.
+  var copiarFila = function (fila) {
+    var copia = {};
+    for (var k in fila) {
+      if (!Object.prototype.hasOwnProperty.call(fila, k)) continue;
+      var v = fila[k];
+      copia[k] = Array.isArray(v) ? v.slice() : v;
+    }
+    return copia;
+  };
+  // Cada publicacion entrega arreglo NUEVO con filas NUEVAS.
+  var copiarLista = function (lista) {
+    return (Array.isArray(lista) ? lista : []).map(copiarFila);
+  };
+  window.__COI_UM_H05_COPIAR__ = copiarLista;
+
   var reponerLexicos = function () {
-    try { unidadesMantenimiento = MODELO.ums; } catch (e) {}
-    try { serviciosTecnicos = MODELO.sts; } catch (e) {}
+    try { unidadesMantenimiento = copiarLista(MODELO.ums); } catch (e) {}
+    try { serviciosTecnicos = copiarLista(MODELO.sts); } catch (e) {}
   };
   window.__COI_UM_H05_APLICAR__ = function (ums, sts) {
-    MODELO.ums = Array.isArray(ums) ? ums : [];
-    MODELO.sts = Array.isArray(sts) ? sts : [];
+    // El holder guarda su propia copia: ni siquiera comparte con quien publica.
+    MODELO.ums = copiarLista(ums);
+    MODELO.sts = copiarLista(sts);
     reponerLexicos();
-    return MODELO.ums;
+    return copiarLista(MODELO.ums);
   };
 
   var vista = function (campo) {
     return {
       configurable: true,
-      get: function () { return MODELO[campo]; },
+      // Se entrega una copia por lectura: quien reciba el arreglo puede hacerle
+      // lo que quiera sin tocar el modelo.
+      get: function () { return copiarLista(MODELO[campo]); },
       // Una capa legada intento reemplazar el inventario: se ignora el valor y se
       // repara el binding lexico que esa misma capa acaba de escribir.
       set: function () { reponerLexicos(); }
@@ -27859,6 +27882,7 @@ document.addEventListener('click',function(event){
     confirmadoUM: null,     // ultimo modelo remoto confirmado de UM
     confirmadoST: null,     // ultimo modelo remoto confirmado de ST
     authUserId: null,       // UID de la sesion que produjo el modelo vigente
+    rol: null,              // rol operativo confirmado por el servidor
     mutando: false          // lock de mutacion visible para la UI
   };
   window.__COI_UM_H05__ = runtime;
@@ -27873,6 +27897,13 @@ document.addEventListener('click',function(event){
   // que el otro rechaza. Se mantiene aparte de clave(), que ademas quita acentos
   // y la usan OC y UM: cambiarla para todos seria tocar lo que no hace falta.
   const claveST = (v) => String(v == null ? '' : v).replace(/[\s.\/-]+/g, '').toUpperCase();
+  // Codigo de UM canonico. Coincide con el indice unico de
+  // 202608310003_h05_um_codigo_unique_guard.sql:
+  //   upper(regexp_replace(codigo_um, '[[:space:]./-]+', '', 'g'))
+  // Se mantiene separada de clave() —que usan OC y estaciones y ademas quita
+  // acentos— y de claveST(): son identificadores tecnicos distintos, cada uno
+  // con su propio indice, y compartir la funcion los ataria sin motivo.
+  const claveUM = (v) => String(v == null ? '' : v).replace(/[\s.\/-]+/g, '').toUpperCase();
   const esUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(texto(v));
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const $ = (id) => document.getElementById(id);
@@ -27917,6 +27948,21 @@ document.addEventListener('click',function(event){
       return typeof window.esAutorizacionAdministrativaSupabaseV60 === 'function' &&
         window.esAutorizacionAdministrativaSupabaseV60() === true;
     } catch (e) { return false; }
+  }
+
+  // Rol operativo segun el servidor. Es la misma funcion que usan las policies,
+  // de modo que la capa no inventa un segundo criterio de autorizacion.
+  async function rolDeSesion() {
+    const c = cliente();
+    if (!c || typeof c.rpc !== 'function') return { ok: false, rol: null, error: null };
+    try {
+      const { data, error } = await c.rpc('coi_current_role');
+      if (error) return { ok: false, rol: null, error: error };
+      const rol = texto(Array.isArray(data) ? data[0] : data);
+      return { ok: true, rol: rol || null, error: null };
+    } catch (e) {
+      return { ok: false, rol: null, error: e };
+    }
   }
 
   async function uidDeSesion() {
@@ -28040,16 +28086,33 @@ document.addEventListener('click',function(event){
   const hayCatalogoOC = () => filasOC().length > 0;
 
   // ---------------------------------------------------------- memoria y UI
+  // Snapshot remoto: arreglo y filas congelados. No se comparte ninguna
+  // referencia mutable con el legado, que sigue haciendo push/splice/asignacion
+  // por indice sobre las globales. Congelar convierte una contaminacion silenciosa
+  // en un fallo visible.
+  function snapshotInmutable(filas) {
+    return Object.freeze((Array.isArray(filas) ? filas : []).map((f) => {
+      const copia = {};
+      Object.keys(f || {}).forEach((k) => {
+        copia[k] = Array.isArray(f[k]) ? Object.freeze(f[k].slice()) : f[k];
+      });
+      return Object.freeze(copia);
+    }));
+  }
+
   const listaUM = () => (Array.isArray(runtime.confirmadoUM) ? runtime.confirmadoUM : []);
   const listaST = () => (Array.isArray(runtime.confirmadoST) ? runtime.confirmadoST : []);
   const umPorUuid = (id) => listaUM().find((u) => String(u._supabaseId) === String(id)) || null;
   const umPorCodigo = (codigo) => {
-    const k = clave(codigo);
+    const k = claveUM(codigo);
     if (!k) return null;
-    return listaUM().find((u) => clave(u.codigoUM) === k) || null;
+    return listaUM().find((u) => claveUM(u.codigoUM) === k) || null;
   };
   const stPorUuid = (id) => listaST().find((s) => String(s._supabaseId) === String(id)) || null;
   const stDeUM = (uuid) => listaST().filter((s) => String(s._unidadId) === String(uuid));
+  // ST que ninguna ficha puede mostrar: sin unidad_id, o con una unidad_id que no
+  // corresponde a ninguna UM del modelo remoto.
+  const stHuerfanos = () => listaST().filter((s) => !s._unidadId || !umPorUuid(s._unidadId));
 
   // El modelo se espeja en los globales legados para que Dashboard, Red Roca y
   // catalogos sigan contando lo mismo. Son un espejo, no la fuente: los
@@ -28060,15 +28123,19 @@ document.addEventListener('click',function(event){
     const s = Array.isArray(sts) ? sts : [];
     // El holder lo instala el bloque de congelamiento: las globales legadas son
     // vistas de solo lectura sobre el, de modo que una capa legada no puede
-    // republicar el inventario de otra sesion.
+    // republicar el inventario de otra sesion. Ademas guarda y entrega COPIAS,
+    // asi que lo que se publica nunca es la referencia del snapshot confirmado.
     if (typeof window.__COI_UM_H05_APLICAR__ === 'function') return window.__COI_UM_H05_APLICAR__(u, s);
-    window.unidadesMantenimiento = u;
-    try { if (typeof unidadesMantenimiento !== 'undefined') unidadesMantenimiento = u; } catch (e) {}
-    window.serviciosTecnicos = s;
-    try { if (typeof serviciosTecnicos !== 'undefined') serviciosTecnicos = s; } catch (e) {}
-    window.serviciosTecnicosUM = s;
-    try { if (typeof serviciosTecnicosUM !== 'undefined') serviciosTecnicosUM = s; } catch (e) {}
-    return u;
+    // Camino de respaldo por si el holder no llegara a instalarse: igual se
+    // publican copias, nunca el snapshot.
+    const copiar = (l) => (Array.isArray(l) ? l : []).map((f) => Object.assign({}, f));
+    window.unidadesMantenimiento = copiar(u);
+    try { if (typeof unidadesMantenimiento !== 'undefined') unidadesMantenimiento = copiar(u); } catch (e) {}
+    window.serviciosTecnicos = copiar(s);
+    try { if (typeof serviciosTecnicos !== 'undefined') serviciosTecnicos = copiar(s); } catch (e) {}
+    window.serviciosTecnicosUM = copiar(s);
+    try { if (typeof serviciosTecnicosUM !== 'undefined') serviciosTecnicosUM = copiar(s); } catch (e) {}
+    return copiar(u);
   }
   // Reafirma el espejo sin volver a consultar: las capas legadas (recoverUMs de
   // V58.1R8) se disparan desde closures propias y pueden repoblar los globales
@@ -28127,6 +28194,17 @@ document.addEventListener('click',function(event){
       // nunca de forma autenticada.
       if (!uidLectura) return conservarUltimoConfirmado('Sesión Supabase no autenticada.');
 
+      // Y tener UID tampoco alcanza: con perfil inactivo coi_current_role() es
+      // NULL y las policies devuelven [] sin error. Se confirma el rol contra el
+      // servidor antes de aceptar cualquier lectura como autoritativa; si no hay
+      // rol, no se consulta UM/ST en absoluto.
+      const perfil = await rolDeSesion();
+      if (!vigente()) return listaUM();
+      if (perfil.ok && !perfil.rol) {
+        return conservarUltimoConfirmado('El usuario no tiene un perfil activo habilitado.');
+      }
+      if (vigente()) runtime.rol = perfil.rol;
+
       try {
         const crudasUM = await leerPaginado(c, TABLA_UM, CAMPOS_UM, 'codigo_um');
         const crudasST = await leerPaginado(c, TABLA_ST, CAMPOS_ST, 'fecha');
@@ -28140,10 +28218,13 @@ document.addEventListener('click',function(event){
 
         runtime.ultimoError = null;
         runtime.sincronizado = true;
-        runtime.confirmadoUM = ums;
-        runtime.confirmadoST = sts;
+        // El snapshot confirmado es privado e inmutable: es la unica copia que
+        // puede afirmar «esto lo dijo Supabase». Todo lo que se publique hacia
+        // afuera son copias.
+        runtime.confirmadoUM = snapshotInmutable(ums);
+        runtime.confirmadoST = snapshotInmutable(sts);
         // Remoto vacio es un estado valido: 0 UM se muestran como 0 UM.
-        return aplicarEnMemoria(ums, sts, 'supabase');
+        return aplicarEnMemoria(runtime.confirmadoUM, runtime.confirmadoST, 'supabase');
       } catch (error) {
         if (!vigente()) return listaUM();
         console.warn('COI unidades de mantenimiento: no se pudo leer Supabase.', error);
@@ -28204,7 +28285,9 @@ document.addEventListener('click',function(event){
     const { c } = await exigirEscritura();
     const { data, error } = await c.from(TABLA_UM).insert(datos).select(CAMPOS_UM).single();
     if (error) {
-      throw errorUnico(error, 'Ya existe una Unidad de Mantenimiento con el codigo ' + datos.codigo_um + '.') || error;
+      throw errorUnico(error,
+        'Ya existe una Unidad de Mantenimiento con el código ' + datos.codigo_um +
+        ' (o uno equivalente una vez normalizado).') || error;
     }
     return data;
   }
@@ -28282,6 +28365,13 @@ document.addEventListener('click',function(event){
 
   // ---------------------------------------------------------- formulario UM
   let umEditandoUuid = null;
+  // fecha_actualizacion de la fila que produjo los inputs vigentes. NO se toma
+  // del runtime al guardar: si el remoto cambio mientras el formulario estaba
+  // enfocado, el CAS tiene que fallar, que es justamente para lo que existe.
+  let umEditandoVersion = null;
+  // Estado que mostraba el formulario. Las reglas de transicion se evaluan
+  // contra lo que el operador vio, no contra lo que el runtime tenga ahora.
+  let umEditandoEstadoOriginal = null;
 
   function opcionesSelect(valores, seleccionado, etiquetaVacia) {
     const vistos = [];
@@ -28324,7 +28414,11 @@ document.addEventListener('click',function(event){
     return JSON.stringify([
       umEditandoUuid,
       esAdministrador(),
-      listaUM().map((u) => u._supabaseId + '|' + u.codigoUM + '|' + u.estado + '|' + u.tipoUM + '|' + u.estacion)
+      listaUM().map((u) => [
+        u._supabaseId, u.codigoUM, u.tipoUM, u.estacion, u.ramal, u.sector,
+        u.marca, u.modelo, u.nroSerie, u.estado, u.proveedorMantenimiento,
+        u.descripcion, u.observaciones, u.fechaActualizacion
+      ].join('|'))
     ]);
   }
 
@@ -28344,6 +28438,9 @@ document.addEventListener('click',function(event){
     const u = umEditandoUuid ? umPorUuid(umEditandoUuid) : null;
     if (umEditandoUuid && !u) umEditandoUuid = null;
     const v = u || {};
+    // Version que produjo ESTOS inputs. Es la que viajara en el CAS.
+    umEditandoVersion = u ? (u.fechaActualizacion || null) : null;
+    umEditandoEstadoOriginal = u ? (u.estado || null) : null;
     const puede = esAdministrador();
     const deshabilitado = puede ? '' : ' disabled';
 
@@ -28380,6 +28477,8 @@ document.addEventListener('click',function(event){
 
   function limpiarFormUM() {
     umEditandoUuid = null;
+    umEditandoVersion = null;
+    umEditandoEstadoOriginal = null;
     renderFormUM(true);
     const el = $('umh5_codigo');
     if (el) el.focus();
@@ -28423,7 +28522,9 @@ document.addEventListener('click',function(event){
       return;
     }
     const anterior = umEditandoUuid ? umPorUuid(umEditandoUuid) : null;
-    const estadoAnterior = anterior ? anterior.estado : null;
+    // El estado con el que se pinto el formulario, no el vigente en el runtime:
+    // si el remoto cambio, quien tiene que hablar es el CAS.
+    const estadoAnterior = umEditandoUuid ? umEditandoEstadoOriginal : null;
     // Un estado remoto desconocido se conserva: es dato del servidor y no se
     // reescribe por el hecho de no figurar en el catalogo ordinario.
     const conservaEstadoRemoto = Boolean(estadoAnterior) && datos.estado === estadoAnterior;
@@ -28447,17 +28548,24 @@ document.addEventListener('click',function(event){
     if (estadoAnterior === 'BAJA') datos.estado = 'BAJA';
     // Choque de codigo detectado antes de salir a la red; el UNIQUE remoto sigue
     // siendo la defensa final y su error se traduce igual.
+    // El indice canonico de la base es la autoridad ante concurrencia; esto solo
+    // da un mensaje operativo antes de salir a la red.
     const existente = umPorCodigo(datos.codigo_um);
     if (existente && String(existente._supabaseId) !== String(umEditandoUuid)) {
-      mensajeFormUM('Ya existe una Unidad de Mantenimiento con el código ' + datos.codigo_um + '.', 'warn');
+      const mismoTexto = existente.codigoUM === datos.codigo_um;
+      mensajeFormUM(mismoTexto
+        ? 'Ya existe una Unidad de Mantenimiento con el código ' + datos.codigo_um + '.'
+        : 'Ya existe la Unidad de Mantenimiento ' + existente.codigoUM + ' y «' + datos.codigo_um +
+          '» es el mismo código una vez normalizado.', 'warn');
       return;
     }
     const id = umEditandoUuid;
     conManejoDeError(
-      'um:' + (id || 'nueva') + ':' + clave(datos.codigo_um),
+      'um:' + (id || 'nueva') + ':' + claveUM(datos.codigo_um),
       async () => {
-        // La version es la que tenia la UM cuando se cargo el formulario.
-        if (id) await actualizarUM(id, datos, anterior ? anterior.fechaActualizacion : null);
+        // La version capturada al pintar el formulario, no la del runtime: el
+        // runtime pudo avanzar sin que estos inputs se repintaran.
+        if (id) await actualizarUM(id, datos, umEditandoVersion);
         else {
           const fila = await crearUM(datos);
           umEditandoUuid = fila && fila.id ? fila.id : null;
@@ -28504,6 +28612,8 @@ document.addEventListener('click',function(event){
   function editarUM(uuid) {
     if (!esUuid(uuid)) return avisar('Unidad de Mantenimiento sin identificador remoto.', 'error');
     umEditandoUuid = uuid;
+    umEditandoVersion = null; // los fija renderFormUM al pintar los inputs
+    umEditandoEstadoOriginal = null;
     try { if (typeof window.mostrarVista === 'function') window.mostrarVista('vistaUnidadesMantenimiento'); } catch (e) {}
     renderVistaUM();
     const card = $('umCargaUMPanelH05');
@@ -28623,7 +28733,7 @@ document.addEventListener('click',function(event){
   // conserva tal cual sin volver a consultar el catalogo. Es mas seguro (no se
   // acepta ninguna OC nueva sin validar) y evita bloquear la edicion de la
   // descripcion solo porque el catalogo de Ordenes todavia no termino de cargar.
-  function prepararFilaST(datos, excluirUuid, ocOriginal) {
+  function prepararFilaST(datos, excluirUuid, ocOriginal, estadoOriginal) {
     if (!esUuid(datos.unidadId)) {
       return { error: 'Seleccione una Unidad de Mantenimiento del catálogo remoto.' };
     }
@@ -28638,7 +28748,11 @@ document.addEventListener('click',function(event){
     if (!datos.descripcion) faltan.push('descripción');
     if (faltan.length) return { error: 'Faltan campos obligatorios: ' + faltan.join(', ') + '.' };
 
-    if (ESTADOS_ST.indexOf(datos.estado) < 0) {
+    // `estadoOriginal` es el que tenia el ST al abrir la edicion. Conservarlo sin
+    // tocarlo es valido aunque no sea canonico; cualquier otro valor fuera del
+    // catalogo se rechaza, tanto en alta como al cambiarlo a mano.
+    const conservaEstadoRemoto = Boolean(estadoOriginal) && datos.estado === estadoOriginal;
+    if (!conservaEstadoRemoto && ESTADOS_ST.indexOf(datos.estado) < 0) {
       return { error: 'Estado no valido. Use ' + ESTADOS_ST.join(', ') + '.' };
     }
 
@@ -28696,7 +28810,8 @@ document.addEventListener('click',function(event){
     const datos = leerFormST(prefijo, editando ? editando._unidadId : unidadFija);
     const preparado = prepararFilaST(datos,
       editando ? editando._supabaseId : null,
-      editando ? editando.nroOC : null);
+      editando ? editando.nroOC : null,
+      editando ? stEditandoEstadoOriginal : null);
     if (preparado.error) {
       mensaje(preparado.error, 'warn');
       avisar(preparado.error, 'warn');
@@ -28708,8 +28823,10 @@ document.addEventListener('click',function(event){
         // unidad_id no viaja en el patch: editar no reasigna la UM.
         const patch = Object.assign({}, preparado.fila);
         delete patch.unidad_id;
-        await actualizarST(uuid, patch, editando.fechaActualizacion || null);
+        await actualizarST(uuid, patch, stEditandoVersion);
         stEditandoUuid = null;
+        stEditandoVersion = null;
+        stEditandoEstadoOriginal = null;
       }, 'Servicio Técnico actualizado.');
       return;
     }
@@ -28732,6 +28849,8 @@ document.addEventListener('click',function(event){
     if (!stEditandoUuid) return;
     const st = stPorUuid(stEditandoUuid);
     stEditandoUuid = null;
+    stEditandoVersion = null;
+    stEditandoEstadoOriginal = null;
     renderFichaUM(st ? st._unidadId : fichaUuid, true);
   }
 
@@ -28892,17 +29011,71 @@ document.addEventListener('click',function(event){
     }
   }
 
+  function renderPanelHuerfanos() {
+    const vista = $('vistaUnidadesMantenimiento');
+    if (!vista) return;
+    const host = vista.querySelector('.view-body') || vista;
+    const filas = stHuerfanos();
+    let card = $('umSTHuerfanosPanelH05');
+    if (!filas.length) {
+      if (card) card.remove();
+      return;
+    }
+    if (!card) {
+      card = document.createElement('section');
+      card.id = 'umSTHuerfanosPanelH05';
+      card.className = 'view-card';
+      card.style.margin = '18px 0 0';
+      host.appendChild(card);
+    }
+    const firma = JSON.stringify(filas.map((s) => [
+      s._supabaseId, s._unidadId, s.nroST, s.fecha, s.nroOC, s.descripcion,
+      s.tecnico, s.proveedor, s.estado, s.observaciones, s.fechaActualizacion
+    ].join('|')));
+    if (card.dataset.h05Firma === firma && card.childElementCount) return;
+    card.dataset.h05Firma = firma;
+
+    card.innerHTML =
+      '<div class="view-head"><h2>Servicios Técnicos pendientes de asociación</h2>' +
+      '<div class="muted">Existen en Supabase pero no cuelgan de ninguna Unidad de Mantenimiento, ' +
+      'de modo que no aparecen en ninguna ficha. No se eliminan ni se reasignan solos: ' +
+      'requieren regularización.</div></div>' +
+      '<div class="view-body">' +
+      '<div class="notice warn">' + esc(filas.length + ' Servicio(s) Técnico(s) pendiente(s) de regularización.') + '</div>' +
+      '<div class="table-wrap"><table class="coi-table"><thead><tr>' +
+      ['N° ST', 'Fecha', 'OC', 'Descripción', 'Técnico', 'Proveedor', 'Estado', 'Observaciones', 'unidad_id', 'Identificador Supabase']
+        .map((t) => '<th>' + esc(t) + '</th>').join('') +
+      '</tr></thead><tbody>' +
+      filas.map((s) => '<tr data-h05-st-huerfano="' + esc(s._supabaseId) + '">' +
+        '<td><b>' + esc(s.nroST || '—') + '</b></td>' +
+        '<td>' + esc(s.fecha || '—') + '</td>' +
+        '<td>' + esc(s.nroOC || '—') + '</td>' +
+        '<td>' + esc(s.descripcion || '—') + '</td>' +
+        '<td>' + esc(s.tecnico || '—') + '</td>' +
+        '<td>' + esc(s.proveedor || '—') + '</td>' +
+        '<td>' + esc(s.estado || '—') + '</td>' +
+        '<td>' + esc(s.observaciones || '—') + '</td>' +
+        '<td>' + esc(s._unidadId || 'sin unidad_id') + '</td>' +
+        '<td>' + esc(s._supabaseId) + '</td></tr>').join('') +
+      '</tbody></table></div></div>';
+  }
+
   function renderVistaUM() {
     reafirmarEspejo();
     renderTablaUM();
     renderFormUM();
     renderPanelST();
+    renderPanelHuerfanos();
   }
 
   // ---------------------------------------------------------- ficha UM
   let fichaUuid = null;
   // uuid del Servicio Tecnico en edicion, o null si el formulario esta en alta.
   let stEditandoUuid = null;
+  // Version y estado originales capturados al pintar el formulario del ST, por
+  // el mismo motivo que en UM: el runtime puede avanzar sin repintar los inputs.
+  let stEditandoVersion = null;
+  let stEditandoEstadoOriginal = null;
 
   function tablaSTFicha(u) {
     const filas = stDeUM(u._supabaseId).slice().sort((a, b) => texto(b.fecha).localeCompare(texto(a.fecha)));
@@ -28941,6 +29114,10 @@ document.addEventListener('click',function(event){
   // ficha: el formulario no ofrece cambiarla.
   function formularioSTFicha(u, st) {
     const editando = Boolean(st);
+    // Estos son los valores que el operador va a ver: de aca sale el CAS y el
+    // estado original que se le permite conservar.
+    stEditandoVersion = editando ? (st.fechaActualizacion || null) : null;
+    stEditandoEstadoOriginal = editando ? (st.estado || null) : null;
     return '<div class="st-r16-ficha-form">' +
       '<h4>' + (editando
         ? 'Editar el Servicio Técnico ' + esc(st.nroST || '')
@@ -29225,7 +29402,10 @@ document.addEventListener('click',function(event){
           runtime.confirmadoST = null;
           runtime.sincronizado = false;
           runtime.authUserId = uid || null;
+          runtime.rol = null;
           umEditandoUuid = null;
+          umEditandoVersion = null;
+          umEditandoEstadoOriginal = null;
           stEditandoUuid = null;
           fichaUuid = null;
           // El modelo de la sesion anterior no puede sobrevivir al cambio de

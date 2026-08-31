@@ -28,6 +28,19 @@
         "repo": "presente",
         "migracion": "202608310001_h04_st_unique_guard.sql",
         "motivo": "La capa H04 comprueba el duplicado antes de insertar, pero con dos operadores concurrentes ambos leen «no existe» y despues insertan. Ademas el frontend considera el mismo ST a ST-0001, st0001 y «ST / 0001», de modo que un unique literal seria mas laxo que la propia UI: la unicidad se aplica sobre el numero canonico."
+      },
+      {
+        "tabla": "coi_unidades_mantenimiento",
+        "columnas": [
+          "codigo_um"
+        ],
+        "indice": "coi_unidades_mantenimiento_codigo_um_canonico_uidx",
+        "expresion_canonica": "upper(regexp_replace(codigo_um, '[[:space:]./-]+', '', 'g'))",
+        "parcial": "codigo_um is not null",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310003_h05_um_codigo_unique_guard.sql",
+        "motivo": "El baseline solo trae UNIQUE (codigo_um) literal y sensible a mayusculas, mientras el frontend considera la misma UM a ASC-001, asc001 y «ASC / 001». La base era mas permisiva que la propia interfaz: dos clientes concurrentes podian insertar variantes que la UI despues trata como una sola unidad. El UNIQUE literal del baseline no se modifica: este indice se suma."
       }
     ],
     "_resueltas": [

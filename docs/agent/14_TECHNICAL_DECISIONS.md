@@ -184,5 +184,93 @@ Un estado remoto desconocido se sigue conservando: `opcionesSelect()` agrega el
 valor vigente cuando no pertenece al catálogo, y guardar sin tocarlo no lo
 reescribe. Es dato del servidor.
 
+## TD-018 — El snapshot remoto confirmado es privado e inmutable
+Fecha: 2026-08-31.
+
+`runtime.confirmadoUM` / `runtime.confirmadoST` compartían array —y objetos
+fila— con `window.unidadesMantenimiento`, `window.serviciosTecnicos` y
+`window.serviciosTecnicosUM`. El legado sigue haciendo `push`, `splice`,
+asignación por índice y mutación de filas sobre esas globales (v33GuardarUM, los
+helpers ST de R15/R16), así que una escritura local podía contaminar lo que la
+capa declaraba «confirmado por Supabase» mientras `sincronizado` seguía en
+`true`. `reafirmarEspejo()` no alcanzaba: si el origen ya estaba mutado, reafirmar
+propagaba la contaminación.
+
+Decisión: el snapshot confirmado se congela (`Object.freeze` sobre el arreglo y
+sobre cada fila) y **nunca se publica por referencia**. El holder guarda su
+propia copia, cada lectura de las globales devuelve una copia nueva, y
+`reafirmarEspejo()` regenera copias desde el snapshot. Ninguna referencia mutable
+se comparte en ninguna dirección.
+
+Congelar además convierte una contaminación silenciosa en un fallo visible: en
+modo estricto, intentar mutar el snapshot lanza en lugar de corromperlo.
+
+`sincronizado` vuelve a significar exactamente «esto lo dijo Supabase», nunca una
+mezcla con estado local.
+
+## TD-019 — Perfil activo, no solo Auth UID
+Fecha: 2026-08-31.
+
+Con las policies RESTRICTIVE de [[TD-014]], un usuario autenticado **sin perfil
+activo** tiene `coi_current_role()` NULL y PostgREST le devuelve `[]` sin error:
+indistinguible de «el inventario remoto está vacío», que es un estado válido. La
+capa habría declarado `sincronizado = true` con 0 UM.
+
+Decisión: antes de aceptar cualquier lectura como autoritativa se confirma el rol
+contra el servidor con `rpc('coi_current_role')` —la misma función que evalúan
+las policies, para no inventar un segundo criterio de autorización—. Sin rol no
+se consulta UM/ST en absoluto y el estado queda `error-sin-sincronizar` con
+«El usuario no tiene un perfil activo habilitado».
+
+## TD-020 — La versión del CAS la captura el formulario
+Fecha: 2026-08-31.
+
+El control optimista de [[TD-016]] tomaba `fechaActualizacion` del runtime al
+guardar. Eso lo derrotaba: si el remoto avanzaba a V2 mientras el formulario
+estaba enfocado —y por eso no se repintaba—, el CAS validaba contra V2 y los
+inputs V1 pisaban el cambio ajeno con éxito aparente.
+
+Decisión: `umEditandoVersion` y `stEditandoVersion` se fijan **en el momento en
+que se pintan los inputs**, y son las que viajan en el UPDATE. Un refresco que no
+repinta no puede moverlas. Además la firma del formulario pasa a cubrir todos los
+campos que muestra, para que cuando el repintado sí sea posible ocurra.
+
+## TD-021 — Código de UM canónico en la base
+Fecha: 2026-08-31.
+
+Mismo razonamiento que [[TD-015]] para el número de ST: el frontend consideraba
+la misma UM a `ASC-001`, `asc001` y `ASC / 001`, mientras la base solo tenía el
+UNIQUE literal del baseline. La base era **más permisiva que la interfaz**.
+
+Decisión: se agrega un UNIQUE INDEX parcial sobre
+`upper(regexp_replace(codigo_um, '[[:space:]./-]+', '', 'g'))`. El constraint
+literal del baseline **no se toca**: conviven, y el literal sigue siendo la
+unicidad exacta. En el frontend se agregó `claveUM()`, separada de `clave()` y de
+`claveST()`: son identificadores técnicos distintos, cada uno con su propio
+índice, y compartir la función los ataría sin motivo. Ver [[KI-013]].
+
+## TD-022 — Estado remoto de ST: conservarlo sí, introducirlo no
+Fecha: 2026-08-31.
+
+Un ST con estado remoto no canónico (por ejemplo `Mantenimiento`) bloqueaba
+cualquier edición: la validación exigía siempre el catálogo, así que no se podía
+ni corregir el proveedor.
+
+Decisión: se captura el estado original al entrar en edición. Conservarlo sin
+tocarlo es válido —es dato del servidor y el operador no lo introdujo—, pero
+sigue prohibido crearlo, cambiar de canónico a desconocido, o pasar de un
+desconocido a otro distinto. Resolverlo a un estado canónico siempre se permite.
+
+## TD-023 — Los ST sin UM se muestran, no se adoptan
+Fecha: 2026-08-31.
+
+Ver [[KI-014]]. Un ST sin `unidad_id` resoluble quedaba contado en el total
+sincronizado pero fuera de toda pantalla. Se agregó un panel de regularización
+que los lista con todos sus campos.
+
+Decisión explícita de **no** autoasignarlos a una UM ni crear una UM contenedora:
+elegir un destino es una decisión operativa con consecuencias de trazabilidad, y
+adivinarla sería peor que mostrar el problema.
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.

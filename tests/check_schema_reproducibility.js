@@ -307,11 +307,23 @@ async function casoA() {
     }
     // Y NO debe estar declarado en el snapshot productivo: si lo estuviera, ya
     // no seria una divergencia sino parte del contrato.
+    //
+    // Excepcion deliberada: cuando la divergencia declara una expresion canonica,
+    // el objeto que agrega el repositorio NO es el mismo que el del snapshot.
+    // coi_unidades_mantenimiento tiene en produccion el UNIQUE literal sobre
+    // codigo_um, y lo que se suma es un indice unico sobre su forma normalizada:
+    // conviven, y el literal se conserva a proposito. Exigir que la columna no
+    // figure en el snapshot confundiria «misma columna» con «mismo constraint».
     const enSnapshot = (CONTRATO[d.tabla].unique || []).some(
       (cols) => JSON.stringify(cols.slice().sort()) === JSON.stringify(d.columnas.slice().sort())
     );
-    check(!enSnapshot,
-      `${d.tabla}: UNIQUE (${d.columnas.join(', ')}) esta en el snapshot productivo y ademas declarado como pendiente`);
+    if (d.expresion_canonica) {
+      check(/upper\(/i.test(real.def) && /regexp_replace\(/i.test(real.def),
+        `${d.indice}: se declara canonico y el indice real no normaliza (${real.def})`);
+    } else {
+      check(!enSnapshot,
+        `${d.tabla}: UNIQUE (${d.columnas.join(', ')}) esta en el snapshot productivo y ademas declarado como pendiente`);
+    }
   }
 
   // Grants pendientes: tras reproducir el repo tienen que ser EXACTAMENTE los

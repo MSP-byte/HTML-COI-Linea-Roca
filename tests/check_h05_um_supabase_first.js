@@ -230,7 +230,8 @@ for (const [patron, detalle] of [
   [/function resolverOC/, 'falta la validacion de OC contra el catalogo remoto'],
   [/no existe en Órdenes/, 'una OC inexistente debe rechazarse'],
   [/ya tiene un Servicio Técnico/, 'falta el control de (unidad_id, nro_st) duplicado'],
-  [/Ya existe una Unidad de Mantenimiento con el codigo/, 'falta el manejo del UNIQUE de codigo_um'],
+  [/Ya existe una Unidad de Mantenimiento con el código/, 'falta el manejo del UNIQUE de codigo_um'],
+  [/es el mismo código una vez normalizado/, 'el choque canonico de codigo_um debe explicarse como tal'],
   [/errorUnico/, 'falta la traduccion del error 23505'],
   [/dataset\.h05Firma/, 'falta la firma que evita repintar un formulario en uso']
 ]) check(patron.test(capa.texto), detalle);
@@ -251,7 +252,7 @@ for (const [patron, detalle] of [
   [/data-h05-editar-st/, 'la tabla de ST no ofrece Editar'],
   [/data-h05-salir-edicion-st/, 'no se puede abandonar la edicion sin guardar'],
   [/let stEditandoUuid = null;/, 'falta el estado del ST en edicion'],
-  [/function prepararFilaST\(datos, excluirUuid, ocOriginal\)/, 'la validacion no admite excluir el propio ST ni conservar su OC'],
+  [/function prepararFilaST\(datos, excluirUuid, ocOriginal, estadoOriginal\)/, 'la validacion no admite excluir el propio ST, conservar su OC ni su estado remoto'],
   [/String\(s\._supabaseId\) !== String\(excluirUuid\)/, 'al editar, el ST no debe chocar consigo mismo'],
   [/delete patch\.unidad_id;/, 'editar un ST no puede reasignarlo a otra UM'],
   [/ya usa el número/, 'falta la traduccion operativa del UNIQUE remoto del ST']
@@ -260,8 +261,8 @@ for (const [patron, detalle] of [
 // La edicion actualiza la misma fila: nunca inserta una nueva.
 check(/conManejoDeError\('stEditar:' \+ uuid/.test(capa.texto),
   'la edicion de ST debe pasar por el lock de mutacion con su propio uuid');
-check(/await actualizarST\(uuid, patch, editando\.fechaActualizacion \|\| null\);/.test(capa.texto),
-  'la edicion de ST debe ir por UPDATE contra el uuid y con la version leida');
+check(/await actualizarST\(uuid, patch, stEditandoVersion\);/.test(capa.texto),
+  'la edicion de ST debe ir por UPDATE contra el uuid y con la version capturada por el formulario');
 
 // Codigo muerto retirado: el escudo lo instala el bloque de congelamiento y el
 // estado del ST se edita por formulario.
@@ -324,6 +325,102 @@ for (const campo of ['descripcion', 'tecnico', 'proveedor', 'observaciones', 'fe
 check(/const claveST = /.test(capa.texto), 'falta claveST(): la normalizacion propia del numero de ST');
 check(/claveST\(s\.nroST\) === claveST\(datos\.nroST\)/.test(capa.texto),
   'el duplicado de ST debe compararse con claveST');
+
+
+// ------------------------------------------- 5d) segunda ronda de review
+// F6 · El snapshot remoto confirmado no comparte referencias con el legado.
+check(/function snapshotInmutable\(filas\)/.test(capa.texto),
+  'falta el snapshot inmutable del modelo remoto');
+check(/Object\.freeze/.test(capa.texto),
+  'el snapshot confirmado debe quedar congelado');
+check(/runtime\.confirmadoUM = snapshotInmutable\(ums\);/.test(capa.texto),
+  'confirmadoUM debe guardarse como snapshot inmutable');
+check(/runtime\.confirmadoST = snapshotInmutable\(sts\);/.test(capa.texto),
+  'confirmadoST debe guardarse como snapshot inmutable');
+check(/var copiarLista = function \(lista\)/.test(textoGuard),
+  'el holder debe publicar copias, no la referencia del modelo');
+check(/get: function \(\) \{ return copiarLista\(MODELO\[campo\]\); \}/.test(textoGuard),
+  'las globales legadas deben entregar una copia por lectura');
+check(/MODELO\.ums = copiarLista\(ums\);/.test(textoGuard),
+  'el holder no puede guardar la referencia que recibe');
+check(/unidadesMantenimiento = copiarLista\(MODELO\.ums\);/.test(textoGuard),
+  'el binding lexico tambien debe recibir una copia');
+
+// F1 · Perfil activo antes de aceptar una lectura como autoritativa.
+check(/async function rolDeSesion\(\)/.test(capa.texto),
+  'falta la confirmacion del rol contra la autoridad remota');
+check(/rpc\('coi_current_role'\)/.test(capa.texto),
+  'el rol debe confirmarse con la misma funcion que usan las policies');
+check(/no tiene un perfil activo habilitado/.test(capa.texto),
+  'falta el mensaje operativo de perfil inactivo');
+check(/if \(perfil\.ok && !perfil\.rol\)/.test(capa.texto),
+  'sin rol no se puede aceptar la lectura como autoritativa');
+
+// F3 · La version del CAS se captura al pintar el formulario.
+check(/let umEditandoVersion = null;/.test(capa.texto),
+  'falta el token de version del formulario de UM');
+check(/let stEditandoVersion = null;/.test(capa.texto),
+  'falta el token de version del formulario de ST');
+check(/umEditandoVersion = u \? \(u\.fechaActualizacion \|\| null\) : null;/.test(capa.texto),
+  'la version de UM debe capturarse al pintar los inputs');
+check(/stEditandoVersion = editando \? \(st\.fechaActualizacion \|\| null\) : null;/.test(capa.texto),
+  'la version de ST debe capturarse al pintar los inputs');
+check(/if \(id\) await actualizarUM\(id, datos, umEditandoVersion\);/.test(capa.texto),
+  'el CAS de UM debe usar la version capturada, no la del runtime');
+check(/await actualizarST\(uuid, patch, stEditandoVersion\);/.test(capa.texto),
+  'el CAS de ST debe usar la version capturada, no la del runtime');
+check(!/actualizarUM\(id, datos, anterior \? anterior\.fechaActualizacion : null\)/.test(capa.texto),
+  'el CAS no puede volver a leer la version desde el runtime al guardar');
+// Y la firma del formulario cubre todo lo que pinta.
+for (const campo of ['proveedorMantenimiento', 'descripcion', 'observaciones', 'marca', 'modelo', 'nroSerie', 'ramal']) {
+  check(new RegExp('u\\.' + campo + '[,\\s]').test(capa.texto),
+    `la firma del formulario de UM no incluye u.${campo}`);
+}
+
+// F4 · Un estado remoto no canonico de ST se conserva si no se lo toca.
+check(/let stEditandoEstadoOriginal = null;/.test(capa.texto),
+  'falta el estado original capturado del ST');
+check(/function prepararFilaST\(datos, excluirUuid, ocOriginal, estadoOriginal\)/.test(capa.texto),
+  'la validacion de ST debe conocer el estado original');
+check(/const conservaEstadoRemoto = Boolean\(estadoOriginal\) && datos\.estado === estadoOriginal;/.test(capa.texto),
+  'conservar el estado remoto sin tocarlo debe estar permitido');
+
+// F5 · Los ST sin UM resoluble tienen que ser visibles.
+check(/const stHuerfanos = \(\)/.test(capa.texto),
+  'falta la deteccion de Servicios Tecnicos sin UM resoluble');
+check(/function renderPanelHuerfanos\(\)/.test(capa.texto),
+  'falta el panel de Servicios Tecnicos pendientes de asociacion');
+check(/Servicios Técnicos pendientes de asociación/.test(capa.texto),
+  'el panel debe estar rotulado de forma inequivoca');
+check(/pendiente\(s\) de regularización/.test(capa.texto),
+  'las filas huerfanas deben marcarse como pendientes de regularizacion');
+check(/renderPanelHuerfanos\(\);/.test(capa.texto),
+  'el panel de huerfanos debe formar parte del render de la vista');
+
+// F2 · El codigo de UM se compara canonicamente, igual que en SQL.
+check(/const claveUM = /.test(capa.texto),
+  'falta claveUM(): la normalizacion propia del codigo de UM');
+check(/claveUM\(u\.codigoUM\) === k/.test(capa.texto),
+  'la busqueda por codigo de UM debe usar claveUM');
+const EXPRESION_UM = "upper(regexp_replace(codigo_um, '[[:space:]./-]+', '', 'g'))";
+const migracionUM = fs.readFileSync('supabase/migrations/202608310003_h05_um_codigo_unique_guard.sql', 'utf8');
+check(migracionUM.indexOf(EXPRESION_UM) >= 0,
+  'el indice de UM debe usar la normalizacion canonica declarada');
+check(capa.texto.indexOf(EXPRESION_UM) >= 0,
+  'la capa debe documentar la normalizacion SQL con la que claveUM() tiene que coincidir');
+check(/create unique index coi_unidades_mantenimiento_codigo_um_canonico_uidx/i.test(migracionUM),
+  'la migracion debe crear el indice canonico con nombre estable');
+check(/COI_UM_CODIGO_DUPLICADO_CANONICO/.test(migracionUM),
+  'la migracion debe abortar explicitamente ante duplicados canonicos');
+check(!/drop\s+constraint/i.test(migracionUM.replace(/--[^\n]*/g, '')),
+  'el UNIQUE literal del baseline no se puede eliminar');
+const umCanonico = ((contrato._divergencias_pendientes || {}).unique || [])
+  .find((d) => d.tabla === 'coi_unidades_mantenimiento');
+check(Boolean(umCanonico), 'la divergencia del indice canonico de UM debe estar declarada');
+check(umCanonico.indice === 'coi_unidades_mantenimiento_codigo_um_canonico_uidx',
+  'la divergencia debe nombrar el indice tal como lo crea la migracion');
+check(umCanonico.produccion === 'ausente' && umCanonico.repo === 'presente',
+  'la divergencia de UM debe declarar produccion ausente y repo presente');
 
 // ------------------------------------------- 6) el guard de integridad acompaña
 const migracion = fs.readFileSync('supabase/migrations/202608300003_h05_um_delete_guard.sql', 'utf8');

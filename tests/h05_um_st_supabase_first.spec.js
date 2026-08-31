@@ -78,7 +78,7 @@ async function prepararEntorno(page, opciones) {
   const cfg = Object.assign({
     ums: [], sts: [], legadoUM: null, legadoST: null,
     fallaSelect: false, fallaMutacion: false, errorMutacion: 'RLS denegado',
-    retardoSelectMs: 0, pageSize: 1000, admin: true, sinSesion: false
+    retardoSelectMs: 0, pageSize: 1000, admin: true, sinSesion: false, rol: 'administrador'
   }, opciones);
 
   await page.addInitScript((c) => {
@@ -206,6 +206,14 @@ async function prepararEntorno(page, opciones) {
 
     const fake = {
       from: (t) => consulta(t),
+      // Misma funcion que usan las policies RESTRICTIVE. rol null representa un
+      // usuario autenticado SIN perfil activo.
+      rpc: async (nombre) => {
+        registrar('rpc:' + nombre, null);
+        if (nombre !== 'coi_current_role') return { data: null, error: null };
+        if (!sesionActiva) return { data: null, error: null };
+        return { data: c.rol === null ? null : c.rol, error: null };
+      },
       auth: {
         getSession: async () => ({
           data: { session: sesionActiva ? { user: { id: uidSesion, email: 'admin@coiroca.com' } } : null },
@@ -1601,4 +1609,453 @@ test('60 · un estado remoto desconocido se conserva al editar otro campo', asyn
   // El estado del servidor no se reescribe a ACTIVA por no figurar en la lista.
   expect(updates[0].payload.patch.estado).toBe('MANTENIMIENTO');
   expect(updates[0].payload.patch.proveedor_mantenimiento).toBe('PROVEEDOR SIN TOCAR ESTADO');
+});
+
+// ================================= segunda ronda de review del PR #59
+
+// --- F6 (P1): el snapshot remoto confirmado es privado e inmutable.
+
+test('61 · un push del legado sobre la global no altera el snapshot confirmado', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A, UM_B], sts: [] });
+  await abrir(page);
+  await irAUM(page);
+  expect((await estado(page)).ums).toHaveLength(2);
+
+  const r = await page.evaluate(() => {
+    const arr = window.unidadesMantenimiento;
+    arr.push({ idUM: 'LOCAL-FAKE', codigoUM: 'LOCAL-FAKE', _supabaseId: 'no-uuid' });
+    // Tambien por el binding lexico, que es el que prefieren varios lectores.
+    try { unidadesMantenimiento.push({ idUM: 'LOCAL-FAKE-2' }); } catch (e) {}
+    return {
+      confirmado: window.__COI_UM_H05__.confirmadoUM.length,
+      modelo: window.__COI_UM_H05_MODELO__.ums.length
+    };
+  });
+
+  expect(r.confirmado).toBe(2);
+  expect(r.modelo).toBe(2);
+  // Y el render sigue mostrando exactamente lo remoto.
+  await page.evaluate(() => window.renderUnidadesMantenimiento());
+  await page.waitForTimeout(200);
+  expect(await page.locator('#umKTotal').textContent()).toBe('2');
+  await expect(page.locator('#umTbody')).not.toContainText('LOCAL-FAKE');
+});
+
+test('62 · mutar una fila publicada no contamina el snapshot remoto', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+  await irAUM(page);
+
+  const r = await page.evaluate(() => {
+    const antes = window.__COI_UM_H05__.confirmadoUM[0].proveedorMantenimiento;
+    window.unidadesMantenimiento[0].proveedorMantenimiento = 'CONTAMINADO';
+    window.unidadesMantenimiento[0].codigoUM = 'CONTAMINADO';
+    return {
+      antes: antes,
+      confirmado: window.__COI_UM_H05__.confirmadoUM[0].proveedorMantenimiento,
+      codigo: window.__COI_UM_H05__.confirmadoUM[0].codigoUM
+    };
+  });
+
+  expect(r.antes).toBe(UM_A.proveedor_mantenimiento);
+  expect(r.confirmado).toBe(UM_A.proveedor_mantenimiento);
+  expect(r.codigo).toBe(UM_A.codigo_um);
+});
+
+test('63 · un splice del legado sobre los ST no toca el snapshot confirmado', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A, ST_B] });
+  await abrir(page);
+  await irAUM(page);
+  expect((await estado(page)).sts).toHaveLength(2);
+
+  const r = await page.evaluate(() => {
+    const arr = window.serviciosTecnicos;
+    arr.splice(0, arr.length);
+    try { serviciosTecnicos.splice(0, serviciosTecnicos.length); } catch (e) {}
+    const otro = window.serviciosTecnicosUM;
+    otro.splice(0, otro.length);
+    return {
+      confirmado: window.__COI_UM_H05__.confirmadoST.length,
+      modelo: window.__COI_UM_H05_MODELO__.sts.length
+    };
+  });
+
+  expect(r.confirmado).toBe(2);
+  expect(r.modelo).toBe(2);
+});
+
+test('64 · las globales legadas no comparten referencias entre si ni con el snapshot', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await irAUM(page);
+
+  const r = await page.evaluate(() => ({
+    mismoArrayQueSnapshot: window.unidadesMantenimiento === window.__COI_UM_H05__.confirmadoUM,
+    mismoArrayQueHolder: window.unidadesMantenimiento === window.__COI_UM_H05_MODELO__.ums,
+    dosLecturasMismoArray: window.unidadesMantenimiento === window.unidadesMantenimiento,
+    stCompartidoConSTUM: window.serviciosTecnicos === window.serviciosTecnicosUM,
+    filaCompartida: window.unidadesMantenimiento[0] === window.__COI_UM_H05__.confirmadoUM[0],
+    snapshotCongelado: Object.isFrozen(window.__COI_UM_H05__.confirmadoUM),
+    filaCongelada: Object.isFrozen(window.__COI_UM_H05__.confirmadoUM[0])
+  }));
+
+  expect(r.mismoArrayQueSnapshot).toBe(false);
+  expect(r.mismoArrayQueHolder).toBe(false);
+  expect(r.dosLecturasMismoArray).toBe(false);
+  expect(r.stCompartidoConSTUM).toBe(false);
+  expect(r.filaCompartida).toBe(false);
+  expect(r.snapshotCongelado).toBe(true);
+  expect(r.filaCongelada).toBe(true);
+});
+
+test('65 · reafirmarEspejo devuelve las globales al modelo remoto confirmado', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A, UM_B], sts: [ST_A] });
+  await abrir(page);
+  await irAUM(page);
+
+  const r = await page.evaluate(() => {
+    window.unidadesMantenimiento.push({ idUM: 'BASURA' });
+    window.serviciosTecnicos.splice(0, 1);
+    // Cualquier render de la capa reafirma el espejo desde el snapshot.
+    window.renderUnidadesMantenimiento();
+    return {
+      ums: window.unidadesMantenimiento.length,
+      sts: window.serviciosTecnicos.length,
+      codigos: window.unidadesMantenimiento.map((u) => u.codigoUM),
+      sincronizado: window.__COI_UM_H05__.sincronizado
+    };
+  });
+
+  expect(r.ums).toBe(2);
+  expect(r.sts).toBe(1);
+  expect(r.codigos.sort()).toEqual(['ASC-001', 'ESC-010']);
+  // sincronizado sigue significando «confirmado por Supabase», nunca una mezcla.
+  expect(r.sincronizado).toBe(true);
+});
+
+// --- F1 (P2): perfil activo antes de aceptar una lectura como autoritativa.
+
+test('66 · con Auth UID pero sin perfil activo no se acepta el vacio como remoto', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A], legadoUM: UM_LEGACY, rol: null });
+  await abrir(page);
+  await irAUM(page);
+  const e = await estado(page);
+
+  expect(e.sincronizado).toBe(false);
+  expect(e.origen).toBe('error-sin-sincronizar');
+  expect(e.ultimoError).toContain('perfil activo');
+  expect(e.ums).toHaveLength(0);
+  expect(JSON.stringify(e.ums)).not.toContain('LEGACY');
+  // Ni siquiera se consulta: no hay razon para pedir filas que la RLS ocultara.
+  expect(soloOp(e, 'select:coi_unidades_mantenimiento')).toHaveLength(0);
+  expect(soloOp(e, 'select:coi_servicios_tecnicos_um')).toHaveLength(0);
+  await expect(page.locator('#umEstadoSyncH05')).toContainText('Sin sincronizar');
+});
+
+test('67 · con rol consulta la lectura es valida', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A], rol: 'consulta' });
+  await abrir(page);
+  const e = await estado(page);
+
+  expect(e.sincronizado).toBe(true);
+  expect(e.origen).toBe('supabase');
+  expect(e.ums.map((u) => u.codigo)).toEqual(['ASC-001']);
+});
+
+test('68 · con rol administrador la lectura es valida', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A], rol: 'administrador' });
+  await abrir(page);
+  const e = await estado(page);
+
+  expect(e.sincronizado).toBe(true);
+  expect(e.ums.map((u) => u.codigo)).toEqual(['ASC-001']);
+  expect(e.sts).toHaveLength(1);
+});
+
+// --- F3 (P2): el CAS usa la version que capturo el formulario.
+
+test('69 · UM: el CAS usa la version del formulario aunque el runtime ya avanzo', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+  await page.click('#btnEditarUM');
+  await page.waitForTimeout(400);
+
+  // El operador deja el foco dentro del formulario: el refresco no repinta.
+  await page.focus('#umh5_proveedor');
+  await page.fill('#umh5_proveedor', 'ESCRITO SOBRE V1');
+
+  // Otro puesto guarda: el remoto pasa a V2 y el runtime lo incorpora.
+  await page.evaluate((id) => {
+    window.__H05_SET_UMS__([Object.assign({}, window.__H05_CFG__.ums[0], {
+      id: id, estado: 'BAJA', fecha_actualizacion: '2026-08-31T23:59:59.000Z'
+    })]);
+  }, UM_A.id);
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForTimeout(800);
+
+  // El runtime ya tiene V2, pero los inputs siguen siendo los de V1.
+  const versionRuntime = await page.evaluate(() => window.__COI_UM_H05__.confirmadoUM[0].fechaActualizacion);
+  expect(versionRuntime).toBe('2026-08-31T23:59:59.000Z');
+  await expect(page.locator('#umh5_proveedor')).toHaveValue('ESCRITO SOBRE V1');
+
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_unidades_mantenimiento');
+  expect(updates).toHaveLength(1);
+  // La condicion viaja con V1, la version que produjo esos inputs.
+  const cond = updates[0].payload.filtros.find((f) => f.col === 'fecha_actualizacion');
+  expect(cond.val).toBe(UM_A.fecha_actualizacion);
+  // 0 filas afectadas: la baja del otro puesto sobrevive.
+  expect(e.ums[0].estado).toBe('BAJA');
+  const proveedor = await page.evaluate(() => window.__COI_UM_H05__.confirmadoUM[0].proveedorMantenimiento);
+  expect(proveedor).toBe(UM_A.proveedor_mantenimiento);
+  await expect(page.locator('#coiToastV581')).toContainText('modificada por otro usuario');
+});
+
+test('70 · ST: el CAS usa la version del formulario aunque el runtime ya avanzo', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.focus('#stfh5_descripcion');
+  await page.fill('#stfh5_descripcion', 'ESCRITO SOBRE V1');
+
+  await page.evaluate((id) => {
+    window.__H05_SET_STS__([Object.assign({}, window.__H05_CFG__.sts[0], {
+      id: id, tecnico: 'OTRO PUESTO', fecha_actualizacion: '2026-08-31T23:59:59.000Z'
+    })]);
+  }, ST_A.id);
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForTimeout(800);
+
+  const versionRuntime = await page.evaluate(() => window.__COI_UM_H05__.confirmadoST[0].fechaActualizacion);
+  expect(versionRuntime).toBe('2026-08-31T23:59:59.000Z');
+  await expect(page.locator('#stfh5_descripcion')).toHaveValue('ESCRITO SOBRE V1');
+
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  const cond = updates[0].payload.filtros.find((f) => f.col === 'fecha_actualizacion');
+  expect(cond.val).toBe(ST_A.fecha_actualizacion);
+  const tecnico = await page.evaluate(() => window.__COI_UM_H05__.confirmadoST[0].tecnico);
+  expect(tecnico).toBe('OTRO PUESTO');
+  await expect(page.locator('#coiToastV581')).toContainText('modificado por otro usuario');
+});
+
+// --- F4 (P2): estado remoto no canonico de ST.
+
+const ST_RARO = Object.assign({}, ST_A, {
+  id: '66666666-6666-4666-8666-666666666666',
+  nro_st: 'ST-0009',
+  estado: 'Mantenimiento'
+});
+
+test('71 · se puede editar otro campo conservando un estado de ST no canonico', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_RARO] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_RARO.id);
+
+  // El select conserva el valor remoto aunque no sea canonico.
+  await expect(page.locator('#stfh5_estado')).toHaveValue('Mantenimiento');
+
+  await page.fill('#stfh5_proveedor', 'PROVEEDOR REVISADO');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1000);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  expect(updates[0].payload.patch.estado).toBe('Mantenimiento');
+  expect(updates[0].payload.patch.proveedor).toBe('PROVEEDOR REVISADO');
+});
+
+test('72 · resolver un estado de ST no canonico a uno canonico es valido', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_RARO] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_RARO.id);
+
+  await page.selectOption('#stfh5_estado', 'En curso');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1000);
+
+  const updates = soloOp(await estado(page), 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  expect(updates[0].payload.patch.estado).toBe('En curso');
+});
+
+test('73 · no se puede crear un ST con un estado desconocido', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-0500');
+  await page.fill('#sth5_descripcion', 'Con estado inventado');
+  await page.evaluate(() => {
+    const sel = document.getElementById('sth5_estado');
+    const op = document.createElement('option');
+    op.value = 'Inventado';
+    op.textContent = 'Inventado';
+    sel.appendChild(op);
+    sel.value = 'Inventado';
+  });
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(600);
+
+  await expect(page.locator('#stFormMsgH05')).toContainText('Estado no valido');
+  expect(soloOp(await estado(page), 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+});
+
+test('74 · no se puede cambiar un ST canonico a un estado desconocido', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.evaluate(() => {
+    const sel = document.getElementById('stfh5_estado');
+    const op = document.createElement('option');
+    op.value = 'Inventado';
+    op.textContent = 'Inventado';
+    sel.appendChild(op);
+    sel.value = 'Inventado';
+  });
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(700);
+
+  await expect(page.locator('#stFichaMsgH05')).toContainText('Estado no valido');
+  expect(soloOp(await estado(page), 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
+});
+
+test('75 · no se puede pasar de un estado desconocido a otro distinto', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_RARO] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_RARO.id);
+
+  await page.evaluate(() => {
+    const sel = document.getElementById('stfh5_estado');
+    const op = document.createElement('option');
+    op.value = 'Otro Raro';
+    op.textContent = 'Otro Raro';
+    sel.appendChild(op);
+    sel.value = 'Otro Raro';
+  });
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(700);
+
+  await expect(page.locator('#stFichaMsgH05')).toContainText('Estado no valido');
+  expect(soloOp(await estado(page), 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
+});
+
+// --- F5 (P2): los ST sin UM resoluble tienen que verse.
+
+const ST_SIN_UM = Object.assign({}, ST_A, {
+  id: '77777777-7777-4777-8777-777777777777',
+  unidad_id: null,
+  nro_st: 'ST-HUERFANO-1',
+  descripcion: 'Sin unidad asociada'
+});
+const ST_UM_FANTASMA = Object.assign({}, ST_A, {
+  id: '88888888-8888-4888-8888-888888888888',
+  unidad_id: '99999999-9999-4999-8999-999999999999',
+  nro_st: 'ST-HUERFANO-2',
+  descripcion: 'Apunta a una UM que no existe'
+});
+
+test('76 · un ST sin unidad_id aparece en el panel de pendientes de asociacion', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A, ST_SIN_UM] });
+  await abrir(page);
+  await irAUM(page);
+
+  await expect(page.locator('#umSTHuerfanosPanelH05')).toContainText('Servicios Técnicos pendientes de asociación');
+  await expect(page.locator('#umSTHuerfanosPanelH05')).toContainText('ST-HUERFANO-1');
+  await expect(page.locator('#umSTHuerfanosPanelH05')).toContainText('Sin unidad asociada');
+  await expect(page.locator('#umSTHuerfanosPanelH05')).toContainText('sin unidad_id');
+  await expect(page.locator('#umSTHuerfanosPanelH05')).toContainText(ST_SIN_UM.id);
+  await expect(page.locator('#umSTHuerfanosPanelH05')).toContainText('pendiente(s) de regularización');
+  // El ST normal sigue en su ficha, no en el panel.
+  await expect(page.locator('#umSTHuerfanosPanelH05')).not.toContainText('ST-0001');
+});
+
+test('77 · un ST que apunta a una UM inexistente tambien aparece', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_UM_FANTASMA] });
+  await abrir(page);
+  await irAUM(page);
+
+  await expect(page.locator('#umSTHuerfanosPanelH05')).toContainText('ST-HUERFANO-2');
+  await expect(page.locator('#umSTHuerfanosPanelH05')).toContainText('99999999-9999-4999-8999-999999999999');
+  // No se inventa una UM ni se autoasigna: la UM sigue sin ese ST.
+  const e = await estado(page);
+  expect(e.ums).toHaveLength(1);
+  expect(e.sts).toHaveLength(1);
+});
+
+test('78 · sin huerfanos el panel no aparece', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await irAUM(page);
+
+  await expect(page.locator('#umSTHuerfanosPanelH05')).toHaveCount(0);
+});
+
+// --- F2 (P2): el codigo de UM se compara canonicamente.
+
+test('79 · una variante del mismo codigo de UM se bloquea antes de salir a la red', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+
+  for (const variante of ['asc001', 'ASC / 001', 'asc.001']) {
+    await page.fill('#umh5_codigo', variante);
+    await page.selectOption('#umh5_tipo', 'Ascensor');
+    await page.selectOption('#umh5_estacion', { index: 1 });
+    await page.click('#btnGuardarUMH05');
+    await page.waitForTimeout(450);
+    await expect(page.locator('#umFormMsgH05')).toContainText('el mismo código una vez normalizado');
+  }
+
+  const e = await estado(page);
+  expect(soloOp(e, 'insert:coi_unidades_mantenimiento')).toHaveLength(0);
+  expect(e.ums).toHaveLength(1);
+});
+
+test('80 · un codigo de UM realmente distinto se sigue permitiendo', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+
+  await page.fill('#umh5_codigo', 'ASC-002');
+  await page.selectOption('#umh5_tipo', 'Ascensor');
+  await page.selectOption('#umh5_estacion', { index: 1 });
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(900);
+
+  const e = await estado(page);
+  expect(soloOp(e, 'insert:coi_unidades_mantenimiento')).toHaveLength(1);
+  expect(e.ums.map((u) => u.codigo).sort()).toEqual(['ASC-001', 'ASC-002']);
 });

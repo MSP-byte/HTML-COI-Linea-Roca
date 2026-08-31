@@ -155,5 +155,45 @@ policies de verdad sobre PGlite, cambiando de rol y de identidad.
 Al aplicarla: pasar las policies al snapshot productivo de cada tabla, ajustar
 los grants y mover las entradas a `_divergencias_pendientes._resueltas`.
 
+## KI-013 — Indice unico canonico de codigo_um (H05) pendiente en remoto
+Estado: abierto. Rama `fix/h05-unidades-mantenimiento-supabase-first`.
+`supabase/migrations/202608310003_h05_um_codigo_unique_guard.sql` crea el UNIQUE
+INDEX `coi_unidades_mantenimiento_codigo_um_canonico_uidx` sobre la forma
+canonica del codigo, pero NO fue aplicado a PRODUCCION ni a STAGING.
+
+Mientras eso siga asi, la base es **mas permisiva que la propia interfaz**: solo
+existe el UNIQUE literal y sensible a mayusculas del baseline, mientras el
+frontend considera la misma UM a `ASC-001`, `asc001` y `ASC / 001`. Dos
+operadores concurrentes pueden crear variantes que pasan el UNIQUE y que despues
+la UI trata como una sola unidad, con el historial tecnico de una apareciendo
+bajo la otra.
+
+El UNIQUE literal del baseline NO se modifica: el indice se suma como defensa
+adicional. La normalizacion es
+`upper(regexp_replace(codigo_um, '[[:space:]./-]+', '', 'g'))`, la misma que
+`claveUM()` en index.html.
+
+Ambos entornos tienen hoy 0 UM, de modo que el riesgo real es nulo hasta que se
+empiece a cargar. Si encontrara codigos equivalentes preexistentes, la migracion
+aborta con `COI_UM_CODIGO_DUPLICADO_CANONICO` y no modifica filas.
+
+Declarado en `tests/fixtures/production_schema_contract.json` →
+`_divergencias_pendientes.unique`.
+
+## KI-014 — Servicios Tecnicos sin Unidad de Mantenimiento resoluble
+Estado: abierto (funcional, sin datos afectados hoy).
+`coi_servicios_tecnicos_um.unidad_id` es nullable en el esquema productivo, y un
+ST tambien puede apuntar a una UM que ya no este en el modelo remoto. Esas filas
+se leen y se cuentan, pero ninguna ficha las muestra: toda la UI de ST se llega
+por `stDeUM(uuid)`.
+
+H05 los hace visibles en el panel «Servicios Tecnicos pendientes de asociacion»,
+dentro del modulo de UM, con todos sus campos y su `unidad_id` sin resolver.
+**No se inventa una UM, no se autoasigna y no se borra nada**: el panel solo da
+visibilidad para que alguien pueda regularizarlos.
+
+Falta definir el circuito de reasignacion. Hasta entonces, esas filas quedan a la
+vista y fuera de cualquier ficha.
+
 ## Actualización
 Registrar PR, fecha, resolución y test de regresión.
