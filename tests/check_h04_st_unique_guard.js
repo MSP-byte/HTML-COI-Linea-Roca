@@ -10,8 +10,10 @@
   despues insertan. Este control valida la defensa que si es integridad.
 
   Aplica todas las migraciones sobre PGlite en memoria y verifica:
-    1) el constraint UNIQUE (unidad_id, nro_st) existe con nombre estable;
-    2) misma UM + mismo nro_st -> el segundo INSERT es rechazado;
+    1) el UNIQUE INDEX sobre (unidad_id, nro_st canonico) existe con nombre estable
+       y su normalizacion coincide con claveST() del frontend;
+    2) misma UM + mismo nro_st, literal o equivalente (st0001, «ST / 0001»),
+       -> el segundo INSERT es rechazado;
     3) distinta UM + mismo nro_st -> permitido;
     4) misma UM + distinto nro_st -> permitido;
     5) el UPDATE que provocaria el choque tambien se rechaza;
@@ -34,7 +36,11 @@ const DIST_DIR = path.dirname(require.resolve('@electric-sql/pglite'));
 const PGCRYPTO_URL = pathToFileURL(path.join(DIST_DIR, 'pgcrypto.tar.gz'));
 const DIR = 'supabase/migrations';
 const MIGRACION = '202608310001_h04_st_unique_guard.sql';
-const CONSTRAINT = 'coi_servicios_tecnicos_um_unidad_nro_st_key';
+// Es un UNIQUE INDEX de expresion, no un constraint de tabla: la unicidad se
+// aplica sobre el numero canonico, no sobre el texto literal.
+const INDICE = 'coi_servicios_tecnicos_um_unidad_nro_st_uidx';
+// Misma normalizacion que claveST() en index.html y que el indice en SQL.
+const claveST = (v) => String(v == null ? '' : v).replace(/[\s.\/-]+/g, '').toUpperCase();
 
 const PLATAFORMA = [
   'create role anon nologin;',
@@ -83,15 +89,29 @@ const nuevoST = (db, unidadId, nroSt) => db.query(
 async function main() {
   const db = await nuevaBase(true);
 
-  // 1) el constraint existe, con nombre estable y sobre las dos columnas.
+  // 1) el indice unico existe, con nombre estable y sobre la forma canonica.
   const { rows: uq } = await db.query(`
-    select conname, contype, pg_get_constraintdef(oid) def
-      from pg_constraint
-     where conname = $1
-       and conrelid = 'public.coi_servicios_tecnicos_um'::regclass`, [CONSTRAINT]);
-  check(uq.length === 1, `no existe el constraint ${CONSTRAINT}`);
-  check(uq[0].contype === 'u', `${CONSTRAINT} deberia ser UNIQUE y es «${uq[0].contype}»`);
-  check(/unique \(unidad_id, nro_st\)/i.test(uq[0].def), `definicion inesperada: ${uq[0].def}`);
+    select i.relname, ix.indisunique, pg_get_indexdef(ix.indexrelid) def
+      from pg_index ix
+      join pg_class i on i.oid = ix.indexrelid
+     where i.relname = $1`, [INDICE]);
+  check(uq.length === 1, `no existe el indice ${INDICE}`);
+  check(uq[0].indisunique === true, `${INDICE} deberia ser UNIQUE`);
+  check(/unidad_id/.test(uq[0].def), `el indice no cubre unidad_id: ${uq[0].def}`);
+  check(/upper\(/i.test(uq[0].def) && /regexp_replace\(/i.test(uq[0].def),
+    `el indice deberia usar la forma canonica del nro_st: ${uq[0].def}`);
+  check(/WHERE .*unidad_id IS NOT NULL/i.test(uq[0].def) && /nro_st IS NOT NULL/i.test(uq[0].def),
+    `el indice deberia ser parcial sobre filas con ambos valores: ${uq[0].def}`);
+
+  // La normalizacion del SQL y la del frontend tienen que coincidir: si una
+  // aceptara lo que la otra rechaza, el UNIQUE dejaria de proteger lo que la UI
+  // considera el mismo ST. Se comprueba contra la propia base.
+  for (const variante of ['ST-0001', 'st0001', 'ST / 0001', 'st.0001', ' ST-0001 ']) {
+    const { rows: r } = await db.query(
+      `select upper(regexp_replace($1, '[[:space:]./-]+', '', 'g')) canonico`, [variante]);
+    check(r[0].canonico === claveST(variante),
+      `SQL y claveST() difieren para «${variante}»: ${r[0].canonico} vs ${claveST(variante)}`);
+  }
 
   // La FK RESTRICT de H05 y la PK siguen en pie: no se recreo la tabla.
   const { rows: previos } = await db.query(`
@@ -100,21 +120,22 @@ async function main() {
   const nombres = previos.map((r) => r.conname);
   for (const esperado of [
     'coi_servicios_tecnicos_um_pkey',
-    'coi_servicios_tecnicos_um_unidad_id_fkey',
-    CONSTRAINT
+    'coi_servicios_tecnicos_um_unidad_id_fkey'
   ]) check(nombres.includes(esperado), `falta ${esperado}: la tabla fue recreada o alterada de mas`);
 
   const umA = await nuevaUM(db, 'H04-UM-001');
   const umB = await nuevaUM(db, 'H04-UM-002');
 
-  // 2) misma UM + mismo nro_st -> rechazado.
+  // 2) misma UM + mismo nro_st, literal o equivalente -> rechazado.
   await nuevoST(db, umA, 'ST-0001');
-  const choque = await fallo(() => nuevoST(db, umA, 'ST-0001'));
-  check(Boolean(choque), 'el segundo ST con el mismo numero para la misma UM no fue rechazado');
-  check(
-    /duplicate key|unique constraint|coi_servicios_tecnicos_um_unidad_nro_st_key/i.test(choque),
-    `el INSERT fallo por otro motivo: ${choque}`
-  );
+  for (const variante of ['ST-0001', 'st0001', 'ST / 0001', 'st.0001']) {
+    const choque = await fallo(() => nuevoST(db, umA, variante));
+    check(Boolean(choque), `«${variante}» deberia chocar con ST-0001 en la misma UM`);
+    check(
+      /duplicate key|unique constraint|coi_servicios_tecnicos_um_unidad_nro_st_uidx/i.test(choque),
+      `el INSERT de «${variante}» fallo por otro motivo: ${choque}`
+    );
+  }
   const { rows: unaSola } = await db.query(
     'select count(*)::int n from public.coi_servicios_tecnicos_um where unidad_id = $1', [umA]);
   check(unaSola[0].n === 1, 'el rechazo no debe dejar filas de mas ni de menos');
@@ -127,11 +148,11 @@ async function main() {
   const otroNro = await fallo(() => nuevoST(db, umA, 'ST-0002'));
   check(!otroNro, `otro numero de ST en la misma UM deberia permitirse: ${otroNro}`);
 
-  // 5) el UPDATE que provocaria el choque tambien se rechaza.
+  // 5) el UPDATE hacia una VARIANTE canonica ya ocupada tambien se rechaza.
   const choqueUpdate = await fallo(() => db.query(
-    `update public.coi_servicios_tecnicos_um set nro_st = 'ST-0001'
+    `update public.coi_servicios_tecnicos_um set nro_st = 'st / 0001'
       where unidad_id = $1 and nro_st = 'ST-0002'`, [umA]));
-  check(Boolean(choqueUpdate), 'renombrar un ST al numero de otro de la misma UM no fue rechazado');
+  check(Boolean(choqueUpdate), 'renombrar un ST a una variante del numero de otro no fue rechazado');
   check(
     /duplicate key|unique constraint/i.test(choqueUpdate),
     `el UPDATE fallo por otro motivo: ${choqueUpdate}`
@@ -146,8 +167,9 @@ async function main() {
   const reaplicar = await fallo(() => db.exec(leer(MIGRACION)));
   check(!reaplicar, `reaplicar la migracion fallo: ${reaplicar}`);
   const { rows: uq2 } = await db.query(
-    'select contype from pg_constraint where conname = $1', [CONSTRAINT]);
-  check(uq2.length === 1 && uq2[0].contype === 'u', 'reaplicar la migracion altero el constraint');
+    'select indisunique from pg_index ix join pg_class i on i.oid = ix.indexrelid where i.relname = $1',
+    [INDICE]);
+  check(uq2.length === 1 && uq2[0].indisunique === true, 'reaplicar la migracion altero el indice');
 
   // 10) RLS intacta: SELECT/INSERT/UPDATE y ninguna DELETE.
   const { rows: policies } = await db.query(`
@@ -167,11 +189,13 @@ async function main() {
   // 8) con duplicados preexistentes la migracion ABORTA y no toca ninguna fila.
   const sucia = await nuevaBase(false);
   const umSucia = await nuevaUM(sucia, 'H04-UM-DUP');
+  // Equivalentes canonicos, no identicos: es justo lo que el indice literal
+  // anterior habria dejado pasar.
   await nuevoST(sucia, umSucia, 'ST-DUP');
-  await nuevoST(sucia, umSucia, 'ST-DUP');
+  await nuevoST(sucia, umSucia, 'st / dup');
   const { rows: antes } = await sucia.query(
     'select count(*)::int n from public.coi_servicios_tecnicos_um');
-  check(antes[0].n === 2, 'el escenario sucio deberia tener 2 ST duplicados');
+  check(antes[0].n === 2, 'el escenario sucio deberia tener 2 ST equivalentes');
 
   const aborto = await fallo(() => sucia.exec(leer(MIGRACION)));
   check(Boolean(aborto), 'con duplicados preexistentes la migracion deberia abortar');
@@ -181,9 +205,9 @@ async function main() {
   const { rows: despues } = await sucia.query(
     'select count(*)::int n from public.coi_servicios_tecnicos_um');
   check(despues[0].n === 2, 'la migracion abortada no puede haber borrado ni modificado filas');
-  const { rows: sinConstraint } = await sucia.query(
-    'select count(*)::int n from pg_constraint where conname = $1', [CONSTRAINT]);
-  check(sinConstraint[0].n === 0, 'con duplicados no puede haberse creado el constraint');
+  const { rows: sinIndice } = await sucia.query(
+    'select count(*)::int n from pg_class where relname = $1', [INDICE]);
+  check(sinIndice[0].n === 0, 'con duplicados no puede haberse creado el indice');
   await sucia.close();
 
   // 9) la migracion no contiene operaciones destructivas sobre datos.
@@ -192,6 +216,7 @@ async function main() {
     /\btruncate\b/i,
     /\bdrop\s+table\b/i,
     /\bdrop\s+constraint\b/i,
+    /\bdrop\s+index\b/i,
     /\bdelete\s+from\b/i,
     /\bupdate\s+public\./i,
     /\binsert\s+into\b/i,
@@ -201,9 +226,10 @@ async function main() {
     /\bgrant\b/i
   ]) check(!patron.test(cuerpo), `la migracion no deberia contener: ${patron}`);
 
-  console.log('H04 ST: un Servicio Tecnico por Unidad de Mantenimiento y numero.');
-  console.log(`  UNIQUE ${CONSTRAINT} : (unidad_id, nro_st)`);
-  console.log('  Mismo nro_st en la misma UM              : rechazado por la base');
+  console.log('H04 ST: un Servicio Tecnico por Unidad de Mantenimiento y numero canonico.');
+  console.log(`  UNIQUE INDEX ${INDICE}`);
+  console.log('  Normalizacion SQL == claveST() del front  : verificada contra la base');
+  console.log('  ST-0001 / st0001 / «ST / 0001»           : el mismo ST, segundo rechazado');
   console.log('  Mismo nro_st en otra UM                  : permitido');
   console.log('  UPDATE que provoca el choque             : rechazado');
   console.log('  nro_st NULL                              : no colisiona');

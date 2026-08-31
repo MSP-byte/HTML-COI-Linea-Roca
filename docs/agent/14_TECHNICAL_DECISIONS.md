@@ -110,5 +110,79 @@ terminó de cargar. Cambiar la OC sí exige el catálogo, igual que en el alta.
 `cambiarEstadoST()` se retiró: existía sin control asociado y el estado pasó a
 ser un campo más del formulario de edición.
 
+## TD-014 — La autorización de UM/ST es del servidor, no del navegador
+Fecha: 2026-08-31.
+
+Las policies de `coi_unidades_mantenimiento` y `coi_servicios_tecnicos_um` solo
+exigían estar autenticado, mientras la UI reservaba las mutaciones al
+Administrador. Un perfil `consulta` podía llamar a PostgREST directamente.
+
+Decisión: policies **RESTRICTIVE** que estrechan las permisivas existentes —el
+patrón que el proyecto ya usa en `202608100004_rls_policies.sql`—, apoyadas en
+`coi_current_role()`. SELECT exige perfil activo; INSERT y UPDATE exigen
+`administrador` en USING y en WITH CHECK. No se crea ninguna policy DELETE.
+
+Se eligió RESTRICTIVE en lugar de reescribir las cuatro policies originales
+porque estrecha sin tocarlas y porque ninguna permisiva futura puede volver a
+ampliar el límite por descuido.
+
+Grants endurecidos como segunda capa: anon pierde todo, authenticated queda con
+exactamente SELECT/INSERT/UPDATE. Sin DELETE, TRUNCATE, REFERENCES ni TRIGGER.
+
+`esAdministrador()` sigue en la UI, pero ahora es UX: evita ofrecer controles que
+el servidor rechazaría. Ver [[KI-012]].
+
+## TD-015 — El número de ST canónico vive en la base
+Fecha: 2026-08-31.
+
+El frontend ya consideraba el mismo ST a `ST-0001`, `st0001` y `ST / 0001`. Un
+UNIQUE sobre el texto literal habría sido **más laxo que la propia UI**: dos
+clientes concurrentes podían colar variantes equivalentes que después la interfaz
+trataría como una sola.
+
+Decisión: la unicidad se aplica sobre
+`upper(regexp_replace(nro_st, '[[:space:]./-]+', '', 'g'))`, mediante UNIQUE
+INDEX parcial (solo filas con `unidad_id` y `nro_st` no nulos). El valor original
+de `nro_st` se conserva para mostrarlo: se normaliza la clave, no el dato.
+
+En el frontend se agregó `claveST()` en lugar de cambiar `clave()`, que usan OC y
+UM y además quita acentos: tocarla para todos habría alterado comparaciones
+ajenas al problema. `check_h04_st_unique_guard.js` comprueba contra la propia
+base que ambas normalizaciones coinciden, para que no se separen con el tiempo.
+
+## TD-016 — Concurrencia optimista en UM y ST
+Fecha: 2026-08-31.
+
+`UPDATE ... WHERE id = uuid` sin más permitía que un formulario viejo pisara lo
+que otro operador acababa de guardar —incluida una baja, que quedaba revertida en
+silencio—.
+
+Decisión: la versión leída (`fecha_actualizacion`) viaja **dentro de la condición
+del UPDATE**, no en un SELECT previo: entre un SELECT y un UPDATE separados cabe
+perfectamente la escritura del otro operador. Si la condición no coincide, el
+UPDATE afecta 0 filas, se relee para distinguir conflicto de falta de permisos y
+se informa sin reintentar automáticamente.
+
+Se aplicó también a Servicios Técnicos: el riesgo es idéntico y no tenía sentido
+cerrar un lado y dejar el otro abierto. `darDeBajaUM()` usa como versión la fecha
+de su propia relectura, de modo que la baja es atómica.
+
+## TD-017 — La baja de UM solo se alcanza por su propia acción
+Fecha: 2026-08-31.
+
+`BAJA` figuraba en el select ordinario, así que se podía crear una UM ya dada de
+baja, o pasar ACTIVA → BAJA con Guardar, salteando la confirmación, el aviso de
+Servicios Técnicos abiertos, la marca `[BAJA aaaa-mm-dd]` y la relectura.
+
+Decisión: se separan `ESTADOS_UM_CANONICOS` (los tres) de
+`ESTADOS_UM_ORDINARIOS` (ACTIVA y FUERA DE SERVICIO). El formulario ofrece solo
+los ordinarios; la transición a BAJA es exclusiva de `darDeBajaUM()`. Tampoco se
+reactiva desde el formulario ordinario, y una UM ya en BAJA conserva ese estado
+al editar cualquier otro campo.
+
+Un estado remoto desconocido se sigue conservando: `opcionesSelect()` agrega el
+valor vigente cuando no pertenece al catálogo, y guardar sin tocarlo no lo
+reescribe. Es dato del servidor.
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.

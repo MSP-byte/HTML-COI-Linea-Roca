@@ -116,7 +116,31 @@ check(escritasST.includes('unidad_id'), 'el insert de ST no fija unidad_id');
 check(escritasST.includes('nro_st'), 'el insert de ST no fija nro_st');
 
 // ------------------------------------------- 2) orden de carga del congelamiento
-const llamadaInit = html.indexOf('\ntry{\r\n  init();');
+// La deteccion NO puede depender de una mezcla concreta de CRLF/LF: el working
+// copy de Windows tiene CRLF y el runner de Linux del Quality Gate obtiene LF,
+// de modo que un indexOf con separadores literales pasaba en un sistema y
+// fallaba en el otro. Se busca por expresion regular tolerante al final de
+// linea, y mas abajo se comprueba que el propio detector funcione con ambas
+// variantes.
+const RE_LLAMADA_INIT = /\r?\ntry\s*\{\r?\n\s*init\(\);/;
+const posicionLlamadaInit = (texto) => {
+  const m = RE_LLAMADA_INIT.exec(texto);
+  return m ? m.index : -1;
+};
+
+// Autocomprobacion del detector: si alguien lo volviera a atar a un final de
+// linea concreto, esto falla antes que el control real y dice por que.
+{
+  const cuerpo = 'algo previo\ntry{\n  init();\n}catch(err){}';
+  const lf = cuerpo;
+  const crlf = cuerpo.replace(/\n/g, '\r\n');
+  check(posicionLlamadaInit(lf) > 0, 'el detector de init() no encuentra la llamada con finales LF');
+  check(posicionLlamadaInit(crlf) > 0, 'el detector de init() no encuentra la llamada con finales CRLF');
+  check(posicionLlamadaInit('sin llamada a init aqui') === -1,
+    'el detector de init() no deberia encontrar nada donde no hay llamada');
+}
+
+const llamadaInit = posicionLlamadaInit(html);
 check(llamadaInit > 0, 'no se encontro la llamada sincrona a init()');
 check(guard > 0 && guard < llamadaInit,
   'el congelamiento del legado tiene que instalarse ANTES de init(): si no, cargarUM() siembra las 28 UM de demostracion');
@@ -236,8 +260,8 @@ for (const [patron, detalle] of [
 // La edicion actualiza la misma fila: nunca inserta una nueva.
 check(/conManejoDeError\('stEditar:' \+ uuid/.test(capa.texto),
   'la edicion de ST debe pasar por el lock de mutacion con su propio uuid');
-check(/await actualizarST\(uuid, patch\);/.test(capa.texto),
-  'la edicion de ST debe ir por UPDATE contra el uuid');
+check(/await actualizarST\(uuid, patch, editando\.fechaActualizacion \|\| null\);/.test(capa.texto),
+  'la edicion de ST debe ir por UPDATE contra el uuid y con la version leida');
 
 // Codigo muerto retirado: el escudo lo instala el bloque de congelamiento y el
 // estado del ST se edita por formulario.
@@ -245,6 +269,61 @@ check(!/const getItemNativo = Storage\.prototype\.getItem;[\s\S]{0,80}const runt
   'la capa H05 conserva la referencia muerta a getItem');
 check(!/function cambiarEstadoST/.test(capa.texto),
   'cambiarEstadoST quedo sin uso al existir la edicion completa del ST');
+
+// ------------------------------------------- 5c) hallazgos de la revision del PR
+// El escudo del legado tiene que cubrir tambien removeItem: varios caminos de
+// Administracion borran claves antes de restaurar, y como setItem ya esta
+// bloqueado el legado quedaria destruido y sin manera de reponerlo antes de H06.
+check(/Storage\.prototype\.removeItem = function/.test(textoGuard),
+  'el congelamiento no intercepta removeItem: el legado se podria borrar');
+check(/var removeItemNativo = Storage\.prototype\.removeItem;/.test(textoGuard),
+  'falta la referencia nativa a removeItem para las claves ajenas');
+check(/return removeItemNativo\.call\(this, k\);/.test(textoGuard),
+  'removeItem debe seguir funcionando para las claves que no son legadas');
+
+// Sin sesion no se consulta: la RLS devolveria [] a una peticion anonima y eso
+// se veria igual que «el inventario remoto esta vacio».
+check(/if \(!uidLectura\) return conservarUltimoConfirmado/.test(capa.texto),
+  'sin sesion la capa no puede consultar UM/ST ni declararse sincronizada');
+check(/Sesión Supabase no autenticada/.test(capa.texto),
+  'falta el estado explicito de sesion ausente');
+
+// BAJA no se alcanza por el formulario ordinario.
+check(/const ESTADOS_UM_ORDINARIOS = \['ACTIVA', 'FUERA DE SERVICIO'\];/.test(capa.texto),
+  'falta el catalogo de estados ordinarios, sin BAJA');
+check(/opcionesSelect\(ESTADOS_UM_ORDINARIOS/.test(capa.texto),
+  'el select del formulario no puede ofrecer BAJA');
+check(/use «Dar de baja»/.test(capa.texto),
+  'guardar con estado BAJA debe derivar a la accion de baja');
+check(/estadoAnterior === 'BAJA' && datos\.estado !== 'BAJA'/.test(capa.texto),
+  'no se puede reactivar una UM dada de baja desde el formulario ordinario');
+
+// Concurrencia optimista: la version viaja DENTRO del UPDATE.
+check(/function condicionarVersion\(consulta, version\)/.test(capa.texto),
+  'falta el condicionamiento por version del UPDATE');
+check(/version \? consulta\.eq\('fecha_actualizacion', version\) : consulta\.is\('fecha_actualizacion', null\)/.test(capa.texto),
+  'la version debe compararse con eq, o con is null cuando no hay version');
+check(/async function actualizarUM\(id, patch, version\)/.test(capa.texto),
+  'actualizarUM debe aceptar la version leida');
+check(/async function actualizarST\(id, patch, version\)/.test(capa.texto),
+  'actualizarST debe aceptar la version leida: el riesgo es identico');
+check(/fue modificada por otro usuario/.test(capa.texto),
+  'falta el mensaje operativo de conflicto de UM');
+check(/fue modificado por otro usuario/.test(capa.texto),
+  'falta el mensaje operativo de conflicto de ST');
+check(/}, data\[0\]\.fecha_actualizacion \|\| null\);/.test(capa.texto),
+  'la baja debe usar como version la fecha de su propia relectura');
+
+// La firma de la ficha cubre TODO lo que se renderiza del ST.
+for (const campo of ['descripcion', 'tecnico', 'proveedor', 'observaciones', 'fechaActualizacion']) {
+  check(new RegExp('s\\.' + campo + '[,\\s]').test(capa.texto),
+    `la firma de la ficha no incluye s.${campo}: un cambio remoto en ese campo no repintaria`);
+}
+
+// El numero de ST se normaliza igual que en SQL.
+check(/const claveST = /.test(capa.texto), 'falta claveST(): la normalizacion propia del numero de ST');
+check(/claveST\(s\.nroST\) === claveST\(datos\.nroST\)/.test(capa.texto),
+  'el duplicado de ST debe compararse con claveST');
 
 // ------------------------------------------- 6) el guard de integridad acompaña
 const migracion = fs.readFileSync('supabase/migrations/202608300003_h05_um_delete_guard.sql', 'utf8');
@@ -271,9 +350,19 @@ check(
 // El UNIQUE de H04 es la autoridad ante concurrencia: la comprobacion previa del
 // frontend no alcanza con dos clientes simultaneos.
 const migracionH04 = fs.readFileSync('supabase/migrations/202608310001_h04_st_unique_guard.sql', 'utf8');
-check(/add constraint coi_servicios_tecnicos_um_unidad_nro_st_key/i.test(migracionH04),
-  'la migracion H04 debe crear el UNIQUE con nombre estable');
-check(/unique \(unidad_id, nro_st\)/i.test(migracionH04), 'el UNIQUE debe cubrir (unidad_id, nro_st)');
+check(/create unique index coi_servicios_tecnicos_um_unidad_nro_st_uidx/i.test(migracionH04),
+  'la migracion H04 debe crear el indice unico con nombre estable');
+check(/unidad_id/.test(migracionH04), 'el indice debe cubrir unidad_id');
+// La normalizacion del SQL y la de claveST() tienen que ser la misma: si una
+// aceptara lo que la otra rechaza, la UI y la base discreparian sobre que es el
+// mismo ST.
+const EXPRESION_SQL = "upper(regexp_replace(nro_st, '[[:space:]./-]+', '', 'g'))";
+check(migracionH04.indexOf(EXPRESION_SQL) >= 0,
+  'el indice debe usar exactamente la normalizacion canonica declarada');
+check(capa.texto.indexOf(EXPRESION_SQL) >= 0,
+  'la capa debe documentar la normalizacion SQL con la que claveST() tiene que coincidir');
+check(/where unidad_id is not null and nro_st is not null/i.test(migracionH04),
+  'el indice debe ser parcial: los ST sin numero no colisionan');
 check(/COI_ST_DUPLICADOS_PREEXISTENTES/.test(migracionH04),
   'la migracion H04 debe abortar explicitamente si encuentra duplicados');
 for (const destructivo of [/\btruncate\b/i, /\bdelete\s+from\b/i, /\bupdate\s+public\./i, /\bdrop\s+table\b/i]) {
@@ -288,6 +377,47 @@ check(
   !(contrato.coi_servicios_tecnicos_um.unique || []).length,
   'el snapshot productivo de coi_servicios_tecnicos_um no tiene UNIQUE: no debe declararse como si lo tuviera'
 );
+check(h04.indice === 'coi_servicios_tecnicos_um_unidad_nro_st_uidx',
+  'la divergencia H04 debe nombrar el indice tal como lo crea la migracion');
+
+// El rol administrador tambien tiene que existir en PostgreSQL: una restriccion
+// que solo vive en JavaScript no es una restriccion.
+const migracionRol = fs.readFileSync('supabase/migrations/202608310002_h04_h05_role_guard.sql', 'utf8');
+const sinComentarios = migracionRol.replace(/--[^\n]*/g, '');
+for (const tabla of ['coi_unidades_mantenimiento', 'coi_servicios_tecnicos_um']) {
+  for (const cmd of ['select', 'insert', 'update']) {
+    check(new RegExp('as restrictive[\\s\\S]{0,80}for ' + cmd, 'i').test(sinComentarios) ||
+      new RegExp('for ' + cmd + ' to authenticated', 'i').test(sinComentarios),
+      `la migracion de rol debe declarar la restrictiva de ${cmd}`);
+  }
+  check(new RegExp('revoke all on public\\.' + tabla + ' from anon', 'i').test(sinComentarios),
+    `anon debe perder todos los privilegios sobre ${tabla}`);
+  check(new RegExp('grant select, insert, update on public\\.' + tabla + ' to authenticated', 'i').test(sinComentarios),
+    `authenticated debe quedar con exactamente SELECT/INSERT/UPDATE sobre ${tabla}`);
+}
+check(!/for delete/i.test(sinComentarios), 'la migracion de rol no puede crear ninguna policy DELETE');
+check(!/grant all/i.test(sinComentarios), 'la migracion de rol no puede otorgar ALL');
+check(/coi_current_role\(\) = 'administrador'/.test(sinComentarios),
+  'las mutaciones deben exigir el rol administrador');
+
+const policiesPendientes = (contrato._divergencias_pendientes || {}).policies || [];
+check(policiesPendientes.length === 6,
+  `se esperaban 6 policies pendientes declaradas y hay ${policiesPendientes.length}`);
+check(policiesPendientes.every((d) => d.permissive === false),
+  'las policies pendientes son RESTRICTIVE: estrechan, no amplian');
+const grantsPendientes = (contrato._divergencias_pendientes || {}).grants || [];
+check(grantsPendientes.length === 2, 'faltan las divergencias de grants de UM y ST');
+check(grantsPendientes.every((d) => d.repo.anon.length === 0),
+  'el repo no debe dejarle ningun privilegio a anon');
+check(grantsPendientes.every((d) =>
+  JSON.stringify(d.repo.authenticated.slice().sort()) === JSON.stringify(['INSERT', 'SELECT', 'UPDATE'])),
+  'authenticated debe quedar declarado con exactamente SELECT/INSERT/UPDATE');
+// Y el snapshot productivo NO puede haber sido tocado: sigue siendo la foto real.
+for (const tabla of ['coi_unidades_mantenimiento', 'coi_servicios_tecnicos_um']) {
+  const nombres = (contrato[tabla].policies || []).map((x) => x.nombre);
+  check(nombres.every((n) => n.indexOf('_guard') < 0),
+    `${tabla}: el snapshot productivo no puede incluir las policies que todavia no se aplicaron`);
+}
 
 console.log('H05/H04 UM y ST Supabase-first: capa verificada contra el esquema real.');
 console.log(`  coi_unidades_mantenimiento : ${COLS_UM.length} columnas, todas leidas por la capa`);

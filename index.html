@@ -11366,6 +11366,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
 
   var getItemNativo = Storage.prototype.getItem;
   var setItemNativo = Storage.prototype.setItem;
+  var removeItemNativo = Storage.prototype.removeItem;
 
   window.__COI_UM_H05_LEGACY_RAW__ = function (k) {
     try { return getItemNativo.call(window.localStorage, k); } catch (e) { return null; }
@@ -11387,6 +11388,18 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
         return undefined;
       }
       return setItemNativo.call(this, k, v);
+    };
+    // removeItem tambien tiene que estar cubierto. Varios caminos legados de
+    // Administracion borran claves antes de restaurar un backup; como setItem
+    // sobre esas claves ya esta bloqueado, un removeItem sin proteger dejaria el
+    // legado destruido y sin manera de reponerlo antes de H06. Congelar significa
+    // que la clave no se escribe NI se borra.
+    Storage.prototype.removeItem = function (k) {
+      if (esLegada(k)) {
+        window.__COI_UM_H05_ESCRITURAS_BLOQUEADAS__.push(String(k));
+        return undefined;
+      }
+      return removeItemNativo.call(this, k);
     };
     Storage.prototype.__coiUmH05Shield = true;
   }
@@ -27828,7 +27841,12 @@ document.addEventListener('click',function(event){
   const LEGACY_ST_KEYS = ['coi_servicios_tecnicos_um', 'coi_servicios_tecnicos'];
   const LEGACY_KEYS = LEGACY_UM_KEYS.concat(LEGACY_ST_KEYS);
 
+  // BAJA es un estado canonico, pero NO una opcion del formulario ordinario: la
+  // transicion pasa solo por darDeBajaUM(), que confirma, avisa de los ST
+  // abiertos, deja la marca [BAJA aaaa-mm-dd] y relee el servidor. Ofrecerla en
+  // el select de alta/edicion permitia dar de baja —o reactivar— sin nada de eso.
   const ESTADOS_UM = ['ACTIVA', 'FUERA DE SERVICIO', 'BAJA'];
+  const ESTADOS_UM_ORDINARIOS = ['ACTIVA', 'FUERA DE SERVICIO'];
   const ESTADOS_ST = ['Pendiente', 'En curso', 'Resuelto', 'Cancelado'];
   const TIPOS_UM_SUGERIDOS = ['Ascensor', 'Escalera mecánica', 'Montacarga', 'Puertas automáticas', 'Instalación fija', 'Otro'];
 
@@ -27848,6 +27866,13 @@ document.addEventListener('click',function(event){
   const texto = (v) => String(v == null ? '' : v).trim();
   const norm = (v) => texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ');
   const clave = (v) => norm(v).replace(/[\s\.\-\/]/g, '');
+  // Numero de ST canonico. Tiene que coincidir EXACTAMENTE con la normalizacion
+  // del indice unico de 202608310001_h04_st_unique_guard.sql:
+  //   upper(regexp_replace(nro_st, '[[:space:]./-]+', '', 'g'))
+  // Si el frontend y la base normalizaran distinto, uno de los dos aceptaria lo
+  // que el otro rechaza. Se mantiene aparte de clave(), que ademas quita acentos
+  // y la usan OC y UM: cambiarla para todos seria tocar lo que no hace falta.
+  const claveST = (v) => String(v == null ? '' : v).replace(/[\s.\/-]+/g, '').toUpperCase();
   const esUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(texto(v));
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const $ = (id) => document.getElementById(id);
@@ -28096,6 +28121,12 @@ document.addEventListener('click',function(event){
 
       if (!c) return conservarUltimoConfirmado('Supabase no disponible');
 
+      // Sin sesion NO se consulta. La RLS devuelve [] a una peticion anonima y
+      // eso se veria identico a «el inventario remoto esta vacio», que es un
+      // estado valido: la capa declararia sincronizado con 0 UM sin haber leido
+      // nunca de forma autenticada.
+      if (!uidLectura) return conservarUltimoConfirmado('Sesión Supabase no autenticada.');
+
       try {
         const crudasUM = await leerPaginado(c, TABLA_UM, CAMPOS_UM, 'codigo_um');
         const crudasST = await leerPaginado(c, TABLA_ST, CAMPOS_ST, 'fecha');
@@ -28177,15 +28208,42 @@ document.addEventListener('click',function(event){
     }
     return data;
   }
-  async function actualizarUM(id, patch) {
+  // Conflicto de concurrencia: se construye siempre con el mismo texto para que
+  // la UI lo muestre como aviso operativo y no como error tecnico.
+  function conflicto(mensaje) {
+    const e = new Error(mensaje);
+    e.coiMensajeDirecto = true;
+    return e;
+  }
+
+  // Concurrencia optimista. `version` es la fecha_actualizacion que vio el
+  // formulario: viaja DENTRO de la condicion del UPDATE, no en un SELECT previo,
+  // porque entre un SELECT y un UPDATE separados cabe perfectamente la escritura
+  // del otro operador. Si la condicion no matchea, el UPDATE afecta 0 filas y no
+  // se pisa nada.
+  function condicionarVersion(consulta, version) {
+    return version ? consulta.eq('fecha_actualizacion', version) : consulta.is('fecha_actualizacion', null);
+  }
+
+  async function actualizarUM(id, patch, version) {
     const { c } = await exigirEscritura();
     if (!esUuid(id)) throw new Error('Unidad de Mantenimiento sin identificador remoto.');
     const cuerpo = Object.assign({}, patch, { fecha_actualizacion: new Date().toISOString() });
-    const { data, error } = await c.from(TABLA_UM).update(cuerpo).eq('id', id).select(CAMPOS_UM);
+    const { data, error } = await condicionarVersion(
+      c.from(TABLA_UM).update(cuerpo).eq('id', id), version
+    ).select(CAMPOS_UM);
     if (error) {
       throw errorUnico(error, 'Ya existe otra Unidad de Mantenimiento con ese codigo.') || error;
     }
-    if (!data || !data.length) throw new Error('El servidor no aplico el cambio (permisos insuficientes).');
+    if (!data || !data.length) {
+      // 0 filas puede ser conflicto de version o falta de permisos: se relee para
+      // poder decir cual de las dos cosas paso, en vez de culpar a la equivocada.
+      const { data: actual } = await c.from(TABLA_UM).select(CAMPOS_UM).eq('id', id).limit(1);
+      if (actual && actual.length) {
+        throw conflicto('La Unidad de Mantenimiento fue modificada por otro usuario. Actualice la información antes de volver a guardar.');
+      }
+      throw new Error('El servidor no aplico el cambio (la UM ya no existe o no tiene permisos suficientes).');
+    }
     return data[0];
   }
   async function crearST(datos) {
@@ -28196,11 +28254,15 @@ document.addEventListener('click',function(event){
     }
     return data;
   }
-  async function actualizarST(id, patch) {
+  // Mismo riesgo y misma proteccion que en UM: no tiene sentido cerrar un lado y
+  // dejar el otro abierto.
+  async function actualizarST(id, patch, version) {
     const { c } = await exigirEscritura();
     if (!esUuid(id)) throw new Error('Servicio Tecnico sin identificador remoto.');
     const cuerpo = Object.assign({}, patch, { fecha_actualizacion: new Date().toISOString() });
-    const { data, error } = await c.from(TABLA_ST).update(cuerpo).eq('id', id).select(CAMPOS_ST);
+    const { data, error } = await condicionarVersion(
+      c.from(TABLA_ST).update(cuerpo).eq('id', id), version
+    ).select(CAMPOS_ST);
     if (error) {
       // El UNIQUE (unidad_id, nro_st) puede rechazar la edicion aunque la
       // comprobacion previa haya pasado: otro puesto pudo tomar ese numero.
@@ -28208,7 +28270,13 @@ document.addEventListener('click',function(event){
         'Otro Servicio Técnico de esa Unidad de Mantenimiento ya usa el número ' +
         texto(patch && patch.nro_st) + '. Actualice y vuelva a intentar.') || error;
     }
-    if (!data || !data.length) throw new Error('El servidor no aplico el cambio (permisos insuficientes).');
+    if (!data || !data.length) {
+      const { data: actual } = await c.from(TABLA_ST).select(CAMPOS_ST).eq('id', id).limit(1);
+      if (actual && actual.length) {
+        throw conflicto('El Servicio Técnico fue modificado por otro usuario. Actualice la información antes de volver a guardar.');
+      }
+      throw new Error('El servidor no aplico el cambio (el ST ya no existe o no tiene permisos suficientes).');
+    }
     return data[0];
   }
 
@@ -28298,7 +28366,7 @@ document.addEventListener('click',function(event){
       '<div><label>Código UM *</label><input id="umh5_codigo" placeholder="ASC-001" value="' + esc(v.codigoUM) + '"' + deshabilitado + '></div>' +
       '<div><label>Tipo UM *</label><select id="umh5_tipo"' + deshabilitado + '>' + opcionesSelect(tiposUM(), v.tipoUM, 'Seleccionar') + '</select></div>' +
       '<div><label>Estación *</label><select id="umh5_estacion"' + deshabilitado + '>' + opcionesSelect(nombresEstaciones(), v.estacion, 'Seleccionar') + '</select></div>' +
-      '<div><label>Estado *</label><select id="umh5_estado"' + deshabilitado + '>' + opcionesSelect(ESTADOS_UM, v.estado || 'ACTIVA', null) + '</select></div>' +
+      '<div><label>Estado *</label><select id="umh5_estado"' + deshabilitado + '>' + opcionesSelect(ESTADOS_UM_ORDINARIOS, v.estado || 'ACTIVA', null) + '</select></div>' +
       '<div><label>Ramal</label><input id="umh5_ramal" value="' + esc(v.ramal) + '"' + deshabilitado + '></div>' +
       '<div><label>Sector</label><input id="umh5_sector" value="' + esc(v.sector) + '"' + deshabilitado + '></div>' +
       '<div><label>Marca</label><input id="umh5_marca" value="' + esc(v.marca) + '"' + deshabilitado + '></div>' +
@@ -28354,10 +28422,29 @@ document.addEventListener('click',function(event){
       mensajeFormUM('Faltan campos obligatorios: ' + faltan.join(', ') + '.', 'warn');
       return;
     }
-    if (ESTADOS_UM.indexOf(datos.estado) < 0) {
-      mensajeFormUM('Estado no valido. Use ' + ESTADOS_UM.join(', ') + '.', 'warn');
+    const anterior = umEditandoUuid ? umPorUuid(umEditandoUuid) : null;
+    const estadoAnterior = anterior ? anterior.estado : null;
+    // Un estado remoto desconocido se conserva: es dato del servidor y no se
+    // reescribe por el hecho de no figurar en el catalogo ordinario.
+    const conservaEstadoRemoto = Boolean(estadoAnterior) && datos.estado === estadoAnterior;
+    // El caso BAJA se resuelve ANTES que la validacion generica: «estado no
+    // valido» seria cierto pero inutil, cuando lo que el operador necesita saber
+    // es que la baja tiene su propia accion.
+    if (datos.estado === 'BAJA' && estadoAnterior !== 'BAJA') {
+      mensajeFormUM('Para dar de baja una Unidad de Mantenimiento use «Dar de baja»: deja constancia y avisa de los Servicios Técnicos abiertos.', 'warn');
       return;
     }
+    // Y tampoco se reactiva en silencio desde el formulario ordinario.
+    if (estadoAnterior === 'BAJA' && datos.estado !== 'BAJA') {
+      mensajeFormUM('La Unidad de Mantenimiento está dada de baja. Reactivarla no es una edición ordinaria: registre el alta por el circuito correspondiente.', 'warn');
+      return;
+    }
+    if (!conservaEstadoRemoto && ESTADOS_UM_ORDINARIOS.indexOf(datos.estado) < 0) {
+      mensajeFormUM('Estado no valido. Use ' + ESTADOS_UM_ORDINARIOS.join(' o ') + '.', 'warn');
+      return;
+    }
+    // Una UM ya dada de baja conserva su estado al editar cualquier otro campo.
+    if (estadoAnterior === 'BAJA') datos.estado = 'BAJA';
     // Choque de codigo detectado antes de salir a la red; el UNIQUE remoto sigue
     // siendo la defensa final y su error se traduce igual.
     const existente = umPorCodigo(datos.codigo_um);
@@ -28369,7 +28456,8 @@ document.addEventListener('click',function(event){
     conManejoDeError(
       'um:' + (id || 'nueva') + ':' + clave(datos.codigo_um),
       async () => {
-        if (id) await actualizarUM(id, datos);
+        // La version es la que tenia la UM cuando se cargo el formulario.
+        if (id) await actualizarUM(id, datos, anterior ? anterior.fechaActualizacion : null);
         else {
           const fila = await crearUM(datos);
           umEditandoUuid = fila && fila.id ? fila.id : null;
@@ -28404,10 +28492,12 @@ document.addEventListener('click',function(event){
       if (error) throw error;
       if (!data || !data.length) throw new Error('La Unidad de Mantenimiento ya no existe en el servidor.');
       const actual = texto(data[0].observaciones);
+      // Se usa como version la fecha de ESTA relectura: si alguien escribe entre
+      // la relectura y el UPDATE, la baja no se aplica sobre un texto ya viejo.
       await actualizarUM(u._supabaseId, {
         estado: 'BAJA',
         observaciones: actual ? actual + '\n' + marca : marca
-      });
+      }, data[0].fecha_actualizacion || null);
     }, 'Unidad de Mantenimiento dada de baja.');
   }
 
@@ -28571,9 +28661,10 @@ document.addEventListener('click',function(event){
     // El UNIQUE (unidad_id, nro_st) de 202608310001_h04_st_unique_guard.sql es la
     // autoridad ante concurrencia; esta comprobacion solo da un mensaje operativo.
     const duplicado = stDeUM(um._supabaseId).find((s) =>
-      clave(s.nroST) === clave(datos.nroST) && String(s._supabaseId) !== String(excluirUuid));
+      claveST(s.nroST) === claveST(datos.nroST) && String(s._supabaseId) !== String(excluirUuid));
     if (duplicado) {
-      return { error: 'La UM ' + um.codigoUM + ' ya tiene un Servicio Técnico ' + datos.nroST + '.' };
+      return { error: 'La UM ' + um.codigoUM + ' ya tiene un Servicio Técnico ' + duplicado.nroST +
+        ' y «' + datos.nroST + '» es el mismo número una vez normalizado.' };
     }
 
     return {
@@ -28617,13 +28708,13 @@ document.addEventListener('click',function(event){
         // unidad_id no viaja en el patch: editar no reasigna la UM.
         const patch = Object.assign({}, preparado.fila);
         delete patch.unidad_id;
-        await actualizarST(uuid, patch);
+        await actualizarST(uuid, patch, editando.fechaActualizacion || null);
         stEditandoUuid = null;
       }, 'Servicio Técnico actualizado.');
       return;
     }
     conManejoDeError(
-      'st:' + preparado.fila.unidad_id + ':' + clave(preparado.fila.nro_st),
+      'st:' + preparado.fila.unidad_id + ':' + claveST(preparado.fila.nro_st),
       () => crearST(preparado.fila),
       'Servicio Técnico guardado.'
     );
@@ -28652,7 +28743,7 @@ document.addEventListener('click',function(event){
     if (st.estado === 'Cancelado') return avisar('El Servicio Técnico ya está cancelado.', 'warn');
     if (!confirm('Cancelar el Servicio Técnico ' + (st.nroST || '') + '?\n\nNo se elimina: queda en estado Cancelado y se conserva como historial.')) return;
     conManejoDeError('stCancelar:' + uuid, async () => {
-      await actualizarST(uuid, { estado: 'Cancelado' });
+      await actualizarST(uuid, { estado: 'Cancelado' }, st.fechaActualizacion || null);
       // Si se cancelo justamente el ST que se estaba editando, el formulario
       // vuelve a modo alta en lugar de quedar apuntando a un registro cerrado.
       if (String(stEditandoUuid) === String(uuid)) stEditandoUuid = null;
@@ -28886,7 +28977,14 @@ document.addEventListener('click',function(event){
       u._supabaseId, u.codigoUM, u.estado, u.tipoUM, u.estacion, u.ramal, u.sector,
       u.marca, u.modelo, u.nroSerie, u.proveedorMantenimiento, u.descripcion,
       u.observaciones, u.fechaActualizacion, esAdministrador(), stEditandoUuid,
-      stDeUM(u._supabaseId).map((s) => s._supabaseId + '|' + s.nroST + '|' + s.estado + '|' + s.fecha + '|' + s.nroOC)
+      // La firma tiene que cubrir TODOS los campos remotos del ST que la ficha
+      // muestra. Si solo mira algunos, un cambio hecho en otro puesto sobre la
+      // descripcion o el tecnico deja la firma igual y la ficha no se repinta:
+      // el operador seguiria viendo datos viejos despues de Actualizar.
+      stDeUM(u._supabaseId).map((s) => [
+        s._supabaseId, s._unidadId, s.nroST, s.fecha, s.nroOC, s.descripcion,
+        s.tecnico, s.proveedor, s.estado, s.observaciones, s.fechaActualizacion
+      ].join('|'))
     ]);
     if (!forzar && body.dataset.h05Firma === firma && body.childElementCount) return;
     const activo = document.activeElement;

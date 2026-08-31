@@ -103,24 +103,57 @@ La relacion con Ordenes se registra ahora en cada Servicio Tecnico (`nro_oc`),
 validada contra el catalogo remoto.
 Si el negocio necesita criticidad o fotos de UM, requiere migracion autorizada.
 
-## KI-011 — Migracion H04 (UNIQUE de Servicios Tecnicos) pendiente en remoto
+## KI-011 — Indice unico canonico de ST (H04) pendiente en remoto
 Estado: abierto. Rama `fix/h05-unidades-mantenimiento-supabase-first`.
-`supabase/migrations/202608310001_h04_st_unique_guard.sql` crea
-UNIQUE (unidad_id, nro_st) sobre `coi_servicios_tecnicos_um`, pero NO fue
-aplicada a PRODUCCION ni a STAGING. Mientras eso siga asi, la unica defensa
-contra dos Servicios Tecnicos con el mismo numero en la misma UM es la
-comprobacion previa del frontend, que es UX y no integridad: con dos operadores
-concurrentes ambos leen «no existe» y despues insertan.
+`supabase/migrations/202608310001_h04_st_unique_guard.sql` crea el UNIQUE INDEX
+`coi_servicios_tecnicos_um_unidad_nro_st_uidx` sobre
+(unidad_id, numero de ST canonico), pero NO fue aplicado a PRODUCCION ni a
+STAGING. Mientras eso siga asi, la unica defensa contra dos Servicios Tecnicos
+con el mismo numero en la misma UM es la comprobacion previa del frontend, que
+es UX y no integridad: con dos operadores concurrentes ambos leen «no existe» y
+despues insertan.
+
+El numero canonico es `upper(regexp_replace(nro_st, '[[:space:]./-]+', '', 'g'))`,
+la misma normalizacion que `claveST()` en index.html. Un unique literal habria
+sido mas laxo que la propia UI, que ya considera el mismo ST a `ST-0001`,
+`st0001` y `ST / 0001`.
 
 Ambos entornos tienen hoy 0 ST, de modo que el riesgo real es nulo hasta que se
-empiece a cargar. La migracion es segura igualmente: si encontrara duplicados
-preexistentes aborta con `COI_ST_DUPLICADOS_PREEXISTENTES` y no modifica filas.
+empiece a cargar. La migracion es segura igualmente: si encontrara equivalentes
+canonicos preexistentes aborta con `COI_ST_DUPLICADOS_PREEXISTENTES` y no
+modifica filas.
 
 La divergencia esta declarada en
 `tests/fixtures/production_schema_contract.json` → `_divergencias_pendientes.unique`
 y la reporta `check_schema_reproducibility.js` en cada corrida.
-Al aplicarla: agregar el UNIQUE al snapshot productivo de la tabla y mover la
+Al aplicarla: agregar el indice al snapshot productivo de la tabla y mover la
 entrada a `_divergencias_pendientes._resueltas`.
+
+## KI-012 — Rol, RLS y grants de UM/ST (H04/H05) pendientes en remoto
+Estado: abierto. Rama `fix/h05-unidades-mantenimiento-supabase-first`.
+`supabase/migrations/202608310002_h04_h05_role_guard.sql` agrega policies
+RESTRICTIVE que exigen `coi_current_role() = 'administrador'` para INSERT y
+UPDATE sobre `coi_unidades_mantenimiento` y `coi_servicios_tecnicos_um`, exige
+perfil activo para SELECT, y endurece los grants (anon sin nada; authenticated
+con exactamente SELECT/INSERT/UPDATE). NO fue aplicada a PRODUCCION ni a
+STAGING.
+
+Mientras eso siga asi, las policies remotas solo exigen estar autenticado:
+**un usuario con perfil `consulta` puede saltarse la UI y llamar a PostgREST
+directamente para crear o modificar UM y ST**. La restriccion de la interfaz es
+real para el operador, pero no es una defensa: vive en JavaScript.
+
+Riesgo acotado hoy porque ambas tablas estan vacias en remoto, pero conviene
+desplegarla antes de empezar a cargar inventario.
+
+Las divergencias estan declaradas en
+`tests/fixtures/production_schema_contract.json` →
+`_divergencias_pendientes.policies` y `_divergencias_pendientes.grants`, y
+`check_schema_reproducibility.js` verifica en cada corrida que el repositorio
+efectivamente las produzca. `tests/check_h04_h05_role_guard.js` ejerce las
+policies de verdad sobre PGlite, cambiando de rol y de identidad.
+Al aplicarla: pasar las policies al snapshot productivo de cada tabla, ajustar
+los grants y mover las entradas a `_divergencias_pendientes._resueltas`.
 
 ## Actualización
 Registrar PR, fecha, resolución y test de regresión.

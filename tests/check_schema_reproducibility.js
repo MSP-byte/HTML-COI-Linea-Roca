@@ -76,6 +76,11 @@ const accionEsperada = (tabla, columna, accionProduccion) => {
 // que el constraint exista de verdad tras aplicar las migraciones, de modo que
 // la divergencia quede probada y no sea solamente una anotacion.
 const PENDIENTES_UNIQUE = (CONTRATO._divergencias_pendientes || {}).unique || [];
+// Policies y grants que el repositorio endurece y produccion todavia no tiene.
+// Mismo criterio: el snapshot sigue siendo produccion, y aca se declara —y se
+// verifica— lo que el repositorio produce de mas.
+const PENDIENTES_POLICIES = (CONTRATO._divergencias_pendientes || {}).policies || [];
+const PENDIENTES_GRANTS = (CONTRATO._divergencias_pendientes || {}).grants || [];
 
 // Columnas que el baseline llego a declarar por inferencia y que NO existen en
 // produccion. El control falla si alguna reaparece.
@@ -274,13 +279,31 @@ async function casoA() {
   // Los UNIQUE declarados como divergencia pendiente tienen que existir en el
   // repositorio: es lo que prueba que la migracion todavia no aplicada hace lo
   // que dice. Si alguno desapareciera, la divergencia seria falsa.
+  const { rows: indices } = await db.query(`
+    select i.relname, ix.indisunique, pg_get_indexdef(ix.indexrelid) def,
+           t.relname tabla
+      from pg_index ix
+      join pg_class i on i.oid = ix.indexrelid
+      join pg_class t on t.oid = ix.indrelid
+      join pg_namespace n on n.oid = i.relnamespace
+     where n.nspname = 'public'`);
   for (const d of PENDIENTES_UNIQUE) {
-    const real = porTabla(d.tabla).find((c) => c.conname === d.constraint);
-    check(Boolean(real), `${d.tabla}: la divergencia pendiente declara ${d.constraint} y el repositorio no lo crea`);
+    const real = indices.find((i) => i.relname === d.indice);
+    check(Boolean(real), `${d.tabla}: la divergencia pendiente declara el indice ${d.indice} y el repositorio no lo crea`);
     if (!real) continue;
-    check(real.contype === 'u', `${d.constraint}: deberia ser UNIQUE y es «${real.contype}»`);
+    check(real.indisunique === true, `${d.indice}: deberia ser UNIQUE`);
+    check(real.tabla === d.tabla, `${d.indice}: esta sobre ${real.tabla} y se declara sobre ${d.tabla}`);
     for (const col of d.columnas) {
-      check(new RegExp('\\b' + col + '\\b').test(real.def), `${d.constraint}: no cubre ${col} (${real.def})`);
+      check(new RegExp('\\b' + col + '\\b').test(real.def), `${d.indice}: no cubre ${col} (${real.def})`);
+    }
+    if (d.expresion_canonica) {
+      // Se comprueba la forma, no el texto exacto: Postgres reescribe la
+      // expresion al guardarla.
+      check(/upper\(/i.test(real.def) && /regexp_replace\(/i.test(real.def),
+        `${d.indice}: deberia aplicar la forma canonica declarada (${real.def})`);
+    }
+    if (d.parcial) {
+      check(/ WHERE /i.test(real.def), `${d.indice}: deberia ser parcial (${real.def})`);
     }
     // Y NO debe estar declarado en el snapshot productivo: si lo estuviera, ya
     // no seria una divergencia sino parte del contrato.
@@ -289,6 +312,29 @@ async function casoA() {
     );
     check(!enSnapshot,
       `${d.tabla}: UNIQUE (${d.columnas.join(', ')}) esta en el snapshot productivo y ademas declarado como pendiente`);
+  }
+
+  // Grants pendientes: tras reproducir el repo tienen que ser EXACTAMENTE los
+  // declarados en «repo». Si sobrara alguno, el endurecimiento no seria tal.
+  if (PENDIENTES_GRANTS.length) {
+    const { rows: grants } = await db.query(`
+      select table_name, grantee, privilege_type
+        from information_schema.role_table_grants
+       where table_schema = 'public' and grantee in ('anon', 'authenticated')`);
+    for (const d of PENDIENTES_GRANTS) {
+      for (const rol of Object.keys(d.repo)) {
+        const reales = grants
+          .filter((g) => g.table_name === d.tabla && g.grantee === rol)
+          .map((g) => String(g.privilege_type).toUpperCase())
+          .filter((v, i, a) => a.indexOf(v) === i)
+          .sort();
+        const esperados = d.repo[rol].slice().sort();
+        check(
+          JSON.stringify(reales) === JSON.stringify(esperados),
+          `${d.tabla}: grants de ${rol} son [${reales.join(', ')}] y el repo declara [${esperados.join(', ')}]`
+        );
+      }
+    }
   }
 
   // PK: todas las operativas tienen clave primaria.
@@ -376,11 +422,37 @@ async function casoA() {
         `${esperada.nombre}: WITH CHECK ${real.with_check || 'ninguno'}, produccion espera ${esperada.with_check || 'ninguno'}`
       );
     }
+    // Las policies declaradas como divergencia pendiente tienen que existir de
+    // verdad al reproducir el repo, con su forma exacta.
+    for (const d of PENDIENTES_POLICIES.filter((x) => x.tabla === tabla)) {
+      const real = policies.find((x) => x.tablename === tabla && x.policyname === d.nombre);
+      check(Boolean(real), `${tabla}: la divergencia pendiente declara la policy ${d.nombre} y el repositorio no la crea`);
+      if (!real) continue;
+      check(real.cmd.toUpperCase() === d.cmd, `${d.nombre}: comando ${real.cmd}, el repo declara ${d.cmd}`);
+      const roles = (Array.isArray(real.roles) ? real.roles : String(real.roles).replace(/[{}]/g, '').split(','))
+        .map((r) => String(r).trim()).filter(Boolean);
+      check(roles.length === d.roles.length && d.roles.every((r) => roles.includes(r)),
+        `${d.nombre}: roles [${roles.join(', ')}], el repo declara [${d.roles.join(', ')}]`);
+      const permissive = String(real.permissive).toUpperCase().startsWith('PERMISSIVE') || real.permissive === true;
+      check(permissive === d.permissive,
+        `${d.nombre}: ${permissive ? 'PERMISSIVE' : 'RESTRICTIVE'} y el repo declara lo contrario`);
+      check(norm(real.qual) === norm(d.using),
+        `${d.nombre}: USING ${real.qual || 'ninguno'}, el repo declara ${d.using || 'ninguno'}`);
+      check(norm(real.with_check) === norm(d.with_check),
+        `${d.nombre}: WITH CHECK ${real.with_check || 'ninguno'}, el repo declara ${d.with_check || 'ninguno'}`);
+      // Y no puede estar ya en el snapshot: entonces no seria una divergencia.
+      check(!(spec.policies || []).some((e) => e.nombre === d.nombre),
+        `${tabla}: ${d.nombre} figura en el snapshot productivo y ademas como pendiente`);
+    }
     // Ninguna policy de mas sobre las tablas cuyo contrato de policies conocemos.
+    // Las pendientes declaradas son el UNICO excedente admitido: cualquier otra
+    // sigue siendo un fallo, para que nada entre sin quedar documentado.
     if (spec.policies) {
       const reales = policies.filter((x) => x.tablename === tabla).map((x) => x.policyname);
-      const sobran = reales.filter((n) => !spec.policies.some((e) => e.nombre === n));
-      check(sobran.length === 0, `${tabla}: policies que produccion no tiene: ${sobran.join(', ')}`);
+      const declaradas = PENDIENTES_POLICIES.filter((x) => x.tabla === tabla).map((x) => x.nombre);
+      const sobran = reales.filter((n) =>
+        !spec.policies.some((e) => e.nombre === n) && declaradas.indexOf(n) < 0);
+      check(sobran.length === 0, `${tabla}: policies que produccion no tiene ni estan declaradas como pendientes: ${sobran.join(', ')}`);
     }
   }
 
@@ -511,6 +583,18 @@ async function main() {
     );
     PENDIENTES_UNIQUE.forEach((d) => console.log(
       `    pendiente · ${d.tabla} UNIQUE (${d.columnas.join(', ')}): repo ${d.repo}, produccion ${d.produccion} (${d.migracion})`
+    ));
+  }
+  if (PENDIENTES_POLICIES.length) {
+    console.log(`  CASO A · policies excedentes del repo : ${PENDIENTES_POLICIES.length} divergencia(s) pendientes de aplicar en remoto`);
+    PENDIENTES_POLICIES.forEach((d) => console.log(
+      `    pendiente · ${d.tabla}.${d.nombre} (${d.cmd}, ${d.permissive ? 'PERMISSIVE' : 'RESTRICTIVE'}): repo ${d.repo}, produccion ${d.produccion} (${d.migracion})`
+    ));
+  }
+  if (PENDIENTES_GRANTS.length) {
+    console.log(`  CASO A · grants endurecidos por el repo: ${PENDIENTES_GRANTS.length} divergencia(s) pendientes de aplicar en remoto`);
+    PENDIENTES_GRANTS.forEach((d) => console.log(
+      `    pendiente · ${d.tabla}: anon [${d.repo.anon.join(', ') || 'ninguno'}], authenticated [${d.repo.authenticated.join(', ')}] (${d.migracion})`
     ));
   }
   console.log(`  CASO A · policies (nombre/cmd/roles/permissive/using/with check): ${totalPol} verificadas, 0 diferencias`);

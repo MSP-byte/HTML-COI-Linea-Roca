@@ -78,7 +78,7 @@ async function prepararEntorno(page, opciones) {
   const cfg = Object.assign({
     ums: [], sts: [], legadoUM: null, legadoST: null,
     fallaSelect: false, fallaMutacion: false, errorMutacion: 'RLS denegado',
-    retardoSelectMs: 0, pageSize: 1000, admin: true
+    retardoSelectMs: 0, pageSize: 1000, admin: true, sinSesion: false
   }, opciones);
 
   await page.addInitScript((c) => {
@@ -104,7 +104,7 @@ async function prepararEntorno(page, opciones) {
       return setItemNativo.call(this, k, v);
     };
 
-    let sesionActiva = true;
+    let sesionActiva = !c.sinSesion;
     let uidSesion = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     window.__H05_SET_UID__ = (v) => { uidSesion = v; };
     window.__H05_SIGN_OUT__ = () => {
@@ -125,14 +125,24 @@ async function prepararEntorno(page, opciones) {
     const uuid = (n) => '99999999-9999-4999-8999-' + String(n).padStart(12, '0');
 
     function consulta(tabla) {
-      const st = { tabla, filtro: null, patch: null, op: null, rango: null, limite: 0 };
+      // filtros acumula TODAS las condiciones; `filtro` se conserva como la
+      // primera igualdad para no romper las aserciones que ya lo usan.
+      const st = { tabla, filtro: null, filtros: [], patch: null, op: null, rango: null, limite: 0 };
+      const anotar = (op, col, val) => {
+        st.filtros.push({ op, col, val });
+        if (op === 'eq' && !st.filtro) st.filtro = { col, val };
+      };
+      const cumple = (fila) => st.filtros.every((f) => (
+        f.op === 'is' ? (fila[f.col] === null || fila[f.col] === undefined) : fila[f.col] === f.val
+      ));
       const api = {
         select() { return api; },
         order() { return api; },
         range(a, b) { st.rango = [a, b]; return api; },
         in() { return api; },
         limit(n) { st.limite = n; return api; },
-        eq(col, val) { st.filtro = { col, val }; return api; },
+        eq(col, val) { anotar('eq', col, val); return api; },
+        is(col, val) { anotar(val === null ? 'is' : 'eq', col, val); return api; },
         single() { return api._run(true); },
         insert(f) { st.op = 'insert'; st.payload = f; return api; },
         update(p) { st.op = 'update'; st.patch = p; return api; },
@@ -161,10 +171,12 @@ async function prepararEntorno(page, opciones) {
             return { data: unico ? creada : [creada], error: null };
           }
           if (st.op === 'update') {
-            registrar('update:' + st.tabla, { filtro: st.filtro, patch: st.patch });
+            registrar('update:' + st.tabla, { filtro: st.filtro, filtros: st.filtros, patch: st.patch });
             if (c.fallaMutacion) return { data: null, error: { message: c.errorMutacion } };
             const actuales = leer().slice();
-            const i = actuales.findIndex((f) => f.id === (st.filtro && st.filtro.val));
+            // Un UPDATE condicionado que no matchea afecta 0 filas: es
+            // exactamente lo que hace el CAS cuando otro puesto ya escribio.
+            const i = actuales.findIndex((f) => cumple(f));
             if (i < 0) return { data: [], error: null };
             actuales[i] = Object.assign({}, actuales[i], st.patch);
             escribir(actuales);
@@ -181,7 +193,7 @@ async function prepararEntorno(page, opciones) {
           if (window.__H05_CFG__.fallaSelect) return { data: null, error: { message: 'fallo de red' } };
           if (!sesionActiva) return { data: null, error: { message: 'JWT ausente' } };
           let base = leer();
-          if (st.filtro) base = base.filter((f) => f[st.filtro.col] === st.filtro.val);
+          if (st.filtros.length) base = base.filter((f) => cumple(f));
           if (st.limite) return { data: base.slice(0, st.limite), error: null };
           const [a, b] = st.rango || [0, 999999];
           const tope = Math.min(b, a + window.__H05_CFG__.pageSize - 1);
@@ -1190,4 +1202,403 @@ test('43 · cambiar la OC si exige el catalogo: nunca se acepta una OC sin valid
 
   await expect(page.locator('#stFichaMsgH05')).toContainText('catálogo de Órdenes todavía no está disponible');
   expect(soloOp(await estado(page), 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
+});
+
+// ============================================ hallazgos de la revision del PR
+
+// --- Finding 6: sin sesion no es «remoto vacio».
+
+test('44 · sin sesion no se consulta UM/ST ni se declara sincronizado', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A], legadoUM: UM_LEGACY, sinSesion: true });
+  await abrir(page);
+  await irAUM(page);
+  const e = await estado(page);
+
+  // Ni un solo SELECT: la RLS habria devuelto [] y eso se veria igual que un
+  // inventario remoto vacio, que es un estado valido.
+  expect(soloOp(e, 'select:coi_unidades_mantenimiento')).toHaveLength(0);
+  expect(soloOp(e, 'select:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(e.sincronizado).toBe(false);
+  expect(e.origen).toBe('error-sin-sincronizar');
+  expect(e.ultimoError).toContain('no autenticada');
+  expect(e.ums).toHaveLength(0);
+  expect(JSON.stringify(e.ums)).not.toContain('LEGACY');
+  await expect(page.locator('#umEstadoSyncH05')).toContainText('Sin sincronizar');
+  await expect(page.locator('#umTbody')).toContainText('No se pudo sincronizar');
+});
+
+// --- Finding 4: el legado tampoco se puede borrar.
+
+test('45 · removeItem sobre una clave legada no borra nada y queda registrado', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], legadoUM: UM_LEGACY });
+  const original = JSON.stringify(UM_LEGACY);
+  await abrir(page);
+
+  const r = await page.evaluate((esperado) => {
+    // Un camino administrativo legado borra la clave antes de restaurar.
+    localStorage.removeItem('coi_roca_unidades_mantenimiento');
+    localStorage.removeItem('coi_servicios_tecnicos_um');
+    return {
+      raw: window.__COI_UM_H05_LEGACY_RAW__('coi_roca_unidades_mantenimiento'),
+      intacto: window.__COI_UM_H05_LEGACY_RAW__('coi_roca_unidades_mantenimiento') === esperado,
+      operativo: localStorage.getItem('coi_roca_unidades_mantenimiento'),
+      bloqueadas: window.__COI_UM_H05_ESCRITURAS_BLOQUEADAS__.slice()
+    };
+  }, original);
+
+  // El contenido historico sigue byte a byte donde estaba.
+  expect(r.intacto).toBe(true);
+  expect(r.raw).toBe(original);
+  // Y los lectores operativos lo siguen viendo vacio.
+  expect(JSON.parse(r.operativo)).toEqual([]);
+  expect(r.bloqueadas).toContain('coi_roca_unidades_mantenimiento');
+  expect(r.bloqueadas).toContain('coi_servicios_tecnicos_um');
+});
+
+test('46 · removeItem sigue funcionando para las claves que no son del legado', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+
+  const r = await page.evaluate(() => {
+    localStorage.setItem('coi_clave_ajena_h05', 'valor');
+    const antes = localStorage.getItem('coi_clave_ajena_h05');
+    localStorage.removeItem('coi_clave_ajena_h05');
+    return { antes: antes, despues: localStorage.getItem('coi_clave_ajena_h05') };
+  });
+
+  expect(r.antes).toBe('valor');
+  expect(r.despues).toBeNull();
+});
+
+// --- Finding 5: concurrencia optimista en UM.
+
+test('47 · un UPDATE de UM con version vieja no pisa el cambio de otro usuario', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+
+  // El editor abre la UM en su version V1.
+  await abrirFichaPrimeraUM(page);
+  await page.click('#btnEditarUM');
+  await page.waitForTimeout(400);
+
+  // Mientras tanto, otro administrador la da de baja: la fila pasa a V2.
+  await page.evaluate((id) => {
+    window.__H05_SET_UMS__([Object.assign({}, window.__H05_CFG__.ums[0], {
+      id: id, estado: 'BAJA', observaciones: '[BAJA 2026-08-31] otro puesto',
+      fecha_actualizacion: '2026-08-31T23:59:59.000Z'
+    })]);
+  }, UM_A.id);
+
+  await page.fill('#umh5_proveedor', 'PISOTON SA');
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_unidades_mantenimiento');
+  expect(updates).toHaveLength(1);
+  // La version viaja DENTRO de la condicion del UPDATE.
+  const condiciones = updates[0].payload.filtros.map((f) => f.col).sort();
+  expect(condiciones).toEqual(['fecha_actualizacion', 'id']);
+  expect(updates[0].payload.filtros.find((f) => f.col === 'fecha_actualizacion').val)
+    .toBe(UM_A.fecha_actualizacion);
+
+  // La baja del otro operador sigue en pie y el proveedor NO se piso.
+  expect(e.ums).toHaveLength(1);
+  expect(e.ums[0].estado).toBe('BAJA');
+  const proveedor = await page.evaluate(() => (window.unidadesMantenimiento || [])[0].proveedorMantenimiento);
+  expect(proveedor).toBe(UM_A.proveedor_mantenimiento);
+
+  // Y el operador se entera.
+  await expect(page.locator('#coiToastV581')).toContainText('modificada por otro usuario');
+});
+
+test('48 · sin conflicto, el UPDATE de UM se aplica normalmente', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+  await page.click('#btnEditarUM');
+  await page.waitForTimeout(400);
+
+  await page.fill('#umh5_proveedor', 'PROVEEDOR NUEVO SA');
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(1000);
+
+  const e = await estado(page);
+  expect(soloOp(e, 'update:coi_unidades_mantenimiento')).toHaveLength(1);
+  const proveedor = await page.evaluate(() => (window.unidadesMantenimiento || [])[0].proveedorMantenimiento);
+  expect(proveedor).toBe('PROVEEDOR NUEVO SA');
+});
+
+test('49 · el UPDATE de ST tambien viaja condicionado por version', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_descripcion', 'Editada con CAS');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1000);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  const condiciones = updates[0].payload.filtros.map((f) => f.col).sort();
+  expect(condiciones).toEqual(['fecha_actualizacion', 'id']);
+  expect(updates[0].payload.filtros.find((f) => f.col === 'fecha_actualizacion').val)
+    .toBe(ST_A.fecha_actualizacion);
+});
+
+test('50 · un ST modificado en otro puesto no se pisa al guardar', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.evaluate((id) => {
+    window.__H05_SET_STS__([Object.assign({}, window.__H05_CFG__.sts[0], {
+      id: id, tecnico: 'OTRO PUESTO', fecha_actualizacion: '2026-08-31T23:59:59.000Z'
+    })]);
+  }, ST_A.id);
+
+  await page.fill('#stfh5_descripcion', 'No debe persistir');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  expect(soloOp(e, 'update:coi_servicios_tecnicos_um')).toHaveLength(1);
+  // Gana el otro puesto: el ST conserva su cambio.
+  const tecnico = await page.evaluate(() => (window.serviciosTecnicos || [])[0].tecnico);
+  expect(tecnico).toBe('OTRO PUESTO');
+  await expect(page.locator('#coiToastV581')).toContainText('modificado por otro usuario');
+});
+
+// --- Finding 7: BAJA solo por accion guardada.
+
+test('51 · el formulario ordinario no ofrece BAJA', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+
+  const opciones = await page.locator('#umh5_estado option').evaluateAll((os) => os.map((o) => o.value));
+  expect(opciones).toEqual(['ACTIVA', 'FUERA DE SERVICIO']);
+  expect(opciones).not.toContain('BAJA');
+});
+
+test('52 · no se puede crear una UM directamente en BAJA', async ({ page }) => {
+  await prepararEntorno(page, { ums: [], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+
+  await page.fill('#umh5_codigo', 'ASC-BAJA');
+  await page.selectOption('#umh5_tipo', 'Ascensor');
+  await page.selectOption('#umh5_estacion', { index: 1 });
+  // Se fuerza el estado como lo haria una manipulacion del DOM.
+  await page.evaluate(() => {
+    const sel = document.getElementById('umh5_estado');
+    const op = document.createElement('option');
+    op.value = 'BAJA';
+    op.textContent = 'BAJA';
+    sel.appendChild(op);
+    sel.value = 'BAJA';
+  });
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(600);
+
+  await expect(page.locator('#umFormMsgH05')).toContainText('Dar de baja');
+  const e = await estado(page);
+  expect(soloOp(e, 'insert:coi_unidades_mantenimiento')).toHaveLength(0);
+  expect(e.ums).toHaveLength(0);
+});
+
+test('53 · guardar no puede llevar una UM ACTIVA a BAJA', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+  await page.click('#btnEditarUM');
+  await page.waitForTimeout(400);
+
+  await page.evaluate(() => {
+    const sel = document.getElementById('umh5_estado');
+    const op = document.createElement('option');
+    op.value = 'BAJA';
+    op.textContent = 'BAJA';
+    sel.appendChild(op);
+    sel.value = 'BAJA';
+  });
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(700);
+
+  await expect(page.locator('#umFormMsgH05')).toContainText('Dar de baja');
+  const e = await estado(page);
+  expect(soloOp(e, 'update:coi_unidades_mantenimiento')).toHaveLength(0);
+  expect(e.ums[0].estado).toBe('ACTIVA');
+});
+
+test('54 · una UM dada de baja conserva BAJA al editar otro campo', async ({ page }) => {
+  const enBaja = Object.assign({}, UM_A, { estado: 'BAJA' });
+  await prepararEntorno(page, { ums: [enBaja], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+  await page.click('#btnEditarUM');
+  await page.waitForTimeout(400);
+
+  // El select conserva el estado remoto aunque no sea ordinario.
+  await expect(page.locator('#umh5_estado')).toHaveValue('BAJA');
+
+  await page.fill('#umh5_proveedor', 'PROVEEDOR REVISADO SA');
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(900);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_unidades_mantenimiento');
+  expect(updates).toHaveLength(1);
+  expect(updates[0].payload.patch.estado).toBe('BAJA');
+  expect(updates[0].payload.patch.proveedor_mantenimiento).toBe('PROVEEDOR REVISADO SA');
+  expect(e.ums[0].estado).toBe('BAJA');
+});
+
+test('55 · no se reactiva una UM en BAJA desde el formulario ordinario', async ({ page }) => {
+  const enBaja = Object.assign({}, UM_A, { estado: 'BAJA' });
+  await prepararEntorno(page, { ums: [enBaja], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+  await page.click('#btnEditarUM');
+  await page.waitForTimeout(400);
+
+  await page.selectOption('#umh5_estado', 'ACTIVA');
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(700);
+
+  await expect(page.locator('#umFormMsgH05')).toContainText('dada de baja');
+  const e = await estado(page);
+  expect(soloOp(e, 'update:coi_unidades_mantenimiento')).toHaveLength(0);
+  expect(e.ums[0].estado).toBe('BAJA');
+});
+
+test('56 · dar de baja sigue dejando la marca fechada y conserva el historial', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  page.on('dialog', (d) => d.accept('motivo operativo'));
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+  await page.click('#btnEditarUM');
+  await page.waitForTimeout(400);
+  await page.click('#btnBajaUMH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_unidades_mantenimiento');
+  expect(updates).toHaveLength(1);
+  expect(updates[0].payload.patch.estado).toBe('BAJA');
+  expect(updates[0].payload.patch.observaciones).toMatch(/\[BAJA \d{4}-\d{2}-\d{2}\] motivo operativo/);
+  // La baja tambien viaja condicionada por version.
+  expect(updates[0].payload.filtros.map((f) => f.col).sort()).toEqual(['fecha_actualizacion', 'id']);
+  expect(e.ums[0].estado).toBe('BAJA');
+  expect(e.sts).toHaveLength(1);
+});
+
+// --- Finding 3: la ficha se repinta ante cualquier cambio remoto del ST.
+
+test('57 · un cambio remoto solo en la descripcion del ST se refleja al actualizar', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+  await expect(page.locator('#fichaUMBody')).toContainText('Cambio de rodamientos');
+
+  await page.evaluate((id) => {
+    window.__H05_SET_STS__([Object.assign({}, window.__H05_CFG__.sts[0], {
+      id: id, descripcion: 'DESCRIPCION CAMBIADA EN OTRO PUESTO'
+    })]);
+  }, ST_A.id);
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForTimeout(900);
+
+  await expect(page.locator('#fichaUMBody')).toContainText('DESCRIPCION CAMBIADA EN OTRO PUESTO');
+  await expect(page.locator('#fichaUMBody')).not.toContainText('Cambio de rodamientos');
+});
+
+test('58 · un cambio remoto solo en el tecnico u observaciones tambien repinta', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+  await expect(page.locator('#fichaUMBody')).toContainText('J. Perez');
+
+  await page.evaluate((id) => {
+    window.__H05_SET_STS__([Object.assign({}, window.__H05_CFG__.sts[0], {
+      id: id, tecnico: 'TECNICO NUEVO', proveedor: 'PROVEEDOR NUEVO'
+    })]);
+  }, ST_A.id);
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForTimeout(900);
+
+  await expect(page.locator('#fichaUMBody')).toContainText('TECNICO NUEVO');
+  await expect(page.locator('#fichaUMBody')).toContainText('PROVEEDOR NUEVO');
+  await expect(page.locator('#fichaUMBody')).not.toContainText('J. Perez');
+});
+
+// --- Finding 2: el numero de ST se compara canonicamente tambien en la UI.
+
+test('59 · una variante del mismo numero de ST se bloquea antes de salir a la red', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+
+  for (const variante of ['st0001', 'ST / 0001', 'st.0001']) {
+    await page.selectOption('#sth5_um', UM_A.id);
+    await page.fill('#sth5_nro', variante);
+    await page.fill('#sth5_descripcion', 'Intento con variante');
+    await page.click('#btnGuardarSTH05');
+    await page.waitForTimeout(450);
+    await expect(page.locator('#stFormMsgH05')).toContainText('el mismo número una vez normalizado');
+  }
+
+  const e = await estado(page);
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+});
+
+// --- Falso positivo ya cerrado: se deja la regresion que lo demuestra.
+
+test('60 · un estado remoto desconocido se conserva al editar otro campo', async ({ page }) => {
+  const desconocido = Object.assign({}, UM_A, { estado: 'MANTENIMIENTO' });
+  await prepararEntorno(page, { ums: [desconocido], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+  await page.click('#btnEditarUM');
+  await page.waitForTimeout(400);
+
+  // opcionesSelect() agrega el valor remoto aunque no pertenezca al catalogo.
+  await expect(page.locator('#umh5_estado')).toHaveValue('MANTENIMIENTO');
+
+  await page.fill('#umh5_proveedor', 'PROVEEDOR SIN TOCAR ESTADO');
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(900);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_unidades_mantenimiento');
+  expect(updates).toHaveLength(1);
+  // El estado del servidor no se reescribe a ACTIVA por no figurar en la lista.
+  expect(updates[0].payload.patch.estado).toBe('MANTENIMIENTO');
+  expect(updates[0].payload.patch.proveedor_mantenimiento).toBe('PROVEEDOR SIN TOCAR ESTADO');
 });

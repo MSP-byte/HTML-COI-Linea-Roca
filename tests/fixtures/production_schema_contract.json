@@ -21,11 +21,13 @@
           "unidad_id",
           "nro_st"
         ],
-        "constraint": "coi_servicios_tecnicos_um_unidad_nro_st_key",
+        "indice": "coi_servicios_tecnicos_um_unidad_nro_st_uidx",
+        "expresion_canonica": "upper(regexp_replace(nro_st, '[[:space:]./-]+', '', 'g'))",
+        "parcial": "unidad_id is not null and nro_st is not null",
         "produccion": "ausente",
         "repo": "presente",
         "migracion": "202608310001_h04_st_unique_guard.sql",
-        "motivo": "La capa H04 comprueba el duplicado antes de insertar, pero con dos operadores concurrentes ambos leen «no existe» y despues insertan. La autoridad ante concurrencia tiene que estar en la base."
+        "motivo": "La capa H04 comprueba el duplicado antes de insertar, pero con dos operadores concurrentes ambos leen «no existe» y despues insertan. Ademas el frontend considera el mismo ST a ST-0001, st0001 y «ST / 0001», de modo que un unique literal seria mas laxo que la propia UI: la unicidad se aplica sobre el numero canonico."
       }
     ],
     "_resueltas": [
@@ -37,6 +39,130 @@
         "migracion": "202608300002_h03_observaciones_delete_guard.sql",
         "aplicada_en_remoto": "2026-08-30",
         "nota": "H03 aplicado en STAGING y PRODUCCION. El snapshot productivo ya declara RESTRICT y la divergencia dejo de existir; la entrada se conserva como historia de la reconciliacion."
+      }
+    ],
+    "_doc_policies": "Policies que el repositorio crea y produccion todavia no tiene. El bloque «policies» de cada tabla mas abajo sigue siendo el snapshot productivo. check_schema_reproducibility.js verifica que estas existan realmente al reproducir el repo (nombre, cmd, roles, permissive, using y with check) y las admite como el UNICO excedente permitido: cualquier otra policy no declarada sigue siendo un fallo.",
+    "policies": [
+      {
+        "tabla": "coi_unidades_mantenimiento",
+        "nombre": "coi_um_select_guard",
+        "cmd": "SELECT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": "(coi_current_role() IS NOT NULL)",
+        "with_check": null,
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "La UI reservaba las mutaciones de UM/ST al Administrador, pero las policies remotas solo exigen estar autenticado: un perfil consulta podia llamar a PostgREST directamente. Las restrictivas estrechan las permisivas existentes sin reescribirlas."
+      },
+      {
+        "tabla": "coi_unidades_mantenimiento",
+        "nombre": "coi_um_insert_guard",
+        "cmd": "INSERT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": null,
+        "with_check": "(coi_current_role() = 'administrador'::text)",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "La UI reservaba las mutaciones de UM/ST al Administrador, pero las policies remotas solo exigen estar autenticado: un perfil consulta podia llamar a PostgREST directamente. Las restrictivas estrechan las permisivas existentes sin reescribirlas."
+      },
+      {
+        "tabla": "coi_unidades_mantenimiento",
+        "nombre": "coi_um_update_guard",
+        "cmd": "UPDATE",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": "(coi_current_role() = 'administrador'::text)",
+        "with_check": "(coi_current_role() = 'administrador'::text)",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "La UI reservaba las mutaciones de UM/ST al Administrador, pero las policies remotas solo exigen estar autenticado: un perfil consulta podia llamar a PostgREST directamente. Las restrictivas estrechan las permisivas existentes sin reescribirlas."
+      },
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "nombre": "coi_st_select_guard",
+        "cmd": "SELECT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": "(coi_current_role() IS NOT NULL)",
+        "with_check": null,
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "La UI reservaba las mutaciones de UM/ST al Administrador, pero las policies remotas solo exigen estar autenticado: un perfil consulta podia llamar a PostgREST directamente. Las restrictivas estrechan las permisivas existentes sin reescribirlas."
+      },
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "nombre": "coi_st_insert_guard",
+        "cmd": "INSERT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": null,
+        "with_check": "(coi_current_role() = 'administrador'::text)",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "La UI reservaba las mutaciones de UM/ST al Administrador, pero las policies remotas solo exigen estar autenticado: un perfil consulta podia llamar a PostgREST directamente. Las restrictivas estrechan las permisivas existentes sin reescribirlas."
+      },
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "nombre": "coi_st_update_guard",
+        "cmd": "UPDATE",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": "(coi_current_role() = 'administrador'::text)",
+        "with_check": "(coi_current_role() = 'administrador'::text)",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "La UI reservaba las mutaciones de UM/ST al Administrador, pero las policies remotas solo exigen estar autenticado: un perfil consulta podia llamar a PostgREST directamente. Las restrictivas estrechan las permisivas existentes sin reescribirlas."
+      }
+    ],
+    "_doc_grants": "Grants que el repositorio endurece y produccion todavia no. En produccion anon conserva privilegios amplios sobre ambas tablas y authenticated tiene mas de lo necesario. check_schema_reproducibility.js verifica que tras reproducir el repo los grants sean exactamente los declarados en «repo».",
+    "grants": [
+      {
+        "tabla": "coi_unidades_mantenimiento",
+        "produccion": "anon con privilegios amplios; authenticated sin acotar",
+        "repo": {
+          "anon": [],
+          "authenticated": [
+            "INSERT",
+            "SELECT",
+            "UPDATE"
+          ]
+        },
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "Segunda capa detras de la RLS: anon no tiene por que alcanzar el inventario y authenticated no necesita DELETE, TRUNCATE, REFERENCES ni TRIGGER."
+      },
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "produccion": "anon con privilegios amplios; authenticated sin acotar",
+        "repo": {
+          "anon": [],
+          "authenticated": [
+            "INSERT",
+            "SELECT",
+            "UPDATE"
+          ]
+        },
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "Segunda capa detras de la RLS: anon no tiene por que alcanzar el historial tecnico y authenticated no necesita DELETE, TRUNCATE, REFERENCES ni TRIGGER."
       }
     ]
   },
