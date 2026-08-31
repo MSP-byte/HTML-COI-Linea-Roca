@@ -1,15 +1,27 @@
 {
   "_doc": "Snapshot de information_schema y pg_catalog tomado en lectura sobre produccion (ooepgbzqlpjrtpaoqawc), verificado identico en staging (brmrroikctfbtzwfewan). Contrato autoritativo de las 10 tablas que el baseline 202608090000_core_schema_baseline.sql debe reproducir. nn=NOT NULL, def=fragmento esperado del default, gen=generated always stored, tipo=fragmento de data_type. fk=[columna, tabla_destino, accion ON DELETE]. policies solo se declaran para las cuatro tablas que ninguna migracion posterior gobierna; las demas las administra coi_apply_optional_role_rls.",
   "_divergencias_pendientes": {
-    "_doc": "Desvios DELIBERADOS entre el repositorio y el snapshot productivo, introducidos por una migracion todavia NO aplicada a produccion ni a staging. check_schema_reproducibility.js espera el valor «repo» y deja constancia del valor «produccion» hasta que la migracion se aplique; entonces se actualiza el snapshot y se borra la entrada.",
+    "_doc": "Desvios DELIBERADOS entre el repositorio y el snapshot productivo, introducidos por una migracion todavia NO aplicada a produccion ni a staging. check_schema_reproducibility.js espera el valor «repo» y deja constancia del valor «produccion» hasta que la migracion se aplique; entonces se actualiza el snapshot y la entrada pasa de «fk» a «_resueltas».",
+    "_doc_resueltas": "Divergencias YA aplicadas en remoto. No las verifica check_schema_reproducibility.js: el snapshot productivo de mas abajo ya refleja el valor definitivo. Se conservan como historia de la reconciliacion.",
     "fk": [
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "columna": "unidad_id",
+        "produccion": "CASCADE",
+        "repo": "RESTRICT",
+        "migracion": "202608300003_h05_um_delete_guard.sql",
+        "motivo": "Los Servicios Tecnicos son el historial tecnico de la Unidad de Mantenimiento: dar de baja o eliminar una UM no puede destruirlos por cascada. H05 deja la UM como dato Supabase-first y sustituye el borrado fisico por estado BAJA."
+      }
+    ],
+    "_resueltas": [
       {
         "tabla": "coi_observaciones_oc",
         "columna": "orden_id",
-        "produccion": "CASCADE",
+        "produccion": "RESTRICT",
         "repo": "RESTRICT",
         "migracion": "202608300002_h03_observaciones_delete_guard.sql",
-        "motivo": "Las observaciones son trazabilidad: eliminar una OC no puede destruirlas por cascada. El resto de las dependencias de orden ya usa RESTRICT."
+        "aplicada_en_remoto": "2026-08-30",
+        "nota": "H03 aplicado en STAGING y PRODUCCION. El snapshot productivo ya declara RESTRICT y la divergencia dejo de existir; la entrada se conserva como historia de la reconciliacion."
       }
     ]
   },
@@ -863,7 +875,7 @@
       [
         "orden_id",
         "coi_ordenes",
-        "CASCADE"
+        "RESTRICT"
       ],
       [
         "creado_por",

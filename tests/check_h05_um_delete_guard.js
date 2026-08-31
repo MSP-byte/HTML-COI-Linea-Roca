@@ -82,9 +82,12 @@ async function main() {
     'coi_servicios_tecnicos_um_unidad_id_fkey'
   ]) check(nombres.includes(esperado), `falta ${esperado}: alguna tabla fue recreada o alterada de mas`);
 
+  // El nombre real de la columna en el baseline (y en el snapshot productivo) es
+  // «tipo_um», no «tipo»: escribir «tipo» hacia fallar el INSERT y con el la
+  // prueba entera antes de llegar a ejercitar la FK.
   const { rows: um } = await db.query(`
     insert into public.coi_unidades_mantenimiento
-      (codigo_um, tipo, estacion, descripcion, estado)
+      (codigo_um, tipo_um, estacion, descripcion, estado)
     values
       ('H05-UM-001', 'Ascensor', 'PLAZA CONSTITUCION', 'UM de prueba H05', 'ACTIVA')
     returning id`);
@@ -114,6 +117,45 @@ async function main() {
   );
   check(sobreviven[0].um === 1, 'la UM desaparecio pese a la FK RESTRICT');
   check(sobreviven[0].st === 1, 'el Servicio Tecnico fue destruido por cascada');
+
+  // La baja logica es el camino operativo: la UM pasa a BAJA y su historial
+  // tecnico sigue existiendo y sigue apuntando a la misma UM.
+  await db.query(
+    "update public.coi_unidades_mantenimiento set estado = 'BAJA' where id = $1", [unidadId]);
+  const { rows: baja } = await db.query(`
+    select
+      (select estado from public.coi_unidades_mantenimiento where id = $1) estado,
+      (select count(*)::int from public.coi_servicios_tecnicos_um where unidad_id = $1) st`,
+    [unidadId]
+  );
+  check(baja[0].estado === 'BAJA', 'la baja logica de la UM no quedo registrada');
+  check(baja[0].st === 1, 'la baja logica de la UM destruyo su historial tecnico');
+
+  // Un ST fuera de uso se cancela: tampoco se borra fisicamente.
+  await db.query(
+    "update public.coi_servicios_tecnicos_um set estado = 'Cancelado' where unidad_id = $1", [unidadId]);
+  const { rows: cancelado } = await db.query(
+    'select estado from public.coi_servicios_tecnicos_um where unidad_id = $1', [unidadId]);
+  check(cancelado.length === 1 && cancelado[0].estado === 'Cancelado',
+    'cancelar un ST no debe eliminar la fila');
+
+  // Ni UM ni ST tienen policy DELETE: el borrado no es un camino disponible para
+  // la sesion autenticada, y la FK RESTRICT es la defensa ante caminos privilegiados.
+  const { rows: policies } = await db.query(`
+    select tablename, policyname, cmd
+      from pg_policies
+     where schemaname = 'public'
+       and tablename in ('coi_unidades_mantenimiento', 'coi_servicios_tecnicos_um')`);
+  check(policies.length > 0, 'no se encontraron policies para UM/ST');
+  const conDelete = policies.filter((p) => String(p.cmd).toUpperCase() === 'DELETE');
+  check(conDelete.length === 0,
+    `UM/ST no deben tener policy DELETE: ${conDelete.map((p) => p.policyname).join(', ')}`);
+  for (const tabla of ['coi_unidades_mantenimiento', 'coi_servicios_tecnicos_um']) {
+    const cmds = policies.filter((p) => p.tablename === tabla).map((p) => String(p.cmd).toUpperCase());
+    for (const esperado of ['SELECT', 'INSERT', 'UPDATE']) {
+      check(cmds.includes(esperado), `${tabla}: falta la policy ${esperado} de operacion autenticada`);
+    }
+  }
 
   await db.query('delete from public.coi_servicios_tecnicos_um where unidad_id = $1', [unidadId]);
   const errorSinDependencia = await fallo(() =>
@@ -147,6 +189,9 @@ async function main() {
   console.log('H05 UM: historial de Servicios Tecnicos protegido contra cascada.');
   console.log('  FK coi_servicios_tecnicos_um.unidad_id : ON DELETE RESTRICT');
   console.log('  DELETE de UM con ST                    : rechazado, 0 filas perdidas');
+  console.log('  Baja logica de UM (estado = BAJA)      : historial tecnico intacto');
+  console.log('  Cancelacion de ST (estado = Cancelado) : fila conservada');
+  console.log('  Policies UM/ST                         : SELECT/INSERT/UPDATE, ninguna DELETE');
   console.log('  Control negativo sin ST                : permitido a nivel FK');
   console.log('  Idempotencia                            : reaplicar es NO-OP');
   console.log(`${aprobados} controles H05 de integridad aprobados; 0 fallidos.`);
