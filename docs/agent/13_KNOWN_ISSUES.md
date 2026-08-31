@@ -195,33 +195,41 @@ visibilidad para que alguien pueda regularizarlos.
 Falta definir el circuito de reasignacion. Hasta entonces, esas filas quedan a la
 vista y fuera de cualquier ficha.
 
-## KI-015 — Integridad referencial ST → OC (H04) pendiente en remoto
+## KI-015 — Identidad tecnica ST → OC (H04) pendiente en remoto
 Estado: abierto. Rama `fix/h05-unidades-mantenimiento-supabase-first`.
-`supabase/migrations/202608310004_h04_st_oc_referencial.sql` convierte la
-asociacion `coi_servicios_tecnicos_um.nro_oc` en una foreign key real contra
-`coi_ordenes(nro_oc)`, con `ON UPDATE CASCADE` y `ON DELETE RESTRICT`, mas un
-trigger `BEFORE` que resuelve el numero entrante con
-`coi_normalize_order_number`. NO fue aplicada a PRODUCCION ni a STAGING.
+`supabase/migrations/202608310004_h04_st_oc_referencial.sql` agrega
+`coi_servicios_tecnicos_um.orden_id uuid` (nullable) y hace que la relacion
+tecnica sea `orden_id → coi_ordenes(id)` con `ON DELETE RESTRICT`, mas un
+trigger `BEFORE` que mantiene coherentes `orden_id` y `nro_oc`. `nro_oc` queda
+como dato visible denormalizado y **no** como referencia tecnica. NO fue
+aplicada a PRODUCCION ni a STAGING.
 
 Mientras eso siga asi, la asociacion sigue siendo texto libre validado por el
 frontend: la validacion no respeta la normalizacion canonica de la misma forma
-que la base, queda una ventana de carrera entre validar y escribir, y una
-renumeracion historica podria dejar un ST citando un numero que ya no existe.
+que la base, queda una ventana de carrera entre validar y escribir, y el vinculo
+sigue colgando de un identificador de negocio renumerable.
 
 Ambos entornos tienen hoy 0 ST, de modo que el riesgo real es nulo hasta que se
 empiece a cargar. Si encontrara ST citando una OC inexistente, la migracion
-aborta con `COI_ST_OC_HUERFANAS_PREEXISTENTES` y no vacia ni borra filas.
+aborta con `COI_ST_OC_HUERFANAS_PREEXISTENTES` y no vacia ni borra filas; las
+que si resuelven reciben su `orden_id` por backfill.
 
-**Efecto a tener presente al desplegar**: `coi_renumerar_oc` actualiza primero
-`coi_ordenes` y despues las tablas dependientes. Con la FK, la cascada ya
-renumero los Servicios Tecnicos cuando llega el UPDATE explicito del RPC, asi que
-ese UPDATE pasara a afectar 0 filas y el contador `coi_servicios_tecnicos_um` de
-su payload informara 0. **El dato queda igual de renumerado** —lo hace la
-cascada—, pero si algun tablero lee ese contador, mostrara 0 donde antes mostraba
-N. No se modifico el RPC: reescribir una migracion ya desplegada seria peor que
-documentar el efecto.
+**Efecto a tener presente al desplegar**: `coi_renumerar_oc` sigue siendo el
+unico camino que cambia `coi_ordenes.nro_oc` —el RPC atomico de edicion de
+ordenes no admite ese campo—. Actualiza primero `coi_ordenes` y despues las
+tablas dependientes, de modo que su UPDATE sobre `coi_servicios_tecnicos_um`
+llega cuando el trigger ya lee el numero nuevo, conserva su recuento real y su
+verificacion post-sync sigue abortando la renumeracion entera si algun ST
+quedara con el numero anterior. **La renumeracion no altera `orden_id`**: el
+UUID no cambia, asi que el vinculo es estable por construccion.
+
+El preflight del RPC excluye a `coi_servicios_tecnicos_um` porque la tabla no
+tenia `orden_id`. Ese control busca filas que citen el numero anterior apuntando
+a OTRO `orden_id`, y con el trigger esa combinacion es inalcanzable: `nro_oc` se
+deriva siempre del `orden_id` de la propia fila. No se modifico el RPC.
 
 Declarada en `tests/fixtures/production_schema_contract.json` →
+`_divergencias_pendientes.columnas` (la columna `orden_id`) y
 `_divergencias_pendientes.fk` como FK nueva (`produccion: "sin FK"`).
 
 ## KI-016 — Grant de coi_normalize_order_number pendiente en remoto

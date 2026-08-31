@@ -75,6 +75,13 @@ const accionEsperada = (tabla, columna, accionProduccion) => {
   return d ? d.repo : accionProduccion;
 };
 
+// Columnas que el repositorio agrega y produccion todavia no tiene. Mismo
+// criterio que el resto: el snapshot de cada tabla sigue siendo produccion y
+// aca se declara el excedente, que ademas se verifica contra la base real.
+const PENDIENTES_COLUMNAS = (CONTRATO._divergencias_pendientes || {}).columnas || [];
+const columnaPendiente = (tabla, columna) =>
+  PENDIENTES_COLUMNAS.some((d) => d.tabla === tabla && d.columna === columna);
+
 // Mismo criterio para los UNIQUE que el repositorio crea de mas: el snapshot de
 // cada tabla sigue siendo produccion y aca se declara el excedente. Se verifica
 // que el constraint exista de verdad tras aplicar las migraciones, de modo que
@@ -221,7 +228,10 @@ async function casoA() {
 
     const faltan = nombresEsperados.filter((c) => !real.has(c));
     check(faltan.length === 0, `${tabla}: faltan columnas de produccion: ${faltan.join(', ')}`);
-    const sobran = [...real.keys()].filter((c) => !nombresEsperados.includes(c));
+    // Una columna declarada como divergencia pendiente no es un sobrante: es
+    // una diferencia deliberada, documentada y verificada mas abajo.
+    const sobran = [...real.keys()].filter(
+      (c) => !nombresEsperados.includes(c) && !columnaPendiente(tabla, c));
     check(sobran.length === 0, `${tabla}: columnas que produccion no tiene: ${sobran.join(', ')}`);
 
     for (const [col, spec] of Object.entries(esperado)) {
@@ -261,6 +271,30 @@ async function casoA() {
     const presentes = new Set(cols.map((r) => r.column_name));
     const reaparecidas = fantasmas.filter((c) => presentes.has(c));
     check(reaparecidas.length === 0, `${tabla}: columnas inexistentes en produccion: ${reaparecidas.join(', ')}`);
+  }
+
+  // Las columnas pendientes tienen que existir de verdad tras aplicar las
+  // migraciones, con el tipo y la nullability declarados: si no, la divergencia
+  // seria solo una anotacion.
+  for (const d of PENDIENTES_COLUMNAS) {
+    const { rows } = await db.query(
+      'select data_type, is_nullable from information_schema.columns ' +
+      "where table_schema='public' and table_name=$1 and column_name=$2", [d.tabla, d.columna]);
+    check(rows.length === 1,
+      `${d.tabla}.${d.columna}: declarada como divergencia pendiente y el repositorio no la crea`);
+    if (!rows.length) continue;
+    if (d.tipo) {
+      check(rows[0].data_type.toLowerCase().includes(d.tipo),
+        `${d.tabla}.${d.columna}: tipo ${rows[0].data_type} y la divergencia declara ${d.tipo}`);
+    }
+    if (d.nn !== undefined) {
+      check((rows[0].is_nullable === 'NO') === d.nn,
+        `${d.tabla}.${d.columna}: nullability distinta de la declarada en la divergencia`);
+    }
+    // Y no puede estar ya en el snapshot productivo: entonces no seria una
+    // divergencia sino parte del contrato.
+    check(!Object.prototype.hasOwnProperty.call(CONTRATO[d.tabla].columnas, d.columna),
+      `${d.tabla}.${d.columna}: esta en el snapshot productivo y ademas declarada como pendiente`);
   }
 
   // UNIQUE y CHECK declarados por el contrato productivo.
@@ -410,8 +444,17 @@ async function casoA() {
       // y escaparlos a mano es justo la clase de detalle que se rompe sola.
       check(real.def.toUpperCase().indexOf(d.destino.toUpperCase()) >= 0,
         `${tabla}.${d.columna}: referencia ${real.def}, se declara ${d.destino}`);
-      check(new RegExp('ON UPDATE ' + d.on_update, 'i').test(real.def),
-        `${tabla}.${d.columna}: se declara ON UPDATE ${d.on_update} y es ${real.def}`);
+      // ON UPDATE solo se exige si la divergencia lo declara: una FK sobre una
+      // clave inmutable —un UUID— no necesita accion de actualizacion, y
+      // pg_get_constraintdef omite el NO ACTION por defecto. Cuando no se
+      // declara, se verifica justamente que no haya ninguna.
+      if (d.on_update) {
+        check(new RegExp('ON UPDATE ' + d.on_update, 'i').test(real.def),
+          `${tabla}.${d.columna}: se declara ON UPDATE ${d.on_update} y es ${real.def}`);
+      } else {
+        check(!/on update/i.test(real.def),
+          `${tabla}.${d.columna}: no se declara ON UPDATE y la FK real trae uno (${real.def})`);
+      }
       check(new RegExp('ON DELETE ' + d.on_delete, 'i').test(real.def),
         `${tabla}.${d.columna}: se declara ON DELETE ${d.on_delete} y es ${real.def}`);
       // Y no puede figurar ya en el snapshot productivo.
@@ -636,8 +679,15 @@ async function main() {
   if (PENDIENTES_FK_NUEVAS.length) {
     console.log(`  CASO A · FK nuevas del repo          : ${PENDIENTES_FK_NUEVAS.length} divergencia(s) pendientes de aplicar en remoto`);
     PENDIENTES_FK_NUEVAS.forEach((d) => console.log(
-      `    pendiente · ${d.tabla}.${d.columna} -> ${d.destino} ON UPDATE ${d.on_update} ON DELETE ${d.on_delete} (${d.migracion})`
+      `    pendiente · ${d.tabla}.${d.columna} -> ${d.destino}` +
+      (d.on_update ? ` ON UPDATE ${d.on_update}` : '') +
+      ` ON DELETE ${d.on_delete} (${d.migracion})`
     ));
+  }
+  if (PENDIENTES_COLUMNAS.length) {
+    console.log(`  CASO A · columnas nuevas del repo     : ${PENDIENTES_COLUMNAS.length} divergencia(s) pendientes de aplicar en remoto`);
+    PENDIENTES_COLUMNAS.forEach((d) => console.log(
+      `    pendiente · ${d.tabla}.${d.columna}: repo ${d.repo}, produccion ${d.produccion} (${d.migracion})`));
   }
   if (PENDIENTES_UNIQUE.length) {
     console.log(

@@ -27876,7 +27876,7 @@ document.addEventListener('click',function(event){
   const TABLA_ST = 'coi_servicios_tecnicos_um';
   const TABLA_OC = 'coi_ordenes';
   const CAMPOS_UM = 'id,codigo_um,tipo_um,estacion,ramal,sector,descripcion,marca,modelo,nro_serie,estado,proveedor_mantenimiento,observaciones,fecha_creacion,fecha_actualizacion';
-  const CAMPOS_ST = 'id,unidad_id,nro_st,nro_oc,fecha,descripcion,tecnico,proveedor,estado,observaciones,fecha_creacion,fecha_actualizacion';
+  const CAMPOS_ST = 'id,unidad_id,nro_st,orden_id,nro_oc,fecha,descripcion,tecnico,proveedor,estado,observaciones,fecha_creacion,fecha_actualizacion';
   const PAGE_SIZE = 1000;
 
   // Claves legadas. NO se borran: se vuelven invisibles para los lectores
@@ -28074,6 +28074,9 @@ document.addEventListener('click',function(event){
       _origen: 'supabase',
       idST: row.id,
       nroST: texto(row.nro_st),
+      // La identidad tecnica de la OC es su UUID: renumerarla no lo cambia.
+      // nroOC es el numero visible que la base deriva de esta referencia.
+      ordenId: row.orden_id || null,
       // La UI legada llama «Obra» al numero de OC.
       nroOC: texto(row.nro_oc),
       obra: texto(row.nro_oc),
@@ -28108,8 +28111,9 @@ document.addEventListener('click',function(event){
   // coi_servicios_tecnicos_um— y despues busca la orden. Por eso filasOC(),
   // resolverOC() y hayCatalogoOC() se retiraron en lugar de dejarlos sin uso.
 
-  // Confirma contra Supabase que la OC existe HOY. Devuelve el nro_oc canonico
-  // del servidor, o null si no existe. Lanza si la lectura falla: ante una
+  // Confirma contra Supabase que la OC existe HOY. Devuelve { id, nroOC }: el
+  // UUID de la orden —la identidad tecnica que se persiste— y su numero
+  // canonico. Devuelve null si no existe. Lanza si la lectura falla: ante una
   // validacion que no se pudo hacer, no se persiste la asociacion.
   async function ocExisteEnSupabase(c, valor) {
     const buscado = texto(valor);
@@ -28132,13 +28136,15 @@ document.addEventListener('click',function(event){
     const canonico = texto(Array.isArray(normalizada.data) ? normalizada.data[0] : normalizada.data);
     if (!canonico) return null;
 
-    const filas = await c.from(TABLA_OC).select('nro_oc').eq('nro_oc', canonico).limit(2);
+    const filas = await c.from(TABLA_OC).select('id,nro_oc').eq('nro_oc', canonico).limit(2);
     if (filas.error) throw filas.error;
     const halladas = filas.data || [];
     // Exactamente una: si hubiera mas de una, el numero no identificaria una
     // orden y asociar el ST seria adivinar.
     if (halladas.length !== 1) return null;
-    return texto(halladas[0].nro_oc);
+    // Sin UUID no hay identidad tecnica que guardar: se trata como no hallada.
+    if (!esUuid(halladas[0].id)) return null;
+    return { id: halladas[0].id, nroOC: texto(halladas[0].nro_oc) };
   }
 
   // ---------------------------------------------------------- memoria y UI
@@ -28858,8 +28864,10 @@ document.addEventListener('click',function(event){
       return { error: 'Estado no valido. Use ' + ESTADOS_ST.join(', ') + '.' };
     }
 
-    // nro_oc es nullable. Si se informa, tiene que existir en el catalogo remoto
-    // de OC: un ST nunca crea una OC ni acepta las OC de demostracion legadas.
+    // La OC es nullable y viaja en DOS campos que se mueven juntos: orden_id
+    // —la identidad tecnica— y nro_oc —el numero visible—. Si se informa, la
+    // orden tiene que existir en el catalogo remoto: un ST nunca crea una OC ni
+    // acepta las OC de demostracion legadas.
     let nroOC = null;
     let ocPorConfirmar = null;
     let ocSinCambios = false;
@@ -28897,6 +28905,10 @@ document.addEventListener('click',function(event){
       fila: {
         unidad_id: um._supabaseId,
         nro_st: datos.nroST,
+        // Queda en null hasta que confirmarOC() resuelva la orden contra
+        // Supabase. Si el operador dejo el campo vacio, null es el valor final:
+        // quitar la OC manda los dos campos explicitamente en null.
+        orden_id: null,
         nro_oc: nroOC,
         fecha: datos.fecha,
         descripcion: datos.descripcion,
@@ -28958,7 +28970,10 @@ document.addEventListener('click',function(event){
         e.coiMensajeDirecto = true;
         throw e;
       }
-      preparado.fila.nro_oc = real;
+      // Se guarda lo que dijo el servidor: el UUID como identidad tecnica y su
+      // numero canonico como dato visible.
+      preparado.fila.orden_id = real.id;
+      preparado.fila.nro_oc = real.nroOC;
     }
 
     if (editando) {
@@ -28968,10 +28983,14 @@ document.addEventListener('click',function(event){
         // unidad_id no viaja en el patch: editar no reasigna la UM.
         const patch = Object.assign({}, preparado.fila);
         delete patch.unidad_id;
-        // Y si la OC no se toco, tampoco viaja: un formulario abierto antes de
-        // una renumeracion reenviaria el numero viejo. La FK de la base lo
-        // rechazaria igual, pero no hay razon para mandar algo que no cambio.
-        if (preparado.ocSinCambios) delete patch.nro_oc;
+        // Y si la OC no se toco, no viaja ninguno de los dos campos: un
+        // formulario abierto antes de una renumeracion reenviaria el numero
+        // viejo. Omitirlos deja intacta la referencia ya persistida, que es la
+        // identidad correcta precisamente porque renumerar no cambia el UUID.
+        if (preparado.ocSinCambios) {
+          delete patch.nro_oc;
+          delete patch.orden_id;
+        }
         await actualizarST(uuid, patch, stEditandoVersion);
         limpiarEdicionST();
       }, 'Servicio Técnico actualizado.', mensaje);
@@ -29013,14 +29032,21 @@ document.addEventListener('click',function(event){
   }
 
   // Un ST fuera de uso se cancela: nunca se borra fisicamente.
-  function cancelarST(uuid) {
+  // `versionRenderizada` viene del boton que el operador pulso, no del runtime:
+  // es la fecha_actualizacion que tenia la fila cuando se pinto esa tabla.
+  function cancelarST(uuid, versionRenderizada) {
     if (!esAdministrador()) return avisar('Solo Administrador puede cancelar un Servicio Técnico.', 'warn');
     const st = stPorUuid(uuid);
     if (!st) return avisar('Servicio Técnico sin identificador remoto.', 'error');
     if (st.estado === 'Cancelado') return avisar('El Servicio Técnico ya está cancelado.', 'warn');
     if (!confirm('Cancelar el Servicio Técnico ' + (st.nroST || '') + '?\n\nNo se elimina: queda en estado Cancelado y se conserva como historial.')) return;
     conManejoDeError('stCancelar:' + uuid, async () => {
-      await actualizarST(uuid, { estado: 'Cancelado' }, st.fechaActualizacion || null);
+      // Si el boton no trajo version —no deberia pasar— se usa la del modelo,
+      // pero el caso normal es la renderizada.
+      await actualizarST(uuid, { estado: 'Cancelado' },
+        versionRenderizada !== undefined
+          ? (versionRenderizada || null)
+          : (st.fechaActualizacion || null));
       // Si se cancelo justamente el ST que se estaba editando, el formulario
       // vuelve a modo alta en lugar de quedar apuntando a un registro cerrado.
       if (String(stEditandoUuid) === String(uuid)) stEditandoUuid = null;
@@ -29031,7 +29057,14 @@ document.addEventListener('click',function(event){
   // ---------------------------------------------------------- render de lista
   function badgeUM(estado) {
     const s = norm(estado);
-    const cls = s.indexOf('FUERA') === 0 ? 'fuera' : (s.indexOf('BAJA') === 0 ? 'baja' : 'activo');
+    // Solo los tres estados canonicos tienen semaforo propio. Cualquier otro
+    // valor —un estado remoto que la capa conserva pero no reconoce— va en
+    // neutro: el verde afirmaria que la unidad esta operativa, y eso no se sabe.
+    // El texto remoto se muestra tal cual; lo unico neutro es el estilo.
+    const cls = s.indexOf('ACTIVA') === 0 ? 'activo'
+      : s.indexOf('FUERA') === 0 ? 'fuera'
+      : s.indexOf('BAJA') === 0 ? 'baja'
+      : 'sindatos';
     return '<span class="um-status ' + cls + '">' + esc(estado || 'Sin datos') + '</span>';
   }
 
@@ -29257,7 +29290,8 @@ document.addEventListener('click',function(event){
             ? '<span class="muted">Cancelado</span>'
             : '<button type="button" data-h05-editar-st="' + esc(s._supabaseId) + '">' +
               (editando ? 'Editando' : 'Editar') + '</button> ' +
-              '<button type="button" class="danger" data-h05-cancelar-st="' + esc(s._supabaseId) + '">Cancelar</button>')
+              '<button type="button" class="danger" data-h05-cancelar-st="' + esc(s._supabaseId) + '"' +
+              ' data-h05-st-version="' + esc(s.fechaActualizacion || '') + '">Cancelar</button>')
           : '';
         return '<tr' + (editando ? ' class="row-clickable" data-h05-st-en-edicion="1"' : '') + '>' +
           '<td><b>' + esc(s.nroST || '—') + '</b></td>' +
@@ -29505,7 +29539,12 @@ document.addEventListener('click',function(event){
       if (t.closest('[data-h05-salir-edicion-st]')) { tomar(); salirDeEdicionST(); return; }
 
       const cancelar = t.closest('[data-h05-cancelar-st]');
-      if (cancelar) { tomar(); cancelarST(cancelar.dataset.h05CancelarSt); return; }
+      if (cancelar) {
+        tomar();
+        // La version viaja en el propio boton: es la que el operador vio.
+        cancelarST(cancelar.dataset.h05CancelarSt, cancelar.dataset.h05StVersion);
+        return;
+      }
 
       // Botones legados de UM/ST que ya no corresponden al modelo canonico.
       if (t.closest('#btnGuardarUM') || t.closest('#btnNuevaUM')) {

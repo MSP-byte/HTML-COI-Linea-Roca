@@ -70,6 +70,16 @@ for (const [tabla, cols] of [['coi_unidades_mantenimiento', COLS_UM], ['coi_serv
   );
 }
 
+// A las columnas del baseline se suman las que una migracion posterior agrega y
+// produccion todavia no tiene: estan declaradas —y verificadas contra la base
+// real— en «_divergencias_pendientes.columnas». La capa las lee legitimamente,
+// y comparar solo contra el baseline la acusaria de pedir una columna inexistente.
+const columnasPendientes = (tabla) =>
+  ((contrato._divergencias_pendientes || {}).columnas || [])
+    .filter((d) => d.tabla === tabla)
+    .map((d) => d.columna);
+const columnasVigentes = (tabla, base) => base.concat(columnasPendientes(tabla));
+
 // Nombres que NO existen y que resultaban tentadores: el control existe porque
 // la primera version del guard de integridad uso «tipo» y fallaba en el INSERT.
 for (const inexistente of ['tipo', 'numero_serie', 'fecha_alta', 'fecha_baja']) {
@@ -88,8 +98,8 @@ function camposDeclarados(nombre) {
   return m[1].split(',').map((s) => s.trim());
 }
 for (const [constante, cols, tabla] of [
-  ['CAMPOS_UM', COLS_UM, 'coi_unidades_mantenimiento'],
-  ['CAMPOS_ST', COLS_ST, 'coi_servicios_tecnicos_um']
+  ['CAMPOS_UM', columnasVigentes('coi_unidades_mantenimiento', COLS_UM), 'coi_unidades_mantenimiento'],
+  ['CAMPOS_ST', columnasVigentes('coi_servicios_tecnicos_um', COLS_ST), 'coi_servicios_tecnicos_um']
 ]) {
   const pedidos = camposDeclarados(constante);
   const sobran = pedidos.filter((c) => !cols.includes(c));
@@ -109,11 +119,17 @@ function clavesDeObjeto(marca) {
 }
 const escritasST = clavesDeObjeto('      fila: {');
 check(escritasST.length >= 8, `se esperaban las columnas del insert de ST y se leyeron ${escritasST.length}`);
+const COLS_ST_VIGENTES = columnasVigentes('coi_servicios_tecnicos_um', COLS_ST);
 for (const c of escritasST) {
-  check(COLS_ST.includes(c), `el insert de ST escribe ${c}, que no es columna de coi_servicios_tecnicos_um`);
+  check(COLS_ST_VIGENTES.includes(c), `el insert de ST escribe ${c}, que no es columna de coi_servicios_tecnicos_um`);
 }
 check(escritasST.includes('unidad_id'), 'el insert de ST no fija unidad_id');
 check(escritasST.includes('nro_st'), 'el insert de ST no fija nro_st');
+// La OC viaja en DOS campos que se mueven juntos: la identidad tecnica y el
+// numero visible. Escribir solo el numero volveria a atar la relacion a un
+// identificador de negocio renumerable.
+check(escritasST.includes('orden_id'), 'el insert de ST no fija orden_id: la OC se asocia por UUID');
+check(escritasST.includes('nro_oc'), 'el insert de ST no fija nro_oc');
 
 // ------------------------------------------- 2) orden de carga del congelamiento
 // La deteccion NO puede depender de una mezcla concreta de CRLF/LF: el working
@@ -465,8 +481,8 @@ check(/const TABLA_OC = 'coi_ordenes';/.test(capa.texto),
   'falta la tabla remota de Ordenes para validar la OC');
 check(/async function ocExisteEnSupabase\(c, valor\)/.test(capa.texto),
   'falta la confirmacion remota de la OC');
-check(/from\(TABLA_OC\)\.select\('nro_oc'\)/.test(capa.texto),
-  'la validacion de OC debe consultar coi_ordenes en Supabase');
+check(/from\(TABLA_OC\)\.select\('id,nro_oc'\)/.test(capa.texto),
+  'la validacion de OC debe traer de coi_ordenes la identidad tecnica y el numero');
 check(/async function confirmarOC\(\)/.test(capa.texto),
   'la confirmacion de OC debe correr antes de persistir');
 check(/No se pudo verificar la OC/.test(capa.texto),
@@ -479,6 +495,24 @@ check(/Sin cambios: se conserva la OC ya persistida y no se revalida/.test(capa.
 // Y nunca se crea una OC.
 check(!/from\(TABLA_OC\)\.insert/.test(capa.texto),
   'un Servicio Tecnico no puede crear una Orden de Compra');
+
+// F5 · La identidad tecnica de la OC es su UUID, no el numero de negocio.
+check(camposDeclarados('CAMPOS_ST').indexOf('orden_id') >= 0,
+  'CAMPOS_ST debe leer orden_id: la identidad de la OC es su UUID');
+check(/ordenId: row\.orden_id \|\| null,/.test(capa.texto),
+  'el modelo en memoria debe conservar el UUID de la OC');
+check(/if \(!esUuid\(halladas\[0\]\.id\)\) return null;/.test(capa.texto),
+  'sin UUID no hay identidad tecnica: la OC se trata como no hallada');
+check(/return \{ id: halladas\[0\]\.id, nroOC: texto\(halladas\[0\]\.nro_oc\) \};/.test(capa.texto),
+  'la confirmacion remota debe devolver identidad y numero');
+check(/preparado\.fila\.orden_id = real\.id;/.test(capa.texto),
+  'se debe persistir el UUID que devolvio el servidor');
+check(/preparado\.fila\.nro_oc = real\.nroOC;/.test(capa.texto),
+  'se debe persistir el numero canonico que devolvio el servidor');
+// Si la OC no se toco, NO viaja ninguno de los dos campos: la referencia ya
+// persistida es la correcta, precisamente porque renumerar no cambia el UUID.
+check(/if \(preparado\.ocSinCambios\) \{[\s\S]{0,240}delete patch\.nro_oc;[\s\S]{0,120}delete patch\.orden_id;/.test(capa.texto),
+  'una OC sin cambios no debe enviar ni el numero ni la identidad');
 
 // F4 · La estacion se compara normalizada, no por texto exacto.
 check(/window\.umsPorEstacion = function \(nombre\)/.test(capa.texto),
@@ -514,9 +548,11 @@ check(/v === texto\(seleccionado\) \? ' selected' : ''/.test(capa.texto),
 check(!/clave\(v\) === clave\(seleccionado\)/.test(capa.texto),
   'no puede elegirse el option por comparacion normalizada: reescribiria el texto remoto');
 
-// F4 · Si la OC no se toco, no viaja en el patch del UPDATE.
-check(/if \(preparado\.ocSinCambios\) delete patch\.nro_oc;/.test(capa.texto),
-  'una edicion que no toca la OC no puede reenviar el nro_oc');
+// F4 · Si la OC no se toco, no viaja en el patch del UPDATE. Desde que la
+//      identidad es el UUID, tampoco viaja orden_id: omitir los dos deja intacta
+//      la referencia ya persistida, que es la correcta.
+check(/if \(preparado\.ocSinCambios\) \{/.test(capa.texto),
+  'una edicion que no toca la OC no puede reenviar el nro_oc ni el orden_id');
 // Pero vaciarla SI es un cambio y tiene que persistirse como null: omitirla ahi
 // dejaria la asociacion vieja para siempre.
 check(/let ocSinCambios = false;/.test(capa.texto),
@@ -529,12 +565,16 @@ check(/coi_normalize_order_number/.test(sinComentariosOC),
   'la resolucion del nro_oc debe usar la normalizacion canonica del proyecto');
 check(/create trigger coi_st_resolver_nro_oc/i.test(sinComentariosOC),
   'falta el trigger que resuelve el nro_oc entrante');
-check(/before insert or update of nro_oc/i.test(sinComentariosOC),
-  'el trigger tiene que correr BEFORE, en la misma sentencia que la escritura');
-check(/references public\.coi_ordenes\(nro_oc\)/i.test(sinComentariosOC),
-  'la FK debe apuntar a coi_ordenes(nro_oc)');
-check(/on update cascade/i.test(sinComentariosOC),
-  'ON UPDATE CASCADE es lo que hace que la renumeracion arrastre el ST');
+check(/before insert or update of nro_oc, orden_id/i.test(sinComentariosOC),
+  'el trigger tiene que correr BEFORE sobre los dos campos, en la misma sentencia que la escritura');
+// La identidad tecnica es el UUID maestro, no el numero de negocio: nro_oc es
+// renumerable y colgar de el la relacion ataba el vinculo a un texto que cambia.
+check(/add column if not exists orden_id uuid/i.test(sinComentariosOC),
+  'falta la columna orden_id: la OC de un ST se referencia por UUID');
+check(/references public\.coi_ordenes\(id\)/i.test(sinComentariosOC),
+  'la FK debe apuntar a coi_ordenes(id)');
+check(!/references\s+public\.coi_ordenes\s*\(\s*nro_oc\s*\)/i.test(sinComentariosOC),
+  'nro_oc es dato denormalizado: ninguna FK puede colgar de el');
 check(/on delete restrict/i.test(sinComentariosOC),
   'ON DELETE RESTRICT impide borrar una OC con historial tecnico');
 check(/COI_ST_OC_INEXISTENTE/.test(sinComentariosOC),
@@ -546,13 +586,22 @@ for (const destructivo of [/\btruncate\b/i, /\bdrop\s+table\b/i, /\bdelete\s+fro
 }
 // Y la divergencia queda declarada como FK nueva, no como cambio de accion.
 const fkPendientes = (contrato._divergencias_pendientes || {}).fk || [];
-const fkOC = fkPendientes.find((d) => d.tabla === 'coi_servicios_tecnicos_um' && d.columna === 'nro_oc');
-check(Boolean(fkOC), 'la FK de nro_oc debe declararse como divergencia pendiente');
+const fkOC = fkPendientes.find((d) => d.tabla === 'coi_servicios_tecnicos_um' && d.columna === 'orden_id');
+check(Boolean(fkOC), 'la FK de orden_id debe declararse como divergencia pendiente');
 check(fkOC.produccion === 'sin FK', 'produccion todavia no tiene esa FK: hay que decirlo asi');
-check(fkOC.on_update === 'CASCADE' && fkOC.on_delete === 'RESTRICT',
+check(fkOC.destino === 'coi_ordenes(id)', 'la divergencia debe declarar el destino real de la FK');
+check(fkOC.on_delete === 'RESTRICT',
   'la divergencia debe declarar las acciones reales de la FK');
-check(!(contrato.coi_servicios_tecnicos_um.fk || []).some((f) => f[0] === 'nro_oc'),
+check(!(contrato.coi_servicios_tecnicos_um.fk || []).some((f) => f[0] === 'orden_id'),
   'el snapshot productivo no puede incluir una FK que todavia no se aplico');
+// Y la columna nueva tambien queda declarada: produccion no la tiene.
+const colOC = ((contrato._divergencias_pendientes || {}).columnas || [])
+  .find((d) => d.tabla === 'coi_servicios_tecnicos_um' && d.columna === 'orden_id');
+check(Boolean(colOC), 'la columna orden_id debe declararse como divergencia pendiente');
+check(colOC.produccion === 'ausente' && colOC.tipo === 'uuid' && colOC.nn === false,
+  'la divergencia debe declarar que orden_id es uuid nullable y que produccion no la tiene');
+check(!Object.prototype.hasOwnProperty.call(contrato.coi_servicios_tecnicos_um.columnas, 'orden_id'),
+  'el snapshot productivo no puede incluir una columna que todavia no se aplico');
 
 
 // ------------------------------------------- 5g) quinta ronda de review

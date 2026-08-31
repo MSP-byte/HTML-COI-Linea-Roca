@@ -2,8 +2,21 @@
   "_doc": "Snapshot de information_schema y pg_catalog tomado en lectura sobre produccion (ooepgbzqlpjrtpaoqawc), verificado identico en staging (brmrroikctfbtzwfewan). Contrato autoritativo de las 10 tablas que el baseline 202608090000_core_schema_baseline.sql debe reproducir. nn=NOT NULL, def=fragmento esperado del default, gen=generated always stored, tipo=fragmento de data_type. fk=[columna, tabla_destino, accion ON DELETE]. policies solo se declaran para las cuatro tablas que ninguna migracion posterior gobierna; las demas las administra coi_apply_optional_role_rls.",
   "_divergencias_pendientes": {
     "_doc": "Desvios DELIBERADOS entre el repositorio y el snapshot productivo, introducidos por una migracion todavia NO aplicada a produccion ni a staging. check_schema_reproducibility.js espera el valor «repo» y deja constancia del valor «produccion» hasta que la migracion se aplique; entonces se actualiza el snapshot y la entrada pasa de «fk»/«unique» a «_resueltas».",
+    "_doc_columnas": "Columnas que el repositorio agrega y produccion todavia no tiene. El bloque «columnas» de cada tabla mas abajo sigue siendo el snapshot productivo: aca se declara lo que el repositorio DEBE producir de mas. check_schema_reproducibility.js verifica que la columna exista realmente tras aplicar las migraciones, con el tipo y la nullability declarados, para que la divergencia quede probada y no solo escrita.",
     "_doc_unique": "Constraints UNIQUE que el repositorio crea y produccion todavia no tiene. El bloque «unique» de cada tabla mas abajo sigue siendo el snapshot productivo: aca se declara lo que el repositorio DEBE producir de mas. check_schema_reproducibility.js verifica que el constraint exista realmente tras aplicar las migraciones, para que la divergencia quede probada y no solo escrita.",
     "_doc_resueltas": "Divergencias YA aplicadas en remoto. No las verifica check_schema_reproducibility.js: el snapshot productivo de mas abajo ya refleja el valor definitivo. Se conservan como historia de la reconciliacion.",
+    "columnas": [
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "columna": "orden_id",
+        "tipo": "uuid",
+        "nn": false,
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310004_h04_st_oc_referencial.sql",
+        "motivo": "coi_servicios_tecnicos_um era la unica tabla dependiente de OC sin orden_id: la RPC de renumeracion 20260813033959 lo documenta explicitamente y por eso la excluye de su preflight de integridad. Agregarla le da la misma identidad tecnica por UUID que tienen coi_certificaciones, coi_posiciones_oc, coi_documentos_oc y el resto."
+      }
+    ],
     "fk": [
       {
         "tabla": "coi_servicios_tecnicos_um",
@@ -15,15 +28,14 @@
       },
       {
         "tabla": "coi_servicios_tecnicos_um",
-        "columna": "nro_oc",
+        "columna": "orden_id",
         "produccion": "sin FK",
-        "repo": "CASCADE",
-        "destino": "coi_ordenes(nro_oc)",
-        "on_update": "CASCADE",
+        "repo": "RESTRICT",
+        "destino": "coi_ordenes(id)",
         "on_delete": "RESTRICT",
         "trigger": "coi_st_resolver_nro_oc",
         "migracion": "202608310004_h04_st_oc_referencial.sql",
-        "motivo": "La asociacion ST -> OC era texto libre validado por el frontend: no respetaba coi_normalize_order_number, dejaba una ventana de carrera entre validar y escribir, y permitia restaurar un numero viejo despues de una renumeracion. Pasa a ser integridad referencial: un trigger BEFORE resuelve el numero canonico y la FK propaga renumeraciones (ON UPDATE CASCADE) e impide borrar una OC con historial tecnico (ON DELETE RESTRICT)."
+        "motivo": "La asociacion ST -> OC era texto libre validado por el frontend: no respetaba coi_normalize_order_number, dejaba una ventana de carrera entre validar y escribir, y ataba la relacion a un identificador de negocio renumerable. Pasa a ser integridad referencial sobre la identidad maestra del repositorio, coi_ordenes.id: renumerar una OC no cambia su UUID, de modo que ninguna renumeracion puede mover ni romper el vinculo. ON DELETE RESTRICT impide borrar una orden que todavia tiene historial tecnico. nro_oc se conserva como dato visible denormalizado, coherente por trigger, pero ya no es la referencia tecnica."
       }
     ],
     "unique": [
@@ -55,18 +67,6 @@
         "motivo": "El baseline solo trae UNIQUE (codigo_um) literal y sensible a mayusculas, mientras el frontend considera la misma UM a ASC-001, asc001 y «ASC / 001». La base era mas permisiva que la propia interfaz: dos clientes concurrentes podian insertar variantes que la UI despues trata como una sola unidad. El UNIQUE literal del baseline no se modifica: este indice se suma."
       }
     ],
-    "_resueltas": [
-      {
-        "tabla": "coi_observaciones_oc",
-        "columna": "orden_id",
-        "produccion": "RESTRICT",
-        "repo": "RESTRICT",
-        "migracion": "202608300002_h03_observaciones_delete_guard.sql",
-        "aplicada_en_remoto": "2026-08-30",
-        "nota": "H03 aplicado en STAGING y PRODUCCION. El snapshot productivo ya declara RESTRICT y la divergencia dejo de existir; la entrada se conserva como historia de la reconciliacion."
-      }
-    ],
-    "_doc_policies": "Policies que el repositorio crea y produccion todavia no tiene. El bloque «policies» de cada tabla mas abajo sigue siendo el snapshot productivo. check_schema_reproducibility.js verifica que estas existan realmente al reproducir el repo (nombre, cmd, roles, permissive, using y with check) y las admite como el UNICO excedente permitido: cualquier otra policy no declarada sigue siendo un fallo.",
     "policies": [
       {
         "tabla": "coi_unidades_mantenimiento",
@@ -159,7 +159,6 @@
         "motivo": "La UI reservaba las mutaciones de UM/ST al Administrador, pero las policies remotas solo exigen estar autenticado: un perfil consulta podia llamar a PostgREST directamente. Las restrictivas estrechan las permisivas existentes sin reescribirlas."
       }
     ],
-    "_doc_grants": "Grants que el repositorio endurece y produccion todavia no. En produccion anon conserva privilegios amplios sobre ambas tablas y authenticated tiene mas de lo necesario. check_schema_reproducibility.js verifica que tras reproducir el repo los grants sean exactamente los declarados en «repo».",
     "grants": [
       {
         "tabla": "coi_unidades_mantenimiento",
@@ -190,7 +189,6 @@
         "motivo": "Segunda capa detras de la RLS: anon no tiene por que alcanzar el historial tecnico y authenticated no necesita DELETE, TRUNCATE, REFERENCES ni TRIGGER."
       }
     ],
-    "_doc_grants_funciones": "Grants sobre FUNCIONES que el repositorio concede y produccion todavia no. Mismo criterio que los grants de tabla: check_schema_reproducibility.js verifica que tras reproducir el repo el permiso exista realmente, y que anon siga sin el.",
     "grants_funciones": [
       {
         "funcion": "coi_normalize_order_number(text)",
@@ -204,7 +202,21 @@
         "migracion": "202608310005_h04_normalize_order_number_grant.sql",
         "motivo": "La prevalidacion del frontend resolvia la OC con eq/ilike sobre el texto crudo, una segunda definicion de identidad mas estrecha que la de PostgreSQL: rechazaba antes de escribir variantes que el trigger habria aceptado. En vez de reimplementar la normalizacion en JavaScript se le concede al rol authenticated la MISMA funcion. Es pura —sql, immutable, strict, sin security definer, sin acceso a tablas—, de modo que exponerla no revela ningun dato."
       }
-    ]
+    ],
+    "_resueltas": [
+      {
+        "tabla": "coi_observaciones_oc",
+        "columna": "orden_id",
+        "produccion": "RESTRICT",
+        "repo": "RESTRICT",
+        "migracion": "202608300002_h03_observaciones_delete_guard.sql",
+        "aplicada_en_remoto": "2026-08-30",
+        "nota": "H03 aplicado en STAGING y PRODUCCION. El snapshot productivo ya declara RESTRICT y la divergencia dejo de existir; la entrada se conserva como historia de la reconciliacion."
+      }
+    ],
+    "_doc_policies": "Policies que el repositorio crea y produccion todavia no tiene. El bloque «policies» de cada tabla mas abajo sigue siendo el snapshot productivo. check_schema_reproducibility.js verifica que estas existan realmente al reproducir el repo (nombre, cmd, roles, permissive, using y with check) y las admite como el UNICO excedente permitido: cualquier otra policy no declarada sigue siendo un fallo.",
+    "_doc_grants": "Grants que el repositorio endurece y produccion todavia no. En produccion anon conserva privilegios amplios sobre ambas tablas y authenticated tiene mas de lo necesario. check_schema_reproducibility.js verifica que tras reproducir el repo los grants sean exactamente los declarados en «repo».",
+    "_doc_grants_funciones": "Grants sobre FUNCIONES que el repositorio concede y produccion todavia no. Mismo criterio que los grants de tabla: check_schema_reproducibility.js verifica que tras reproducir el repo el permiso exista realmente, y que anon siga sin el."
   },
   "coi_ordenes": {
     "columnas": {

@@ -508,5 +508,74 @@ Decisión: dentro de H04/H05 la autoridad es `runtime.rol`, el mismo valor que
 evalúan las policies. Los helpers legacy siguen existiendo para los módulos
 viejos; esta capa no los consulta ni usa ningún email como criterio.
 
+## TD-037 — La OC de un Servicio Técnico se referencia por UUID
+Fecha: 2026-08-31.
+
+La identidad maestra de una Orden de Compra en el repositorio es `coi_ordenes.id`.
+`nro_oc` es un identificador de **negocio**, renumerable mediante
+`coi_renumerar_oc`. Todas las tablas dependientes de OC referencian por
+`orden_id` y llevan `nro_oc` denormalizado; `coi_servicios_tecnicos_um` era la
+única excepción, y la propia migración `20260813033959` lo dice al excluirla de
+su preflight «porque estructuralmente no posee orden_id».
+
+La primera versión de `202608310004` colgaba la foreign key de `nro_oc` y
+propagaba las renumeraciones con `ON UPDATE CASCADE`. Funcionaba, pero ataba la
+identidad del vínculo a un texto que cambia.
+
+Decisión: se agrega `orden_id uuid` nullable y la FK técnica pasa a ser
+`orden_id → coi_ordenes(id) ON DELETE RESTRICT`. `nro_oc` sigue existiendo como
+dato visible —es lo que el operador lee y escribe— pero deja de ser referencia.
+Renumerar una OC no cambia su UUID, de modo que **ninguna renumeración puede
+mover, romper ni reasignar la relación ST → OC**: eso pasa a ser estructural.
+
+Consecuencias: sin cascada, el UPDATE que `coi_renumerar_oc` hace sobre los ST
+recupera su recuento real, y su verificación post-sync sigue siendo la garantía
+de que ningún ST queda con el número anterior. Ver [[KI-015]] y [[TD-032]].
+
+## TD-038 — Qué campo manda cuando llegan los dos
+Fecha: 2026-08-31.
+
+Con `orden_id` y `nro_oc` conviviendo, el trigger necesita una regla de
+precedencia. Las dos reglas ingenuas fallan: si el UUID ganara siempre, un
+operador no podría mover el ST a otra OC escribiendo el número —el trigger le
+devolvería el de la orden vieja—; si ganara siempre el número, un formulario
+abierto antes de una renumeración podría des-renumerar el ST.
+
+Decisión: manda el campo que **esta sentencia** trae o cambia. En INSERT, el
+`orden_id` si viene; si no, el número. En UPDATE se compara contra `old`: si
+cambió `orden_id`, manda el UUID; si solo cambió `nro_oc`, se resuelve por
+`coi_normalize_order_number` y se completan los dos. Un número que ya no existe
+—el de una OC renumerada— se rechaza fail-closed.
+
+El frontend acompaña la regla: una OC nueva o cambiada envía los dos campos, una
+OC sin tocar no envía ninguno —la referencia persistida ya es la correcta— y
+quitarla envía los dos explícitamente en `null`.
+
+## TD-039 — Un estado de UM desconocido se muestra en neutro
+Fecha: 2026-08-31.
+
+`estadoUM()` conserva el valor remoto que no reconoce, porque es dato del
+servidor y no corresponde inventarle un estado. Pero `badgeUM()` caía en la clase
+`activo` por defecto, con lo que un estado como «Mantenimiento» se veía verde:
+la interfaz afirmaba que la unidad está operativa sin que nadie lo hubiera dicho.
+
+Decisión: el semáforo cubre solo los tres estados canónicos —ACTIVA, FUERA DE
+SERVICIO, BAJA— y cualquier otro valor usa la clase neutra `sindatos`, que el CSS
+ya definía. El texto remoto se muestra tal cual; lo único neutro es el estilo.
+
+## TD-040 — Cancelar un ST usa la versión que el operador vio
+Fecha: 2026-08-31.
+
+El CAS de la edición ya tomaba la versión del formulario ([[TD-023]]), pero
+`cancelarST()` la leía del runtime al momento del click. Con la ficha sostenida
+por un input enfocado, un refresco podía llevar el runtime a V2 mientras el botón
+Cancelar seguía perteneciendo visualmente a la V1: la cancelación se aplicaba
+sobre una versión que el operador nunca vio y pisaba el cambio ajeno.
+
+Decisión: la fila renderiza `data-h05-st-version` con la `fecha_actualizacion`
+que tenía al pintarse, y `cancelarST(uuid, versionRenderizada)` usa **esa**
+versión como condición del UPDATE. Si el remoto avanzó, el UPDATE afecta 0 filas
+y se reporta el conflicto sin cambiar nada.
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.

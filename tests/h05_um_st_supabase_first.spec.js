@@ -57,7 +57,9 @@ const ST_A = {
   estado: 'Pendiente',
   observaciones: '',
   fecha_creacion: '2026-08-10T10:00:00.000Z',
-  fecha_actualizacion: '2026-08-10T10:00:00.000Z'
+  fecha_actualizacion: '2026-08-10T10:00:00.000Z',
+  // La OC se referencia por UUID; nro_oc es el numero visible derivado.
+  orden_id: '0c000000-0000-4000-8000-004530008964'
 };
 
 // Las 28 UM / 3 ST del legado se representan con una muestra fiel: los ST legados
@@ -125,8 +127,15 @@ async function prepararEntorno(page, opciones) {
     let sts = c.sts.slice();
     // Catalogo REMOTO de Ordenes: deliberadamente distinto de todasLasOC(),
     // que es la cache local del modulo.
-    let ordenes = (c.ordenes || []).slice();
-    window.__H05_SET_ORDENES__ = (v) => { ordenes = v.slice(); };
+    //
+    // Cada orden tiene su UUID —la identidad maestra del proyecto—, derivado
+    // del numero para que un test pueda predecirlo sin leerlo antes.
+    const idOC = (n) => '0c000000-0000-4000-8000-' +
+      String(n || '').replace(/\D/g, '').padStart(12, '0').slice(-12);
+    window.__H05_ID_OC__ = idOC;
+    const conId = (lista) => (lista || []).map((o) => Object.assign({ id: idOC(o.nro_oc) }, o));
+    let ordenes = conId(c.ordenes);
+    window.__H05_SET_ORDENES__ = (v) => { ordenes = conId(v); };
     window.__H05_SET_UMS__ = (v) => { ums = v.slice(); };
     window.__H05_SET_STS__ = (v) => { sts = v.slice(); };
     const espera = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -380,7 +389,8 @@ const estado = (page) => page.evaluate(() => ({
     codigo: u.codigoUM, uuid: u._supabaseId, estado: u.estado, tipo: u.tipoUM, estacion: u.estacion
   })),
   sts: (window.serviciosTecnicos || []).map((s) => ({
-    uuid: s._supabaseId, nroST: s.nroST, unidadId: s._unidadId, estado: s.estado, oc: s.nroOC, um: s.idUM
+    uuid: s._supabaseId, nroST: s.nroST, unidadId: s._unidadId, estado: s.estado,
+    oc: s.nroOC, ordenId: s.ordenId, um: s.idUM
   })),
   legacyUM: localStorage.getItem('coi_roca_unidades_mantenimiento'),
   legacyUMReal: window.__COI_UM_H05_LEGACY_RAW__('coi_roca_unidades_mantenimiento'),
@@ -3075,4 +3085,313 @@ test('122 · el administrador conserva el flujo normal de alta', async ({ page }
   const e = await estado(page);
   expect(soloOp(e, 'insert:coi_unidades_mantenimiento')).toHaveLength(1);
   expect(e.ums.map((u) => u.codigo)).toContain('ASC-ROL');
+});
+
+// ================================== septima ronda de review del PR #59
+
+// --- F1 (P1): la identidad tecnica de la OC es coi_ordenes.id.
+//
+// nro_oc es un identificador de NEGOCIO renumerable. Mientras la relacion
+// colgaba de el, renumerar una OC movia el vinculo. Ahora el ST guarda el UUID
+// —que no cambia nunca— y el numero queda como dato visible derivado.
+
+const OC_UUID = (n) => '0c000000-0000-4000-8000-' +
+  String(n).replace(/\D/g, '').padStart(12, '0').slice(-12);
+
+test('123 · un ST nuevo con OC valida persiste el UUID de la orden y el numero canonico', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], ordenes: [{ nro_oc: '4530008964' }] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await page.evaluate(() => { window.todasLasOC = () => []; });
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-UUID-1');
+  await page.fill('#sth5_oc', '4530008964');
+  await page.fill('#sth5_descripcion', 'Alta con OC valida');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const inserts = soloOp(e, 'insert:coi_servicios_tecnicos_um');
+  expect(inserts).toHaveLength(1);
+  expect(inserts[0].payload.orden_id).toBe(OC_UUID('4530008964'));
+  expect(inserts[0].payload.nro_oc).toBe('4530008964');
+});
+
+test('124 · la variante «OC 4530008964» resuelve al mismo UUID', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], ordenes: [{ nro_oc: '4530008964' }] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await page.evaluate(() => { window.todasLasOC = () => []; });
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-UUID-2');
+  await page.fill('#sth5_oc', 'OC 4530008964');
+  await page.fill('#sth5_descripcion', 'Alta con variante');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const inserts = soloOp(e, 'insert:coi_servicios_tecnicos_um');
+  expect(inserts).toHaveLength(1);
+  // La identidad no depende de como se escriba el numero.
+  expect(inserts[0].payload.orden_id).toBe(OC_UUID('4530008964'));
+  expect(inserts[0].payload.nro_oc).toBe('4530008964');
+});
+
+test('125 · una OC inexistente no persiste ni el numero ni la identidad', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], ordenes: [{ nro_oc: '4530008964' }] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  // La cache local la ofrece; el remoto no la tiene: manda el remoto.
+  await sembrarOC(page, ['4530999999'], { soloCache: true });
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-UUID-3');
+  await page.fill('#sth5_oc', '4530999999');
+  await page.fill('#sth5_descripcion', 'OC que no existe');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(e.sts).toHaveLength(0);
+});
+
+test('126 · un ST sin OC se guarda con identidad y numero en null', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], ordenes: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-SIN-OC');
+  await page.fill('#sth5_descripcion', 'Sin orden asociada');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const inserts = soloOp(e, 'insert:coi_servicios_tecnicos_um');
+  expect(inserts).toHaveLength(1);
+  expect(inserts[0].payload.orden_id).toBeNull();
+  expect(inserts[0].payload.nro_oc).toBeNull();
+});
+
+test('127 · editar sin tocar la OC no reenvia ni el numero ni la identidad', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A], ordenes: [{ nro_oc: '4530008964' }] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_descripcion', 'Solo cambia la descripcion');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1100);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  // Omitir los dos deja intacta la referencia ya persistida, que es la correcta
+  // precisamente porque renumerar la OC no cambia su UUID.
+  expect(Object.prototype.hasOwnProperty.call(updates[0].payload.patch, 'nro_oc')).toBe(false);
+  expect(Object.prototype.hasOwnProperty.call(updates[0].payload.patch, 'orden_id')).toBe(false);
+});
+
+test('128 · cambiar de OC mueve la identidad tecnica, no solo el numero', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [ST_A], ordenes: [{ nro_oc: '4530008964' }, { nro_oc: '4530003333' }]
+  });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964', '4530003333']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_oc', '4530-00.33/33');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1300);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  expect(updates[0].payload.patch.orden_id).toBe(OC_UUID('4530003333'));
+  expect(updates[0].payload.patch.nro_oc).toBe('4530003333');
+});
+
+test('129 · quitar la OC envia los dos campos explicitamente en null', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A], ordenes: [{ nro_oc: '4530008964' }] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_oc', '');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  // Omitirlos aca dejaria la asociacion vieja para siempre.
+  expect(updates[0].payload.patch.orden_id).toBeNull();
+  expect(updates[0].payload.patch.nro_oc).toBeNull();
+});
+
+test('130 · el modelo en memoria conserva el UUID de la OC leido de Supabase', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A], ordenes: [{ nro_oc: '4530008964' }] });
+  await abrir(page);
+  const e = await estado(page);
+  expect(e.sts).toHaveLength(1);
+  expect(e.sts[0].ordenId).toBe(ST_A.orden_id);
+  expect(e.sts[0].oc).toBe('4530008964');
+});
+
+// --- F2 (P2): cancelar un ST usa la version que el operador vio.
+//
+// La tabla puede estar mostrando la V1 mientras un input mantiene la ficha sin
+// repintar y un refresco lleva el runtime a V2. El boton Cancelar sigue
+// perteneciendo visualmente a la V1: si el CAS tomara la version del runtime,
+// la cancelacion pisaria un cambio que el operador nunca vio.
+
+test('131 · el boton Cancelar lleva la version con la que se pinto la fila', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+
+  const version = await page.getAttribute('[data-h05-cancelar-st="' + ST_A.id + '"]', 'data-h05-st-version');
+  expect(version).toBe(ST_A.fecha_actualizacion);
+});
+
+test('132 · cancelar usa la version renderizada y el CAS rechaza si el remoto avanzo', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  // Se abre la edicion para tener un input que sostenga la ficha sin repintar.
+  await editarSTEnFicha(page, ST_A.id);
+  await page.focus('#stfh5_descripcion');
+
+  // Otro puesto resuelve el ST: el runtime pasa a V2, la ficha sigue en V1.
+  await page.evaluate((id) => {
+    window.__H05_SET_STS__([Object.assign({}, window.__H05_CFG__.sts[0], {
+      id: id, estado: 'Resuelto', fecha_actualizacion: '2026-08-31T23:59:59.000Z'
+    })]);
+  }, ST_A.id);
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForTimeout(800);
+
+  const versionRuntime = await page.evaluate(
+    () => window.__COI_UM_H05__.confirmadoST[0].fechaActualizacion);
+  expect(versionRuntime).toBe('2026-08-31T23:59:59.000Z');
+  // El boton visible sigue siendo el de la V1.
+  const versionBoton = await page.getAttribute('[data-h05-cancelar-st="' + ST_A.id + '"]', 'data-h05-st-version');
+  expect(versionBoton).toBe(ST_A.fecha_actualizacion);
+
+  page.on('dialog', (d) => d.accept());
+  await page.click('[data-h05-cancelar-st="' + ST_A.id + '"]');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  expect(updates[0].payload.patch.estado).toBe('Cancelado');
+  // El CAS viaja con la version RENDERIZADA, no con la del runtime.
+  const cond = updates[0].payload.filtros.find((f) => f.col === 'fecha_actualizacion');
+  expect(cond.val).toBe(ST_A.fecha_actualizacion);
+  // Y como el remoto avanzo, no se cancelo nada: sigue Resuelto en V2.
+  const remoto = await page.evaluate(() => window.__COI_UM_H05__.confirmadoST[0]);
+  expect(remoto.estado).toBe('Resuelto');
+  expect(remoto.fechaActualizacion).toBe('2026-08-31T23:59:59.000Z');
+  await expect(page.locator('#coiToastV581')).toContainText('modificado por otro usuario');
+});
+
+test('133 · sin conflicto, cancelar con la version renderizada se aplica', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+
+  page.on('dialog', (d) => d.accept());
+  await page.click('[data-h05-cancelar-st="' + ST_A.id + '"]');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  const cond = updates[0].payload.filtros.find((f) => f.col === 'fecha_actualizacion');
+  expect(cond.val).toBe(ST_A.fecha_actualizacion);
+  expect(e.sts[0].estado).toBe('Cancelado');
+});
+
+// --- F3 (P2): un estado de UM desconocido no puede verse verde.
+//
+// estadoUM() conserva el valor remoto que no reconoce —es dato del servidor—,
+// pero pintarlo con la clase «activo» afirmaba que la unidad esta operativa.
+
+const UM_ESTADO = (sufijo, estado) => Object.assign({}, UM_A, {
+  id: '77777777-7777-4777-8777-' + String(sufijo).padStart(12, '0'),
+  codigo_um: 'ASC-EST-' + sufijo,
+  estado: estado
+});
+
+const badges = (page) => page.evaluate(() => Array.from(
+  document.querySelectorAll('#umTbody .um-status')
+).map((n) => ({ clase: n.className, texto: n.textContent })));
+
+test('134 · el semaforo de UM: ACTIVA verde, y cualquier estado desconocido neutro', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [
+      UM_ESTADO(1, 'ACTIVA'),
+      UM_ESTADO(2, 'FUERA DE SERVICIO'),
+      UM_ESTADO(3, 'BAJA'),
+      UM_ESTADO(4, 'Mantenimiento'),
+      UM_ESTADO(5, 'Reparación programada')
+    ],
+    sts: []
+  });
+  await abrir(page);
+  await irAUM(page);
+
+  const pintados = await badges(page);
+  expect(pintados).toHaveLength(5);
+  const porTexto = {};
+  pintados.forEach((b) => { porTexto[b.texto] = b.clase; });
+
+  expect(porTexto['ACTIVA']).toContain('activo');
+  expect(porTexto['FUERA DE SERVICIO']).toContain('fuera');
+  expect(porTexto['FUERA DE SERVICIO']).not.toContain('activo');
+  expect(porTexto['BAJA']).toContain('baja');
+  expect(porTexto['BAJA']).not.toContain('activo');
+
+  // El texto remoto se conserva; lo unico neutro es el estilo.
+  expect(porTexto['Mantenimiento']).toContain('sindatos');
+  expect(porTexto['Mantenimiento']).not.toContain('activo');
+  expect(porTexto['Reparación programada']).toContain('sindatos');
+  expect(porTexto['Reparación programada']).not.toContain('activo');
+});
+
+test('135 · el estado desconocido tampoco se ve verde en la ficha', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_ESTADO(6, 'Mantenimiento')], sts: [] });
+  await abrir(page);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+
+  const enFicha = await page.evaluate(() => Array.from(
+    document.querySelectorAll('#fichaUMBody .um-status')
+  ).map((n) => ({ clase: n.className, texto: n.textContent })));
+  expect(enFicha.length).toBeGreaterThan(0);
+  enFicha.forEach((b) => {
+    expect(b.texto).toBe('Mantenimiento');
+    expect(b.clase).toContain('sindatos');
+    expect(b.clase).not.toContain('activo');
+  });
 });
