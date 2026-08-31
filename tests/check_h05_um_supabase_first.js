@@ -238,9 +238,11 @@ for (const [patron, detalle] of [
   [/const enCurso = new Set\(\)/, 'falta el lock de mutacion'],
   [/if \(llave && enCurso\.has\(llave\)\) return false/, 'el lock de mutacion no bloquea el doble envio'],
   [/coi:supabase-auth/, 'falta la reaccion al cambio de sesion'],
-  [/esAutorizacionAdministrativaSupabaseV60/, 'la autorizacion debe reutilizar el gate canonico'],
+  // La autorizacion de la UI ya no sale del helper legado sino del rol que
+  // confirmo el servidor: es el mismo criterio que evaluan las policies.
+  [/runtime\.rol === 'administrador'/, 'la autorizacion debe salir del rol confirmado por Supabase'],
   [/esUuid/, 'falta la validacion de UUID canonico'],
-  [/function resolverOC/, 'falta la validacion de OC contra el catalogo remoto'],
+  [/async function ocExisteEnSupabase/, 'falta la validacion de OC contra Supabase'],
   [/no existe en Órdenes/, 'una OC inexistente debe rechazarse'],
   [/ya tiene un Servicio Técnico/, 'falta el control de (unidad_id, nro_st) duplicado'],
   [/Ya existe una Unidad de Mantenimiento con el código/, 'falta el manejo del UNIQUE de codigo_um'],
@@ -586,6 +588,53 @@ check(!/create\s+or\s+replace\s+function/i.test(sinComentariosGrant),
 const grantsFn = (contrato._divergencias_pendientes || {}).grants_funciones || [];
 check(grantsFn.some((d) => d.funcion.indexOf('coi_normalize_order_number') === 0),
   'el grant debe declararse como divergencia pendiente');
+
+
+// ------------------------------------------- 5h) sexta ronda de review
+// Se analiza CODIGO, no prosa: los comentarios de la capa nombran a proposito
+// los helpers retirados para explicar por que ya no estan.
+const codigoCapa = capa.texto
+  .split('\n')
+  .filter((l) => l.trim().indexOf('//') !== 0)
+  .join('\n');
+const contiene6 = (f) => codigoCapa.indexOf(f) >= 0;
+
+// F1 · El catalogo local no puede rechazar una OC: solo Supabase decide.
+check(!contiene6('function resolverOC('), 'el catalogo local no puede resolver la OC');
+check(!contiene6('hayCatalogoOC'), 'el catalogo local no puede seguir siendo un gate');
+check(!contiene6('todasLasOC'), 'la capa no debe consultar la cache de Ordenes para decidir');
+check(!contiene6('El catálogo de Órdenes todavía no está disponible'),
+  'ya no puede rechazarse por catalogo no disponible: la decision es remota');
+
+// F2 · La OC original de la edicion es la RENDERIZADA, no la del runtime.
+check(contiene6('let stEditandoOCOriginal = null;'), 'falta el token de OC renderizada');
+check(contiene6('stEditandoOCOriginal = editando ? (st.nroOC || null) : null;'),
+  'la OC original debe capturarse al pintar los inputs');
+check(contiene6('editando ? stEditandoOCOriginal : null,'),
+  'al guardar hay que comparar contra la OC renderizada, no contra el runtime');
+check(!contiene6('editando ? editando.nroOC : null'),
+  'no puede quedar la comparacion contra la OC del runtime');
+
+// F3 · El paginado va por keyset sobre el uuid, no por offset sobre campos editables.
+check(contiene6('async function leerPaginado(c, tabla, campos)'),
+  'leerPaginado ya no debe recibir una columna de orden editable');
+check(contiene6("consulta.gt('id', ultimoId)"), 'falta el cursor por id');
+check(contiene6('ultimoId = pagina[pagina.length - 1].id;'), 'falta el avance del cursor');
+check(!contiene6('.range(desde, desde + PAGE_SIZE - 1)'),
+  'no puede quedar paginado por offset');
+check(!contiene6("leerPaginado(c, TABLA_UM, CAMPOS_UM, 'codigo_um')"),
+  'UM no puede paginarse por codigo_um, que es editable');
+check(!contiene6("leerPaginado(c, TABLA_ST, CAMPOS_ST, 'fecha')"),
+  'ST no puede paginarse por fecha, que es editable');
+
+// F4 · La autoridad de la UI es el rol confirmado por Supabase.
+check(contiene6("return runtime.rol === 'administrador';"),
+  'esAdministrador debe mirar el rol confirmado por Supabase');
+check(!contiene6('esAutorizacionAdministrativaSupabaseV60'),
+  'la capa no puede derivar autorizacion de los helpers legados');
+// Y ningun email puede ser autoridad en esta capa.
+check(!/@coiroca.com/.test(codigoCapa),
+  'ningun email hardcodeado puede decidir permisos en esta capa');
 
 // ------------------------------------------- 6) el guard de integridad acompaña
 const migracion = fs.readFileSync('supabase/migrations/202608300003_h05_um_delete_guard.sql', 'utf8');

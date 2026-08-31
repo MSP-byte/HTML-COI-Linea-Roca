@@ -454,5 +454,59 @@ Se mantienen las reglas previas: una OC no modificada no se revalida, una OC
 nueva o cambiada exige validación remota, un fallo remoto no guarda, y nunca se
 crea una OC. Ver [[KI-016]].
 
+## TD-033 — El catálogo local de OC es pista positiva, nunca autoridad negativa
+Fecha: 2026-08-31.
+
+[[TD-026]] pasó la decisión a Supabase, pero quedó una rama previa: si el
+catálogo en memoria estaba poblado y no encontraba el texto, se rechazaba **antes
+de consultar**. Eso bloqueaba una OC recién creada en otro puesto, y también una
+variante como `OC 4530008964` que la normalización canónica acepta pero que ese
+catálogo —que compara por texto— no reconoce.
+
+Decisión: para crear un ST o cambiar su OC, **siempre** se resuelve contra
+Supabase. El catálogo dejó de participar en la decisión, así que se retiraron
+`filasOC()`, `resolverOC()` y `hayCatalogoOC()` en lugar de dejarlos sin uso: como
+gate positivo tampoco servirían —dejarían pasar asociaciones a OC ya eliminadas—.
+
+## TD-034 — La OC original de una edición es la renderizada
+Fecha: 2026-08-31.
+
+Mismo patrón que [[TD-020]] y el estado de [[TD-022]]: `ocOriginal` se tomaba del
+runtime al guardar. Si el remoto renumeraba mientras el formulario estaba
+enfocado, el código comparaba la OC de los inputs contra la nueva del runtime,
+concluía que el operador había cambiado la OC, e intentaba validar el número
+viejo — rechazando una edición de descripción perfectamente legítima.
+
+Decisión: `stEditandoOCOriginal` se fija al pintar los inputs. Un refresco que no
+repinta no lo mueve; uno que sí repinta lo actualiza a la OC nueva. Si no cambió,
+`nro_oc` no viaja en el patch y la renumeración remota sobrevive.
+
+## TD-035 — Paginar por keyset sobre el UUID
+Fecha: 2026-08-31.
+
+La lectura paginada usaba `range()` ordenando por `codigo_um` (UM) y `fecha`
+(ST) — **ambas editables**. Una inserción o edición de otro administrador entre
+dos páginas corre las filas y produce saltos o repeticiones, y el snapshot
+incompleto se marcaba `sincronizado` igual: un resultado parcial presentado como
+completo.
+
+Decisión: keyset sobre `id`, la única columna inmutable. `ORDER BY id` y
+`id > último` en cada tramo. La deduplicación se conserva como defensa, pero ya
+no es de ella que depende recuperar una fila.
+
+## TD-036 — La UI se autoriza con el rol confirmado, no con un email
+Fecha: 2026-08-31.
+
+PostgreSQL ya decide con `coi_current_role()` ([[TD-014]]), pero la UI seguía
+derivando el permiso administrativo de helpers legacy con email fijo
+(`admin@coiroca.com`). Las dos direcciones fallaban: un `administrador` real con
+otro correo veía la interfaz deshabilitada aunque la base lo aceptaría, y esa
+cuenta degradada a `consulta` veía los controles habilitados aunque la base la
+rechazaría.
+
+Decisión: dentro de H04/H05 la autoridad es `runtime.rol`, el mismo valor que
+evalúan las policies. Los helpers legacy siguen existiendo para los módulos
+viejos; esta capa no los consulta ni usa ningún email como criterio.
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.

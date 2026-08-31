@@ -27965,13 +27965,18 @@ document.addEventListener('click',function(event){
     if (tipo === 'error') console.error('COI unidades de mantenimiento:', mensaje);
   }
 
-  // Mismo gate canonico que usan esAdminR13, isAdminR14 e isAdmin16: la
-  // autorizacion sale de la sesion Supabase, no de un segundo modelo de permisos.
+  // A diferencia de esAdminR13, isAdminR14 e isAdmin16 —que siguen consultando el
+  // helper legado—, esta capa se autoriza con el rol que confirmo el servidor.
   function esAdministrador() {
-    try {
-      return typeof window.esAutorizacionAdministrativaSupabaseV60 === 'function' &&
-        window.esAutorizacionAdministrativaSupabaseV60() === true;
-    } catch (e) { return false; }
+    // Unica autoridad: el rol que devolvio coi_current_role() y que la capa
+    // confirmo al leer. Es exactamente lo que evaluan las policies RESTRICTIVE,
+    // asi que la UI habilita lo mismo que la base va a aceptar. Sin rol
+    // confirmado no hay mutaciones.
+    //
+    // No se usa el helper legado ni ningun email: un administrador real con
+    // otro correo quedaba sin controles, y una cuenta conocida degradada a
+    // consulta los veia habilitados aunque la base fuera a rechazarla.
+    return runtime.rol === 'administrador';
   }
 
   // Rol operativo segun el servidor. Es la misma funcion que usan las policies,
@@ -28090,24 +28095,18 @@ document.addEventListener('click',function(event){
   }
 
   // ---------------------------------------------------------- catalogo de OC
-  function filasOC() {
-    try { return (typeof window.todasLasOC === 'function' ? window.todasLasOC() : []) || []; } catch (e) { return []; }
-  }
-  // Devuelve el nro de OC canonico si existe en el catalogo remoto, o null.
-  // Nunca crea una OC porque aparezca escrita en un ST.
-  function resolverOC(valor) {
-    const k = clave(valor);
-    if (!k) return null;
-    for (const r of filasOC()) {
-      const i = (r && r.item) || r || {};
-      const candidatos = [r && r.oc, i.numeroOC, i.oc, i.nro_oc, i.OC_NRO, i.nroOC];
-      for (const c of candidatos) {
-        if (clave(c) === k) return texto(c);
-      }
-    }
-    return null;
-  }
-  const hayCatalogoOC = () => filasOC().length > 0;
+  //
+  // La capa ya NO consulta todasLasOC() para decidir sobre una OC. Ese catalogo
+  // es la cache local del modulo de Ordenes, compara por texto y puede quedar
+  // desactualizada en las dos direcciones: no tener una OC recien creada en otro
+  // puesto, o conservar una que ya se elimino. Usarla como gate negativo
+  // bloqueaba altas validas, y como gate positivo dejaria pasar asociaciones
+  // obsoletas.
+  //
+  // La unica autoridad es Supabase: ocExisteEnSupabase() normaliza el numero con
+  // coi_normalize_order_number —la misma identidad que el trigger de
+  // coi_servicios_tecnicos_um— y despues busca la orden. Por eso filasOC(),
+  // resolverOC() y hayCatalogoOC() se retiraron en lugar de dejarlos sin uso.
 
   // Confirma contra Supabase que la OC existe HOY. Devuelve el nro_oc canonico
   // del servidor, o null si no existe. Lanza si la lectura falla: ante una
@@ -28205,22 +28204,32 @@ document.addEventListener('click',function(event){
   }
 
   // ---------------------------------------------------------- lectura
-  async function leerPaginado(c, tabla, campos, orden) {
+  // Paginado por keyset sobre el uuid. NO se usa offset/range: iba ordenado por
+  // codigo_um o por fecha, que son editables, de modo que una insercion o una
+  // edicion de otro puesto entre dos paginas corre las filas y produce saltos o
+  // repeticiones. Y el resultado se marcaba «sincronizado» igual, que es lo
+  // peor: un snapshot incompleto presentado como completo.
+  //
+  // `id` es la unica columna que no cambia nunca, asi que ordenar por ella y
+  // pedir «id > ultimo» da un recorrido estable aunque el conjunto se mueva.
+  // La deduplicacion se conserva como defensa, pero ya no es de ella que
+  // depende recuperar una fila.
+  async function leerPaginado(c, tabla, campos) {
     const filas = [];
-    // Se avanza por la cantidad de filas REALMENTE devueltas: PostgREST aplica
-    // su propio max-rows y puede entregar menos de lo pedido.
-    for (let desde = 0, vueltas = 0; vueltas < 1000; vueltas++) {
-      const { data, error } = await c
-        .from(tabla)
-        .select(campos)
-        .order(orden, { ascending: true })
-        .order('id', { ascending: true })
-        .range(desde, desde + PAGE_SIZE - 1);
+    let ultimoId = null;
+    for (let vueltas = 0; vueltas < 1000; vueltas++) {
+      let consulta = c.from(tabla).select(campos).order('id', { ascending: true });
+      if (ultimoId !== null) consulta = consulta.gt('id', ultimoId);
+      // Se pide de a PAGE_SIZE desde el principio del tramo: el cursor es el
+      // ultimo id visto, no un desplazamiento.
+      const { data, error } = await consulta.limit(PAGE_SIZE);
       if (error) throw error;
       const pagina = Array.isArray(data) ? data : [];
       if (!pagina.length) break;
       filas.push.apply(filas, pagina);
-      desde += pagina.length;
+      ultimoId = pagina[pagina.length - 1].id;
+      // PostgREST puede devolver menos de lo pedido por su propio max-rows, de
+      // modo que solo una pagina vacia termina el recorrido.
     }
     const vistos = new Set();
     return filas.filter((r) => (vistos.has(r.id) ? false : (vistos.add(r.id), true)));
@@ -28269,8 +28278,8 @@ document.addEventListener('click',function(event){
       if (vigente()) runtime.rol = perfil.rol;
 
       try {
-        const crudasUM = await leerPaginado(c, TABLA_UM, CAMPOS_UM, 'codigo_um');
-        const crudasST = await leerPaginado(c, TABLA_ST, CAMPOS_ST, 'fecha');
+        const crudasUM = await leerPaginado(c, TABLA_UM, CAMPOS_UM);
+        const crudasST = await leerPaginado(c, TABLA_ST, CAMPOS_ST);
         if (!vigente()) return listaUM();
 
         const ums = crudasUM.map(desdeSupabaseUM);
@@ -28312,7 +28321,7 @@ document.addEventListener('click',function(event){
 
   // ---------------------------------------------------------- mutaciones
   const enCurso = new Set();
-  async function conManejoDeError(llave, accion, exito) {
+  async function conManejoDeError(llave, accion, exito, mensajeInline) {
     // Lock de mutacion: evita que un doble click dispare dos veces lo mismo.
     if (llave && enCurso.has(llave)) return false;
     if (llave) enCurso.add(llave);
@@ -28323,8 +28332,15 @@ document.addEventListener('click',function(event){
       await recargarYRefrescar();
       return true;
     } catch (error) {
-      if (error && error.coiMensajeDirecto) avisar(error.message, 'warn');
-      else avisar('No se pudo guardar: ' + ((error && error.message) || String(error)), 'error');
+      const detalle = (error && error.coiMensajeDirecto)
+        ? error.message
+        : 'No se pudo guardar: ' + ((error && error.message) || String(error));
+      avisar(detalle, (error && error.coiMensajeDirecto) ? 'warn' : 'error');
+      // El toast se desvanece; si quien llama ofrecio un canal junto al
+      // formulario, el motivo queda a la vista donde el operador esta mirando.
+      if (typeof mensajeInline === 'function') {
+        try { mensajeInline(detalle, 'warn'); } catch (e) {}
+      }
       await recargarYRefrescar();
       return false;
     } finally {
@@ -28854,12 +28870,12 @@ document.addEventListener('click',function(event){
       nroOC = texto(ocOriginal);
       ocSinCambios = true;
     } else if (datos.oc) {
-      // OC nueva o cambiada: el catalogo en memoria sirve para avisar temprano,
-      // pero la decision la toma Supabase mas abajo. todasLasOC() puede venir de
-      // la cache local del modulo de Ordenes y contener una OC que ya no existe.
-      if (hayCatalogoOC() && !resolverOC(datos.oc)) {
-        return { error: 'La OC ' + datos.oc + ' no existe en Órdenes. Corrija el número o deje el campo vacío.' };
-      }
+      // OC nueva o cambiada: la decide Supabase, siempre. El catalogo en memoria
+      // NO se consulta para rechazar: que la OC no figure ahi no prueba que no
+      // exista —puede haberse creado recien en otro puesto, o el operador puede
+      // haber escrito una variante que coi_normalize_order_number acepta y ese
+      // catalogo compara por texto—. Usarlo como gate negativo bloqueaba altas
+      // perfectamente validas.
       ocPorConfirmar = texto(datos.oc);
       nroOC = ocPorConfirmar;
     }
@@ -28911,7 +28927,10 @@ document.addEventListener('click',function(event){
     const datos = leerFormST(prefijo, editando ? editando._unidadId : unidadFija);
     const preparado = prepararFilaST(datos,
       editando ? editando._supabaseId : null,
-      editando ? editando.nroOC : null,
+      // La OC renderizada, no la del runtime: si el remoto renumero mientras el
+      // formulario estaba enfocado, comparar contra el runtime haria creer que
+      // el operador cambio la OC y se rechazaria su edicion.
+      editando ? stEditandoOCOriginal : null,
       editando ? stEditandoEstadoOriginal : null);
     if (preparado.error) {
       mensaje(preparado.error, 'warn');
@@ -28955,7 +28974,7 @@ document.addEventListener('click',function(event){
         if (preparado.ocSinCambios) delete patch.nro_oc;
         await actualizarST(uuid, patch, stEditandoVersion);
         limpiarEdicionST();
-      }, 'Servicio Técnico actualizado.');
+      }, 'Servicio Técnico actualizado.', mensaje);
       return;
     }
     conManejoDeError(
@@ -28964,7 +28983,8 @@ document.addEventListener('click',function(event){
         await confirmarOC();
         await crearST(preparado.fila);
       },
-      'Servicio Técnico guardado.'
+      'Servicio Técnico guardado.',
+      mensaje
     );
   }
 
@@ -28982,6 +29002,7 @@ document.addEventListener('click',function(event){
     stEditandoUuid = null;
     stEditandoVersion = null;
     stEditandoEstadoOriginal = null;
+    stEditandoOCOriginal = null;
   }
 
   function salirDeEdicionST() {
@@ -29215,6 +29236,9 @@ document.addEventListener('click',function(event){
   // el mismo motivo que en UM: el runtime puede avanzar sin repintar los inputs.
   let stEditandoVersion = null;
   let stEditandoEstadoOriginal = null;
+  // OC que mostraba el formulario cuando se pintaron los inputs. Un refresco
+  // que no repinta no puede moverla.
+  let stEditandoOCOriginal = null;
 
   function tablaSTFicha(u) {
     const filas = stDeUM(u._supabaseId).slice().sort((a, b) => texto(b.fecha).localeCompare(texto(a.fecha)));
@@ -29257,6 +29281,7 @@ document.addEventListener('click',function(event){
     // estado original que se le permite conservar.
     stEditandoVersion = editando ? (st.fechaActualizacion || null) : null;
     stEditandoEstadoOriginal = editando ? (st.estado || null) : null;
+    stEditandoOCOriginal = editando ? (st.nroOC || null) : null;
     return '<div class="st-r16-ficha-form">' +
       '<h4>' + (editando
         ? 'Editar el Servicio Técnico ' + esc(st.nroST || '')

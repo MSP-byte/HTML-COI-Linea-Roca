@@ -79,7 +79,10 @@ async function prepararEntorno(page, opciones) {
     ums: [], sts: [], legadoUM: null, legadoST: null,
     fallaSelect: false, fallaMutacion: false, errorMutacion: 'RLS denegado',
     retardoSelectMs: 0, pageSize: 1000, admin: true, sinSesion: false, rol: 'administrador',
-    ordenes: [], fallaSelectOC: false, fallaRol: false, fallaNormalizacion: false
+    ordenes: [], fallaSelectOC: false, fallaRol: false, fallaNormalizacion: false,
+    // Simula que otro administrador inserta y edita filas entre pagina y
+    // pagina: es el escenario que rompia el paginado por offset.
+    insertarEntrePaginas: false
   }, opciones);
 
   await page.addInitScript((c) => {
@@ -139,6 +142,8 @@ async function prepararEntorno(page, opciones) {
       };
       const cumple = (fila) => st.filtros.every((f) => {
         if (f.op === 'is') return fila[f.col] === null || fila[f.col] === undefined;
+        if (f.op === 'range') return true;
+        if (f.op === 'gt') return String(fila[f.col]) > String(f.val);
         if (f.op === 'ilike') {
           return String(fila[f.col] == null ? '' : fila[f.col]).toUpperCase() ===
             String(f.val == null ? '' : f.val).toUpperCase();
@@ -148,11 +153,12 @@ async function prepararEntorno(page, opciones) {
       const api = {
         select() { return api; },
         order() { return api; },
-        range(a, b) { st.rango = [a, b]; return api; },
+        range(a, b) { st.rango = [a, b]; st.filtros.push({ op: 'range', col: null, val: [a, b] }); return api; },
         in() { return api; },
         limit(n) { st.limite = n; return api; },
         eq(col, val) { anotar('eq', col, val); return api; },
         ilike(col, val) { anotar('ilike', col, val); return api; },
+        gt(col, val) { anotar('gt', col, val); return api; },
         is(col, val) { anotar(val === null ? 'is' : 'eq', col, val); return api; },
         single() { return api._run(true); },
         insert(f) { st.op = 'insert'; st.payload = f; return api; },
@@ -207,16 +213,27 @@ async function prepararEntorno(page, opciones) {
             return { data: [], error: null };
           }
 
-          registrar('select:' + st.tabla, st.rango);
+          registrar('select:' + st.tabla, st.filtros);
           if (window.__H05_CFG__.retardoSelectMs) await espera(window.__H05_CFG__.retardoSelectMs);
           if (window.__H05_CFG__.fallaSelect) return { data: null, error: { message: 'fallo de red' } };
           if (!sesionActiva) return { data: null, error: { message: 'JWT ausente' } };
-          let base = leer();
+          // El paginado real ordena por id: el fake hace lo mismo para que el
+          // cursor tenga sentido.
+          let base = leer().slice().sort((x, y) => String(x.id).localeCompare(String(y.id)));
           if (st.filtros.length) base = base.filter((f) => cumple(f));
-          if (st.limite) return { data: base.slice(0, st.limite), error: null };
-          const [a, b] = st.rango || [0, 999999];
-          const tope = Math.min(b, a + window.__H05_CFG__.pageSize - 1);
-          return { data: base.slice(a, tope + 1), error: null };
+          const tomar = st.limite || window.__H05_CFG__.pageSize;
+          const pagina = base.slice(0, Math.min(tomar, window.__H05_CFG__.pageSize));
+          // Entre paginas, otro puesto inserta y edita. Con offset esto producia
+          // saltos y repeticiones; con cursor por id no puede.
+          if (window.__H05_CFG__.insertarEntrePaginas && esUM && pagina.length) {
+            const n = ums.length;
+            const intruso = Object.assign({}, ums[0], {
+              id: '0000000' + n + '-0000-4000-8000-000000000000',
+              codigo_um: 'INTRUSA-' + n
+            });
+            ums = [intruso].concat(ums);
+          }
+          return { data: pagina, error: null };
         },
         then(res, rej) { return api._run(false).then(res, rej); }
       };
@@ -285,8 +302,15 @@ async function abrirSinEsperarCarga(page) {
 
 // El arranque de la aplicacion reasigna esAutorizacionAdministrativaSupabaseV60,
 // de modo que fijarlo en addInitScript no alcanza.
+// La autoridad de la UI pasa a ser el rol que confirmo Supabase, no el helper
+// legado. Se fija el rol del runtime y ademas el helper viejo, para que ninguna
+// prueba pueda pasar por la razon equivocada: si la capa volviera a mirar el
+// helper, los casos que exigen «sin permisos» seguirian detectandolo.
 async function fijarAdmin(page, valor) {
-  await page.evaluate((v) => { window.esAutorizacionAdministrativaSupabaseV60 = () => v; }, valor);
+  await page.evaluate((v) => {
+    window.esAutorizacionAdministrativaSupabaseV60 = () => v;
+    if (window.__COI_UM_H05__) window.__COI_UM_H05__.rol = v ? 'administrador' : 'consulta';
+  }, valor);
 }
 
 // Catalogo de OC en memoria: un ST solo puede citar una OC que exista aca.
@@ -349,6 +373,7 @@ async function irAUM(page) {
 
 const estado = (page) => page.evaluate(() => ({
   origen: window.__COI_UM_H05__.origen,
+  rol: window.__COI_UM_H05__.rol,
   sincronizado: window.__COI_UM_H05__.sincronizado,
   ultimoError: window.__COI_UM_H05__.ultimoError,
   ums: (window.unidadesMantenimiento || []).map((u) => ({
@@ -2769,4 +2794,285 @@ test('110 · cambiar la OC de un ST existente resuelve por la identidad canonica
   const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
   expect(updates).toHaveLength(1);
   expect(updates[0].payload.patch.nro_oc).toBe('4530003333');
+});
+
+// ==================================== sexta ronda de review del PR #59
+
+// --- F1: el catalogo local nunca es autoridad negativa.
+
+test('111 · una OC ausente del catalogo local pero presente en Supabase se acepta', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], ordenes: [{ nro_oc: '4530007777' }] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  // Catalogo POBLADO pero sin la OC: antes eso bastaba para rechazar.
+  await sembrarOC(page, ['4530001111', '4530002222'], { soloCache: true });
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-HINT-1');
+  await page.fill('#sth5_oc', '4530007777');
+  await page.fill('#sth5_descripcion', 'OC recien creada en otro puesto');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const inserts = soloOp(e, 'insert:coi_servicios_tecnicos_um');
+  expect(inserts).toHaveLength(1);
+  expect(inserts[0].payload.nro_oc).toBe('4530007777');
+});
+
+test('112 · una OC que solo vive en el catalogo local se rechaza', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], ordenes: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530009999'], { soloCache: true });
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-HINT-2');
+  await page.fill('#sth5_oc', '4530009999');
+  await page.fill('#sth5_descripcion', 'Dato viejo de la cache');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+  await expect(page.locator('#coiToastV581')).toContainText('no existe en Órdenes');
+});
+
+test('113 · una variante canonica se acepta con el catalogo local poblado', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], ordenes: [{ nro_oc: '4530008964' }] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  // El catalogo compara por texto: «OC 4530008964» no figura literalmente.
+  await sembrarOC(page, ['4530008964'], { soloCache: true });
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-HINT-3');
+  await page.fill('#sth5_oc', 'OC 4530-00.89/64');
+  await page.fill('#sth5_descripcion', 'Variante canonica valida');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1200);
+
+  const inserts = soloOp(await estado(page), 'insert:coi_servicios_tecnicos_um');
+  expect(inserts).toHaveLength(1);
+  expect(inserts[0].payload.nro_oc).toBe('4530008964');
+});
+
+test('114 · con el catalogo poblado, un fallo remoto sigue sin guardar', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [], ordenes: [{ nro_oc: '4530008964' }], fallaSelectOC: true
+  });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964'], { soloCache: true });
+  await irAUM(page);
+
+  await page.selectOption('#sth5_um', UM_A.id);
+  await page.fill('#sth5_nro', 'ST-HINT-4');
+  await page.fill('#sth5_oc', '4530008964');
+  await page.fill('#sth5_descripcion', 'El remoto no responde');
+  await page.click('#btnGuardarSTH05');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(soloOp(e, 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
+  await expect(page.locator('#coiToastV581')).toContainText('No se pudo verificar la OC');
+});
+
+// --- F2: la OC original es la RENDERIZADA, no la del runtime.
+
+test('115 · una renumeracion remota no convierte una edicion de descripcion en cambio de OC', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [ST_A], ordenes: [{ nro_oc: '4530008964' }]
+  });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  // Los inputs muestran la OC A.
+  await expect(page.locator('#stfh5_oc')).toHaveValue('4530008964');
+  await page.focus('#stfh5_descripcion');
+
+  // El servidor renumera A -> B y el runtime lo absorbe, pero el formulario
+  // sigue enfocado y no se repinta.
+  await page.evaluate((id) => {
+    window.__H05_SET_ORDENES__([{ nro_oc: '4530555555' }]);
+    window.__H05_SET_STS__([Object.assign({}, window.__H05_CFG__.sts[0], {
+      id: id, nro_oc: '4530555555'
+    })]);
+  }, ST_A.id);
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForTimeout(900);
+
+  // El runtime ya tiene B; los inputs siguen en A.
+  const runtimeOC = await page.evaluate(() => window.__COI_UM_H05__.confirmadoST[0].nroOC);
+  expect(runtimeOC).toBe('4530555555');
+  await expect(page.locator('#stfh5_oc')).toHaveValue('4530008964');
+
+  await page.fill('#stfh5_descripcion', 'Solo cambia la descripcion');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  expect(updates[0].payload.patch.descripcion).toBe('Solo cambia la descripcion');
+  // La OC no viaja: para el formulario no cambio.
+  expect(Object.prototype.hasOwnProperty.call(updates[0].payload.patch, 'nro_oc')).toBe(false);
+  // No se intento validar el numero viejo.
+  const busquedas = soloOp(e, 'select:coi_ordenes')
+    .filter((l) => (l.payload || []).some((f) => f.col === 'nro_oc'));
+  expect(busquedas).toHaveLength(0);
+  // Y la renumeracion remota sobrevive.
+  expect(e.sts[0].oc).toBe('4530555555');
+});
+
+test('116 · si el formulario se repinta, el token de OC pasa a ser la nueva', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [ST_A], ordenes: [{ nro_oc: '4530008964' }]
+  });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  // Sin foco dentro, el refresco SI repinta y el token se actualiza.
+  await page.evaluate((id) => {
+    window.__H05_SET_ORDENES__([{ nro_oc: '4530666666' }]);
+    window.__H05_SET_STS__([Object.assign({}, window.__H05_CFG__.sts[0], {
+      id: id, nro_oc: '4530666666'
+    })]);
+    document.activeElement && document.activeElement.blur();
+  }, ST_A.id);
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForTimeout(1000);
+
+  await expect(page.locator('#stfh5_oc')).toHaveValue('4530666666');
+
+  await page.fill('#stfh5_descripcion', 'Editada tras el repintado');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  // Tampoco viaja: para el formulario repintado, la OC sigue sin cambiar.
+  expect(Object.prototype.hasOwnProperty.call(updates[0].payload.patch, 'nro_oc')).toBe(false);
+  expect(e.sts[0].oc).toBe('4530666666');
+});
+
+// --- F3: el paginado va por keyset sobre el uuid.
+
+test('117 · el paginado usa cursor por id, no offset sobre campos editables', async ({ page }) => {
+  const muchas = Array.from({ length: 7 }, (_, i) => Object.assign({}, UM_A, {
+    id: '6666666' + i + '-6666-4666-8666-666666666666',
+    codigo_um: 'KEY-' + String(i).padStart(3, '0')
+  }));
+  await prepararEntorno(page, { ums: muchas, sts: [], pageSize: 3 });
+  await abrir(page);
+
+  const e = await estado(page);
+  expect(e.ums).toHaveLength(7);
+  expect(new Set(e.ums.map((u) => u.uuid)).size).toBe(7);
+  // Cada pagina posterior a la primera lleva el cursor por id.
+  const lecturas = soloOp(e, 'select:coi_unidades_mantenimiento');
+  expect(lecturas.length).toBeGreaterThan(2);
+  const conCursor = lecturas.filter((l) => (l.payload || []).some((f) => f.col === 'id' && f.op === 'gt'));
+  expect(conCursor.length).toBeGreaterThan(0);
+  // Y ninguna usa offset.
+  expect(lecturas.every((l) => !(l.payload || []).some((f) => f.op === 'range'))).toBe(true);
+});
+
+test('118 · insertar filas entre paginas no pierde ni duplica ninguna', async ({ page }) => {
+  // Diez UM con ids ordenables; el fake devuelve de a 3.
+  const base = Array.from({ length: 10 }, (_, i) => Object.assign({}, UM_A, {
+    id: '7777777' + i + '-7777-4777-8777-777777777777',
+    codigo_um: 'PAG-' + String(i).padStart(3, '0')
+  }));
+  await prepararEntorno(page, { ums: base, sts: [], pageSize: 3, insertarEntrePaginas: true });
+  await abrir(page);
+
+  const e = await estado(page);
+  // Las 10 originales siguen estando, sin repetidos, pese a que el fake inserta
+  // y edita filas entre pagina y pagina.
+  const codigos = e.ums.map((u) => u.codigo);
+  for (const u of base) expect(codigos).toContain(u.codigo_um);
+  expect(new Set(e.ums.map((u) => u.uuid)).size).toBe(e.ums.length);
+  expect(e.sincronizado).toBe(true);
+});
+
+// --- F4: la autoridad de la UI es el rol confirmado por Supabase.
+
+test('119 · un administrador con otro email tiene los controles habilitados', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], rol: 'administrador', admin: false });
+  await abrir(page);
+  // El helper legado dice NO y el email no es el conocido: da igual, manda el rol.
+  await page.evaluate(() => {
+    window.esAutorizacionAdministrativaSupabaseV60 = () => false;
+  });
+  await irAUM(page);
+
+  const e = await estado(page);
+  expect(e.rol).toBe('administrador');
+  await expect(page.locator('#btnGuardarUMH05')).toBeEnabled();
+  await expect(page.locator('#umh5_codigo')).toBeEnabled();
+});
+
+test('120 · el email conocido con rol consulta NO habilita controles', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], rol: 'consulta', admin: true });
+  await abrir(page);
+  // El helper legado dice SI —es admin@coiroca.com—, pero el rol real es consulta.
+  await page.evaluate(() => {
+    window.esAutorizacionAdministrativaSupabaseV60 = () => true;
+  });
+  await irAUM(page);
+
+  const e = await estado(page);
+  expect(e.rol).toBe('consulta');
+  // Lectura si.
+  expect(e.sincronizado).toBe(true);
+  expect(e.ums).toHaveLength(1);
+  // Mutaciones no.
+  await expect(page.locator('#btnGuardarUMH05')).toBeDisabled();
+  await expect(page.locator('#umh5_codigo')).toBeDisabled();
+  await expect(page.locator('#umFormMsgH05')).toContainText('Ingrese como Administrador');
+});
+
+test('121 · sin rol confirmado no hay mutaciones ni sincronizacion', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], rol: null, admin: true });
+  await abrir(page);
+  await page.evaluate(() => {
+    window.esAutorizacionAdministrativaSupabaseV60 = () => true;
+  });
+  await irAUM(page);
+
+  const e = await estado(page);
+  expect(e.sincronizado).toBe(false);
+  expect(e.ums).toHaveLength(0);
+  await expect(page.locator('#btnGuardarUMH05')).toBeDisabled();
+});
+
+test('122 · el administrador conserva el flujo normal de alta', async ({ page }) => {
+  await prepararEntorno(page, { ums: [], sts: [], rol: 'administrador', admin: false });
+  await abrir(page);
+  await page.evaluate(() => {
+    window.esAutorizacionAdministrativaSupabaseV60 = () => false;
+  });
+  await irAUM(page);
+
+  await page.fill('#umh5_codigo', 'ASC-ROL');
+  await page.selectOption('#umh5_tipo', 'Ascensor');
+  await page.selectOption('#umh5_estacion', { index: 1 });
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(1100);
+
+  const e = await estado(page);
+  expect(soloOp(e, 'insert:coi_unidades_mantenimiento')).toHaveLength(1);
+  expect(e.ums.map((u) => u.codigo)).toContain('ASC-ROL');
 });
