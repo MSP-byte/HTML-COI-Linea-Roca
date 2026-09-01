@@ -3395,3 +3395,83 @@ test('135 · el estado desconocido tampoco se ve verde en la ficha', async ({ pa
     expect(b.clase).not.toContain('activo');
   });
 });
+
+// --- El listado de UM sigue siendo de la capa H05 despues del primer pintado.
+//
+// La capa legada V58.1R9 repinta #umTbody desde temporizadores propios
+// (900/2400/5200 ms) y desde sus listeners de input/change, llamando a
+// renderUMFinal() por su nombre lexico dentro de un IIFE cerrado: sustituir
+// window.renderUnidadesMantenimiento no lo alcanza. Ese repintado deriva la
+// clase del estado a partir del TEXTO, con lo que «Mantenimiento» vuelve a
+// verse amarillo y «Reparación programada» directamente verde.
+//
+// El caso 134 fallaba de forma intermitente por esto: en un runner lento el
+// repintado legado caia dentro de la ventana de medicion. Aca no se espera a
+// ningun temporizador: se reproduce el repintado a mano y se exige que la capa
+// autoritativa recupere la tabla.
+
+const REPINTADO_LEGADO = (ums) => ums.map((u) =>
+  '<tr class="row-clickable" data-open-um="' + u.codigo_um + '">' +
+  '<td><b>' + u.codigo_um + '</b></td><td>' + u.tipo_um + '</td>' +
+  '<td>' + u.estacion + '</td><td>—</td><td>—</td>' +
+  '<td><span class="um-status ' +
+  (String(u.estado).toUpperCase().indexOf('MANT') >= 0 ? 'mantenimiento' : 'activo') +
+  '">' + u.estado + '</span></td>' +
+  '<td>—</td><td>—</td><td>—</td>' +
+  '<td><button type="button" class="btn-open-um" data-open-um="' + u.codigo_um + '">Ver ficha UM</button></td>' +
+  '</tr>'
+).join('');
+
+test('136 · un repintado legado de la tabla de UM no reinterpreta el estado', async ({ page }) => {
+  const ums = [
+    UM_ESTADO(1, 'ACTIVA'),
+    UM_ESTADO(4, 'Mantenimiento'),
+    UM_ESTADO(5, 'Reparación programada')
+  ];
+  await prepararEntorno(page, { ums: ums, sts: [] });
+  await abrir(page);
+  await irAUM(page);
+
+  // Estado de partida: lo pinta la capa autoritativa.
+  const antes = await badges(page);
+  expect(antes.find((b) => b.texto === 'Mantenimiento').clase).toContain('sindatos');
+
+  // La capa legada pisa la tabla, exactamente como lo hace renderUMFinal().
+  await page.evaluate((html) => {
+    document.getElementById('umTbody').innerHTML = html;
+  }, REPINTADO_LEGADO(ums));
+  await page.waitForTimeout(300);
+
+  // La capa autoritativa recupero la tabla: filas propias y semaforo correcto.
+  const despues = await badges(page);
+  expect(despues).toHaveLength(3);
+  const porTexto = {};
+  despues.forEach((b) => { porTexto[b.texto] = b.clase; });
+  expect(porTexto['ACTIVA']).toContain('activo');
+  expect(porTexto['Mantenimiento']).toContain('sindatos');
+  expect(porTexto['Mantenimiento']).not.toContain('mantenimiento');
+  expect(porTexto['Reparación programada']).toContain('sindatos');
+  expect(porTexto['Reparación programada']).not.toContain('activo');
+
+  // Y las filas volvieron a tener los enganches de esta capa.
+  const enganches = await page.evaluate(() => ({
+    h05: document.querySelectorAll('#umTbody [data-h05-open-um]').length,
+    legadas: document.querySelectorAll('#umTbody [data-open-um]:not([data-h05-open-um])').length
+  }));
+  expect(enganches.h05).toBeGreaterThan(0);
+  expect(enganches.legadas).toBe(0);
+});
+
+test('137 · la vigilancia no se dispara sola ni pierde el estado sin UM', async ({ page }) => {
+  await prepararEntorno(page, { ums: [], sts: [] });
+  await abrir(page);
+  await irAUM(page);
+  await page.waitForTimeout(600);
+
+  // Sin UM la tabla queda con su mensaje, que no trae data-open-um: la
+  // vigilancia no puede confundirlo con un repintado ajeno y entrar en bucle.
+  await expect(page.locator('#umTbody')).toContainText('No hay Unidades de Mantenimiento cargadas en Supabase');
+  const e = await estado(page);
+  expect(e.ums).toHaveLength(0);
+  expect(e.escriturasLegacy).toEqual([]);
+});

@@ -131,6 +131,26 @@ check(escritasST.includes('nro_st'), 'el insert de ST no fija nro_st');
 check(escritasST.includes('orden_id'), 'el insert de ST no fija orden_id: la OC se asocia por UUID');
 check(escritasST.includes('nro_oc'), 'el insert de ST no fija nro_oc');
 
+// La tabla de UM sigue siendo de esta capa despues del primer pintado.
+//
+// La capa legada V58.1R9 repinta #umTbody desde temporizadores propios y desde
+// sus listeners de input/change, llamando a renderUMFinal() por su nombre
+// lexico dentro de un IIFE cerrado: sustituir window.renderUnidadesMantenimiento
+// no lo alcanza. Ese repintado deriva la clase del estado a partir del TEXTO y
+// reintroduce el verde para un valor remoto desconocido.
+check(capa.texto.indexOf('function vigilarTablaUM()') >= 0,
+  'falta la vigilancia de #umTbody: un repintado legado reinterpreta el estado');
+check(/new MutationObserver\([\s\S]{0,400}renderTablaUM\(\)/.test(capa.texto),
+  'la vigilancia debe reafirmar el render autoritativo de la tabla');
+// La condicion es el markup ajeno, no un temporizador: no depende de ganar una
+// carrera, y la fila de tabla vacia no la dispara.
+check(capa.texto.indexOf(
+  "cuerpo.querySelector('[data-open-um]:not([data-h05-open-um])')") >= 0,
+  'la vigilancia debe reaccionar al markup ajeno, no a un temporizador');
+// Y la capa legada sigue existiendo: esto no la desactiva, la corrige.
+check(html.indexOf('function renderUMFinal()') >= 0,
+  'el control asume que la capa legada V58.1R9 sigue presente: revisar si cambio');
+
 // ------------------------------------------- 2) orden de carga del congelamiento
 // La deteccion NO puede depender de una mezcla concreta de CRLF/LF: el working
 // copy de Windows tiene CRLF y el runner de Linux del Quality Gate obtiene LF,

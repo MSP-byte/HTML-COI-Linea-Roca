@@ -2,6 +2,12 @@ const { test, expect } = require('@playwright/test');
 
 const ORDER_ID = '81111111-1111-4111-8111-111111111111';
 const ORDER_NUMBER = '4530099888';
+// RPC de solo lectura. coi_current_role() devuelve el rol del llamador
+// (`language sql`, `stable`, un select sobre profiles): la capa H04/H05 la usa
+// para decidir la autoridad de la UI. No persiste nada, de modo que no puede
+// contar como escritura en las aserciones de «no muta ni persiste».
+const RPC_DE_LECTURA = new Set(['coi_current_role']);
+
 const OLD_DATE = '2026-08-31';
 const NEW_DATE = '2027-10-15';
 const EXPECTED_STAGES = [
@@ -73,6 +79,7 @@ async function openFixture(page, {
       rejectCT: false,
       rejectCircuit: false,
       writes: [],
+      reads: [],
       localWrites: 0,
       alertRefreshes: 0,
       confirmations: 0,
@@ -103,7 +110,12 @@ async function openFixture(page, {
       },
       from: table => queryFor(table),
       rpc: async (name, args) => {
-        state.writes.push({ name, args: clone(args) });
+        // Lecturas: no mutan nada y no pueden contarse como persistencia.
+        if (RPC_DE_LECTURA.has(name)) {
+          state.reads.push({ name, args: clone(args) });
+        } else {
+          state.writes.push({ name, args: clone(args) });
+        }
         if (name === 'coi_guardar_orden_integral') {
           if (state.rejectCT) return { data: null, error: { code: '42501', message: 'permission denied fixture CT' } };
           Object.assign(state.persisted, clone(args.p_datos));
@@ -191,6 +203,7 @@ async function stateSnapshot(page) {
       certificableWithBalance: state.persisted.certificable_con_saldo,
       remainingBalance: state.persisted.saldo_remanente,
       writes: state.writes,
+      reads: state.reads,
       localWrites: state.localWrites,
       alertRefreshes: state.alertRefreshes,
       confirmations: state.confirmations,

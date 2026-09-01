@@ -29502,6 +29502,38 @@ document.addEventListener('click',function(event){
     if (window.__COI_UM_H05_BOUND__) return;
     window.__COI_UM_H05_BOUND__ = true;
 
+    // --- El listado de UM es de esta capa, tambien despues del primer pintado.
+    //
+    // La capa legada V58.1R9 repinta #umTbody desde sus propios temporizadores
+    // (900/2400/5200 ms tras la carga) y desde sus listeners de input/change,
+    // llamando a renderUMFinal() por su nombre lexico. Esa funcion vive dentro
+    // de un IIFE cerrado, de modo que sustituir window.renderUnidadesMantenimiento
+    // —como se hace mas arriba— no la alcanza: el override solo gobierna a quien
+    // llame por el global.
+    //
+    // Lo que repinta no es cosmetico. Pierde los enganches data-h05-* de las
+    // filas y, sobre todo, vuelve a derivar la clase del estado a partir de su
+    // TEXTO: un valor remoto que esta capa no reconoce —«Mantenimiento»,
+    // «Reparación programada»— reaparece en amarillo o directamente en verde,
+    // afirmando que la unidad esta operativa. Es exactamente el semaforo que
+    // badgeUM() dejo de hacer, reintroducido por la puerta de atras.
+    //
+    // Por eso la tabla se vigila: si aparece markup ajeno, esta capa la vuelve
+    // a pintar. La condicion es el markup, no un temporizador: no depende de
+    // ganarle una carrera a nadie.
+    (function vigilarTablaUM() {
+      const cuerpo = $('umTbody');
+      if (!cuerpo || typeof MutationObserver !== 'function') return;
+      // Una fila legada trae data-open-um sin data-h05-open-um. Las de esta
+      // capa traen las dos cosas, y la fila de tabla vacia no trae ninguna:
+      // asi el propio repintado no vuelve a dispararse.
+      const ajena = () => cuerpo.querySelector('[data-open-um]:not([data-h05-open-um])');
+      new MutationObserver(function () {
+        if (!ajena()) return;
+        try { renderTablaUM(); } catch (e) {}
+      }).observe(cuerpo, { childList: true, subtree: true });
+    })();
+
     // --- Clicks reales. Captura en window: corre antes que los listeners de
     // document, que estan dentro de IIFEs y llaman a stopImmediatePropagation.
     window.addEventListener('click', function (ev) {
