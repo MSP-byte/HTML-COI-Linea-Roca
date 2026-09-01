@@ -82,9 +82,13 @@ async function prepararEntorno(page, opciones) {
     fallaSelect: false, fallaMutacion: false, errorMutacion: 'RLS denegado',
     retardoSelectMs: 0, pageSize: 1000, admin: true, sinSesion: false, rol: 'administrador',
     ordenes: [], fallaSelectOC: false, fallaRol: false, fallaNormalizacion: false,
-    // Simula que otro administrador inserta y edita filas entre pagina y
-    // pagina: es el escenario que rompia el paginado por offset.
-    insertarEntrePaginas: false
+    // Simula que otro administrador inserta filas entre pagina y pagina.
+    // `true` = sin limite (escritura sostenida); un numero = esa cantidad de
+    // inserciones en total, repartidas entre los reintentos.
+    insertarEntrePaginas: false,
+    // Por defecto el intruso entra POR DEBAJO del cursor, que es el caso que
+    // el keyset por UUID no puede detectar solo.
+    intrusoMayor: false
   }, opciones);
 
   await page.addInitScript((c) => {
@@ -125,6 +129,8 @@ async function prepararEntorno(page, opciones) {
     const registrar = (op, payload) => window.__H05_LLAMADAS__.push({ op, payload });
     let ums = c.ums.slice();
     let sts = c.sts.slice();
+    // Cuantas filas lleva insertadas el «otro administrador».
+    let intrusas = 0;
     // Catalogo REMOTO de Ordenes: deliberadamente distinto de todasLasOC(),
     // que es la cache local del modulo.
     //
@@ -144,7 +150,7 @@ async function prepararEntorno(page, opciones) {
     function consulta(tabla) {
       // filtros acumula TODAS las condiciones; `filtro` se conserva como la
       // primera igualdad para no romper las aserciones que ya lo usan.
-      const st = { tabla, filtro: null, filtros: [], patch: null, op: null, rango: null, limite: 0 };
+      const st = { tabla, filtro: null, filtros: [], patch: null, op: null, rango: null, limite: 0, conteo: false };
       const anotar = (op, col, val) => {
         st.filtros.push({ op, col, val });
         if (op === 'eq' && !st.filtro) st.filtro = { col, val };
@@ -160,7 +166,9 @@ async function prepararEntorno(page, opciones) {
         return fila[f.col] === f.val;
       });
       const api = {
-        select() { return api; },
+        // PostgREST devuelve el conteo exacto sin traer filas cuando se pide
+        // { count: 'exact', head: true }.
+        select(cols, opciones) { st.conteo = Boolean(opciones && opciones.head); return api; },
         order() { return api; },
         range(a, b) { st.rango = [a, b]; st.filtros.push({ op: 'range', col: null, val: [a, b] }); return api; },
         in() { return api; },
@@ -222,6 +230,15 @@ async function prepararEntorno(page, opciones) {
             return { data: [], error: null };
           }
 
+          if (st.conteo) {
+            registrar('count:' + st.tabla, st.filtros);
+            if (window.__H05_CFG__.fallaSelect) return { data: null, count: null, error: { message: 'fallo de red' } };
+            if (!sesionActiva) return { data: null, count: null, error: { message: 'JWT ausente' } };
+            let todas = leer();
+            if (st.filtros.length) todas = todas.filter((f) => cumple(f));
+            // El conteo no trae filas y no mueve el conjunto: solo mide.
+            return { data: null, count: todas.length, error: null };
+          }
           registrar('select:' + st.tabla, st.filtros);
           if (window.__H05_CFG__.retardoSelectMs) await espera(window.__H05_CFG__.retardoSelectMs);
           if (window.__H05_CFG__.fallaSelect) return { data: null, error: { message: 'fallo de red' } };
@@ -234,11 +251,16 @@ async function prepararEntorno(page, opciones) {
           const pagina = base.slice(0, Math.min(tomar, window.__H05_CFG__.pageSize));
           // Entre paginas, otro puesto inserta y edita. Con offset esto producia
           // saltos y repeticiones; con cursor por id no puede.
-          if (window.__H05_CFG__.insertarEntrePaginas && esUM && pagina.length) {
-            const n = ums.length;
+          const cupo = window.__H05_CFG__.insertarEntrePaginas;
+          const quedan = cupo === true || (typeof cupo === 'number' && intrusas < cupo);
+          if (quedan && esUM && pagina.length) {
+            intrusas++;
+            // Por debajo del cursor el keyset no vuelve a pasar por esa fila:
+            // es justo el caso que el conteo tiene que delatar.
+            const prefijo = window.__H05_CFG__.intrusoMayor ? 'ffffff' : '000000';
             const intruso = Object.assign({}, ums[0], {
-              id: '0000000' + n + '-0000-4000-8000-000000000000',
-              codigo_um: 'INTRUSA-' + n
+              id: prefijo + intrusas + '0-0000-4000-8000-000000000000',
+              codigo_um: 'INTRUSA-' + intrusas
             });
             ums = [intruso].concat(ums);
           }
@@ -3005,12 +3027,12 @@ test('118 · insertar filas entre paginas no pierde ni duplica ninguna', async (
     id: '7777777' + i + '-7777-4777-8777-777777777777',
     codigo_um: 'PAG-' + String(i).padStart(3, '0')
   }));
-  await prepararEntorno(page, { ums: base, sts: [], pageSize: 3, insertarEntrePaginas: true });
+  await prepararEntorno(page, { ums: base, sts: [], pageSize: 3, insertarEntrePaginas: 1 });
   await abrir(page);
 
   const e = await estado(page);
   // Las 10 originales siguen estando, sin repetidos, pese a que el fake inserta
-  // y edita filas entre pagina y pagina.
+  // una fila entre pagina y pagina: el scan se descarta y se reinicia.
   const codigos = e.ums.map((u) => u.codigo);
   for (const u of base) expect(codigos).toContain(u.codigo_um);
   expect(new Set(e.ums.map((u) => u.uuid)).size).toBe(e.ums.length);
@@ -3474,4 +3496,122 @@ test('137 · la vigilancia no se dispara sola ni pierde el estado sin UM', async
   const e = await estado(page);
   expect(e.ums).toHaveLength(0);
   expect(e.escriturasLegacy).toEqual([]);
+});
+
+// ================================== octava ronda de review del PR #59
+
+// --- El paginado keyset cierra el snapshot, no solo lo ordena.
+//
+// `id` es un gen_random_uuid(): una fila insertada por otro puesto mientras
+// dura el recorrido puede caer POR DEBAJO del cursor y quedar afuera sin que
+// nada lo delate. El scan se acota entre dos conteos exactos del servidor; si
+// no coinciden, se descarta entero y se reinicia.
+
+// Filas suficientes para que el recorrido use mas de una pagina con el
+// PAGE_SIZE real de la capa (1000). Los id arrancan en «1» para que el intruso
+// «0…» quede por debajo del cursor y «f…» por encima.
+const MUCHAS_UM = (n) => Array.from({ length: n }, (_, i) => Object.assign({}, UM_A, {
+  id: '1' + String(i).padStart(7, '0') + '-1111-4111-8111-111111111111',
+  codigo_um: 'MASIVA-' + String(i).padStart(4, '0')
+}));
+
+// Solo lo necesario: devolver 1000+ filas por evaluate encarece el test sin
+// aportar nada.
+const resumen = (page) => page.evaluate(() => ({
+  sincronizado: window.__COI_UM_H05__.sincronizado,
+  ultimoError: window.__COI_UM_H05__.ultimoError,
+  total: (window.unidadesMantenimiento || []).length,
+  unicos: new Set((window.unidadesMantenimiento || []).map((u) => u._supabaseId)).size,
+  intrusas: (window.unidadesMantenimiento || []).filter((u) => String(u.codigoUM).indexOf('INTRUSA-') === 0).length,
+  conteos: window.__H05_LLAMADAS__.filter((l) => l.op === 'count:coi_unidades_mantenimiento').length,
+  paginas: window.__H05_LLAMADAS__.filter((l) => l.op === 'select:coi_unidades_mantenimiento').length
+}));
+
+test('138 · A · un insert con UUID por debajo del cursor obliga a releer entero', async ({ page }) => {
+  const base = MUCHAS_UM(1001);
+  await prepararEntorno(page, { ums: base, sts: [], insertarEntrePaginas: 1 });
+  await abrir(page);
+
+  const r = await resumen(page);
+  // El primer scan quedo corto —la intrusa cayo por debajo del cursor— y se
+  // reinicio: hubo mas de un par de conteos.
+  expect(r.conteos).toBeGreaterThan(2);
+  // Y el resultado final las tiene todas: las 1001 originales y la intrusa.
+  expect(r.total).toBe(1002);
+  expect(r.unicos).toBe(1002);
+  expect(r.intrusas).toBe(1);
+  expect(r.sincronizado).toBe(true);
+});
+
+test('139 · B · un insert con UUID por encima del cursor termina completo y sin duplicados', async ({ page }) => {
+  const base = MUCHAS_UM(1001);
+  await prepararEntorno(page, {
+    ums: base, sts: [], insertarEntrePaginas: 1, intrusoMayor: true
+  });
+  await abrir(page);
+
+  const r = await resumen(page);
+  expect(r.total).toBe(1002);
+  expect(r.unicos).toBe(1002);
+  expect(r.intrusas).toBe(1);
+  expect(r.sincronizado).toBe(true);
+});
+
+test('140 · C · con escritura sostenida no se publica un snapshot parcial', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: MUCHAS_UM(1001), sts: [], insertarEntrePaginas: true
+  });
+  await abrir(page);
+
+  const r = await resumen(page);
+  // El conjunto nunca se estabiliza: no se acepta un modelo incompleto.
+  expect(r.sincronizado).toBe(false);
+  expect(r.ultimoError).toMatch(/cambió durante la lectura/i);
+  // No hubo primer confirmado, de modo que no se publica nada.
+  expect(r.total).toBe(0);
+  // Y se reintento un numero acotado de veces, no indefinidamente.
+  expect(r.conteos).toBe(6);
+});
+
+test('141 · C · una lectura previa confirmada se conserva ante escritura sostenida', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A, UM_B], sts: [] });
+  await abrir(page);
+  expect((await resumen(page)).total).toBe(2);
+
+  // Ahora el remoto entra en escritura sostenida.
+  await page.evaluate(() => { window.__H05_CFG__.insertarEntrePaginas = true; });
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForTimeout(900);
+
+  const r = await resumen(page);
+  expect(r.sincronizado).toBe(false);
+  // Se conserva el ultimo remoto confirmado: ni cero, ni un listado a medias.
+  expect(r.total).toBe(2);
+  expect(r.intrusas).toBe(0);
+});
+
+test('142 · D · sin concurrencia el scan es una sola pasada', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A, UM_B], sts: [ST_A] });
+  await abrir(page);
+
+  const r = await resumen(page);
+  expect(r.sincronizado).toBe(true);
+  expect(r.total).toBe(2);
+  // Un conteo antes y otro despues: una unica pasada.
+  expect(r.conteos).toBe(2);
+  const e = await estado(page);
+  // El cursor sigue siendo por id y no aparece ningun offset.
+  const lecturas = soloOp(e, 'select:coi_unidades_mantenimiento');
+  expect(lecturas.every((l) => !(l.payload || []).some((f) => f.op === 'range'))).toBe(true);
+});
+
+test('143 · E · el remoto vacio sigue siendo un estado valido y sincronizado', async ({ page }) => {
+  await prepararEntorno(page, { ums: [], sts: [] });
+  await abrir(page);
+
+  const r = await resumen(page);
+  expect(r.sincronizado).toBe(true);
+  expect(r.ultimoError).toBeNull();
+  expect(r.total).toBe(0);
+  expect(r.conteos).toBe(2);
 });

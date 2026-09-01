@@ -27878,6 +27878,8 @@ document.addEventListener('click',function(event){
   const CAMPOS_UM = 'id,codigo_um,tipo_um,estacion,ramal,sector,descripcion,marca,modelo,nro_serie,estado,proveedor_mantenimiento,observaciones,fecha_creacion,fecha_actualizacion';
   const CAMPOS_ST = 'id,unidad_id,nro_st,orden_id,nro_oc,fecha,descripcion,tecnico,proveedor,estado,observaciones,fecha_creacion,fecha_actualizacion';
   const PAGE_SIZE = 1000;
+  // Pasadas del scan consistente antes de darlo por imposible.
+  const REINTENTOS_SCAN = 3;
 
   // Claves legadas. NO se borran: se vuelven invisibles para los lectores
   // operativos mientras H05 manda. H06 decide su destino final.
@@ -28241,6 +28243,45 @@ document.addEventListener('click',function(event){
     return filas.filter((r) => (vistos.has(r.id) ? false : (vistos.add(r.id), true)));
   }
 
+  // Conteo remoto EXACTO de lo que ESTE usuario puede ver: lo resuelve el
+  // servidor, respeta RLS, no trae filas y no depende de ningun orden.
+  // Devuelve null si el backend no informo un conteo.
+  async function contarRemoto(c, tabla) {
+    const { count, error } = await c.from(tabla).select('id', { count: 'exact', head: true });
+    if (error) throw error;
+    return typeof count === 'number' ? count : null;
+  }
+
+  // El keyset por UUID resolvio el problema de paginar sobre campos editables,
+  // pero no cierra el snapshot: `id` es aleatorio —gen_random_uuid()—, de modo
+  // que una fila que otro puesto inserte mientras dura el recorrido puede caer
+  // POR DEBAJO del cursor y quedar afuera sin que nada lo delate. El modelo se
+  // marcaba «sincronizado» igual, que es lo peor: incompleto y presentado como
+  // completo.
+  //
+  // El scan se acota entre dos conteos exactos. UM y ST no tienen borrado
+  // fisico operativo —baja logica y cancelacion— y `id` es inmutable, asi que
+  // si el conteo no se movio y se leyeron exactamente esas filas, el recorrido
+  // vio todo. Si no coincide, el scan se DESCARTA entero y se reinicia: no se
+  // remienda un snapshot parcial con lo que haya quedado.
+  async function leerConsistente(c, tabla, campos) {
+    let detalle = null;
+    for (let intento = 1; intento <= REINTENTOS_SCAN; intento++) {
+      const antes = await contarRemoto(c, tabla);
+      const filas = await leerPaginado(c, tabla, campos);
+      const despues = await contarRemoto(c, tabla);
+      // Sin conteo del servidor no hay nada que verificar: se conserva el
+      // comportamiento anterior en lugar de inventar una comprobacion.
+      if (antes === null || despues === null) return filas;
+      if (antes === despues && filas.length === despues) return filas;
+      detalle = antes + ' → ' + despues + ', leidas ' + filas.length;
+    }
+    // Escritura sostenida en el remoto. Lo honesto es no publicar un listado
+    // que no se pudo cerrar; quien llama conserva el ultimo confirmado.
+    throw new Error('El listado remoto cambió durante la lectura (' + tabla +
+      ': ' + detalle + '). No se muestra un listado incompleto: reintente.');
+  }
+
   async function cargar() {
     const generacion = ++runtime.generacion;
     const vigente = () => generacion === runtime.generacion;
@@ -28284,8 +28325,8 @@ document.addEventListener('click',function(event){
       if (vigente()) runtime.rol = perfil.rol;
 
       try {
-        const crudasUM = await leerPaginado(c, TABLA_UM, CAMPOS_UM);
-        const crudasST = await leerPaginado(c, TABLA_ST, CAMPOS_ST);
+        const crudasUM = await leerConsistente(c, TABLA_UM, CAMPOS_UM);
+        const crudasST = await leerConsistente(c, TABLA_ST, CAMPOS_ST);
         if (!vigente()) return listaUM();
 
         const ums = crudasUM.map(desdeSupabaseUM);
