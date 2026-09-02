@@ -88,7 +88,17 @@ async function prepararEntorno(page, opciones) {
     insertarEntrePaginas: false,
     // Por defecto el intruso entra POR DEBAJO del cursor, que es el caso que
     // el keyset por UUID no puede detectar solo.
-    intrusoMayor: false
+    intrusoMayor: false,
+    // En que tabla se dispara la insercion del «otro administrador»: mientras
+    // se pagina UM o mientras se pagina ST. Sirve para poner el commit ajeno
+    // ENTRE los dos scans del snapshot conjunto.
+    intrusoDurante: 'um',
+    // Que tablas toca ese commit: solo UM, solo ST, o las dos a la vez —una
+    // transaccion operativa real: alta de UM con su primer ST—.
+    intrusoDestino: 'um',
+    // Email de la sesion. La autoridad es el rol, no el correo: sirve para
+    // probar un administrador real con otro correo.
+    email: 'admin@coiroca.com'
   }, opciones);
 
   await page.addInitScript((c) => {
@@ -117,13 +127,21 @@ async function prepararEntorno(page, opciones) {
     let sesionActiva = !c.sinSesion;
     let uidSesion = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     window.__H05_SET_UID__ = (v) => { uidSesion = v; };
+    // El evento real que emite la aplicacion lleva { event, session }. El fake
+    // reproduce esa forma para que ninguna prueba pase por la razon
+    // equivocada: en un SIGNED_IN la sesion VIENE, de modo que invalidar el rol
+    // ahi tiene que salir del cambio de UID y no de una sesion ausente.
     window.__H05_SIGN_OUT__ = () => {
       sesionActiva = false;
-      window.dispatchEvent(new CustomEvent('coi:supabase-auth', { detail: { event: 'SIGNED_OUT' } }));
+      window.dispatchEvent(new CustomEvent('coi:supabase-auth', {
+        detail: { event: 'SIGNED_OUT', session: null }
+      }));
     };
     window.__H05_CAMBIAR_SESION__ = (uid) => {
       uidSesion = uid;
-      window.dispatchEvent(new CustomEvent('coi:supabase-auth', { detail: { event: 'SIGNED_IN' } }));
+      window.dispatchEvent(new CustomEvent('coi:supabase-auth', {
+        detail: { event: 'SIGNED_IN', session: { user: { id: uid, email: c.email } } }
+      }));
     };
 
     const registrar = (op, payload) => window.__H05_LLAMADAS__.push({ op, payload });
@@ -253,16 +271,33 @@ async function prepararEntorno(page, opciones) {
           // saltos y repeticiones; con cursor por id no puede.
           const cupo = window.__H05_CFG__.insertarEntrePaginas;
           const quedan = cupo === true || (typeof cupo === 'number' && intrusas < cupo);
-          if (quedan && esUM && pagina.length) {
+          const durante = window.__H05_CFG__.intrusoDurante || 'um';
+          const destino = window.__H05_CFG__.intrusoDestino || 'um';
+          const enMomento = (durante === 'um' && esUM) || (durante === 'st' && esST);
+          if (quedan && enMomento && pagina.length) {
             intrusas++;
             // Por debajo del cursor el keyset no vuelve a pasar por esa fila:
             // es justo el caso que el conteo tiene que delatar.
             const prefijo = window.__H05_CFG__.intrusoMayor ? 'ffffff' : '000000';
-            const intruso = Object.assign({}, ums[0], {
-              id: prefijo + intrusas + '0-0000-4000-8000-000000000000',
-              codigo_um: 'INTRUSA-' + intrusas
-            });
-            ums = [intruso].concat(ums);
+            const idIntrusa = prefijo + intrusas + '0-0000-4000-8000-000000000000';
+            if (destino === 'um' || destino === 'ambos') {
+              const intruso = Object.assign({}, ums[0] || {}, {
+                id: idIntrusa,
+                codigo_um: 'INTRUSA-' + intrusas
+              });
+              ums = [intruso].concat(ums);
+            }
+            if (destino === 'st' || destino === 'ambos') {
+              // El ST intruso cuelga de la UM intrusa: es la transaccion
+              // operativa real —alta de UM con su primer ST—. Si el modelo
+              // publicara el ST sin su UM lo marcaria como huerfano.
+              const intrusoST = Object.assign({}, sts[0] || {}, {
+                id: 'a' + prefijo.slice(1) + intrusas + '-0000-4000-8000-000000000000',
+                nro_st: 'ST-INTRUSO-' + intrusas,
+                unidad_id: destino === 'ambos' ? idIntrusa : ((ums[0] || {}).id || null)
+              });
+              sts = [intrusoST].concat(sts);
+            }
           }
           return { data: pagina, error: null };
         },
@@ -298,7 +333,7 @@ async function prepararEntorno(page, opciones) {
       },
       auth: {
         getSession: async () => ({
-          data: { session: sesionActiva ? { user: { id: uidSesion, email: 'admin@coiroca.com' } } : null },
+          data: { session: sesionActiva ? { user: { id: uidSesion, email: c.email } } : null },
           error: null
         }),
         getUser: async () => ({ data: { user: { id: uidSesion } }, error: null }),
@@ -3614,4 +3649,435 @@ test('143 · E · el remoto vacio sigue siendo un estado valido y sincronizado',
   expect(r.ultimoError).toBeNull();
   expect(r.total).toBe(0);
   expect(r.conteos).toBe(2);
+});
+
+// ================================== octava ronda de review del PR #59
+
+// --- P1: el rol cacheado es fail-closed.
+//
+// `runtime.rol` es una CACHE de lo que dijo coi_current_role(). Mientras
+// cualquier camino que no confirmaba el rol lo dejaba intacto, la UI podia
+// seguir mostrando controles de administrador despues de que Supabase ya lo
+// hubiera revocado: sin sesion, con el RPC en error, con el perfil desactivado
+// o borrado, o con otro usuario en la sesion. Ahora todo camino que no termina
+// en un rol confirmado deja `runtime.rol` en null.
+
+test('144 · A · un administrador confirmado por el servidor habilita los controles', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], rol: 'administrador', admin: false });
+  await abrir(page);
+  await irAUM(page);
+
+  const e = await estado(page);
+  expect(e.rol).toBe('administrador');
+  expect(e.sincronizado).toBe(true);
+  await expect(page.locator('#btnGuardarUMH05')).toBeEnabled();
+});
+
+test('145 · B · si el perfil desaparece el rol cacheado se apaga y los controles se bloquean', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], rol: 'administrador', admin: true });
+  await abrir(page);
+  await irAUM(page);
+  expect((await estado(page)).rol).toBe('administrador');
+
+  // Otro administrador desactiva el perfil: coi_current_role() pasa a NULL.
+  await page.evaluate(() => { window.__H05_CFG__.rol = null; });
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForTimeout(900);
+  await irAUM(page);
+
+  const e = await estado(page);
+  expect(e.rol).toBeNull();
+  expect(e.sincronizado).toBe(false);
+  await expect(page.locator('#btnGuardarUMH05')).toBeDisabled();
+});
+
+test('146 · C · si coi_current_role falla el rol se invalida y no queda cacheado', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], rol: 'administrador', admin: true });
+  await abrir(page);
+  await irAUM(page);
+  expect((await estado(page)).rol).toBe('administrador');
+
+  // La comprobacion no se pudo hacer. Fail-closed: no se conserva el rol.
+  await page.evaluate(() => { window.__H05_CFG__.fallaRol = true; });
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForTimeout(900);
+  await irAUM(page);
+
+  const e = await estado(page);
+  expect(e.rol).toBeNull();
+  expect(e.sincronizado).toBe(false);
+  expect(e.ultimoError).toMatch(/no se pudo verificar el perfil/i);
+  await expect(page.locator('#btnGuardarUMH05')).toBeDisabled();
+});
+
+test('147 · D · el usuario B no hereda el rol administrador del usuario A', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], rol: 'administrador', admin: true });
+  await abrir(page);
+  await irAUM(page);
+  expect((await estado(page)).rol).toBe('administrador');
+
+  // Entra otro operador, sin perfil habilitado. El evento trae sesion: lo que
+  // invalida el rol es el cambio de UID, no una sesion ausente.
+  await page.evaluate(() => {
+    window.__H05_CFG__.rol = null;
+    window.__H05_CAMBIAR_SESION__('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
+  });
+  await page.waitForTimeout(1200);
+  await irAUM(page);
+
+  const e = await estado(page);
+  expect(e.rol).toBeNull();
+  expect(e.ums).toHaveLength(0);
+  await expect(page.locator('#btnGuardarUMH05')).toBeDisabled();
+});
+
+test('148 · E · el rol consulta lee pero no puede escribir', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A, UM_B], sts: [ST_A], rol: 'consulta', admin: true });
+  await abrir(page);
+  await irAUM(page);
+
+  const e = await estado(page);
+  // Lectura si: el listado remoto se muestra completo.
+  expect(e.rol).toBe('consulta');
+  expect(e.sincronizado).toBe(true);
+  expect(e.ums).toHaveLength(2);
+  // Escritura no: ni el formulario habilitado ni ningun insert/update emitido.
+  await expect(page.locator('#btnGuardarUMH05')).toBeDisabled();
+  expect(soloOp(e, 'insert:')).toHaveLength(0);
+  expect(soloOp(e, 'update:')).toHaveLength(0);
+});
+
+test('149 · F · un administrador con otro correo tiene los controles habilitados', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [], rol: 'administrador', admin: false,
+    email: 'operador.mantenimiento@linearoca.gob.ar'
+  });
+  await abrir(page);
+  await page.evaluate(() => { window.esAutorizacionAdministrativaSupabaseV60 = () => false; });
+  await irAUM(page);
+
+  const e = await estado(page);
+  expect(e.rol).toBe('administrador');
+  await expect(page.locator('#btnGuardarUMH05')).toBeEnabled();
+});
+
+test('150 · G · SIGNED_OUT apaga el rol de inmediato, sin esperar la recarga', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], rol: 'administrador', admin: true });
+  await abrir(page);
+  await irAUM(page);
+  expect((await estado(page)).rol).toBe('administrador');
+
+  // Se lee el rol en la MISMA vuelta del event loop en que se emite el evento:
+  // no puede quedar autoridad viva mientras se resuelve la sesion.
+  const rolInmediato = await page.evaluate(() => {
+    window.__H05_SIGN_OUT__();
+    return window.__COI_UM_H05__.rol;
+  });
+  expect(rolInmediato).toBeNull();
+
+  await page.waitForTimeout(900);
+  await irAUM(page);
+  const e = await estado(page);
+  expect(e.rol).toBeNull();
+  await expect(page.locator('#btnGuardarUMH05')).toBeDisabled();
+});
+
+// --- P2: los botones de la ficha UM y el binding de la UM actual.
+//
+// `let umActualId` es un binding LEXICO global: no es window.umActualId. H05
+// —y varias rutas legadas— escriben la propiedad de window, mientras que
+// copiarResumenUM() e irEstacionUM() leian la variable lexica, que quedaba con
+// la UM anterior o en null. Ahora los dos nombres son el mismo almacenamiento.
+
+const UM_ESTACION_A = Object.assign({}, UM_A, {
+  id: '55555555-5555-4555-8555-555555555555',
+  codigo_um: 'ASC-PC-1',
+  estacion: 'Plaza Constitución'
+});
+const UM_ESTACION_B = Object.assign({}, UM_A, {
+  id: '66666666-6666-4666-8666-666666666666',
+  codigo_um: 'ESC-TEMP-2',
+  tipo_um: 'Escalera mecánica',
+  estacion: 'Temperley'
+});
+const UM_SIN_ESTACION = Object.assign({}, UM_A, {
+  id: '77777777-7777-4777-8777-777777777777',
+  codigo_um: 'BOM-SIN-EST',
+  estacion: ''
+});
+
+// Captura lo que hacen los dos handlers legados sin cambiarlos: el resumen se
+// copia al portapapeles y la navegacion pasa por selectStation().
+async function instrumentarFichaUM(page) {
+  await page.evaluate(() => {
+    window.__UM_COPIADO__ = [];
+    window.__UM_ESTACION__ = [];
+    window.alert = () => {};
+    window.prompt = (mensaje, texto) => { window.__UM_COPIADO__.push(String(texto || '')); return null; };
+    try {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: (t) => { window.__UM_COPIADO__.push(String(t)); return Promise.resolve(); } }
+      });
+    } catch (e) { /* el prompt de respaldo ya deja constancia */ }
+    window.selectStation = (est) => { window.__UM_ESTACION__.push(est && est.nombre); };
+  });
+}
+
+// Abre la ficha de una UM concreta por la ruta de H05.
+async function abrirFichaUMPorCodigo(page, codigo) {
+  await page.evaluate((c) => {
+    const um = (window.unidadesMantenimiento || []).find((u) => u.codigoUM === c);
+    window.abrirFichaUM(um ? um._supabaseId : c);
+  }, codigo);
+  await page.waitForTimeout(350);
+}
+
+const bindingUM = (page) => page.evaluate(() => ({
+  ventana: window.umActualId,
+  // El binding lexico se resuelve por la cadena de ambitos del eval, que
+  // incluye el ambito lexico global donde vive el `let`.
+  lexico: eval('typeof umActualId === "undefined" ? null : umActualId')
+}));
+
+test('151 · abrir una UM desde H05 deja el mismo identificador en los dos bindings', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_ESTACION_A, UM_ESTACION_B], sts: [] });
+  await abrir(page);
+  await instrumentarFichaUM(page);
+  await abrirFichaUMPorCodigo(page, 'ASC-PC-1');
+
+  const b = await bindingUM(page);
+  expect(b.ventana).toBe('ASC-PC-1');
+  expect(b.lexico).toBe('ASC-PC-1');
+});
+
+test('152 · Copiar resumen UM usa la UM abierta, no la anterior', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_ESTACION_A, UM_ESTACION_B], sts: [] });
+  await abrir(page);
+  await instrumentarFichaUM(page);
+
+  await abrirFichaUMPorCodigo(page, 'ASC-PC-1');
+  await page.click('#btnCopiarUM');
+  await page.waitForTimeout(250);
+  let copiado = await page.evaluate(() => window.__UM_COPIADO__);
+  expect(copiado).toHaveLength(1);
+  expect(copiado[0]).toContain('ASC-PC-1');
+
+  // Se abre otra UM: las acciones tienen que pasar a la nueva.
+  await abrirFichaUMPorCodigo(page, 'ESC-TEMP-2');
+  await page.click('#btnCopiarUM');
+  await page.waitForTimeout(250);
+  copiado = await page.evaluate(() => window.__UM_COPIADO__);
+  expect(copiado).toHaveLength(2);
+  expect(copiado[1]).toContain('ESC-TEMP-2');
+  expect(copiado[1]).not.toContain('ASC-PC-1');
+});
+
+test('153 · Ir a estación usa la estación de la UM abierta', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_ESTACION_A, UM_ESTACION_B], sts: [] });
+  await abrir(page);
+  await instrumentarFichaUM(page);
+
+  await abrirFichaUMPorCodigo(page, 'ASC-PC-1');
+  await page.click('#btnIrEstacionUM');
+  await page.waitForTimeout(250);
+  expect(await page.evaluate(() => window.__UM_ESTACION__)).toEqual(['Plaza Constitución']);
+
+  await abrirFichaUMPorCodigo(page, 'ESC-TEMP-2');
+  await page.click('#btnIrEstacionUM');
+  await page.waitForTimeout(250);
+  expect(await page.evaluate(() => window.__UM_ESTACION__))
+    .toEqual(['Plaza Constitución', 'Temperley']);
+});
+
+test('154 · volver de la ficha no deja una UM fantasma en el binding', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_ESTACION_A, UM_ESTACION_B], sts: [] });
+  await abrir(page);
+  await instrumentarFichaUM(page);
+
+  await abrirFichaUMPorCodigo(page, 'ASC-PC-1');
+  await page.click('#btnVolverUM');
+  await page.waitForTimeout(300);
+
+  // Al volver, los dos bindings siguen coincidiendo: nunca puede quedar uno
+  // apuntando a una UM y el otro a otra.
+  let b = await bindingUM(page);
+  expect(b.ventana).toBe(b.lexico);
+
+  // Y al abrir la segunda UM, las acciones son de la segunda.
+  await abrirFichaUMPorCodigo(page, 'ESC-TEMP-2');
+  b = await bindingUM(page);
+  expect(b.ventana).toBe('ESC-TEMP-2');
+  expect(b.lexico).toBe('ESC-TEMP-2');
+  await page.click('#btnCopiarUM');
+  await page.waitForTimeout(250);
+  const copiado = await page.evaluate(() => window.__UM_COPIADO__);
+  expect(copiado.at(-1)).toContain('ESC-TEMP-2');
+});
+
+test('155 · una UM sin estación no navega a ningún lado y no rompe la ficha', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_SIN_ESTACION], sts: [] });
+  const errores = await abrir(page);
+  await instrumentarFichaUM(page);
+  await abrirFichaUMPorCodigo(page, 'BOM-SIN-EST');
+
+  await page.click('#btnIrEstacionUM');
+  await page.waitForTimeout(250);
+  // Comportamiento seguro: no se navega a una estacion inventada.
+  expect(await page.evaluate(() => window.__UM_ESTACION__)).toEqual([]);
+  // Y Copiar sigue funcionando sobre la UM abierta.
+  await page.click('#btnCopiarUM');
+  await page.waitForTimeout(250);
+  expect((await page.evaluate(() => window.__UM_COPIADO__)).at(-1)).toContain('BOM-SIN-EST');
+  expect(errores).toEqual([]);
+});
+
+// --- P2: el snapshot es CONJUNTO de UM y ST.
+//
+// Cerrar cada tabla por separado no alcanza: UM y ST se escriben en la misma
+// transaccion operativa, de modo que entre el scan de una y el de la otra cabe
+// un commit ajeno completo. El modelo combinado mostraba el ST nuevo sin su UM
+// —y lo marcaba como huerfano— afirmandolo ademas como sincronizado.
+
+const MUCHOS_ST = (n, unidadId) => Array.from({ length: n }, (_, i) => Object.assign({}, ST_A, {
+  id: '88888888-8888-4888-8888-' + String(i + 1).padStart(12, '0'),
+  nro_st: 'ST-MASIVO-' + (i + 1),
+  unidad_id: unidadId
+}));
+
+const resumenPar = (page) => page.evaluate(() => ({
+  sincronizado: window.__COI_UM_H05__.sincronizado,
+  ultimoError: window.__COI_UM_H05__.ultimoError,
+  ums: (window.unidadesMantenimiento || []).length,
+  umsUnicas: new Set((window.unidadesMantenimiento || []).map((u) => u._supabaseId)).size,
+  sts: (window.serviciosTecnicos || []).length,
+  stsUnicos: new Set((window.serviciosTecnicos || []).map((s) => s._supabaseId)).size,
+  // Un ST cuyo unidad_id no aparece entre las UM del modelo: exactamente el
+  // falso huerfano que el snapshot conjunto tiene que evitar.
+  huerfanos: (window.serviciosTecnicos || []).filter((s) => !s.idUM).length,
+  conteosUM: window.__H05_LLAMADAS__.filter((l) => l.op === 'count:coi_unidades_mantenimiento').length,
+  conteosST: window.__H05_LLAMADAS__.filter((l) => l.op === 'count:coi_servicios_tecnicos_um').length,
+  intrusasUM: (window.unidadesMantenimiento || []).filter((u) => String(u.codigoUM).indexOf('INTRUSA-') === 0).length,
+  intrusosST: (window.serviciosTecnicos || []).filter((s) => String(s.nroST).indexOf('ST-INTRUSO-') === 0).length
+}));
+
+test('156 · A · un commit de UM+ST entre los dos scans descarta el par y relee', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A, UM_B], sts: [ST_A],
+    insertarEntrePaginas: 1, intrusoDurante: 'st', intrusoDestino: 'ambos'
+  });
+  await abrir(page);
+
+  const r = await resumenPar(page);
+  // El par se descarto y se reinicio entero: hubo mas de un par de conteos en
+  // LAS DOS tablas.
+  expect(r.conteosUM).toBeGreaterThan(2);
+  expect(r.conteosST).toBeGreaterThan(2);
+  // El segundo par llego completo: la UM nueva y su ST viajan juntos.
+  expect(r.sincronizado).toBe(true);
+  expect(r.intrusasUM).toBe(1);
+  expect(r.intrusosST).toBe(1);
+  // Y el ST nuevo NO aparece como huerfano: su UM esta en el mismo snapshot.
+  expect(r.huerfanos).toBe(0);
+});
+
+test('157 · B · un insert solo en UM durante el scan de ST reinicia el par', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A, UM_B], sts: [ST_A],
+    insertarEntrePaginas: 1, intrusoDurante: 'st', intrusoDestino: 'um'
+  });
+  await abrir(page);
+
+  const r = await resumenPar(page);
+  expect(r.conteosUM).toBeGreaterThan(2);
+  expect(r.sincronizado).toBe(true);
+  expect(r.ums).toBe(3);
+  expect(r.umsUnicas).toBe(3);
+});
+
+test('158 · C · un insert solo en ST durante el scan de UM reinicia el par completo', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A, UM_B], sts: [ST_A],
+    insertarEntrePaginas: 1, intrusoDurante: 'um', intrusoDestino: 'st'
+  });
+  await abrir(page);
+
+  const r = await resumenPar(page);
+  // Lo que cambio fue ST, pero se descartan LOS DOS scans: por eso tambien se
+  // volvio a contar UM. Con la verificacion por tabla esto no se detectaba.
+  expect(r.conteosST).toBeGreaterThan(2);
+  expect(r.conteosUM).toBeGreaterThan(2);
+  expect(r.sincronizado).toBe(true);
+  expect(r.sts).toBe(2);
+  expect(r.stsUnicos).toBe(2);
+});
+
+test('159 · D · con escritura sostenida no se publica una mezcla parcial y se conserva el par previo', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A, UM_B], sts: [ST_A] });
+  await abrir(page);
+  const inicial = await resumenPar(page);
+  expect(inicial.sincronizado).toBe(true);
+  expect(inicial.ums).toBe(2);
+  expect(inicial.sts).toBe(1);
+
+  // El remoto entra en escritura sostenida sobre las dos tablas.
+  await page.evaluate(() => {
+    window.__H05_CFG__.insertarEntrePaginas = true;
+    window.__H05_CFG__.intrusoDurante = 'st';
+    window.__H05_CFG__.intrusoDestino = 'ambos';
+  });
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForTimeout(1200);
+
+  const r = await resumenPar(page);
+  expect(r.sincronizado).toBe(false);
+  expect(r.ultimoError).toMatch(/cambió durante la lectura/i);
+  // Se conserva el ultimo snapshot CONJUNTO confirmado: ni cero, ni mezcla.
+  expect(r.ums).toBe(2);
+  expect(r.sts).toBe(1);
+  expect(r.intrusasUM).toBe(0);
+  expect(r.intrusosST).toBe(0);
+  // Tres intentos del par: seis conteos por tabla.
+  expect(r.conteosUM).toBe(2 + 6);
+  expect(r.conteosST).toBe(2 + 6);
+});
+
+test('160 · E · el remoto vacio es un par valido y sincronizado', async ({ page }) => {
+  await prepararEntorno(page, { ums: [], sts: [] });
+  await abrir(page);
+
+  const r = await resumenPar(page);
+  expect(r.sincronizado).toBe(true);
+  expect(r.ultimoError).toBeNull();
+  expect(r.ums).toBe(0);
+  expect(r.sts).toBe(0);
+  // Una sola pasada del par: dos conteos por tabla.
+  expect(r.conteosUM).toBe(2);
+  expect(r.conteosST).toBe(2);
+});
+
+test('161 · F · mas de 1000 UM y mas de 1000 ST se leen sin saltos ni duplicados', async ({ page }) => {
+  const ums = MUCHAS_UM(1001);
+  const sts = MUCHOS_ST(1001, ums[0].id);
+  await prepararEntorno(page, { ums: ums, sts: sts });
+  await abrir(page);
+
+  const r = await resumenPar(page);
+  expect(r.sincronizado).toBe(true);
+  expect(r.ums).toBe(1001);
+  expect(r.umsUnicas).toBe(1001);
+  expect(r.sts).toBe(1001);
+  expect(r.stsUnicos).toBe(1001);
+  expect(r.huerfanos).toBe(0);
+  // Sin concurrencia, una sola pasada del par.
+  expect(r.conteosUM).toBe(2);
+  expect(r.conteosST).toBe(2);
+
+  // Y el paginado sigue siendo keyset por id, sin offset, en las dos tablas.
+  const e = await estado(page);
+  for (const op of ['select:coi_unidades_mantenimiento', 'select:coi_servicios_tecnicos_um']) {
+    const lecturas = soloOp(e, op);
+    expect(lecturas.length).toBeGreaterThan(1);
+    expect(lecturas.every((l) => !(l.payload || []).some((f) => f.op === 'range'))).toBe(true);
+  }
 });

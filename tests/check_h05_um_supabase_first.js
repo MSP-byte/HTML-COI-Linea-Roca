@@ -23,7 +23,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 
-const html = fs.readFileSync('index.html', 'utf8');
+const html = fs.readFileSync('index.html', 'utf8').replace(/\r\n?/g, '\n');
 const baseline = fs.readFileSync('supabase/migrations/202608090000_core_schema_baseline.sql', 'utf8');
 const contrato = require('./fixtures/production_schema_contract.json');
 
@@ -799,6 +799,154 @@ for (const tabla of ['coi_unidades_mantenimiento', 'coi_servicios_tecnicos_um'])
     `${tabla}: el snapshot productivo no puede incluir las policies que todavia no se aplicaron`);
 }
 
+// ------------------------------------------- 5i) octava ronda de review
+// Controles estaticos de la ronda final del PR #59. Complementan —no
+// reemplazan— los casos DOM 144-161 de tests/h05_um_st_supabase_first.spec.js:
+// aca se verifica que el CODIGO diga lo que tiene que decir, sin navegador.
+
+// G1 · El rol cacheado es fail-closed. Se inspecciona la IMPLEMENTACION real,
+//      no una palabra suelta: se recorta cada funcion de la capa y se verifica
+//      dentro de su cuerpo. Asi una regresion que borre la invalidacion sin
+//      borrar el texto de alrededor tambien se detecta.
+//
+//      `capa` es el <script id="coi-h05-um-st-supabase-first">, que contiene
+//      tanto cargar() como el listener de coi:supabase-auth. El primer intento
+//      de este control fallo por una razon REAL —la invalidacion inmediata del
+//      rol no estaba escrita—, no por el ambito.
+function cuerpoDeclarado(texto, firma, etiqueta) {
+  const i = texto.indexOf(firma);
+  check(i >= 0, `no se encontro ${etiqueta}`);
+  // Se corta en el cierre de la declaracion, que en esta capa siempre esta a
+  // dos espacios de indentacion.
+  const j = texto.indexOf('\n  }\n', i);
+  check(j > i, `no se pudo delimitar ${etiqueta}`);
+  return texto.slice(i, j + 4);
+}
+const sinComentariosJs = (t) => t.split('\n').filter((l) => l.trim().indexOf('//') !== 0).join('\n');
+
+// G1a · esAdministrador() de H04/H05 depende EXCLUSIVAMENTE del rol confirmado.
+const cuerpoEsAdmin = sinComentariosJs(
+  cuerpoDeclarado(capa.texto, '  function esAdministrador() {', 'esAdministrador() de la capa H05'));
+check(cuerpoEsAdmin.indexOf("return runtime.rol === 'administrador';") >= 0,
+  'esAdministrador debe devolver el rol confirmado por Supabase');
+// Un unico return: nada mas puede habilitar la UI.
+check((cuerpoEsAdmin.match(/return /g) || []).length === 1,
+  'esAdministrador no puede tener una segunda via de autorizacion');
+check(!/esAutorizacionAdministrativaSupabaseV60|email|APP_STATE/.test(cuerpoEsAdmin),
+  'esAdministrador no puede mirar helpers legados, emails ni el estado de la app');
+
+// G1b · El listener de coi:supabase-auth existe y apaga el rol.
+const iListener = capa.texto.indexOf("window.addEventListener('coi:supabase-auth'");
+check(iListener >= 0, 'falta el listener de coi:supabase-auth en la capa H05');
+const finListener = capa.texto.indexOf('\n    });\n', iListener);
+check(finListener > iListener, 'no se pudo delimitar el listener de coi:supabase-auth');
+const listener = sinComentariosJs(capa.texto.slice(iListener, finListener));
+
+// SIGNED_OUT —o un evento sin sesion— invalida el rol SIN esperar la promesa
+// que resuelve el UID: entre el cierre de sesion y ese await la UI no puede
+// seguir habilitada.
+check(/const evento = \(ev && ev\.detail && ev\.detail\.event\)/.test(listener),
+  'el listener tiene que leer el evento de auth para decidir');
+check(/const sesionEvento = \(ev && ev\.detail && ev\.detail\.session\)/.test(listener),
+  'el listener tiene que leer la sesion del evento de auth');
+check(/if \(evento === 'SIGNED_OUT' \|\| !sesionEvento\) runtime\.rol = null;/.test(listener),
+  'SIGNED_OUT o sesion ausente tienen que invalidar el rol de inmediato');
+// Y eso ocurre ANTES de resolver la sesion, no despues.
+check(listener.indexOf("runtime.rol = null") < listener.indexOf('uidDeSesion()'),
+  'el rol tiene que apagarse antes de resolver el UID, no despues');
+
+// Si la resolucion de la sesion FALLA tampoco se conserva autoridad.
+const catchListener = listener.slice(listener.indexOf('.catch('));
+check(catchListener.indexOf('runtime.rol = null;') >= 0,
+  'si no se pudo resolver la sesion el rol no puede conservarse');
+
+// Un cambio REAL de identidad invalida el rol del operador anterior.
+const ramaCambioUid = listener.slice(
+  listener.indexOf('if ((uid || null) !== (runtime.authUserId || null))'));
+check(ramaCambioUid.indexOf('runtime.rol = null;') >= 0,
+  'un cambio de UID tiene que invalidar el rol anterior');
+
+// G1c · cargar(): todo camino que no confirme el rol lo deja en null.
+const cuerpoCargar = sinComentariosJs(
+  cuerpoDeclarado(capa.texto, '  async function cargar() {', 'cargar() de la capa H05'));
+check(cuerpoCargar.indexOf(
+  'if (vigente() && (uidLectura || null) !== (runtime.authUserId || null)) runtime.rol = null;') >= 0,
+  'cargar() tiene que invalidar el rol anterior antes de cargar una identidad nueva');
+const conservar = cuerpoCargar.slice(cuerpoCargar.indexOf('const conservarUltimoConfirmado ='));
+check(conservar.slice(0, conservar.indexOf('};')).indexOf('runtime.rol = null;') >= 0,
+  'conservarUltimoConfirmado tiene que apagar el rol: sin lectura confirmada no hay autoridad');
+// Y el rol solo se adopta cuando el servidor lo confirmo.
+check(cuerpoCargar.indexOf('if (vigente()) runtime.rol = perfil.rol;') >= 0,
+  'el rol solo puede adoptarse del resultado de coi_current_role()');
+check(cuerpoCargar.indexOf('if (!perfil.ok)') >= 0 && cuerpoCargar.indexOf('if (!perfil.rol)') >= 0,
+  'cargar() tiene que cortar tanto si la comprobacion fallo como si no hay rol');
+
+// G2 · Escribir exige administrador remoto CONFIRMADO, no solo sesion.
+const cuerpoExigir = sinComentariosJs(
+  cuerpoDeclarado(capa.texto, '  async function exigirEscritura() {', 'exigirEscritura() de la capa H05'));
+check(cuerpoExigir.indexOf('await rolDeSesion()') >= 0,
+  'exigirEscritura tiene que reconfirmar el rol contra el servidor en cada mutacion');
+check(cuerpoExigir.indexOf("runtime.rol !== 'administrador'") >= 0,
+  'exigirEscritura tiene que exigir administrador confirmado');
+check((cuerpoExigir.match(/runtime\.rol = null;/g) || []).length >= 2,
+  'exigirEscritura tiene que invalidar el rol en cada camino que no lo confirma');
+check(cuerpoExigir.indexOf('runtime.rol = perfil.rol || null;') >= 0,
+  'el resultado de la reconfirmacion tiene que propagarse al runtime, no quedarse local');
+// La reconfirmacion ocurre ANTES de devolver el cliente para escribir.
+check(cuerpoExigir.indexOf('await rolDeSesion()') < cuerpoExigir.indexOf('return { c'),
+  'el rol tiene que reconfirmarse antes de habilitar la escritura');
+
+// G3 · El snapshot es CONJUNTO: UM y ST se aceptan o se descartan juntos.
+check(contiene6('async function leerParConsistente(c)'),
+  'falta el scan conjunto de UM y ST');
+check(!contiene6('async function leerConsistente('),
+  'no puede quedar el scan por tabla: la verificacion es del par');
+check(contiene6('const par = await leerParConsistente(c);'),
+  'cargar() tiene que leer el par, no cada tabla por su cuenta');
+check(contiene6('umAntes === umDespues && stAntes === stDespues'),
+  'el par se acepta solo si NINGUNA de las dos tablas se movio');
+check(contiene6('um.length === umDespues && st.length === stDespues'),
+  'las filas leidas tienen que coincidir con el conteo en las dos tablas');
+check(contiene6('for (let intento = 1; intento <= REINTENTOS_SCAN; intento++)'),
+  'el par se reintenta un numero acotado de veces');
+
+// G4 · La version nueva la pone PostgreSQL; el cliente solo aporta el CAS.
+check(!/fecha_actualizacion:\s*new Date\(\)\.toISOString\(\)/.test(codigoCapa),
+  'el reloj del navegador no puede decidir la version de una fila');
+check((codigoCapa.match(/delete cuerpo\.fecha_actualizacion;/g) || []).length === 2,
+  'UM y ST tienen que sacar fecha_actualizacion del cuerpo del UPDATE');
+check(contiene6("consulta.eq('fecha_actualizacion', version)"),
+  'la version renderizada tiene que seguir siendo el token de CAS del WHERE');
+// Y la migracion que instala el versionado server-side acompaña.
+const migracionVersion = fs.readFileSync(
+  'supabase/migrations/202609020001_h04_h05_server_version_guard.sql', 'utf8');
+check(/before update on public\.coi_unidades_mantenimiento/i.test(migracionVersion),
+  'la migracion tiene que versionar UM en BEFORE UPDATE');
+check(/before update on public\.coi_servicios_tecnicos_um/i.test(migracionVersion),
+  'la migracion tiene que versionar ST en BEFORE UPDATE');
+check(/greatest\(/i.test(migracionVersion) && /clock_timestamp\(\)/i.test(migracionVersion),
+  'la version server-side tiene que ser estrictamente creciente');
+
+// G5 · Los botones de la ficha UM leen el mismo identificador que escribe H05.
+//      `let umActualId` es un binding lexico: sin esto NO es window.umActualId.
+check(html.indexOf("Object.defineProperty(window,'umActualId'") >= 0,
+  'window.umActualId tiene que ser un accessor sobre el binding lexico');
+check(html.indexOf("Object.defineProperty(window,'vistaAnteriorUM'") >= 0,
+  'window.vistaAnteriorUM tiene que compartir almacenamiento con el binding lexico');
+
+// G6 · El ROW LOCK del trigger ST/OC sigue declarado en la migracion.
+const migracionST = fs.readFileSync(
+  'supabase/migrations/202608310004_h04_st_oc_referencial.sql', 'utf8');
+const sqlST = migracionST.replace(/--[^\n]*/g, '');
+// Se cuentan las sentencias, no las menciones: el `comment on function` de la
+// propia migracion tambien nombra el lock al documentarlo.
+check((sqlST.match(/\n\s+for update;/gi) || []).length === 2,
+  'las dos rutas de resolucion de la OC tienen que tomar ROW LOCK');
+check(/where o\.id = new\.orden_id\s+for update;/i.test(sqlST),
+  'la ruta por orden_id tiene que lockear la orden maestra antes de copiar el numero');
+check(/where o\.id = v_id\s+for update;/i.test(sqlST),
+  'la ruta por nro_oc tiene que lockear la orden maestra por UUID');
+
 console.log('H05/H04 UM y ST Supabase-first: capa verificada contra el esquema real.');
 console.log(`  coi_unidades_mantenimiento : ${COLS_UM.length} columnas, todas leidas por la capa`);
 console.log(`  coi_servicios_tecnicos_um  : ${COLS_ST.length} columnas, todas leidas por la capa`);
@@ -806,4 +954,9 @@ console.log('  Congelamiento del legado   : instalado antes de init(), sin borra
 console.log('  Siembra de demo            : ausente');
 console.log('  Persistencia local de UM/ST: ausente');
 console.log('  Borrado fisico             : ausente (BAJA / Cancelado)');
+console.log('  Rol cacheado               : fail-closed en todos los caminos');
+console.log('  Escritura                  : exige administrador remoto confirmado');
+console.log('  Snapshot                   : conjunto UM+ST, se aceptan o descartan juntos');
+console.log('  Version de fila            : la pone PostgreSQL; el cliente solo el CAS');
+console.log('  umActualId                 : un unico almacenamiento para legado y H05');
 console.log(`${aprobados} controles H05/H04 aprobados; 0 fallidos.`);

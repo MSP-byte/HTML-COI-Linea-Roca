@@ -254,5 +254,72 @@ sin security definer y sin acceso a tablas—; `anon` queda explicitamente
 revocado. Declarada en `tests/fixtures/production_schema_contract.json` →
 `_divergencias_pendientes.grants_funciones`.
 
+## KI-017 — Version server-side de UM/ST pendiente en remoto
+Estado: abierto. Rama `fix/h05-unidades-mantenimiento-supabase-first`.
+`supabase/migrations/202609020001_h04_h05_server_version_guard.sql` instala un
+trigger `BEFORE UPDATE` en `coi_unidades_mantenimiento` y en
+`coi_servicios_tecnicos_um` que fija `fecha_actualizacion` en
+`greatest(clock_timestamp(), old.fecha_actualizacion + interval '1 microsecond')`.
+NO fue aplicada a PRODUCCION ni a STAGING.
+
+`fecha_actualizacion` es a la vez marca de auditoria y token de concurrencia
+optimista (CAS). Mientras la version NUEVA la escribia el navegador, las dos
+funciones colgaban de un reloj que el sistema no controla: con el reloj congelado
+dos ediciones consecutivas escriben la misma version y el token deja de
+distinguir estados; con el reloj atrasado la fila retrocede y un CAS viejo puede
+volver a matchear. Ademas ninguna escritura server-side —la sincronizacion de
+`nro_oc` que hace `coi_renumerar_oc`— tenia quien le hiciera avanzar la version.
+
+El frontend ya dejo de mandar la version nueva (`actualizarUM` y `actualizarST`
+borran `fecha_actualizacion` del cuerpo del UPDATE). El token renderizado sigue
+viajando en el `WHERE` como CAS, que es lo unico que le corresponde al cliente.
+**Mientras la migracion no este aplicada, `fecha_actualizacion` no avanza en los
+UPDATE del frontend**: el CAS seguiria matcheando el mismo valor y dejaria de
+detectar la edicion concurrente. Por eso esta migracion es parte del mismo
+despliegue que las demas y no puede quedar para despues (ver KI-018).
+
+Es no destructiva: no borra, no vacia y no reescribe filas existentes. Las
+versiones vigentes quedan como estan y avanzan recien en su proxima
+modificacion. Reaplicarla es NO-OP.
+
+Control: `tests/check_h04_h05_server_version_guard.js`.
+
+## KI-018 — Orden de rollout de PR #59: el esquema va ANTES que el frontend
+Estado: abierto. Rama `fix/h05-unidades-mantenimiento-supabase-first`.
+
+El frontend de esta rama **selecciona `orden_id`** en
+`coi_servicios_tecnicos_um` (`CAMPOS_ST`), y esa columna todavia NO existe en
+PRODUCCION. Publicar el frontend antes que el esquema haria que toda lectura de
+Servicios Tecnicos fallara. No se agrega compatibilidad dual, ni fallback a un
+esquema sin `orden_id`, ni degradacion del UUID: la columna tiene que existir
+antes, no despues.
+
+Orden obligatorio:
+
+1. **PR #59 SIN MERGE**;
+2. aplicar las migraciones definitivas en **STAGING**;
+3. **smoke en STAGING**;
+4. aplicar las migraciones definitivas en **PRODUCCION**, con autorizacion
+   explicita;
+5. **verificar PRODUCCION**;
+6. recien entonces **mergear PR #59**;
+7. GitHub Pages publica desde `main`.
+
+Migraciones del despliegue, en orden:
+
+1. `202608300003_h05_um_delete_guard.sql`
+2. `202608310001_h04_st_unique_guard.sql`
+3. `202608310002_h04_h05_role_guard.sql`
+4. `202608310003_h05_um_codigo_unique_guard.sql`
+5. `202608310004_h04_st_oc_referencial.sql`
+6. `202608310005_h04_normalize_order_number_grant.sql`
+7. `202609020001_h04_h05_server_version_guard.sql`
+
+Ninguna de las siete fue aplicada a STAGING ni a PRODUCCION al momento de
+escribir esto. Este documento **no** declara ningun entorno remoto actualizado:
+cuando se apliquen, hay que actualizar el snapshot productivo y mover las
+divergencias correspondientes en
+`tests/fixtures/production_schema_contract.json`.
+
 ## Actualización
 Registrar PR, fecha, resolución y test de regresión.

@@ -6186,6 +6186,22 @@ function initCentroAlertasV46(){$('btnExportAlertasCSV')?.addEventListener('clic
    V32 - Repositorio de Unidades de Mantenimiento
    =============================== */
 const LS_UM="coi_roca_unidades_mantenimiento";let unidadesMantenimiento=[];let vistaAnteriorUM="vistaUnidadesMantenimiento";let umActualId=null;
+/* Un `let` de nivel superior NO es una propiedad de `window`: vive en el ambito
+   lexico global. Las capas nuevas (H05) y varias rutas legadas escriben
+   `window.umActualId`, mientras que copiarResumenUM() e irEstacionUM() leian el
+   binding lexico, que quedaba con la UM anterior —o en null— y los botones de la
+   ficha no hacian nada o actuaban sobre una UM fantasma. Aca los dos nombres
+   pasan a ser el MISMO almacenamiento: `window.umActualId` es un accessor sobre
+   la variable lexica, de modo que cualquier ruta —vieja o nueva, por
+   `umActualId` o por `window.umActualId`— lee y escribe lo mismo. No se cambia
+   ningun handler existente. Lo mismo para vistaAnteriorUM, que decide a donde
+   vuelve el boton Volver. */
+try{
+  Object.defineProperty(window,'umActualId',{configurable:true,enumerable:true,
+    get(){return umActualId;},set(v){umActualId=v;}});
+  Object.defineProperty(window,'vistaAnteriorUM',{configurable:true,enumerable:true,
+    get(){return vistaAnteriorUM;},set(v){vistaAnteriorUM=v;}});
+}catch(e){console.warn('COI UM: no se pudo unificar umActualId con window.umActualId',e);}
 function crearUM(idUM,tipoUM,estacion,sector,ubicacionTecnica,descripcion,proveedorActual,ocActual){return{idUM,tipoUM,estacion,sector:sector||"",ubicacionTecnica,descripcion,estadoOperativo:"Activo",criticidad:"Media",proveedorActual:proveedorActual||"FEMYP S.R.L",ocActual:ocActual||"",observaciones:"",fotos:[],historialMantenimiento:[]};}
 const unidadesMantenimientoDemo=[
 ...[["ASC-001","Ascensor","Monte Grande","","Ascensor N° 1"],["ASC-002","Ascensor","Monte Grande","","Ascensor N° 2"],["ASC-003","Ascensor","Monte Grande","","Ascensor N° 3"],["ASC-004","Ascensor","Ezeiza","","Ascensor N° 1"],["ASC-005","Ascensor","Ezeiza","","Ascensor N° 2"],["ASC-006","Ascensor","Ezeiza","","Ascensor N° 3"],["ASC-007","Ascensor","Ezeiza","","Ascensor N° 4"],["ASC-008","Ascensor","Sarandí","","Ascensor N° 1"],["ASC-009","Ascensor","City Bell","","Ascensor N° 1"],["ASC-010","Ascensor","City Bell","","Ascensor N° 2"],["ASC-011","Montacarga","Plaza Constitución","Hornos 97","Montacarga Hornos 97"],["ASC-012","Ascensor","Plaza Constitución","Estación Constitución","Ascensor panorámico Est. Constitución"],["ASC-013","Ascensor","Plaza Constitución","Hornos 11","Ascensor N° 1 Hornos 11"],["ASC-014","Ascensor","Plaza Constitución","Hornos 11","Ascensor N° 2 Hornos 11"],["ASC-015","Ascensor","Plaza Constitución","Hall Central Est. PC","Ascensor N° 3 Hall Central Est. PC"],["ASC-016","Ascensor","Plaza Constitución","Hall Central Est. PC","Ascensor N° 4 Hall Central Est. PC"],["ASC-017","Ascensor","Plaza Constitución","Hornos 41","Ascensor Hornos 41"],["ASC-018","Ascensor","Plaza Constitución","Hornos 57","Ascensor Hornos 57"],["ASC-019","Ascensor","Plaza Constitución","Edificio Paracas","Ascensor Lima 1940 / Edificio Paracas"],["ASC-020","Montacarga","Plaza Constitución","Lado andenes","Montacarga lado andenes"]].map(x=>crearUM(x[0],x[1],x[2],x[3],x[4],x[4]+" estación "+x[2],"FEMYP S.R.L","4530009623")),
@@ -28005,14 +28021,39 @@ document.addEventListener('click',function(event){
     } catch (e) { return null; }
   }
 
+  // Toda mutacion exige administrador CONFIRMADO POR EL SERVIDOR en este mismo
+  // instante. Tener sesion no alcanza: el perfil pudo desactivarse, cambiar de
+  // rol o borrarse desde que la capa leyo por ultima vez, y `runtime.rol` es
+  // una cache. Se vuelve a preguntar a coi_current_role() —la misma funcion que
+  // evaluan las policies— y el resultado se propaga a runtime.rol, de modo que
+  // un rol revocado apaga la UI ademas de bloquear la escritura.
   async function exigirEscritura() {
     const c = cliente();
     if (!c) throw new Error('Supabase no esta disponible. Recargue la pagina e inicie sesion.');
     if (navigator.onLine === false) throw new Error('Sin conexion: no se pueden guardar Unidades de Mantenimiento.');
     const { data, error } = await c.auth.getSession();
-    if (error) throw error;
-    if (!data || !data.session) throw new Error('Inicie sesion en Supabase para guardar.');
-    return { c, uid: data.session.user && data.session.user.id };
+    if (error) { runtime.rol = null; throw error; }
+    if (!data || !data.session) {
+      runtime.rol = null;
+      throw new Error('Inicie sesion en Supabase para guardar.');
+    }
+    const uid = data.session.user && data.session.user.id;
+    // Un UID distinto del que produjo el modelo vigente invalida el rol antes
+    // de reconfirmarlo: nadie hereda la autoridad del operador anterior.
+    if ((uid || null) !== (runtime.authUserId || null)) runtime.rol = null;
+    const perfil = await rolDeSesion();
+    if (!perfil.ok) {
+      // Fail-closed: si la comprobacion no se pudo hacer, no se escribe.
+      runtime.rol = null;
+      throw new Error('No se pudo verificar el perfil del usuario. No se guardó nada.');
+    }
+    runtime.rol = perfil.rol || null;
+    if (runtime.rol !== 'administrador') {
+      const e = new Error('Su usuario no tiene permisos de Administrador para esta operación.');
+      e.coiMensajeDirecto = true;
+      throw e;
+    }
+    return { c, uid: uid };
   }
 
   // ---------------------------------------------------------- normalizacion
@@ -28264,22 +28305,43 @@ document.addEventListener('click',function(event){
   // si el conteo no se movio y se leyeron exactamente esas filas, el recorrido
   // vio todo. Si no coincide, el scan se DESCARTA entero y se reinicia: no se
   // remienda un snapshot parcial con lo que haya quedado.
-  async function leerConsistente(c, tabla, campos) {
+  // Cerrar cada tabla por separado no alcanza. UM y ST se escriben en la misma
+  // transaccion operativa —alta de UM y su primer ST, por ejemplo—, de modo que
+  // entre el scan de UM y el de ST cabe un commit ajeno completo: el modelo
+  // combinado mostraria el ST nuevo sin su UM y lo marcaria como huerfano,
+  // afirmandolo ademas como snapshot sincronizado.
+  //
+  // El PAR se acota entre dos pares de conteos exactos: se cuentan las dos
+  // tablas, se recorren las dos y se vuelven a contar las dos. Si cualquiera de
+  // las cuatro comprobaciones falla, se DESCARTAN LOS DOS scans y se reinicia el
+  // par completo; no se remienda una mitad con la otra. Dentro de cada tabla se
+  // conserva exactamente el mecanismo anterior: conteo antes, keyset por UUID
+  // sin offset ni orden por campos editables, conteo despues.
+  async function leerParConsistente(c) {
     let detalle = null;
     for (let intento = 1; intento <= REINTENTOS_SCAN; intento++) {
-      const antes = await contarRemoto(c, tabla);
-      const filas = await leerPaginado(c, tabla, campos);
-      const despues = await contarRemoto(c, tabla);
+      const umAntes = await contarRemoto(c, TABLA_UM);
+      const stAntes = await contarRemoto(c, TABLA_ST);
+      const um = await leerPaginado(c, TABLA_UM, CAMPOS_UM);
+      const st = await leerPaginado(c, TABLA_ST, CAMPOS_ST);
+      const umDespues = await contarRemoto(c, TABLA_UM);
+      const stDespues = await contarRemoto(c, TABLA_ST);
       // Sin conteo del servidor no hay nada que verificar: se conserva el
       // comportamiento anterior en lugar de inventar una comprobacion.
-      if (antes === null || despues === null) return filas;
-      if (antes === despues && filas.length === despues) return filas;
-      detalle = antes + ' → ' + despues + ', leidas ' + filas.length;
+      if (umAntes === null || umDespues === null || stAntes === null || stDespues === null) {
+        return { um: um, st: st };
+      }
+      if (umAntes === umDespues && stAntes === stDespues &&
+          um.length === umDespues && st.length === stDespues) {
+        return { um: um, st: st };
+      }
+      detalle = 'UM ' + umAntes + ' → ' + umDespues + ' (leidas ' + um.length + '), ' +
+        'ST ' + stAntes + ' → ' + stDespues + ' (leidas ' + st.length + ')';
     }
-    // Escritura sostenida en el remoto. Lo honesto es no publicar un listado
-    // que no se pudo cerrar; quien llama conserva el ultimo confirmado.
-    throw new Error('El listado remoto cambió durante la lectura (' + tabla +
-      ': ' + detalle + '). No se muestra un listado incompleto: reintente.');
+    // Escritura sostenida en el remoto. Lo honesto es no publicar una mezcla
+    // parcial; quien llama conserva el ultimo snapshot CONJUNTO confirmado.
+    throw new Error('El inventario remoto cambió durante la lectura (' + detalle +
+      '). No se muestra un listado incompleto: reintente.');
   }
 
   async function cargar() {
@@ -28289,11 +28351,21 @@ document.addEventListener('click',function(event){
     const promesa = (async () => {
       const c = cliente();
       const uidLectura = await uidDeSesion();
+      // Cambio de identidad: el rol del operador anterior se invalida ANTES de
+      // intentar cargar el nuevo. Si no, entre el cambio de sesion y la
+      // confirmacion del rol nuevo la UI seguiria habilitada con el rol viejo.
+      if (vigente() && (uidLectura || null) !== (runtime.authUserId || null)) runtime.rol = null;
       if (vigente()) runtime.authUserId = uidLectura;
 
       const conservarUltimoConfirmado = (motivo) => {
         runtime.ultimoError = motivo;
         runtime.sincronizado = false;
+        // Fail-closed sobre el rol: cualquier camino que NO termine en un rol
+        // confirmado por el servidor deja `runtime.rol` en null. Conservar el
+        // rol cacheado —sin sesion, con coi_current_role() en error, con el
+        // perfil desactivado o borrado— dejaba la UI mostrando controles de
+        // administrador que la base ya iba a rechazar.
+        runtime.rol = null;
         // Nunca se representa un error como «cero unidades», y nunca se revive
         // el legado: se conserva el ultimo estado remoto confirmado si existe.
         return aplicarEnMemoria(listaUM(), listaST(), 'error-sin-sincronizar');
@@ -28325,8 +28397,10 @@ document.addEventListener('click',function(event){
       if (vigente()) runtime.rol = perfil.rol;
 
       try {
-        const crudasUM = await leerConsistente(c, TABLA_UM, CAMPOS_UM);
-        const crudasST = await leerConsistente(c, TABLA_ST, CAMPOS_ST);
+        // Un unico snapshot conjunto: UM y ST se aceptan o se descartan juntos.
+        const par = await leerParConsistente(c);
+        const crudasUM = par.um;
+        const crudasST = par.st;
         if (!vigente()) return listaUM();
 
         const ums = crudasUM.map(desdeSupabaseUM);
@@ -28437,7 +28511,13 @@ document.addEventListener('click',function(event){
   async function actualizarUM(id, patch, version) {
     const { c } = await exigirEscritura();
     if (!esUuid(id)) throw new Error('Unidad de Mantenimiento sin identificador remoto.');
-    const cuerpo = Object.assign({}, patch, { fecha_actualizacion: new Date().toISOString() });
+    // La version NUEVA la genera PostgreSQL (trigger BEFORE UPDATE de
+    // 202609020001). El reloj del navegador no puede ser la version de una fila:
+    // si esta atrasado, congelado o adelantado, la auditoria queda mintiendo y
+    // el CAS puede repetir un valor de version. `version` —la fecha RENDERIZADA—
+    // sigue viajando en el WHERE como token de concurrencia.
+    const cuerpo = Object.assign({}, patch);
+    delete cuerpo.fecha_actualizacion;
     const { data, error } = await condicionarVersion(
       c.from(TABLA_UM).update(cuerpo).eq('id', id), version
     ).select(CAMPOS_UM);
@@ -28468,7 +28548,9 @@ document.addEventListener('click',function(event){
   async function actualizarST(id, patch, version) {
     const { c } = await exigirEscritura();
     if (!esUuid(id)) throw new Error('Servicio Tecnico sin identificador remoto.');
-    const cuerpo = Object.assign({}, patch, { fecha_actualizacion: new Date().toISOString() });
+    // Igual que en UM: la version nueva es del servidor, no del navegador.
+    const cuerpo = Object.assign({}, patch);
+    delete cuerpo.fecha_actualizacion;
     const { data, error } = await condicionarVersion(
       c.from(TABLA_ST).update(cuerpo).eq('id', id), version
     ).select(CAMPOS_ST);
@@ -29711,10 +29793,18 @@ document.addEventListener('click',function(event){
     instalar();
     cargar().then(refrescarUI).catch(() => {});
 
-    window.addEventListener('coi:supabase-auth', () => {
+    window.addEventListener('coi:supabase-auth', (ev) => {
       // Solo un cambio REAL de identidad invalida el modelo: SIGNED_OUT, o un
       // SIGNED_IN con otro UID. TOKEN_REFRESHED del mismo operador no descarta
       // nada, porque hacerlo convertiria un refresh de token en un falso cero.
+      //
+      // El ROL, en cambio, se apaga apenas hay SIGNED_OUT o desaparece la
+      // sesion del evento, sin esperar a resolver el UID: entre el cierre de
+      // sesion y esa promesa la UI no puede seguir mostrando controles de
+      // administrador.
+      const evento = (ev && ev.detail && ev.detail.event) || '';
+      const sesionEvento = (ev && ev.detail && ev.detail.session) || null;
+      if (evento === 'SIGNED_OUT' || !sesionEvento) runtime.rol = null;
       uidDeSesion().then((uid) => {
         if ((uid || null) !== (runtime.authUserId || null)) {
           runtime.generacion++;
@@ -29733,7 +29823,12 @@ document.addEventListener('click',function(event){
           aplicarEnMemoria([], [], 'error-sin-sincronizar');
         }
         return recargarYRefrescar();
-      }).catch(() => {});
+      }).catch(() => {
+        // Si ni siquiera se pudo resolver la sesion, el rol queda invalidado:
+        // no se conserva autoridad que no se pudo confirmar.
+        runtime.rol = null;
+        try { refrescarUI(); } catch (e) {}
+      });
     });
 
     // Las capas legadas (recoverUMs de V58.1R8) corren en DOMContentLoaded y en

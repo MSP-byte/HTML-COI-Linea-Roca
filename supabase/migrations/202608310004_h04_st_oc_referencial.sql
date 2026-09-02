@@ -74,6 +74,97 @@
 --   propia fila. Reescribir una migracion ya desplegada para agregar un control
 --   que no puede disparar seria peor que documentarlo.
 --
+-- SERIALIZACION CONTRA LA RENUMERACION — MODOS DE LOCK
+--   Correr BEFORE cierra la ventana entre validar y escribir DENTRO de la misma
+--   sentencia, pero no serializa contra OTRA transaccion. El trigger toma
+--   entonces un ROW LOCK sobre la fila maestra de coi_ordenes ANTES de derivar o
+--   copiar nro_oc, en las dos rutas de resolucion —llega orden_id, o llega
+--   nro_oc y hay que resolver su UUID—. El MODO del lock depende de la
+--   operacion, y esa diferencia es el nucleo de esta decision:
+--
+--     INSERT  ->  select ... for update            (bloqueante)
+--     UPDATE  ->  select ... for update nowait     (no espera nunca)
+--
+--   POR QUE EL INSERT LOCKEA Y ESPERA
+--     T1  insert de ST: el trigger lee coi_ordenes y ve el numero VIEJO
+--     T2  coi_renumerar_oc: cambia coi_ordenes.nro_oc y sincroniza las tablas
+--         dependientes. La fila de T1 TODAVIA NO EXISTE, asi que su UPDATE de
+--         sincronizacion no puede alcanzarla. T2 commitea.
+--     T1  commitea.
+--
+--   Quedaba orden_id CORRECTO y nro_oc VIEJO: la referencia tecnica sana, el
+--   dato visible mintiendo, y la verificacion post-sync del RPC («ningun ST
+--   puede seguir con el numero anterior») ya habia pasado. El lock bloqueante lo
+--   cierra: o T1 lo gana y T2 espera —y luego alcanza el ST ya confirmado y lo
+--   renumera—, o T2 lo gana y T1 relee bajo lock el numero NUEVO.
+--
+--   Esperar es seguro aca porque cuando el trigger pide el lock la fila ST
+--   todavia no esta insertada: la renumeracion no puede estar esperandola.
+--
+--   POR QUE EL UPDATE **NO PUEDE** ESPERAR
+--     Al actualizar una fila existente, PostgreSQL bloquea el tuple objetivo
+--     (GetTupleForTrigger) ANTES de disparar el BEFORE ROW UPDATE. Cuando el
+--     trigger corre, la fila ST YA ESTA LOCKEADA. Un FOR UPDATE bloqueante daria
+--     el orden «fila ST -> coi_ordenes», mientras que coi_renumerar_oc toma
+--     «coi_ordenes -> fila ST»: un ciclo de espera, es decir DEADLOCK entre
+--     editar un ST y renumerar su OC.
+--
+--   POR QUE TAMPOCO ALCANZA NO LOCKEAR EN EL UPDATE
+--     Se penso que bastaba con el lock que el executor ya tiene sobre la fila
+--     ST, porque el UPDATE de sincronizacion del RPC se bloquea en ella. Eso es
+--     cierto SOLO si el ST ya pertenecia a la orden que se renumera. En una
+--     REASOCIACION no:
+--
+--       ST confirmado contra la OC A.
+--       T1  UPDATE del ST para reasociarlo a la OC B. Queda lockeada la fila ST.
+--           El trigger lee B y ve su numero viejo.
+--       T2  coi_renumerar_oc sobre B. Lockea B. Para T2 ese ST todavia pertenece
+--           a A —el cambio de T1 no esta confirmado—, asi que su sincronizacion
+--           de B NO alcanza esa fila. T2 commitea.
+--       T1  commitea: orden_id de B, nro_oc VIEJO de B.
+--
+--     El mismo defecto que en el INSERT, por la misma razon de fondo: durante la
+--     reasociacion la fila todavia no es visible para el RPC como parte de B.
+--
+--   POR ESO: FOR UPDATE NOWAIT
+--     NOWAIT no espera nunca, de modo que no puede participar de un ciclo de
+--     espera: el deadlock queda descartado por construccion, no por un orden de
+--     adquisicion que haya que sostener a mano.
+--
+--       A) si coi_renumerar_oc ya tiene el lock de la OC, el NOWAIT falla en el
+--          acto, el UPDATE del ST aborta y libera la fila ST. No se confirma un
+--          numero viejo;
+--       B) si el UPDATE del ST gana el lock, la renumeracion espera la OC; el ST
+--          se confirma, y despues el RPC lo ve y lo deja con el numero nuevo;
+--       C) si el UPDATE lo hace la propia coi_renumerar_oc, que ya posee el lock
+--          de esa OC, volver a pedirlo desde la MISMA transaccion no conflictua
+--          y la sincronizacion sigue de largo.
+--
+--   ERROR DE CONCURRENCIA — FAIL-CLOSED
+--     El caso A no se oculta ni se reintenta desde el trigger: se captura
+--     lock_not_available (SQLSTATE 55P03) y se levanta COI_ST_OC_CONCURRENCIA
+--     con un hint para actualizar y reintentar. Continuar sin lock seria volver
+--     al defecto original; reintentar dentro del trigger esconderia una
+--     renumeracion en curso que el operador tiene que ver.
+--
+--     Costo conocido y aceptado: FOR UPDATE tambien conflictua con el FOR KEY
+--     SHARE que toman las verificaciones de FK, de modo que un alta concurrente
+--     de otro ST sobre la MISMA orden puede hacer fallar una reasociacion con
+--     COI_ST_OC_CONCURRENCIA. Es un falso positivo, no un dato corrupto, y la
+--     ventana es la de una sentencia autocommit de PostgREST.
+--
+--   Sobre la ruta por numero: se localiza la orden por forma canonica, se lockea
+--   por UUID —bloqueante o NOWAIT segun la operacion— y se relee su numero bajo
+--   lock. Si en el medio esa orden se renumero, el numero que el operador
+--   escribio ya no es el suyo y la asociacion se RECHAZA —el mismo criterio
+--   fail-closed que ya regia para un numero inexistente—, en vez de asociar a
+--   ciegas la orden que «solia» llamarse asi.
+--
+--   BORRADO CONCURRENTE. No hace falta lock para evitar huerfanos: la FK
+--   orden_id -> coi_ordenes(id) se evalua en la escritura y es ON DELETE
+--   RESTRICT. O el ST se confirma antes y el borrado de la orden se rechaza, o
+--   el borrado gana y la escritura del ST falla por FK.
+--
 -- NULOS
 --   nro_oc y orden_id son ambos nullable y se mueven juntos: o hay OC —y estan
 --   los dos— o no la hay —y no esta ninguno—.
@@ -150,9 +241,30 @@ begin
   -- la orden, que es la unica que sabe cual es el vigente.
   if new.orden_id is not null
      and (v_orden_cambio or not v_nro_cambio or new.nro_oc is null) then
-    select o.nro_oc into v_nro
-      from public.coi_ordenes o
-     where o.id = new.orden_id;
+    -- ROW LOCK sobre la orden maestra ANTES de copiar el numero. En INSERT es
+    -- bloqueante; en UPDATE es NOWAIT. Ver «MODOS DE LOCK» en la cabecera.
+    if tg_op = 'INSERT' then
+      select o.nro_oc into v_nro
+        from public.coi_ordenes o
+       where o.id = new.orden_id
+         for update;
+    else
+      begin
+        select o.nro_oc into v_nro
+          from public.coi_ordenes o
+         where o.id = new.orden_id
+           for update nowait;
+      exception when lock_not_available then
+        -- Fail-closed: la orden esta siendo renumerada o modificada por otra
+        -- transaccion. No se continua sin lock ni se reintenta desde el
+        -- trigger: se corta y decide el operador.
+        raise exception using
+          errcode = '55P03',
+          message = 'COI_ST_OC_CONCURRENCIA',
+          detail = format('orden_id=%L', new.orden_id),
+          hint = 'La Orden de Compra esta siendo modificada por otra operacion. Actualice y vuelva a intentar.';
+      end;
+    end if;
 
     if v_nro is null then
       raise exception using
@@ -171,7 +283,9 @@ begin
   -- operador solo haya escrito el numero. Un numero que ya no existe —el de una
   -- OC renumerada, reenviado por un formulario viejo— se rechaza aca.
   if new.nro_oc is not null then
-    select o.id, o.nro_oc into v_id, v_nro
+    -- Paso 1: localizar la orden por forma canonica. Sin lock todavia: aca solo
+    -- se resuelve QUE fila hay que lockear.
+    select o.id into v_id
       from public.coi_ordenes o
      where public.coi_normalize_order_number(o.nro_oc)
          = public.coi_normalize_order_number(new.nro_oc)
@@ -183,6 +297,49 @@ begin
         message = 'COI_ST_OC_INEXISTENTE',
         detail = format('nro_oc=%L', new.nro_oc),
         hint = 'La Orden de Compra indicada no existe. Corrija el numero o deje el campo vacio.';
+    end if;
+
+    -- Paso 2: relectura del numero YA bajo lock, por UUID. Mismos modos que la
+    -- ruta anterior: bloqueante en INSERT, NOWAIT en UPDATE.
+    if tg_op = 'INSERT' then
+      select o.nro_oc into v_nro
+        from public.coi_ordenes o
+       where o.id = v_id
+         for update;
+    else
+      begin
+        select o.nro_oc into v_nro
+          from public.coi_ordenes o
+         where o.id = v_id
+           for update nowait;
+      exception when lock_not_available then
+        raise exception using
+          errcode = '55P03',
+          message = 'COI_ST_OC_CONCURRENCIA',
+          detail = format('nro_oc=%L', new.nro_oc),
+          hint = 'La Orden de Compra esta siendo modificada por otra operacion. Actualice y vuelva a intentar.';
+      end;
+    end if;
+
+    -- La orden se elimino mientras se esperaba el lock.
+    if v_nro is null then
+      raise exception using
+        errcode = '23503',
+        message = 'COI_ST_OC_INEXISTENTE',
+        detail = format('nro_oc=%L', new.nro_oc),
+        hint = 'La Orden de Compra indicada no existe. Corrija el numero o deje el campo vacio.';
+    end if;
+
+    -- La orden se RENUMERO mientras se esperaba el lock: el numero que escribio
+    -- el operador ya no identifica a esta orden. Fail-closed, igual que un
+    -- numero inexistente: no se asocia a ciegas la orden que solia llamarse asi.
+    if public.coi_normalize_order_number(v_nro)
+       is distinct from public.coi_normalize_order_number(new.nro_oc) then
+      raise exception using
+        errcode = '23503',
+        message = 'COI_ST_OC_INEXISTENTE',
+        detail = format('nro_oc=%L', new.nro_oc),
+        hint = 'La Orden de Compra indicada fue renumerada. Actualice y vuelva a intentar.';
     end if;
 
     new.orden_id := v_id;
@@ -264,4 +421,4 @@ comment on constraint coi_servicios_tecnicos_um_orden_id_fkey
   'La OC de un Servicio Tecnico es una referencia real por UUID: ON DELETE RESTRICT impide borrar una orden que todavia tiene historial tecnico asociado. Renumerar la OC no altera esta referencia.';
 
 comment on function public.coi_st_resolver_nro_oc() is
-  'Mantiene coherentes orden_id y nro_oc de un Servicio Tecnico: si llega el UUID fija el numero vigente de esa orden, y si llega solo el numero lo resuelve por coi_normalize_order_number y completa el UUID. Corre BEFORE, en la misma sentencia que la escritura: no queda ventana de carrera entre validar y escribir.';
+  'Mantiene coherentes orden_id y nro_oc de un Servicio Tecnico: si llega el UUID fija el numero vigente de esa orden, y si llega solo el numero lo resuelve por coi_normalize_order_number y completa el UUID. Corre BEFORE, en la misma sentencia que la escritura, y toma un ROW LOCK sobre la fila de coi_ordenes antes de derivar el numero: bloqueante (for update) en INSERT, porque la fila ST todavia no existe y la sincronizacion de coi_renumerar_oc no puede alcanzarla; NOWAIT en UPDATE, porque el executor ya lockeo el tuple ST antes del trigger y esperar la orden invertiria el orden respecto del RPC (deadlock), mientras que no lockear dejaria pasar la reasociacion de un ST hacia una OC que se esta renumerando. Si el NOWAIT no consigue el lock levanta COI_ST_OC_CONCURRENCIA (55P03): fail-closed, sin reintento automatico.';

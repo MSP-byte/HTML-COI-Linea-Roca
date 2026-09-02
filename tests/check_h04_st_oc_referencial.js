@@ -301,6 +301,175 @@ async function main() {
   check(intacto.orden_id === ocB && intacto.nro_oc === '4530222222',
     'editar otro campo no puede mover la OC asociada');
 
+  // ------------------------------------------------------------------
+  // I) Modos de ROW LOCK contra la renumeracion concurrente.
+  //
+  // QUE VERIFICA ESTE BLOQUE Y QUE NO
+  //   PGlite corre un unico backend: NO admite dos sesiones simultaneas, de
+  //   modo que ni la carrera real —T1 escribe el ST mientras T2 renumera la
+  //   OC—, ni un deadlock, ni el disparo efectivo del NOWAIT pueden EJECUTARSE
+  //   aca. Nada de lo que sigue es una prueba de concurrencia
+  //   multi-transaccion y no debe leerse como tal.
+  //
+  //   Lo que si se verifica de forma dura, sobre la definicion REALMENTE
+  //   desplegada (pg_get_functiondef, no el texto del archivo):
+  //
+  //     1-2 · las dos rutas de resolucion toman `for update` BLOQUEANTE en el
+  //           camino INSERT (por orden_id y por nro_oc);
+  //     3-4 · las dos toman `for update nowait` en el camino UPDATE;
+  //       5 · no queda ningun `for update` bloqueante en la rama UPDATE;
+  //       6 · el conflicto de lock es fail-closed: se captura
+  //           lock_not_available y se levanta COI_ST_OC_CONCURRENCIA, sin
+  //           reintento dentro del trigger;
+  //           y que el lock precede a la derivacion de nro_oc.
+  //
+  //   POR QUE ESTOS MODOS. En UPDATE, PostgreSQL bloquea el tuple ST
+  //   (GetTupleForTrigger) ANTES de disparar el BEFORE ROW UPDATE. Un
+  //   FOR UPDATE bloqueante daria «fila ST -> coi_ordenes» contra el
+  //   «coi_ordenes -> fila ST» de coi_renumerar_oc: deadlock. Y no lockear
+  //   tampoco alcanza, porque durante una REASOCIACION A -> B el ST todavia no
+  //   pertenece a B para la transaccion que renumera B, de modo que su
+  //   sincronizacion no lo alcanza y quedaria con el numero viejo. NOWAIT
+  //   resuelve las dos cosas: nunca espera —no puede cerrar un ciclo— y falla
+  //   en el acto si la orden esta tomada.
+  //
+  //   La semantica del lock en si —que FOR UPDATE serialice, que NOWAIT falle
+  //   con 55P03 ante un conflicto— es una garantia de PostgreSQL, no del
+  //   proyecto, y no se re-testea. Este control cubre que el proyecto pida el
+  //   modo correcto en cada camino.
+  const { rows: defTrigger } = await db.query(
+    "select pg_get_functiondef('public.coi_st_resolver_nro_oc()'::regprocedure) def");
+  const fn = defTrigger[0].def;
+  const cuerpoFn = fn.replace(/--[^\n]*/g, '');
+
+  // Se recortan las dos ramas de resolucion. Cada una es un `if tg_op =
+  // 'INSERT' then ... else ... end if;` con el lock de una ruta.
+  const ramas = cuerpoFn.match(/if tg_op = 'INSERT' then[\s\S]*?\n    end if;/gi) || [];
+  check(ramas.length === 2,
+    `se esperaban 2 ramas de resolucion con lock y hay ${ramas.length}`);
+  const ramaPorUuid = ramas.find((r) => /where o\.id = new\.orden_id/i.test(r));
+  const ramaPorNumero = ramas.find((r) => /where o\.id = v_id/i.test(r));
+  check(Boolean(ramaPorUuid), 'falta la rama de resolucion por orden_id');
+  check(Boolean(ramaPorNumero), 'falta la rama de resolucion por nro_oc');
+
+  for (const [rama, etiqueta] of [[ramaPorUuid, 'por orden_id'], [ramaPorNumero, 'por nro_oc']]) {
+    const corte = rama.toLowerCase().indexOf('else');
+    check(corte > 0, `la rama ${etiqueta} tiene que separar INSERT de UPDATE`);
+    const enInsert = rama.slice(0, corte);
+    const enUpdate = rama.slice(corte);
+
+    // 1 y 2 · INSERT: lock BLOQUEANTE.
+    check(/for update;/i.test(enInsert),
+      `el INSERT ${etiqueta} tiene que tomar un FOR UPDATE bloqueante`);
+    check(!/nowait/i.test(enInsert),
+      `el INSERT ${etiqueta} no puede usar NOWAIT: ahi esperar es seguro y necesario`);
+
+    // 3 y 4 · UPDATE: NOWAIT.
+    check(/for update nowait;/i.test(enUpdate),
+      `el UPDATE ${etiqueta} tiene que tomar el lock con NOWAIT`);
+    // 5 · y ningun FOR UPDATE bloqueante puede quedar en el camino UPDATE.
+    check(!/for update(?!\s+nowait)/i.test(enUpdate),
+      `el UPDATE ${etiqueta} no puede tomar un FOR UPDATE bloqueante: invertiria el orden de locks`);
+
+    // 6 · el conflicto de lock es fail-closed, sin reintento en el trigger.
+    check(/exception when lock_not_available then/i.test(enUpdate),
+      `el UPDATE ${etiqueta} tiene que capturar lock_not_available explicitamente`);
+    check(/COI_ST_OC_CONCURRENCIA/.test(enUpdate),
+      `el conflicto de lock ${etiqueta} tiene que informarse como COI_ST_OC_CONCURRENCIA`);
+    check(/errcode = '55P03'/.test(enUpdate),
+      `el conflicto de lock ${etiqueta} tiene que conservar el SQLSTATE 55P03`);
+    check(/hint =/.test(enUpdate),
+      `el conflicto de lock ${etiqueta} tiene que decirle al operador que reintente`);
+    check(!/loop|while|for\s+\w+\s+in/i.test(enUpdate),
+      `el trigger no puede reintentar solo ante un conflicto de lock (${etiqueta})`);
+  }
+
+  // Ningun lock puede quedar fuera de esas dos ramas: uno suelto correria en
+  // los dos caminos y volveria a mezclar los modos.
+  const fueraDeRamas = ramas.reduce((t, r) => t.replace(r, ''), cuerpoFn);
+  check(!/for update/i.test(fueraDeRamas),
+    'no puede quedar ningun FOR UPDATE fuera de las ramas de resolucion');
+  // Cuatro locks en total: bloqueante + NOWAIT por cada una de las dos rutas.
+  check((cuerpoFn.match(/for update/gi) || []).length === 4,
+    'se esperaban 4 locks: bloqueante y NOWAIT por cada ruta de resolucion');
+
+  // El lock precede a la derivacion del numero en las dos rutas.
+  const posLocks = [];
+  for (let i = cuerpoFn.toLowerCase().indexOf('for update'); i >= 0;
+       i = cuerpoFn.toLowerCase().indexOf('for update', i + 1)) posLocks.push(i);
+  const posAsignaciones = [];
+  for (let i = cuerpoFn.indexOf('new.nro_oc :='); i >= 0;
+       i = cuerpoFn.indexOf('new.nro_oc :=', i + 1)) posAsignaciones.push(i);
+  check(posAsignaciones.length === 2,
+    `se esperaban 2 derivaciones de nro_oc y hay ${posAsignaciones.length}`);
+  check(posAsignaciones.every((pos, idx) => posLocks[idx * 2] < pos && posLocks[idx * 2 + 1] < pos),
+    'cada derivacion de nro_oc tiene que ocurrir DESPUES del lock de su ruta');
+
+  // La unica lectura de coi_ordenes sin lock es la que localiza el UUID por
+  // forma canonica: no deriva nada por si misma.
+  check(/select o\.id into v_id/i.test(cuerpoFn) && /coi_normalize_order_number/i.test(cuerpoFn),
+    'la ruta por numero tiene que localizar el UUID por la normalizacion canonica');
+
+  // El trigger sigue siendo BEFORE.
+  const { rows: tg } = await db.query(`
+    select tgtype from pg_trigger
+     where tgname = 'coi_st_resolver_nro_oc'
+       and tgrelid = 'public.coi_servicios_tecnicos_um'::regclass`);
+  check(tg.length === 1, 'falta el trigger de resolucion');
+  check((tg[0].tgtype & 2) === 2, 'el trigger de resolucion tiene que ser BEFORE');
+
+  // coi_renumerar_oc sigue lockeando la orden y sincronizando los ST: es la
+  // contraparte contra la que se eligieron estos modos.
+  const { rows: defRpc } = await db.query(
+    "select pg_get_functiondef(p.oid) def from pg_proc p join pg_namespace n on n.oid = p.pronamespace" +
+    " where n.nspname = 'public' and p.proname = 'coi_renumerar_oc' limit 1");
+  check(defRpc.length === 1, 'no se encontro coi_renumerar_oc');
+  const rpc = defRpc[0].def.replace(/--[^\n]*/g, '');
+  check(/for update/i.test(rpc), 'coi_renumerar_oc deberia lockear la orden maestra');
+  check(/update public\.coi_servicios_tecnicos_um/i.test(rpc),
+    'coi_renumerar_oc deberia sincronizar coi_servicios_tecnicos_um');
+
+  // Caso C · la propia renumeracion actualiza los ST mientras YA posee el lock
+  // de esa orden. Pedirlo de nuevo desde la misma transaccion no conflictua:
+  // esto SI se puede ejecutar en single-session, porque es una unica sesion.
+  const ocMismaTx = await nuevaOC(db, '4530515151');
+  const umMismaTx = await nuevaUM(db, 'UM-LOCK-01');
+  await nuevoST(db, umMismaTx, 'ST-LOCK-01', '4530515151');
+  await db.exec('begin;');
+  await db.query('select id from public.coi_ordenes where id = $1 for update', [ocMismaTx]);
+  await db.query('update public.coi_ordenes set nro_oc = $1 where id = $2', ['4530525252', ocMismaTx]);
+  const sincronizar = await fallo(() => db.query(
+    'update public.coi_servicios_tecnicos_um set nro_oc = $1 where nro_oc = $2',
+    ['4530525252', '4530515151']));
+  check(!sincronizar,
+    `el NOWAIT no puede fallar contra un lock de la propia transaccion: ${sincronizar}`);
+  await db.exec('commit;');
+
+  // 7, 8, 9 · La semantica observable no cambio.
+  const stRenumerado = await verST(db, 'ST-LOCK-01');
+  check(stRenumerado.orden_id === ocMismaTx, 'la renumeracion no puede mover orden_id');
+  check(stRenumerado.nro_oc === '4530525252', 'tras renumerar el ST muestra el numero nuevo');
+  const viejo = await fallo(() => db.query(
+    "update public.coi_servicios_tecnicos_um set nro_oc = '4530515151' where nro_st = 'ST-LOCK-01'"));
+  check(Boolean(viejo) && /COI_ST_OC_INEXISTENTE/.test(viejo),
+    `el numero anterior no puede restaurarse como asociacion valida: ${viejo}`);
+  const borrarLock = await fallo(() => db.query(
+    'delete from public.coi_ordenes where id = $1', [ocMismaTx]));
+  check(Boolean(borrarLock) && /violates foreign key|RESTRICT/i.test(borrarLock),
+    'una OC con ST asociado sigue protegida por ON DELETE RESTRICT');
+
+  // Y la REASOCIACION —el caso que motivo el NOWAIT— sigue funcionando en el
+  // camino normal, sin conflicto: el ST se mueve de una OC a otra y toma el
+  // numero vigente de la nueva.
+  const ocDestino = await nuevaOC(db, '4530535353');
+  await db.query(
+    'update public.coi_servicios_tecnicos_um set orden_id = $1 where nro_st = $2',
+    [ocDestino, 'ST-LOCK-01']);
+  const stReasociado = await verST(db, 'ST-LOCK-01');
+  check(stReasociado.orden_id === ocDestino, 'la reasociacion tiene que mover el UUID');
+  check(stReasociado.nro_oc === '4530535353',
+    'la reasociacion tiene que traer el numero vigente de la orden destino');
+
   // Idempotencia.
   const reaplicar = await fallo(() => db.exec(leer(MIGRACION)));
   check(!reaplicar, `reaplicar la migracion fallo: ${reaplicar}`);
@@ -397,6 +566,10 @@ async function main() {
   console.log('  H · huerfano preexistente                : aborta sin tocar filas');
   console.log('  nro_oc                                   : dato denormalizado, sin FK');
   console.log('  Trigger BEFORE sobre nro_oc y orden_id   : validar y escribir en una sentencia');
+  console.log('  I · INSERT                               : for update bloqueante en las 2 rutas');
+  console.log('      UPDATE                               : for update NOWAIT, fail-closed 55P03');
+  console.log('      Reasociacion A -> B                  : toma el numero vigente del destino');
+  console.log('      (PGlite es single-session: ni la carrera, ni el deadlock, ni el NOWAIT se ejecutan)');
   console.log('  Idempotencia                             : reaplicar es NO-OP');
   console.log(`${aprobados} controles H04 de integridad ST/OC aprobados; 0 fallidos.`);
 }

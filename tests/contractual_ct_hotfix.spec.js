@@ -6,7 +6,7 @@ const ORDER_NUMBER = '4530099888';
 // (`language sql`, `stable`, un select sobre profiles): la capa H04/H05 la usa
 // para decidir la autoridad de la UI. No persiste nada, de modo que no puede
 // contar como escritura en las aserciones de «no muta ni persiste».
-const RPC_DE_LECTURA = new Set(['coi_current_role']);
+const RPC_DE_LECTURA = ['coi_current_role'];
 
 const OLD_DATE = '2026-08-31';
 const NEW_DATE = '2027-10-15';
@@ -43,7 +43,11 @@ async function openFixture(page, {
     typeof window.coiRestoreContractualCT === 'function' &&
     typeof window.renderCircuitoAdministrativoOC === 'function'
   );
-  await page.evaluate(({ orderId, orderNumber, editable, session, remoteDate, remoteStatus, localDate, localStatus }) => {
+  await page.evaluate(({ orderId, orderNumber, editable, session, remoteDate, remoteStatus, localDate, localStatus, rpcDeLectura }) => {
+    // El Set se construye DENTRO del navegador: page.evaluate serializa el
+    // argumento, no el closure de Node, de modo que una referencia lexica a la
+    // constante del fixture explota con «RPC_DE_LECTURA is not defined».
+    const rpcSoloLectura = new Set(rpcDeLectura);
     const user = { id: '82222222-2222-4222-8222-222222222222', email: 'admin@coiroca.com' };
     const order = {
       id: orderId,
@@ -111,7 +115,7 @@ async function openFixture(page, {
       from: table => queryFor(table),
       rpc: async (name, args) => {
         // Lecturas: no mutan nada y no pueden contarse como persistencia.
-        if (RPC_DE_LECTURA.has(name)) {
+        if (rpcSoloLectura.has(name)) {
           state.reads.push({ name, args: clone(args) });
         } else {
           state.writes.push({ name, args: clone(args) });
@@ -185,7 +189,7 @@ async function openFixture(page, {
     body.innerHTML = `<div class="oc-kpis"><div class="oc-kpi"><b>${state.order.estado_documental}</b><span>Estado documental</span></div></div>
       <section id="panelFichaContractual" class="expediente-card ficha-oc-panel active"><h3>2. CONTRACTUAL</h3></section>`;
     window.coiRestoreContractualCT(orderNumber);
-  }, { orderId: ORDER_ID, orderNumber: ORDER_NUMBER, editable, session, remoteDate, remoteStatus, localDate, localStatus });
+  }, { orderId: ORDER_ID, orderNumber: ORDER_NUMBER, editable, session, remoteDate, remoteStatus, localDate, localStatus, rpcDeLectura: RPC_DE_LECTURA });
   await expect(page.locator('[data-coi-contractual-circuit-hotfix]')).toHaveCount(1);
 }
 
@@ -320,6 +324,22 @@ test('resolver el rol administrador reinserta Editar CT de forma idempotente', a
   await expect(page.locator('[data-r28-ct-contractual] [data-r28-ct-edit]')).toHaveCount(1);
   await expect(page.locator('[data-r28-ct-card]')).toHaveCount(1);
   await expect(page.locator('[data-r28-ct-contractual]')).toHaveCount(1);
+});
+
+test('coi_current_role queda registrada como lectura y no como escritura', async ({ page }) => {
+  await openFixture(page);
+  // El fixture clasifica los RPC con un Set construido dentro del navegador.
+  // Si esa lista volviera a leerse por closure de Node, esta llamada explotaria
+  // con «RPC_DE_LECTURA is not defined» antes de poder clasificarse.
+  await page.evaluate(async () => {
+    const c = window.getSupabaseClient();
+    await c.rpc('coi_current_role');
+    await c.rpc('coi_guardar_orden_integral', { p_datos: {} });
+  });
+  const state = await stateSnapshot(page);
+  expect(state.reads.map(r => r.name)).toContain('coi_current_role');
+  expect(state.writes.map(w => w.name)).not.toContain('coi_current_role');
+  expect(state.writes.map(w => w.name)).toContain('coi_guardar_orden_integral');
 });
 
 test('Control de Terceros permite cancelar sin mutar ni persistir', async ({ page }) => {

@@ -577,5 +577,102 @@ que tenía al pintarse, y `cancelarST(uuid, versionRenderizada)` usa **esa**
 versión como condición del UPDATE. Si el remoto avanzó, el UPDATE afecta 0 filas
 y se reporta el conflicto sin cambiar nada.
 
+## TD-041 — La versión de una fila la pone PostgreSQL
+Fecha: 2026-09-02.
+
+`fecha_actualizacion` de UM y ST hace dos trabajos: es la marca de auditoría y es
+el token de concurrencia optimista ([[TD-016]], [[TD-020]]). La versión **nueva**
+la escribía el navegador (`new Date().toISOString()`), con lo que las dos
+funciones dependían de un reloj que el sistema no controla: congelado, dos
+ediciones seguidas escriben la misma versión y el CAS deja de distinguir estados;
+atrasado, la fila retrocede y un token viejo puede volver a matchear.
+
+Decisión: un trigger `BEFORE UPDATE` fija
+`greatest(clock_timestamp(), old.fecha_actualizacion + interval '1 microsecond')`.
+`clock_timestamp()` y no `now()`, que es constante durante toda la transacción;
+el `greatest` garantiza estrictamente creciente aunque el reloj del servidor
+retroceda. El cliente conserva lo único que le corresponde: mandar en el `WHERE`
+la versión que el operador **vio**. Ver [[KI-017]].
+
+Efecto lateral buscado: las escrituras server-side —la sincronización de `nro_oc`
+que hace `coi_renumerar_oc`— también hacen avanzar la versión, cosa que ningún
+cliente podía hacer porque no participa de esa escritura.
+
+## TD-042 — El ST lockea la OC bloqueando en el INSERT y con NOWAIT en el UPDATE
+Fecha: 2026-09-02.
+
+`coi_st_resolver_nro_oc()` corre `BEFORE`, lo que cierra la ventana entre validar
+y escribir dentro de una sentencia, pero no serializa contra **otra**
+transacción. El trigger toma entonces un ROW LOCK sobre la fila de `coi_ordenes`
+antes de derivar `nro_oc`, en las dos rutas de resolución. El **modo** depende de
+la operación, y esa diferencia es el núcleo de la decisión:
+
+| Operación | Lock |
+|---|---|
+| `INSERT` | `select ... for update` (bloqueante) |
+| `UPDATE` | `select ... for update nowait` |
+
+**El INSERT lockea y espera.** T1 inserta un ST y el trigger lee el número viejo;
+T2 renumera esa OC y sincroniza las dependientes, pero la fila de T1 **todavía no
+existe** y su `UPDATE` no la alcanza; ambos commitean y queda `orden_id` correcto
+con `nro_oc` viejo. Esperar es seguro acá porque, cuando el trigger pide el lock,
+la fila ST aún no está insertada: la renumeración no puede estar esperándola.
+
+**El UPDATE no puede esperar.** Al actualizar una fila existente PostgreSQL
+bloquea el tuple objetivo (`GetTupleForTrigger`) **antes** de disparar el BEFORE
+ROW UPDATE. Un `FOR UPDATE` bloqueante daría `fila ST → coi_ordenes` contra el
+`coi_ordenes → fila ST` de `coi_renumerar_oc`: deadlock entre editar un ST y
+renumerar su OC.
+
+**Y tampoco alcanza con no lockear en el UPDATE.** Una versión anterior de esta
+decisión sostuvo que bastaba el lock que el executor ya tiene sobre la fila ST,
+porque el sync del RPC se bloquea en ella. Eso vale **solo si el ST ya pertenecía
+a la orden que se renumera**. En una reasociación no:
+
+> ST confirmado contra la OC A. T1 lo reasocia a B y queda lockeada la fila ST;
+> el trigger lee B con su número viejo. T2 renumera B: para T2 ese ST todavía
+> pertenece a A —el cambio de T1 no está confirmado—, así que su sincronización
+> de B no alcanza esa fila, y commitea. T1 commitea con el `orden_id` de B y el
+> `nro_oc` viejo de B.
+
+Es el mismo defecto que en el `INSERT` y por la misma razón: durante la
+reasociación la fila todavía no es visible para el RPC como parte de B.
+
+**Por eso NOWAIT.** No espera nunca, de modo que no puede participar de un ciclo:
+el deadlock queda descartado por construcción, no por un orden de adquisición que
+haya que sostener a mano. Si la renumeración ya tiene el lock, el NOWAIT falla en
+el acto y el UPDATE del ST aborta liberando la fila; si el UPDATE gana el lock,
+la renumeración espera la OC, el ST se confirma y después el RPC lo deja con el
+número nuevo; y si el UPDATE lo hace la propia `coi_renumerar_oc`, que ya posee
+ese lock, volver a pedirlo desde la misma transacción no conflictúa.
+
+**Fail-closed.** El conflicto no se oculta ni se reintenta desde el trigger: se
+captura `lock_not_available` (SQLSTATE 55P03) y se levanta
+`COI_ST_OC_CONCURRENCIA` con un hint para actualizar y reintentar. Continuar sin
+lock sería volver al defecto original; reintentar dentro del trigger escondería
+una renumeración en curso que el operador tiene que ver.
+
+Costo conocido y aceptado: `FOR UPDATE` también conflictúa con el `FOR KEY SHARE`
+de las verificaciones de FK, así que un alta concurrente de otro ST sobre la misma
+orden puede hacer fallar una reasociación con `COI_ST_OC_CONCURRENCIA`. Es un
+falso positivo, no un dato corrupto, y la ventana es la de una sentencia
+autocommit de PostgREST.
+
+En la ruta por número el lock se toma **por UUID**: primero se localiza la orden
+por forma canónica, después se lockea por `id` y se relee su número. Si en el
+medio se renumeró, el número que escribió el operador ya no la identifica y la
+asociación se rechaza fail-closed. Ver [[TD-037]], [[TD-038]] y [[KI-015]].
+
+Un borrado concurrente no necesita lock para evitar huérfanos: la FK
+`orden_id → coi_ordenes(id)` se evalúa en la escritura y es `ON DELETE RESTRICT`.
+
+Limitación conocida del control: PGlite es single-session, así que **ni la
+carrera, ni un deadlock, ni el disparo efectivo del NOWAIT pueden ejecutarse** en
+los tests. `tests/check_h04_st_oc_referencial.js` verifica sobre la definición
+realmente desplegada que cada ruta pida el modo correcto en cada camino, que no
+quede ningún `FOR UPDATE` bloqueante en la rama `UPDATE`, y que el conflicto sea
+fail-closed con 55P03 y sin reintento. El caso C sí se ejecuta —volver a pedir el
+lock desde la misma transacción no conflictúa—, porque es una sola sesión.
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.
