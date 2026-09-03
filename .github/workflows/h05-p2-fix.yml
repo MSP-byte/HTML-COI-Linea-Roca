@@ -1,8 +1,8 @@
 name: H05 Final P2 Fix
 "on":
   push:
-    branches:
-      - fix/h05-unidades-mantenimiento-supabase-first
+    paths:
+      - .github/workflows/h05-p2-fix.yml
 
 permissions:
   contents: write
@@ -55,7 +55,6 @@ jobs:
                   runtime.rol = perfilFinal.rol;
 
           """
-          # Las cadenas anteriores llevan 10 espacios extra por el heredoc YAML.
           old = old.replace('\n          ', '\n')
           new = new.replace('\n          ', '\n')
           s = replace_once(s, old, new, 'revalidacion de rol post-scan')
@@ -90,7 +89,6 @@ jobs:
           """.replace('\n          ', '\n')
           new = """check(cuerpoCargar.indexOf('if (!perfil.ok)') >= 0 && cuerpoCargar.indexOf('if (!perfil.rol)') >= 0,
             'cargar() tiene que cortar tanto si la comprobacion fallo como si no hay rol');
-          // El perfil se reconfirma despues del scan y antes de publicar el snapshot.
           const posScanRol = cuerpoCargar.indexOf('const perfilFinal = await rolDeSesion();');
           check(posScanRol > cuerpoCargar.indexOf('const par = await leerParConsistente(c);'),
             'cargar() tiene que revalidar el rol despues del scan conjunto');
@@ -177,9 +175,8 @@ jobs:
             expect(e.escriturasLegacy).toEqual([]);
           });
           """
-          # Quitar la sangria usada solo para mantener el YAML valido.
           extra = '\n'.join(line[10:] if line.startswith('          ') else line for line in extra.split('\n'))
-          s = s.rstrip() + extra + '\n'
+          s = s.rstrip() + extra.rstrip() + '\n'
           p.write_text(s, encoding='utf-8', newline='\n')
           PY
 
@@ -198,12 +195,11 @@ jobs:
       - name: Regresiones nuevas 166-167
         run: npx playwright test tests/h05_um_st_supabase_first.spec.js --project=chromium-desktop --grep "166|167"
 
-      - name: Commit final y limpieza
+      - name: Commit funcional
         shell: bash
         run: |
-          rm .github/workflows/h05-p2-fix.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html tests/check_h05_um_supabase_first.js tests/h05_um_st_supabase_first.spec.js .github/workflows/h05-p2-fix.yml
+          git add index.html tests/check_h05_um_supabase_first.js tests/h05_um_st_supabase_first.spec.js
           git commit -m "fix: close final H05 review gaps"
           git push origin HEAD:fix/h05-unidades-mantenimiento-supabase-first
