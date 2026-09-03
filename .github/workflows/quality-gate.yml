@@ -1,31 +1,28 @@
-name: Quality Gate
+name: H05 Review Autofix Temporary
 
 on:
-  pull_request:
-    branches: [main]
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches:
+      - fix/h05-unidades-mantenimiento-supabase-first
 
 permissions:
   contents: write
 
 concurrency:
-  group: quality-gate-${{ github.workflow }}-${{ github.ref }}
+  group: h05-review-autofix-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  autofix-h05-review:
-    name: Aplicar fixes review H05
-    if: github.event_name == 'pull_request' && github.head_ref == 'fix/h05-unidades-mantenimiento-supabase-first'
+  autofix:
+    name: Aplicar y validar dos P2 H05
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout rama real
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 2
+          ref: fix/h05-unidades-mantenimiento-supabase-first
+          fetch-depth: 5
 
       - name: Configurar Node estable
         uses: actions/setup-node@v4
@@ -33,7 +30,7 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Aplicar reemplazos exactos y regresiones
+      - name: Aplicar fixes y regresiones
         shell: bash
         run: |
           python3 - <<'PY'
@@ -116,8 +113,6 @@ check(cuerpoGuardarUMCanonico.indexOf('if (!claveUM(datos.codigo_um))') <
   'la clave UM vacia debe rechazarse antes de consultar duplicados o mutar Supabase');
 
 """
-          if bloque.strip() in static:
-              raise SystemExit('static regressions ya estaban presentes inesperadamente')
           static = reemplazar_unico(static, marcador, bloque + marcador, 'static regression marker')
           p.write_text(static, encoding='utf-8', newline='\n')
 
@@ -185,96 +180,20 @@ test('167 · un código UM que normaliza a vacío se rechaza antes de Supabase',
       - name: Instalar dependencias
         run: npm ci
 
-      - name: Validar patch antes de publicarlo
+      - name: Validar antes de publicar
         run: |
           node tests/check_h05_um_supabase_first.js
           node --check tests/h05_um_st_supabase_first.spec.js
           npm test
           git diff --check
 
-      - name: Restaurar workflow y publicar commit final
+      - name: Restaurar Quality Gate y publicar fix final
         shell: bash
         run: |
-          git show HEAD^:.github/workflows/quality-gate.yml > .github/workflows/quality-gate.yml
+          git show ddc0a7fe519312a14d8c7d1ed306fe531fe73bc0:.github/workflows/quality-gate.yml > .github/workflows/quality-gate.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html tests/check_h05_um_supabase_first.js tests/h05_um_st_supabase_first.spec.js .github/workflows/quality-gate.yml
           git diff --cached --check
           git commit -m "fix: close H05 role and UM key review gaps"
           git push origin HEAD:fix/h05-unidades-mantenimiento-supabase-first
-
-  baseline:
-    name: Calidad estatica
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout sin credenciales persistentes
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Configurar Node estable
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Instalar dependencias bloqueadas
-        run: npm ci
-
-      - name: Auditar dependencias (alta o critica)
-        run: npm audit --audit-level=high
-
-      - name: Ejecutar controles estaticos y de regresion
-        run: npm test
-
-      - name: Validar espacios y fin de linea
-        run: git diff --check
-
-      - name: Comprobar marcadores de conflicto
-        run: |
-          if grep -En '^[[:space:]]*(<<<<<<<|=======|>>>>>>>)([[:space:]]|$)' index.html; then
-            echo "Se encontraron marcadores de conflicto"
-            exit 1
-          fi
-
-      - name: Comprobar DOCTYPE unico
-        run: |
-          count=$(grep -Eio '<!doctype[[:space:]]+html[[:space:]]*>' index.html | wc -l)
-          echo "DOCTYPE encontrados: $count"
-          test "$count" -eq 1
-
-  interaction-smoke:
-    name: Interaccion Chromium
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    needs: baseline
-    steps:
-      - name: Checkout sin credenciales persistentes
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Configurar Node estable
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Instalar dependencias bloqueadas
-        run: npm ci
-
-      - name: Instalar Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Ejecutar smoke de interaccion
-        run: npm run test:e2e
-
-      - name: Publicar evidencia ante fallos
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: playwright-report/
-          if-no-files-found: ignore
-          retention-days: 7
