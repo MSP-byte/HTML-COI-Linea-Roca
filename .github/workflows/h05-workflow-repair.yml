@@ -1,0 +1,37 @@
+name: H05 Autofix Repair
+"on":
+  push:
+    paths:
+      - .github/workflows/h05-workflow-repair.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/h05-unidades-mantenimiento-supabase-first
+          fetch-depth: 0
+      - name: Repair one-shot workflow
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/h05-p2-fix.yml')
+          s = p.read_text(encoding='utf-8')
+          old = "s = s.rstrip() + extra + '\\n'"
+          new = "s = s.rstrip() + extra.rstrip() + '\\n'"
+          if s.count(old) != 1:
+              raise SystemExit(f'EOF anchor count={s.count(old)}')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8', newline='\n')
+          PY
+          rm .github/workflows/h05-workflow-repair.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/h05-p2-fix.yml .github/workflows/h05-workflow-repair.yml
+          git commit -m "chore: repair H05 autofix EOF handling"
+          git push origin HEAD:fix/h05-unidades-mantenimiento-supabase-first
