@@ -28470,6 +28470,18 @@ document.addEventListener('click',function(event){
         const crudasST = par.st;
         if (!vigente()) return listaUM();
 
+        // La autoridad puede cambiar mientras el scan espera a Supabase.
+        // Antes de publicar el par UM+ST se reconfirma el perfil para cerrar
+        // esa ventana TOCTOU. Si fue revocado, el catch conserva el ultimo
+        // snapshot confirmado y la UI queda sin autoridad de escritura.
+        const perfilFinal = await rolDeSesion();
+        if (!vigente()) return listaUM();
+        if (!perfilFinal.ok || !perfilFinal.rol) {
+runtime.rol = null;
+throw new Error('El perfil Supabase dejó de estar activo durante la sincronización.');
+        }
+        runtime.rol = perfilFinal.rol;
+
         const ums = crudasUM.map(desdeSupabaseUM);
         const porId = new Map(ums.map((u) => [String(u._supabaseId), u]));
         // Un ST cuyo unidad_id no aparece en el catalogo remoto no se descarta:
@@ -28808,6 +28820,12 @@ document.addEventListener('click',function(event){
     if (!datos.estado) faltan.push('estado');
     if (faltan.length) {
       mensajeFormUM('Faltan campos obligatorios: ' + faltan.join(', ') + '.', 'warn');
+      return;
+    }
+    // Un texto visible puede quedar sin identidad de negocio despues de
+    // aplicar la misma normalizacion que usa el UNIQUE canonico de PostgreSQL.
+    if (!claveUM(datos.codigo_um)) {
+      mensajeFormUM('El código UM debe contener caracteres distintos de espacios, puntos, barras o guiones.', 'warn');
       return;
     }
     const anterior = umEditandoUuid ? umPorUuid(umEditandoUuid) : null;

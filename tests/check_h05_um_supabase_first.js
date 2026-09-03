@@ -888,6 +888,21 @@ check(cuerpoCargar.indexOf('if (vigente()) runtime.rol = perfil.rol;') >= 0,
   'el rol solo puede adoptarse del resultado de coi_current_role()');
 check(cuerpoCargar.indexOf('if (!perfil.ok)') >= 0 && cuerpoCargar.indexOf('if (!perfil.rol)') >= 0,
   'cargar() tiene que cortar tanto si la comprobacion fallo como si no hay rol');
+const posScanRol = cuerpoCargar.indexOf('const perfilFinal = await rolDeSesion();');
+check(posScanRol > cuerpoCargar.indexOf('const par = await leerParConsistente(c);'),
+  'cargar() tiene que revalidar el rol despues del scan conjunto');
+check(posScanRol < cuerpoCargar.indexOf('runtime.sincronizado = true;'),
+  'la revalidacion final tiene que ocurrir antes de publicar el snapshot');
+check(cuerpoCargar.indexOf('if (!perfilFinal.ok || !perfilFinal.rol)') >= 0,
+  'la revalidacion final debe fallar cerrada si el perfil desaparecio');
+check(cuerpoCargar.indexOf('runtime.rol = perfilFinal.rol;') >= 0,
+  'solo el rol reconfirmado despues del scan puede quedar vigente al publicar');
+
+const posCodigoCanonico = capa.texto.indexOf('if (!claveUM(datos.codigo_um)) {');
+check(posCodigoCanonico >= 0,
+  'guardarUM debe rechazar codigos cuyo canonico queda vacio');
+check(posCodigoCanonico < capa.texto.indexOf('const existente = umPorCodigo(datos.codigo_um);'),
+  'el codigo canonico vacio debe rechazarse antes del lookup y de cualquier mutacion');
 
 // G2 · Escribir exige administrador remoto CONFIRMADO, no solo sesion.
 const cuerpoExigir = sinComentariosJs(

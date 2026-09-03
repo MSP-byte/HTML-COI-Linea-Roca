@@ -82,6 +82,7 @@ async function prepararEntorno(page, opciones) {
     fallaSelect: false, fallaMutacion: false, errorMutacion: 'RLS denegado',
     retardoSelectMs: 0, pageSize: 1000, admin: true, sinSesion: false, rol: 'administrador',
     ordenes: [], fallaSelectOC: false, fallaRol: false, fallaNormalizacion: false,
+    rolTrasPrimeraVerificacion: undefined,
     // Compuerta para la lectura de coi_ordenes: con `true` la consulta queda
     // suspendida hasta que el test llame a window.__H05_ABRIR_OC__().
     frenarSelectOC: false,
@@ -318,6 +319,7 @@ async function prepararEntorno(page, opciones) {
       return api;
     }
 
+    let verificacionesRol = 0;
     const fake = {
       from: (t) => consulta(t),
       // Misma funcion que usan las policies RESTRICTIVE. rol null representa un
@@ -341,7 +343,11 @@ async function prepararEntorno(page, opciones) {
         if (nombre !== 'coi_current_role') return { data: null, error: null };
         if (!sesionActiva) return { data: null, error: null };
         if (c.fallaRol) return { data: null, error: { message: 'fallo de red al leer el perfil' } };
-        return { data: c.rol === null ? null : c.rol, error: null };
+        verificacionesRol++;
+        const rolActual = verificacionesRol > 1 && c.rolTrasPrimeraVerificacion !== undefined
+? c.rolTrasPrimeraVerificacion
+: c.rol;
+        return { data: rolActual === null ? null : rolActual, error: null };
       },
       auth: {
         getSession: async () => ({
@@ -4225,4 +4231,43 @@ test('165 · sin interleaving, guardar un ST sigue cerrando su propia edición',
   // La edicion propia si se cierra: la ficha vuelve al alta.
   await expect(page.locator('#fichaUMBody')).toContainText('Cargar ST para esta UM');
   await expect(page.locator('#fichaUMBody')).not.toContainText('Editar el Servicio Técnico');
+});
+
+test('166 · F · si el rol se revoca durante el scan no se publica un snapshot autoritativo', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [ST_A], rol: 'administrador', rolTrasPrimeraVerificacion: null
+  });
+  await abrirSinEsperarCarga(page);
+  await page.waitForFunction(() =>
+    (window.__H05_LLAMADAS__ || []).filter((l) => l.op === 'rpc:coi_current_role').length >= 2,
+    null, { timeout: 20000 }
+  );
+  await page.waitForTimeout(300);
+  const e = await estado(page);
+  expect(e.sincronizado).toBe(false);
+  expect(e.rol).toBeNull();
+  expect(e.ums.map((u) => u.codigo)).not.toContain('ASC-001');
+  expect(e.sts.map((st) => st.nroST)).not.toContain('ST-0001');
+  expect(e.llamadas.filter((l) => l.op === 'rpc:coi_current_role').length).toBeGreaterThanOrEqual(2);
+  expect(e.escriturasLegacy).toEqual([]);
+});
+
+test('167 · F · codigo UM que normaliza a vacio se rechaza sin INSERT', async ({ page }) => {
+  await prepararEntorno(page, { ums: [], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  for (const invalido of ['-', '///', ' . / - ']) {
+    await page.fill('#umh5_codigo', invalido);
+    await page.selectOption('#umh5_tipo', 'Ascensor');
+    await page.selectOption('#umh5_estacion', { index: 1 });
+    await page.selectOption('#umh5_estado', 'ACTIVA');
+    await page.click('#btnGuardarUMH05');
+    await page.waitForTimeout(120);
+    await expect(page.locator('#umFormMsgH05')).toContainText('código UM');
+  }
+  const e = await estado(page);
+  expect(soloOp(e, 'insert:coi_unidades_mantenimiento')).toHaveLength(0);
+  expect(e.ums).toHaveLength(0);
+  expect(e.escriturasLegacy).toEqual([]);
 });
