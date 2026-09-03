@@ -82,6 +82,9 @@ async function prepararEntorno(page, opciones) {
     fallaSelect: false, fallaMutacion: false, errorMutacion: 'RLS denegado',
     retardoSelectMs: 0, pageSize: 1000, admin: true, sinSesion: false, rol: 'administrador',
     ordenes: [], fallaSelectOC: false, fallaRol: false, fallaNormalizacion: false,
+    // Compuerta para la lectura de coi_ordenes: con `true` la consulta queda
+    // suspendida hasta que el test llame a window.__H05_ABRIR_OC__().
+    frenarSelectOC: false,
     // Simula que otro administrador inserta filas entre pagina y pagina.
     // `true` = sin limite (escritura sostenida); un numero = esa cantidad de
     // inserciones en total, repartidas entre los reintentos.
@@ -163,6 +166,11 @@ async function prepararEntorno(page, opciones) {
     window.__H05_SET_UMS__ = (v) => { ums = v.slice(); };
     window.__H05_SET_STS__ = (v) => { sts = v.slice(); };
     const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+    // Compuerta de coi_ordenes. Se abre desde el test.
+    let liberarOC = null;
+    const esperarCompuertaOC = () => new Promise((r) => { liberarOC = r; });
+    window.__H05_ABRIR_OC__ = () => { const r = liberarOC; liberarOC = null; if (r) r(); };
+    window.__H05_OC_FRENADA__ = () => Boolean(liberarOC);
     const uuid = (n) => '99999999-9999-4999-8999-' + String(n).padStart(12, '0');
 
     function consulta(tabla) {
@@ -207,6 +215,10 @@ async function prepararEntorno(page, opciones) {
             if (window.__H05_CFG__.fallaSelectOC) {
               return { data: null, error: { message: 'fallo de red al leer Ordenes' } };
             }
+            // La compuerta suspende la validacion remota justo donde el
+            // formulario queda esperando: es la ventana en la que el operador
+            // puede abrir otro ST.
+            if (window.__H05_CFG__.frenarSelectOC) await esperarCompuertaOC();
             const halladas = ordenes.filter((o) => cumple(o));
             return { data: st.limite ? halladas.slice(0, st.limite) : halladas, error: null };
           }
@@ -4080,4 +4092,137 @@ test('161 · F · mas de 1000 UM y mas de 1000 ST se leen sin saltos ni duplicad
     expect(lecturas.length).toBeGreaterThan(1);
     expect(lecturas.every((l) => !(l.payload || []).some((f) => f.op === 'range'))).toBe(true);
   }
+});
+
+// ================================== novena ronda de review del PR #59
+
+// --- P2: «Ir a estación» resuelve la estacion como el resto del sistema.
+//
+// La UM guarda texto libre y el catalogo el nombre canonico. La comparacion
+// era por igualdad exacta, de modo que una UM con «PLAZA CONSTITUCION»
+// aparecia asociada en Red y en las listas, pero el boton no navegaba.
+
+const UM_ESTACION_CRUDA = Object.assign({}, UM_A, {
+  id: '88888888-8888-4888-8888-888888888888',
+  codigo_um: 'ASC-PC-CRUDA',
+  estacion: 'PLAZA CONSTITUCION'
+});
+const UM_ESTACION_DESCONOCIDA = Object.assign({}, UM_A, {
+  id: '99999999-9999-4999-8999-999999999999',
+  codigo_um: 'ASC-FANTASMA',
+  estacion: 'Estación Que No Existe'
+});
+
+test('162 · Ir a estación resuelve «PLAZA CONSTITUCION» contra «Plaza Constitución»', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_ESTACION_CRUDA], sts: [] });
+  const errores = await abrir(page);
+  await instrumentarFichaUM(page);
+  await abrirFichaUMPorCodigo(page, 'ASC-PC-CRUDA');
+
+  // Click DOM real sobre el boton de la ficha.
+  await page.click('#btnIrEstacionUM');
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__UM_ESTACION__))
+    .toEqual(['Plaza Constitución']);
+
+  // El valor almacenado de la UM NO se toca: solo se compara normalizado.
+  const guardada = await page.evaluate(
+    () => (window.unidadesMantenimiento || []).find((u) => u.codigoUM === 'ASC-PC-CRUDA').estacion);
+  expect(guardada).toBe('PLAZA CONSTITUCION');
+  expect(errores).toEqual([]);
+});
+
+test('163 · una estación que no existe en el catálogo no inventa destino ni rompe la ficha', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_ESTACION_DESCONOCIDA], sts: [] });
+  const errores = await abrir(page);
+  await instrumentarFichaUM(page);
+  await abrirFichaUMPorCodigo(page, 'ASC-FANTASMA');
+
+  await page.click('#btnIrEstacionUM');
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => window.__UM_ESTACION__)).toEqual([]);
+
+  // Y el resto de las acciones de la ficha siguen respondiendo.
+  await page.click('#btnCopiarUM');
+  await page.waitForTimeout(250);
+  expect((await page.evaluate(() => window.__UM_COPIADO__)).at(-1)).toContain('ASC-FANTASMA');
+  expect(errores).toEqual([]);
+});
+
+// --- P2: guardar un ST congela su contexto antes del primer await.
+//
+// confirmarOC() sale a la red. Si en esa ventana el operador abre otro ST, la
+// version del CAS se leia del global stEditandoVersion —ya movido— y el UPDATE
+// viajaba con el uuid de A y la version de B. Ademas limpiarEdicionST() borraba
+// la edicion recien abierta.
+
+test('164 · abrir otro ST durante la validación de OC no mezcla uuid y versión CAS', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [ST_A, ST_B],
+    ordenes: [{ nro_oc: '4530008964' }, { nro_oc: '4530003333' }]
+  });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964', '4530003333']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  // Cambiar la OC obliga a la validacion remota, que queda suspendida.
+  await page.fill('#stfh5_oc', '4530003333');
+  await page.evaluate(() => { window.__H05_CFG__.frenarSelectOC = true; });
+  await page.click('[data-h05-guardar-st-ficha]');
+
+  // Con A en vuelo, el operador abre B.
+  await page.waitForFunction(() => window.__H05_OC_FRENADA__(), null, { timeout: 5000 });
+  await page.click('[data-h05-editar-st="' + ST_B.id + '"]');
+  await page.waitForTimeout(300);
+  await expect(page.locator('#stfh5_nro')).toHaveValue(ST_B.nro_st);
+
+  // Recien ahora se libera la validacion de A.
+  await page.evaluate(() => { window.__H05_ABRIR_OC__(); });
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  // El UPDATE es de A, con la version de A. Nunca uuid A + version B.
+  expect(updates[0].payload.filtro).toEqual({ col: 'id', val: ST_A.id });
+  const cas = updates[0].payload.filtros.find((f) => f.col === 'fecha_actualizacion');
+  expect(cas.val).toBe(ST_A.fecha_actualizacion);
+  expect(cas.val).not.toBe(ST_B.fecha_actualizacion);
+
+  // B sigue siendo la edicion activa: A no le borro el contexto al terminar.
+  await expect(page.locator('#fichaUMBody')).toContainText('Editar el Servicio Técnico ' + ST_B.nro_st);
+  await expect(page.locator('#stfh5_nro')).toHaveValue(ST_B.nro_st);
+
+  // Ni altas ni bajas inesperadas, ni escritura legada.
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(e.llamadas.filter((l) => String(l.op).indexOf('delete') === 0)).toHaveLength(0);
+  expect(e.escriturasLegacy).toEqual([]);
+  // El lector legado sigue viendo vacio: ningun ST operativo se persistio.
+  expect(JSON.parse(e.legacyST)).toEqual([]);
+});
+
+test('165 · sin interleaving, guardar un ST sigue cerrando su propia edición', async ({ page }) => {
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: [ST_A], ordenes: [{ nro_oc: '4530008964' }, { nro_oc: '4530003333' }]
+  });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964', '4530003333']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  await page.fill('#stfh5_oc', '4530003333');
+  await page.click('[data-h05-guardar-st-ficha]');
+  await page.waitForTimeout(1300);
+
+  const e = await estado(page);
+  const updates = soloOp(e, 'update:coi_servicios_tecnicos_um');
+  expect(updates).toHaveLength(1);
+  const cas = updates[0].payload.filtros.find((f) => f.col === 'fecha_actualizacion');
+  expect(cas.val).toBe(ST_A.fecha_actualizacion);
+  // La edicion propia si se cierra: la ficha vuelve al alta.
+  await expect(page.locator('#fichaUMBody')).toContainText('Cargar ST para esta UM');
+  await expect(page.locator('#fichaUMBody')).not.toContainText('Editar el Servicio Técnico');
 });

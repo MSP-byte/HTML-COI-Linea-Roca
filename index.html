@@ -6223,7 +6223,41 @@ function abrirFichaUM(idUM){vistaAnteriorUM=document.querySelector('.view.active
 function volverUM(){mostrarVista(vistaAnteriorUM||'vistaUnidadesMantenimiento');}
 function renderFichaUM(idUM){const u=unidadesMantenimiento.find(x=>x.idUM===idUM),body=$('fichaUMBody');if(!body)return;if(!u){body.innerHTML='<p class="empty">No se encontró la UM.</p>';return;}body.innerHTML=`<div class="oc-kpis"><div class="oc-kpi"><b>${esc(u.idUM)}</b><span>ID UM</span></div><div class="oc-kpi"><b>${esc(u.tipoUM)}</b><span>Tipo UM</span></div><div class="oc-kpi"><b>${esc(u.estacion)}</b><span>Estación</span></div><div class="oc-kpi"><b>${esc(u.criticidad||'—')}</b><span>Criticidad</span></div><div class="oc-kpi">${badgeUMEstado(u.estadoOperativo)}</div></div><div class="um-ficha-grid"><section class="um-ficha-card"><h3>A. Encabezado</h3><div class="grid"><div><b>ID UM</b>${esc(u.idUM)}</div><div><b>Tipo</b>${esc(u.tipoUM)}</div><div><b>Estación</b>${esc(u.estacion)}</div><div><b>Ubicación técnica</b>${esc(u.ubicacionTecnica)}</div><div><b>Estado operativo</b>${badgeUMEstado(u.estadoOperativo)}</div><div><b>Criticidad</b>${esc(u.criticidad||'—')}</div></div></section><section class="um-ficha-card"><h3>B. Datos técnicos</h3><div class="grid"><div><b>Sector</b>${esc(u.sector||'—')}</div><div><b>Descripción</b>${esc(u.descripcion||'—')}</div><div><b>Proveedor actual</b>${esc(u.proveedorActual||'—')}</div><div><b>OC actual</b>${esc(u.ocActual||'—')}</div></div></section><section class="um-ficha-card full"><h3>C. Servicios Técnicos Asociados</h3>${renderServiciosTecnicosAsociados(u.idUM)}<h4>Historial de mantenimiento</h4>${(u.historialMantenimiento&&u.historialMantenimiento.length)?`<div class="table-wrap"><table class="coi-table"><thead><tr><th>Fecha</th><th>Tipo evento</th><th>OC</th><th>Proveedor</th><th>Observación</th></tr></thead><tbody>${u.historialMantenimiento.map(h=>`<tr><td>${esc(h.fecha||'—')}</td><td>${esc(h.tipoEvento||'—')}</td><td>${esc(h.oc||'—')}</td><td>${esc(h.proveedor||'—')}</td><td>${esc(h.observacion||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="oc-empty">No hay historial de mantenimiento cargado.</div>'}</section><section class="um-ficha-card full"><h3>D. Fotos / Evidencia</h3>${(u.fotos&&u.fotos.length)?`<div class="gallery-grid">${u.fotos.map((f,i)=>`<div class="gallery-item"><img src="${esc(f)}" alt="${esc(u.idUM)} foto ${i+1}" data-um-foto-img><div><b>Foto ${i+1}</b><br>${esc(f)}</div></div>`).join('')}</div>`:'<div class="oc-empty">Sin fotos cargadas.</div>'}</section><section class="um-ficha-card full"><h3>E. Observaciones</h3><div class="exp-observaciones">${esc(u.observaciones||'Sin observaciones cargadas.')}</div></section></div>`;}
 function copiarResumenUM(){const u=unidadesMantenimiento.find(x=>x.idUM===umActualId);if(!u)return;const txt=`UM: ${u.idUM}\nTipo: ${u.tipoUM}\nEstación: ${u.estacion}\nUbicación: ${u.ubicacionTecnica}\nEstado: ${u.estadoOperativo}\nOC actual: ${u.ocActual||'—'}`;navigator.clipboard?.writeText(txt).then(()=>alert('Resumen UM copiado.')).catch(()=>prompt('Copiar resumen UM:',txt));}
-function irEstacionUM(){const u=unidadesMantenimiento.find(x=>x.idUM===umActualId),est=estaciones.find(e=>e.nombre===u?.estacion);if(est){mostrarVista('vistaRed');selectStation(est);}}
+/* La estacion de una UM es texto libre y el catalogo guarda el nombre
+   canonico: «PLAZA CONSTITUCION» y «Plaza Constitución» son la misma. Comparar
+   por igualdad exacta dejaba el boton sin destino aunque la UM apareciera
+   asociada en Red y en el resto de las vistas.
+
+   Se reutiliza el mecanismo canonico que ya usa el proyecto —
+   normalizarNombreEstacion() y, si la resuelve, resolverEstacionMaestra()— en
+   lugar de una tabla de alias paralela. El valor almacenado en la UM no se
+   toca: solo se compara normalizado.
+
+   Devuelve SIEMPRE una entrada de `estaciones`, que es lo que selectStation()
+   espera; si no resuelve devuelve null y el boton no navega a ningun lado. */
+function resolverEstacionDeUM(valor){
+  const buscado=String(valor==null?'':valor).trim();
+  if(!buscado)return null;
+  const lista=Array.isArray(estaciones)?estaciones:[];
+  const clave=n=>typeof normalizarNombreEstacion==='function'
+    ?normalizarNombreEstacion(n)
+    :String(n==null?'':n).trim().toUpperCase();
+  const claves=new Set([clave(buscado)]);
+  /* El catalogo maestro tambien resuelve por id y por alias: si conoce esta
+     estacion, su nombre canonico entra como segunda clave de comparacion. */
+  try{
+    const maestra=typeof resolverEstacionMaestra==='function'?resolverEstacionMaestra(buscado):null;
+    if(maestra&&maestra.nombre)claves.add(clave(maestra.nombre));
+  }catch(e){}
+  claves.delete('');
+  if(!claves.size)return null;
+  return lista.find(e=>claves.has(clave(e&&e.nombre)))||null;
+}
+function irEstacionUM(){
+  const u=unidadesMantenimiento.find(x=>x.idUM===umActualId);
+  const est=resolverEstacionDeUM(u&&u.estacion);
+  if(est){mostrarVista('vistaRed');selectStation(est);}
+}
 function vincularOCUM(){const u=unidadesMantenimiento.find(x=>x.idUM===umActualId);if(!u)return;const oc=prompt('Ingresar OC actual vinculada a la UM:',u.ocActual||'');if(oc!==null){u.ocActual=oc.trim();guardarUM();renderFichaUM(u.idUM);}}
 function exportarUMCSV(){const campos=new Set(['idUM']);unidadesMantenimiento.forEach(u=>Object.keys(u).forEach(k=>campos.add(k)));const headers=['idUM',...[...campos].filter(k=>k!=='idUM')];const csv=[headers,...unidadesMantenimiento.map(u=>headers.map(h=>Array.isArray(u[h])||typeof u[h]==='object'?JSON.stringify(u[h]||''):u[h]||''))].map(r=>r.map(coiCSVCell).join(';')).join('\n');descargarArchivo('unidades_mantenimiento_linea_roca.csv',csv,'text/csv;charset=utf-8');}
 function renderUMEnPanelEstacion(s){const ums=umsPorEstacion(s.nombre);if(!ums.length)return'<p class="empty">Sin Unidades de Mantenimiento cargadas para esta estación.</p>';return`<div class="um-mini-list">${ums.map(u=>`<div class="um-mini-card"><h4>${esc(u.idUM)} · ${esc(u.tipoUM)}</h4><div>${esc(u.ubicacionTecnica)}</div><div>${badgeUMEstado(u.estadoOperativo)}</div><br><button type="button" class="btn-open-um" data-open-um="${esc(u.idUM)}">Ver ficha UM</button></div>`).join('')}</div>`;}
@@ -29133,7 +29167,14 @@ document.addEventListener('click',function(event){
     }
 
     if (editando) {
+      // Todo el contexto de edicion se congela ANTES del primer await.
+      // confirmarOC() sale a la red, y en esa ventana el operador puede abrir
+      // otro ST: si el UPDATE leyera stEditandoVersion recien al armarse,
+      // mandaria el uuid de A con la version de B y el CAS aceptaria una
+      // escritura sobre una version que nadie vio. La OC y el estado originales
+      // ya viajan dentro de `preparado`, resuelto tambien antes del await.
       const uuid = editando._supabaseId;
+      const versionEditada = stEditandoVersion;
       conManejoDeError('stEditar:' + uuid, async () => {
         await confirmarOC();
         // unidad_id no viaja en el patch: editar no reasigna la UM.
@@ -29147,8 +29188,11 @@ document.addEventListener('click',function(event){
           delete patch.nro_oc;
           delete patch.orden_id;
         }
-        await actualizarST(uuid, patch, stEditandoVersion);
-        limpiarEdicionST();
+        await actualizarST(uuid, patch, versionEditada);
+        // Solo se cierra la edicion si sigue siendo LA MISMA. Durante el await
+        // el operador pudo pasar a otro ST, y limpiar aca le borraria el
+        // contexto que acaba de abrir.
+        if (String(stEditandoUuid) === String(uuid)) limpiarEdicionST();
       }, 'Servicio Técnico actualizado.', mensaje);
       return;
     }

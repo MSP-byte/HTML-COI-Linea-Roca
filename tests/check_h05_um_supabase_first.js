@@ -312,8 +312,16 @@ for (const [patron, detalle] of [
 // La edicion actualiza la misma fila: nunca inserta una nueva.
 check(/conManejoDeError\('stEditar:' \+ uuid/.test(capa.texto),
   'la edicion de ST debe pasar por el lock de mutacion con su propio uuid');
-check(/await actualizarST\(uuid, patch, stEditandoVersion\);/.test(capa.texto),
-  'la edicion de ST debe ir por UPDATE contra el uuid y con la version capturada por el formulario');
+// El contexto de edicion se congela ANTES del primer await: confirmarOC() sale
+// a la red y en esa ventana el operador puede abrir otro ST. Leer
+// stEditandoVersion al armar el UPDATE mandaba el uuid de A con la version de B.
+check(/const versionEditada = stEditandoVersion;/.test(capa.texto),
+  'la version del CAS debe congelarse en una local antes del await');
+check(/await actualizarST\(uuid, patch, versionEditada\);/.test(capa.texto),
+  'la edicion de ST debe ir por UPDATE contra el uuid y con la version congelada');
+// Y cerrar la edicion solo si sigue siendo la misma: si no, borraria la nueva.
+check(/if \(String\(stEditandoUuid\) === String\(uuid\)\) limpiarEdicionST\(\);/.test(capa.texto),
+  'terminar de guardar un ST no puede cerrar la edicion de otro');
 
 // Codigo muerto retirado: el escudo lo instala el bloque de congelamiento y el
 // estado del ST se edita por formulario.
@@ -424,8 +432,8 @@ check(/stEditandoVersion = editando \? \(st\.fechaActualizacion \|\| null\) : nu
   'la version de ST debe capturarse al pintar los inputs');
 check(/if \(id\) await actualizarUM\(id, datos, umEditandoVersion\);/.test(capa.texto),
   'el CAS de UM debe usar la version capturada, no la del runtime');
-check(/await actualizarST\(uuid, patch, stEditandoVersion\);/.test(capa.texto),
-  'el CAS de ST debe usar la version capturada, no la del runtime');
+check(/await actualizarST\(uuid, patch, versionEditada\);/.test(capa.texto),
+  'el CAS de ST debe usar la version congelada, no la del runtime');
 check(!/actualizarUM\(id, datos, anterior \? anterior\.fechaActualizacion : null\)/.test(capa.texto),
   'el CAS no puede volver a leer la version desde el runtime al guardar');
 // Y la firma del formulario cubre todo lo que pinta.
