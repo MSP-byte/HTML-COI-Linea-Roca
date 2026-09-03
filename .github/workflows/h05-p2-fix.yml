@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   patch:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout rama PR59
@@ -35,172 +34,151 @@ jobs:
                   raise SystemExit(f'{label}: se esperaba 1 ancla y aparecieron {n}')
               return text.replace(old, new, 1)
 
-          # ------------------------------------------------ index.html
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
-
           old = """        const par = await leerParConsistente(c);
-        const crudasUM = par.um;
-        const crudasST = par.st;
-        if (!vigente()) return listaUM();
+                  const crudasUM = par.um;
+                  const crudasST = par.st;
+                  if (!vigente()) return listaUM();
 
-"""
+          """
           new = old + """        // La autoridad puede cambiar mientras el scan espera a Supabase.
-        // Antes de publicar el par UM+ST se reconfirma el perfil para cerrar
-        // esa ventana TOCTOU. Si fue revocado, el catch conserva el ultimo
-        // snapshot confirmado y la UI queda sin autoridad de escritura.
-        const perfilFinal = await rolDeSesion();
-        if (!vigente()) return listaUM();
-        if (!perfilFinal.ok || !perfilFinal.rol) {
-          runtime.rol = null;
-          throw new Error('El perfil Supabase dejó de estar activo durante la sincronización.');
-        }
-        runtime.rol = perfilFinal.rol;
+                  // Antes de publicar el par UM+ST se reconfirma el perfil para cerrar
+                  // esa ventana TOCTOU. Si fue revocado, el catch conserva el ultimo
+                  // snapshot confirmado y la UI queda sin autoridad de escritura.
+                  const perfilFinal = await rolDeSesion();
+                  if (!vigente()) return listaUM();
+                  if (!perfilFinal.ok || !perfilFinal.rol) {
+                    runtime.rol = null;
+                    throw new Error('El perfil Supabase dejó de estar activo durante la sincronización.');
+                  }
+                  runtime.rol = perfilFinal.rol;
 
-"""
+          """
+          # Las cadenas anteriores llevan 10 espacios extra por el heredoc YAML.
+          old = old.replace('\n          ', '\n')
+          new = new.replace('\n          ', '\n')
           s = replace_once(s, old, new, 'revalidacion de rol post-scan')
 
           old = """    if (faltan.length) {
-      mensajeFormUM('Faltan campos obligatorios: ' + faltan.join(', ') + '.', 'warn');
-      return;
-    }
-    const anterior = umEditandoUuid ? umPorUuid(umEditandoUuid) : null;
-"""
+                mensajeFormUM('Faltan campos obligatorios: ' + faltan.join(', ') + '.', 'warn');
+                return;
+              }
+              const anterior = umEditandoUuid ? umPorUuid(umEditandoUuid) : null;
+          """.replace('\n          ', '\n')
           new = """    if (faltan.length) {
-      mensajeFormUM('Faltan campos obligatorios: ' + faltan.join(', ') + '.', 'warn');
-      return;
-    }
-    // Un texto visible puede no contener ninguna identidad de negocio despues
-    // de aplicar la misma normalizacion que usa el UNIQUE canonico de PostgreSQL.
-    // Ej.: '-', '///' o ' . / - '. Esos codigos no son navegables por umPorCodigo().
-    if (!claveUM(datos.codigo_um)) {
-      mensajeFormUM('El código UM debe contener caracteres distintos de espacios, puntos, barras o guiones.', 'warn');
-      return;
-    }
-    const anterior = umEditandoUuid ? umPorUuid(umEditandoUuid) : null;
-"""
+                mensajeFormUM('Faltan campos obligatorios: ' + faltan.join(', ') + '.', 'warn');
+                return;
+              }
+              // Un texto visible puede quedar sin identidad de negocio despues de
+              // aplicar la misma normalizacion que usa el UNIQUE canonico de PostgreSQL.
+              if (!claveUM(datos.codigo_um)) {
+                mensajeFormUM('El código UM debe contener caracteres distintos de espacios, puntos, barras o guiones.', 'warn');
+                return;
+              }
+              const anterior = umEditandoUuid ? umPorUuid(umEditandoUuid) : null;
+          """.replace('\n          ', '\n')
           s = replace_once(s, old, new, 'codigo UM canonico no vacio')
           p.write_text(s, encoding='utf-8', newline='\n')
 
-          # ------------------------------------ static H05 contract
           p = Path('tests/check_h05_um_supabase_first.js')
           s = p.read_text(encoding='utf-8')
           old = """check(cuerpoCargar.indexOf('if (!perfil.ok)') >= 0 && cuerpoCargar.indexOf('if (!perfil.rol)') >= 0,
-  'cargar() tiene que cortar tanto si la comprobacion fallo como si no hay rol');
+            'cargar() tiene que cortar tanto si la comprobacion fallo como si no hay rol');
 
-// G2 · Escribir exige administrador remoto CONFIRMADO, no solo sesion.
-"""
+          // G2 · Escribir exige administrador remoto CONFIRMADO, no solo sesion.
+          """.replace('\n          ', '\n')
           new = """check(cuerpoCargar.indexOf('if (!perfil.ok)') >= 0 && cuerpoCargar.indexOf('if (!perfil.rol)') >= 0,
-  'cargar() tiene que cortar tanto si la comprobacion fallo como si no hay rol');
-// La primera verificacion no alcanza: el perfil puede revocarse mientras se
-// recorren UM/ST. Se reconfirma despues del scan y antes de publicar el snapshot.
-const posScanRol = cuerpoCargar.indexOf('const perfilFinal = await rolDeSesion();');
-check(posScanRol > cuerpoCargar.indexOf('const par = await leerParConsistente(c);'),
-  'cargar() tiene que revalidar el rol despues del scan conjunto');
-check(posScanRol < cuerpoCargar.indexOf('runtime.sincronizado = true;'),
-  'la revalidacion final tiene que ocurrir antes de publicar el snapshot');
-check(cuerpoCargar.indexOf('if (!perfilFinal.ok || !perfilFinal.rol)') >= 0,
-  'la revalidacion final debe fallar cerrada si el perfil desaparecio');
-check(cuerpoCargar.indexOf('runtime.rol = perfilFinal.rol;') >= 0,
-  'solo el rol reconfirmado despues del scan puede quedar vigente al publicar');
+            'cargar() tiene que cortar tanto si la comprobacion fallo como si no hay rol');
+          // El perfil se reconfirma despues del scan y antes de publicar el snapshot.
+          const posScanRol = cuerpoCargar.indexOf('const perfilFinal = await rolDeSesion();');
+          check(posScanRol > cuerpoCargar.indexOf('const par = await leerParConsistente(c);'),
+            'cargar() tiene que revalidar el rol despues del scan conjunto');
+          check(posScanRol < cuerpoCargar.indexOf('runtime.sincronizado = true;'),
+            'la revalidacion final tiene que ocurrir antes de publicar el snapshot');
+          check(cuerpoCargar.indexOf('if (!perfilFinal.ok || !perfilFinal.rol)') >= 0,
+            'la revalidacion final debe fallar cerrada si el perfil desaparecio');
+          check(cuerpoCargar.indexOf('runtime.rol = perfilFinal.rol;') >= 0,
+            'solo el rol reconfirmado despues del scan puede quedar vigente al publicar');
 
-// G1d · codigo_um tiene que conservar identidad despues de su normalizacion.
-const posCodigoCanonico = capa.texto.indexOf('if (!claveUM(datos.codigo_um)) {');
-check(posCodigoCanonico >= 0,
-  'guardarUM debe rechazar codigos cuyo canonico queda vacio');
-check(posCodigoCanonico < capa.texto.indexOf('const existente = umPorCodigo(datos.codigo_um);'),
-  'el codigo canonico vacio debe rechazarse antes del lookup y de cualquier mutacion');
+          const posCodigoCanonico = capa.texto.indexOf('if (!claveUM(datos.codigo_um)) {');
+          check(posCodigoCanonico >= 0,
+            'guardarUM debe rechazar codigos cuyo canonico queda vacio');
+          check(posCodigoCanonico < capa.texto.indexOf('const existente = umPorCodigo(datos.codigo_um);'),
+            'el codigo canonico vacio debe rechazarse antes del lookup y de cualquier mutacion');
 
-// G2 · Escribir exige administrador remoto CONFIRMADO, no solo sesion.
-"""
+          // G2 · Escribir exige administrador remoto CONFIRMADO, no solo sesion.
+          """.replace('\n          ', '\n')
           s = replace_once(s, old, new, 'controles estaticos P2 finales')
           p.write_text(s, encoding='utf-8', newline='\n')
 
-          # ------------------------------------ Playwright harness + cases
           p = Path('tests/h05_um_st_supabase_first.spec.js')
           s = p.read_text(encoding='utf-8')
-
-          old = """    ordenes: [], fallaSelectOC: false, fallaRol: false, fallaNormalizacion: false,
-"""
-          new = """    ordenes: [], fallaSelectOC: false, fallaRol: false, fallaNormalizacion: false,
-    // Permite que la primera verificacion de rol sea valida y la segunda —la
-    // que ocurre despues del scan— vea el perfil revocado.
-    rolTrasPrimeraVerificacion: undefined,
-"""
+          old = "    ordenes: [], fallaSelectOC: false, fallaRol: false, fallaNormalizacion: false,\n"
+          new = old + "    rolTrasPrimeraVerificacion: undefined,\n"
           s = replace_once(s, old, new, 'config role TOCTOU')
-
-          old = """    const fake = {
-"""
-          new = """    let verificacionesRol = 0;
-    const fake = {
-"""
-          s = replace_once(s, old, new, 'contador verificaciones de rol')
-
+          s = replace_once(s, "    const fake = {\n", "    let verificacionesRol = 0;\n    const fake = {\n", 'contador verificaciones de rol')
           old = """        if (nombre !== 'coi_current_role') return { data: null, error: null };
-        if (!sesionActiva) return { data: null, error: null };
-        if (c.fallaRol) return { data: null, error: { message: 'fallo de red al leer el perfil' } };
-        return { data: c.rol === null ? null : c.rol, error: null };
-"""
+                  if (!sesionActiva) return { data: null, error: null };
+                  if (c.fallaRol) return { data: null, error: { message: 'fallo de red al leer el perfil' } };
+                  return { data: c.rol === null ? null : c.rol, error: null };
+          """.replace('\n          ', '\n')
           new = """        if (nombre !== 'coi_current_role') return { data: null, error: null };
-        if (!sesionActiva) return { data: null, error: null };
-        if (c.fallaRol) return { data: null, error: { message: 'fallo de red al leer el perfil' } };
-        verificacionesRol++;
-        const rolActual = verificacionesRol > 1 && c.rolTrasPrimeraVerificacion !== undefined
-          ? c.rolTrasPrimeraVerificacion
-          : c.rol;
-        return { data: rolActual === null ? null : rolActual, error: null };
-"""
+                  if (!sesionActiva) return { data: null, error: null };
+                  if (c.fallaRol) return { data: null, error: { message: 'fallo de red al leer el perfil' } };
+                  verificacionesRol++;
+                  const rolActual = verificacionesRol > 1 && c.rolTrasPrimeraVerificacion !== undefined
+                    ? c.rolTrasPrimeraVerificacion
+                    : c.rol;
+                  return { data: rolActual === null ? null : rolActual, error: null };
+          """.replace('\n          ', '\n')
           s = replace_once(s, old, new, 'secuencia de rol fake')
 
-          extra = r'''
-
-test('166 · F · si el rol se revoca durante el scan no se publica un snapshot autoritativo', async ({ page }) => {
-  await prepararEntorno(page, {
-    ums: [UM_A],
-    sts: [ST_A],
-    rol: 'administrador',
-    rolTrasPrimeraVerificacion: null
-  });
-  await abrirSinEsperarCarga(page);
-  await page.waitForFunction(() =>
-    (window.__H05_LLAMADAS__ || []).filter((l) => l.op === 'rpc:coi_current_role').length >= 2,
-    null, { timeout: 20000 }
-  );
-  await page.waitForTimeout(300);
-
-  const e = await estado(page);
-  expect(e.sincronizado).toBe(false);
-  expect(e.rol).toBeNull();
-  expect(e.ums.map((u) => u.codigo)).not.toContain('ASC-001');
-  expect(e.sts.map((st) => st.nroST)).not.toContain('ST-0001');
-  expect(e.llamadas.filter((l) => l.op === 'rpc:coi_current_role').length).toBeGreaterThanOrEqual(2);
-  expect(e.escriturasLegacy).toEqual([]);
-});
-
-test('167 · F · codigo UM que normaliza a vacio se rechaza sin INSERT', async ({ page }) => {
-  await prepararEntorno(page, { ums: [], sts: [] });
-  await abrir(page);
-  await fijarAdmin(page, true);
-  await irAUM(page);
-
-  for (const invalido of ['-', '///', ' . / - ']) {
-    await page.fill('#umh5_codigo', invalido);
-    await page.selectOption('#umh5_tipo', 'Ascensor');
-    await page.selectOption('#umh5_estacion', { index: 1 });
-    await page.selectOption('#umh5_estado', 'ACTIVA');
-    await page.click('#btnGuardarUMH05');
-    await page.waitForTimeout(120);
-    await expect(page.locator('#umFormMsgH05')).toContainText('código UM');
-  }
-
-  const e = await estado(page);
-  expect(soloOp(e, 'insert:coi_unidades_mantenimiento')).toHaveLength(0);
-  expect(e.ums).toHaveLength(0);
-  expect(e.escriturasLegacy).toEqual([]);
-});
-'''
           if "test('166 · F ·" in s or "test('167 · F ·" in s:
               raise SystemExit('los casos 166/167 ya existen')
+          extra = """
+
+          test('166 · F · si el rol se revoca durante el scan no se publica un snapshot autoritativo', async ({ page }) => {
+            await prepararEntorno(page, {
+              ums: [UM_A], sts: [ST_A], rol: 'administrador', rolTrasPrimeraVerificacion: null
+            });
+            await abrirSinEsperarCarga(page);
+            await page.waitForFunction(() =>
+              (window.__H05_LLAMADAS__ || []).filter((l) => l.op === 'rpc:coi_current_role').length >= 2,
+              null, { timeout: 20000 }
+            );
+            await page.waitForTimeout(300);
+            const e = await estado(page);
+            expect(e.sincronizado).toBe(false);
+            expect(e.rol).toBeNull();
+            expect(e.ums.map((u) => u.codigo)).not.toContain('ASC-001');
+            expect(e.sts.map((st) => st.nroST)).not.toContain('ST-0001');
+            expect(e.llamadas.filter((l) => l.op === 'rpc:coi_current_role').length).toBeGreaterThanOrEqual(2);
+            expect(e.escriturasLegacy).toEqual([]);
+          });
+
+          test('167 · F · codigo UM que normaliza a vacio se rechaza sin INSERT', async ({ page }) => {
+            await prepararEntorno(page, { ums: [], sts: [] });
+            await abrir(page);
+            await fijarAdmin(page, true);
+            await irAUM(page);
+            for (const invalido of ['-', '///', ' . / - ']) {
+              await page.fill('#umh5_codigo', invalido);
+              await page.selectOption('#umh5_tipo', 'Ascensor');
+              await page.selectOption('#umh5_estacion', { index: 1 });
+              await page.selectOption('#umh5_estado', 'ACTIVA');
+              await page.click('#btnGuardarUMH05');
+              await page.waitForTimeout(120);
+              await expect(page.locator('#umFormMsgH05')).toContainText('código UM');
+            }
+            const e = await estado(page);
+            expect(soloOp(e, 'insert:coi_unidades_mantenimiento')).toHaveLength(0);
+            expect(e.ums).toHaveLength(0);
+            expect(e.escriturasLegacy).toEqual([]);
+          });
+          """
+          # Quitar la sangria usada solo para mantener el YAML valido.
+          extra = '\n'.join(line[10:] if line.startswith('          ') else line for line in extra.split('\n'))
           s = s.rstrip() + extra + '\n'
           p.write_text(s, encoding='utf-8', newline='\n')
           PY
@@ -220,7 +198,7 @@ test('167 · F · codigo UM que normaliza a vacio se rechaza sin INSERT', async 
       - name: Regresiones nuevas 166-167
         run: npx playwright test tests/h05_um_st_supabase_first.spec.js --project=chromium-desktop --grep "166|167"
 
-      - name: Commit final y limpieza del workflow auxiliar
+      - name: Commit final y limpieza
         shell: bash
         run: |
           rm .github/workflows/h05-p2-fix.yml
