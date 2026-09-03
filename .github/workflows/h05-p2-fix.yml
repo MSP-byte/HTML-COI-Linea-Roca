@@ -1,4 +1,4 @@
-name: H05 Final P2 Fix
+name: H05 Final Formatting
 "on":
   push:
     paths:
@@ -8,198 +8,52 @@ permissions:
   contents: write
 
 jobs:
-  patch:
+  format:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout rama PR59
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: fix/h05-unidades-mantenimiento-supabase-first
           fetch-depth: 0
-
-      - name: Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Aplicar correcciones P2 y regresiones
+      - name: Normalize formatting
         shell: bash
         run: |
           python3 <<'PY'
           from pathlib import Path
 
-          def replace_once(text, old, new, label):
-              n = text.count(old)
-              if n != 1:
-                  raise SystemExit(f'{label}: se esperaba 1 ancla y aparecieron {n}')
-              return text.replace(old, new, 1)
+          def one(path, old, new):
+              p = Path(path)
+              s = p.read_text(encoding='utf-8')
+              if s.count(old) != 1:
+                  raise SystemExit(f'{path}: anchor count={s.count(old)}')
+              p.write_text(s.replace(old, new, 1), encoding='utf-8', newline='\n')
 
-          p = Path('index.html')
-          s = p.read_text(encoding='utf-8')
-          old = """        const par = await leerParConsistente(c);
-                  const crudasUM = par.um;
-                  const crudasST = par.st;
-                  if (!vigente()) return listaUM();
+          one('index.html',
+              """        if (!perfilFinal.ok || !perfilFinal.rol) {
+runtime.rol = null;
+throw new Error('El perfil Supabase dejó de estar activo durante la sincronización.');
+        }
+""",
+              """        if (!perfilFinal.ok || !perfilFinal.rol) {
+          runtime.rol = null;
+          throw new Error('El perfil Supabase dejó de estar activo durante la sincronización.');
+        }
+""")
 
-          """
-          new = old + """        // La autoridad puede cambiar mientras el scan espera a Supabase.
-                  // Antes de publicar el par UM+ST se reconfirma el perfil para cerrar
-                  // esa ventana TOCTOU. Si fue revocado, el catch conserva el ultimo
-                  // snapshot confirmado y la UI queda sin autoridad de escritura.
-                  const perfilFinal = await rolDeSesion();
-                  if (!vigente()) return listaUM();
-                  if (!perfilFinal.ok || !perfilFinal.rol) {
-                    runtime.rol = null;
-                    throw new Error('El perfil Supabase dejó de estar activo durante la sincronización.');
-                  }
-                  runtime.rol = perfilFinal.rol;
-
-          """
-          old = old.replace('\n          ', '\n')
-          new = new.replace('\n          ', '\n')
-          s = replace_once(s, old, new, 'revalidacion de rol post-scan')
-
-          old = """    if (faltan.length) {
-                mensajeFormUM('Faltan campos obligatorios: ' + faltan.join(', ') + '.', 'warn');
-                return;
-              }
-              const anterior = umEditandoUuid ? umPorUuid(umEditandoUuid) : null;
-          """.replace('\n          ', '\n')
-          new = """    if (faltan.length) {
-                mensajeFormUM('Faltan campos obligatorios: ' + faltan.join(', ') + '.', 'warn');
-                return;
-              }
-              // Un texto visible puede quedar sin identidad de negocio despues de
-              // aplicar la misma normalizacion que usa el UNIQUE canonico de PostgreSQL.
-              if (!claveUM(datos.codigo_um)) {
-                mensajeFormUM('El código UM debe contener caracteres distintos de espacios, puntos, barras o guiones.', 'warn');
-                return;
-              }
-              const anterior = umEditandoUuid ? umPorUuid(umEditandoUuid) : null;
-          """.replace('\n          ', '\n')
-          s = replace_once(s, old, new, 'codigo UM canonico no vacio')
-          p.write_text(s, encoding='utf-8', newline='\n')
-
-          p = Path('tests/check_h05_um_supabase_first.js')
-          s = p.read_text(encoding='utf-8')
-          old = """check(cuerpoCargar.indexOf('if (!perfil.ok)') >= 0 && cuerpoCargar.indexOf('if (!perfil.rol)') >= 0,
-            'cargar() tiene que cortar tanto si la comprobacion fallo como si no hay rol');
-
-          // G2 · Escribir exige administrador remoto CONFIRMADO, no solo sesion.
-          """.replace('\n          ', '\n')
-          new = """check(cuerpoCargar.indexOf('if (!perfil.ok)') >= 0 && cuerpoCargar.indexOf('if (!perfil.rol)') >= 0,
-            'cargar() tiene que cortar tanto si la comprobacion fallo como si no hay rol');
-          const posScanRol = cuerpoCargar.indexOf('const perfilFinal = await rolDeSesion();');
-          check(posScanRol > cuerpoCargar.indexOf('const par = await leerParConsistente(c);'),
-            'cargar() tiene que revalidar el rol despues del scan conjunto');
-          check(posScanRol < cuerpoCargar.indexOf('runtime.sincronizado = true;'),
-            'la revalidacion final tiene que ocurrir antes de publicar el snapshot');
-          check(cuerpoCargar.indexOf('if (!perfilFinal.ok || !perfilFinal.rol)') >= 0,
-            'la revalidacion final debe fallar cerrada si el perfil desaparecio');
-          check(cuerpoCargar.indexOf('runtime.rol = perfilFinal.rol;') >= 0,
-            'solo el rol reconfirmado despues del scan puede quedar vigente al publicar');
-
-          const posCodigoCanonico = capa.texto.indexOf('if (!claveUM(datos.codigo_um)) {');
-          check(posCodigoCanonico >= 0,
-            'guardarUM debe rechazar codigos cuyo canonico queda vacio');
-          check(posCodigoCanonico < capa.texto.indexOf('const existente = umPorCodigo(datos.codigo_um);'),
-            'el codigo canonico vacio debe rechazarse antes del lookup y de cualquier mutacion');
-
-          // G2 · Escribir exige administrador remoto CONFIRMADO, no solo sesion.
-          """.replace('\n          ', '\n')
-          s = replace_once(s, old, new, 'controles estaticos P2 finales')
-          p.write_text(s, encoding='utf-8', newline='\n')
-
-          p = Path('tests/h05_um_st_supabase_first.spec.js')
-          s = p.read_text(encoding='utf-8')
-          old = "    ordenes: [], fallaSelectOC: false, fallaRol: false, fallaNormalizacion: false,\n"
-          new = old + "    rolTrasPrimeraVerificacion: undefined,\n"
-          s = replace_once(s, old, new, 'config role TOCTOU')
-          s = replace_once(s, "    const fake = {\n", "    let verificacionesRol = 0;\n    const fake = {\n", 'contador verificaciones de rol')
-          old = """        if (nombre !== 'coi_current_role') return { data: null, error: null };
-                  if (!sesionActiva) return { data: null, error: null };
-                  if (c.fallaRol) return { data: null, error: { message: 'fallo de red al leer el perfil' } };
-                  return { data: c.rol === null ? null : c.rol, error: null };
-          """.replace('\n          ', '\n')
-          new = """        if (nombre !== 'coi_current_role') return { data: null, error: null };
-                  if (!sesionActiva) return { data: null, error: null };
-                  if (c.fallaRol) return { data: null, error: { message: 'fallo de red al leer el perfil' } };
-                  verificacionesRol++;
-                  const rolActual = verificacionesRol > 1 && c.rolTrasPrimeraVerificacion !== undefined
-                    ? c.rolTrasPrimeraVerificacion
-                    : c.rol;
-                  return { data: rolActual === null ? null : rolActual, error: null };
-          """.replace('\n          ', '\n')
-          s = replace_once(s, old, new, 'secuencia de rol fake')
-
-          if "test('166 · F ·" in s or "test('167 · F ·" in s:
-              raise SystemExit('los casos 166/167 ya existen')
-          extra = """
-
-          test('166 · F · si el rol se revoca durante el scan no se publica un snapshot autoritativo', async ({ page }) => {
-            await prepararEntorno(page, {
-              ums: [UM_A], sts: [ST_A], rol: 'administrador', rolTrasPrimeraVerificacion: null
-            });
-            await abrirSinEsperarCarga(page);
-            await page.waitForFunction(() =>
-              (window.__H05_LLAMADAS__ || []).filter((l) => l.op === 'rpc:coi_current_role').length >= 2,
-              null, { timeout: 20000 }
-            );
-            await page.waitForTimeout(300);
-            const e = await estado(page);
-            expect(e.sincronizado).toBe(false);
-            expect(e.rol).toBeNull();
-            expect(e.ums.map((u) => u.codigo)).not.toContain('ASC-001');
-            expect(e.sts.map((st) => st.nroST)).not.toContain('ST-0001');
-            expect(e.llamadas.filter((l) => l.op === 'rpc:coi_current_role').length).toBeGreaterThanOrEqual(2);
-            expect(e.escriturasLegacy).toEqual([]);
-          });
-
-          test('167 · F · codigo UM que normaliza a vacio se rechaza sin INSERT', async ({ page }) => {
-            await prepararEntorno(page, { ums: [], sts: [] });
-            await abrir(page);
-            await fijarAdmin(page, true);
-            await irAUM(page);
-            for (const invalido of ['-', '///', ' . / - ']) {
-              await page.fill('#umh5_codigo', invalido);
-              await page.selectOption('#umh5_tipo', 'Ascensor');
-              await page.selectOption('#umh5_estacion', { index: 1 });
-              await page.selectOption('#umh5_estado', 'ACTIVA');
-              await page.click('#btnGuardarUMH05');
-              await page.waitForTimeout(120);
-              await expect(page.locator('#umFormMsgH05')).toContainText('código UM');
-            }
-            const e = await estado(page);
-            expect(soloOp(e, 'insert:coi_unidades_mantenimiento')).toHaveLength(0);
-            expect(e.ums).toHaveLength(0);
-            expect(e.escriturasLegacy).toEqual([]);
-          });
-          """
-          extra = '\n'.join(line[10:] if line.startswith('          ') else line for line in extra.split('\n'))
-          s = s.rstrip() + extra.rstrip() + '\n'
-          p.write_text(s, encoding='utf-8', newline='\n')
+          one('tests/h05_um_st_supabase_first.spec.js',
+              """        const rolActual = verificacionesRol > 1 && c.rolTrasPrimeraVerificacion !== undefined
+? c.rolTrasPrimeraVerificacion
+: c.rol;
+""",
+              """        const rolActual = verificacionesRol > 1 && c.rolTrasPrimeraVerificacion !== undefined
+          ? c.rolTrasPrimeraVerificacion
+          : c.rol;
+""")
           PY
-
-      - name: Diff limpio
-        run: git diff --check
-
-      - name: Dependencias
-        run: npm ci
-
-      - name: Control estático H05
-        run: node tests/check_h05_um_supabase_first.js
-
-      - name: Chromium
-        run: npx playwright install chromium
-
-      - name: Regresiones nuevas 166-167
-        run: npx playwright test tests/h05_um_st_supabase_first.spec.js --project=chromium-desktop --grep "166|167"
-
-      - name: Commit funcional
-        shell: bash
-        run: |
+          git diff --check
+          node tests/check_h05_um_supabase_first.js
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html tests/check_h05_um_supabase_first.js tests/h05_um_st_supabase_first.spec.js
-          git commit -m "fix: close final H05 review gaps"
+          git add index.html tests/h05_um_st_supabase_first.spec.js
+          git commit -m "style: normalize final H05 patch formatting"
           git push origin HEAD:fix/h05-unidades-mantenimiento-supabase-first
