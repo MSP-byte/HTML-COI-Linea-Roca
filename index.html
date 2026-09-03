@@ -11306,17 +11306,50 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     else mostrarVistaUMFix(destino, destino==='vistaRed'?'btnRed':'btnUnidadesMantenimiento');
   }
 
+  /* Los cinco botones de la ficha UM tienen DOS registros de click:
+     initUnidadesMantenimiento() los engancha al arrancar (volverUM,
+     cargarFormUM, copiarResumenUM, irEstacionUM, vincularOCUM) y esta capa
+     robusta los vuelve a enganchar al pintar la ficha. Mientras umActualId
+     estuvo desincronizado, el handler legado no encontraba la UM y el efecto
+     duplicado no se veia; una vez sincronizados los dos bindings, un solo
+     click ejecutaba la accion DOS veces —dos escrituras al portapapeles, dos
+     navegaciones—.
+
+     Se resuelve haciendo dueño del click al handler robusto, sin desregistrar
+     nada: el listener se registra en fase de CAPTURA sobre el propio boton.
+     En el target, la pasada de captura corre antes que la de burbuja, de modo
+     que este handler se ejecuta primero y con stopImmediatePropagation() deja
+     sin efecto al legado —que sigue registrado, por si otra ruta lo necesita—.
+     El guard dataset.umFix se conserva: evita registrar dos veces el mismo
+     handler cada vez que se repinta la ficha. */
+  function duenoDelClick(id, accion){
+    const btn=$um(id);
+    if(!btn||btn.dataset.umFix)return;
+    btn.dataset.umFix='1';
+    btn.addEventListener('click',ev=>{
+      ev.preventDefault();
+      // Corta tambien a los handlers legados de este mismo boton y a los
+      // delegados que escuchan mas arriba en burbuja: una sola ejecucion.
+      ev.stopImmediatePropagation();
+      try{accion();}catch(e){console.warn('COI UM FIX: '+id,e);}
+    },true);
+  }
+
   function conectarBotonesFichaUM(){
-    const btnVolver=$um('btnVolverUM');
-    if(btnVolver&&!btnVolver.dataset.umFix){btnVolver.dataset.umFix='1';btnVolver.addEventListener('click',ev=>{ev.preventDefault();volverUMRobusto();});}
-    const btnEditar=$um('btnEditarUM');
-    if(btnEditar&&!btnEditar.dataset.umFix){btnEditar.dataset.umFix='1';btnEditar.addEventListener('click',ev=>{ev.preventDefault();try{if(typeof cargarFormUM==='function')cargarFormUM(window.umActualId);}catch(e){console.warn(e);}});}
-    const btnCopiar=$um('btnCopiarUM');
-    if(btnCopiar&&!btnCopiar.dataset.umFix){btnCopiar.dataset.umFix='1';btnCopiar.addEventListener('click',ev=>{ev.preventDefault();try{if(typeof copiarResumenUM==='function')copiarResumenUM();}catch(e){}});}
-    const btnIr=$um('btnIrEstacionUM');
-    if(btnIr&&!btnIr.dataset.umFix){btnIr.dataset.umFix='1';btnIr.addEventListener('click',ev=>{ev.preventDefault();try{if(typeof irEstacionUM==='function')irEstacionUM();}catch(e){console.warn(e);}});}
-    const btnVinc=$um('btnVincularOCUM');
-    if(btnVinc&&!btnVinc.dataset.umFix){btnVinc.dataset.umFix='1';btnVinc.addEventListener('click',ev=>{ev.preventDefault();try{if(typeof vincularOCUM==='function')vincularOCUM();}catch(e){console.warn(e);}});}
+    /* Volver: se respeta el destino que haya fijado la capa de Administracion
+       (V58.1R reapunta window.volverUMRobusto a abrirUMDesdeAdministracion) y
+       recien si no hay override se usa el robusto local. Antes ganaba el
+       delegado de Administracion por ser el ultimo en correr; al tomar el
+       click aca hay que seguir honrandolo, o Volver cambiaria de destino. */
+    duenoDelClick('btnVolverUM',()=>{
+      const override=window.volverUMRobusto;
+      if(typeof override==='function'&&override!==volverUMRobusto)override();
+      else volverUMRobusto();
+    });
+    duenoDelClick('btnEditarUM',()=>{if(typeof cargarFormUM==='function')cargarFormUM(window.umActualId);});
+    duenoDelClick('btnCopiarUM',()=>{if(typeof copiarResumenUM==='function')copiarResumenUM();});
+    duenoDelClick('btnIrEstacionUM',()=>{if(typeof irEstacionUM==='function')irEstacionUM();});
+    duenoDelClick('btnVincularOCUM',()=>{if(typeof vincularOCUM==='function')vincularOCUM();});
   }
 
   function encontrarBotonUM(target){
