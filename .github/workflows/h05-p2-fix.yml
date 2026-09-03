@@ -1,0 +1,179 @@
+name: H05 P2 Fix
+on: push
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/h05-unidades-mantenimiento-supabase-first
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply P2 fixes and regressions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_one(text, old, new, label):
+              n = text.count(old)
+              if n != 1:
+                  raise SystemExit(f'{label}: expected 1 match, found {n}')
+              return text.replace(old, new, 1)
+
+          p = Path('index.html')
+          text = p.read_text(encoding='utf-8')
+          old = """        const crudasST = par.st;
+        if (!vigente()) return listaUM();
+
+        const ums = crudasUM.map(desdeSupabaseUM);"""
+          new = """        const crudasST = par.st;
+        if (!vigente()) return listaUM();
+
+        // La validacion previa evita leer sin perfil, pero el perfil puede ser
+        // revocado mientras el scan esta en vuelo. Se reconfirma DESPUES de
+        // obtener el par y ANTES de publicarlo como autoritativo: si el rol ya
+        // no existe o no puede verificarse, se conserva el ultimo snapshot
+        // confirmado y la UI queda fail-closed.
+        const perfilPostScan = await rolDeSesion();
+        if (!vigente()) return listaUM();
+        if (!perfilPostScan.ok) {
+          return conservarUltimoConfirmado('No se pudo revalidar el perfil del usuario después de leer el inventario. No se publican datos sin confirmar.');
+        }
+        if (!perfilPostScan.rol) {
+          return conservarUltimoConfirmado('El usuario dejó de tener un perfil activo durante la lectura. Se conservan los últimos datos confirmados.');
+        }
+        if (vigente()) runtime.rol = perfilPostScan.rol;
+
+        const ums = crudasUM.map(desdeSupabaseUM);"""
+          text = replace_one(text, old, new, 'post-scan role guard')
+
+          old = """    if (faltan.length) {
+      mensajeFormUM('Faltan campos obligatorios: ' + faltan.join(', ') + '.', 'warn');
+      return;
+    }
+    const anterior = umEditandoUuid ? umPorUuid(umEditandoUuid) : null;"""
+          new = """    if (faltan.length) {
+      mensajeFormUM('Faltan campos obligatorios: ' + faltan.join(', ') + '.', 'warn');
+      return;
+    }
+    if (!claveUM(datos.codigo_um)) {
+      mensajeFormUM('El código UM debe contener al menos una letra o un número.', 'warn');
+      return;
+    }
+    const anterior = umEditandoUuid ? umPorUuid(umEditandoUuid) : null;"""
+          text = replace_one(text, old, new, 'canonical UM key guard')
+          p.write_text(text, encoding='utf-8', newline='\n')
+
+          p = Path('tests/check_h05_um_supabase_first.js')
+          text = p.read_text(encoding='utf-8')
+          marker = "console.log('H05/H04 UM y ST Supabase-first: capa verificada contra el esquema real.');"
+          block = r"""
+// G4 · El rol se reconfirma DESPUES del scan y ANTES de publicar el snapshot.
+check(cuerpoCargar.indexOf('const perfilPostScan = await rolDeSesion();') >= 0,
+  'cargar() debe revalidar el rol despues del scan conjunto');
+check(cuerpoCargar.indexOf('const perfilPostScan = await rolDeSesion();') >
+      cuerpoCargar.indexOf('const par = await leerParConsistente(c);'),
+  'la segunda validacion de rol tiene que ocurrir despues de leer UM+ST');
+check(cuerpoCargar.indexOf('const perfilPostScan = await rolDeSesion();') <
+      cuerpoCargar.indexOf('runtime.sincronizado = true;'),
+  'el rol tiene que revalidarse antes de publicar el snapshot como sincronizado');
+check(cuerpoCargar.indexOf('if (!perfilPostScan.ok)') >= 0 &&
+      cuerpoCargar.indexOf('if (!perfilPostScan.rol)') >= 0,
+  'la revalidacion post-scan tiene que fallar cerrada ante error o perfil revocado');
+
+// G5 · Un codigo UM no puede ser texto visible pero clave canonica vacia.
+const cuerpoGuardarUMCanonico = sinComentariosJs(
+  cuerpoDeclarado(capa.texto, '  function guardarUM() {', 'guardarUM() de la capa H05'));
+check(cuerpoGuardarUMCanonico.indexOf('if (!claveUM(datos.codigo_um))') >= 0,
+  'guardarUM() debe rechazar codigos que normalizan a clave vacia');
+check(cuerpoGuardarUMCanonico.indexOf('if (!claveUM(datos.codigo_um))') <
+      cuerpoGuardarUMCanonico.indexOf('const existente = umPorCodigo(datos.codigo_um);'),
+  'la clave UM vacia debe rechazarse antes de consultar duplicados o mutar Supabase');
+
+"""
+          text = replace_one(text, marker, block + marker, 'static regression marker')
+          p.write_text(text, encoding='utf-8', newline='\n')
+
+          p = Path('tests/h05_um_st_supabase_first.spec.js')
+          text = p.read_text(encoding='utf-8')
+          if "test('166 ·" in text or "test('167 ·" in text:
+              raise SystemExit('cases 166/167 unexpectedly already present')
+          text += r"""
+
+// ================================== decima ronda de review del PR #59
+
+test('166 · si el rol se revoca durante el scan no publica un falso inventario vacío', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [], rol: 'administrador', admin: true });
+  await abrir(page);
+  const antes = await estado(page);
+  expect(antes.sincronizado).toBe(true);
+  expect(antes.ums.map((u) => u.codigo)).toContain(UM_A.codigo_um);
+  expect(antes.rol).toBe('administrador');
+
+  await page.evaluate(() => {
+    window.__H05_SET_UMS__([]);
+    window.__H05_SET_STS__([]);
+    window.__H05_CFG__.retardoSelectMs = 350;
+    window.recargarUnidadesMantenimiento();
+  });
+  await page.waitForTimeout(100);
+  await page.evaluate(() => { window.__H05_CFG__.rol = null; });
+  await page.waitForTimeout(1700);
+
+  const e = await estado(page);
+  expect(e.sincronizado).toBe(false);
+  expect(e.rol).toBeNull();
+  expect(e.ums.map((u) => u.codigo)).toContain(UM_A.codigo_um);
+  expect(e.escriturasLegacy).toEqual([]);
+});
+
+test('167 · un código UM que normaliza a vacío se rechaza antes de Supabase', async ({ page }) => {
+  await prepararEntorno(page, { ums: [], sts: [], rol: 'administrador', admin: true });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+
+  await page.fill('#umh5_codigo', '///');
+  await page.selectOption('#umh5_tipo', 'Ascensor');
+  await page.selectOption('#umh5_estacion', { index: 1 });
+  await page.selectOption('#umh5_estado', 'ACTIVA');
+  await page.click('#btnGuardarUMH05');
+  await page.waitForTimeout(300);
+
+  const e = await estado(page);
+  expect(soloOp(e, 'insert:coi_unidades_mantenimiento')).toHaveLength(0);
+  await expect(page.locator('#umFormMsgH05')).toContainText('al menos una letra o un número');
+  expect(e.escriturasLegacy).toEqual([]);
+});
+"""
+          p.write_text(text, encoding='utf-8', newline='\n')
+          PY
+
+      - name: Validate static suite
+        run: |
+          npm ci
+          node tests/check_h05_um_supabase_first.js
+          node --check tests/h05_um_st_supabase_first.spec.js
+          npm test
+          git diff --check
+
+      - name: Commit product fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html tests/check_h05_um_supabase_first.js tests/h05_um_st_supabase_first.spec.js
+          git diff --cached --check
+          git commit -m "fix: close H05 role and UM key review gaps"
+          git push origin HEAD:fix/h05-unidades-mantenimiento-supabase-first
