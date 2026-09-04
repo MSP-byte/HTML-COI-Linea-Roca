@@ -29,6 +29,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Align bridge anchor with current HEAD
+        shell: bash
+        run: sed -i 's/async function recargarDatosDesdeSupabase/async function verificarSesionSupabase/g' scripts/apply_h06_review_patch.js
+
       - name: Apply deterministic H06 patch
         run: node scripts/apply_h06_review_patch.js
 
