@@ -188,7 +188,7 @@ test('la próxima certificación se confirma por RPC y la recarga conserva Supab
       remoteDate: window.__nextCertMock.order.proxima_certificacion,
       renderedDate: dateOnly(row?.proximaCertificacion),
       cachedDate: cached.proximaCertificacion || cached.proxima_certificacion || cached._supabaseRaw?.proxima_certificacion,
-      rpcCalls: window.__nextCertMock.rpcCalls
+      rpcCalls: window.__nextCertMock.rpcCalls.filter((c) => c.name !== 'coi_current_role')
     };
   }, { orderNumber: ORDER_NUMBER, oldDate: OLD_DATE });
 
@@ -235,7 +235,7 @@ test('si la RPC rechaza la fecha, la certificación queda informada como parcial
       remoteDate: window.__nextCertMock.order.proxima_certificacion,
       renderedDate,
       certifications: window.__nextCertMock.certifications.length,
-      rpcCalls: window.__nextCertMock.rpcCalls.length
+      rpcCalls: window.__nextCertMock.rpcCalls.filter((c) => c.name !== 'coi_current_role').length
     };
   }, { orderNumber: ORDER_NUMBER, newDate: NEW_DATE });
 

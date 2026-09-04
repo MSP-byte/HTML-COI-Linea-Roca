@@ -583,8 +583,20 @@ test('F9 · el Refresh general de Supabase recarga tambien las observaciones', a
   await abrir(page);
 
   const resultado = await page.evaluate(async () => {
-    const envuelto = typeof window.recargarDatosDesdeSupabase === 'function' &&
-      window.recargarDatosDesdeSupabase.__coiObsH03 === true;
+    // El refresh general esta envuelto por varias capas: H05 envuelve a H03,
+    // que envuelve al original. Mirar solo la marca de la funcion exterior daba
+    // un falso negativo apenas se sumo H05, aunque la cadena siga instalada.
+    // Se recorre la cadena por sus punteros `...Base` hasta encontrar H03.
+    const envuelto = (() => {
+      let fn = window.recargarDatosDesdeSupabase;
+      const vistos = new Set();
+      while (typeof fn === 'function' && !vistos.has(fn)) {
+        vistos.add(fn);
+        if (fn.__coiObsH03 === true) return true;
+        fn = fn.__coiObsH03Base || fn.__coiUmH05Base || null;
+      }
+      return false;
+    })();
     // Otro operador crea una fila.
     window.__H03_SET_FILAS__([{
       id: '44444444-4444-4444-8444-444444444444', orden_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -599,6 +611,30 @@ test('F9 · el Refresh general de Supabase recarga tambien las observaciones', a
 
   expect(resultado.envuelto).toBe(true);
   expect(resultado.textos).toContain('CREADA POR OTRO OPERADOR');
+});
+
+test('F9b · el refresh general vuelve a leer Observaciones sin mirar marcas de wrapper', async ({ page }) => {
+  await prepararEntorno(page, { filas: [], marker: true });
+  await abrir(page);
+
+  // Criterio de comportamiento: se ejecuta el refresh general y Observaciones
+  // tiene que volver a leerse. No se inspecciona ninguna propiedad de la
+  // cadena de wrappers, de modo que sumar o quitar una capa no rompe el test.
+  const textos = await page.evaluate(async () => {
+    window.__H03_SET_FILAS__([{
+      id: '45454545-4545-4545-8454-454545454545', orden_id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      nro_oc: '4530008964', observacion: 'RELEIDA POR EL REFRESH GENERAL', estado: 'Pendiente',
+      prioridad: 'Normal', creado_por: null, resuelto_por: null,
+      fecha_creacion: '2026-08-30T14:00:00.000Z', fecha_resolucion: null
+    }]);
+    await window.recargarDatosDesdeSupabase();
+    await new Promise((r) => setTimeout(r, 700));
+    return (window.observacionesOC || []).map((o) => o.texto);
+  });
+
+  expect(textos).toContain('RELEIDA POR EL REFRESH GENERAL');
+  // Una sola relectura: la cadena de wrappers no puede duplicar el refresh.
+  expect(textos.filter((t) => t === 'RELEIDA POR EL REFRESH GENERAL')).toHaveLength(1);
 });
 
 test('F10 · el lector de backup no elige el legado por tener mas filas', async ({ page }) => {

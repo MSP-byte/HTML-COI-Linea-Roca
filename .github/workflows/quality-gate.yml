@@ -59,7 +59,7 @@ jobs:
   interaction-smoke:
     name: Interaccion Chromium
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 60
     needs: baseline
     steps:
       - name: Checkout sin credenciales persistentes

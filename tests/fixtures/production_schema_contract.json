@@ -1,17 +1,222 @@
 {
   "_doc": "Snapshot de information_schema y pg_catalog tomado en lectura sobre produccion (ooepgbzqlpjrtpaoqawc), verificado identico en staging (brmrroikctfbtzwfewan). Contrato autoritativo de las 10 tablas que el baseline 202608090000_core_schema_baseline.sql debe reproducir. nn=NOT NULL, def=fragmento esperado del default, gen=generated always stored, tipo=fragmento de data_type. fk=[columna, tabla_destino, accion ON DELETE]. policies solo se declaran para las cuatro tablas que ninguna migracion posterior gobierna; las demas las administra coi_apply_optional_role_rls.",
   "_divergencias_pendientes": {
-    "_doc": "Desvios DELIBERADOS entre el repositorio y el snapshot productivo, introducidos por una migracion todavia NO aplicada a produccion ni a staging. check_schema_reproducibility.js espera el valor «repo» y deja constancia del valor «produccion» hasta que la migracion se aplique; entonces se actualiza el snapshot y se borra la entrada.",
+    "_doc": "Desvios DELIBERADOS entre el repositorio y el snapshot productivo, introducidos por una migracion todavia NO aplicada a produccion ni a staging. check_schema_reproducibility.js espera el valor «repo» y deja constancia del valor «produccion» hasta que la migracion se aplique; entonces se actualiza el snapshot y la entrada pasa de «fk»/«unique» a «_resueltas».",
+    "_doc_columnas": "Columnas que el repositorio agrega y produccion todavia no tiene. El bloque «columnas» de cada tabla mas abajo sigue siendo el snapshot productivo: aca se declara lo que el repositorio DEBE producir de mas. check_schema_reproducibility.js verifica que la columna exista realmente tras aplicar las migraciones, con el tipo y la nullability declarados, para que la divergencia quede probada y no solo escrita.",
+    "_doc_unique": "Constraints UNIQUE que el repositorio crea y produccion todavia no tiene. El bloque «unique» de cada tabla mas abajo sigue siendo el snapshot productivo: aca se declara lo que el repositorio DEBE producir de mas. check_schema_reproducibility.js verifica que el constraint exista realmente tras aplicar las migraciones, para que la divergencia quede probada y no solo escrita.",
+    "_doc_resueltas": "Divergencias YA aplicadas en remoto. No las verifica check_schema_reproducibility.js: el snapshot productivo de mas abajo ya refleja el valor definitivo. Se conservan como historia de la reconciliacion.",
+    "columnas": [
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "columna": "orden_id",
+        "tipo": "uuid",
+        "nn": false,
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310004_h04_st_oc_referencial.sql",
+        "motivo": "coi_servicios_tecnicos_um era la unica tabla dependiente de OC sin orden_id: la RPC de renumeracion 20260813033959 lo documenta explicitamente y por eso la excluye de su preflight de integridad. Agregarla le da la misma identidad tecnica por UUID que tienen coi_certificaciones, coi_posiciones_oc, coi_documentos_oc y el resto."
+      }
+    ],
     "fk": [
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "columna": "unidad_id",
+        "produccion": "CASCADE",
+        "repo": "RESTRICT",
+        "migracion": "202608300003_h05_um_delete_guard.sql",
+        "motivo": "Los Servicios Tecnicos son el historial tecnico de la Unidad de Mantenimiento: dar de baja o eliminar una UM no puede destruirlos por cascada. H05 deja la UM como dato Supabase-first y sustituye el borrado fisico por estado BAJA."
+      },
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "columna": "orden_id",
+        "produccion": "sin FK",
+        "repo": "RESTRICT",
+        "destino": "coi_ordenes(id)",
+        "on_delete": "RESTRICT",
+        "trigger": "coi_st_resolver_nro_oc",
+        "migracion": "202608310004_h04_st_oc_referencial.sql",
+        "motivo": "La asociacion ST -> OC era texto libre validado por el frontend: no respetaba coi_normalize_order_number, dejaba una ventana de carrera entre validar y escribir, y ataba la relacion a un identificador de negocio renumerable. Pasa a ser integridad referencial sobre la identidad maestra del repositorio, coi_ordenes.id: renumerar una OC no cambia su UUID, de modo que ninguna renumeracion puede mover ni romper el vinculo. ON DELETE RESTRICT impide borrar una orden que todavia tiene historial tecnico. nro_oc se conserva como dato visible denormalizado, coherente por trigger, pero ya no es la referencia tecnica."
+      }
+    ],
+    "unique": [
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "columnas": [
+          "unidad_id",
+          "nro_st"
+        ],
+        "indice": "coi_servicios_tecnicos_um_unidad_nro_st_uidx",
+        "expresion_canonica": "upper(regexp_replace(nro_st, '[[:space:]./-]+', '', 'g'))",
+        "parcial": "unidad_id is not null and nro_st is not null",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310001_h04_st_unique_guard.sql",
+        "motivo": "La capa H04 comprueba el duplicado antes de insertar, pero con dos operadores concurrentes ambos leen «no existe» y despues insertan. Ademas el frontend considera el mismo ST a ST-0001, st0001 y «ST / 0001», de modo que un unique literal seria mas laxo que la propia UI: la unicidad se aplica sobre el numero canonico."
+      },
+      {
+        "tabla": "coi_unidades_mantenimiento",
+        "columnas": [
+          "codigo_um"
+        ],
+        "indice": "coi_unidades_mantenimiento_codigo_um_canonico_uidx",
+        "expresion_canonica": "upper(regexp_replace(codigo_um, '[[:space:]./-]+', '', 'g'))",
+        "parcial": "codigo_um is not null",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310003_h05_um_codigo_unique_guard.sql",
+        "motivo": "El baseline solo trae UNIQUE (codigo_um) literal y sensible a mayusculas, mientras el frontend considera la misma UM a ASC-001, asc001 y «ASC / 001». La base era mas permisiva que la propia interfaz: dos clientes concurrentes podian insertar variantes que la UI despues trata como una sola unidad. El UNIQUE literal del baseline no se modifica: este indice se suma."
+      }
+    ],
+    "policies": [
+      {
+        "tabla": "coi_unidades_mantenimiento",
+        "nombre": "coi_um_select_guard",
+        "cmd": "SELECT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": "(coi_current_role() IS NOT NULL)",
+        "with_check": null,
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "La UI reservaba las mutaciones de UM/ST al Administrador, pero las policies remotas solo exigen estar autenticado: un perfil consulta podia llamar a PostgREST directamente. Las restrictivas estrechan las permisivas existentes sin reescribirlas."
+      },
+      {
+        "tabla": "coi_unidades_mantenimiento",
+        "nombre": "coi_um_insert_guard",
+        "cmd": "INSERT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": null,
+        "with_check": "(coi_current_role() = 'administrador'::text)",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "La UI reservaba las mutaciones de UM/ST al Administrador, pero las policies remotas solo exigen estar autenticado: un perfil consulta podia llamar a PostgREST directamente. Las restrictivas estrechan las permisivas existentes sin reescribirlas."
+      },
+      {
+        "tabla": "coi_unidades_mantenimiento",
+        "nombre": "coi_um_update_guard",
+        "cmd": "UPDATE",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": "(coi_current_role() = 'administrador'::text)",
+        "with_check": "(coi_current_role() = 'administrador'::text)",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "La UI reservaba las mutaciones de UM/ST al Administrador, pero las policies remotas solo exigen estar autenticado: un perfil consulta podia llamar a PostgREST directamente. Las restrictivas estrechan las permisivas existentes sin reescribirlas."
+      },
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "nombre": "coi_st_select_guard",
+        "cmd": "SELECT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": "(coi_current_role() IS NOT NULL)",
+        "with_check": null,
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "La UI reservaba las mutaciones de UM/ST al Administrador, pero las policies remotas solo exigen estar autenticado: un perfil consulta podia llamar a PostgREST directamente. Las restrictivas estrechan las permisivas existentes sin reescribirlas."
+      },
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "nombre": "coi_st_insert_guard",
+        "cmd": "INSERT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": null,
+        "with_check": "(coi_current_role() = 'administrador'::text)",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "La UI reservaba las mutaciones de UM/ST al Administrador, pero las policies remotas solo exigen estar autenticado: un perfil consulta podia llamar a PostgREST directamente. Las restrictivas estrechan las permisivas existentes sin reescribirlas."
+      },
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "nombre": "coi_st_update_guard",
+        "cmd": "UPDATE",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": "(coi_current_role() = 'administrador'::text)",
+        "with_check": "(coi_current_role() = 'administrador'::text)",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "La UI reservaba las mutaciones de UM/ST al Administrador, pero las policies remotas solo exigen estar autenticado: un perfil consulta podia llamar a PostgREST directamente. Las restrictivas estrechan las permisivas existentes sin reescribirlas."
+      }
+    ],
+    "grants": [
+      {
+        "tabla": "coi_unidades_mantenimiento",
+        "produccion": "anon con privilegios amplios; authenticated sin acotar",
+        "repo": {
+          "anon": [],
+          "authenticated": [
+            "INSERT",
+            "SELECT",
+            "UPDATE"
+          ]
+        },
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "Segunda capa detras de la RLS: anon no tiene por que alcanzar el inventario y authenticated no necesita DELETE, TRUNCATE, REFERENCES ni TRIGGER."
+      },
+      {
+        "tabla": "coi_servicios_tecnicos_um",
+        "produccion": "anon con privilegios amplios; authenticated sin acotar",
+        "repo": {
+          "anon": [],
+          "authenticated": [
+            "INSERT",
+            "SELECT",
+            "UPDATE"
+          ]
+        },
+        "migracion": "202608310002_h04_h05_role_guard.sql",
+        "motivo": "Segunda capa detras de la RLS: anon no tiene por que alcanzar el historial tecnico y authenticated no necesita DELETE, TRUNCATE, REFERENCES ni TRIGGER."
+      }
+    ],
+    "grants_funciones": [
+      {
+        "funcion": "coi_normalize_order_number(text)",
+        "produccion": "revocada a authenticated",
+        "repo": {
+          "anon": [],
+          "authenticated": [
+            "EXECUTE"
+          ]
+        },
+        "migracion": "202608310005_h04_normalize_order_number_grant.sql",
+        "motivo": "La prevalidacion del frontend resolvia la OC con eq/ilike sobre el texto crudo, una segunda definicion de identidad mas estrecha que la de PostgreSQL: rechazaba antes de escribir variantes que el trigger habria aceptado. En vez de reimplementar la normalizacion en JavaScript se le concede al rol authenticated la MISMA funcion. Es pura —sql, immutable, strict, sin security definer, sin acceso a tablas—, de modo que exponerla no revela ningun dato."
+      }
+    ],
+    "_resueltas": [
       {
         "tabla": "coi_observaciones_oc",
         "columna": "orden_id",
-        "produccion": "CASCADE",
+        "produccion": "RESTRICT",
         "repo": "RESTRICT",
         "migracion": "202608300002_h03_observaciones_delete_guard.sql",
-        "motivo": "Las observaciones son trazabilidad: eliminar una OC no puede destruirlas por cascada. El resto de las dependencias de orden ya usa RESTRICT."
+        "aplicada_en_remoto": "2026-08-30",
+        "nota": "H03 aplicado en STAGING y PRODUCCION. El snapshot productivo ya declara RESTRICT y la divergencia dejo de existir; la entrada se conserva como historia de la reconciliacion."
       }
-    ]
+    ],
+    "_doc_policies": "Policies que el repositorio crea y produccion todavia no tiene. El bloque «policies» de cada tabla mas abajo sigue siendo el snapshot productivo. check_schema_reproducibility.js verifica que estas existan realmente al reproducir el repo (nombre, cmd, roles, permissive, using y with check) y las admite como el UNICO excedente permitido: cualquier otra policy no declarada sigue siendo un fallo.",
+    "_doc_grants": "Grants que el repositorio endurece y produccion todavia no. En produccion anon conserva privilegios amplios sobre ambas tablas y authenticated tiene mas de lo necesario. check_schema_reproducibility.js verifica que tras reproducir el repo los grants sean exactamente los declarados en «repo».",
+    "_doc_grants_funciones": "Grants sobre FUNCIONES que el repositorio concede y produccion todavia no. Mismo criterio que los grants de tabla: check_schema_reproducibility.js verifica que tras reproducir el repo el permiso exista realmente, y que anon siga sin el."
   },
   "coi_ordenes": {
     "columnas": {
@@ -863,7 +1068,7 @@
       [
         "orden_id",
         "coi_ordenes",
-        "CASCADE"
+        "RESTRICT"
       ],
       [
         "creado_por",
