@@ -14525,6 +14525,8 @@ const APP_DATA_MODE = "supabase_first";
   let supabaseUltimoError = '';
   let supabaseUltimaCarga = 0;
   let supabaseCargaEnCurso = false;
+  let supabaseCargaPendiente = false;
+  let supabaseAuthGeneration = 0;
   let supabaseColumnas = new Set();
   let supabaseEstacionesAsociadas = [];
   let supabaseEstacionesTablaDisponible = true;
@@ -15546,6 +15548,13 @@ const APP_DATA_MODE = "supabase_first";
   function invalidarOperacionalPorIdentidad(uidNuevo) {
     const nuevo = uidNuevo || null;
     if (nuevo === (ordenesConfirmadasUid || null)) return false;
+    // La primera sesion recuperada adopta su UID sin borrar operaciones
+    // idempotentes pendientes de una pestaña que acaba de recargarse.
+    if (ordenesConfirmadasUid === null && ordenesConfirmadas === null && nuevo) {
+      ordenesConfirmadasUid = nuevo;
+      return false;
+    }
+    supabaseAuthGeneration++;
     ordenesConfirmadas = null;
     ordenesConfirmadasUid = null;
     try {
@@ -15557,10 +15566,13 @@ const APP_DATA_MODE = "supabase_first";
     supabaseEstacionesAsociadas = [];
     window.__coiEstacionesAsociadas = [];
     try { window.posicionesFinancieras = []; posicionesFinancieras = []; } catch (error) {}
+    try { window.__COI_INVALIDAR_HISTORIAL_CIRCUITO__?.(); } catch (error) {}
     return true;
   }
 
   async function cargarOrdenesDesdeSupabase(options = {}) {
+    const requestGeneration = options.authGeneration ?? supabaseAuthGeneration;
+    const requestUid = options.authUid || null;
     const client = getSupabaseClient();
     if (!client) throw new Error('Cliente Supabase no disponible.');
     const user = await getUsuarioActual();
@@ -15569,6 +15581,9 @@ const APP_DATA_MODE = "supabase_first";
 
     const { data, error } = await client.from(SUPABASE_TABLE).select('*').limit(10000);
     if (error) throw error;
+    if (requestGeneration !== supabaseAuthGeneration || requestUid !== ((supabaseUsuario && supabaseUsuario.id) || null)) {
+      throw new Error('Carga de ordenes descartada por cambio de sesion.');
+    }
     const rows = Array.isArray(data) ? data : [];
     supabaseColumnas = new Set(rows.flatMap((row) => Object.keys(row || {})));
     const normalized = deduplicarOrdenes(rows.map(normalizarOrdenDesdeSupabase));
@@ -15598,7 +15613,10 @@ const APP_DATA_MODE = "supabase_first";
   }
 
   async function cargarOrdenesPrincipal(options = {}) {
-    if (supabaseCargaEnCurso) return false;
+    if (supabaseCargaEnCurso) {
+      supabaseCargaPendiente = true;
+      return false;
+    }
     supabaseCargaEnCurso = true;
     let user = null;
     try {
@@ -15607,13 +15625,19 @@ const APP_DATA_MODE = "supabase_first";
       // La identidad se compara ANTES de leer: si cambio, nada del operador
       // anterior puede seguir en pie mientras se resuelve la lectura nueva.
       invalidarOperacionalPorIdentidad(user && user.id);
-      if (user && navigator.onLine) return await cargarOrdenesDesdeSupabase(options);
+      const authGeneration = supabaseAuthGeneration;
+      const authUid = (user && user.id) || null;
+      if (user && navigator.onLine) return await cargarOrdenesDesdeSupabase({ ...options, authGeneration, authUid });
       return degradarSinAutoridadLocal(user ? 'Supabase no disponible.' : 'Sin sesión Supabase.', { authenticated: Boolean(user) });
     } catch (error) {
       console.error('COI Supabase: carga principal fallida', error);
       return degradarSinAutoridadLocal(error?.message || 'Supabase no disponible.', { authenticated: Boolean(user) });
     } finally {
       supabaseCargaEnCurso = false;
+      if (supabaseCargaPendiente) {
+        supabaseCargaPendiente = false;
+        Promise.resolve().then(() => cargarOrdenesPrincipal(options));
+      }
     }
   }
 
@@ -15973,6 +15997,9 @@ const APP_DATA_MODE = "supabase_first";
   }
   function deletePurgeConfirmedV60(result) {
     const row = result.row;
+    ordenesConfirmadas = Array.isArray(ordenesConfirmadas)
+      ? ordenesConfirmadas.filter((item) => !deleteOrdersMatchV60(item, row))
+      : ordenesConfirmadas;
     estacionesDisponibles().forEach((station) => {
       station.obras = (station.obras || []).filter((item) => !deleteOrdersMatchV60(item, row));
       station.servicios = (station.servicios || []).filter((item) => !deleteOrdersMatchV60(item, row));
@@ -20012,6 +20039,7 @@ const CIRCUITO_ADMINISTRATIVO_ETAPAS=[
 const ESTADO_FINALIZADA_SALDO_REMANENTE={codigo:'finalizada_saldo_remanente',nombre:'OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE'};
 const CIRCUITO_CACHE_KEY='coi_circuito_historial_cache_v1';
 const historialCircuitoCache=new Map();
+window.__COI_INVALIDAR_HISTORIAL_CIRCUITO__=()=>{historialCircuitoCache.clear();};
 let guardandoEtapaCircuito=false;
 let eventosCircuitoAdministrativoInicializados=false;
 let etapaCircuitoModalActual=null;
@@ -20743,6 +20771,12 @@ if(document.readyState==='loading'){
     renderTimelineFichaActual();
     return normalized;
   }
+  function applyTimelineConfirmed(events,reason,options={}){
+    const normalized=applyTimelineEvents(events,reason,options);
+    timelineConfirmados=normalized;
+    if(options.uid!==undefined)timelineConfirmadosUid=options.uid||null;
+    return normalized;
+  }
   function setTimelinePersistence(mode,message){
     state.persistence={mode,message:text(message)};
     if(byId('vistaTimelineCOI')?.classList.contains('active'))renderTimelineCOI();
@@ -20873,16 +20907,14 @@ if(document.readyState==='loading'){
           }catch(migrationError){
             if(loadGeneration!==timelineAuthGeneration||loadMutationGeneration!==timelineMutationGeneration)return [];
             console.warn('Timeline COI: la migraci\u00f3n local qued\u00f3 pendiente; se conservan los datos remotos.',migrationError);
-            applyTimelineEvents(remote,'Timeline cargado desde Supabase');
+            applyTimelineConfirmed(remote,'Timeline cargado desde Supabase',{uid:sesionTimeline.id});
             timelineAuthoritativeReady=true;
             setTimelinePersistence('warning',`${remote.length} evento(s) cargado(s) desde Supabase. Migraci\u00f3n pendiente de la cach\u00e9 local: ${migrationError?.message||migrationError}`);
             return remote;
           }
         }
-        applyTimelineEvents(remote,'Timeline cargado desde Supabase');
+        applyTimelineConfirmed(remote,'Timeline cargado desde Supabase',{uid:sesionTimeline.id});
         timelineAuthoritativeReady=true;
-        timelineConfirmados=remote;
-        timelineConfirmadosUid=(sesionTimeline&&sesionTimeline.id)||null;
         setTimelinePersistence('online',`${remote.length} evento(s) cargado(s) desde Supabase.${migration.migrated?` Se migraron ${migration.migrated} registro(s) locales.`:''}`);
         return remote;
       }catch(error){
@@ -20944,7 +20976,7 @@ if(document.readyState==='loading'){
             timelineReconcileTimer=setTimeout(attempt,30);
             return;
           }
-          applyTimelineEvents(remote,reason||'Timeline reconciliado desde Supabase');
+          applyTimelineConfirmed(remote,reason||'Timeline reconciliado desde Supabase');
           timelineAuthoritativeReady=true;
           setTimelinePersistence('online',`${remote.length} evento(s) sincronizado(s) con Supabase.`);
         }catch(error){
@@ -20984,7 +21016,7 @@ if(document.readyState==='loading'){
         if(writeGeneration===timelineAuthGeneration)reconcileTimelineAfterConcurrentMutation(writeGeneration,'Timeline reconciliado tras refresco concurrente');
         return {ok:true,count:saved.length,events:[],refreshed:false,discarded:true};
       }
-      applyTimelineEvents(remote,reason||'Timeline guardado en Supabase');
+      applyTimelineConfirmed(remote,reason||'Timeline guardado en Supabase');
       setTimelinePersistence('online',`${remote.length} evento(s) sincronizado(s) con Supabase.`);
       return {ok:true,count:saved.length,events:saved,refreshed:true};
     }catch(refreshError){
@@ -20993,7 +21025,7 @@ if(document.readyState==='loading'){
         return {ok:true,count:saved.length,events:[],refreshed:false,discarded:true,refreshError};
       }
       const committed=mergeCommittedTimelineEvents(window.coiTimelineEvents,saved);
-      applyTimelineEvents(committed,reason||'Timeline guardado en Supabase');
+      applyTimelineConfirmed(committed,reason||'Timeline guardado en Supabase');
       setTimelinePersistence('warning',`Supabase confirmó ${saved.length} evento(s), pero no se pudo refrescar la lista completa: ${refreshError?.message||refreshError}`);
       return {ok:true,count:saved.length,events:saved,refreshed:false,refreshError};
     }
@@ -21042,7 +21074,7 @@ if(document.readyState==='loading'){
         if(writeGeneration===timelineAuthGeneration)reconcileTimelineAfterConcurrentMutation(writeGeneration,'Timeline reconciliado tras refresco de restore concurrente');
         return {ok:true,count:committed.length,events:[],refreshed:false,discarded:true};
       }
-      applyTimelineEvents(remote,reason||'Timeline reemplazado en Supabase');
+      applyTimelineConfirmed(remote,reason||'Timeline reemplazado en Supabase');
       setTimelinePersistence('online',`${remote.length} evento(s) restaurado(s) en Supabase.`);
       return {ok:true,count:remote.length,events:remote,refreshed:true};
     }catch(refreshError){
@@ -21050,7 +21082,7 @@ if(document.readyState==='loading'){
         if(writeGeneration===timelineAuthGeneration)reconcileTimelineAfterConcurrentMutation(writeGeneration,'Timeline reconciliado tras fallo de refresco de restore');
         return {ok:true,count:committed.length,events:[],refreshed:false,discarded:true,refreshError};
       }
-      applyTimelineEvents(committed,reason||'Timeline reemplazado en Supabase');
+      applyTimelineConfirmed(committed,reason||'Timeline reemplazado en Supabase');
       setTimelinePersistence('warning',`Supabase confirmó la restauración de ${committed.length} evento(s), pero falló el refresco posterior: ${refreshError?.message||refreshError}`);
       return {ok:true,count:committed.length,events:committed,refreshed:false,refreshError};
     }
@@ -21682,7 +21714,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
           if(deleteGeneration===timelineAuthGeneration)reconcileTimelineAfterConcurrentMutation(deleteGeneration,'Timeline reconciliado tras refresco de eliminación concurrente');
           return;
         }
-        applyTimelineEvents(remote,'Evento eliminado en Supabase');
+        applyTimelineConfirmed(remote,'Evento eliminado en Supabase');
         setTimelinePersistence('online',`${remote.length} evento(s) sincronizado(s) con Supabase.`);
       }catch(refreshError){
         if(deleteGeneration!==timelineAuthGeneration||deleteMutationGeneration!==timelineMutationGeneration){
@@ -21690,7 +21722,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
           return;
         }
         const committed=window.coiTimelineEvents.filter(item=>item.id!==id);
-        applyTimelineEvents(committed,'Evento eliminado en Supabase');
+        applyTimelineConfirmed(committed,'Evento eliminado en Supabase');
         setTimelinePersistence('warning',`Supabase confirmó la eliminación, pero no se pudo refrescar la lista completa: ${refreshError?.message||refreshError}`);
       }
       if(deleteGeneration!==timelineAuthGeneration||deleteMutationGeneration!==timelineMutationGeneration)return;
@@ -25837,6 +25869,7 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   const PAGE_SIZE=1000;
   const STATES=Object.freeze({CLIENTE_INICIALIZANDO:'CLIENTE_INICIALIZANDO',SIN_CLIENTE:'SIN_CLIENTE',SIN_SESION:'SIN_SESION',OFFLINE:'OFFLINE',SUPABASE_FIRST:'SUPABASE_FIRST',ERROR_RLS:'ERROR_RLS'});
   const runtime=window.__COI_FINANZAS_SUPABASE_RUNTIME__||{estado:STATES.CLIENTE_INICIALIZANDO,cliente:null,sesion:null,ultimaCarga:null,ultimoError:null,initPromise:null,reconnectPromise:null};
+  runtime.authGeneration=Number(runtime.authGeneration)||0;runtime.reconnectGeneration=-1;runtime.reconnectUid=null;
   window.__COI_FINANZAS_SUPABASE_RUNTIME__=runtime;
   const $=id=>document.getElementById(id);
   const text=value=>String(value??'').trim();
@@ -25883,7 +25916,7 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   function clearMemory(){confirmadasFin=null;confirmadasFinUid=null;try{window.posicionesFinancieras=[];posicionesFinancieras=[];}catch(error){}return[];}
   // Cambio REAL de identidad: nada del operador anterior sobrevive, ni en
   // memoria ni en la cache local, y se invalida ANTES de adoptar el UID nuevo.
-  function invalidarFinPorIdentidad(uidNuevo){const nuevo=uidNuevo||null;if(nuevo===(confirmadasFinUid||null))return false;try{localStorage.removeItem(CACHE_KEY);}catch(error){}clearMemory();return true;}
+  function invalidarFinPorIdentidad(uidNuevo){const nuevo=uidNuevo||null;if(nuevo===(confirmadasFinUid||null))return false;if(confirmadasFinUid===null&&confirmadasFin===null&&nuevo){confirmadasFinUid=nuevo;return false;}runtime.authGeneration++;try{localStorage.removeItem(CACHE_KEY);}catch(error){}clearMemory();return true;}
   function saveRemoteCache(remoteRows,remoteConsumptions=[]){const envelope={version:CACHE_VERSION,savedAt:new Date().toISOString(),source:'Supabase',positions:remoteRows,consumptions:remoteConsumptions,rows:remoteRows};localStorage.setItem(CACHE_KEY,JSON.stringify(envelope));return envelope;}
   async function currentUser(c=client()){if(typeof window.getUsuarioActual==='function'){const user=await window.getUsuarioActual();if(user)return user;}if(c?.auth?.getUser){const {data}=await c.auth.getUser();return data?.user||null;}return null;}
   function stateMessage(state,detail=''){
@@ -25940,11 +25973,13 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   }
   async function readPaged(table,columns='*'){const c=client()||await waitForSupabaseClient();if(!c)throw new Error('Cliente Supabase no disponible.');const rows=[];for(let from=0;;from+=PAGE_SIZE){const to=from+PAGE_SIZE-1;const {data,error}=await c.from(table).select(columns).range(from,to);if(error)throw error;const page=Array.isArray(data)?data:[];rows.push(...page);if(page.length<PAGE_SIZE)break;}return rows;}
   async function buscarOrdenPorOC(value,c=client()){const nro=normalizeOC(value);if(!nro)throw new Error('OC vacía.');if(!c)throw new Error('Cliente Supabase no disponible.');const {data,error}=await c.from(ORDERS_TABLE).select('id,nro_oc').eq('nro_oc',nro).limit(2);if(error)throw error;if(!data?.length)throw new Error(`La OC ${nro} no existe en public.${ORDERS_TABLE}.`);if(data.length>1)throw new Error(`La OC ${nro} está duplicada en public.${ORDERS_TABLE}.`);const id=text(data[0].id);if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))throw new Error(`La OC ${nro} no tiene UUID válido.`);return {id,nro_oc:nro};}
-  async function recargarCache(options={}){const [remote,consumptions]=await Promise.all([readPaged(TABLE,'*'),readPaged(CONSUMPTIONS_TABLE,'*')]);const confirmed=consumptions.filter(row=>text(row.estado).toUpperCase()==='CONFIRMADA');saveRemoteCache(remote,confirmed);const merged=confirmarMemoria(remote,confirmed);runtime.ultimaCarga=new Date().toISOString();runtime.ultimoError=null;setState(STATES.SUPABASE_FIRST);if(options.render!==false){try{window.renderOrdenes?.();const view=$('vistaFichaOC');if(view?.classList.contains('active'))window.renderFichaOC?.(window.ocActualId||'');}catch(error){console.warn('V60: no se pudo refrescar la vista financiera.',error);}}return merged;}
+  async function recargarCache(options={}){const requestGeneration=options.authGeneration??runtime.authGeneration,requestUid=options.authUid??runtime.sesion?.user?.id??null;const [remote,consumptions]=await Promise.all([readPaged(TABLE,'*'),readPaged(CONSUMPTIONS_TABLE,'*')]);if(requestGeneration!==runtime.authGeneration||requestUid!==(runtime.sesion?.user?.id||null))throw new Error('Carga financiera descartada por cambio de sesion.');const confirmed=consumptions.filter(row=>text(row.estado).toUpperCase()==='CONFIRMADA');saveRemoteCache(remote,confirmed);const merged=confirmarMemoria(remote,confirmed);runtime.ultimaCarga=new Date().toISOString();runtime.ultimoError=null;setState(STATES.SUPABASE_FIRST);if(options.render!==false){try{window.renderOrdenes?.();const view=$('vistaFichaOC');if(view?.classList.contains('active'))window.renderFichaOC?.(window.ocActualId||'');}catch(error){console.warn('V60: no se pudo refrescar la vista financiera.',error);}}return merged;}
   async function listarTodas(options={}){const access=await verificarAcceso();if(!access.client||!access.online||!access.user)return applyCacheState(access.mode);try{return await recargarCache(options);}catch(error){const state=isRlsError(error)?STATES.ERROR_RLS:STATES.SIN_CLIENTE;const cached=applyCacheState(state,error);if(options.soloRemoto)throw error;return cached;}}
   async function reintentarConexion(options={}){
-    if(runtime.reconnectPromise)return runtime.reconnectPromise;
-    runtime.reconnectPromise=(async()=>{if(navigator.onLine===false)return applyCacheState(STATES.OFFLINE);const c=client()||await waitForSupabaseClient(options);if(!c)return applyCacheState(STATES.SIN_CLIENTE,'Cliente Supabase no disponible.');const access=await verificarAcceso(options);if(!access.user)return applyCacheState(STATES.SIN_SESION);try{return await recargarCache({render:options.render!==false});}catch(error){const state=isRlsError(error)?STATES.ERROR_RLS:STATES.SIN_CLIENTE;const cached=applyCacheState(state,error);if(options.soloRemoto)throw error;return cached;}})();
+    const requestGeneration=runtime.authGeneration,requestUid=runtime.sesion?.user?.id||null;
+    if(runtime.reconnectPromise){if(runtime.reconnectGeneration===requestGeneration&&runtime.reconnectUid===requestUid)return runtime.reconnectPromise;return runtime.reconnectPromise.finally(()=>reintentarConexion(options));}
+    runtime.reconnectGeneration=requestGeneration;runtime.reconnectUid=requestUid;
+    runtime.reconnectPromise=(async()=>{if(navigator.onLine===false)return applyCacheState(STATES.OFFLINE);const c=client()||await waitForSupabaseClient(options);if(!c)return applyCacheState(STATES.SIN_CLIENTE,'Cliente Supabase no disponible.');const access=await verificarAcceso(options);if(!access.user)return applyCacheState(STATES.SIN_SESION);try{return await recargarCache({render:options.render!==false,authGeneration:requestGeneration,authUid:requestUid});}catch(error){if(requestGeneration!==runtime.authGeneration||requestUid!==(runtime.sesion?.user?.id||null)){if(options.soloRemoto)throw error;return [];}const state=isRlsError(error)?STATES.ERROR_RLS:STATES.SIN_CLIENTE;const cached=applyCacheState(state,error);if(options.soloRemoto)throw error;return cached;}})();
     try{return await runtime.reconnectPromise;}finally{runtime.reconnectPromise=null;}
   }
   async function listarPorOC(value,options={}){const nro=normalizeOC(value);return (await listarTodas(options)).filter(row=>isMaster(row)&&normalizeOC(row.nro_oc||row.ocNro)===nro);}
@@ -25971,9 +26006,10 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   // cache local ANTES de reconectar: si la lectura del operador nuevo falla,
   // la degradacion no tiene posiciones del anterior que mostrar. Un
   // TOKEN_REFRESHED del mismo UID no invalida nada.
-  async function procesarEventoAuth(event,session){if(!['INITIAL_SESSION','SIGNED_IN','TOKEN_REFRESHED','USER_UPDATED','SIGNED_OUT'].includes(event))return;runtime.sesion=session||null;if(event==='SIGNED_OUT'||!session?.user){try{localStorage.removeItem(CACHE_KEY);}catch(error){}clearMemory();setState(STATES.SIN_SESION);return;}invalidarFinPorIdentidad(session.user.id);await reintentarConexion({render:false});}
+  async function procesarEventoAuth(event,session){if(!['INITIAL_SESSION','SIGNED_IN','TOKEN_REFRESHED','USER_UPDATED','SIGNED_OUT'].includes(event))return;runtime.sesion=session||null;if(event==='SIGNED_OUT'||!session?.user){runtime.authGeneration++;try{localStorage.removeItem(CACHE_KEY);}catch(error){}clearMemory();setState(STATES.SIN_SESION);return;}invalidarFinPorIdentidad(session.user.id);await reintentarConexion({render:false});}
   function aplicarOffline(){return applyCacheState(STATES.OFFLINE);}
-  const api={version:VERSION,states:STATES,waitForSupabaseClient,reintentarConexion,procesarEventoAuth,aplicarOffline,verificarAcceso,buscarOrdenPorOC,listarTodas,listarPorOC,guardarPosiciones,actualizarPosicion,eliminarPosicion,eliminarPosiciones,certificarPosiciones,actualizarCertificacion,anularCertificacion,recargarCache,obtenerCache:readCache,limpiarDatosSesion:clearMemory,diagnostico,migracion:{analizar:analizarLegacy,exportarBackup,exportarInforme,migrar:migrarLegacy,verificar:verificarMigracion}};
+  function purgarPosicionConfirmada(id){confirmadasFin=Array.isArray(confirmadasFin)?confirmadasFin.filter(row=>String(row?.id||row?.idPosicionFinanciera)!==String(id)):confirmadasFin;return confirmadasFin;}
+  const api={version:VERSION,states:STATES,waitForSupabaseClient,reintentarConexion,procesarEventoAuth,aplicarOffline,verificarAcceso,buscarOrdenPorOC,listarTodas,listarPorOC,guardarPosiciones,actualizarPosicion,eliminarPosicion,eliminarPosiciones,certificarPosiciones,actualizarCertificacion,anularCertificacion,recargarCache,purgarPosicionConfirmada,obtenerCache:readCache,limpiarDatosSesion:clearMemory,diagnostico,migracion:{analizar:analizarLegacy,exportarBackup,exportarInforme,migrar:migrarLegacy,verificar:verificarMigracion}};
   window.COI_FINANZAS_SUPABASE=api;window.waitForSupabaseClient=waitForSupabaseClient;
   window.__COI_H06_FINANZAS__={confirmadas:()=>(Array.isArray(confirmadasFin)?confirmadasFin.length:null),uidConfirmado:()=>confirmadasFinUid};
   window.COI_FIN_SUPABASE_2A={version:VERSION,guardarPosicionesOC:guardarPosiciones,recargarDesdeSupabase:recargarCache,resolverOrdenUUID:async value=>(await buscarOrdenPorOC(value)).id,analizarLocales:analizarLegacy,exportarInforme,migrarPosicionesValidas:()=>migrarLegacy({confirmado:true})};
@@ -26058,6 +26094,7 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
     const filter=rows=>(Array.isArray(rows)?rows:[]).filter(row=>String(row?.id||row?.idPosicionFinanciera)!==String(id));
     window.posicionesFinancieras=filter(window.posicionesFinancieras);
     try{posicionesFinancieras=window.posicionesFinancieras;}catch(error){}
+    canonicalApi().purgarPosicionConfirmada(id);
   }
   async function eliminarPosiciones(ids){
     if(operationPromise)return operationPromise;

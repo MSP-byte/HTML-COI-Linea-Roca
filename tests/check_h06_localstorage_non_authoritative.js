@@ -52,6 +52,8 @@ check(html.indexOf('function readSupabaseCache(') < 0,
 // El snapshot confirmado solo lo fija una lectura remota exitosa.
 check(/cacheSupabaseOrders\(normalized\);\n    ordenesConfirmadas = normalized;/.test(html),
   'solo una lectura remota confirmada puede fijar el snapshot de Ordenes');
+check(html.includes('requestGeneration !== supabaseAuthGeneration') && html.includes('supabaseCargaPendiente = true;'),
+  'Ordenes tiene que descartar cargas stale y encolar la recarga de la identidad nueva');
 // Y sin sesion no sobrevive.
 const vaciarSinSesion = sinComentarios(cuerpo(
   '  function vaciarDatosOperativosSinSesion() {', 'vaciarDatosOperativosSinSesion()'));
@@ -64,6 +66,10 @@ const invalidarOrdenes = sinComentarios(cuerpo(
   'invalidarOperacionalPorIdentidad() de la capa de Ordenes'));
 check(invalidarOrdenes.indexOf("if (nuevo === (ordenesConfirmadasUid || null)) return false;") >= 0,
   'un TOKEN_REFRESHED del mismo UID no puede contar como cambio de identidad');
+check(invalidarOrdenes.indexOf('ordenesConfirmadasUid === null && ordenesConfirmadas === null && nuevo') >= 0,
+  'la adopcion inicial del UID no puede purgar la operacion financiera idempotente pendiente');
+check(invalidarOrdenes.indexOf('__COI_INVALIDAR_HISTORIAL_CIRCUITO__') >= 0,
+  'un cambio real de identidad tiene que vaciar tambien el historial de circuito hidratado');
 for (const linea of ['ordenesConfirmadas = null;', 'SENSITIVE_OPERATIONAL_CACHE_KEYS', "aplicarOrdenesPrincipal([], 'Supabase');"]) {
   check(invalidarOrdenes.indexOf(linea) >= 0,
     `la invalidacion por identidad de Ordenes tiene que incluir ${linea}`);
@@ -87,6 +93,10 @@ check(/saveRemoteCache\(remote,confirmed\);const merged=confirmarMemoria\(remote
   'solo la lectura remota exitosa puede confirmar la memoria financiera');
 check(html.indexOf('invalidarFinPorIdentidad(session.user.id);') >= 0,
   'el evento de auth financiero tiene que invalidar por identidad antes de reconectar');
+check(html.includes('requestGeneration!==runtime.authGeneration||requestUid!==(runtime.sesion?.user?.id||null)'),
+  'Finanzas tiene que rechazar resultados de una generacion o UID anterior');
+check(html.includes('runtime.reconnectPromise.finally(()=>reintentarConexion(options))'),
+  'Finanzas tiene que encolar una reconexion para la identidad nueva');
 
 // ============================================ 3) TIMELINE / MAILING
 const timelineCatch = html.slice(
@@ -97,8 +107,17 @@ check(timelineCatch.indexOf('timelineConfirmados') >= 0,
   'la degradacion del Timeline tiene que apoyarse en la ultima lectura confirmada');
 check(timelineCatch.indexOf('readTimelineCache()') < 0,
   'la degradacion del Timeline no puede publicar la cache local como Mailing operativo');
-check(html.indexOf('timelineConfirmados=remote;') >= 0,
-  'solo la lectura remota confirmada puede fijar el conjunto del Timeline');
+check(html.indexOf('function applyTimelineConfirmed(') >= 0,
+  'Timeline tiene que centralizar la actualizacion del snapshot confirmado');
+for (const reason of ['Timeline guardado en Supabase', 'Timeline reemplazado en Supabase', 'Evento eliminado en Supabase', 'Timeline reconciliado desde Supabase']) {
+  check(html.includes(`applyTimelineConfirmed(remote,reason||'${reason}'`) || html.includes(`applyTimelineConfirmed(remote,'${reason}'`) || html.includes(`applyTimelineConfirmed(committed,'${reason}'`),
+    `Timeline tiene que confirmar su snapshot despues de ${reason}`);
+}
+
+check(/ordenesConfirmadas = Array\.isArray\(ordenesConfirmadas\)[\s\S]*?deleteOrdersMatchV60\(item, row\)/.test(html),
+  'el borrado remoto de una OC tiene que quitarla del snapshot confirmado');
+check(html.includes('canonicalApi().purgarPosicionConfirmada(id);'),
+  'el borrado remoto de una posicion tiene que quitarla del snapshot financiero confirmado');
 
 // El modulo no tenia listener de identidad: timelineAuthGeneration se declaraba
 // y nunca se incrementaba, de modo que un cambio de operador dejaba en pantalla
