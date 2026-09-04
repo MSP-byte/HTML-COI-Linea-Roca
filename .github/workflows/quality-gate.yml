@@ -35,7 +35,31 @@ jobs:
         run: npm ci
 
       - name: Auditar dependencias (alta o critica)
-        run: npm audit --audit-level=high
+        shell: bash
+        run: |
+          set +e
+          npm audit --audit-level=high --json > audit.json 2> audit.err
+          audit_status=$?
+          set -e
+
+          cat audit.err || true
+          cat audit.json || true
+
+          if [ "$audit_status" -eq 0 ]; then
+            exit 0
+          fi
+
+          if node -e "const fs=require('fs'); const raw=fs.readFileSync('audit.json','utf8').trim(); if(!raw) process.exit(2); const data=JSON.parse(raw); const v=(data.metadata&&data.metadata.vulnerabilities)||{}; process.exit(((v.high||0)+(v.critical||0))>0?0:1);"; then
+            echo "Se detectaron vulnerabilidades altas o criticas."
+            exit "$audit_status"
+          fi
+
+          if grep -Eqi 'audit endpoint returned an error|Service Unavailable|Bad Request|endpoint is being retired|retired endpoint|Invalid package tree' audit.err audit.json; then
+            echo "::warning::El servicio remoto de npm audit fallo. npm ci completo correctamente; se continua con los tests estaticos y Playwright."
+            exit 0
+          fi
+
+          exit "$audit_status"
 
       - name: Ejecutar controles estaticos y de regresion
         run: npm test

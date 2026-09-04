@@ -31,11 +31,16 @@ async function openTimelineFixture(page, { role = 'administrador', remoteRows = 
   }, { storageKey: STORAGE_KEY });
 
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() =>
+  await page.waitForFunction((legacyKey) =>
     Boolean(window.COI_TIMELINE_COI) &&
     Array.isArray(window.coiTimelineEvents) &&
-    window.coiTimelineEvents.some(event => event.id === 'TL-LEGACY-BROWSER-1')
-  );
+    // H06: sin Supabase el Timeline operativo queda vacio a proposito. Lo que
+    // prueba que el modulo arranco es que stageLegacyTimelineCache() ya dejo
+    // los eventos locales preparados para migrar.
+    Boolean(localStorage.getItem(legacyKey)),
+  LEGACY_KEY);
+  // Y hasta aca la cache local NO se publico como Timeline operativo.
+  expect(await page.evaluate(() => window.coiTimelineEvents.length)).toBe(0);
 
   await page.evaluate(({ role, remoteRows }) => {
     const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));

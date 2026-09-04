@@ -14,6 +14,47 @@ const { test, expect } = require('@playwright/test');
 const ORDER_ID = 'a0000000-1111-4111-8111-000000000001';
 const ORDER_NUMBER = '4530012345';
 
+
+// H06 · Estas pruebas son de RENDER del Timeline. Sembraban los eventos en
+// coi_timeline_events_v1 y el modulo los publicaba porque, ante la ausencia de
+// Supabase, la cache local se promovia a Timeline operativo. Eso dejo de ser
+// asi: la cache ya no es autoridad. El fixture es el mismo, pero ahora llega
+// por el unico camino autoritativo, un Supabase minimo que devuelve esas filas.
+function sembrarTimelineRemoto(page, eventos) {
+  return page.addInitScript((seed) => {
+    localStorage.clear();
+    sessionStorage.clear();
+    const UID = 'a0000000-9999-4999-8999-000000000009';
+    // La tabla guarda nro_oc; databaseToTimelineEvent lo mapea a event.oc.
+    const filas = seed.map((e) => Object.assign({}, e, { nro_oc: e.oc || '' }));
+    const vacio = () => {
+      const api = {
+        select: () => api, order: () => api, range: () => api, eq: () => api,
+        in: () => api, is: () => api, gt: () => api, ilike: () => api, limit: () => api,
+        single: async () => ({ data: null, error: null }),
+        then: (res, rej) => Promise.resolve({ data: [], count: 0, error: null }).then(res, rej)
+      };
+      return api;
+    };
+    const cliente = {
+      from: () => vacio(),
+      rpc: async (nombre) => {
+        if (nombre === 'coi_current_role') return { data: 'administrador', error: null };
+        if (nombre === 'coi_timeline_list_page') return { data: filas, error: null };
+        return { data: null, error: null };
+      },
+      auth: {
+        getSession: async () => ({ data: { session: { user: { id: UID, email: 'timeline.qa@example.com' } } }, error: null }),
+        getUser: async () => ({ data: { user: { id: UID } }, error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } })
+      }
+    };
+    window.__COI_SUPABASE_CLIENT__ = cliente;
+    window.getSupabaseClient = () => cliente;
+    window.initSupabase = async () => cliente;
+  }, eventos);
+}
+
 async function openIsolated(page) {
   await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
   await page.addInitScript(() => { localStorage.clear(); sessionStorage.clear(); });
@@ -199,11 +240,7 @@ test.describe('CASO 1 — Timeline con mailing de varias OC', () => {
 
   test('se muestran 3 OC independientes, sin concatenación, sin duplicados y con wrap', async ({ page }) => {
     await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
-    await page.addInitScript(seed => {
-      localStorage.clear();
-      sessionStorage.clear();
-      localStorage.setItem('coi_timeline_events_v1', JSON.stringify(seed));
-    }, SEED_EVENTS);
+    await sembrarTimelineRemoto(page, SEED_EVENTS);
     await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
 
     const timelineButton = page.locator('[data-v2-nav="btnTimelineCOI"]');
@@ -267,11 +304,7 @@ test.describe('CASO 1 — Timeline con mailing de varias OC', () => {
       documentos_mencionados: `Actas de medición OC ${HOC_A}, OC ${HOC_B} y OC ${HOC_C}.`
     }];
     await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
-    await page.addInitScript(seed => {
-      localStorage.clear();
-      sessionStorage.clear();
-      localStorage.setItem('coi_timeline_events_v1', JSON.stringify(seed));
-    }, HIST_EVENT);
+    await sembrarTimelineRemoto(page, HIST_EVENT);
     await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
 
     // Las tres OC deben existir como órdenes reales cargadas: la recuperación
@@ -307,11 +340,7 @@ test.describe('CASO 1 — Timeline con mailing de varias OC', () => {
       estado: 'Informativo', riesgo: 'Bajo', proveedor: 'FEMYP S.R.L.'
     }];
     await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
-    await page.addInitScript(seed => {
-      localStorage.clear();
-      sessionStorage.clear();
-      localStorage.setItem('coi_timeline_events_v1', JSON.stringify(seed));
-    }, EVENT_OK);
+    await sembrarTimelineRemoto(page, EVENT_OK);
     await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
     await page.evaluate(ocs => {
       window.todasLasOC = () => ocs.map(oc => ({ item: { oc }, oc }));
@@ -337,11 +366,7 @@ test.describe('CASO 1 — Timeline con mailing de varias OC', () => {
       estado: 'Informativo', riesgo: 'Bajo', proveedor: 'FEMYP S.R.L.'
     }];
     await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
-    await page.addInitScript(seed => {
-      localStorage.clear();
-      sessionStorage.clear();
-      localStorage.setItem('coi_timeline_events_v1', JSON.stringify(seed));
-    }, EVENT_BAD);
+    await sembrarTimelineRemoto(page, EVENT_BAD);
     await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
     // Solo A y B existen como órdenes reales; C no. No debe partirse el bloque.
     await page.evaluate(ocs => {
@@ -363,10 +388,7 @@ test.describe('CASO 1 — Timeline con mailing de varias OC', () => {
 
   test('el filtro por OC encuentra el mail aunque tenga varias OC asociadas, y no lo muestra para una OC ajena', async ({ page }) => {
     await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
-    await page.addInitScript(seed => {
-      localStorage.clear();
-      localStorage.setItem('coi_timeline_events_v1', JSON.stringify(seed));
-    }, SEED_EVENTS);
+    await sembrarTimelineRemoto(page, SEED_EVENTS);
     await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
     const timelineButton = page.locator('[data-v2-nav="btnTimelineCOI"]');
     await timelineButton.waitFor({ state: 'attached' });

@@ -31,16 +31,53 @@ const SEED_EVENTS = [
   }
 ];
 
+
+// H06 · Estas pruebas son de RENDER del Timeline. Sembraban los eventos en
+// coi_timeline_events_v1 y el modulo los publicaba porque, ante la ausencia de
+// Supabase, la cache local se promovia a Timeline operativo. Eso dejo de ser
+// asi: la cache ya no es autoridad. El fixture es el mismo, pero ahora llega
+// por el unico camino autoritativo, un Supabase minimo que devuelve esas filas.
+function sembrarTimelineRemoto(page, eventos) {
+  return page.addInitScript((seed) => {
+    localStorage.clear();
+    sessionStorage.clear();
+    const UID = 'a0000000-9999-4999-8999-000000000009';
+    // La tabla guarda nro_oc; databaseToTimelineEvent lo mapea a event.oc.
+    const filas = seed.map((e) => Object.assign({}, e, { nro_oc: e.oc || '' }));
+    const vacio = () => {
+      const api = {
+        select: () => api, order: () => api, range: () => api, eq: () => api,
+        in: () => api, is: () => api, gt: () => api, ilike: () => api, limit: () => api,
+        single: async () => ({ data: null, error: null }),
+        then: (res, rej) => Promise.resolve({ data: [], count: 0, error: null }).then(res, rej)
+      };
+      return api;
+    };
+    const cliente = {
+      from: () => vacio(),
+      rpc: async (nombre) => {
+        if (nombre === 'coi_current_role') return { data: 'administrador', error: null };
+        if (nombre === 'coi_timeline_list_page') return { data: filas, error: null };
+        return { data: null, error: null };
+      },
+      auth: {
+        getSession: async () => ({ data: { session: { user: { id: UID, email: 'timeline.qa@example.com' } } }, error: null }),
+        getUser: async () => ({ data: { user: { id: UID } }, error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } })
+      }
+    };
+    window.__COI_SUPABASE_CLIENT__ = cliente;
+    window.getSupabaseClient = () => cliente;
+    window.initSupabase = async () => cliente;
+  }, eventos);
+}
+
 test('Timeline COI renderiza completo sin ReferenceError y respeta el badge de riesgo por tipo de evento', async ({ page }) => {
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(error));
 
   await page.route(/^https?:\/(?!\/127\.0\.0\.1)/, route => route.abort());
-  await page.addInitScript(seed => {
-    localStorage.clear();
-    sessionStorage.clear();
-    localStorage.setItem('coi_timeline_events_v1', JSON.stringify(seed));
-  }, SEED_EVENTS);
+  await sembrarTimelineRemoto(page, SEED_EVENTS);
 
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
 
