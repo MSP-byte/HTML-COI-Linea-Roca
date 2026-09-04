@@ -15749,7 +15749,7 @@ const APP_DATA_MODE = "supabase_first";
   }
 
   async function upsertOrdenSupabase(orden, options = {}) {
-    await requireSupabaseWriteAccess();
+    const user = await requireSupabaseWriteAccess();
     const client = getSupabaseClient();
     const payload = normalizarOrdenParaSupabase(orden);
     if (!payload.nro_oc) throw new Error('La OC no tiene nro_oc. No se guardó.');
@@ -15782,6 +15782,19 @@ const APP_DATA_MODE = "supabase_first";
     if (result.error) throw result.error;
     action = result.data?.accion || (existente ? 'updated' : 'inserted');
     const canonicalRow = result.data?.orden || existente;
+    // H06 final: el RPC ya confirmo la mutacion. El snapshot en memoria se
+    // actualiza ANTES de una recarga que podria fallar, para no restaurar la
+    // version pre-write en modo degradado.
+    if (canonicalRow) {
+      const normalizedConfirmed = normalizarOrdenDesdeSupabase(canonicalRow);
+      const confirmedKey = normalizeNroOC(normalizedConfirmed?.nro_oc || payload.nro_oc);
+      const confirmedBase = Array.isArray(ordenesConfirmadas) ? ordenesConfirmadas : [];
+      ordenesConfirmadas = deduplicarOrdenes([
+        ...confirmedBase.filter((item) => normalizeNroOC(item?.nro_oc) !== confirmedKey),
+        normalizedConfirmed
+      ]);
+      ordenesConfirmadasUid = user?.id || ordenesConfirmadasUid;
+    }
     const cleanup = await consolidarDuplicadosSupabase(payload.nro_oc, canonicalRow);
     if (cleanup.detectadas) {
       const duplicateWarning = `Se detectaron ${cleanup.detectadas} fila(s) duplicada(s). No se eliminaron automáticamente; requieren revisión administrativa.`;
@@ -25987,9 +26000,9 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   async function guardarPosiciones(records){if(!Array.isArray(records)||!records.length)throw new Error('No hay Posiciones OC válidas para guardar.');const access=await verificarAcceso({escritura:true}),payload=[],orderCache=new Map();for(const record of records)payload.push(await toPayload(record,access.client,orderCache,access.user?.email));for(let from=0;from<payload.length;from+=PAGE_SIZE){const batch=payload.slice(from,from+PAGE_SIZE);const {data,error}=await access.client.from(TABLE).upsert(batch,{onConflict:'orden_id,posicion'}).select('*');if(error)throw error;if(!Array.isArray(data)||data.length!==batch.length)throw new Error('Supabase no confirmó todas las Posiciones OC guardadas.');}return recargarCache();}
   async function actualizarPosicion(id,changes={}){const access=await verificarAcceso({escritura:true}),patch={};for(const key of ['descripcion','unidad_medida','moneda','remito','observaciones','origen_carga'])if(Object.prototype.hasOwnProperty.call(changes,key))patch[key]=text(changes[key])||null;for(const key of ['cantidad_total','precio_unitario','monto_total'])if(Object.prototype.hasOwnProperty.call(changes,key))patch[key]=parseNumber(changes[key]);if(!Object.keys(patch).length)throw new Error('No hay campos editables para actualizar.');if(access.user?.email)patch.usuario_email=access.user.email;const {data,error}=await access.client.from(TABLE).update(patch).eq('id',id).select('*').single();if(error)throw error;if(!data?.id)throw new Error('Supabase no confirmó la actualización.');await recargarCache();return fromRemote(data);}
   function rpcError(error){const value=`${error?.code||''} ${error?.message||''} ${error?.details||''}`;if(/PGRST202|42883|coi_(certificar|actualizar|anular|eliminar)_/i.test(value)){const wrapped=new Error('El contrato transaccional de Supabase no está instalado o la API todavía no recargó el esquema. Aplique supabase/migrations en orden y reintente.');wrapped.code='COI_RPC_NOT_INSTALLED';wrapped.cause=error;return wrapped;}return error instanceof Error?error:Object.assign(new Error(error?.message||String(error)),error||{});}
-  async function certificarPosiciones(movimientos,idempotencyKey,contexto={}){if(!Array.isArray(movimientos)||!movimientos.length)throw new Error('No hay posiciones seleccionadas para certificar.');if(!text(idempotencyKey))throw new Error('Falta la clave de idempotencia del movimiento.');const access=await verificarAcceso({escritura:true});const {data,error}=await access.client.rpc('coi_certificar_posiciones_v2',{p_movimientos:movimientos,p_idempotency_key:idempotencyKey,p_contexto:contexto});if(error)throw rpcError(error);if(!Array.isArray(data)||data.length!==movimientos.length)throw new Error('Supabase no confirmó todos los consumos solicitados.');const result=data.map(fromRemoteConsumption);try{await recargarCache();}catch(refreshError){result.refreshWarning=`El movimiento fue confirmado, pero no se pudo refrescar la caché: ${refreshError?.message||refreshError}`;console.warn('[COI][FINANZAS][CACHE_POST_COMMIT]',refreshError);}return result;}
-  async function actualizarCertificacion(id,cambios={}){const access=await verificarAcceso({escritura:true});const {data,error}=await access.client.rpc('coi_actualizar_consumo_posicion',{p_consumo_id:id,p_cambios:cambios});if(error)throw rpcError(error);if(!data?.id)throw new Error('Supabase no confirmó la actualización de la certificación.');const result=fromRemoteConsumption(data);try{await recargarCache();}catch(refreshError){result.refreshWarning=`La actualización fue confirmada, pero no se pudo refrescar la caché: ${refreshError?.message||refreshError}`;}return result;}
-  async function anularCertificacion(id,motivo){const access=await verificarAcceso({escritura:true});const {data,error}=await access.client.rpc('coi_anular_consumo_posicion',{p_consumo_id:id,p_motivo:text(motivo)});if(error)throw rpcError(error);if(!data?.id||text(data.estado).toUpperCase()!=='ANULADA')throw new Error('Supabase no confirmó la anulación de la certificación.');try{await recargarCache();}catch(refreshError){data.refreshWarning=`La anulación fue confirmada, pero no se pudo refrescar la caché: ${refreshError?.message||refreshError}`;}return data;}
+  async function certificarPosiciones(movimientos,idempotencyKey,contexto={}){if(!Array.isArray(movimientos)||!movimientos.length)throw new Error('No hay posiciones seleccionadas para certificar.');if(!text(idempotencyKey))throw new Error('Falta la clave de idempotencia del movimiento.');const access=await verificarAcceso({escritura:true});const {data,error}=await access.client.rpc('coi_certificar_posiciones_v2',{p_movimientos:movimientos,p_idempotency_key:idempotencyKey,p_contexto:contexto});if(error)throw rpcError(error);if(!Array.isArray(data)||data.length!==movimientos.length)throw new Error('Supabase no confirmó todos los consumos solicitados.');const result=data.map(fromRemoteConsumption);confirmarMutacionesFinancieras(data);try{await recargarCache();}catch(refreshError){result.refreshWarning=`El movimiento fue confirmado, pero no se pudo refrescar la caché: ${refreshError?.message||refreshError}`;console.warn('[COI][FINANZAS][CACHE_POST_COMMIT]',refreshError);}return result;}
+  async function actualizarCertificacion(id,cambios={}){const access=await verificarAcceso({escritura:true});const {data,error}=await access.client.rpc('coi_actualizar_consumo_posicion',{p_consumo_id:id,p_cambios:cambios});if(error)throw rpcError(error);if(!data?.id)throw new Error('Supabase no confirmó la actualización de la certificación.');const result=fromRemoteConsumption(data);confirmarMutacionesFinancieras(data);try{await recargarCache();}catch(refreshError){result.refreshWarning=`La actualización fue confirmada, pero no se pudo refrescar la caché: ${refreshError?.message||refreshError}`;}return result;}
+  async function anularCertificacion(id,motivo){const access=await verificarAcceso({escritura:true});const {data,error}=await access.client.rpc('coi_anular_consumo_posicion',{p_consumo_id:id,p_motivo:text(motivo)});if(error)throw rpcError(error);if(!data?.id||text(data.estado).toUpperCase()!=='ANULADA')throw new Error('Supabase no confirmó la anulación de la certificación.');confirmarMutacionesFinancieras(data);try{await recargarCache();}catch(refreshError){data.refreshWarning=`La anulación fue confirmada, pero no se pudo refrescar la caché: ${refreshError?.message||refreshError}`;}return data;}
   async function eliminarPosiciones(ids){const unique=[...new Set((Array.isArray(ids)?ids:[ids]).map(text).filter(Boolean))];if(!unique.length)throw new Error('No hay posiciones seleccionadas para eliminar.');const access=await verificarAcceso({escritura:true});const {data,error}=await access.client.rpc('coi_eliminar_posiciones_sin_movimientos',{p_position_ids:unique});if(error)throw rpcError(error);if(Number(data?.count)!==unique.length||!Array.isArray(data?.deleted))throw new Error('Supabase no confirmó la eliminación atómica de todas las posiciones.');try{await recargarCache();}catch(refreshError){data.deleted.refreshWarning=`La eliminación fue confirmada, pero no se pudo refrescar la caché: ${refreshError?.message||refreshError}`;}return data.deleted;}
   async function eliminarPosicion(id){const deleted=await eliminarPosiciones([id]);return deleted[0]||null;}
   function analizarLegacy(){const rows=readLegacy(),valid=[],invalid=[],duplicates=[],certifications=[],seen=new Map();rows.forEach((row,index)=>{if(!isMaster(row)){certifications.push(row);return;}const oc=normalizeOC(row.ocNro||row.nro_oc||row.OC_NRO),position=normalizePosition(row.posicion);if(!oc||!position){invalid.push({fila:index+1,motivo:!oc?'Falta OC':'Falta posición',registro:row});return;}const key=`${oc}::${position}`;if(seen.has(key)){duplicates.push({clave:key,primeraFila:seen.get(key),fila:index+1,registro:row});return;}seen.set(key,index+1);valid.push(row);});const report={version:VERSION,fecha:new Date().toISOString(),legacyKey:LEGACY_KEY,total:rows.length,posicionesValidas:valid.length,posicionesInvalidas:invalid.length,duplicados:duplicates.length,certificacionesLegacyNoMigradas:certifications.length,valid,invalid,duplicates};window.__coiFinMigrationReport=report;return report;}
@@ -26009,6 +26022,36 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   async function procesarEventoAuth(event,session){if(!['INITIAL_SESSION','SIGNED_IN','TOKEN_REFRESHED','USER_UPDATED','SIGNED_OUT'].includes(event))return;runtime.sesion=session||null;if(event==='SIGNED_OUT'||!session?.user){runtime.authGeneration++;try{localStorage.removeItem(CACHE_KEY);}catch(error){}clearMemory();setState(STATES.SIN_SESION);return;}invalidarFinPorIdentidad(session.user.id);await reintentarConexion({render:false});}
   function aplicarOffline(){return applyCacheState(STATES.OFFLINE);}
   function purgarPosicionConfirmada(id){confirmadasFin=Array.isArray(confirmadasFin)?confirmadasFin.filter(row=>String(row?.id||row?.idPosicionFinanciera)!==String(id)):confirmadasFin;return confirmadasFin;}
+  // H06 final: toda mutacion de consumos confirmada por RPC se publica primero
+  // en el snapshot en memoria. Si la recarga completa falla despues, el modo
+  // degradado conserva el estado POST-commit y no resucita la certificacion
+  // anterior. Las anuladas se quitan del conjunto confirmado.
+  function confirmarMutacionesFinancieras(rows){
+    const remotas=Array.isArray(rows)?rows:[rows];
+    if(!remotas.length)return confirmadasFin;
+    const ids=new Set(remotas.map(row=>String(row?.id||'')).filter(Boolean));
+    let next=(Array.isArray(confirmadasFin)?confirmadasFin:[]).filter(row=>!ids.has(String(row?.id||row?.idPosicionFinanciera||'')));
+    for(const row of remotas){
+      if(!row||text(row.estado).toUpperCase()==='ANULADA')continue;
+      next.push(fromRemoteConsumption(row));
+    }
+    // Recalcular saldos de los maestros a partir del conjunto confirmado.
+    // Esto evita que una recarga fallida deje montos pre-certificacion.
+    next=next.map(row=>{
+      if(!isMaster(row))return row;
+      const masterId=String(row?.id||row?.idPosicionFinanciera||'');
+      const consumos=next.filter(item=>!isMaster(item)&&String(item?.idPosicionOrigen||'')===masterId);
+      const montoConsumido=consumos.reduce((acc,item)=>acc+Number(item?.precioTotal||item?.montoCertificado||0),0);
+      const cantidadConsumida=consumos.reduce((acc,item)=>acc+Number(item?.cantidad||0),0);
+      const montoTotal=Number(row?.montoPosicion||row?.precioTotal||0);
+      const cantidadTotal=Number(row?.cantidadTotal||row?.cantidad||0);
+      return {...row,montoConsumido,montoDisponible:Math.max(0,montoTotal-montoConsumido),cantidadConsumida,cantidadDisponible:Math.max(0,cantidadTotal-cantidadConsumida)};
+    });
+    confirmadasFin=next;
+    confirmadasFinUid=runtime.sesion?.user?.id||confirmadasFinUid;
+    try{window.posicionesFinancieras=next;posicionesFinancieras=next;}catch(error){}
+    return next;
+  }
   const api={version:VERSION,states:STATES,waitForSupabaseClient,reintentarConexion,procesarEventoAuth,aplicarOffline,verificarAcceso,buscarOrdenPorOC,listarTodas,listarPorOC,guardarPosiciones,actualizarPosicion,eliminarPosicion,eliminarPosiciones,certificarPosiciones,actualizarCertificacion,anularCertificacion,recargarCache,purgarPosicionConfirmada,obtenerCache:readCache,limpiarDatosSesion:clearMemory,diagnostico,migracion:{analizar:analizarLegacy,exportarBackup,exportarInforme,migrar:migrarLegacy,verificar:verificarMigracion}};
   window.COI_FINANZAS_SUPABASE=api;window.waitForSupabaseClient=waitForSupabaseClient;
   window.__COI_H06_FINANZAS__={confirmadas:()=>(Array.isArray(confirmadasFin)?confirmadasFin.length:null),uidConfirmado:()=>confirmadasFinUid};

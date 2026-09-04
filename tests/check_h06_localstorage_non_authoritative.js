@@ -118,6 +118,16 @@ check(/ordenesConfirmadas = Array\.isArray\(ordenesConfirmadas\)[\s\S]*?deleteOr
   'el borrado remoto de una OC tiene que quitarla del snapshot confirmado');
 check(html.includes('canonicalApi().purgarPosicionConfirmada(id);'),
   'el borrado remoto de una posicion tiene que quitarla del snapshot financiero confirmado');
+check(html.includes('ordenesConfirmadas = deduplicarOrdenes([') && html.includes('ordenesConfirmadasUid = user?.id || ordenesConfirmadasUid;'),
+  'un write confirmado de Ordenes tiene que actualizar el snapshot antes de la recarga');
+check(html.includes('function confirmarMutacionesFinancieras(rows){'),
+  'Finanzas tiene que tener un helper para publicar mutaciones confirmadas en el snapshot');
+check(html.includes('const result=data.map(fromRemoteConsumption);confirmarMutacionesFinancieras(data);try{await recargarCache();}'),
+  'certificar tiene que actualizar el snapshot confirmado antes del refresh');
+check(html.includes('const result=fromRemoteConsumption(data);confirmarMutacionesFinancieras(data);try{await recargarCache();}'),
+  'editar certificacion tiene que actualizar el snapshot confirmado antes del refresh');
+check(html.includes("text(data.estado).toUpperCase()!=='ANULADA')throw new Error") && html.includes('confirmarMutacionesFinancieras(data);try{await recargarCache();}'),
+  'anular certificacion tiene que actualizar el snapshot confirmado antes del refresh');
 
 // El modulo no tenia listener de identidad: timelineAuthGeneration se declaraba
 // y nunca se incrementaba, de modo que un cambio de operador dejaba en pantalla
