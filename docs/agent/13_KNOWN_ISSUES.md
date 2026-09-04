@@ -323,3 +323,56 @@ divergencias correspondientes en
 
 ## Actualización
 Registrar PR, fecha, resolución y test de regresión.
+
+## KI-019 — Documentación OC (V64) sigue siendo local-autoritativa
+Estado: abierto. GAP detectado y NO resuelto en H06 (PR de la rama
+`fix/h06-localstorage-non-authoritative`).
+
+`coi_documentacion_oc` guarda las REFERENCIAS documentales de la V64 —tipo,
+número, repositorio, ruta, link de OneDrive/SharePoint, estado documental— y es
+la única fuente de esos datos: `documentacionOC` se siembra desde localStorage
+al parsear el documento, se edita en memoria y se vuelve a escribir ahí mismo.
+No hay tabla remota equivalente.
+
+Es distinto de `public.coi_documentos_oc`, que sí existe y es Supabase-first:
+esa indexa los PDF reales del bucket `coi-documentos`. Las referencias externas
+de la V64 no tienen lugar en ese esquema.
+
+Consecuencias mientras siga abierto:
+- las referencias documentales NO se comparten entre usuarios ni entre equipos;
+- se pierden al limpiar el navegador y no se reponen desde Supabase;
+- un cambio de operador en el mismo puesto ve las referencias del anterior.
+
+Resolverlo exige una tabla nueva, su migración, RLS y una capa CRUD: es
+arquitectura nueva y quedó explícitamente fuera del alcance de H06. H07 decide
+si se migra a Supabase o si se declara dato no operativo.
+
+## KI-020 — H03 sin marcador de corte todavía muestra observaciones legadas
+Estado: abierto por diseño. Heredado de H03 / KI-007.
+
+Con el marcador `coi_observaciones_h03_imported_v1` puesto —el estado de
+PRODUCCIÓN desde que KI-007 quedó resuelto— H03 no vuelve a mirar la clave
+legada nunca más, ni con el remoto vacío ni con el remoto caído. Eso está fijado
+por `H06-10b` en `tests/h06_localstorage_non_authoritative.spec.js`.
+
+En un puesto que NUNCA corrió la importación y todavía conserva observaciones en
+`coi_observaciones_oc`, H03 sigue mostrándolas en modo `legacy-readonly` y
+bloquea toda escritura mientras dure. Es la red de seguridad deliberada de
+KI-007: no ocultar datos que aún no llegaron a Supabase.
+
+Estrictamente, esa rama es la última en la que localStorage puede representar
+datos operativos. H06 NO la tocó: retirarla exige decidir primero qué pasa con
+esas filas —exportarlas, importarlas o descartarlas— y esa decisión no es
+técnica. El comportamiento queda fijado y es rastreable en `H06-10c`.
+
+## KI-021 — Cachés operativas de localStorage quedaron write-only
+Estado: abierto (deuda menor introducida por H06).
+
+`coi_supabase_ordenes_cache_v2`, `coi_cache_posiciones_oc_supabase_v1` y
+`coi_timeline_events_v1` se siguen ESCRIBIENDO pero ya no se releen como
+autoridad operativa. Se conservan porque alimentan el backup JSON integral y el
+diagnóstico de soporte, y porque `purgarCachesOperativasSensibles()` y el
+cambio de identidad las borran.
+
+Queda pendiente decidir si aportan lo suficiente como para justificar mantener
+datos operativos en reposo en el navegador. H07 puede retirarlas.

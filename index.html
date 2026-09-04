@@ -14528,6 +14528,12 @@ const APP_DATA_MODE = "supabase_first";
   let supabaseColumnas = new Set();
   let supabaseEstacionesAsociadas = [];
   let supabaseEstacionesTablaDisponible = true;
+  // H06 · Ultimo snapshot que Supabase confirmo EN ESTA SESION, en memoria.
+  // No es la cache de localStorage: es lo que esta pestaña leyo del remoto y
+  // pudo dar por bueno. Es lo unico que puede seguir mostrandose cuando una
+  // relectura falla; la cache de localStorage dejo de ser autoridad.
+  let ordenesConfirmadas = null;        // null = nunca hubo lectura confirmada
+  let ordenesConfirmadasUid = null;     // UID que produjo ese snapshot
 
   const $sb = (id) => document.getElementById(id);
   const clean = (value) => String(value ?? '').trim();
@@ -15480,14 +15486,11 @@ const APP_DATA_MODE = "supabase_first";
     });
   }
 
-  function readSupabaseCache() {
-    const cached = safeReadJSON(SUPABASE_CACHE_KEY, null);
-    if (Array.isArray(cached)) return cached;
-    if (cached && Array.isArray(cached.orders)) return cached.orders;
-    return [];
-  }
-
   function vaciarDatosOperativosSinSesion() {
+    // El snapshot confirmado pertenece a la sesion que lo produjo: sin sesion
+    // no hay a quien atribuirlo y no puede sobrevivir.
+    ordenesConfirmadas = null;
+    ordenesConfirmadasUid = null;
     aplicarOrdenesPrincipal([], 'Sin sesión');
     supabaseEstacionesAsociadas = [];
     window.__coiEstacionesAsociadas = [];
@@ -15504,17 +15507,57 @@ const APP_DATA_MODE = "supabase_first";
     return vaciarDatosOperativosSinSesion();
   }
 
-  function fallbackLocalStorageSiFallaSupabase(reason = 'Supabase no disponible.', options = {}) {
+  // H06 · Estado degradado. Antes esto leia coi_supabase_ordenes_cache_v2 y
+  // publicaba su contenido como el listado operativo de OC: localStorage
+  // terminaba siendo la autoridad cada vez que Supabase fallaba, y ademas
+  // podia mostrarle a un operador las OC cacheadas por otro.
+  //
+  // Ahora lo unico que puede sobrevivir a un fallo es el ultimo snapshot que
+  // ESTA sesion confirmo contra Supabase, que vive en memoria y muere con la
+  // pestaña. Sin lectura confirmada previa el listado queda vacio con el error
+  // a la vista: un remoto que no se pudo leer no se representa con datos
+  // locales.
+  function degradarSinAutoridadLocal(reason = 'Supabase no disponible.', options = {}) {
     const authenticated = options.authenticated === true || Boolean(supabaseUsuario);
     if (!authenticated) {
       vaciarDatosOperativosSinSesion();
       setSupabaseStatus('local', `${reason} Iniciá sesión para consultar datos operativos.`);
       return [];
     }
-    const cached = readSupabaseCache();
-    aplicarOrdenesPrincipal(cached, 'Caché Supabase');
-    setSupabaseStatus('local', `${reason} ${cached.length ? `Se muestran ${cached.length} OC(s) de la caché Supabase.` : 'No hay caché Supabase disponible.'}`);
-    return cached;
+    const confirmadas = Array.isArray(ordenesConfirmadas) ? ordenesConfirmadas : null;
+    if (!confirmadas) {
+      aplicarOrdenesPrincipal([], 'Supabase');
+      setSupabaseStatus('local', `${reason} No hay ninguna lectura de Supabase confirmada en esta sesión: no se muestran órdenes.`);
+      return [];
+    }
+    aplicarOrdenesPrincipal(confirmadas, 'Supabase');
+    setSupabaseStatus('local', `${reason} Se conservan ${confirmadas.length} OC(s) de la última lectura confirmada de Supabase.`);
+    return confirmadas;
+  }
+
+  // Nombre historico conservado porque lo consumen capas externas al modulo.
+  // Ya no describe lo que hace: no hay fallback a localStorage.
+  const fallbackLocalStorageSiFallaSupabase = degradarSinAutoridadLocal;
+
+  // H06 · Cambio REAL de identidad. El snapshot confirmado y las caches
+  // operativas del operador anterior se invalidan ANTES de adoptar el UID
+  // nuevo; si la carga del usuario nuevo falla, la degradacion no tiene nada
+  // suyo que mostrar. Un TOKEN_REFRESHED del mismo UID no invalida nada.
+  function invalidarOperacionalPorIdentidad(uidNuevo) {
+    const nuevo = uidNuevo || null;
+    if (nuevo === (ordenesConfirmadasUid || null)) return false;
+    ordenesConfirmadas = null;
+    ordenesConfirmadasUid = null;
+    try {
+      [...SENSITIVE_OPERATIONAL_CACHE_KEYS, ...SUPABASE_OLD_CACHE_KEYS].forEach((key) => localStorage.removeItem(key));
+    } catch (error) {
+      console.warn('COI Supabase: no se pudieron purgar todas las cachés operativas.', error);
+    }
+    aplicarOrdenesPrincipal([], 'Supabase');
+    supabaseEstacionesAsociadas = [];
+    window.__coiEstacionesAsociadas = [];
+    try { window.posicionesFinancieras = []; posicionesFinancieras = []; } catch (error) {}
+    return true;
   }
 
   async function cargarOrdenesDesdeSupabase(options = {}) {
@@ -15530,7 +15573,11 @@ const APP_DATA_MODE = "supabase_first";
     supabaseColumnas = new Set(rows.flatMap((row) => Object.keys(row || {})));
     const normalized = deduplicarOrdenes(rows.map(normalizarOrdenDesdeSupabase));
     const duplicates = Math.max(0, rows.length - normalized.length);
+    // La cache local se sigue escribiendo, pero como material de diagnostico y
+    // backup: ya NO se relee como autoridad operativa (H06).
     cacheSupabaseOrders(normalized);
+    ordenesConfirmadas = normalized;
+    ordenesConfirmadasUid = (user && user.id) || null;
     aplicarOrdenesPrincipal(normalized, 'Supabase');
     await cargarTodasEstacionesAsociadasSupabase({ silencioso: true });
     supabaseUltimaCarga = Date.now();
@@ -15555,13 +15602,16 @@ const APP_DATA_MODE = "supabase_first";
     supabaseCargaEnCurso = true;
     let user = null;
     try {
-      if (APP_DATA_MODE !== 'supabase_first') return fallbackLocalStorageSiFallaSupabase('Modo de datos no configurado como supabase_first.');
+      if (APP_DATA_MODE !== 'supabase_first') return degradarSinAutoridadLocal('Modo de datos no configurado como supabase_first.');
       user = await getUsuarioActual();
+      // La identidad se compara ANTES de leer: si cambio, nada del operador
+      // anterior puede seguir en pie mientras se resuelve la lectura nueva.
+      invalidarOperacionalPorIdentidad(user && user.id);
       if (user && navigator.onLine) return await cargarOrdenesDesdeSupabase(options);
-      return fallbackLocalStorageSiFallaSupabase(user ? 'Supabase no disponible.' : 'Sin sesión Supabase.', { authenticated: Boolean(user) });
+      return degradarSinAutoridadLocal(user ? 'Supabase no disponible.' : 'Sin sesión Supabase.', { authenticated: Boolean(user) });
     } catch (error) {
       console.error('COI Supabase: carga principal fallida', error);
-      return fallbackLocalStorageSiFallaSupabase(error?.message || 'Supabase no disponible.', { authenticated: Boolean(user) });
+      return degradarSinAutoridadLocal(error?.message || 'Supabase no disponible.', { authenticated: Boolean(user) });
     } finally {
       supabaseCargaEnCurso = false;
     }
@@ -16665,6 +16715,10 @@ const APP_DATA_MODE = "supabase_first";
             updateSupabaseUserUI(session?.user || null);
             try { window.dispatchEvent(new CustomEvent('coi:supabase-auth', { detail: { event, session } })); } catch (error) {}
             if (['SIGNED_IN', 'TOKEN_REFRESHED', 'INITIAL_SESSION', 'USER_UPDATED'].includes(event) && session?.user) {
+              // Cambio real de identidad: se invalida antes de disparar la
+              // recarga, para que la ventana entre ambas no muestre las OC del
+              // operador anterior.
+              invalidarOperacionalPorIdentidad(session.user.id);
               Promise.resolve().then(() => cargarOrdenesPrincipal());
             }
             if (event === 'SIGNED_OUT') {
@@ -16717,7 +16771,13 @@ const APP_DATA_MODE = "supabase_first";
   window.logoutSupabase = logoutSupabase;
   window.getUsuarioActual = getUsuarioActual;
   window.verificarSesionSupabase = verificarSesionSupabase;
-  window.fallbackLocalStorageSiFallaSupabase = fallbackLocalStorageSiFallaSupabase;
+  window.fallbackLocalStorageSiFallaSupabase = degradarSinAutoridadLocal;
+  window.degradarSinAutoridadLocal = degradarSinAutoridadLocal;
+  window.invalidarOperacionalPorIdentidad = invalidarOperacionalPorIdentidad;
+  window.__COI_H06_ORDENES__ = {
+    confirmadas: () => (Array.isArray(ordenesConfirmadas) ? ordenesConfirmadas.length : null),
+    uidConfirmado: () => ordenesConfirmadasUid
+  };
   window.purgarCachesOperativasSensibles = purgarCachesOperativasSensibles;
   window.cargarOrdenesPrincipal = cargarOrdenesPrincipal;
   window.cargarOrdenesDesdeSupabase = cargarOrdenesDesdeSupabase;
@@ -20563,6 +20623,13 @@ if(document.readyState==='loading'){
   let timelineLoadGeneration=-1;
   let timelineLoadMutationGeneration=-1;
   let timelineAuthGeneration=0;
+  // H06 · Ultimo conjunto de eventos que Supabase confirmo EN ESTA SESION.
+  // Vive en memoria y muere con la pestaña: es lo unico que puede seguir
+  // mostrandose cuando una relectura falla. La cache local (coi_timeline_events_v1)
+  // dejo de ser autoridad operativa: los mailings y el resto de la trazabilidad
+  // no pueden reconstruirse desde localStorage.
+  let timelineConfirmados=null;      // null = nunca hubo lectura confirmada
+  let timelineConfirmadosUid=null;   // UID que produjo ese conjunto
   let timelineMutationGeneration=0;
   let timelineMutationsInFlight=0;
   let timelineReconcileTimer=null;
@@ -20794,7 +20861,7 @@ if(document.readyState==='loading'){
       timelineAuthoritativeReady=false;
       setTimelinePersistence('loading','Cargando Timeline desde Supabase\u2026');
       try{
-        const {client}=await requireTimelineSupabase();
+        const {client,user:sesionTimeline}=await requireTimelineSupabase();
         let remote=await fetchTimelineEventsSupabase(client);
         if(loadGeneration!==timelineAuthGeneration||loadMutationGeneration!==timelineMutationGeneration)return [];
         let migration={migrated:0};
@@ -20814,6 +20881,8 @@ if(document.readyState==='loading'){
         }
         applyTimelineEvents(remote,'Timeline cargado desde Supabase');
         timelineAuthoritativeReady=true;
+        timelineConfirmados=remote;
+        timelineConfirmadosUid=(sesionTimeline&&sesionTimeline.id)||null;
         setTimelinePersistence('online',`${remote.length} evento(s) cargado(s) desde Supabase.${migration.migrated?` Se migraron ${migration.migrated} registro(s) locales.`:''}`);
         return remote;
       }catch(error){
@@ -20821,10 +20890,15 @@ if(document.readyState==='loading'){
         console.warn('Timeline COI: no se pudo cargar Supabase.',error);
         timelineAuthoritativeReady=false;
         setTimelinePermissions('');
-        const cached=readTimelineCache().filter(event=>!event.id.startsWith('TL-DEMO-'));
-        applyTimelineEvents(cached,'Timeline en cach\u00e9',{cache:false});
-        setTimelinePersistence(cached.length?'cache':'error',`${error?.message||error}${cached.length?' Se muestra la \u00faltima cach\u00e9; no se habilitan escrituras.':''}`);
-        return cached;
+        // H06 · Antes esto leia coi_timeline_events_v1 y publicaba su contenido
+        // como el Timeline operativo: localStorage quedaba como autoridad de
+        // mailings y trazabilidad cada vez que Supabase fallaba, y podia
+        // mostrarle a un operador los eventos cacheados por otro. Ahora solo
+        // sobrevive lo que ESTA sesion confirmo contra Supabase.
+        const conservados=Array.isArray(timelineConfirmados)?timelineConfirmados:null;
+        applyTimelineEvents(conservados||[],'Timeline sin lectura confirmada',{cache:false});
+        setTimelinePersistence(conservados&&conservados.length?'cache':'error',`${error?.message||error}${conservados&&conservados.length?' Se conserva la \u00faltima lectura confirmada de Supabase; no se habilitan escrituras.':' No hay ninguna lectura de Supabase confirmada en esta sesi\u00f3n: no se muestran eventos.'}`);
+        return conservados||[];
       }
     })();
     timelineLoadPromise=currentLoad;
@@ -22019,9 +22093,53 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       renderTimelineFichaActual();
       highlightCriticalOrders();
       await initializeStore();
+      instalarListenerIdentidad();
     }catch(error){
       console.warn('Timeline COI no pudo inicializarse; los dem\u00e1s m\u00f3dulos permanecen disponibles.',error);
     }
+  }
+
+  // H06 · Cambio REAL de identidad. Se invalida TODO el contexto operativo del
+  // operador anterior ANTES de releer: el conjunto confirmado, la cache local
+  // —que ya no es autoridad, pero tampoco puede quedar como resto de otra
+  // sesion— y lo publicado en window.coiTimelineEvents. La generacion avanza
+  // para descartar cualquier lectura en vuelo. Un TOKEN_REFRESHED del mismo
+  // UID no invalida nada.
+  function invalidarTimelinePorIdentidad(uidNuevo){
+    const nuevo=uidNuevo||null;
+    if(nuevo===(timelineConfirmadosUid||null))return false;
+    // ARRANQUE: la primera identidad de la pestaña no es un CAMBIO de
+    // identidad. Sin lectura confirmada ni UID previo no hay nada de otro
+    // operador que invalidar, y borrar aqui la clave local destruiria la
+    // migracion legada de una sola vez antes de que llegue a Supabase.
+    if(timelineConfirmadosUid===null&&timelineConfirmados===null){
+      timelineConfirmadosUid=nuevo;
+      return false;
+    }
+    timelineAuthGeneration++;
+    timelineConfirmados=null;
+    timelineConfirmadosUid=nuevo;
+    timelineAuthoritativeReady=false;
+    setTimelinePermissions('');
+    try{localStorage.removeItem(TIMELINE_STORAGE_KEY);}catch(error){}
+    applyTimelineEvents([],'Timeline invalidado por cambio de sesi\u00f3n',{cache:false});
+    return true;
+  }
+
+  function instalarListenerIdentidad(){
+    if(window.__COI_TIMELINE_AUTH_EVENT_BOUND__)return;
+    window.__COI_TIMELINE_AUTH_EVENT_BOUND__=true;
+    window.addEventListener('coi:supabase-auth',ev=>{
+      const evento=ev?.detail?.event||'';
+      const sesion=ev?.detail?.session||null;
+      const uid=sesion?.user?.id||null;
+      if(evento==='SIGNED_OUT'||!sesion){
+        invalidarTimelinePorIdentidad(null);
+        setTimelinePersistence('error','Sesi\u00f3n Supabase cerrada: el Timeline no muestra eventos.');
+        return;
+      }
+      if(invalidarTimelinePorIdentidad(uid))loadEvents().catch(()=>{});
+    },{passive:true});
   }
 
   window.COI_TIMELINE_COI={
@@ -22035,6 +22153,8 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     eventTypes:[...TIMELINE_EVENT_TYPES],
     fields:[...TIMELINE_FIELDS],
     isAuthoritativeReady:()=>timelineAuthoritativeReady,
+    confirmados:()=>(Array.isArray(timelineConfirmados)?timelineConfirmados.length:null),
+    uidConfirmado:()=>timelineConfirmadosUid,
     assertAuthoritativeBackup:assertAuthoritativeTimelineBackup,
     load:loadEvents,
     save:saveTimelineEventsSupabase,
@@ -25752,8 +25872,18 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
       fechaCarga:row.creado_en||'',fechaUltimaModificacion:row.actualizado_en||row.creado_en||'',usuarioEmail:text(row.usuario_email)
     };
   }
+  // H06 · Ultimo par que Supabase confirmo EN ESTA SESION. Vive en memoria y
+  // muere con la pestaña: es lo unico que puede seguir mostrandose cuando una
+  // relectura falla. La cache de localStorage dejo de ser autoridad.
+  let confirmadasFin=null;      // null = nunca hubo lectura confirmada
+  let confirmadasFinUid=null;   // UID que produjo ese snapshot
   function applyMemory(remoteRows,remoteConsumptions=[]){const merged=remoteRows.map(fromRemote).concat(remoteConsumptions.filter(row=>text(row.estado).toUpperCase()==='CONFIRMADA').map(fromRemoteConsumption));try{window.posicionesFinancieras=merged;posicionesFinancieras=merged;}catch(error){}return merged;}
-  function clearMemory(){try{window.posicionesFinancieras=[];posicionesFinancieras=[];}catch(error){}return[];}
+  // Solo una lectura remota confirmada puede fijar el snapshot.
+  function confirmarMemoria(remoteRows,remoteConsumptions=[]){const merged=applyMemory(remoteRows,remoteConsumptions);confirmadasFin=merged;confirmadasFinUid=runtime.sesion?.user?.id||null;return merged;}
+  function clearMemory(){confirmadasFin=null;confirmadasFinUid=null;try{window.posicionesFinancieras=[];posicionesFinancieras=[];}catch(error){}return[];}
+  // Cambio REAL de identidad: nada del operador anterior sobrevive, ni en
+  // memoria ni en la cache local, y se invalida ANTES de adoptar el UID nuevo.
+  function invalidarFinPorIdentidad(uidNuevo){const nuevo=uidNuevo||null;if(nuevo===(confirmadasFinUid||null))return false;try{localStorage.removeItem(CACHE_KEY);}catch(error){}clearMemory();return true;}
   function saveRemoteCache(remoteRows,remoteConsumptions=[]){const envelope={version:CACHE_VERSION,savedAt:new Date().toISOString(),source:'Supabase',positions:remoteRows,consumptions:remoteConsumptions,rows:remoteRows};localStorage.setItem(CACHE_KEY,JSON.stringify(envelope));return envelope;}
   async function currentUser(c=client()){if(typeof window.getUsuarioActual==='function'){const user=await window.getUsuarioActual();if(user)return user;}if(c?.auth?.getUser){const {data}=await c.auth.getUser();return data?.user||null;}return null;}
   function stateMessage(state,detail=''){
@@ -25783,10 +25913,21 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
     setState(STATES.SIN_CLIENTE,'Tiempo de espera agotado.');return null;
   }
   function isRlsError(error){const value=`${error?.code||''} ${error?.message||error||''}`.toLowerCase();return value.includes('42501')||value.includes('row-level security')||value.includes('row level security')||value.includes('permission denied')||value.includes('rls');}
+  // H06 · Estado degradado. Antes esto leia coi_cache_posiciones_oc_supabase_v1
+  // y publicaba su contenido en window.posicionesFinancieras: localStorage
+  // quedaba como autoridad de la carga financiera cada vez que Supabase
+  // fallaba, y podia mostrarle a un operador las posiciones cacheadas por otro.
+  //
+  // Ahora solo sobrevive el ultimo snapshot que ESTA sesion confirmo contra
+  // Supabase. Sin lectura confirmada previa la memoria queda vacia con el
+  // estado a la vista.
   function applyCacheState(state,error=null){
     const authenticated=Boolean(runtime.sesion?.user);
     if(state===STATES.SIN_SESION||!authenticated){clearMemory();setState(STATES.SIN_SESION,error);return[];}
-    const cached=readCache();const merged=applyMemory(cached.positions,cached.consumptions);setState(state,error);return merged;
+    if(!Array.isArray(confirmadasFin)){try{window.posicionesFinancieras=[];posicionesFinancieras=[];}catch(e){}setState(state,error);return[];}
+    try{window.posicionesFinancieras=confirmadasFin;posicionesFinancieras=confirmadasFin;}catch(e){}
+    setState(state,error);
+    return confirmadasFin;
   }
   async function verificarAcceso(options={}){
     const online=navigator.onLine!==false;
@@ -25799,7 +25940,7 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   }
   async function readPaged(table,columns='*'){const c=client()||await waitForSupabaseClient();if(!c)throw new Error('Cliente Supabase no disponible.');const rows=[];for(let from=0;;from+=PAGE_SIZE){const to=from+PAGE_SIZE-1;const {data,error}=await c.from(table).select(columns).range(from,to);if(error)throw error;const page=Array.isArray(data)?data:[];rows.push(...page);if(page.length<PAGE_SIZE)break;}return rows;}
   async function buscarOrdenPorOC(value,c=client()){const nro=normalizeOC(value);if(!nro)throw new Error('OC vacía.');if(!c)throw new Error('Cliente Supabase no disponible.');const {data,error}=await c.from(ORDERS_TABLE).select('id,nro_oc').eq('nro_oc',nro).limit(2);if(error)throw error;if(!data?.length)throw new Error(`La OC ${nro} no existe en public.${ORDERS_TABLE}.`);if(data.length>1)throw new Error(`La OC ${nro} está duplicada en public.${ORDERS_TABLE}.`);const id=text(data[0].id);if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))throw new Error(`La OC ${nro} no tiene UUID válido.`);return {id,nro_oc:nro};}
-  async function recargarCache(options={}){const [remote,consumptions]=await Promise.all([readPaged(TABLE,'*'),readPaged(CONSUMPTIONS_TABLE,'*')]);const confirmed=consumptions.filter(row=>text(row.estado).toUpperCase()==='CONFIRMADA');saveRemoteCache(remote,confirmed);const merged=applyMemory(remote,confirmed);runtime.ultimaCarga=new Date().toISOString();runtime.ultimoError=null;setState(STATES.SUPABASE_FIRST);if(options.render!==false){try{window.renderOrdenes?.();const view=$('vistaFichaOC');if(view?.classList.contains('active'))window.renderFichaOC?.(window.ocActualId||'');}catch(error){console.warn('V60: no se pudo refrescar la vista financiera.',error);}}return merged;}
+  async function recargarCache(options={}){const [remote,consumptions]=await Promise.all([readPaged(TABLE,'*'),readPaged(CONSUMPTIONS_TABLE,'*')]);const confirmed=consumptions.filter(row=>text(row.estado).toUpperCase()==='CONFIRMADA');saveRemoteCache(remote,confirmed);const merged=confirmarMemoria(remote,confirmed);runtime.ultimaCarga=new Date().toISOString();runtime.ultimoError=null;setState(STATES.SUPABASE_FIRST);if(options.render!==false){try{window.renderOrdenes?.();const view=$('vistaFichaOC');if(view?.classList.contains('active'))window.renderFichaOC?.(window.ocActualId||'');}catch(error){console.warn('V60: no se pudo refrescar la vista financiera.',error);}}return merged;}
   async function listarTodas(options={}){const access=await verificarAcceso();if(!access.client||!access.online||!access.user)return applyCacheState(access.mode);try{return await recargarCache(options);}catch(error){const state=isRlsError(error)?STATES.ERROR_RLS:STATES.SIN_CLIENTE;const cached=applyCacheState(state,error);if(options.soloRemoto)throw error;return cached;}}
   async function reintentarConexion(options={}){
     if(runtime.reconnectPromise)return runtime.reconnectPromise;
@@ -25826,10 +25967,15 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   function ensureAdminTool(){const view=$('vistaAdministracionSistema');if(!view||$('coiV60FinanzasAdmin'))return;const section=document.createElement('section');section.id='coiV60FinanzasAdmin';section.className='admin-section';section.dataset.adminOnly='';section.innerHTML='<h3>Finanzas V60 · Migración manual</h3><p>Supabase es la fuente oficial de datos operativos. LocalStorage se utiliza únicamente para preferencias, caché y respaldo legacy temporal.</p><div class="actions"><button id="btnV60FinAnalizar" type="button">Analizar</button><button id="btnV60FinBackup" type="button">Exportar backup JSON</button><button id="btnV60FinInforme" type="button">Exportar informe</button><button id="btnV60FinMigrar" type="button" class="primary">Migrar</button><button id="btnV60FinVerificar" type="button">Verificar</button><button id="btnV60FinRecargar" type="button">Reintentar conexión</button></div><div id="coiV60FinMsg" class="quick-load-msg"></div>';view.appendChild(section);}
   const message=(value,type='ok')=>{const box=$('coiV60FinMsg');if(box){box.textContent=value;box.className=`quick-load-msg ${type}`;}};
   if(!window.__COI_FINANZAS_ADMIN_LISTENER_BOUND__){window.__COI_FINANZAS_ADMIN_LISTENER_BOUND__=true;document.addEventListener('click',async event=>{const id=event.target?.id;if(!['btnV60FinAnalizar','btnV60FinBackup','btnV60FinInforme','btnV60FinMigrar','btnV60FinVerificar','btnV60FinRecargar'].includes(id))return;event.preventDefault();try{if(id==='btnV60FinAnalizar'){const report=analizarLegacy();message(`Válidas ${report.posicionesValidas}; inválidas ${report.posicionesInvalidas}; duplicadas ${report.duplicados}.`);}if(id==='btnV60FinBackup'){exportarBackup();message('Backup exportado; localStorage quedó intacto.');}if(id==='btnV60FinInforme'){exportarInforme();message('Informe exportado.');}if(id==='btnV60FinMigrar'){if(typeof window.adminIsEnabled==='function'&&!window.adminIsEnabled())throw new Error('Solo Administrador puede migrar.');const report=window.__coiFinMigrationReport||analizarLegacy();if(report.invalid.length||report.duplicates.length)throw new Error('Revise filas inválidas o duplicadas.');if(!confirm(`¿Migrar ${report.posicionesValidas} posiciones a Supabase?`))return;const result=await migrarLegacy({confirmado:true});message(`Verificadas ${result.encontradas}/${result.esperadas}.`,result.ok?'ok':'error');}if(id==='btnV60FinVerificar'){const result=await verificarMigracion();message(`Verificadas ${result.encontradas}/${result.esperadas}.`,result.ok?'ok':'error');}if(id==='btnV60FinRecargar'){const rows=await reintentarConexion();message(`Posiciones remotas: ${rows.filter(isMaster).length}.`);}}catch(error){message(error?.message||String(error),'error');}},false);}
-  async function procesarEventoAuth(event,session){if(!['INITIAL_SESSION','SIGNED_IN','TOKEN_REFRESHED','USER_UPDATED','SIGNED_OUT'].includes(event))return;runtime.sesion=session||null;if(event==='SIGNED_OUT'||!session?.user){try{localStorage.removeItem(CACHE_KEY);}catch(error){}clearMemory();setState(STATES.SIN_SESION);return;}await reintentarConexion({render:false});}
+  // H06 · Un cambio REAL de identidad invalida la memoria confirmada y la
+  // cache local ANTES de reconectar: si la lectura del operador nuevo falla,
+  // la degradacion no tiene posiciones del anterior que mostrar. Un
+  // TOKEN_REFRESHED del mismo UID no invalida nada.
+  async function procesarEventoAuth(event,session){if(!['INITIAL_SESSION','SIGNED_IN','TOKEN_REFRESHED','USER_UPDATED','SIGNED_OUT'].includes(event))return;runtime.sesion=session||null;if(event==='SIGNED_OUT'||!session?.user){try{localStorage.removeItem(CACHE_KEY);}catch(error){}clearMemory();setState(STATES.SIN_SESION);return;}invalidarFinPorIdentidad(session.user.id);await reintentarConexion({render:false});}
   function aplicarOffline(){return applyCacheState(STATES.OFFLINE);}
   const api={version:VERSION,states:STATES,waitForSupabaseClient,reintentarConexion,procesarEventoAuth,aplicarOffline,verificarAcceso,buscarOrdenPorOC,listarTodas,listarPorOC,guardarPosiciones,actualizarPosicion,eliminarPosicion,eliminarPosiciones,certificarPosiciones,actualizarCertificacion,anularCertificacion,recargarCache,obtenerCache:readCache,limpiarDatosSesion:clearMemory,diagnostico,migracion:{analizar:analizarLegacy,exportarBackup,exportarInforme,migrar:migrarLegacy,verificar:verificarMigracion}};
   window.COI_FINANZAS_SUPABASE=api;window.waitForSupabaseClient=waitForSupabaseClient;
+  window.__COI_H06_FINANZAS__={confirmadas:()=>(Array.isArray(confirmadasFin)?confirmadasFin.length:null),uidConfirmado:()=>confirmadasFinUid};
   window.COI_FIN_SUPABASE_2A={version:VERSION,guardarPosicionesOC:guardarPosiciones,recargarDesdeSupabase:recargarCache,resolverOrdenUUID:async value=>(await buscarOrdenPorOC(value)).id,analizarLocales:analizarLegacy,exportarInforme,migrarPosicionesValidas:()=>migrarLegacy({confirmado:true})};
   window.COI_REPOSITORY=Object.assign(window.COI_REPOSITORY||{},{posiciones:api});
   window.COI_FINANZAS=Object.assign(window.COI_FINANZAS||{},{version:VERSION,obtenerPorOC:value=>(window.posicionesFinancieras||[]).filter(row=>isMaster(row)&&normalizeOC(row.nro_oc||row.ocNro)===normalizeOC(value))});

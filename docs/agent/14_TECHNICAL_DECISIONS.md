@@ -674,5 +674,81 @@ quede ningún `FOR UPDATE` bloqueante en la rama `UPDATE`, y que el conflicto se
 fail-closed con 55P03 y sin reintento. El caso C sí se ejecuta —volver a pedir el
 lock desde la misma transacción no conflictúa—, porque es una sola sesión.
 
+## TD-043 — Una caché local no puede sobrevivir a un fallo remoto como verdad operativa
+Fecha: 2026-09-04. PR: H06 (`fix/h06-localstorage-non-authoritative`).
+
+Contexto. Tres capas Supabase-first resolvían el fallo remoto de la misma
+manera: Órdenes con `fallbackLocalStorageSiFallaSupabase()`, Finanzas con
+`applyCacheState()` y Timeline en el `catch` de `loadEvents()`. Las tres
+leían su caché de localStorage y la publicaban en la memoria operativa
+—`estaciones[].obras/servicios`, `window.posicionesFinancieras`,
+`window.coiTimelineEvents`—. El resultado era que cada corte de red convertía
+localStorage en la autoridad, y que un operador podía ver las OC, las posiciones
+o los mailings cacheados por otro en el mismo puesto.
+
+Decisión. Lo único que puede sobrevivir a un fallo es el último snapshot que ESA
+sesión confirmó contra Supabase, que vive en memoria y muere con la pestaña. Sin
+lectura confirmada previa, la vista queda vacía con el error a la vista. Ninguna
+de las tres capas vuelve a leer su caché como autoridad; `readSupabaseCache()`
+se eliminó por quedar sin uso.
+
+Es el mismo criterio que H03 y H05 ya aplicaban —conservar el último remoto
+confirmado, nunca el legado—, generalizado a las capas que faltaban.
+
+Alternativas descartadas. (a) Mostrar la caché marcada como «no confirmada»:
+sigue siendo localStorage decidiendo qué ve el operador, y el matiz visual se
+pierde en cuanto otra vista consume la global. (b) Vaciar siempre ante un fallo:
+convierte un corte de red momentáneo en un falso cero y es peor que conservar lo
+que el servidor sí llegó a decir.
+
+Consecuencias. Un corte de red con la pestaña recién abierta muestra vacío y el
+error, no datos viejos. Las cachés quedaron write-only (KI-021). La precondición
+de arranque de `timeline_supabase_first.spec.js` dejó de poder apoyarse en la
+caché y ahora espera la clave legada preparada, que es su precondición real.
+
+## TD-044 — El cambio de identidad invalida antes de adoptar el UID nuevo
+Fecha: 2026-09-04. PR: H06 (`fix/h06-localstorage-non-authoritative`).
+
+Contexto. Órdenes y Finanzas solo reaccionaban a `SIGNED_OUT`. Un `SIGNED_IN`
+con otro UID disparaba la recarga sin invalidar nada, de modo que si la lectura
+del operador nuevo fallaba, la degradación publicaba el material del anterior.
+Timeline era peor: declaraba `timelineAuthGeneration` y NUNCA lo incrementaba
+—no tenía listener de `coi:supabase-auth`—, así que un cambio de operador
+dejaba en pantalla los mailings del anterior hasta que algo más forzara una
+relectura.
+
+Decisión. Las tres capas comparan la identidad y, ante un cambio REAL, invalidan
+el snapshot confirmado, las cachés sensibles y lo publicado en memoria ANTES de
+adoptar el UID nuevo. Un `TOKEN_REFRESHED` del mismo UID no invalida nada. Es
+exactamente el orden que H05 fijó en `invalidarContextoInventario()`.
+
+La primera identidad de la pestaña NO es un cambio de identidad: en Timeline,
+tratarla como tal borraba `coi_timeline_events_v1` antes de que la migración
+legada de una sola vez llegara a Supabase. El guard de arranque es explícito.
+
+Alternativas descartadas. Invalidar en cada evento de auth: convierte un refresh
+de token en un falso cero, que es el error que H05 ya había pagado.
+
+Consecuencias. Ningún operador hereda material operativo de otro en el mismo
+puesto. Fijado por `H06-4` y `H06-4b`.
+
+## TD-045 — H06 le quita autoridad al legado; no lo borra
+Fecha: 2026-09-04. PR: H06 (`fix/h06-localstorage-non-authoritative`).
+
+Contexto. El objetivo de H06 es que localStorage deje de ser autoridad
+operacional, no que desaparezca. Borrar claves habría destruido material que
+todavía no está en Supabase y que ninguna migración repone.
+
+Decisión. Las claves legadas siguen existiendo físicamente y con su contenido
+intacto. Lo que cambia es que ninguna ruta de lectura operativa las consume. No
+se ejecuta `localStorage.clear()`, no se borra en masa y no se importa nada
+automáticamente. localStorage se conserva plenamente para preferencias de
+interfaz, filtros, estado de UI y caché no autoritativa: tema, sidebar y filtros
+del dashboard siguen funcionando igual.
+
+Consecuencias. Los GAPs que quedan abiertos —documentación V64 (KI-019),
+observaciones sin marcador (KI-020) y cachés write-only (KI-021)— están
+documentados en vez de resueltos a ciegas. H07 decide su destino.
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.
