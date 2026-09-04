@@ -86,12 +86,21 @@ jobs:
             'anularCertificacion actualiza snapshot antes del refresh'
           );
 
-          test = replaceOnce(
-            test,
-            "check(html.includes('canonicalApi().purgarPosicionConfirmada(id);'),\n  'el borrado remoto de una posicion tiene que quitarla del snapshot financiero confirmado');\n",
-            "check(html.includes('canonicalApi().purgarPosicionConfirmada(id);'),\n  'el borrado remoto de una posicion tiene que quitarla del snapshot financiero confirmado');\ncheck(html.includes('ordenesConfirmadas = deduplicarOrdenes([') && html.includes('ordenesConfirmadasUid = user?.id || ordenesConfirmadasUid;'),\n  'un write confirmado de Ordenes tiene que actualizar el snapshot antes de la recarga');\ncheck(html.includes('function confirmarMutacionesFinancieras(rows){'),\n  'Finanzas tiene que tener un helper para publicar mutaciones confirmadas en el snapshot');\nfor (const mutation of [\n  'const result=data.map(fromRemoteConsumption);confirmarMutacionesFinancieras(data);try{await recargarCache();}',\n  'const result=fromRemoteConsumption(data);confirmarMutacionesFinancieras(data);try{await recargarCache();}',\n  "confirmarMutacionesFinancieras(data);try{await recargarCache();}catch(refreshError){data.refreshWarning=`La anulación fue confirmada"\n]) {\n  check(html.includes(mutation), 'certificar, editar y anular tienen que actualizar el snapshot confirmado antes del refresh');\n}\n",
-            'regresiones de los dos P2 finales'
-          );
+          const marker = "check(html.includes('canonicalApi().purgarPosicionConfirmada(id);'),\n  'el borrado remoto de una posicion tiene que quitarla del snapshot financiero confirmado');\n";
+          const extra = [
+            "check(html.includes('ordenesConfirmadas = deduplicarOrdenes([') && html.includes('ordenesConfirmadasUid = user?.id || ordenesConfirmadasUid;'),",
+            "  'un write confirmado de Ordenes tiene que actualizar el snapshot antes de la recarga');",
+            "check(html.includes('function confirmarMutacionesFinancieras(rows){'),",
+            "  'Finanzas tiene que tener un helper para publicar mutaciones confirmadas en el snapshot');",
+            "check(html.includes('const result=data.map(fromRemoteConsumption);confirmarMutacionesFinancieras(data);try{await recargarCache();}'),",
+            "  'certificar tiene que actualizar el snapshot confirmado antes del refresh');",
+            "check(html.includes('const result=fromRemoteConsumption(data);confirmarMutacionesFinancieras(data);try{await recargarCache();}'),",
+            "  'editar certificacion tiene que actualizar el snapshot confirmado antes del refresh');",
+            "check(html.includes(\"text(data.estado).toUpperCase()!=='ANULADA')throw new Error\") && html.includes('confirmarMutacionesFinancieras(data);try{await recargarCache();}'),",
+            "  'anular certificacion tiene que actualizar el snapshot confirmado antes del refresh');",
+            ''
+          ].join('\n');
+          test = replaceOnce(test, marker, marker + extra, 'regresiones de los dos P2 finales');
 
           fs.writeFileSync(indexPath, html);
           fs.writeFileSync(testPath, test);
