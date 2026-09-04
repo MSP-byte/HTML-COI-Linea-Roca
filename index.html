@@ -28384,31 +28384,136 @@ document.addEventListener('click',function(event){
   // par completo; no se remienda una mitad con la otra. Dentro de cada tabla se
   // conserva exactamente el mecanismo anterior: conteo antes, keyset por UUID
   // sin offset ni orden por campos editables, conteo despues.
+
+  // UNA pasada completa del par: conteos antes, keyset por UUID en las dos
+  // tablas y conteos despues. Devuelve el par y si quedo VERIFICADO por los
+  // conteos, o par null si alguna de las cuatro comprobaciones no cerro.
+  async function leerParCandidato(c) {
+    const umAntes = await contarRemoto(c, TABLA_UM);
+    const stAntes = await contarRemoto(c, TABLA_ST);
+    const um = await leerPaginado(c, TABLA_UM, CAMPOS_UM);
+    const st = await leerPaginado(c, TABLA_ST, CAMPOS_ST);
+    const umDespues = await contarRemoto(c, TABLA_UM);
+    const stDespues = await contarRemoto(c, TABLA_ST);
+    // Sin conteo del servidor no hay nada que verificar: se conserva el
+    // comportamiento anterior en lugar de inventar una comprobacion.
+    if (umAntes === null || umDespues === null || stAntes === null || stDespues === null) {
+      return { par: { um: um, st: st }, verificado: false, detalle: null };
+    }
+    if (umAntes === umDespues && stAntes === stDespues &&
+        um.length === umDespues && st.length === stDespues) {
+      return { par: { um: um, st: st }, verificado: true, detalle: null };
+    }
+    return {
+      par: null,
+      verificado: false,
+      detalle: 'UM ' + umAntes + ' → ' + umDespues + ' (leidas ' + um.length + '), ' +
+        'ST ' + stAntes + ' → ' + stDespues + ' (leidas ' + st.length + ')'
+    };
+  }
+
+  // Firma determinista de un scan completo. Cubre TODOS los campos que la capa
+  // selecciona —no solo el id ni la cantidad—, porque lo que hay que detectar
+  // es justamente un UPDATE que cambia contenido sin mover el conteo.
+  // Cada fila se serializa columna por columna y la lista se ORDENA: como «id»
+  // es la primera columna de CAMPOS_UM y de CAMPOS_ST, el orden resultante es
+  // por UUID y no depende del orden en que llegaron las paginas.
+  function firmaScan(filas, campos) {
+    const columnas = campos.split(',');
+    return JSON.stringify((Array.isArray(filas) ? filas : [])
+      .map((fila) => JSON.stringify(columnas.map((col) => {
+        const v = fila ? fila[col] : null;
+        return v === undefined ? null : v;
+      })))
+      .sort());
+  }
+
+  // Las dos tablas viajan en una unica firma y sin separador ambiguo: cada
+  // mitad ya es JSON, de modo que ningun contenido de fila puede simular el
+  // corte entre UM y ST.
+  const firmaPar = (par) =>
+    JSON.stringify([firmaScan(par.um, CAMPOS_UM), firmaScan(par.st, CAMPOS_ST)]);
+
+  // Los conteos cierran el par frente a INSERT y DELETE, pero NO ven un UPDATE
+  // concurrente: una renumeracion de OC puede reescribir cientos de ST sin
+  // mover ninguna de las cuatro cifras, y entonces una pagina temprana trae la
+  // version vieja y una posterior la nueva. Esa mezcla —que en Supabase no
+  // existio nunca— se publicaba como sincronizada.
+  //
+  // Esto NO es un snapshot transaccional de PostgreSQL: desde PostgREST el
+  // cliente no puede abrir una transaccion. Es una DOBLE LECTURA ESTABLE: se
+  // toman dos pares completos consecutivos y el snapshot se acepta solo si sus
+  // firmas —todos los campos de las dos tablas— coinciden exactamente. Si
+  // difieren se descartan LOS DOS y se reintenta el par entero; nunca se
+  // combinan partes de uno con partes del otro. Agotados los reintentos se
+  // lanza, y quien llama conserva el ultimo snapshot CONJUNTO confirmado.
   async function leerParConsistente(c) {
     let detalle = null;
     for (let intento = 1; intento <= REINTENTOS_SCAN; intento++) {
-      const umAntes = await contarRemoto(c, TABLA_UM);
-      const stAntes = await contarRemoto(c, TABLA_ST);
-      const um = await leerPaginado(c, TABLA_UM, CAMPOS_UM);
-      const st = await leerPaginado(c, TABLA_ST, CAMPOS_ST);
-      const umDespues = await contarRemoto(c, TABLA_UM);
-      const stDespues = await contarRemoto(c, TABLA_ST);
-      // Sin conteo del servidor no hay nada que verificar: se conserva el
-      // comportamiento anterior en lugar de inventar una comprobacion.
-      if (umAntes === null || umDespues === null || stAntes === null || stDespues === null) {
-        return { um: um, st: st };
-      }
-      if (umAntes === umDespues && stAntes === stDespues &&
-          um.length === umDespues && st.length === stDespues) {
-        return { um: um, st: st };
-      }
-      detalle = 'UM ' + umAntes + ' → ' + umDespues + ' (leidas ' + um.length + '), ' +
-        'ST ' + stAntes + ' → ' + stDespues + ' (leidas ' + st.length + ')';
+      const primera = await leerParCandidato(c);
+      if (!primera.par) { detalle = primera.detalle; continue; }
+      // Backend sin conteo exacto: no hay con que cerrar el par, y exigir dos
+      // lecturas identicas sin esa red seria inventar una garantia. Se conserva
+      // el comportamiento anterior.
+      if (!primera.verificado) return primera.par;
+
+      const segunda = await leerParCandidato(c);
+      if (!segunda.par) { detalle = segunda.detalle; continue; }
+      if (!segunda.verificado) return segunda.par;
+
+      if (firmaPar(primera.par) === firmaPar(segunda.par)) return segunda.par;
+      detalle = 'dos lecturas completas del par devolvieron contenido distinto ' +
+        '(UM ' + segunda.par.um.length + ', ST ' + segunda.par.st.length + ')';
     }
     // Escritura sostenida en el remoto. Lo honesto es no publicar una mezcla
     // parcial; quien llama conserva el ultimo snapshot CONJUNTO confirmado.
     throw new Error('El inventario remoto cambió durante la lectura (' + detalle +
       '). No se muestra un listado incompleto: reintente.');
+  }
+
+  // Un cambio REAL de identidad invalida TODO el contexto de inventario de la
+  // sesion anterior ANTES de adoptar el UID nuevo. Adoptar primero y limpiar
+  // despues dejaba una ventana en la que el listener de coi:supabase-auth ya
+  // veia el UID adoptado y por eso NO entraba en su rama de limpieza; si a
+  // continuacion fallaba el perfil o el scan del usuario nuevo,
+  // conservarUltimoConfirmado() volvia a publicar el inventario del anterior.
+  //
+  // Es el UNICO punto de invalidacion por identidad —lo llaman cargar() y el
+  // listener de auth—, de modo que no hay dos limpiezas que puedan divergir.
+  // Llamarlo dos veces seguidas es inocuo: el segundo llamador encuentra el UID
+  // ya adoptado y no entra en su rama. Y un TOKEN_REFRESHED del mismo operador
+  // tampoco entra: la comparacion es por UID, no por evento.
+  //
+  // «conservarGeneracion» lo usa cargar(): esa request ya avanzo el token al
+  // entrar —lo que descarta cualquier lectura anterior— y volver a avanzarlo
+  // invalidaria su propio resultado. Desde el listener SI se avanza, para que
+  // el cargar() en vuelo de la sesion que se va no repueble el snapshot.
+  function invalidarContextoInventario(uidNuevo, opciones) {
+    if (!(opciones && opciones.conservarGeneracion === true)) runtime.generacion++;
+    // Snapshot confirmado: nada del operador anterior sobrevive. Sin esto,
+    // conservarUltimoConfirmado() lo republicaba como «ultimo conocido».
+    runtime.confirmadoUM = null;
+    runtime.confirmadoST = null;
+    runtime.sincronizado = false;
+    // Fail-closed sobre la autoridad: nadie hereda el rol del operador anterior.
+    runtime.rol = null;
+    // Contextos de edicion: ni un uuid ni una version de la sesion anterior
+    // pueden quedar apuntados cuando la identidad ya es otra.
+    limpiarEdicionUM();
+    limpiarEdicionST();
+    fichaUuid = null;
+    // El espejo legado se vacia ANTES de releer: mientras dura la relectura
+    // ninguna capa legada puede republicar el inventario de la sesion anterior.
+    //
+    // En el ARRANQUE la primera sesion tambien es un cambio de identidad
+    // —authUserId arranca en null—, pero ahi no hubo lectura previa que
+    // invalidar: el espejo se vacia igual, y el origen vuelve a «inicial» para
+    // no anunciar una lectura fallida que nunca ocurrio antes del primer scan.
+    const arranque = runtime.origen === 'inicial';
+    aplicarEnMemoria([], [], 'error-sin-sincronizar');
+    if (arranque) runtime.origen = 'inicial';
+    // Y recien aca se adopta la identidad nueva.
+    runtime.authUserId = uidNuevo || null;
   }
 
   async function cargar() {
@@ -28418,11 +28523,14 @@ document.addEventListener('click',function(event){
     const promesa = (async () => {
       const c = cliente();
       const uidLectura = await uidDeSesion();
-      // Cambio de identidad: el rol del operador anterior se invalida ANTES de
-      // intentar cargar el nuevo. Si no, entre el cambio de sesion y la
-      // confirmacion del rol nuevo la UI seguiria habilitada con el rol viejo.
-      if (vigente() && (uidLectura || null) !== (runtime.authUserId || null)) runtime.rol = null;
-      if (vigente()) runtime.authUserId = uidLectura;
+      // Cambio de identidad: se invalida TODO el contexto de inventario del
+      // operador anterior ANTES de adoptar el UID nuevo. Apagar solo el rol no
+      // alcanzaba: al adoptar el UID dejando en pie confirmadoUM/ST y el espejo
+      // legado, el listener de auth ya no entraba en su rama de limpieza y un
+      // fallo posterior de perfil o de scan republicaba ese inventario.
+      if (vigente() && (uidLectura || null) !== (runtime.authUserId || null)) {
+        invalidarContextoInventario(uidLectura, { conservarGeneracion: true });
+      }
 
       const conservarUltimoConfirmado = (motivo) => {
         runtime.ultimoError = motivo;
@@ -28776,10 +28884,17 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       '</div></div>';
   }
 
-  function limpiarFormUM() {
+  // Reset del contexto de edicion de UM SIN tocar el DOM. Lo comparten
+  // limpiarFormUM() —que ademas repinta— y la invalidacion por cambio de
+  // identidad, que corre antes de que haya nada que repintar.
+  function limpiarEdicionUM() {
     umEditandoUuid = null;
     umEditandoVersion = null;
     umEditandoEstadoOriginal = null;
+  }
+
+  function limpiarFormUM() {
+    limpiarEdicionUM();
     renderFormUM(true);
     const el = $('umh5_codigo');
     if (el) el.focus();
@@ -29063,6 +29178,15 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     if (!datos.fecha) faltan.push('fecha');
     if (!datos.descripcion) faltan.push('descripción');
     if (faltan.length) return { error: 'Faltan campos obligatorios: ' + faltan.join(', ') + '.' };
+
+    // «-», «///» o « . / - » son textos visibles, pero despues de la misma
+    // normalizacion que usa el UNIQUE canonico de PostgreSQL quedan en vacio:
+    // el ST entraria a la base sin identificador de negocio y dos ST asi no se
+    // distinguirian entre si. Se rechaza ANTES del lookup de duplicado, de
+    // confirmarOC() y de cualquier INSERT o UPDATE, igual que en guardarUM.
+    if (!claveST(datos.nroST)) {
+      return { error: 'El número de ST debe contener caracteres distintos de espacios, puntos, barras o guiones.' };
+    }
 
     // `estadoOriginal` es el que tenia el ST al abrir la edicion. Conservarlo sin
     // tocarlo es valido aunque no sea canonico; cualquier otro valor fuera del
@@ -29901,21 +30025,12 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       const sesionEvento = (ev && ev.detail && ev.detail.session) || null;
       if (evento === 'SIGNED_OUT' || !sesionEvento) runtime.rol = null;
       uidDeSesion().then((uid) => {
+        // Misma invalidacion que aplica cargar(), en un unico lugar: snapshots,
+        // espejo legado, rol y contextos de edicion caen ANTES de adoptar el
+        // UID nuevo. Aca SI se avanza runtime.generacion, para descartar el
+        // cargar() en vuelo de la sesion que se va.
         if ((uid || null) !== (runtime.authUserId || null)) {
-          runtime.generacion++;
-          runtime.confirmadoUM = null;
-          runtime.confirmadoST = null;
-          runtime.sincronizado = false;
-          runtime.authUserId = uid || null;
-          runtime.rol = null;
-          umEditandoUuid = null;
-          umEditandoVersion = null;
-          umEditandoEstadoOriginal = null;
-          stEditandoUuid = null;
-          fichaUuid = null;
-          // El modelo de la sesion anterior no puede sobrevivir al cambio de
-          // identidad: se limpia el espejo antes de releer.
-          aplicarEnMemoria([], [], 'error-sin-sincronizar');
+          invalidarContextoInventario(uid);
         }
         return recargarYRefrescar();
       }).catch(() => {

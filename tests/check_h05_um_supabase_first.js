@@ -868,18 +868,61 @@ const catchListener = listener.slice(listener.indexOf('.catch('));
 check(catchListener.indexOf('runtime.rol = null;') >= 0,
   'si no se pudo resolver la sesion el rol no puede conservarse');
 
-// Un cambio REAL de identidad invalida el rol del operador anterior.
+// Un cambio REAL de identidad delega en el UNICO helper de invalidacion: el
+// listener no puede conservar su propia limpieza, que es como las dos ramas
+// llegaron a divergir.
 const ramaCambioUid = listener.slice(
   listener.indexOf('if ((uid || null) !== (runtime.authUserId || null))'));
-check(ramaCambioUid.indexOf('runtime.rol = null;') >= 0,
-  'un cambio de UID tiene que invalidar el rol anterior');
+check(ramaCambioUid.indexOf('invalidarContextoInventario(uid)') >= 0,
+  'un cambio de UID tiene que pasar por invalidarContextoInventario()');
+check(ramaCambioUid.indexOf('runtime.confirmadoUM = null;') < 0,
+  'el listener no puede duplicar la limpieza: la hace el helper');
+
+// G1b2 · El helper invalida TODO el contexto de inventario ANTES de adoptar el
+// UID nuevo. Adoptarlo primero dejaba a conservarUltimoConfirmado() capaz de
+// republicar el inventario del operador anterior, y ademas hacia que el
+// listener viera el UID ya adoptado y se saltara su propia rama de limpieza.
+const cuerpoInvalidar = sinComentariosJs(cuerpoDeclarado(
+  capa.texto,
+  '  function invalidarContextoInventario(uidNuevo, opciones) {',
+  'invalidarContextoInventario() de la capa H05'));
+const posAdopcion = cuerpoInvalidar.indexOf('runtime.authUserId = uidNuevo || null;');
+check(posAdopcion >= 0, 'el helper tiene que adoptar el UID nuevo');
+const INVALIDA_ANTES = [
+  'runtime.generacion++;',
+  'runtime.confirmadoUM = null;',
+  'runtime.confirmadoST = null;',
+  'runtime.sincronizado = false;',
+  'runtime.rol = null;',
+  'limpiarEdicionUM();',
+  'limpiarEdicionST();',
+  'fichaUuid = null;',
+  "aplicarEnMemoria([], [], 'error-sin-sincronizar');"
+];
+for (const linea of INVALIDA_ANTES) {
+  const pos = cuerpoInvalidar.indexOf(linea);
+  check(pos >= 0, 'invalidarContextoInventario tiene que invalidar ' + linea);
+  check(pos < posAdopcion, linea + ' tiene que ocurrir ANTES de adoptar el UID nuevo');
+}
+// El token de request se avanza salvo cuando quien llama es la propia request
+// —cargar()—, que ya lo avanzo al entrar y no puede descartarse a si misma.
+check(cuerpoInvalidar.indexOf('conservarGeneracion') >= 0,
+  'el helper tiene que poder conservar la generacion de su propio llamador');
 
 // G1c · cargar(): todo camino que no confirme el rol lo deja en null.
 const cuerpoCargar = sinComentariosJs(
   cuerpoDeclarado(capa.texto, '  async function cargar() {', 'cargar() de la capa H05'));
+// cargar() no adopta el UID por su cuenta: pasa por el mismo helper, y lo hace
+// conservando su propia generacion para no descartar su propia lectura.
 check(cuerpoCargar.indexOf(
-  'if (vigente() && (uidLectura || null) !== (runtime.authUserId || null)) runtime.rol = null;') >= 0,
-  'cargar() tiene que invalidar el rol anterior antes de cargar una identidad nueva');
+  'if (vigente() && (uidLectura || null) !== (runtime.authUserId || null)) {') >= 0,
+  'cargar() tiene que detectar el cambio real de identidad');
+check(cuerpoCargar.indexOf(
+  'invalidarContextoInventario(uidLectura, { conservarGeneracion: true });') >= 0,
+  'cargar() tiene que invalidar el contexto por el helper antes de adoptar el UID');
+// Y no puede quedar ninguna adopcion directa del UID que se saltee la limpieza.
+check(cuerpoCargar.indexOf('runtime.authUserId = uidLectura') < 0,
+  'cargar() no puede adoptar runtime.authUserId fuera del helper de invalidacion');
 const conservar = cuerpoCargar.slice(cuerpoCargar.indexOf('const conservarUltimoConfirmado ='));
 check(conservar.slice(0, conservar.indexOf('};')).indexOf('runtime.rol = null;') >= 0,
   'conservarUltimoConfirmado tiene que apagar el rol: sin lectura confirmada no hay autoridad');
@@ -897,6 +940,27 @@ check(cuerpoCargar.indexOf('if (!perfilFinal.ok || !perfilFinal.rol)') >= 0,
   'la revalidacion final debe fallar cerrada si el perfil desaparecio');
 check(cuerpoCargar.indexOf('runtime.rol = perfilFinal.rol;') >= 0,
   'solo el rol reconfirmado despues del scan puede quedar vigente al publicar');
+
+// El N° de ST tiene el mismo problema que el codigo de UM: «-», «///» o
+// « . / - » son visibles pero su canonico queda vacio, y la base terminaria con
+// un ST sin identificador de negocio. El guard va DESPUES de los obligatorios y
+// ANTES del lookup de duplicado y de cualquier mutacion.
+const cuerpoPrepararST = cuerpoDeclarado(
+  capa.texto,
+  '  function prepararFilaST(datos, excluirUuid, ocOriginal, estadoOriginal) {',
+  'prepararFilaST() de la capa H05');
+const posSTCanonico = cuerpoPrepararST.indexOf('if (!claveST(datos.nroST)) {');
+check(posSTCanonico >= 0,
+  'prepararFilaST debe rechazar un N° ST cuyo canonico queda vacio');
+check(posSTCanonico > cuerpoPrepararST.indexOf("faltan.push('N° ST')"),
+  'el guard del canonico vacio va despues de la validacion de obligatorios');
+check(posSTCanonico < cuerpoPrepararST.indexOf('const duplicado = stDeUM('),
+  'el N° ST canonico vacio debe rechazarse antes del lookup de duplicado');
+// Y prepararFilaST se resuelve antes de confirmarOC() y de toda mutacion, de
+// modo que el rechazo no llega a la red ni a la base.
+check(codigoCapa.indexOf('const preparado = prepararFilaST(datos,') <
+  codigoCapa.indexOf('async function confirmarOC() {'),
+  'prepararFilaST tiene que resolverse antes de confirmarOC()');
 
 const posCodigoCanonico = capa.texto.indexOf('if (!claveUM(datos.codigo_um)) {');
 check(posCodigoCanonico >= 0,
@@ -932,6 +996,44 @@ check(contiene6('um.length === umDespues && st.length === stDespues'),
   'las filas leidas tienen que coincidir con el conteo en las dos tablas');
 check(contiene6('for (let intento = 1; intento <= REINTENTOS_SCAN; intento++)'),
   'el par se reintenta un numero acotado de veces');
+
+// G3b · Los conteos no ven un UPDATE concurrente: una renumeracion de OC puede
+// reescribir cientos de ST sin mover ninguna de las cuatro cifras, y entonces
+// una pagina temprana trae la version vieja y otra posterior la nueva. Encima
+// de los conteos hay una DOBLE LECTURA ESTABLE: dos pares completos seguidos
+// que tienen que dar la MISMA firma sobre TODOS los campos seleccionados.
+check(contiene6('async function leerParCandidato(c)'),
+  'la pasada completa del par tiene que quedar aislada como candidato');
+const cuerpoConsistente = sinComentariosJs(cuerpoDeclarado(
+  capa.texto, '  async function leerParConsistente(c) {',
+  'leerParConsistente() de la capa H05'));
+check(cuerpoConsistente.indexOf('const primera = await leerParCandidato(c);') >= 0 &&
+  cuerpoConsistente.indexOf('const segunda = await leerParCandidato(c);') >= 0,
+  'la lectura consistente tiene que tomar DOS pares completos consecutivos');
+check(cuerpoConsistente.indexOf('firmaPar(primera.par) === firmaPar(segunda.par)') >= 0,
+  'el par solo se acepta si las firmas de las dos lecturas completas coinciden');
+// El conteo dejo de ser el criterio de aceptacion: vive en el candidato, y
+// leerParConsistente ya no puede publicar por el solo.
+check(cuerpoConsistente.indexOf('contarRemoto') < 0,
+  'leerParConsistente ya no puede aceptar por conteos: eso lo cierra el candidato');
+check(cuerpoConsistente.indexOf('detalle = ') >= 0,
+  'la inestabilidad tiene que quedar descrita para el mensaje operativo');
+
+// La firma cubre TODOS los campos que la capa selecciona —no el id ni la
+// cantidad— y se ordena para no depender del orden en que llegaron las paginas.
+const cuerpoFirma = sinComentariosJs(cuerpoDeclarado(
+  capa.texto, '  function firmaScan(filas, campos) {', 'firmaScan() de la capa H05'));
+check(cuerpoFirma.indexOf("campos.split(',')") >= 0,
+  'la firma tiene que recorrer las columnas declaradas en CAMPOS_UM / CAMPOS_ST');
+check(cuerpoFirma.indexOf('.sort()') >= 0,
+  'la firma tiene que ser estable ante el orden en que llegaron las filas');
+check(contiene6('firmaScan(par.um, CAMPOS_UM)') && contiene6('firmaScan(par.st, CAMPOS_ST)'),
+  'la firma del par tiene que cubrir las dos tablas con todos sus campos');
+// Y los campos firmados son los mismos que la capa selecciona: si alguien
+// agregara una columna a CAMPOS_ST sin firmarla, un UPDATE sobre ella volveria
+// a ser invisible. Se comprueba que la firma se alimenta de esas constantes.
+check(!/firmaScan\(par\.(um|st), '/.test(codigoCapa),
+  'la firma no puede recortar los campos a una lista propia');
 
 // G4 · La version nueva la pone PostgreSQL; el cliente solo aporta el CAS.
 check(!/fecha_actualizacion:\s*new Date\(\)\.toISOString\(\)/.test(codigoCapa),
@@ -980,6 +1082,9 @@ console.log('  Borrado fisico             : ausente (BAJA / Cancelado)');
 console.log('  Rol cacheado               : fail-closed en todos los caminos');
 console.log('  Escritura                  : exige administrador remoto confirmado');
 console.log('  Snapshot                   : conjunto UM+ST, se aceptan o descartan juntos');
+console.log('  Estabilidad de lectura     : doble lectura completa, firma de todos los campos');
+console.log('  Cambio de identidad        : invalidacion completa ANTES de adoptar el UID');
+console.log('  N° ST canonico             : vacio rechazado antes de duplicados y mutaciones');
 console.log('  Version de fila            : la pone PostgreSQL; el cliente solo el CAS');
 console.log('  umActualId                 : un unico almacenamiento para legado y H05');
 console.log(`${aprobados} controles H05/H04 aprobados; 0 fallidos.`);

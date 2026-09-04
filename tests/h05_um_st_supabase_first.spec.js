@@ -100,6 +100,13 @@ async function prepararEntorno(page, opciones) {
     // Que tablas toca ese commit: solo UM, solo ST, o las dos a la vez —una
     // transaccion operativa real: alta de UM con su primer ST—.
     intrusoDestino: 'um',
+    // Simula un UPDATE concurrente que NO mueve el conteo: una renumeracion de
+    // OC reescribiendo filas ya existentes entre pagina y pagina. Es justo lo
+    // que los cuatro conteos no pueden ver. true = sostenido; un numero = esa
+    // cantidad de rondas de reescritura en total.
+    editarEntreLecturas: false,
+    // Sobre que tabla cae esa reescritura.
+    editarDurante: 'st',
     // Email de la sesion. La autoridad es el rol, no el correo: sirve para
     // probar un administrador real con otro correo.
     email: 'admin@coiroca.com'
@@ -153,6 +160,8 @@ async function prepararEntorno(page, opciones) {
     let sts = c.sts.slice();
     // Cuantas filas lleva insertadas el «otro administrador».
     let intrusas = 0;
+    // Cuantas rondas de reescritura sin cambio de cantidad lleva hechas.
+    let reescrituras = 0;
     // Catalogo REMOTO de Ordenes: deliberadamente distinto de todasLasOC(),
     // que es la cache local del modulo.
     //
@@ -311,6 +320,26 @@ async function prepararEntorno(page, opciones) {
               });
               sts = [intrusoST].concat(sts);
             }
+          }
+          // Reescritura concurrente SIN cambiar la cantidad: la pagina que se
+          // acaba de servir conserva los valores viejos y las siguientes traen
+          // los nuevos. Los cuatro conteos siguen dando lo mismo, de modo que
+          // solo una segunda lectura completa puede delatar la mezcla.
+          const cupoEdicion = window.__H05_CFG__.editarEntreLecturas;
+          const quedanEdiciones = cupoEdicion === true ||
+            (typeof cupoEdicion === 'number' && reescrituras < cupoEdicion);
+          const editarAqui = window.__H05_CFG__.editarDurante || 'st';
+          const enTabla = (editarAqui === 'um' && esUM) || (editarAqui === 'st' && esST);
+          if (quedanEdiciones && enTabla && pagina.length) {
+            reescrituras++;
+            const marca = 'REV-' + reescrituras;
+            const version = new Date(Date.UTC(2026, 8, 1) + reescrituras * 1000).toISOString();
+            // Se construyen filas NUEVAS: las paginas ya devueltas conservan las
+            // referencias viejas, que es lo que produce la mezcla.
+            const reescribir = (l) => l.map((fila) => Object.assign({}, fila, {
+              observaciones: marca, fecha_actualizacion: version
+            }));
+            if (esST) sts = reescribir(sts); else ums = reescribir(ums);
           }
           return { data: pagina, error: null };
         },
@@ -691,7 +720,16 @@ test('11 · doble click sobre Guardar UM produce un unico insert', async ({ page
   const boton = page.locator('#btnGuardarUMH05');
   await boton.click();
   await boton.click({ force: true });
-  await page.waitForTimeout(1600);
+  // La relectura que sigue a la mutacion son DOS lecturas completas del par
+  // —el fence de estabilidad—, y en este caso cada select del fake tarda
+  // retardoSelectMs. Se espera al modelo publicado en vez de a un plazo fijo.
+  await page.waitForFunction(
+    () => (window.unidadesMantenimiento || []).some((u) => u.codigoUM === 'ASC-777'),
+    null, { timeout: 20000 }
+  );
+  // Y se deja correr la ventana en la que un segundo insert se habria
+  // registrado, que es justamente lo que la prueba tiene que descartar.
+  await page.waitForTimeout(600);
 
   const e = await estado(page);
   expect(soloOp(e, 'insert:coi_unidades_mantenimiento')).toHaveLength(1);
@@ -3650,8 +3688,9 @@ test('142 · D · sin concurrencia el scan es una sola pasada', async ({ page })
   const r = await resumen(page);
   expect(r.sincronizado).toBe(true);
   expect(r.total).toBe(2);
-  // Un conteo antes y otro despues: una unica pasada.
-  expect(r.conteos).toBe(2);
+  // Dos conteos por lectura completa y dos lecturas completas por par: el
+  // keyset no se reintenta, lo que se duplico es el fence de estabilidad.
+  expect(r.conteos).toBe(4);
   const e = await estado(page);
   // El cursor sigue siendo por id y no aparece ningun offset.
   const lecturas = soloOp(e, 'select:coi_unidades_mantenimiento');
@@ -3666,7 +3705,8 @@ test('143 · E · el remoto vacio sigue siendo un estado valido y sincronizado',
   expect(r.sincronizado).toBe(true);
   expect(r.ultimoError).toBeNull();
   expect(r.total).toBe(0);
-  expect(r.conteos).toBe(2);
+  // Un solo par estable: dos lecturas completas, dos conteos cada una.
+  expect(r.conteos).toBe(4);
 });
 
 // ================================== octava ronda de review del PR #59
@@ -4055,9 +4095,11 @@ test('159 · D · con escritura sostenida no se publica una mezcla parcial y se 
   expect(r.sts).toBe(1);
   expect(r.intrusasUM).toBe(0);
   expect(r.intrusosST).toBe(0);
-  // Tres intentos del par: seis conteos por tabla.
-  expect(r.conteosUM).toBe(2 + 6);
-  expect(r.conteosST).toBe(2 + 6);
+  // La carga inicial son DOS lecturas completas del par —el fence de
+  // estabilidad—, o sea cuatro conteos por tabla. Despues, tres intentos que
+  // mueren en la primera lectura de cada par: dos conteos mas por intento.
+  expect(r.conteosUM).toBe(4 + 6);
+  expect(r.conteosST).toBe(4 + 6);
 });
 
 test('160 · E · el remoto vacio es un par valido y sincronizado', async ({ page }) => {
@@ -4069,9 +4111,9 @@ test('160 · E · el remoto vacio es un par valido y sincronizado', async ({ pag
   expect(r.ultimoError).toBeNull();
   expect(r.ums).toBe(0);
   expect(r.sts).toBe(0);
-  // Una sola pasada del par: dos conteos por tabla.
-  expect(r.conteosUM).toBe(2);
-  expect(r.conteosST).toBe(2);
+  // Un solo par estable: dos lecturas completas, dos conteos cada una.
+  expect(r.conteosUM).toBe(4);
+  expect(r.conteosST).toBe(4);
 });
 
 test('161 · F · mas de 1000 UM y mas de 1000 ST se leen sin saltos ni duplicados', async ({ page }) => {
@@ -4087,9 +4129,9 @@ test('161 · F · mas de 1000 UM y mas de 1000 ST se leen sin saltos ni duplicad
   expect(r.sts).toBe(1001);
   expect(r.stsUnicos).toBe(1001);
   expect(r.huerfanos).toBe(0);
-  // Sin concurrencia, una sola pasada del par.
-  expect(r.conteosUM).toBe(2);
-  expect(r.conteosST).toBe(2);
+  // Sin concurrencia, un solo par estable: dos lecturas completas.
+  expect(r.conteosUM).toBe(4);
+  expect(r.conteosST).toBe(4);
 
   // Y el paginado sigue siendo keyset por id, sin offset, en las dos tablas.
   const e = await estado(page);
@@ -4269,5 +4311,234 @@ test('167 · F · codigo UM que normaliza a vacio se rechaza sin INSERT', async 
   const e = await estado(page);
   expect(soloOp(e, 'insert:coi_unidades_mantenimiento')).toHaveLength(0);
   expect(e.ums).toHaveLength(0);
+  expect(e.escriturasLegacy).toEqual([]);
+});
+
+// ================================== decima ronda de review del PR #59
+
+// --- P1: al cambiar de identidad, el contexto de inventario se invalida ANTES
+//     de adoptar el UID nuevo.
+//
+// Adoptar primero y limpiar despues abria dos agujeros a la vez: el listener de
+// coi:supabase-auth veia el UID YA adoptado y no entraba en su rama de
+// limpieza, y conservarUltimoConfirmado() —que corre cuando el perfil o el scan
+// del operador nuevo fallan— republicaba el inventario del anterior como
+// «ultimo conocido».
+
+const contextoInterno = (page) => page.evaluate(() => ({
+  umGlobal: (window.unidadesMantenimiento || []).length,
+  umLexico: (typeof unidadesMantenimiento !== 'undefined' ? unidadesMantenimiento : []).length,
+  stGlobal: (window.serviciosTecnicosUM || []).length,
+  confirmadoUM: window.__COI_UM_H05__.confirmadoUM,
+  confirmadoST: window.__COI_UM_H05__.confirmadoST,
+  authUserId: window.__COI_UM_H05__.authUserId
+}));
+
+test('168 · A · un UID nuevo que descubre cargar() no hereda el inventario del anterior', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A, UM_B], sts: [ST_A] });
+  await abrir(page);
+  expect((await estado(page)).ums).toHaveLength(2);
+
+  // La sesion cambia SIN evento de auth: el UID nuevo lo descubre cargar(), que
+  // es el orden real cuando una recarga cae antes de que llegue el evento. Y el
+  // perfil del operador nuevo no se puede verificar.
+  await page.evaluate(() => {
+    window.__H05_SET_UID__('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
+    window.__H05_CFG__.fallaRol = true;
+  });
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForFunction(
+    () => window.__COI_UM_H05__.authUserId === 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    null, { timeout: 15000 }
+  );
+  await page.waitForTimeout(900);
+
+  const e = await estado(page);
+  // Ni una fila del operador anterior queda a la vista.
+  expect(e.ums).toHaveLength(0);
+  expect(e.sts).toHaveLength(0);
+  expect(e.sincronizado).toBe(false);
+  expect(e.rol).toBeNull();
+  expect(e.escriturasLegacy).toEqual([]);
+
+  // Y tampoco quedan guardadas: el snapshot confirmado se invalido antes de
+  // adoptar el UID, de modo que conservarUltimoConfirmado() no tiene nada del
+  // operador anterior que republicar. El espejo legado tampoco las expone.
+  const interno = await contextoInterno(page);
+  expect(interno.confirmadoUM).toBeNull();
+  expect(interno.confirmadoST).toBeNull();
+  expect(interno.umGlobal).toBe(0);
+  expect(interno.umLexico).toBe(0);
+  expect(interno.stGlobal).toBe(0);
+});
+
+test('169 · A · la sesion que se cae durante una recarga tampoco revive el inventario anterior', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A, UM_B], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await irAUM(page);
+  await abrirFichaPrimeraUM(page);
+  await expect(page.locator('#fichaUMBody')).toContainText('ASC-001');
+
+  // Cierre de sesion que descubre cargar(): la sesion desaparece y la recarga
+  // llega antes que el evento. Con el UID adoptado y los snapshots en pie, este
+  // era el camino por el que volvia el inventario del operador anterior.
+  await page.evaluate(() => {
+    window.__H05_SET_UID__(null);
+    window.__H05_CFG__.fallaSelect = true;
+  });
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForTimeout(1200);
+
+  const e = await estado(page);
+  expect(e.ums).toHaveLength(0);
+  expect(e.sts).toHaveLength(0);
+  expect(e.sincronizado).toBe(false);
+  expect(e.rol).toBeNull();
+  expect(e.escriturasLegacy).toEqual([]);
+
+  const interno = await contextoInterno(page);
+  expect(interno.confirmadoUM).toBeNull();
+  expect(interno.confirmadoST).toBeNull();
+  expect(interno.authUserId).toBeNull();
+  expect(interno.umGlobal).toBe(0);
+  expect(interno.stGlobal).toBe(0);
+  // El contexto de la ficha tambien cayo: no se sigue mostrando la UM del
+  // operador anterior.
+  await expect(page.locator('#fichaUMBody')).not.toContainText('ASC-001');
+});
+
+// --- P2: los conteos no ven un UPDATE concurrente.
+//
+// Una renumeracion de OC puede reescribir cientos de ST sin mover ninguna de
+// las cuatro cifras: la pagina temprana trae la version vieja y la posterior la
+// nueva, y esa mezcla —que en Supabase no existio nunca— se publicaba como
+// sincronizada. Encima de los conteos hay ahora una doble lectura estable.
+
+const resumenMezcla = (page) => page.evaluate(() => {
+  const sts = window.serviciosTecnicos || [];
+  return {
+    sincronizado: window.__COI_UM_H05__.sincronizado,
+    ultimoError: window.__COI_UM_H05__.ultimoError,
+    sts: sts.length,
+    // Una mezcla publicada dejaria MAS DE UNA version conviviendo.
+    versiones: Array.from(new Set(sts.map((s) => String(s.observaciones)))).sort(),
+    conteosUM: window.__H05_LLAMADAS__.filter((l) => l.op === 'count:coi_unidades_mantenimiento').length,
+    conteosST: window.__H05_LLAMADAS__.filter((l) => l.op === 'count:coi_servicios_tecnicos_um').length
+  };
+});
+
+test('170 · B · un UPDATE concurrente entre paginas no publica la mezcla y se relee', async ({ page }) => {
+  // Mas de PAGE_SIZE ST: la lectura pagina de verdad, que es donde la mezcla
+  // aparece. La reescritura no cambia la cantidad, de modo que los cuatro
+  // conteos siguen coincidiendo y el par pasa la verificacion anterior.
+  await prepararEntorno(page, {
+    ums: [UM_A], sts: MUCHOS_ST(1001, UM_A.id),
+    editarEntreLecturas: 1, editarDurante: 'st'
+  });
+  await abrir(page);
+
+  const r = await resumenMezcla(page);
+  // Lo publicado es uniforme: una sola version de las filas, nunca la mezcla.
+  expect(r.versiones).toEqual(['REV-1']);
+  expect(r.sts).toBe(1001);
+  expect(r.sincronizado).toBe(true);
+  expect(r.ultimoError).toBeNull();
+  // Y costo dos pasadas: la primera quedo inestable —dos lecturas completas con
+  // firmas distintas— y se descarto entera. Cuatro lecturas completas del par,
+  // dos conteos por tabla en cada una.
+  expect(r.conteosST).toBe(8);
+  expect(r.conteosUM).toBe(8);
+});
+
+test('171 · B · sin lograr dos lecturas identicas se conserva el snapshot anterior', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: MUCHOS_ST(1001, UM_A.id) });
+  await abrir(page);
+  const inicial = await resumenMezcla(page);
+  expect(inicial.sincronizado).toBe(true);
+  expect(inicial.sts).toBe(1001);
+  expect(inicial.versiones).toEqual(['']);
+  // Sin concurrencia: un par estable, dos lecturas completas.
+  expect(inicial.conteosST).toBe(4);
+
+  // Reescritura sostenida: ninguna pareja de lecturas puede coincidir.
+  await page.evaluate(() => {
+    window.__H05_CFG__.editarEntreLecturas = true;
+    window.__H05_CFG__.editarDurante = 'st';
+  });
+  await page.evaluate(() => window.recargarUnidadesMantenimiento());
+  await page.waitForFunction(
+    () => window.__COI_UM_H05__.sincronizado === false, null, { timeout: 30000 }
+  );
+
+  const r = await resumenMezcla(page);
+  expect(r.sincronizado).toBe(false);
+  expect(r.ultimoError).toMatch(/cambió durante la lectura/i);
+  // Se conserva el ultimo snapshot confirmado, sin una sola fila reescrita.
+  expect(r.sts).toBe(1001);
+  expect(r.versiones).toEqual(['']);
+  // Tres intentos, dos lecturas completas cada uno: seis pares descartados.
+  expect(r.conteosST).toBe(4 + 12);
+});
+
+// --- P2: un N° de ST cuyo canonico queda vacio no puede llegar a la base.
+//
+// «-», «///» o « . / - » son visibles y no vacios, pero la normalizacion que
+// usa el UNIQUE canonico de PostgreSQL los deja en cadena vacia: el ST entraria
+// sin identificador de negocio y dos asi no se distinguirian entre si.
+
+const ST_SIN_CANONICO = ['-', '///', ' . / - '];
+const MENSAJE_ST_CANONICO = /n[úu]mero de ST/i;
+
+test('172 · C · un N° de ST que normaliza a vacio se rechaza sin INSERT', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+
+  for (const invalido of ST_SIN_CANONICO) {
+    await page.selectOption('#sth5_um', UM_A.id);
+    await page.fill('#sth5_nro', invalido);
+    await page.fill('#sth5_fecha', '2026-08-20');
+    await page.fill('#sth5_descripcion', 'Mantenimiento preventivo');
+    await page.selectOption('#sth5_estado', 'Pendiente');
+    await page.click('#btnGuardarSTH05');
+    await page.waitForTimeout(250);
+    await expect(page.locator('#stFormMsgH05')).toContainText(MENSAJE_ST_CANONICO);
+  }
+
+  const e = await estado(page);
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(soloOp(e, 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
+  // El modelo remoto queda intacto y no hubo escritura legada.
+  expect(e.sts).toHaveLength(0);
+  expect(e.escriturasLegacy).toEqual([]);
+});
+
+test('173 · C · renombrar un ST a un numero sin canonico no dispara UPDATE', async ({ page }) => {
+  await prepararEntorno(page, { ums: [UM_A], sts: [ST_A] });
+  await abrir(page);
+  await fijarAdmin(page, true);
+  await sembrarOC(page, ['4530008964']);
+  await irAUM(page);
+  await editarSTEnFicha(page, ST_A.id);
+
+  // El rechazo no repinta la ficha, de modo que la edicion sigue abierta y se
+  // puede probar una variante detras de otra.
+  for (const invalido of ST_SIN_CANONICO) {
+    await page.fill('#stfh5_nro', invalido);
+    await page.click('[data-h05-guardar-st-ficha]');
+    await page.waitForTimeout(300);
+    await expect(page.locator('#stFichaMsgH05')).toContainText(MENSAJE_ST_CANONICO);
+  }
+
+  const e = await estado(page);
+  expect(soloOp(e, 'update:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(soloOp(e, 'insert:coi_servicios_tecnicos_um')).toHaveLength(0);
+  expect(e.llamadas.filter((l) => String(l.op).indexOf('delete') === 0)).toHaveLength(0);
+  // El ST conserva su numero real en el modelo remoto.
+  expect(e.sts).toHaveLength(1);
+  expect(e.sts[0].nroST).toBe(ST_A.nro_st);
   expect(e.escriturasLegacy).toEqual([]);
 });
