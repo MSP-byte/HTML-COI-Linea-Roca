@@ -8122,8 +8122,11 @@ const LS_DOCUMENTACION_OC_V64='coi_documentacion_oc';
 const DOC_TIPOS_OC_V64=['Acta de Inicio','Acta de Medición','Acta Final','Remito','Factura','Declaración Jurada','Constancia SERCAE','Print SERCAE','Póliza / Seguro','Nota / Comunicación','Informe Técnico','Foto / Evidencia','Otro'];
 const DOC_REPOSITORIOS_OC_V64=['SharePoint','OneDrive','Google Drive','Carpeta local','Otro'];
 const DOC_ESTADOS_OC_V64=['Pendiente','Cargado','Revisado','Observado','Cerrado'];
-var documentacionOC=Array.isArray(window.documentacionOC)?window.documentacionOC:v64CargarDocumentacionOC();
-window.documentacionOC=documentacionOC;
+/* H07: sin `var`, para que la propiedad quede CONFIGURABLE y la capa
+   Supabase-first pueda instalar el guard que ignora las republicaciones del
+   legado. Las referencias lexicas a documentacionOC siguen resolviendo contra
+   esta misma propiedad de window. */
+window.documentacionOC=Array.isArray(window.documentacionOC)?window.documentacionOC:v64CargarDocumentacionOC();
 let fichaOCPanelActivoV64='panelFichaResumen';
 let fichaOCActualKeyV64='';
 let v64DocEditandoId='';
@@ -8153,7 +8156,16 @@ function v64DocId(){return 'DOC-OC-'+Date.now()+'-'+Math.random().toString(16).s
 function v64Ext(nombre){const s=String(nombre||'').trim();const i=s.lastIndexOf('.');return i>0?s.slice(i+1).toLowerCase():'';}
 function v64NormalizarDocumento(d={},oc=null){const now=v64Now(),nombre=d.nombreArchivo||d.archivo||d.fileName||'';const out={...d};out.idDocumento=out.idDocumento||out.idDoc||v64DocId();out.ocNro=out.ocNro||out.OC_NRO||out.nOC||out.oc||out.numeroOC||v64OCNro(oc)||'';out.idObra=out.idObra||out.ID_OBRA||out.idOC||oc?.idObra||oc?.idOC||'';out.idServicio=out.idServicio||out.ID_SERVICIO||oc?.idServicio||oc?.ID_SERVICIO||'';out.tipoRegistro=out.tipoRegistro||v64TipoRegistro(oc);out.tipoDocumento=out.tipoDocumento||out.tipoDoc||out.tipo||'Otro';out.nroDocumento=out.nroDocumento||out.numeroDocumento||out.nro||out.actaNro||'';out.nombreArchivo=nombre||out.nombreDocumento||'';out.extensionArchivo=out.extensionArchivo||v64Ext(out.nombreArchivo);out.repositorio=out.repositorio||out.origenRepositorio||v64FolderRepo(oc);out.rutaDocumental=out.rutaDocumental||out.ruta||v64FolderRuta(oc);out.linkDocumento=out.linkDocumento||out.linkOneDrive||out.link||out.url||'';out.linkCarpeta=out.linkCarpeta||out.linkCarpetaDocumental||v64FolderLink(oc);out.fechaDocumento=v64FechaISO(out.fechaDocumento||out.fecha||out.fechaActa)||out.fechaDocumento||'';out.periodo=out.periodo||out.periodoDesde||out.periodoHasta||'';out.actaNro=out.actaNro||out.actaMedicionNro||(/ACTA.*MEDICION|ACTA.*MEDICIÓN/i.test(out.tipoDocumento)?out.nroDocumento:'')||'';out.estadoDocumento=out.estadoDocumento||out.estado||'Pendiente';out.observaciones=out.observaciones||'';out.fechaCarga=out.fechaCarga||now;out.fechaUltimaModificacion=out.fechaUltimaModificacion||now;return out;}
 function v64CargarDocumentacionOC(){let data=[];try{data=JSON.parse(localStorage.getItem(LS_DOCUMENTACION_OC_V64)||'[]');}catch(e){console.warn('No se pudo leer documentacion OC',e);data=[];}if(!Array.isArray(data))data=[];return data.map(d=>v64NormalizarDocumento(d));}
-function v64GuardarDocumentacionOC(){documentacionOC=(Array.isArray(documentacionOC)?documentacionOC:[]).map(d=>v64NormalizarDocumento(d));window.documentacionOC=documentacionOC;if(typeof saveJSON==='function')saveJSON(LS_DOCUMENTACION_OC_V64,documentacionOC);else localStorage.setItem(LS_DOCUMENTACION_OC_V64,JSON.stringify(documentacionOC));}
+/* H07: la documentacion de OC ya NO se persiste en localStorage.
+   `public.coi_documentacion_oc` NO existe: esa tabla y su migracion fueron
+   retiradas. El unico camino documental activo es Supabase Storage (bucket
+   coi-documentos) indexado en public.coi_documentos_oc.
+   La documentacion por referencia externa —OneDrive/SharePoint, V64/V575— queda
+   fuera del modelo operacional; la cadena `coi_documentacion_oc` sobrevive
+   solamente como NOMBRE de la clave legada de localStorage, en cuarentena.
+   Esta funcion queda como reafirmacion del espejo en memoria: no escribe la
+   clave legada, que se conserva intacta como material de recuperacion. */
+function v64GuardarDocumentacionOC(){return window.documentacionOC;}
 function v64DocLink(d){return d?.linkDocumento||d?.linkOneDrive||d?.link||d?.url||'';}
 function v64DocTipoNorm(d){return v64Norm(d?.tipoDocumento||d?.tipoDoc||d?.tipo||'');}
 function v64EsDocTipo(d,tipo){return v64DocTipoNorm(d).includes(v64Norm(tipo));}
@@ -8316,7 +8328,12 @@ function v65FmtFecha(v){if(!v)return'—';try{const d=new Date(v);return isNaN(d
 function v65ObsId(){return 'OBS-OC-'+Date.now()+'-'+Math.random().toString(16).slice(2,8);}
 function v65NormalizarObservacion(o={},oc=null){const now=v65Now(),out={...o};out.idObservacion=out.idObservacion||out.idObs||v65ObsId();out.ocNro=out.ocNro||out.OC_NRO||out.oc||out.numeroOC||v65OCNro(oc)||'';out.idObra=out.idObra||out.ID_OBRA||out.idOC||oc?.idObra||oc?.idOC||'';out.idServicio=out.idServicio||out.ID_SERVICIO||oc?.idServicio||oc?.ID_SERVICIO||'';out.tipoRegistro=out.tipoRegistro||v65TipoRegistro(oc);out.texto=out.texto||out.observacion||out.descripcion||'';out.estadoObservacion=out.estadoObservacion||out.estado||'Pendiente';out.fechaCarga=out.fechaCarga||out.fecha||now;out.fechaResolucion=out.fechaResolucion||'';out.usuarioCarga=out.usuarioCarga||out.usuario||'Local';out.usuarioResolucion=out.usuarioResolucion||'';out.rolCarga=out.rolCarga||'';out.rolResolucion=out.rolResolucion||'';out.observacionResolucion=out.observacionResolucion||'';return out;}
 function v65CargarObservacionesOC(){let data=[];try{data=JSON.parse(localStorage.getItem(LS_OBSERVACIONES_OC_V65)||'[]');}catch(e){console.warn('No se pudo leer observaciones OC',e);data=[];}if(!Array.isArray(data))data=[];return data.map(o=>v65NormalizarObservacion(o));}
-function v65GuardarObservacionesOC(){observacionesOC=(Array.isArray(observacionesOC)?observacionesOC:[]).map(o=>v65NormalizarObservacion(o));window.observacionesOC=observacionesOC;if(typeof saveJSON==='function')saveJSON(LS_OBSERVACIONES_OC_V65,observacionesOC);else localStorage.setItem(LS_OBSERVACIONES_OC_V65,JSON.stringify(observacionesOC));}
+/* H07: las observaciones NO se persisten en localStorage. La autoridad es
+   public.coi_observaciones_oc y la escritura remota la resuelve la capa H03.
+   Este choke point historico se conserva porque varias capas lo invocan, pero
+   ya no escribe la clave legada, que queda intacta como material de
+   recuperacion en cuarentena. */
+function v65GuardarObservacionesOC(){window.observacionesOC=(Array.isArray(window.observacionesOC)?window.observacionesOC:[]).map(o=>v65NormalizarObservacion(o));return window.observacionesOC;}
 function v65ObsPerteneceOC(obs,oc){const keys=new Set(v65IdsOC(oc));const vals=[obs?.ocNro,obs?.OC_NRO,obs?.oc,obs?.numeroOC,obs?.idObra,obs?.ID_OBRA,obs?.idServicio,obs?.ID_SERVICIO,obs?.idOC].filter(v65Tiene).map(v65Norm);return vals.length&&vals.some(v=>keys.has(v));}
 function v65ObservacionesDeOC(oc){const propias=(Array.isArray(observacionesOC)?observacionesOC:[]).map(o=>v65NormalizarObservacion(o)).filter(o=>v65ObsPerteneceOC(o,oc));const orden={PENDIENTE:0,REABIERTA:1,RESUELTA:2};return propias.sort((a,b)=>(orden[v65Norm(a.estadoObservacion)]??9)-(orden[v65Norm(b.estadoObservacion)]??9)||String(b.fechaCarga||'').localeCompare(String(a.fechaCarga||'')));}
 function v65MigrarObservacionesLegacy(oc){if(!oc)return;const existentes=new Set((observacionesOC||[]).map(o=>o.idObservacion));let cambio=false;const legacy=Array.isArray(oc.observacionesHistorial)?oc.observacionesHistorial:[];legacy.forEach((o,idx)=>{const id=(o.idObs&&existentes.has(o.idObs))?o.idObs:'LEGACY-'+v65KeyOC(oc)+'-'+(o.idObs||o.fecha||idx);if(existentes.has(id))return;observacionesOC.push(v65NormalizarObservacion({idObservacion:id,ocNro:v65OCNro(oc),idObra:oc.idObra||oc.idOC||'',idServicio:oc.idServicio||oc.ID_SERVICIO||'',tipoRegistro:v65TipoRegistro(oc),texto:o.texto||o.observacion||'',estadoObservacion:o.estadoObservacion||'Pendiente',fechaCarga:o.fecha||oc.fechaUltimaModificacion||v65Now(),usuarioCarga:o.usuario||'Legacy',rolCarga:o.rol||''},oc));existentes.add(id);cambio=true;});const obsTexto=String(oc.observaciones||'').trim();if(obsTexto){const id='LEGACY-TEXTO-'+v65KeyOC(oc);if(!existentes.has(id)){observacionesOC.push(v65NormalizarObservacion({idObservacion:id,ocNro:v65OCNro(oc),idObra:oc.idObra||oc.idOC||'',idServicio:oc.idServicio||oc.ID_SERVICIO||'',tipoRegistro:v65TipoRegistro(oc),texto:obsTexto,estadoObservacion:'Pendiente',fechaCarga:oc.fechaUltimaModificacion||v65Now(),usuarioCarga:'Legacy'},oc));cambio=true;}}if(cambio)v65GuardarObservacionesOC();}
@@ -15481,11 +15498,17 @@ const APP_DATA_MODE = "supabase_first";
     window.selectStation = wrapped;
   }
 
-  function cacheSupabaseOrders(orders) {
-    return safeWriteJSON(SUPABASE_CACHE_KEY, {
-      savedAt: nowISO(),
-      orders: deduplicarOrdenes(orders)
-    });
+  // H07 · La cache local de ordenes se retiro. No se escribe mas: un listado
+  // operativo completo en reposo en el navegador no se justifica cuando nada
+  // puede leerlo como autoridad. Esta funcion ahora solo se asegura de que no
+  // quede una copia vieja de antes de H07.
+  function purgarCacheOrdenesRetirada() {
+    try {
+      localStorage.removeItem(SUPABASE_CACHE_KEY);
+      localStorage.removeItem(SUPABASE_META_KEY);
+    } catch (error) {
+      console.warn('COI Supabase: no se pudo retirar la caché local de órdenes.', error);
+    }
   }
 
   function vaciarDatosOperativosSinSesion() {
@@ -15588,9 +15611,9 @@ const APP_DATA_MODE = "supabase_first";
     supabaseColumnas = new Set(rows.flatMap((row) => Object.keys(row || {})));
     const normalized = deduplicarOrdenes(rows.map(normalizarOrdenDesdeSupabase));
     const duplicates = Math.max(0, rows.length - normalized.length);
-    // La cache local se sigue escribiendo, pero como material de diagnostico y
-    // backup: ya NO se relee como autoridad operativa (H06).
-    cacheSupabaseOrders(normalized);
+    // H07 · Ya no se escribe cache local. La lectura quedo confirmada por
+    // Supabase, de modo que descartar la copia vieja no puede perder nada.
+    purgarCacheOrdenesRetirada();
     ordenesConfirmadas = normalized;
     ordenesConfirmadasUid = (user && user.id) || null;
     aplicarOrdenesPrincipal(normalized, 'Supabase');
@@ -20618,6 +20641,17 @@ if(document.readyState==='loading'){
 
   const TIMELINE_TABLE='coi_timeline_events';
   const TIMELINE_STORAGE_KEY='coi_timeline_events_v1';
+  // H07 · Señal de sincronizacion entre pestañas. NO contiene eventos: solo una
+  // marca de tiempo y un contador, para que otra pestaña sepa que tiene que
+  // releer Supabase. No es dato operativo y no puede reconstruir nada.
+  const TIMELINE_SYNC_PING_KEY='coi_timeline_sync_ping_v1';
+  // Estado de la lectura EN CURSO. `emitirSync` pertenece a esa lectura y no al
+  // modulo: se fija cuando arranca y solo puede degradarse a false si mientras
+  // corre se engancha una relectura provocada por otra pestaña. No hay
+  // guardar/restaurar —que era justo lo que dejaba el origen contaminado cuando
+  // dos eventos `storage` se solapaban— y cada lectura lee su propio objeto,
+  // capturado por su closure, aunque despues arranque otra.
+  let timelineLoadState=null;
   const TIMELINE_LEGACY_KEY='coi_timeline_legacy_pending_v1';
   const TIMELINE_MIGRATION_KEY='coi_timeline_supabase_migrated_v1';
   const TIMELINE_SCHEMA='COI_TIMELINE_EVENTS_V2';
@@ -20769,10 +20803,21 @@ if(document.readyState==='loading'){
     stageLegacyTimelineCache();
     return loadEvents({migrateLegacy:true});
   }
-  function applyTimelineEvents(events,reason,{cache=true}={}){
+  function applyTimelineEvents(events,reason,{cache=true,emitirSync=true}={}){
     const normalized=sortEvents((Array.isArray(events)?events:[]).map(normalizeEvent));
     if(cache){
-      try{localStorage.setItem(TIMELINE_STORAGE_KEY,JSON.stringify(normalized));}
+      // H07: se emite una señal de sincronizacion SIN contenido operativo y se
+      // retira la cache de eventos que H06 habia dejado write-only.
+      //
+      // `emitirSync` lo decide QUIEN pide la lectura: una recarga provocada por
+      // la señal de otra pestaña llega con false y no vuelve a emitir. Sin eso
+      // cada ping provocaba otro ping y las pestañas se releian sin fin.
+      try{
+        localStorage.removeItem(TIMELINE_STORAGE_KEY);
+        if(emitirSync){
+          localStorage.setItem(TIMELINE_SYNC_PING_KEY,JSON.stringify({en:new Date().toISOString(),eventos:normalized.length}));
+        }
+      }
       catch(error){console.warn('Timeline COI: no se pudo actualizar la cach\u00e9.',error);}
     }
     window.coiTimelineEvents=normalized;
@@ -20901,9 +20946,18 @@ if(document.readyState==='loading'){
   async function loadEvents(options={}){
     const loadGeneration=timelineAuthGeneration;
     const loadMutationGeneration=timelineMutationGeneration;
-    if(timelineLoadPromise&&timelineLoadGeneration===loadGeneration&&timelineLoadMutationGeneration===loadMutationGeneration)return timelineLoadPromise;
+    if(timelineLoadPromise&&timelineLoadGeneration===loadGeneration&&timelineLoadMutationGeneration===loadMutationGeneration){
+      // Si una relectura pedida por otra pestaña se engancha a una lectura ya
+      // en curso, esa lectura tampoco puede reemitir la señal.
+      if(timelineLoadState&&options.emitirSync===false)timelineLoadState.emitirSync=false;
+      return timelineLoadPromise;
+    }
     timelineLoadGeneration=loadGeneration;
     timelineLoadMutationGeneration=loadMutationGeneration;
+    // Objeto propio de ESTA lectura: lo captura el closure de abajo, de modo
+    // que una lectura posterior no puede alterar lo que esta decidio.
+    const estadoCarga={emitirSync:options.emitirSync!==false};
+    timelineLoadState=estadoCarga;
     const currentLoad=(async()=>{
       timelineAuthoritativeReady=false;
       setTimelinePersistence('loading','Cargando Timeline desde Supabase\u2026');
@@ -20920,13 +20974,13 @@ if(document.readyState==='loading'){
           }catch(migrationError){
             if(loadGeneration!==timelineAuthGeneration||loadMutationGeneration!==timelineMutationGeneration)return [];
             console.warn('Timeline COI: la migraci\u00f3n local qued\u00f3 pendiente; se conservan los datos remotos.',migrationError);
-            applyTimelineConfirmed(remote,'Timeline cargado desde Supabase',{uid:sesionTimeline.id});
+            applyTimelineConfirmed(remote,'Timeline cargado desde Supabase',{uid:sesionTimeline.id,emitirSync:estadoCarga.emitirSync});
             timelineAuthoritativeReady=true;
             setTimelinePersistence('warning',`${remote.length} evento(s) cargado(s) desde Supabase. Migraci\u00f3n pendiente de la cach\u00e9 local: ${migrationError?.message||migrationError}`);
             return remote;
           }
         }
-        applyTimelineConfirmed(remote,'Timeline cargado desde Supabase',{uid:sesionTimeline.id});
+        applyTimelineConfirmed(remote,'Timeline cargado desde Supabase',{uid:sesionTimeline.id,emitirSync:estadoCarga.emitirSync});
         timelineAuthoritativeReady=true;
         setTimelinePersistence('online',`${remote.length} evento(s) cargado(s) desde Supabase.${migration.migrated?` Se migraron ${migration.migrated} registro(s) locales.`:''}`);
         return remote;
@@ -22097,8 +22151,14 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       }
     });
     window.addEventListener('storage',event=>{
-      if(event.key!==TIMELINE_STORAGE_KEY)return;
-      loadEvents();
+      // Se escucha la señal H07 y, por compatibilidad con pestañas que todavia
+      // corran una version anterior, tambien la clave retirada. En los dos
+      // casos lo unico que se hace es releer Supabase pidiendo explicitamente
+      // NO reemitir: un ping produce UNA relectura, no un eco. La decision viaja
+      // con la peticion, asi que dos eventos solapados no se contaminan entre si
+      // ni dejan nada pegado para las lecturas siguientes.
+      if(event.key!==TIMELINE_SYNC_PING_KEY&&event.key!==TIMELINE_STORAGE_KEY)return;
+      Promise.resolve(loadEvents({emitirSync:false})).catch(()=>{});
     });
     window.addEventListener('coi:supabase-auth',event=>{
       const authEvent=event.detail?.event||'';
@@ -25930,7 +25990,11 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   // Cambio REAL de identidad: nada del operador anterior sobrevive, ni en
   // memoria ni en la cache local, y se invalida ANTES de adoptar el UID nuevo.
   function invalidarFinPorIdentidad(uidNuevo){const nuevo=uidNuevo||null;if(nuevo===(confirmadasFinUid||null))return false;if(confirmadasFinUid===null&&confirmadasFin===null&&nuevo){confirmadasFinUid=nuevo;return false;}runtime.authGeneration++;try{localStorage.removeItem(CACHE_KEY);}catch(error){}clearMemory();return true;}
-  function saveRemoteCache(remoteRows,remoteConsumptions=[]){const envelope={version:CACHE_VERSION,savedAt:new Date().toISOString(),source:'Supabase',positions:remoteRows,consumptions:remoteConsumptions,rows:remoteRows};localStorage.setItem(CACHE_KEY,JSON.stringify(envelope));return envelope;}
+  // H07 · La cache financiera local se retiro: era write-only desde H06 y
+  // guardaba posiciones y consumos operativos en reposo. Se deja de escribir y
+  // se descarta la copia vieja recien cuando Supabase confirmo la lectura, de
+  // modo que la purga no puede perder nada.
+  function saveRemoteCache(){try{localStorage.removeItem(CACHE_KEY);}catch(error){console.warn('COI finanzas: no se pudo retirar la cache local.',error);}return null;}
   async function currentUser(c=client()){if(typeof window.getUsuarioActual==='function'){const user=await window.getUsuarioActual();if(user)return user;}if(c?.auth?.getUser){const {data}=await c.auth.getUser();return data?.user||null;}return null;}
   function stateMessage(state,detail=''){
     if(state===STATES.CLIENTE_INICIALIZANDO)return 'Conectando con Supabase…';
@@ -27452,14 +27516,22 @@ document.addEventListener('click',function(event){
   };
 
   const runtime = {
-    origen: 'inicial',        // supabase | legacy-readonly | error-sin-sincronizar
+    origen: 'inicial',        // supabase | error-sin-sincronizar
     ultimoError: null,
     sincronizado: false,      // el modelo en memoria refleja una lectura remota confirmada
     generacion: 0,            // token de request: descarta respuestas viejas
     cargando: null,
     confirmado: null,         // ultimo modelo remoto confirmado
     crudas: null,             // filas remotas sin mapear, para remapeo diferido
-    authUserId: null          // UID de la sesion que produjo el modelo vigente
+    authUserId: null,         // UID de la sesion que produjo el modelo vigente
+    // H07 · Observaciones historicas que quedaron en la clave legada de un
+    // puesto que nunca corrio la importacion. NO son dato operativo: no entran
+    // al modelo, no alimentan KPIs y no habilitan escrituras. Se conservan
+    // intactas y se pueden ver, exportar o importar de forma explicita.
+    legadoEnCuarentena: 0,
+    // Cuantas veces se retiro de memoria un modelo legado publicado por el
+    // inicializador historico antes de tener lectura remota confirmada.
+    legadoRetirado: 0
   };
   window.__COI_OBS_H03__ = runtime;
 
@@ -27645,11 +27717,220 @@ document.addEventListener('click',function(event){
   const marcadorPuesto = () => { try { return getItemNativo.call(window.localStorage, MARKER_KEY) === '1'; } catch (e) { return false; } };
   const ponerMarcador = () => { try { window.localStorage.setItem(MARKER_KEY, '1'); } catch (e) {} };
 
-  function legadoSoloLectura() {
+  // H07 · Material legado en CUARENTENA. Sigue existiendo tal cual en
+  // localStorage —no se borra— pero ya no se publica como observaciones
+  // operativas. Solo se puede mirar, exportar o importar explicitamente.
+  function legadoEnCuarentena() {
     let crudo = [];
     try { crudo = JSON.parse(leerLegacyCrudo() || '[]'); } catch (e) { crudo = []; }
     if (!Array.isArray(crudo)) return [];
-    return crudo.map((o) => Object.assign({}, o, { _origen: 'legacy-readonly', _soloLectura: true }));
+    return crudo.map((o) => Object.assign({}, o, { _origen: 'legado-cuarentena', _soloLectura: true, _autoritativo: false }));
+  }
+  // Nombre historico conservado para los llamadores existentes.
+  function legadoSoloLectura() { return legadoEnCuarentena(); }
+
+  // Clave determinista para comparar una observacion legada contra el remoto.
+  // Se usa OC + texto normalizado: son los dos campos que existen en las dos
+  // formas —la legada y la de Supabase— y no dependen de ningun id local.
+  //
+  // Los alias son EXACTAMENTE los de v65NormalizarObservacion(), en su mismo
+  // orden, mas la columna cruda nro_oc de Supabase al final. Antes faltaban
+  // 'numeroOC' y 'descripcion': una fila legada con esa forma daba la clave
+  // vacia «|» y quedaba en cuarentena para siempre aunque ya estuviera en el
+  // remoto. Se extraen sin llamar a la funcion canonica porque esa genera ids
+  // y fechas: aca hace falta una lectura pura.
+  const obsOC = (o) => o.ocNro || o.OC_NRO || o.oc || o.numeroOC || o.nro_oc;
+  const obsTexto = (o) => o.texto || o.observacion || o.descripcion || o.detalle;
+  const claveObs = (o) => (o ? norm(obsOC(o)) + '|' + norm(obsTexto(o)) : '|');
+
+  // Cuantas observaciones legadas siguen SIN estar en Supabase.
+  //
+  // Reglas:
+  //   - con el marcador de corte puesto la conciliacion ya se resolvio
+  //     explicitamente (KI-007) y no hay nada pendiente;
+  //   - sin lectura remota confirmada NO se puede afirmar que algo ya migro:
+  //     todo el legado cuenta como pendiente (fail-closed);
+  //   - con lectura confirmada se compara fila por fila. Que Supabase tenga
+  //     observaciones ajenas no dice nada sobre las locales.
+  //
+  // Solo cuando TODAS las filas locales aparecen en el remoto se da el corte
+  // por cumplido y se pone el marcador: eso es conciliacion, no suposicion.
+  function registrarCuarentena() {
+    if (marcadorPuesto()) { runtime.legadoEnCuarentena = 0; return 0; }
+    const locales = legadoEnCuarentena();
+    // Sin lectura remota confirmada NO se puede afirmar que algo ya migro:
+    // todo el legado local cuenta como pendiente.
+    if (!runtime.sincronizado || !Array.isArray(runtime.confirmado)) {
+      runtime.legadoEnCuarentena = locales.length;
+      return runtime.legadoEnCuarentena;
+    }
+    // Con lectura confirmada se compara fila por fila. Que Supabase tenga
+    // observaciones AJENAS no dice nada sobre las locales: solo cuenta que cada
+    // fila local aparezca efectivamente en el remoto.
+    const remotas = new Set(runtime.confirmado.map(claveObs));
+    const pendientes = locales.filter((o) => !remotas.has(claveObs(o)));
+    runtime.legadoEnCuarentena = pendientes.length;
+    // El corte se da por cumplido cuando no queda nada pendiente: sea porque
+    // el puesto nunca tuvo legado, sea porque todas sus filas ya estan en
+    // Supabase. Nunca por el mero hecho de que el remoto tenga filas.
+    if (!pendientes.length) ponerMarcador();
+    return runtime.legadoEnCuarentena;
+  }
+
+  // Filas locales que todavia no aparecen en el remoto confirmado.
+  function pendientesDeConciliar() {
+    const locales = legadoEnCuarentena();
+    if (!locales.length) return [];
+    if (!runtime.sincronizado || !Array.isArray(runtime.confirmado)) return locales;
+    const remotas = new Set(runtime.confirmado.map(claveObs));
+    return locales.filter((o) => !remotas.has(claveObs(o)));
+  }
+
+  window.__COI_OBS_H07_CUARENTENA__ = {
+    clave: LEGACY_KEY,
+    cantidad: () => registrarCuarentena(),
+    filas: legadoEnCuarentena,
+    pendientes: pendientesDeConciliar,
+    autoritativo: false,
+    // Salida 1 · CONCILIAR. Relee Supabase y comprueba fila por fila si el
+    // legado ya esta alla. Si todas aparecen, el corte queda cumplido y las
+    // mutaciones se desbloquean. Si falta alguna, no se libera nada y se
+    // devuelve exactamente cuales faltan.
+    conciliar: async function () {
+      await cargar();
+      if (runtime.sincronizado !== true) {
+        throw new Error('No se pudo confirmar el estado remoto de las observaciones' +
+          (runtime.ultimoError ? ' (' + runtime.ultimoError + ')' : '') +
+          '. No se resolvió la cuarentena.');
+      }
+      const faltan = pendientesDeConciliar();
+      registrarCuarentena();
+      return { resuelta: faltan.length === 0, pendientes: faltan.length, detalle: faltan };
+    },
+    // Salida 2 · DESCARTAR de forma explicita. Exige confirmacion y haber
+    // exportado antes. NO borra la clave: el material queda intacto en
+    // localStorage; lo unico que se registra es que el operador decidio que no
+    // debe seguir bloqueando la operacion.
+    descartar: function (opciones) {
+      if (!(opciones && opciones.confirmado === true)) {
+        throw new Error('Descartar la cuarentena de observaciones requiere { confirmado: true }.');
+      }
+      const exportado = this.exportarJSON();
+      ponerMarcador();
+      registrarCuarentena();
+      return { descartadas: legadoEnCuarentena().length, claveConservada: true, exportado: exportado.length };
+    },
+    exportarJSON: () => {
+      const filas = legadoEnCuarentena();
+      const salida = JSON.stringify({
+        formato: 'COI_H07_OBSERVACIONES_LEGACY',
+        exportadoEl: new Date().toISOString(),
+        clave: LEGACY_KEY,
+        autoritativo: false,
+        nota: 'Observaciones historicas pendientes de importar a Supabase. NO son dato operativo.',
+        filas: filas
+      }, null, 2);
+      try {
+        if (typeof window.descargarArchivo === 'function') {
+          window.descargarArchivo('observaciones_legacy_' + Date.now() + '.json', salida, 'application/json;charset=utf-8');
+        }
+      } catch (e) {}
+      return salida;
+    }
+  };
+
+  // H07 · El inicializador historico publica en window.observacionesOC lo que
+  // encuentra en la clave legada, y eso ocurre mucho antes de que esta capa
+  // empiece a leer Supabase. Con una red lenta —o colgada— quedaba una ventana
+  // en la que paneles y KPIs seguian mostrando observaciones locales, que
+  // pueden ser incluso de otro operador del mismo navegador, como si fueran
+  // dato operativo.
+  //
+  // Por eso el modelo se retira SINCRONICAMENTE, antes del primer await, cada
+  // vez que la sesion todavia no tiene un snapshot remoto confirmado.
+  //
+  //   - NO se toca localStorage: la materia prima sigue intacta y la cuarentena
+  //     la lee con su getter nativo;
+  //   - NO se presenta el vacio como lectura remota: sincronizado sigue en
+  //     false y el origen no pasa a 'supabase';
+  //   - una recarga de la MISMA sesion con snapshot confirmado no destruye
+  //     nada: se sale antes de tocar el modelo.
+  function retirarLegadoPublicado() {
+    if (runtime.sincronizado === true && Array.isArray(runtime.confirmado)) return false;
+    const publicado = Array.isArray(window.observacionesOC) ? window.observacionesOC : [];
+    const conservado = Array.isArray(runtime.confirmado) ? runtime.confirmado : [];
+    // Si lo publicado ES el snapshot conservado, no hay legado que retirar.
+    if (publicado === conservado || !publicado.length) return false;
+    runtime.sincronizado = false;
+    runtime.legadoRetirado++;
+    aplicarEnMemoria(conservado, runtime.origen === 'supabase' ? 'error-sin-sincronizar' : runtime.origen);
+    registrarCuarentena();
+    refrescarUI();
+    return true;
+  }
+
+  // ------------------------------------------------- salida de la cuarentena
+  // Sin esto las operaciones existian pero solo eran alcanzables desde consola:
+  // un operador con cuarentena pendiente veia las mutaciones bloqueadas y no
+  // tenia ninguna salida visible. Se monta sobre el sector de Observaciones de
+  // la Ficha OC, que es exactamente donde se topa con el bloqueo, y desaparece
+  // solo cuando la cuarentena queda resuelta.
+  function avisoCuarentenaHTML() {
+    const n = registrarCuarentena();
+    if (!n) return '';
+    return '<section class="doc-contract-note" data-h07-obs-cuarentena="' + n + '">' +
+      '<b>Observaciones históricas pendientes de conciliar: ' + n + '</b>' +
+      '<p class="muted">Este navegador conserva observaciones que nunca llegaron a Supabase. ' +
+      'No se muestran como observaciones operativas y, mientras sigan pendientes, ' +
+      'la edición de observaciones está bloqueada.</p>' +
+      '<div class="admin-actions">' +
+      '<button type="button" class="primary" data-h07-obs-conciliar>Conciliar con Supabase</button>' +
+      '<button type="button" data-h07-obs-exportar>Exportar legado</button>' +
+      '<button type="button" data-h07-obs-descartar>Descartar bloqueo</button>' +
+      '</div>' +
+      '<p class="muted">«Descartar bloqueo» exporta el material y libera la edición. ' +
+      'No borra el archivo legado ni lo importa a Supabase.</p>' +
+      '</section>';
+  }
+
+  let cuarentenaEnCurso = false;
+  function accionCuarentena(cual) {
+    if (cuarentenaEnCurso) return Promise.resolve(false);
+    cuarentenaEnCurso = true;
+    const api = window.__COI_OBS_H07_CUARENTENA__;
+    return Promise.resolve().then(() => {
+      if (cual === 'exportar') {
+        const salida = api.exportarJSON();
+        avisar('Legado exportado (' + api.filas().length + ' observación/es). El material local no se borró.', 'ok');
+        return salida;
+      }
+      if (cual === 'descartar') {
+        // Confirmacion explicita del operador. La exportacion la hace descartar().
+        const ok = window.confirm(
+          'Se van a descartar ' + registrarCuarentena() + ' observación(es) históricas como bloqueo.\n\n' +
+          'Primero se descarga una exportación. El archivo legado NO se borra y NO se importa ' +
+          'a Supabase: solo deja de bloquear la edición de observaciones.\n\n¿Confirma?');
+        if (!ok) {
+          avisar('No se descartó nada: el bloqueo sigue vigente.', 'warn');
+          return false;
+        }
+        const r = api.descartar({ confirmado: true });
+        avisar('Bloqueo descartado. Se exportó el legado y la clave local quedó intacta.', 'ok');
+        return r;
+      }
+      return api.conciliar().then((r) => {
+        if (r.resuelta) avisar('Conciliación completa: el legado ya está en Supabase.', 'ok');
+        else avisar('Quedan ' + r.pendientes + ' observación(es) sin llegar a Supabase. El bloqueo se mantiene.', 'warn');
+        return r;
+      });
+    }).catch((e) => {
+      avisar('No se pudo resolver la cuarentena: ' + ((e && e.message) || String(e)), 'error');
+      return false;
+    }).then((r) => {
+      cuarentenaEnCurso = false;
+      refrescarUI();
+      return r;
+    });
   }
 
   // ---------------------------------------------------------- lectura paginada
@@ -27681,6 +27962,11 @@ document.addEventListener('click',function(event){
     const generacion = ++runtime.generacion;
     const vigente = () => generacion === runtime.generacion;
 
+    // ANTES del primer await: mientras esta sesion no tenga lectura remota
+    // confirmada, nada de lo que dejo publicado el inicializador legado puede
+    // seguir figurando como observaciones operativas.
+    retirarLegadoPublicado();
+
     const promesa = (async () => {
       const c = cliente();
       // La identidad vigente se toma al inicio de la lectura: es el origen que
@@ -27691,11 +27977,10 @@ document.addEventListener('click',function(event){
         if (!vigente()) return window.observacionesOC;
         runtime.ultimoError = 'Supabase no disponible';
         runtime.sincronizado = false;
-        if (marcadorPuesto()) {
-          // Nunca se representa un error como "cero observaciones".
-          return aplicarEnMemoria(runtime.confirmado || [], 'error-sin-sincronizar');
-        }
-        return aplicarEnMemoria(legadoSoloLectura(), 'legacy-readonly');
+        // Nunca se representa un error como "cero observaciones": se conserva
+        // lo ultimo que Supabase confirmo. El legado NO entra al modelo.
+        registrarCuarentena();
+        return aplicarEnMemoria(runtime.confirmado || [], 'error-sin-sincronizar');
       }
       try {
         const crudas = await leerPaginado(c);
@@ -27713,20 +27998,27 @@ document.addEventListener('click',function(event){
         // catalogo de OC termina de cargar despues que las observaciones.
         runtime.crudas = crudas;
         programarRemapeo();
-        if (filas.length) ponerMarcador();
-        if (filas.length || marcadorPuesto()) return aplicarEnMemoria(filas, 'supabase');
-        return aplicarEnMemoria(legadoSoloLectura(), 'legacy-readonly');
+        // El marcador de corte NO se pone por el solo hecho de que Supabase
+        // tenga filas: eso daba por migrado el legado local sin haberlo
+        // conciliado. Lo decide registrarCuarentena(), comparando fila por fila.
+        //
+        // Remoto vacio es un estado valido. Si ademas hay material legado sin
+        // conciliar, queda en cuarentena: visible como pendiente, fuera del
+        // modelo y con la escritura bloqueada hasta resolverlo.
+        registrarCuarentena();
+        return aplicarEnMemoria(filas, 'supabase');
       } catch (error) {
         if (!vigente()) return window.observacionesOC;
         runtime.ultimoError = (error && error.message) || String(error);
         runtime.sincronizado = false;
         console.warn('COI observaciones: no se pudo leer Supabase.', error);
-        if (marcadorPuesto()) {
-          // Se conserva el ultimo modelo remoto confirmado y se avisa.
+        // Se conserva el ultimo modelo remoto confirmado y se avisa. Un fallo
+        // remoto nunca se rellena con la clave legada.
+        registrarCuarentena();
+        if (runtime.confirmado && runtime.confirmado.length) {
           avisar('No se pudieron actualizar las observaciones: se muestran las ultimas conocidas.', 'warn');
-          return aplicarEnMemoria(runtime.confirmado || [], 'error-sin-sincronizar');
         }
-        return aplicarEnMemoria(legadoSoloLectura(), 'legacy-readonly');
+        return aplicarEnMemoria(runtime.confirmado || [], 'error-sin-sincronizar');
       }
     })();
 
@@ -27864,7 +28156,10 @@ document.addEventListener('click',function(event){
   // pondria el marcador en la proxima lectura y dejaria esas filas historicas
   // fuera del alcance de los paneles antes de haberlas importado.
   function cutoverPendiente() {
-    return runtime.origen === 'legacy-readonly' && legadoSoloLectura().length > 0;
+    // La proteccion de KI-007 se conserva intacta: mientras haya material
+    // legado sin importar, las mutaciones siguen bloqueadas. Lo que cambia es
+    // que ese material ya NO se publica como observaciones operativas.
+    return registrarCuarentena() > 0;
   }
   function avisoCutover() {
     avisar('Hay observaciones históricas pendientes de migración a Supabase. La edición está temporalmente bloqueada.', 'warn');
@@ -27987,6 +28282,19 @@ document.addEventListener('click',function(event){
     window.v65CargarObservacionesOC = function () { cargar(); return listaActual(); };
     window.v65MigrarObservacionesLegacy = function () { return false; };
 
+    // El aviso de cuarentena se antepone al sector 7. Observaciones de la Ficha
+    // OC. Se envuelve el render —que devuelve HTML— en vez de manipular el DOM
+    // despues, para que sobreviva a cada refresco del panel.
+    const baseRenderObs = window.renderPanelObservacionesFichaOC;
+    if (typeof baseRenderObs === 'function' && !baseRenderObs.__coiObsH07) {
+      const conAviso = function () {
+        return avisoCuarentenaHTML() + baseRenderObs.apply(this, arguments);
+      };
+      conAviso.__coiObsH07 = true;
+      conAviso.__coiObsH07Base = baseRenderObs;
+      window.renderPanelObservacionesFichaOC = conAviso;
+    }
+
     window.guardarObservacionOC = function (ocNro) {
       const encontrada = (typeof window.v65BuscarOC === 'function')
         ? window.v65BuscarOC(ocNro || window.fichaOCActualKeyV64 || '') : null;
@@ -28019,6 +28327,17 @@ document.addEventListener('click',function(event){
     window.addEventListener('click', function (ev) {
       const t = ev.target;
       if (!t || !t.closest) return;
+
+      // Salida de la cuarentena: conciliar / exportar / descartar.
+      const cuarentenaBtn = t.closest('[data-h07-obs-conciliar]') ||
+        t.closest('[data-h07-obs-exportar]') || t.closest('[data-h07-obs-descartar]');
+      if (cuarentenaBtn) {
+        ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation();
+        const cual = cuarentenaBtn.hasAttribute('data-h07-obs-conciliar') ? 'conciliar'
+          : (cuarentenaBtn.hasAttribute('data-h07-obs-exportar') ? 'exportar' : 'descartar');
+        accionCuarentena(cual);
+        return;
+      }
 
       const editBtn = t.closest('[data-r13-edit-obs]');
       if (editBtn) {
@@ -28065,7 +28384,11 @@ document.addEventListener('click',function(event){
     if (!Storage.prototype.__coiObsH03Shield) {
       const original = Storage.prototype.getItem;
       Storage.prototype.getItem = function (clave) {
-        if (clave === LEGACY_KEY && marcadorPuesto()) return '[]';
+        // H07: se enmascara SIEMPRE, con marcador o sin el. Mientras hay
+        // cuarentena pendiente es cuando mas importa que ningun consumidor
+        // operativo la lea. El material sigue intacto y accesible por
+        // __COI_OBS_H07_CUARENTENA__, que usa el getter nativo.
+        if (clave === LEGACY_KEY) return '[]';
         return original.call(this, clave);
       };
       Storage.prototype.__coiObsH03Shield = true;
@@ -30284,4 +30607,283 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   }
 })();
 </script>
+<script id="coi-h07-documentacion-legacy-retirada">
+/* H07 · La documentacion de OC basada en referencias externas queda RETIRADA.
+
+   Contexto y por que cambio la solucion respecto del primer intento de H07.
+
+   El primer intento creaba public.coi_documentacion_oc para darle autoridad
+   remota al modelo documental de la V64/V575: repositorio, ruta, «Carpeta
+   documental OneDrive» y links externos. Eso construia un SEGUNDO camino
+   operativo documental, en contra de lo que fija la baseline vigente:
+
+     AGENTS.md          · «No reintroducir OneDrive ni `Agregar link documental`
+                           en Ficha OC.»
+                         · «Supabase Storage y las tablas documentales vigentes
+                           son el camino activo.»
+     BASELINE_OPERATIVA · Documentacion — no reintroducir OneDrive en Ficha OC
+                           ni `Agregar link documental`.
+
+   El camino ACTIVO y canonico es el que ya existe: los PDF viven en el bucket
+   privado coi-documentos y se indexan en public.coi_documentos_oc, que el
+   modulo V58.1R28 lee en memoria y publica en la ficha. Ese camino NO se toca.
+
+   Lo que hace esta capa es lo unico que H07 debe hacer aca: sacar la clave
+   legada coi_documentacion_oc del modelo operacional, sin crear una tabla nueva
+   y sin borrar nada.
+
+     - documentacionOC queda SIEMPRE vacio y congelado: no se siembra desde
+       localStorage y ninguna capa legada puede republicarlo;
+     - el material historico se conserva intacto, se puede contar y exportar
+       desde __COI_DOC_H07_LEGACY__, y nunca se autoimporta;
+     - las acciones del editor documental retirado quedan deshabilitadas con un
+       mensaje operativo, en vez de «guardar OK» sin autoridad detras;
+     - los lectores legados dejan de sumar documentacion local a conteos,
+       diagnosticos y backup.
+
+   No hay migracion nueva: H07 no necesita esquema para esto. */
+(function () {
+  'use strict';
+
+  const LEGACY_KEYS = ['coi_documentacion_oc', 'coiDocumentos'];
+  const CLAVE = LEGACY_KEYS[0];
+  const MENSAJE_RETIRADO =
+    'La documentación por referencia externa fue retirada. Los documentos de la OC ' +
+    'se gestionan en Supabase Storage y se indexan en public.coi_documentos_oc.';
+
+  // Acceso NATIVO: el material legado se lee sin pasar por ningun escudo, para
+  // poder inventariarlo y exportarlo aunque los lectores operativos lo ignoren.
+  const getItemNativo = Storage.prototype.getItem;
+  const leerCrudo = (clave) => {
+    try { return getItemNativo.call(window.localStorage, clave || CLAVE); } catch (e) { return null; }
+  };
+
+  function filasLegadas() {
+    const salida = [];
+    for (const clave of LEGACY_KEYS) {
+      try {
+        const crudo = leerCrudo(clave);
+        if (!crudo) continue;
+        const parsed = JSON.parse(crudo);
+        const filas = Array.isArray(parsed)
+          ? parsed
+          : (Array.isArray(parsed && parsed.documentacionOC) ? parsed.documentacionOC
+            : (Array.isArray(parsed && parsed.documentos) ? parsed.documentos : []));
+        filas.forEach((d) => salida.push(Object.assign({ _claveLegado: clave, _autoritativo: false }, d)));
+      } catch (e) { /* una clave ilegible no puede romper el arranque */ }
+    }
+    return salida;
+  }
+
+  function avisar(mensaje, tipo) {
+    for (const fn of ['coiToast', 'mostrarToast', 'toast', 'mostrarMensajeCOI']) {
+      try { if (typeof window[fn] === 'function') return window[fn](mensaje, tipo || 'info'); } catch (e) {}
+    }
+    try { window.alert(mensaje); } catch (e) {}
+  }
+
+  // ------------------------------------------------ congelamiento de la global
+  // documentacionOC deja de existir como modelo operativo: siempre vacio. El
+  // holder ignora las republicaciones y las deja contadas, que es como el legado
+  // volvia a la vista.
+  const escriturasBloqueadas = [];
+  window.__COI_DOC_H07_ESCRITURAS__ = escriturasBloqueadas;
+  (function congelar() {
+    const VACIO = Object.freeze([]);
+    try {
+      Object.defineProperty(window, 'documentacionOC', {
+        configurable: true,
+        get() { return VACIO; },
+        set(valor) {
+          escriturasBloqueadas.push({
+            filas: Array.isArray(valor) ? valor.length : 0,
+            cuando: new Date().toISOString()
+          });
+          console.warn('COI documentacion H07: se ignoro una republicacion de documentacionOC. ' +
+            'La documentacion operativa vive en public.coi_documentos_oc.');
+        }
+      });
+    } catch (e) {
+      // Si la propiedad no fuera configurable, al menos se deja vacia.
+      try { window.documentacionOC = []; } catch (e2) {}
+    }
+  })();
+
+  // ------------------------------------------------------ cuarentena y rescate
+  window.__COI_DOC_H07_LEGACY__ = {
+    claves: LEGACY_KEYS.slice(),
+    clave: CLAVE,
+    autoritativo: false,
+    crudo: leerCrudo,
+    filas: filasLegadas,
+    cantidad: () => filasLegadas().length,
+    // Unica accion automatica disponible: mirar y exportar. No hay importacion
+    // operativa porque no hay un modelo operativo al que importar: la
+    // documentacion vigente entra por Supabase Storage.
+    exportarJSON: () => {
+      const filas = filasLegadas();
+      const salida = JSON.stringify({
+        formato: 'COI_H07_DOCUMENTACION_LEGACY',
+        exportadoEl: new Date().toISOString(),
+        claves: LEGACY_KEYS,
+        autoritativo: false,
+        nota: MENSAJE_RETIRADO + ' Este archivo es material historico de recuperacion.',
+        filas: filas
+      }, null, 2);
+      try {
+        if (typeof window.descargarArchivo === 'function') {
+          window.descargarArchivo('documentacion_oc_legacy_' + Date.now() + '.json', salida, 'application/json;charset=utf-8');
+        }
+      } catch (e) {}
+      return salida;
+    }
+  };
+
+  // -------------------------------------------- retiro del editor documental
+  // Las acciones del modelo por referencia externa quedan deshabilitadas. No se
+  // ocultan a la fuerza —eso es una decision de UI que excede a H07— pero no
+  // pueden anunciar exito sin autoridad detras.
+
+  // ---------------------------------------------------------------- alertas
+  // Alertas del modelo documental RETIRADO.
+  //
+  // Las capas V64 y V58 siguen emitiendo alertas que empujan al operador
+  // exactamente a la accion que AGENTS.md y BASELINE_OPERATIVA prohiben
+  // reintroducir: cargar el link de una carpeta OneDrive/SharePoint o agregar
+  // una «referencia documental» externa. Ademas se calculan sobre v64DocsOC(),
+  // que con la documentacion legada retirada esta siempre vacio, de modo que
+  // se disparaban para TODAS las OC y mandaban a una tarea imposible.
+  //
+  // Se filtran SOLO esas, por su tipo de alerta. Las alertas documentales del
+  // camino vigente —Supabase Storage + public.coi_documentos_oc, que en el
+  // Centro de Alertas llegan por V58: «OC activa sin Acta de Inicio», «Falta
+  // expediente», «Falta ultima acta», «Estado documental pendiente»— no se
+  // tocan.
+  const ALERTAS_RETIRADAS = [
+    'OC sin carpeta documental',           // V64 · «Cargar link de carpeta documental.»
+    'OC activa sin carpeta documental',    // V58 · «Asociar carpeta documental OneDrive.»
+    'OC sin Acta de Inicio',               // V64 · «Agregar referencia documental...»
+    'Acta de Medición pendiente de link',  // V64 · link externo del acta
+    'OC finalizada sin Acta Final',        // V64 · referencia externa
+    'Documento observado',                 // V64 · sobre el store retirado
+    'Documento sin link'                   // V64 · «Agregar link de SharePoint/OneDrive/Drive.»
+  ];
+  const normTipo = (v) => String(v == null ? '' : v)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+  const RETIRADAS = new Set(ALERTAS_RETIRADAS.map(normTipo));
+  const esAlertaRetirada = (a) => RETIRADAS.has(normTipo(a && (a.tipoAlerta || a.titulo)));
+
+  // El mismo criterio en el «Diagnóstico avanzado V58.1»: su tabla listaba el
+  // problema «OC activa sin carpeta documental/link asociado.» con la accion
+  // «Asociar carpeta OneDrive/SharePoint.», y cada fila trae un boton que manda
+  // ese texto a Observaciones. Era accionable, no codigo muerto.
+  //
+  // Se filtra por el texto del problema, no por su tipo: el otro problema
+  // documental —«Documento con fecha inválida.»— es del camino vigente y se
+  // conserva.
+  const esProblemaRetirado = (p) => {
+    const txt = normTipo((p && p.descripcion) || '') + ' | ' + normTipo((p && (p.accion || p.accionSugerida)) || '');
+    return /ONEDRIVE|SHAREPOINT|CARPETA DOCUMENTAL/.test(txt);
+  };
+  function filtrarDiagnostico(resumen) {
+    if (!resumen || !Array.isArray(resumen.problemas)) return resumen;
+    const quedan = resumen.problemas.filter((p) => !esProblemaRetirado(p));
+    if (quedan.length === resumen.problemas.length) return resumen;
+    const salida = Object.assign({}, resumen, { problemas: quedan });
+    if (typeof salida.problemasDocumentales === 'number') {
+      salida.problemasDocumentales = quedan.filter((p) => String((p && p.tipo) || '') === 'Documental').length;
+    }
+    return salida;
+  }
+  function instalarFiltroDiagnostico() {
+    const base = window.ejecutarDiagnosticoSistema;
+    if (typeof base === 'function' && !base.__coiDocH07) {
+      const envuelto = function () { return filtrarDiagnostico(base.apply(this, arguments)); };
+      envuelto.__coiDocH07 = true;
+      envuelto.__coiDocH07Base = base;
+      window.ejecutarDiagnosticoSistema = envuelto;
+    }
+    // El boton del panel llama al diagnostico por la referencia cerrada dentro
+    // de su IIFE, asi que envolver solo el global no alcanza. El render, en
+    // cambio, SI se invoca por window en los dos caminos: se filtra ahi, que es
+    // lo unico que decide lo que ve el operador.
+    const render = window.renderAdminDiagnostico;
+    if (typeof render === 'function' && !render.__coiDocH07) {
+      const envuelto = function (res) { return render.call(this, filtrarDiagnostico(res)); };
+      envuelto.__coiDocH07 = true;
+      envuelto.__coiDocH07Base = render;
+      window.renderAdminDiagnostico = envuelto;
+    }
+  }
+
+  function instalarFiltroAlertas() {
+    const base = window.generarAlertasCOI;
+    if (typeof base !== 'function' || base.__coiDocH07) return;
+    const envuelto = function () {
+      const lista = base.apply(this, arguments);
+      return (Array.isArray(lista) ? lista : []).filter((a) => !esAlertaRetirada(a));
+    };
+    envuelto.__coiDocH07 = true;
+    envuelto.__coiDocH07Base = base;
+    window.generarAlertasCOI = envuelto;
+  }
+
+  function instalarRetiro() {
+    // Lectura: nunca desde localStorage.
+    window.v64CargarDocumentacionOC = function () { return []; };
+    // Persistencia: no hay. Se conserva el choke point historico porque varias
+    // capas lo invocan.
+    window.v64GuardarDocumentacionOC = function () { return []; };
+    // Autoimportacion de documentos embebidos: prohibida.
+    window.v64MigrarDocsEmbebidos = function () { return false; };
+
+    const rechazar = () => { avisar(MENSAJE_RETIRADO, 'warn'); return false; };
+    window.v64GuardarDocumentoDesdeForm = rechazar;
+    window.v64EliminarDocumento = rechazar;
+    window.v64GuardarCarpetaOC = rechazar;
+
+    // Los lectores legados dejan de sumar documentacion local a conteos,
+    // diagnosticos y backup: devuelven vacio en lugar de leer las claves.
+    window.v62DocsGlobales = function () { return []; };
+
+    // Y ni el Centro de Alertas ni el Diagnóstico piden la accion retirada.
+    instalarFiltroAlertas();
+    instalarFiltroDiagnostico();
+  }
+
+  // «Limpiar documentación global» prometia limpiar un repositorio que ya no es
+  // autoridad. Se desactiva en captura, antes de que el handler historico corra.
+  document.addEventListener('click', (ev) => {
+    const boton = ev.target && ev.target.closest
+      ? ev.target.closest('#btnV64LimpiarDocGlobal, [data-v64-doc-add], [data-v64-doc-edit], [data-v64-doc-delete], [data-v64-doc-save], [data-v64-save-folder]')
+      : null;
+    if (!boton) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    avisar(MENSAJE_RETIRADO, 'warn');
+  }, true);
+
+  window.COI_DOCUMENTACION_H07 = {
+    estado: 'retirada',
+    motivo: MENSAJE_RETIRADO,
+    tablaActiva: 'coi_documentos_oc',
+    diagnostico: () => ({
+      estado: 'retirada',
+      operativas: 0,
+      legadoFilas: filasLegadas().length,
+      claveIntacta: leerCrudo(CLAVE) !== null,
+      escriturasBloqueadas: escriturasBloqueadas.length,
+      tablaActiva: 'coi_documentos_oc'
+    })
+  };
+
+  instalarRetiro();
+  // Las capas legadas reinstalan sus funciones en timers propios.
+  [0, 400, 1500, 3000, 6000].forEach((ms) => setTimeout(instalarRetiro, ms));
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', instalarRetiro, { once: true });
+  }
+})();
+</script>
+
 </body></html>

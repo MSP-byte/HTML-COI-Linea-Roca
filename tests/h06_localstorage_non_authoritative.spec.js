@@ -451,10 +451,15 @@ test('H06-6 · el legado preexistente no se importa automáticamente ni se borra
   // Ni una sola fila legada llego a una estructura operativa…
   expect(r.ocs).toEqual([]);
   // …y ninguna clave legada fue destruida.
+  // El material legado UNICO se conserva intacto. La cache del Timeline no
+  // entra en esta lista: no era legado sino una copia de datos remotos, y H07
+  // la retiro (KI-021).
   const claves = await page.evaluate((ks) => ks.map((k) => [k, localStorage.getItem(k) !== null]), [
-    K.maestroV10, K.umLegacy, K.stLegacy, K.obsLegacy, K.timelineCache
+    K.maestroV10, K.umLegacy, K.stLegacy, K.obsLegacy
   ]);
   for (const [clave, existe] of claves) expect([clave, existe]).toEqual([clave, true]);
+  // Y la cache retirada no vuelve a escribirse.
+  expect(await page.evaluate((k) => localStorage.getItem(k), K.timelineCache)).toBeNull();
 });
 
 // ================================================= 7 y 8 · UM y ST vacios
@@ -489,8 +494,9 @@ test('H06-9 · las órdenes remotas no son sustituidas por la versión local', a
   expect(r.ocProveedores).toContain('PROVEEDOR REMOTO');
   expect(r.ocProveedores).not.toContain('PROVEEDOR SOLO LOCAL');
   expect(r.ocIds).not.toContain('OBRA-LOCAL-H06');
-  // La cache local existe, pero no aporto ninguna fila.
-  expect(await page.evaluate((k) => Boolean(localStorage.getItem(k)), K.ordenesCache)).toBe(true);
+  // H07 · La cache local de ordenes se retiro: ademas de no aportar filas, ya
+  // no se escribe y la copia vieja se descarta cuando Supabase confirma.
+  expect(await page.evaluate((k) => localStorage.getItem(k), K.ordenesCache)).toBeNull();
 });
 
 // ======================================== 10 · observaciones remotas mandan
@@ -521,22 +527,30 @@ test('H06-10b · con el marcador de corte puesto, ni el remoto vacío ni el fall
   expect(r.obsOrigen).not.toBe('legacy-readonly');
 });
 
-test('H06-10c · GAP conocido: sin el marcador de corte H03 todavía muestra las observaciones legadas', async ({ page }) => {
-  // Este caso NO representa produccion: KI-007 quedo resuelto y el marcador
-  // esta puesto. Se fija aqui para que el comportamiento sea explicito y
-  // rastreable: en un puesto que nunca corrio la importacion, H03 sigue
-  // mostrando la clave legada en modo SOLO LECTURA para no ocultar datos que
-  // todavia no llegaron a Supabase, y bloquea toda escritura mientras dure.
-  // Retirar esa red exige decidir antes que pasa con esas filas: queda fuera
-  // del alcance de H06 y documentado como GAP.
+test('H06-10c · KI-020 cerrado por H07: sin marcador, el legado queda en cuarentena y no en el modelo', async ({ page }) => {
+  // Este era el GAP KI-020: en un puesto que nunca corrio la importacion, H03
+  // publicaba la clave legada como observaciones operativas. H07 lo cierra sin
+  // perder nada: el material se conserva, se puede ver y exportar, la escritura
+  // sigue bloqueada —la proteccion de KI-007 intacta— pero ya no entra al
+  // modelo operativo ni alimenta KPIs.
   await prepararH06(page, { ordenes: [OC_REMOTA], observaciones: [], marcadorH03: false });
   await abrirH06(page);
 
   const r = await radiografia(page);
-  expect(r.obsOrigen).toBe('legacy-readonly');
-  expect(r.obs).toContain('Observación SOLO LOCAL');
-  // La red de seguridad es de solo lectura: las escrituras quedan bloqueadas.
-  expect(await page.evaluate(() => window.__COI_OBS_H03__?.origen)).toBe('legacy-readonly');
+  expect(r.obs).not.toContain('Observación SOLO LOCAL');
+  expect(r.obsOrigen).toBe('supabase');
+
+  const cuarentena = await page.evaluate(() => ({
+    pendientes: window.__COI_OBS_H03__?.legadoEnCuarentena ?? null,
+    filas: (window.__COI_OBS_H07_CUARENTENA__?.filas?.() || []).length,
+    autoritativo: window.__COI_OBS_H07_CUARENTENA__?.autoritativo,
+    claveIntacta: localStorage.getItem('coi_observaciones_oc') !== null
+  }));
+  expect(cuarentena.pendientes).toBe(1);
+  expect(cuarentena.filas).toBe(1);
+  expect(cuarentena.autoritativo).toBe(false);
+  // El material NO se borro.
+  expect(cuarentena.claveIntacta).toBe(true);
 });
 
 // ============================================== 11 · mailing remoto manda

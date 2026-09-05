@@ -228,6 +228,10 @@ const estado = (page) => page.evaluate(() => ({
     soloLectura: Boolean(o._soloLectura)
   })),
   legacyKey: localStorage.getItem('coi_observaciones_oc'),
+  // H07 · material legado en cuarentena: existe, no es autoridad y no entra al
+  // modelo operativo.
+  cuarentena: window.__COI_OBS_H03__.legadoEnCuarentena,
+  cuarentenaFilas: (window.__COI_OBS_H07_CUARENTENA__?.filas?.() || []).length,
   marker: localStorage.getItem('coi_observaciones_h03_imported_v1'),
   llamadas: window.__H03_LLAMADAS__,
   escriturasLegacy: window.__H03_LEGACY_WRITES__
@@ -250,14 +254,22 @@ test('1 · Supabase con filas manda sobre el legado local', async ({ page }) => 
   expect(errores).toEqual([]);
 });
 
-test('2 · Supabase vacio sin marker muestra el legado en solo lectura', async ({ page }) => {
+test('2 · Supabase vacio sin marker deja el legado en CUARENTENA, fuera del modelo', async ({ page }) => {
+  // H07 · Antes esto publicaba las filas legadas como observaciones en solo
+  // lectura: era el ultimo camino por el que localStorage representaba datos
+  // operativos (KI-020). Ahora el remoto vacio se muestra vacio y el material
+  // historico queda en cuarentena: conservado, visible y exportable, pero
+  // nunca dentro del modelo operativo.
   await prepararEntorno(page, { filas: [], legado: LEGACY });
   await abrir(page);
   const e = await estado(page);
 
-  expect(e.origen).toBe('legacy-readonly');
-  expect(e.observaciones).toHaveLength(2);
-  expect(e.observaciones.every((o) => o.soloLectura)).toBe(true);
+  expect(e.origen).toBe('supabase');
+  expect(e.observaciones).toHaveLength(0);
+  // El legado no se borro y sigue contabilizado como pendiente.
+  expect(e.legacyKey).not.toBeNull();
+  expect(e.cuarentena).toBe(2);
+  expect(e.cuarentenaFilas).toBe(2);
   expect(e.marker).toBeNull();
 });
 
@@ -658,13 +670,31 @@ test('F10 · el lector de backup no elige el legado por tener mas filas', async 
   expect(resultado.textos).toEqual(['OBSERVACION REMOTA DE SUPABASE']);
 });
 
-test('F10b · sin marker el legado sigue disponible como fallback identificado', async ({ page }) => {
+test('F10b · sin marker el legado se conserva, pero solo lo ve el circuito de recuperación', async ({ page }) => {
+  // H07 · La clave legada quedo aislada de TODOS los lectores operativos: el
+  // getItem publico la enmascara siempre, con marcador o sin el, porque es
+  // justamente sin marcador —con cuarentena pendiente— cuando mas importa que
+  // ningun consumidor antiguo la reincorpore al modelo.
+  //
+  // El material NO se borra: sigue intacto y accesible por la API de
+  // cuarentena, que usa el getter nativo guardado dentro del modulo.
   await prepararEntorno(page, { filas: [], legado: LEGACY });
   await abrir(page);
 
-  const crudo = await page.evaluate(() => localStorage.getItem('coi_observaciones_oc'));
-  expect(crudo).not.toBeNull();
-  expect(JSON.parse(crudo)).toHaveLength(2);
+  // Ningun lector operativo la ve.
+  expect(await page.evaluate(() => localStorage.getItem('coi_observaciones_oc'))).toBe('[]');
+
+  // El circuito de recuperacion si, y la cuenta como pendiente de conciliar.
+  const cuarentena = await page.evaluate(() => ({
+    filas: window.__COI_OBS_H07_CUARENTENA__.filas().length,
+    pendientes: window.__COI_OBS_H07_CUARENTENA__.pendientes().length,
+    autoritativo: window.__COI_OBS_H07_CUARENTENA__.autoritativo,
+    exportadas: JSON.parse(window.__COI_OBS_H07_CUARENTENA__.exportarJSON()).filas.length
+  }));
+  expect(cuarentena.filas).toBe(2);
+  expect(cuarentena.pendientes).toBe(2);
+  expect(cuarentena.autoritativo).toBe(false);
+  expect(cuarentena.exportadas).toBe(2);
 });
 
 test('F-extra · el detalle de resolucion no se duplica al reintentar', async ({ page }) => {
@@ -1087,14 +1117,16 @@ test('N12 · editar no pisa en silencio una edicion concurrente de otro puesto',
 
 test('N13 · con legado pendiente de migrar ninguna mutacion llega a Supabase', async ({ page }) => {
   test.slow();
-  // Supabase vacio y sin marcador: el legado historico se muestra en solo lectura.
+  // Supabase vacio y sin marcador: el legado historico queda en cuarentena y,
+  // mientras exista, ninguna mutacion puede correr (proteccion de KI-007).
   await prepararEntorno(page, { filas: [], legado: LEGACY });
   await abrir(page);
   await sembrarOC(page);
   await fijarAdmin(page, true);
   let e = await estado(page);
-  expect(e.origen).toBe('legacy-readonly');
-  expect(e.observaciones).toHaveLength(2);
+  expect(e.origen).toBe('supabase');
+  expect(e.cuarentena).toBe(2);
+  expect(e.observaciones).toHaveLength(0);
 
   await page.evaluate(async (id) => {
     window.prompt = () => 'NO DEBERIA LLEGAR';
@@ -1123,8 +1155,10 @@ test('N13 · con legado pendiente de migrar ninguna mutacion llega a Supabase', 
   expect(soloOp(e, 'insert')).toHaveLength(0);
   expect(soloOp(e, 'update')).toHaveLength(0);
   expect(soloOp(e, 'delete')).toHaveLength(0);
-  // El legado sigue visible y nada se escribio en localStorage.
-  expect(e.observaciones).toHaveLength(2);
+  // El legado sigue intacto en cuarentena, fuera del modelo, y nada se escribio.
+  expect(e.cuarentena).toBe(2);
+  expect(e.legacyKey).not.toBeNull();
+  expect(e.observaciones).toHaveLength(0);
   expect(e.marker).toBeNull();
   expect(e.escriturasLegacy).toEqual([]);
 });

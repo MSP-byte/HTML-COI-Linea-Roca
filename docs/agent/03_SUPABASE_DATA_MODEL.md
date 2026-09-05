@@ -109,3 +109,28 @@ Revisar:
 - RPC;
 - RLS;
 - frontend consumidor.
+
+## Documentación de OC — camino activo
+
+El camino documental **activo y único** es:
+
+- los archivos viven en el bucket privado `coi-documentos` de Supabase Storage;
+- se indexan en `public.coi_documentos_oc`, que el módulo V58.1R28 lee y
+  publica en la ficha (caché en memoria, nunca en localStorage).
+
+H07 **no creó** ninguna tabla documental adicional. El intento inicial de darle
+autoridad remota a las referencias externas de la V64 (`coi_documentacion_oc`
+de localStorage: repositorio, ruta, «Carpeta documental OneDrive», links) fue
+**retirado** en el PR #61: contradecía AGENTS.md y BASELINE_OPERATIVA, que
+establecen que OneDrive y `Agregar link documental` no se reintroducen y que
+Storage más las tablas vigentes son el camino activo. Ver KI-019 y TD-049.
+
+El material histórico de esa clave se conserva intacto, fuera del modelo
+operacional, contable y exportable por `__COI_DOC_H07_LEGACY__`.
+
+Consecuencia para el Centro de Alertas: las alertas que pedían cargar el link de
+una carpeta OneDrive/SharePoint o agregar una «referencia documental» externa
+quedaron **filtradas**, porque dirigían a una acción retirada y —con el store
+vacío— se disparaban para todas las OC. Las alertas documentales del camino
+vigente («OC activa sin Acta de Inicio», «Falta expediente», «Falta última
+acta», «Estado documental pendiente») siguen intactas. Ver TD-056 y `H07-21`.
