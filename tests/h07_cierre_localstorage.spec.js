@@ -76,6 +76,16 @@ const OBS_LEGADA_ALIAS = [{
   estadoObservacion: 'Abierta'
 }];
 
+const POSICION_A = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+const POSICION_B = 'bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb';
+
+const obsLegadaRepetida = (n) => Array.from({ length: n }, (_, i) => ({
+  idObservacion: 'OBS-DUP-' + (i + 1),
+  ocNro: ORDEN_NRO,
+  texto: 'FALTA FIRMA',
+  estadoObservacion: 'Abierta'
+}));
+
 const obsRemota = (id, texto) => ({
   id,
   orden_id: ORDEN_ID,
@@ -112,6 +122,9 @@ async function prepararH07(page, opciones = {}) {
     // puesto con red lenta, en el que el modelo NO puede seguir mostrando lo
     // que dejo publicado el inicializador legado.
     demoraObs: 0,
+    // Posiciones financieras remotas, para el camino real de borrado.
+    posiciones: [],
+    consumos: [],
     marcadorH03: true
   }, opciones);
   const obsLegadas = opciones.legadoObsFilas || OBS_LEGADA;
@@ -171,8 +184,13 @@ async function prepararH07(page, opciones = {}) {
             window.__H07_DEMORADA__ = true;
             await new Promise((r) => setTimeout(r, demora));
           }
-          const base = st.tabla === 'coi_ordenes' ? window.__H07_CFG__.ordenes
-            : (st.tabla === 'coi_observaciones_oc' ? observaciones : []);
+          const tablas = {
+            coi_ordenes: window.__H07_CFG__.ordenes,
+            coi_observaciones_oc: observaciones,
+            coi_posiciones_oc: window.__H07_CFG__.posiciones || [],
+            coi_consumos_posicion: window.__H07_CFG__.consumos || []
+          };
+          const base = tablas[st.tabla] || [];
           return { data: base.filter(cumple), error: null };
         },
         then(res, rej) { return api._run(false).then(res, rej); }
@@ -202,6 +220,8 @@ async function prepararH07(page, opciones = {}) {
     window.esAutorizacionAdministrativaSupabaseV60 = () => true;
     window.mostrarMensajeCOI = () => {};
     window.confirm = () => true;
+    window.__H07_TOASTS__ = [];
+    window.coiToast = (m) => window.__H07_TOASTS__.push(String(m));
     window.__H07_ALERTAS__ = [];
     window.alert = (m) => window.__H07_ALERTAS__.push(String(m));
   }, { c: cfg, docLegado: DOC_LEGADO, docV33: DOC_LEGADO_V33, obsLegada: obsLegadas, uidInicial: UID_A });
@@ -948,4 +968,275 @@ test('H07-25 · el backup y el diagnóstico no cuentan el legado como documentac
   expect(JSON.stringify(backup.datos)).not.toContain('DOC-OC-LEGADO-H07');
   // El volcado crudo si lo conserva, bajo su propia seccion y sin autoridad.
   expect(JSON.stringify(backup.localStorage)).toContain('DOC-OC-LEGADO-H07');
+});
+
+// ============ 14 · la conciliación preserva la multiplicidad (F1)
+
+// Con un Set, dos filas legadas identicas quedaban conciliadas por UNA sola
+// fila remota equivalente: el marcador se ponia y la segunda observacion
+// historica desaparecia de la recuperacion sin haber llegado nunca a Supabase.
+async function cuarentenaCon(page, locales, remotas) {
+  await prepararH07(page, {
+    legadoObservaciones: true,
+    legadoObsFilas: obsLegadaRepetida(locales),
+    marcadorH03: false,
+    observaciones: Array.from({ length: remotas }, (_, i) =>
+      obsRemota('7777777' + i + '-7777-4777-8777-77777777777' + i, 'FALTA FIRMA'))
+  });
+  await abrirH07(page);
+  await page.waitForFunction(() => window.__COI_OBS_H03__.sincronizado === true, null, { timeout: 20000 });
+  return page.evaluate(() => ({
+    cuarentena: window.__COI_OBS_H03__.legadoEnCuarentena,
+    pendientes: window.__COI_OBS_H07_CUARENTENA__.pendientes().length,
+    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1'),
+    conservadas: window.__COI_OBS_H07_CUARENTENA__.filas().length
+  }));
+}
+
+test('H07-26 · A · dos filas legadas idénticas y una remota dejan UNA pendiente', async ({ page }) => {
+  const r = await cuarentenaCon(page, 2, 1);
+  expect(r.cuarentena).toBe(1);
+  expect(r.pendientes).toBe(1);
+  // La cuarentena sigue activa y el corte NO se dio por cumplido.
+  expect(r.marcador).toBeNull();
+  // Ninguna de las dos filas locales se perdio.
+  expect(r.conservadas).toBe(2);
+});
+
+test('H07-27 · B · dos filas legadas idénticas y dos remotas concilian', async ({ page }) => {
+  const r = await cuarentenaCon(page, 2, 2);
+  expect(r.cuarentena).toBe(0);
+  expect(r.pendientes).toBe(0);
+  expect(r.marcador).toBe('1');
+  expect(r.conservadas).toBe(2);
+});
+
+test('H07-28 · C · tres filas legadas idénticas y dos remotas dejan exactamente una', async ({ page }) => {
+  const r = await cuarentenaCon(page, 3, 2);
+  expect(r.cuarentena).toBe(1);
+  expect(r.pendientes).toBe(1);
+  expect(r.marcador).toBeNull();
+  expect(r.conservadas).toBe(3);
+});
+
+// ============ 15 · la caché financiera retirada tampoco vuelve por el DELETE (F2)
+
+test('H07-29 · borrar una posición con readback fallido no reescribe la caché financiera', async ({ page }) => {
+  await prepararH07(page, {
+    posiciones: [{
+      id: POSICION_A, orden_id: ORDEN_ID, nro_oc: ORDEN_NRO, posicion: '10',
+      descripcion: 'POSICION A', cantidad_total: 1, monto_total: 100,
+      cantidad_consumida: 0, monto_consumido: 0, estado: 'LIBRE'
+    }]
+  });
+  await abrirH07(page);
+
+  const r = await page.evaluate(async ({ idA, idB }) => {
+    const CLAVE = 'coi_cache_posiciones_oc_supabase_v1';
+    // Caché pre-H07 con varias posiciones: el estado que hace visible el bug.
+    localStorage.setItem(CLAVE, JSON.stringify({
+      source: 'Supabase', savedAt: '2026-08-01T00:00:00.000Z',
+      positions: [{ id: idA, nro_oc: '4530007777', monto_total: 100 },
+        { id: idB, nro_oc: '4530007777', monto_total: 200 }]
+    }));
+
+    window.obtenerPerfilUsuarioActual = async () => ({ profile_ok: true, rol: 'administrador' });
+    const api = window.COI_FINANZAS_SUPABASE;
+    // El DELETE remoto tiene EXITO y el readback posterior FALLA: el modulo
+    // devuelve su refreshWarning en vez de una relectura confirmada.
+    api.eliminarPosiciones = async (ids) => {
+      const salida = ids.map((id) => ({ id }));
+      salida.refreshWarning = 'No se pudo releer Supabase tras la eliminación.';
+      return salida;
+    };
+
+    // Flujo real de la UI: sección de finanzas, checkbox y botón delegados.
+    const seccion = document.createElement('div');
+    seccion.setAttribute('data-fin-oc', 'OC-H07');
+    seccion.innerHTML = '<input type="checkbox" class="finance-check chk-fin-delete-position-v60" ' +
+      'data-fin-delete-id-v60="' + idA + '" checked>' +
+      '<div class="finance-delete-bar-v60"><b data-fin-delete-count-v60></b>' +
+      '<button type="button" data-fin-delete-selected-v60>Eliminar seleccionadas</button></div>';
+    document.body.appendChild(seccion);
+
+    seccion.querySelector('[data-fin-delete-selected-v60]').click();
+    // Espera a que la validación remota abra el modal real.
+    for (let i = 0; i < 60 && !document.querySelector('#coiFinDeleteInputV60'); i++) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    const input = document.querySelector('#coiFinDeleteInputV60');
+    if (!input) return { modal: false };
+    input.value = 'ELIMINAR';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    document.querySelector('#coiFinDeleteConfirmV60').click();
+    await new Promise((r) => setTimeout(r, 1500));
+
+    return {
+      modal: true,
+      cache: localStorage.getItem(CLAVE),
+      warning: (window.__H07_TOASTS__ || []).join(' | ')
+    };
+  }, { idA: POSICION_A, idB: POSICION_B });
+
+  // El flujo real llegó hasta el modal de confirmación.
+  expect(r.modal).toBe(true);
+  // La eliminación remota ocurrió, el readback falló y aún así la clave
+  // retirada NO quedó reescrita con las posiciones restantes: se descartó.
+  expect(r.cache).toBeNull();
+});
+
+// ============ 16 · el backup lleva el Timeline autoritativo (F3)
+
+const EVENTOS_REMOTOS = [
+  { id: 'e1', fecha: '2026-09-01', tipo_evento: 'Nota', oc: '4530007777', titulo: 'EVENTO REMOTO UNO' },
+  { id: 'e2', fecha: '2026-09-02', tipo_evento: 'Nota', oc: '4530007777', titulo: 'EVENTO REMOTO DOS' }
+];
+
+async function backupDe(page) {
+  await page.evaluate(() => {
+    window.__H07_BACKUP__ = null;
+    const crear = URL.createObjectURL;
+    URL.createObjectURL = function (blob) {
+      try { blob.text().then((t) => { window.__H07_BACKUP__ = t; }); } catch (e) {}
+      return crear.call(URL, blob);
+    };
+  });
+  await page.evaluate(() => window.COI_V581.exportBackup());
+  await page.waitForFunction(() => window.__H07_BACKUP__ !== null, null, { timeout: 10000 });
+  return page.evaluate(() => JSON.parse(window.__H07_BACKUP__));
+}
+
+test('H07-30 · A · el backup exporta el Timeline confirmado aunque la caché ya no exista', async ({ page }) => {
+  await prepararH07(page, { eventos: EVENTOS_REMOTOS });
+  await abrirH07(page);
+  await page.waitForFunction(() => window.COI_TIMELINE_COI.isAuthoritativeReady() === true, null, { timeout: 20000 });
+
+  // La caché retirada no existe: antes de esto el backup salía sin Timeline.
+  expect(await page.evaluate(() => localStorage.getItem('coi_timeline_events_v1'))).toBeNull();
+
+  const backup = await backupDe(page);
+  expect(backup.autoritativo.timeline.confirmado).toBe(true);
+  expect(backup.autoritativo.timeline.fuente).toBe('supabase');
+  expect(backup.autoritativo.timeline.eventos.length).toBe(2);
+  expect(JSON.stringify(backup.autoritativo.timeline.eventos)).toContain('EVENTO REMOTO UNO');
+  expect(backup.resumen.totalEventosTimeline).toBe(2);
+  // El volcado crudo es una sección aparte y NO trae el Timeline.
+  expect(Object.prototype.hasOwnProperty.call(backup.localStorage, 'coi_timeline_events_v1')).toBe(false);
+  // Exportar no reintrodujo la clave.
+  expect(await page.evaluate(() => localStorage.getItem('coi_timeline_events_v1'))).toBeNull();
+});
+
+test('H07-31 · B · restaurar ese backup usa la ruta remota y no escribe caché local', async ({ page }) => {
+  await prepararH07(page, { eventos: EVENTOS_REMOTOS });
+  await abrirH07(page);
+  await page.waitForFunction(() => window.COI_TIMELINE_COI.isAuthoritativeReady() === true, null, { timeout: 20000 });
+
+  const backup = await backupDe(page);
+
+  const r = await page.evaluate(async (payload) => {
+    const registro = [];
+    window.COI_TIMELINE_COI.replace = async (eventos, motivo) => {
+      registro.push({ eventos: (eventos || []).length, motivo: String(motivo || '') });
+      return eventos;
+    };
+    window.confirm = () => true;
+
+    // Camino real del panel de backup: el input de importación delegado.
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.id = 'fileImportarBackupV581';
+    document.body.appendChild(input);
+    const dt = new DataTransfer();
+    dt.items.add(new File([JSON.stringify(payload)], 'backup.json', { type: 'application/json' }));
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // Se devuelve ANTES del recargado diferido que hace el importador.
+    await new Promise((r) => setTimeout(r, 450));
+    return { registro, cache: localStorage.getItem('coi_timeline_events_v1') };
+  }, backup);
+
+  expect(r.registro).toHaveLength(1);
+  expect(r.registro[0].eventos).toBe(2);
+  // Se restauró por el campo autoritativo, no por el volcado crudo.
+  expect(r.registro[0].motivo).toContain('snapshot autoritativo');
+  // Y la caché retirada nunca se escribió.
+  expect(r.cache).toBeNull();
+});
+
+test('H07-32 · C · un Timeline vacío confirmado se exporta como vacío, no como ausente', async ({ page }) => {
+  await prepararH07(page, { eventos: [] });
+  await abrirH07(page);
+  await page.waitForFunction(() => window.COI_TIMELINE_COI.isAuthoritativeReady() === true, null, { timeout: 20000 });
+
+  const backup = await backupDe(page);
+  expect(backup.autoritativo.timeline.confirmado).toBe(true);
+  expect(backup.autoritativo.timeline.eventos).toEqual([]);
+  // Vacío confirmado es 0. Ausente sería null.
+  expect(backup.resumen.totalEventosTimeline).toBe(0);
+});
+
+test('H07-33 · D · sin lectura confirmada el backup no inventa un Timeline', async ({ page }) => {
+  await prepararH07(page, { eventos: [] });
+  await abrirH07(page);
+
+  const backup = await page.evaluate(async () => {
+    // Estado degradado: esta sesión no tiene lectura remota confirmada.
+    window.COI_TIMELINE_COI.isAuthoritativeReady = () => false;
+    // Y un legado local de una versión anterior tampoco puede colarse.
+    localStorage.setItem('coi_timeline_events_v1', JSON.stringify([{ id: 'legado', titulo: 'NO DEBE APARECER' }]));
+    window.__H07_BACKUP__ = null;
+    const crear = URL.createObjectURL;
+    URL.createObjectURL = function (blob) {
+      try { blob.text().then((t) => { window.__H07_BACKUP__ = t; }); } catch (e) {}
+      return crear.call(URL, blob);
+    };
+    window.COI_V581.exportBackup();
+    await new Promise((r) => setTimeout(r, 800));
+    return JSON.parse(window.__H07_BACKUP__ || 'null');
+  });
+
+  expect(backup).not.toBeNull();
+  expect(backup.autoritativo.timeline.confirmado).toBe(false);
+  expect(backup.autoritativo.timeline.eventos).toEqual([]);
+  // Ausente, no vacío confirmado.
+  expect(backup.resumen.totalEventosTimeline).toBeNull();
+  // El legado local NO se promovió a snapshot autoritativo.
+  expect(JSON.stringify(backup.autoritativo)).not.toContain('NO DEBE APARECER');
+});
+
+// ============ 17 · un solo gesto no puede preguntar dos veces
+
+test('H07-34 · dos clicks del mismo gesto producen UNA sola confirmación', async ({ page }) => {
+  // En tactil el navegador sintetiza un click de compatibilidad ademas del
+  // real, y llega en un task posterior. Sin ventana de gesto, «Descartar
+  // bloqueo» le preguntaba dos veces al operador por un solo toque.
+  await prepararH07(page, {
+    legadoObservaciones: true, marcadorH03: false, observaciones: [OBS_REMOTA_AJENA]
+  });
+  await abrirH07(page);
+  await page.evaluate(() => {
+    window.__H07_CONFIRMS__ = [];
+    window.confirm = (m) => { window.__H07_CONFIRMS__.push(String(m)); return false; };
+  });
+  await abrirObservaciones(page);
+
+  const r = await page.evaluate(async () => {
+    const boton = document.querySelector('[data-h07-obs-descartar]');
+    boton.click();
+    // El segundo click del mismo gesto, en un task posterior.
+    await new Promise((r) => setTimeout(r, 120));
+    const b2 = document.querySelector('[data-h07-obs-descartar]');
+    if (b2) b2.click();
+    await new Promise((r) => setTimeout(r, 400));
+    return {
+      preguntas: window.__H07_CONFIRMS__.length,
+      cuarentena: window.__COI_OBS_H03__.legadoEnCuarentena
+    };
+  });
+
+  expect(r.preguntas).toBe(1);
+  // Y como se cancelo, el bloqueo sigue vigente.
+  expect(r.cuarentena).toBe(1);
+  await expect(page.locator('[data-h07-obs-cuarentena]')).toBeVisible();
 });

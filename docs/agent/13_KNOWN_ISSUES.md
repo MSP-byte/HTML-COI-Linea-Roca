@@ -427,9 +427,17 @@ En la segunda vuelta de review del PR #61 se cerraron tres huecos más:
    contestaba. Ahora se retira sincrónicamente, antes del primer `await`
    (TD-053).
 
+Tercera vuelta de review: la conciliación comparaba contra un **conjunto** y
+perdía la multiplicidad. Dos observaciones legadas idénticas quedaban las dos
+conciliadas por una única fila remota equivalente, el marcador se ponía y la
+segunda desaparecía de la recuperación sin haber llegado nunca a Supabase. Ahora
+la comparación es de multiset: cada fila remota concilia exactamente una fila
+local (TD-057).
+
 La protección de KI-007 se mantiene: mientras exista material sin conciliar,
 `cutoverPendiente()` bloquea toda mutación. Fijado por `H07-7` a `H07-10`,
-`H07-13` a `H07-19` en `tests/h07_cierre_localstorage.spec.js` y por `H06-10c`.
+`H07-13` a `H07-19` y `H07-26` a `H07-28` en
+`tests/h07_cierre_localstorage.spec.js`, y por `H06-10c`.
 
 Texto original conservado abajo como historia.
 
@@ -467,6 +475,20 @@ pestañas con `coi_timeline_sync_ping_v1`, una señal con marca de tiempo y un
 contador: no contiene eventos y no puede reconstruir nada. El backup integral
 sigue llevando el Timeline, pero serializado desde el snapshot confirmado en
 memoria, no leyendo la caché. Fijado por `H07-11` y `H07-12`.
+
+Tercera vuelta de review: quedaban dos escritores residuales en los caminos de
+**borrado**, que leían la caché retirada, filtraban la fila eliminada y la
+volvían a guardar. Con el DELETE remoto exitoso y la relectura fallida, la clave
+quedaba reescrita con los datos operativos restantes. Ahora esas claves solo se
+descartan (TD-058): cero escritores hacia
+`coi_cache_posiciones_oc_supabase_v1` y hacia `coi_supabase_ordenes_cache_v2`.
+`coi_supabase_estaciones_cache_v1` no está retirada y se conserva consistente.
+Fijado por `H07-29`.
+
+Además, el backup maestro tomaba el Timeline solo del volcado crudo de
+localStorage: retirada esa clave, los backups posteriores a H07 salían **sin
+Timeline**. Ahora se exporta en una sección autoritativa propia y se restaura por
+la ruta remota canónica (TD-059). Fijado por `H07-30` a `H07-33`.
 
 Texto original conservado abajo como historia.
 

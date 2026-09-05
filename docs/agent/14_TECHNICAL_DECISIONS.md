@@ -958,6 +958,14 @@ bloquear. El texto de la UI lo dice con esas palabras.
 Consecuencias. El bloqueo deja de ser un callejón sin salida. Fijado por
 `H07-15`, `H07-16`, `H07-17` y `H07-18`, todos por interacción real con la UI.
 
+Refuerzo (2026-09-05). Un mismo gesto puede emitir más de un evento `click`: en
+táctil el navegador sintetiza uno de compatibilidad además del real, y llega en
+un task posterior. El guard se liberaba en el microtask siguiente, así que ese
+segundo click volvía a entrar y «Descartar bloqueo» le preguntaba **dos veces**
+al operador por un solo toque. Ahora el guard se libera pasada una ventana de
+gesto y los botones quedan deshabilitados mientras la acción corre; un segundo
+click real, más tarde, sigue funcionando. Fijado por `H07-34`.
+
 ## TD-055 — Una conciliación usa la misma semántica canónica que la normalización
 Fecha: 2026-09-05. PR #61.
 
@@ -1002,6 +1010,83 @@ texto a Observaciones. Se aplicó el mismo criterio, filtrando por el texto del
 problema en `window.renderAdminDiagnostico` —el camino que usa el botón del
 panel, porque el `diagnostico()` interno se invoca por referencia cerrada— y en
 `window.ejecutarDiagnosticoSistema`. Ver KI-024 y `H07-24`.
+
+## TD-057 — Conciliar legado es comparar multisets, no conjuntos
+Fecha: 2026-09-05. PR #61 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. TD-050 fijó que el corte se declara conciliando fila por fila. La
+implementación comparaba contra un `Set` de claves remotas, y eso pierde la
+multiplicidad: con dos observaciones legadas idénticas —misma OC, mismo texto— y
+**una sola** equivalente en Supabase, las dos quedaban «conciliadas». El
+marcador se ponía, la cuarentena caía a cero y la segunda observación histórica
+desaparecía de la recuperación sin haber llegado nunca al remoto.
+
+Decisión. La comparación es de **multiset**: se cuenta cuántas filas remotas hay
+por clave y cada fila local equivalente consume exactamente una, recorriéndolas
+en orden. Agotado el contador, las locales que sobran quedan pendientes. Una
+fila remota concilia una sola fila local.
+
+`registrarCuarentena()` y `pendientesDeConciliar()` comparten el mismo recorrido
+(`faltanEnElRemoto`) para que no puedan volver a divergir.
+
+Alternativas descartadas. Un constraint de unicidad server-side: resolvería el
+duplicado en origen, pero es una migración y H07 no aporta ninguna. Queda como
+riesgo residual documentado.
+
+Consecuencias. Fijado por `H07-26` (2 locales / 1 remota → 1 pendiente),
+`H07-27` (2/2 → resuelta) y `H07-28` (3/2 → exactamente 1 pendiente).
+
+## TD-058 — Una caché retirada se descarta; nunca se filtra y se vuelve a guardar
+Fecha: 2026-09-05. PR #61.
+
+Contexto. H07 retiró `coi_cache_posiciones_oc_supabase_v1` y
+`coi_supabase_ordenes_cache_v2` del camino de escritura normal (KI-021). Pero
+los caminos de **borrado** seguían haciendo leer → filtrar la fila borrada →
+**volver a guardar**. Con el DELETE remoto exitoso y la relectura fallida
+(`refreshWarning`), esa reescritura dejaba las posiciones financieras restantes
+en reposo en el navegador: exactamente lo que se había retirado.
+
+Decisión. Sobre una clave retirada la única operación admitida es
+`removeItem`. `purgeCache()` del módulo de posiciones descarta la copia entera y
+`deleteDropCacheV60()` hace lo mismo en el borrado de OC. Si la relectura falla
+no se reconstruye nada: se conserva el warning y el comportamiento fail-closed, y
+la eliminación remota —que ya ocurrió— no se revierte.
+
+`coi_supabase_estaciones_cache_v1` **no** está retirada: se sigue escribiendo y
+leyendo en el camino normal, así que ahí se conserva el filtrado.
+
+Consecuencias. Cero escritores operativos hacia la clave financiera. Fijado por
+`H07-29`, que recorre el flujo real de la UI —selección, modal, confirmación— con
+el DELETE remoto exitoso y el readback fallido.
+
+## TD-059 — El backup lleva el Timeline autoritativo, no la caché
+Fecha: 2026-09-05. PR #61.
+
+Contexto. El backup maestro V58.1 tomaba el Timeline únicamente del volcado
+crudo `payload.localStorage`. H07 retiró `coi_timeline_events_v1`, de modo que
+desde entonces **todos los backups salían sin Timeline** y el importador
+informaba que el archivo no traía snapshot.
+
+Decisión. El payload gana una sección propia, `autoritativo.timeline`, con el
+snapshot **confirmado** en memoria (`window.coiTimelineEvents`), y solo cuando
+`COI_TIMELINE_COI.isAuthoritativeReady()` es `true`. El backup distingue así dos
+cosas que no se pueden mezclar: los snapshots autoritativos y el volcado crudo de
+recuperación. `resumen.totalEventosTimeline` vale `0` para un Timeline vacío
+**confirmado** y `null` cuando no hay lectura confirmada: vacío no es lo mismo
+que ausente.
+
+Sin lectura confirmada no se inventa nada: `confirmado:false`, sin eventos, y el
+importador no restaura. Un `coi_timeline_events_v1` que sobreviva de una versión
+anterior nunca se promueve a snapshot autoritativo.
+
+Restore. Prioriza el campo autoritativo y restaura siempre por la ruta remota
+canónica (`COI_TIMELINE_COI.replace`); la caché retirada no se reescribe en
+ningún caso. Los backups anteriores a H07 se siguen aceptando leyendo
+`localStorage.coi_timeline_events_v1` del payload, pero solo como formato legado.
+
+Consecuencias. Fijado por `H07-30` (export con la caché ausente), `H07-31`
+(restore por la ruta remota, sin escribir caché), `H07-32` (vacío confirmado) y
+`H07-33` (sin lectura confirmada no se inventa Timeline).
 
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.

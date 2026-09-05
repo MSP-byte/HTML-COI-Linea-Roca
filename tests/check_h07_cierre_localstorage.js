@@ -134,7 +134,7 @@ check(cuarentena.indexOf('if (marcadorPuesto()) { runtime.legadoEnCuarentena = 0
   'con el corte ya resuelto no hay cuarentena pendiente');
 check(cuarentena.indexOf('if (!runtime.sincronizado || !Array.isArray(runtime.confirmado))') >= 0,
   'sin lectura remota confirmada todo el legado cuenta como pendiente (fail-closed)');
-check(cuarentena.indexOf('const remotas = new Set(runtime.confirmado.map(claveObs));') >= 0,
+check(cuarentena.indexOf('const pendientes = faltanEnElRemoto(locales);') >= 0,
   'la cuarentena tiene que compararse fila por fila contra el remoto');
 check(cuarentena.indexOf('if (!pendientes.length) ponerMarcador();') >= 0,
   'el corte solo se da por cumplido cuando TODAS las filas locales estan en el remoto');
@@ -166,6 +166,85 @@ check(descartar.indexOf('this.exportarJSON()') >= 0,
   'el descarte tiene que exportar antes de liberar el bloqueo');
 check(descartar.indexOf('removeItem') < 0,
   'el descarte NO puede borrar el material legado');
+
+// ============ 6b) la conciliacion preserva la MULTIPLICIDAD
+// Con un Set, dos filas legadas identicas quedaban conciliadas por una unica
+// fila remota equivalente: el corte se daba por cumplido y la segunda
+// desaparecia de la recuperacion sin haber llegado nunca a Supabase.
+check(!/new Set\(runtime\.confirmado\.map\(claveObs\)\)/.test(html),
+  'la conciliacion no puede comparar contra un conjunto: pierde multiplicidad');
+const multiset = html.slice(html.indexOf('  function faltanEnElRemoto(locales) {'), html.indexOf('  // Cuantas observaciones legadas siguen SIN estar en Supabase.'));
+check(multiset.indexOf('const disponibles = new Map();') >= 0,
+  'hay que contar cuantas filas remotas hay por clave');
+check(multiset.indexOf('disponibles.set(k, (disponibles.get(k) || 0) + 1);') >= 0,
+  'cada fila remota suma una unidad disponible para su clave');
+check(multiset.indexOf('if (quedan > 0) disponibles.set(k, quedan - 1);') >= 0,
+  'una fila remota solo puede conciliar UNA fila local equivalente');
+check(multiset.indexOf('else faltan.push(o);') >= 0,
+  'agotado el contador, la fila local queda pendiente');
+// Un unico recorrido compartido: los dos llamadores no pueden divergir.
+check((html.match(/faltanEnElRemoto\(locales\)/g) || []).length === 3,
+  'registrarCuarentena y pendientesDeConciliar tienen que usar el mismo recorrido');
+
+// ============ 6c) la cache financiera retirada no recibe escrituras nuevas
+// El camino de DELETE filtraba la cache y la volvia a guardar: con el borrado
+// remoto exitoso y el readback fallido quedaba reescrita con las posiciones
+// restantes, que es exactamente lo que H07 retiro (KI-021).
+const CLAVE_FIN = 'coi_cache_posiciones_oc_supabase_v1';
+const bloquesConClaveFin = html.split('\n').reduce((acc, linea, i) => {
+  if (linea.indexOf(CLAVE_FIN) >= 0) acc.push(i + 1);
+  return acc;
+}, []);
+check(bloquesConClaveFin.length > 0, 'la clave financiera retirada tiene que seguir nombrada para poder purgarla');
+check(html.indexOf('  function purgeCache(){') >= 0,
+  'purgeCache no puede seguir recibiendo un id: ya no filtra, descarta');
+const purge = html.slice(html.indexOf('  function purgeCache(){'), html.indexOf('  function purgeMemory(id){'));
+check(purge.indexOf('localStorage.removeItem(CACHE_KEY);') >= 0,
+  'el camino de DELETE tiene que RETIRAR la cache financiera');
+check(!/setItem/.test(purge),
+  'el camino de DELETE no puede reescribir la cache financiera');
+check(html.indexOf('    deleteDropCacheV60(DELETE_FINANCE_CACHE_V60);') >= 0,
+  'el borrado de OC tiene que descartar la cache financiera, no filtrarla');
+check(html.indexOf('    deleteDropCacheV60(SUPABASE_CACHE_KEY);') >= 0,
+  'el borrado de OC tampoco puede reescribir la cache de ordenes retirada');
+check(html.indexOf("    deleteFilterCacheV60(SUPABASE_STATIONS_CACHE_KEY, row, 'stations');") >= 0,
+  'la cache de estaciones NO esta retirada: se conserva consistente');
+check(!/deleteFilterCacheV60\(DELETE_FINANCE_CACHE_V60/.test(html),
+  'no puede quedar ningun filtrar+guardar sobre la cache financiera');
+// Cero escritores operativos: ninguna linea que nombre la clave puede escribirla,
+// y ningun CACHE_KEY del modulo financiero ni del de borrado se persiste.
+const modFin = html.slice(html.indexOf("  const CACHE_KEY='coi_cache_posiciones_oc_supabase_v1';"));
+const finanzas = modFin.slice(0, modFin.indexOf('</' + 'script>'));
+check(!/setItem\(CACHE_KEY|saveJSON\w*\(CACHE_KEY|safeWriteJSON\(CACHE_KEY/.test(finanzas),
+  'el modulo financiero no puede escribir su cache retirada');
+const modDel = html.slice(html.indexOf('<script id="coi-v60-posiciones-delete">'));
+const borrado = modDel.slice(0, modDel.indexOf('</' + 'script>'));
+check(!/setItem\(CACHE_KEY|saveJSON\w*\(CACHE_KEY|safeWriteJSON\(CACHE_KEY/.test(borrado),
+  'el modulo de borrado de posiciones no puede escribir la cache retirada');
+
+// ============ 6d) el backup lleva el Timeline autoritativo, no la cache
+// Como el Timeline dejo de vivir en localStorage y el backup lo tomaba solo del
+// volcado crudo, los backups posteriores a H07 salian SIN Timeline.
+const tl = html.slice(html.indexOf('  function timelineAutoritativo(){'), html.indexOf('  function exportBackup(){'));
+check(tl.indexOf("if(api.isAuthoritativeReady()!==true)return salida;") >= 0,
+  'solo se exporta el Timeline cuando la sesion confirmo una lectura remota');
+check(tl.indexOf('salida.eventos=Array.isArray(window.coiTimelineEvents)?window.coiTimelineEvents.slice():[];') >= 0,
+  'el Timeline del backup sale del snapshot confirmado en memoria');
+check(!/localStorage/.test(tl),
+  'el Timeline del backup no puede volver a depender de localStorage');
+check(html.indexOf('autoritativo:{timeline:timeline}') >= 0,
+  'el backup tiene que declarar el Timeline en una seccion autoritativa propia');
+check(html.indexOf('totalEventosTimeline:timeline.confirmado?timeline.eventos.length:null') >= 0,
+  'el resumen tiene que distinguir vacio confirmado de Timeline ausente');
+check(html.indexOf("if(timelineAuth&&timelineAuth.confirmado===true&&Array.isArray(timelineAuth.eventos)){") >= 0,
+  'el restore tiene que priorizar el campo autoritativo');
+check(html.indexOf("timelineIncoming=legacy;timelineOrigen='backup previo a H07';") >= 0,
+  'los backups anteriores a H07 se siguen aceptando como formato legado');
+check(html.indexOf('await window.COI_TIMELINE_COI.replace(timelineIncoming,') >= 0,
+  'el restore del Timeline tiene que ir por la ruta remota canonica');
+const importa = html.slice(html.indexOf('  function importarBackup(file){'), html.indexOf('  function estadoLocal(){'));
+check(!/setItem\(timelineKey|setItem\('coi_timeline_events_v1'/.test(importa),
+  'restaurar el Timeline no puede reescribir la cache retirada');
 
 // ============ 7) el legado publicado se retira ANTES del primer await
 // El inicializador historico publica en window.observacionesOC lo que encuentra
@@ -210,6 +289,14 @@ check(accion.indexOf("api.descartar({ confirmado: true })") >= 0,
   'la UI tiene que usar las operaciones existentes, no una API paralela');
 check(!/removeItem/.test(accion),
   'ninguna accion de la UI puede borrar el material legado');
+// Un mismo gesto puede emitir mas de un click —en tactil el navegador sintetiza
+// uno de compatibilidad—: una accion que pregunta no puede preguntar dos veces.
+check(html.indexOf('  const GESTO_MS = 600;') >= 0,
+  'la salida de cuarentena necesita una ventana de gesto');
+check(accion.indexOf('botonesCuarentena(true);') >= 0,
+  'los botones tienen que deshabilitarse mientras la accion corre');
+check(accion.indexOf('setTimeout(() => { cuarentenaEnCurso = false; }, GESTO_MS);') >= 0,
+  'el guard se libera recien pasada la ventana de gesto');
 
 // ============ 9) las alertas del modelo documental retirado no se emiten
 const filtro = html.slice(html.indexOf('  const ALERTAS_RETIRADAS = ['), html.indexOf('  function instalarRetiro() {'));

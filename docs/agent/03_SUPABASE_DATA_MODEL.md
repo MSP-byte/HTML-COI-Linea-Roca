@@ -134,3 +134,33 @@ quedaron **filtradas**, porque dirigían a una acción retirada y —con el stor
 vacío— se disparaban para todas las OC. Las alertas documentales del camino
 vigente («OC activa sin Acta de Inicio», «Falta expediente», «Falta última
 acta», «Estado documental pendiente») siguen intactas. Ver TD-056 y `H07-21`.
+
+## Backup maestro V58.1 — snapshots autoritativos vs. volcado de recuperación
+
+El payload del backup separa dos cosas que no se pueden mezclar:
+
+- **`autoritativo`** — snapshots confirmados contra Supabase. Hoy contiene
+  `timeline: { confirmado, fuente, tabla, eventos }`. Se llena únicamente cuando
+  `COI_TIMELINE_COI.isAuthoritativeReady()` es `true`; el origen es el snapshot
+  en memoria (`window.coiTimelineEvents`), nunca localStorage.
+- **`localStorage`** — volcado crudo del navegador. Material de recuperación sin
+  autoridad. Es donde puede aparecer el legado en cuarentena.
+
+`resumen.totalEventosTimeline` vale `0` para un Timeline vacío **confirmado** y
+`null` cuando no hubo lectura confirmada: vacío no es lo mismo que ausente.
+
+El restore prioriza `autoritativo.timeline` y aplica siempre la ruta remota
+canónica `COI_TIMELINE_COI.replace`. La caché retirada
+`coi_timeline_events_v1` no se reescribe en ningún caso. Los backups anteriores
+a H07 se siguen aceptando leyendo esa clave dentro de `payload.localStorage`,
+pero solo como formato legado de importación. Ver TD-059 y `H07-30`…`H07-33`.
+
+## Cachés retiradas: solo se descartan
+
+`coi_cache_posiciones_oc_supabase_v1` y `coi_supabase_ordenes_cache_v2` están
+retiradas (KI-021). Sobre ellas la única operación admitida es `removeItem`:
+ningún camino —tampoco los de borrado— puede leerlas, filtrarlas y volver a
+guardarlas, porque eso reescribe datos operativos en reposo. Ver TD-058.
+
+`coi_supabase_estaciones_cache_v1` **no** está retirada: sigue siendo una caché
+activa del camino normal.
