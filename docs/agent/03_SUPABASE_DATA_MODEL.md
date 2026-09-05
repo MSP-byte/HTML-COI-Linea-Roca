@@ -155,6 +155,17 @@ canónica `COI_TIMELINE_COI.replace`. La caché retirada
 a H07 se siguen aceptando leyendo esa clave dentro de `payload.localStorage`,
 pero solo como formato legado de importación. Ver TD-059 y `H07-30`…`H07-33`.
 
+`replace()` puede devolver `{discarded:true}`: la escritura llegó a Supabase pero
+una operación concurrente la invalidó y no se publicó. En ese caso el restore
+**no** se declara exitoso, no recarga y avisa que se descartó; la traza
+`coi_v581_backup_meta.timeline` guarda `restaurado`, `descartado` o `ausente`.
+Ver TD-062 y `H07-38`/`H07-39`.
+
+El marcador de corte de la cuarentena de observaciones
+(`coi_observaciones_h03_imported_v1`) ya no es un `'1'`: guarda la huella del
+contenido legado conciliado, de modo que una fila que aparezca después reabre la
+cuarentena en vez de quedar oculta. Ver TD-060.
+
 ## Cachés retiradas: solo se descartan
 
 `coi_cache_posiciones_oc_supabase_v1` y `coi_supabase_ordenes_cache_v2` están

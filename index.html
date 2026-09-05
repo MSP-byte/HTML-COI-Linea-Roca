@@ -13073,22 +13073,34 @@ initNavegacionRespaldoCOI();
           if(!Array.isArray(legacy))throw new Error('El Timeline del backup no es una colección válida.');
           timelineIncoming=legacy;timelineOrigen='backup previo a H07';
         }
+        let timelineDescartado=false;
         if(timelineIncoming){
           // Siempre por la ruta remota canonica. La cache retirada no se
           // reescribe en ningun caso: replace() publica contra Supabase.
           if(typeof window.COI_TIMELINE_COI?.replace!=='function')throw new Error('La restauración autoritativa de Timeline no está disponible.');
-          await window.COI_TIMELINE_COI.replace(timelineIncoming,`Timeline restaurado desde backup maestro V58.1 (${timelineOrigen})`);
-          timelineRestored=true;
+          const replacement=await window.COI_TIMELINE_COI.replace(timelineIncoming,`Timeline restaurado desde backup maestro V58.1 (${timelineOrigen})`);
+          // discarded = la escritura llego a Supabase pero una operacion
+          // concurrente la invalido y no se publico. Fail-closed: no se declara
+          // restaurado, no se anuncia exito y no se recarga. El operador
+          // reintenta sobre el estado real.
+          if(replacement&&replacement.discarded)timelineDescartado=true;
+          else timelineRestored=true;
         }
         const omitted=data.datos&&typeof data.datos==='object'
           ?Object.entries(data.datos).filter(([,value])=>Array.isArray(value)&&value.length).map(([key])=>key)
           :[];
-        saveJSONKey(LS_BACKUP_META,{fecha:now(),tipo:'Importado Supabase-first',version:data.version||data.appVersion||VERSION,archivo:file.name,usuario:'Supabase'});
+        const estadoTimeline=timelineDescartado?'descartado':(timelineRestored?'restaurado':'ausente');
+        saveJSONKey(LS_BACKUP_META,{fecha:now(),tipo:'Importado Supabase-first',version:data.version||data.appVersion||VERSION,archivo:file.name,usuario:'Supabase',timeline:estadoTimeline});
+        const detalleTimeline=timelineDescartado
+          ?'La restauración del Timeline se DESCARTÓ por una operación concurrente: no se aplicó. Verificá el estado actual y volvé a intentar.'
+          :(timelineRestored?'Timeline restaurado y confirmado en Supabase.':'El archivo no contenía un snapshot Timeline para restaurar.');
         const detail=[
-          timelineRestored?'Timeline restaurado y confirmado en Supabase.':'El archivo no contenía un snapshot Timeline para restaurar.',
+          detalleTimeline,
           omitted.length?`No se aplicaron localmente datasets canónicos sin RPC de restore: ${omitted.join(', ')}.`:''
         ].filter(Boolean).join(' ');
-        toast('Backup procesado',omitted.length||!timelineRestored?'warn':'ok',detail);
+        toast(timelineDescartado?'Restauración del Timeline descartada':'Backup procesado',
+          (timelineDescartado||omitted.length||!timelineRestored)?'warn':'ok',detail);
+        // Solo se recarga cuando la restauracion quedo efectivamente confirmada.
         if(timelineRestored)setTimeout(()=>location.reload(),700);
       }catch(e){
         toast('No se pudo importar backup','error',e.message||String(e));
@@ -27769,8 +27781,53 @@ document.addEventListener('click',function(event){
     } catch (e) {}
   }
 
-  const marcadorPuesto = () => { try { return getItemNativo.call(window.localStorage, MARKER_KEY) === '1'; } catch (e) { return false; } };
-  const ponerMarcador = () => { try { window.localStorage.setItem(MARKER_KEY, '1'); } catch (e) {} };
+  // Version del formato del marcador de corte.
+  const MARCA_V = 2;
+
+  // Huella determinista del contenido legado presente AHORA. Se ordena para que
+  // reescribir el mismo conjunto en otro orden no cuente como cambio; el
+  // recuento va delante para que agregar un duplicado exacto tambien se note.
+  function huellaLegado() {
+    const claves = legadoEnCuarentena().map(claveObs).sort();
+    return claves.length + ':' + claves.join('~');
+  }
+
+  function marcadorGuardado() {
+    let crudo = null;
+    try { crudo = getItemNativo.call(window.localStorage, MARKER_KEY); } catch (e) { return null; }
+    if (!crudo) return null;
+    // Formato historico: un '1' pelado, sin huella.
+    if (crudo === '1') return { v: 1, huella: null };
+    try {
+      const m = JSON.parse(crudo);
+      return (m && m.v === MARCA_V && typeof m.huella === 'string') ? m : null;
+    } catch (e) { return null; }
+  }
+
+  function ponerMarcador() {
+    try {
+      window.localStorage.setItem(MARKER_KEY, JSON.stringify({
+        v: MARCA_V, huella: huellaLegado(), en: new Date().toISOString()
+      }));
+    } catch (e) {}
+  }
+
+  function marcadorPuesto() {
+    const m = marcadorGuardado();
+    if (!m) return false;
+    if (m.v === 1) {
+      // Marcador historico sin huella. No hay forma de reconstruir QUE se
+      // concilio en su momento, asi que se adopta el contenido actual como el
+      // conciliado y se migra al formato nuevo: se conserva exactamente el
+      // comportamiento que ese puesto ya tenia. A partir de aca, cualquier
+      // cambio posterior de la clave legada SI reabre la cuarentena.
+      ponerMarcador();
+      return true;
+    }
+    // El corte solo sigue valiendo mientras el contenido legado sea el mismo
+    // que se concilio. Si cambio, se reabre.
+    return m.huella === huellaLegado();
+  }
 
   // H07 · Material legado en CUARENTENA. Sigue existiendo tal cual en
   // localStorage —no se borra— pero ya no se publica como observaciones
@@ -30940,19 +30997,71 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     // Y ni el Centro de Alertas ni el Diagnóstico piden la accion retirada.
     instalarFiltroAlertas();
     instalarFiltroDiagnostico();
+    instalarReetiquetado();
+    reetiquetarExportacionLegada();
   }
 
   // «Limpiar documentación global» prometia limpiar un repositorio que ya no es
   // autoridad. Se desactiva en captura, antes de que el handler historico corra.
+  //
+  // «Exportar documentación CSV» no se desactiva: se REDIRIGE al exportador de
+  // cuarentena. Tal como estaba entregaba un CSV vacio con nombre de
+  // documentacion activa —porque documentacionOC ya siempre esta vacio—, que es
+  // peor que no exportar nada: el operador se lleva un archivo que parece decir
+  // que la OC no tiene documentacion.
   document.addEventListener('click', (ev) => {
-    const boton = ev.target && ev.target.closest
-      ? ev.target.closest('#btnV64LimpiarDocGlobal, [data-v64-doc-add], [data-v64-doc-edit], [data-v64-doc-delete], [data-v64-doc-save], [data-v64-save-folder]')
-      : null;
+    if (!ev.target || !ev.target.closest) return;
+
+    if (ev.target.closest('#btnV64ExportDocGlobal')) {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      let filas = 0;
+      try {
+        window.__COI_DOC_H07_LEGACY__.exportarJSON();
+        filas = window.__COI_DOC_H07_LEGACY__.filas().length;
+      } catch (e) {
+        avisar('No se pudo exportar la documentación en cuarentena: ' + ((e && e.message) || e), 'error');
+        return;
+      }
+      avisar(filas
+        ? 'Se exportaron ' + filas + ' referencia(s) documentales en cuarentena. No son documentación operativa: la vigente vive en Supabase Storage.'
+        : 'No hay documentación legada en cuarentena para exportar. La documentación vigente vive en Supabase Storage.',
+        filas ? 'ok' : 'warn');
+      return;
+    }
+
+    const boton = ev.target.closest('#btnV64LimpiarDocGlobal, [data-v64-doc-add], [data-v64-doc-edit], [data-v64-doc-delete], [data-v64-doc-save], [data-v64-save-folder]');
     if (!boton) return;
     ev.preventDefault();
     ev.stopImmediatePropagation();
     avisar(MENSAJE_RETIRADO, 'warn');
   }, true);
+
+  // El rotulo tambien tiene que decir la verdad: el boton ya no exporta la
+  // documentacion de las OC. Se reetiqueta despues de que el panel se dibuje,
+  // sin tocar el resto de la vista.
+  function reetiquetarExportacionLegada() {
+    try {
+      const boton = document.getElementById('btnV64ExportDocGlobal');
+      if (!boton || boton.dataset.h07Reetiquetado === '1') return;
+      boton.textContent = 'Exportar documentación legada (cuarentena)';
+      boton.title = 'Descarga el material documental histórico en cuarentena. ' +
+        'No es documentación operativa: la vigente vive en Supabase Storage.';
+      boton.dataset.h07Reetiquetado = '1';
+    } catch (e) {}
+  }
+  function instalarReetiquetado() {
+    const base = window.renderAdminEstado;
+    if (typeof base !== 'function' || base.__coiDocH07) return;
+    const envuelto = function () {
+      const r = base.apply(this, arguments);
+      reetiquetarExportacionLegada();
+      return r;
+    };
+    envuelto.__coiDocH07 = true;
+    envuelto.__coiDocH07Base = base;
+    window.renderAdminEstado = envuelto;
+  }
 
   window.COI_DOCUMENTACION_H07 = {
     estado: 'retirada',

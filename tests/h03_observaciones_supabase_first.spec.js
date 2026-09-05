@@ -491,12 +491,24 @@ test('F3 · una carga vieja no pisa a una nueva ni repuebla tras SIGNED_OUT', as
   expect(trasSignOut).not.toContain('GANADORA B');
 });
 
+// H07 · El marcador de corte ya no es un '1' pelado: guarda la HUELLA del
+// contenido legado conciliado, para que una fila que aparezca despues reabra la
+// cuarentena en vez de quedar oculta. Un '1' historico se migra a ese formato
+// en el primer arranque, conservando el corte que el puesto ya tenia.
+const corteVigente = (crudo) => {
+  if (crudo === '1') return true;
+  try {
+    const m = JSON.parse(crudo);
+    return m.v === 2 && typeof m.huella === 'string';
+  } catch (e) { return false; }
+};
+
 test('F4 · un fallo de lectura tras el marker no se convierte en cero observaciones', async ({ page }) => {
   await prepararEntorno(page, { filas: [REMOTA] });
   await abrir(page);
   let e = await estado(page);
   expect(e.observaciones).toHaveLength(1);
-  expect(e.marker).toBe('1');
+  expect(corteVigente(e.marker)).toBe(true);
 
   await page.evaluate(async () => {
     window.__H03_CFG__.fallaSelect = true;
@@ -1013,7 +1025,7 @@ test('N10 · un TOKEN_REFRESHED del mismo usuario no convierte un fallo de lectu
   await abrir(page);
   let e = await estado(page);
   expect(e.observaciones).toHaveLength(1);
-  expect(e.marker).toBe('1');
+  expect(corteVigente(e.marker)).toBe(true);
 
   await page.evaluate(async () => {
     // Mismo usuario: solo se renovo el token. La relectura posterior falla.

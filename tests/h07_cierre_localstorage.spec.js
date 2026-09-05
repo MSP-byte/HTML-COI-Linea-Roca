@@ -86,6 +86,17 @@ const obsLegadaRepetida = (n) => Array.from({ length: n }, (_, i) => ({
   estadoObservacion: 'Abierta'
 }));
 
+// El marcador de corte ya no es un '1' pelado: guarda la HUELLA del contenido
+// legado que se dio por conciliado, para que un cambio posterior de la clave
+// reabra la cuarentena en vez de quedar oculto para siempre.
+const marcadorConHuella = (crudo) => {
+  if (!crudo) return false;
+  try {
+    const m = JSON.parse(crudo);
+    return m.v === 2 && typeof m.huella === 'string' && m.huella.length > 0;
+  } catch (e) { return false; }
+};
+
 const obsRemota = (id, texto) => ({
   id,
   orden_id: ORDEN_ID,
@@ -617,7 +628,7 @@ test('H07-15 · el sector Observaciones muestra la cuarentena y permite concilia
     marcador: localStorage.getItem('coi_observaciones_h03_imported_v1')
   }));
   expect(estado.cuarentena).toBe(0);
-  expect(estado.marcador).toBe('1');
+  expect(marcadorConHuella(estado.marcador)).toBe(true);
 });
 
 test('H07-16 · «Exportar legado» descarga el material y no lo borra', async ({ page }) => {
@@ -694,7 +705,7 @@ test('H07-17 · «Descartar bloqueo» exige confirmación, exporta y conserva la
   }));
   expect(confirmado.descargas).toBe(1);
   expect(confirmado.cuarentena).toBe(0);
-  expect(confirmado.marcador).toBe('1');
+  expect(marcadorConHuella(confirmado.marcador)).toBe(true);
   expect(confirmado.legadoIntacto).toEqual(['OBSERVACION LOCAL SIN CONCILIAR']);
 });
 
@@ -757,7 +768,7 @@ test('H07-19 · una fila legada con numeroOC + descripción se concilia igual', 
   expect(resuelta.resuelta).toBe(true);
   expect(resuelta.pendientes).toBe(0);
   expect(await page.evaluate(() => window.__COI_OBS_H03__.legadoEnCuarentena)).toBe(0);
-  expect(await page.evaluate(() => localStorage.getItem('coi_observaciones_h03_imported_v1'))).toBe('1');
+  expect(marcadorConHuella(await page.evaluate(() => localStorage.getItem('coi_observaciones_h03_imported_v1')))).toBe(true);
 });
 
 // ============ 9 · Timeline seguro ante señales solapadas (C)
@@ -1007,7 +1018,7 @@ test('H07-27 · B · dos filas legadas idénticas y dos remotas concilian', asyn
   const r = await cuarentenaCon(page, 2, 2);
   expect(r.cuarentena).toBe(0);
   expect(r.pendientes).toBe(0);
-  expect(r.marcador).toBe('1');
+  expect(marcadorConHuella(r.marcador)).toBe(true);
   expect(r.conservadas).toBe(2);
 });
 
@@ -1239,4 +1250,222 @@ test('H07-34 · dos clicks del mismo gesto producen UNA sola confirmación', asy
   // Y como se cancelo, el bloqueo sigue vigente.
   expect(r.cuarentena).toBe(1);
   await expect(page.locator('[data-h07-obs-cuarentena]')).toBeVisible();
+});
+
+// ============ 18 · el corte no puede tapar filas legadas nuevas (F1)
+
+test('H07-35 · si la clave legada cambia después del corte, la cuarentena se reabre', async ({ page }) => {
+  // El marcador era un '1' pelado: puesto una vez, daba la cuarentena por
+  // resuelta para siempre. Una observación legada que apareciera después
+  // quedaba oculta, sin llegar nunca a Supabase y sin que nada la señalara.
+  await prepararH07(page, {
+    legadoObservaciones: true,
+    marcadorH03: false,
+    observaciones: [obsRemota('88888888-8888-4888-8888-888888888888', 'OBSERVACION LOCAL SIN CONCILIAR')]
+  });
+  await abrirH07(page);
+  await page.waitForFunction(() => window.__COI_OBS_H03__.sincronizado === true, null, { timeout: 20000 });
+
+  // Punto de partida: todo conciliado y el corte registrado CON huella.
+  const inicial = await page.evaluate(() => ({
+    cuarentena: window.__COI_OBS_H03__.legadoEnCuarentena,
+    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1')
+  }));
+  expect(inicial.cuarentena).toBe(0);
+  expect(marcadorConHuella(inicial.marcador)).toBe(true);
+
+  // Ahora aparece una fila legada NUEVA: un proceso viejo, un backup restaurado,
+  // una edición del archivo. El contenido ya no es el que se concilió.
+  const reabierta = await page.evaluate(() => {
+    const actual = JSON.parse(localStorage.getItem('coi_observaciones_oc') === '[]'
+      ? '[]' : localStorage.getItem('coi_observaciones_oc') || '[]');
+    // El escudo enmascara la lectura pública: se escribe el conjunto completo.
+    localStorage.setItem('coi_observaciones_oc', JSON.stringify([
+      { idObservacion: 'OBS-A-LOCAL', ocNro: '4530007777', texto: 'OBSERVACION LOCAL SIN CONCILIAR', estadoObservacion: 'Abierta' },
+      { idObservacion: 'OBS-NUEVA', ocNro: '4530007777', texto: 'OBSERVACION APARECIDA DESPUES DEL CORTE', estadoObservacion: 'Abierta' }
+    ]));
+    return {
+      cuarentena: window.__COI_OBS_H07_CUARENTENA__.cantidad(),
+      pendientes: window.__COI_OBS_H07_CUARENTENA__.pendientes().map((o) => String(o.texto || '')),
+      marcadorConservado: localStorage.getItem('coi_observaciones_h03_imported_v1') !== null,
+      filas: window.__COI_OBS_H07_CUARENTENA__.filas().length
+    };
+  });
+
+  // La cuarentena se reabre y señala exactamente la fila nueva.
+  expect(reabierta.cuarentena).toBe(1);
+  expect(reabierta.pendientes).toEqual(['OBSERVACION APARECIDA DESPUES DEL CORTE']);
+  // No se borró nada.
+  expect(reabierta.marcadorConservado).toBe(true);
+  expect(reabierta.filas).toBe(2);
+
+  // Y las mutaciones vuelven a estar bloqueadas.
+  await page.evaluate(async () => {
+    let ta = document.getElementById('v65NuevaObservacion');
+    if (!ta) { ta = document.createElement('textarea'); ta.id = 'v65NuevaObservacion'; document.body.appendChild(ta); }
+    ta.value = 'NO DEBERIA LLEGAR TRAS LA REAPERTURA';
+    window.guardarObservacionOC('4530007777');
+    await new Promise((r) => setTimeout(r, 900));
+  });
+  const inserts = await page.evaluate(() =>
+    window.__H07_LLAMADAS__.filter((l) => l.op === 'insert:coi_observaciones_oc').length);
+  expect(inserts).toBe(0);
+
+  // La salida vuelve a estar visible en el sector de Observaciones.
+  await abrirObservaciones(page);
+  await expect(page.locator('[data-h07-obs-cuarentena]')).toBeVisible();
+});
+
+test('H07-36 · un marcador histórico «1» sigue valiendo y se migra a huella', async ({ page }) => {
+  // Compatibilidad: los puestos que ya tenían el corte hecho no pueden ver la
+  // cuarentena reabierta de golpe. Se adopta su contenido actual como el
+  // conciliado y se migra al formato nuevo.
+  await prepararH07(page, { legadoObservaciones: true, marcadorH03: true });
+  await abrirH07(page);
+
+  const r = await page.evaluate(() => ({
+    cuarentena: window.__COI_OBS_H07_CUARENTENA__.cantidad(),
+    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1'),
+    filas: window.__COI_OBS_H07_CUARENTENA__.filas().length
+  }));
+
+  expect(r.cuarentena).toBe(0);
+  // Ya no es un '1' pelado: quedó migrado con huella.
+  expect(marcadorConHuella(r.marcador)).toBe(true);
+  // Y el material sigue intacto.
+  expect(r.filas).toBe(1);
+});
+
+// ============ 19 · exportar documentación legada no finge documentación activa (F2)
+
+test('H07-37 · «Exportar documentación» va al exportador de cuarentena, no a un CSV vacío', async ({ page }) => {
+  await prepararH07(page);
+  await abrirH07(page);
+
+  const r = await page.evaluate(async () => {
+    window.__H07_CSV__ = [];
+    window.v64ExportarDocumentosCSV = (docs, nombre) =>
+      window.__H07_CSV__.push({ filas: (docs || []).length, nombre });
+    window.__H07_DESCARGAS__ = [];
+    window.descargarArchivo = (nombre, contenido) => window.__H07_DESCARGAS__.push({ nombre, contenido });
+
+    // Panel real de administración: el botón lo dibuja renderAdminEstado.
+    let cont = document.getElementById('adminTabEstado');
+    if (!cont) { cont = document.createElement('div'); cont.id = 'adminTabEstado'; document.body.appendChild(cont); }
+    if (typeof window.renderAdminEstado === 'function') window.renderAdminEstado();
+    await new Promise((r) => setTimeout(r, 200));
+
+    const boton = document.getElementById('btnV64ExportDocGlobal');
+    if (!boton) return { boton: false };
+    const rotulo = String(boton.textContent || '');
+    boton.click();
+    await new Promise((r) => setTimeout(r, 400));
+
+    return {
+      boton: true,
+      rotulo,
+      csv: window.__H07_CSV__,
+      descargas: window.__H07_DESCARGAS__.map((d) => ({ nombre: d.nombre, datos: JSON.parse(d.contenido) }))
+    };
+  });
+
+  expect(r.boton).toBe(true);
+  // El rótulo ya no promete documentación de la OC.
+  expect(r.rotulo).toContain('cuarentena');
+  expect(r.rotulo).not.toMatch(/CSV/i);
+  // No se exportó ningún CSV vacío haciéndose pasar por documentación activa.
+  expect(r.csv).toEqual([]);
+  // Sí se exportó el material en cuarentena, declarado como no autoritativo.
+  expect(r.descargas).toHaveLength(1);
+  expect(r.descargas[0].nombre).toMatch(/^documentacion_oc_legacy_\d+\.json$/);
+  expect(r.descargas[0].datos.autoritativo).toBe(false);
+  expect(JSON.stringify(r.descargas[0].datos)).toContain('DOC-OC-LEGADO-H07');
+});
+
+// ============ 20 · un restore descartado no se anuncia como exitoso (F3)
+
+test('H07-38 · si replace() devuelve discarded, el restore NO se declara exitoso', async ({ page }) => {
+  await prepararH07(page, { eventos: EVENTOS_REMOTOS });
+  await abrirH07(page);
+  await page.waitForFunction(() => window.COI_TIMELINE_COI.isAuthoritativeReady() === true, null, { timeout: 20000 });
+
+  const backup = await backupDe(page);
+
+  const r = await page.evaluate(async (payload) => {
+    window.__H07_VIVO__ = true;
+    // La escritura llegó a Supabase pero una operación concurrente la invalidó:
+    // el resultado no se publicó.
+    window.COI_TIMELINE_COI.replace = async () => ({
+      ok: true, count: 2, events: [], refreshed: false, discarded: true
+    });
+    window.confirm = () => true;
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.id = 'fileImportarBackupV581';
+    document.body.appendChild(input);
+    const dt = new DataTransfer();
+    dt.items.add(new File([JSON.stringify(payload)], 'backup.json', { type: 'application/json' }));
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // Más que la ventana de recarga del importador (700 ms).
+    await new Promise((r) => setTimeout(r, 1400));
+    const caja = document.getElementById('coiToastV581');
+    let meta = null;
+    try { meta = JSON.parse(localStorage.getItem('coi_v581_backup_meta') || 'null'); } catch (e) {}
+    return {
+      vivo: window.__H07_VIVO__ === true,
+      aviso: caja ? String(caja.textContent || '') : '',
+      clase: caja ? String(caja.className || '') : '',
+      meta,
+      cache: localStorage.getItem('coi_timeline_events_v1')
+    };
+  }, backup);
+
+  // No recargó: la página sigue siendo la misma.
+  expect(r.vivo).toBe(true);
+  // No anunció éxito; informó el descarte.
+  expect(r.aviso).toContain('descartada');
+  expect(r.aviso).toContain('DESCARTÓ');
+  expect(r.aviso).not.toContain('Timeline restaurado y confirmado');
+  expect(r.clase).toContain('warn');
+  // La traza registra el estado real.
+  expect(r.meta && r.meta.timeline).toBe('descartado');
+  // Y la caché retirada tampoco se escribió.
+  expect(r.cache).toBeNull();
+});
+
+test('H07-39 · un restore confirmado sí se declara restaurado', async ({ page }) => {
+  await prepararH07(page, { eventos: EVENTOS_REMOTOS });
+  await abrirH07(page);
+  await page.waitForFunction(() => window.COI_TIMELINE_COI.isAuthoritativeReady() === true, null, { timeout: 20000 });
+
+  const backup = await backupDe(page);
+
+  const r = await page.evaluate(async (payload) => {
+    window.COI_TIMELINE_COI.replace = async (eventos) => ({
+      ok: true, count: (eventos || []).length, events: eventos, refreshed: true
+    });
+    window.confirm = () => true;
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.id = 'fileImportarBackupV581';
+    document.body.appendChild(input);
+    const dt = new DataTransfer();
+    dt.items.add(new File([JSON.stringify(payload)], 'backup.json', { type: 'application/json' }));
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // Antes de la recarga diferida del importador.
+    await new Promise((r) => setTimeout(r, 450));
+    const caja = document.getElementById('coiToastV581');
+    let meta = null;
+    try { meta = JSON.parse(localStorage.getItem('coi_v581_backup_meta') || 'null'); } catch (e) {}
+    return { aviso: caja ? String(caja.textContent || '') : '', meta };
+  }, backup);
+
+  expect(r.aviso).toContain('Timeline restaurado y confirmado');
+  expect(r.meta && r.meta.timeline).toBe('restaurado');
 });

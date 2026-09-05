@@ -1088,5 +1088,76 @@ Consecuencias. Fijado por `H07-30` (export con la caché ausente), `H07-31`
 (restore por la ruta remota, sin escribir caché), `H07-32` (vacío confirmado) y
 `H07-33` (sin lectura confirmada no se inventa Timeline).
 
+## TD-060 — El corte de la cuarentena caduca si el legado cambia
+Fecha: 2026-09-05. PR #61 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. El marcador de KI-007 era un `'1'` pelado. Puesto una vez, daba la
+cuarentena por resuelta **para siempre**. Si la clave legada cambiaba después
+—un proceso viejo agrega una observación, se restaura un backup, alguien edita
+el archivo— esas filas nuevas quedaban ocultas: fuera del modelo operativo, sin
+llegar nunca a Supabase y sin que nada las señalara.
+
+Decisión. El marcador guarda la **huella** del contenido que se dio por
+conciliado: recuento y claves normalizadas ordenadas, calculadas con la misma
+`claveObs` de la conciliación. Si la huella actual no coincide, el corte deja de
+aplicar y la cuarentena se reabre —vuelve a contar, vuelve a bloquear las
+mutaciones y vuelve a mostrarse la salida—. Nunca se borra nada.
+
+El recuento va delante de las claves para que agregar un duplicado exacto
+también cuente como cambio; las claves se ordenan para que reescribir el mismo
+conjunto en otro orden no lo cuente.
+
+Compatibilidad. Un marcador histórico `'1'` sigue valiendo: no se puede
+reconstruir *qué* se concilió en el pasado, así que se adopta el contenido actual
+como el conciliado y se migra al formato nuevo. Ese puesto conserva exactamente
+el comportamiento que ya tenía, y desde ahí cualquier cambio posterior sí se
+detecta. La limitación es deliberada: no reabre retroactivamente cortes que se
+hayan puesto mal antes de esta versión.
+
+Consecuencias. Fijado por `H07-35` (aparece una fila nueva → cuarentena vuelve a
+1, mutaciones bloqueadas, aviso visible, nada borrado) y `H07-36` (el marcador
+histórico sigue valiendo y queda migrado).
+
+## TD-061 — Exportar documentación legada no puede parecerse a exportar la vigente
+Fecha: 2026-09-05. PR #61.
+
+Contexto. «Exportar documentación CSV» del panel de administración exportaba
+`documentacionOC`, que desde el retiro está **siempre vacío**. Entregaba un CSV
+sin filas con nombre de documentación activa: peor que no exportar nada, porque
+el operador se lleva un archivo que parece decir que no hay documentación.
+
+Decisión. La acción no se elimina, se **redirige** al exportador de cuarentena
+(`__COI_DOC_H07_LEGACY__.exportarJSON()`), que es el que sí tiene el material
+histórico, y el botón se reetiqueta para que diga lo que hace. Se intercepta en
+fase de captura, igual que «Limpiar documentación global», de modo que el handler
+histórico no llega a correr. El camino documental vigente —Supabase Storage y
+`public.coi_documentos_oc`— no se toca.
+
+Alternativas descartadas. Ocultar el botón: se pierde la única salida cómoda al
+material en cuarentena desde la UI.
+
+Consecuencias. Fijado por `H07-37`, que dibuja el panel real, comprueba el
+rótulo, hace click y verifica que no se generó ningún CSV y sí la exportación de
+cuarentena declarada como no autoritativa.
+
+## TD-062 — Un restore descartado no se anuncia como exitoso
+Fecha: 2026-09-05. PR #61.
+
+Contexto. `replaceTimelineEventsSupabase()` puede devolver `{discarded:true}`: la
+escritura llegó a Supabase pero una operación concurrente —cambio de sesión u
+otra mutación— invalidó el resultado y **no se publicó**. El restore del backup
+V58.1 ignoraba ese campo: marcaba `timelineRestored=true`, anunciaba éxito y
+recargaba la página como si hubiera restaurado.
+
+Decisión. Se captura el resultado y se aplica el mismo criterio que ya usaba el
+wrapper de backup integral (`if(replacement?.discarded)`). Con `discarded`: no se
+declara restaurado, no se anuncia éxito, no se recarga, y el aviso dice
+explícitamente que la restauración se descartó por una operación concurrente y
+que hay que verificar y reintentar. `coi_v581_backup_meta` registra el estado
+real (`restaurado` / `descartado` / `ausente`).
+
+Consecuencias. Fail-closed y reintentable. Fijado por `H07-38` (descartado) y
+`H07-39` (confirmado).
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.

@@ -246,6 +246,58 @@ const importa = html.slice(html.indexOf('  function importarBackup(file){'), htm
 check(!/setItem\(timelineKey|setItem\('coi_timeline_events_v1'/.test(importa),
   'restaurar el Timeline no puede reescribir la cache retirada');
 
+// ============ 6e) un restore descartado no se anuncia como exitoso
+// replace() puede devolver {discarded:true}: la escritura llego a Supabase pero
+// una operacion concurrente la invalido y NO se publico.
+check(importa.indexOf('const replacement=await window.COI_TIMELINE_COI.replace(') >= 0,
+  'el restore tiene que capturar el resultado de replace()');
+check(importa.indexOf('if(replacement&&replacement.discarded)timelineDescartado=true;') >= 0,
+  'un replace descartado no puede contarse como restaurado');
+check(importa.indexOf('if(timelineRestored)setTimeout(()=>location.reload(),700);') >= 0,
+  'solo se recarga cuando la restauracion quedo confirmada');
+check(/DESCART/.test(importa),
+  'el operador tiene que enterarse de que la restauracion se descarto');
+check(importa.indexOf("const estadoTimeline=timelineDescartado?'descartado':(timelineRestored?'restaurado':'ausente');") >= 0,
+  'la traza del backup tiene que registrar el estado real del Timeline');
+// Mismo criterio que el wrapper de backup integral, que ya cortaba con discarded.
+check(html.indexOf('if(replacement?.discarded)return result;') >= 0,
+  'el wrapper de backup integral tiene que seguir cortando con discarded');
+
+// ============ 6f) el corte de la cuarentena caduca si el legado cambia
+// El marcador era un '1' pelado: puesto una vez, daba la cuarentena por
+// resuelta para siempre y ocultaba cualquier fila que apareciera despues.
+const marca = html.slice(html.indexOf('  const MARCA_V = 2;'), html.indexOf('  // H07 · Material legado en CUARENTENA'));
+check(marca.indexOf('function huellaLegado() {') >= 0,
+  'el corte tiene que registrar una huella del contenido conciliado');
+check(marca.indexOf('const claves = legadoEnCuarentena().map(claveObs).sort();') >= 0,
+  'la huella se calcula sobre las mismas claves que la conciliacion');
+check(marca.indexOf("return claves.length + ':' + claves.join('~');") >= 0,
+  'la huella tiene que incluir el recuento: un duplicado exacto tambien es un cambio');
+check(marca.indexOf('return m.huella === huellaLegado();') >= 0,
+  'el corte solo sigue valiendo mientras el contenido legado sea el mismo');
+check(marca.indexOf("if (crudo === '1') return { v: 1, huella: null };") >= 0,
+  'los puestos con el marcador historico no pueden ver la cuarentena reabierta de golpe');
+check(marca.indexOf('if (m.v === 1) {') >= 0 && marca.indexOf('      ponerMarcador();') >= 0,
+  'el marcador historico tiene que migrarse al formato con huella');
+check(!/removeItem/.test(marca),
+  'reabrir la cuarentena no puede borrar nada de localStorage');
+
+// ============ 9c) exportar documentacion legada no finge documentacion activa
+// El boton exportaba documentacionOC, que esta SIEMPRE vacio: entregaba un CSV
+// sin filas con nombre de documentacion activa.
+const exportador = html.slice(html.indexOf("    if (ev.target.closest('#btnV64ExportDocGlobal')) {"), html.indexOf('    const boton = ev.target.closest('));
+check(exportador.length > 0, 'el export documental legado tiene que estar interceptado');
+check(exportador.indexOf('window.__COI_DOC_H07_LEGACY__.exportarJSON();') >= 0,
+  'el export tiene que redirigir al exportador de cuarentena');
+check(exportador.indexOf('ev.stopImmediatePropagation();') >= 0,
+  'el handler historico no puede llegar a exportar el CSV vacio');
+check(!/v64ExportarDocumentosCSV/.test(exportador),
+  'el camino redirigido no puede volver al exportador CSV legado');
+check(html.indexOf("      boton.textContent = 'Exportar documentación legada (cuarentena)';") >= 0,
+  'el rotulo del boton tiene que decir lo que hace');
+check(html.indexOf('    instalarReetiquetado();') >= 0,
+  'el reetiquetado tiene que instalarse junto con el resto del retiro');
+
 // ============ 7) el legado publicado se retira ANTES del primer await
 // El inicializador historico publica en window.observacionesOC lo que encuentra
 // en la clave legada. Si la retirada esperaba a una operacion async, con red

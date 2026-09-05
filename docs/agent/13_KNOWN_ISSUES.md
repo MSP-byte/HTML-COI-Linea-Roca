@@ -434,9 +434,15 @@ segunda desaparecía de la recuperación sin haber llegado nunca a Supabase. Aho
 la comparación es de multiset: cada fila remota concilia exactamente una fila
 local (TD-057).
 
+Cuarta vuelta: el marcador de corte era un `'1'` pelado y, una vez puesto, daba
+la cuarentena por resuelta **para siempre**. Ahora guarda la huella del contenido
+conciliado y caduca si la clave legada cambia (TD-060). Un marcador histórico
+`'1'` se migra adoptando el contenido actual, de modo que los puestos que ya
+tenían el corte hecho no ven la cuarentena reabierta de golpe.
+
 La protección de KI-007 se mantiene: mientras exista material sin conciliar,
 `cutoverPendiente()` bloquea toda mutación. Fijado por `H07-7` a `H07-10`,
-`H07-13` a `H07-19` y `H07-26` a `H07-28` en
+`H07-13` a `H07-19`, `H07-26` a `H07-28` y `H07-35`/`H07-36` en
 `tests/h07_cierre_localstorage.spec.js`, y por `H06-10c`.
 
 Texto original conservado abajo como historia.
