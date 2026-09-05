@@ -750,7 +750,7 @@ Consecuencias. Los GAPs que quedan abiertos —documentación V64 (KI-019),
 observaciones sin marcador (KI-020) y cachés write-only (KI-021)— están
 documentados en vez de resueltos a ciegas. H07 decide su destino.
 
-## TD-046 — La documentación de OC se identifica por orden_id, no por número
+## TD-046 — (SUPERADA por TD-049) La documentación de OC se identifica por orden_id
 Fecha: 2026-09-04. PR: H07 (`fix/h07-final-localstorage-supabase-first`).
 
 Contexto. `coi_documentos_oc` y `coi_servicios_tecnicos_um` guardan `nro_oc`
@@ -819,6 +819,75 @@ localStorage: ni en el arranque, ni ante un fallo de red, ni con el remoto
 vacío, ni al cambiar de identidad, ni al refrescar el token. Lo que queda en
 localStorage son preferencias, filtros, marcadores de migración, señales de
 sincronización y material legado en cuarentena.
+
+## TD-049 — H07 retira la documentación legada en vez de darle una tabla propia
+Fecha: 2026-09-05. PR #61 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. El objetivo de H07 es que ningún dato operacional dependa de
+localStorage. El módulo documental V64/V575 guardaba sus referencias —tipo,
+número, repositorio, ruta, «Carpeta documental OneDrive», links externos— solo
+en `coi_documentacion_oc` de localStorage (KI-019). El primer intento le dio
+autoridad creando `public.coi_documentacion_oc`.
+
+Decisión. Se retira ese intento. La baseline vigente dice que OneDrive y
+`Agregar link documental` **no se reintroducen** en Ficha OC y que el camino
+activo es Supabase Storage más las tablas documentales vigentes. Darle una tabla
+a ese modelo era construir un segundo camino operativo documental compitiendo
+con `public.coi_documentos_oc`: resolvía la dependencia de localStorage
+creando un problema arquitectónico mayor.
+
+H07 hace lo único que le corresponde: saca la clave legada del modelo
+operacional. `documentacionOC` queda vacío y congelado, las acciones del editor
+retirado quedan deshabilitadas con un mensaje operativo en vez de simular éxito,
+los lectores legados dejan de sumarla a conteos y backup, y el material se
+conserva intacto, contable y exportable, sin autoimportarse nunca.
+
+Alternativas descartadas. (a) Mantener la tabla nueva: contradice AGENTS.md y
+BASELINE_OPERATIVA. (b) Dejar el editor escribiendo en localStorage: es
+exactamente lo que H07 viene a cerrar. (c) Borrar el material: destruye
+referencias que ninguna migración repone.
+
+Consecuencias. H07 no aporta ninguna migración. Si en el futuro el negocio
+necesitara referencias documentales externas, la decisión previa es de producto
+—reabrir o no lo que la baseline retiró— y recién después técnica.
+
+## TD-050 — Un corte de legado se declara conciliando, no suponiendo
+Fecha: 2026-09-05. PR #61 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. El marcador de corte de H03 se ponía con `if (filas.length)`: bastaba
+una observación remota cualquiera para dar por migrado todo el legado local,
+poner la cuarentena en cero y liberar el bloqueo de escritura. Las filas locales
+sin conciliar desaparecían de la vista sin haber llegado nunca a Supabase.
+
+Decisión. La cuarentena se calcula comparando **fila por fila** —OC más texto
+normalizado, que son los campos presentes en las dos formas— contra el snapshot
+remoto confirmado. El corte se da por cumplido solo si no queda ninguna
+pendiente. Sin lectura confirmada, todo el legado cuenta como pendiente.
+
+Y la cuarentena deja de ser un callejón sin salida: `conciliar()` relee y
+libera solo si el remoto ya tiene todo, y `descartar({ confirmado: true })`
+exporta y libera el bloqueo sin borrar nada.
+
+Consecuencias. Un puesto con legado sin conciliar sigue bloqueado para escritura
+—la protección de KI-007 intacta— pero ahora tiene un camino explícito y seguro
+para salir. Fijado por `H07-7` a `H07-10`.
+
+## TD-051 — Una señal de sincronización no puede devolver el eco
+Fecha: 2026-09-05. PR #61 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. H07 reemplazó la caché de eventos del Timeline por una señal sin
+contenido operativo (`coi_timeline_sync_ping_v1`) para conservar la
+sincronización entre pestañas. Pero `applyTimelineEvents()` emitía la señal
+siempre: un `storage` de otra pestaña disparaba `loadEvents()`, que emitía
+otra señal, que la otra pestaña volvía a escuchar. Con dos pestañas abiertas eso
+es un eco sin fin contra Supabase.
+
+Decisión. La recarga lleva un origen. Cuando la provocó la señal de otra pestaña
+se actualiza el Timeline pero **no** se vuelve a emitir. Un ping produce una
+relectura, no una cadena.
+
+Consecuencias. La sincronización entre pestañas se conserva y deja de generar
+tráfico creciente. Fijado por `H07-6`.
 
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.

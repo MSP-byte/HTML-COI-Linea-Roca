@@ -17,16 +17,6 @@
         "motivo": "coi_servicios_tecnicos_um era la unica tabla dependiente de OC sin orden_id: la RPC de renumeracion 20260813033959 lo documenta explicitamente y por eso la excluye de su preflight de integridad. Agregarla le da la misma identidad tecnica por UUID que tienen coi_certificaciones, coi_posiciones_oc, coi_documentos_oc y el resto."
       }
     ],
-    "_doc_tablas": "Tablas que el repositorio crea y el snapshot productivo todavia no tiene. Mientras la entrada siga aca, la capa correspondiente debe fallar de forma entendible en vez de caer a un almacenamiento local: la ausencia de la tabla NO es un motivo valido para volver a localStorage.",
-    "tablas": [
-      {
-        "tabla": "coi_documentacion_oc",
-        "produccion": "ausente",
-        "repo": "presente",
-        "migracion": "202609040001_h07_documentacion_oc.sql",
-        "motivo": "H07 le da autoridad remota a las referencias documentales de OC del modulo V64, que hasta ahora vivian solo en la clave localStorage coi_documentacion_oc (KI-019). Mientras la migracion no se aplique, el modulo documental informa que la tabla no esta disponible y no publica nada."
-      }
-    ],
     "fk": [
       {
         "tabla": "coi_servicios_tecnicos_um",

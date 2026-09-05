@@ -670,13 +670,31 @@ test('F10 · el lector de backup no elige el legado por tener mas filas', async 
   expect(resultado.textos).toEqual(['OBSERVACION REMOTA DE SUPABASE']);
 });
 
-test('F10b · sin marker el legado sigue disponible como fallback identificado', async ({ page }) => {
+test('F10b · sin marker el legado se conserva, pero solo lo ve el circuito de recuperación', async ({ page }) => {
+  // H07 · La clave legada quedo aislada de TODOS los lectores operativos: el
+  // getItem publico la enmascara siempre, con marcador o sin el, porque es
+  // justamente sin marcador —con cuarentena pendiente— cuando mas importa que
+  // ningun consumidor antiguo la reincorpore al modelo.
+  //
+  // El material NO se borra: sigue intacto y accesible por la API de
+  // cuarentena, que usa el getter nativo guardado dentro del modulo.
   await prepararEntorno(page, { filas: [], legado: LEGACY });
   await abrir(page);
 
-  const crudo = await page.evaluate(() => localStorage.getItem('coi_observaciones_oc'));
-  expect(crudo).not.toBeNull();
-  expect(JSON.parse(crudo)).toHaveLength(2);
+  // Ningun lector operativo la ve.
+  expect(await page.evaluate(() => localStorage.getItem('coi_observaciones_oc'))).toBe('[]');
+
+  // El circuito de recuperacion si, y la cuenta como pendiente de conciliar.
+  const cuarentena = await page.evaluate(() => ({
+    filas: window.__COI_OBS_H07_CUARENTENA__.filas().length,
+    pendientes: window.__COI_OBS_H07_CUARENTENA__.pendientes().length,
+    autoritativo: window.__COI_OBS_H07_CUARENTENA__.autoritativo,
+    exportadas: JSON.parse(window.__COI_OBS_H07_CUARENTENA__.exportarJSON()).filas.length
+  }));
+  expect(cuarentena.filas).toBe(2);
+  expect(cuarentena.pendientes).toBe(2);
+  expect(cuarentena.autoritativo).toBe(false);
+  expect(cuarentena.exportadas).toBe(2);
 });
 
 test('F-extra · el detalle de resolucion no se duplica al reintentar', async ({ page }) => {

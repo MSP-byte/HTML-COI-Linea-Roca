@@ -325,23 +325,40 @@ divergencias correspondientes en
 Registrar PR, fecha, resolución y test de regresión.
 
 ## KI-019 — Documentación OC (V64) sigue siendo local-autoritativa
-Estado: RESUELTO EN CÓDIGO (2026-09-04) por H07, rama
-`fix/h07-final-localstorage-supabase-first`. **Pendiente de rollout remoto.**
+Estado: RESUELTO (2026-09-05) por H07, rama
+`fix/h07-final-localstorage-supabase-first`, **por RETIRO del modelo legado**,
+no por creación de una tabla nueva.
 
-`supabase/migrations/202609040001_h07_documentacion_oc.sql` crea
-`public.coi_documentacion_oc` con `orden_id uuid` como identidad técnica,
-FK `ON DELETE RESTRICT` contra `coi_ordenes`, RLS RESTRICTIVE sobre
-`coi_current_role()` y versión de fila server-side. La capa
-`coi-h07-documentacion-supabase-first` de `index.html` publica únicamente lo
-que Supabase confirma; `v64CargarDocumentacionOC` y `v64GuardarDocumentacionOC`
-dejaron de tocar localStorage y la global `documentacionOC` quedó congelada
-frente a republicaciones. El legado se conserva intacto en cuarentena
-(`__COI_DOC_H07_LEGACY__`): se puede ver, exportar e importar de forma
-explícita e idempotente, nunca automáticamente.
+Un primer intento de H07 creó `public.coi_documentacion_oc` para darle
+autoridad remota a las referencias externas de la V64/V575 —repositorio, ruta,
+«Carpeta documental OneDrive», links—. El review del PR #61 lo marcó como P1 y
+tenía razón: eso construía un SEGUNDO camino operativo documental, contra lo que
+fija la baseline vigente:
 
-Mientras la migración NO esté aplicada en remoto, el módulo informa que la
-tabla no está disponible y NO publica nada: no vuelve a localStorage. Fijado por
-`H07-18` en `tests/h07_documentacion_supabase_first.spec.js`.
+- **AGENTS.md**: «No reintroducir OneDrive ni `Agregar link documental` en
+  Ficha OC» y «Supabase Storage y las tablas documentales vigentes son el camino
+  activo».
+- **BASELINE_OPERATIVA.md** → Documentación: no reintroducir OneDrive en Ficha
+  OC ni `Agregar link documental`.
+
+La migración y esa capa fueron **retiradas del PR**. La resolución real es:
+
+- el camino documental **activo** sigue siendo Supabase Storage (bucket
+  `coi-documentos`) indexado en `public.coi_documentos_oc`, que no se tocó;
+- `documentacionOC` queda **siempre vacío y congelado**: no se siembra desde
+  localStorage y ninguna capa legada puede republicarlo;
+- las acciones del editor documental retirado (alta, edición, baja, carpeta
+  OneDrive, «Limpiar documentación global») quedan **deshabilitadas** con un
+  mensaje operativo, en vez de «guardar OK» sin autoridad detrás;
+- `v62DocsGlobales()` y los demás lectores legados dejan de sumar
+  documentación local a conteos, diagnósticos y backup;
+- el material histórico **se conserva intacto** en `coi_documentacion_oc` y
+  `coiDocumentos`, contable y exportable por `__COI_DOC_H07_LEGACY__`, y
+  **nunca se autoimporta**. No hay importación operativa porque no hay un modelo
+  operativo al que importar.
+
+Fijado por `tests/h07_cierre_localstorage.spec.js` y
+`tests/check_h07_cierre_localstorage.js`.
 
 Texto original conservado abajo como historia.
 
@@ -376,11 +393,29 @@ publican como modelo operativo en ningún camino. Ahora quedan en CUARENTENA
 exportables, pero fuera de `window.observacionesOC`, sin alimentar KPIs y sin
 poder sobrescribir filas de Supabase.
 
-La protección de KI-007 se mantiene exactamente igual: mientras exista material
-legado sin importar, `cutoverPendiente()` sigue bloqueando toda mutación —lo
-que cambió es de dónde saca la señal, ya no de que el legado esté publicado—.
-Fijado por `H07-10` y por `H06-10c`, que pasó de documentar el GAP a fijar su
-cierre.
+Tras el review del PR #61 se corrigieron dos defectos de esa primera versión:
+
+1. **El corte se daba por cumplido con cualquier fila remota.** El marcador se
+   ponía con `if (filas.length) ponerMarcador()`, de modo que una observación
+   de Supabase sin relación con el legado local ponía la cuarentena en cero y
+   liberaba el bloqueo de escritura. Ahora la conciliación es **determinista**:
+   se compara fila por fila (OC + texto normalizado) contra el remoto
+   confirmado, y el corte solo se cumple cuando **todas** las filas locales
+   aparecen allá —o cuando el puesto nunca tuvo legado—. Sin lectura confirmada,
+   todo el legado cuenta como pendiente (fail-closed).
+2. **La cuarentena no tenía salida.** Se agregó un circuito explícito:
+   `conciliar()` relee Supabase y libera solo si no falta ninguna fila, y
+   `descartar({ confirmado: true })` exporta primero y libera el bloqueo
+   **sin borrar** la clave.
+
+Además, la clave legada quedó aislada de **todos** los lectores operativos: el
+`getItem` público la enmascara siempre —antes solo con el marcador puesto, que
+es justo cuando menos hacía falta—. La API de cuarentena la sigue viendo por el
+getter nativo interno.
+
+La protección de KI-007 se mantiene: mientras exista material sin conciliar,
+`cutoverPendiente()` bloquea toda mutación. Fijado por `H07-7` a `H07-10`
+en `tests/h07_cierre_localstorage.spec.js` y por `H06-10c`.
 
 Texto original conservado abajo como historia.
 
@@ -433,7 +468,12 @@ Queda pendiente decidir si aportan lo suficiente como para justificar mantener
 datos operativos en reposo en el navegador. H07 puede retirarlas.
 
 ## KI-022 — Migración H07 de documentación pendiente de aplicar en remoto
-Estado: abierto. Rama `fix/h07-final-localstorage-supabase-first`.
+Estado: **SIN EFECTO / RETIRADO (2026-09-05).** La migración que motivaba esta
+entrada fue eliminada del PR #61 junto con el modelo documental que creaba (ver
+KI-019). H07 **no aporta ninguna migración**: no hay rollout pendiente por H07.
+La entrada se conserva como historia de la decisión.
+
+Texto original:
 
 `supabase/migrations/202609040001_h07_documentacion_oc.sql` existe en el
 repositorio pero NO fue aplicada a PRODUCCIÓN ni a STAGING. Mientras eso siga
