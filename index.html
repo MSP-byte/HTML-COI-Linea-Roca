@@ -8122,8 +8122,11 @@ const LS_DOCUMENTACION_OC_V64='coi_documentacion_oc';
 const DOC_TIPOS_OC_V64=['Acta de Inicio','Acta de Medición','Acta Final','Remito','Factura','Declaración Jurada','Constancia SERCAE','Print SERCAE','Póliza / Seguro','Nota / Comunicación','Informe Técnico','Foto / Evidencia','Otro'];
 const DOC_REPOSITORIOS_OC_V64=['SharePoint','OneDrive','Google Drive','Carpeta local','Otro'];
 const DOC_ESTADOS_OC_V64=['Pendiente','Cargado','Revisado','Observado','Cerrado'];
-var documentacionOC=Array.isArray(window.documentacionOC)?window.documentacionOC:v64CargarDocumentacionOC();
-window.documentacionOC=documentacionOC;
+/* H07: sin `var`, para que la propiedad quede CONFIGURABLE y la capa
+   Supabase-first pueda instalar el guard que ignora las republicaciones del
+   legado. Las referencias lexicas a documentacionOC siguen resolviendo contra
+   esta misma propiedad de window. */
+window.documentacionOC=Array.isArray(window.documentacionOC)?window.documentacionOC:v64CargarDocumentacionOC();
 let fichaOCPanelActivoV64='panelFichaResumen';
 let fichaOCActualKeyV64='';
 let v64DocEditandoId='';
@@ -8153,7 +8156,12 @@ function v64DocId(){return 'DOC-OC-'+Date.now()+'-'+Math.random().toString(16).s
 function v64Ext(nombre){const s=String(nombre||'').trim();const i=s.lastIndexOf('.');return i>0?s.slice(i+1).toLowerCase():'';}
 function v64NormalizarDocumento(d={},oc=null){const now=v64Now(),nombre=d.nombreArchivo||d.archivo||d.fileName||'';const out={...d};out.idDocumento=out.idDocumento||out.idDoc||v64DocId();out.ocNro=out.ocNro||out.OC_NRO||out.nOC||out.oc||out.numeroOC||v64OCNro(oc)||'';out.idObra=out.idObra||out.ID_OBRA||out.idOC||oc?.idObra||oc?.idOC||'';out.idServicio=out.idServicio||out.ID_SERVICIO||oc?.idServicio||oc?.ID_SERVICIO||'';out.tipoRegistro=out.tipoRegistro||v64TipoRegistro(oc);out.tipoDocumento=out.tipoDocumento||out.tipoDoc||out.tipo||'Otro';out.nroDocumento=out.nroDocumento||out.numeroDocumento||out.nro||out.actaNro||'';out.nombreArchivo=nombre||out.nombreDocumento||'';out.extensionArchivo=out.extensionArchivo||v64Ext(out.nombreArchivo);out.repositorio=out.repositorio||out.origenRepositorio||v64FolderRepo(oc);out.rutaDocumental=out.rutaDocumental||out.ruta||v64FolderRuta(oc);out.linkDocumento=out.linkDocumento||out.linkOneDrive||out.link||out.url||'';out.linkCarpeta=out.linkCarpeta||out.linkCarpetaDocumental||v64FolderLink(oc);out.fechaDocumento=v64FechaISO(out.fechaDocumento||out.fecha||out.fechaActa)||out.fechaDocumento||'';out.periodo=out.periodo||out.periodoDesde||out.periodoHasta||'';out.actaNro=out.actaNro||out.actaMedicionNro||(/ACTA.*MEDICION|ACTA.*MEDICIÓN/i.test(out.tipoDocumento)?out.nroDocumento:'')||'';out.estadoDocumento=out.estadoDocumento||out.estado||'Pendiente';out.observaciones=out.observaciones||'';out.fechaCarga=out.fechaCarga||now;out.fechaUltimaModificacion=out.fechaUltimaModificacion||now;return out;}
 function v64CargarDocumentacionOC(){let data=[];try{data=JSON.parse(localStorage.getItem(LS_DOCUMENTACION_OC_V64)||'[]');}catch(e){console.warn('No se pudo leer documentacion OC',e);data=[];}if(!Array.isArray(data))data=[];return data.map(d=>v64NormalizarDocumento(d));}
-function v64GuardarDocumentacionOC(){documentacionOC=(Array.isArray(documentacionOC)?documentacionOC:[]).map(d=>v64NormalizarDocumento(d));window.documentacionOC=documentacionOC;if(typeof saveJSON==='function')saveJSON(LS_DOCUMENTACION_OC_V64,documentacionOC);else localStorage.setItem(LS_DOCUMENTACION_OC_V64,JSON.stringify(documentacionOC));}
+/* H07: la documentacion de OC ya NO se persiste en localStorage. La autoridad
+   es public.coi_documentacion_oc y la escritura remota la resuelve la capa
+   coi-h07-documentacion-supabase-first. Esta funcion queda como reafirmacion
+   del espejo en memoria: no escribe la clave legada, que se conserva intacta
+   como material de recuperacion. */
+function v64GuardarDocumentacionOC(){if(typeof window.COI_DOCUMENTACION_H07==='object'&&window.COI_DOCUMENTACION_H07)return window.documentacionOC;window.documentacionOC=(Array.isArray(window.documentacionOC)?window.documentacionOC:[]).map(d=>v64NormalizarDocumento(d));return window.documentacionOC;}
 function v64DocLink(d){return d?.linkDocumento||d?.linkOneDrive||d?.link||d?.url||'';}
 function v64DocTipoNorm(d){return v64Norm(d?.tipoDocumento||d?.tipoDoc||d?.tipo||'');}
 function v64EsDocTipo(d,tipo){return v64DocTipoNorm(d).includes(v64Norm(tipo));}
@@ -15481,11 +15489,17 @@ const APP_DATA_MODE = "supabase_first";
     window.selectStation = wrapped;
   }
 
-  function cacheSupabaseOrders(orders) {
-    return safeWriteJSON(SUPABASE_CACHE_KEY, {
-      savedAt: nowISO(),
-      orders: deduplicarOrdenes(orders)
-    });
+  // H07 · La cache local de ordenes se retiro. No se escribe mas: un listado
+  // operativo completo en reposo en el navegador no se justifica cuando nada
+  // puede leerlo como autoridad. Esta funcion ahora solo se asegura de que no
+  // quede una copia vieja de antes de H07.
+  function purgarCacheOrdenesRetirada() {
+    try {
+      localStorage.removeItem(SUPABASE_CACHE_KEY);
+      localStorage.removeItem(SUPABASE_META_KEY);
+    } catch (error) {
+      console.warn('COI Supabase: no se pudo retirar la caché local de órdenes.', error);
+    }
   }
 
   function vaciarDatosOperativosSinSesion() {
@@ -15588,9 +15602,9 @@ const APP_DATA_MODE = "supabase_first";
     supabaseColumnas = new Set(rows.flatMap((row) => Object.keys(row || {})));
     const normalized = deduplicarOrdenes(rows.map(normalizarOrdenDesdeSupabase));
     const duplicates = Math.max(0, rows.length - normalized.length);
-    // La cache local se sigue escribiendo, pero como material de diagnostico y
-    // backup: ya NO se relee como autoridad operativa (H06).
-    cacheSupabaseOrders(normalized);
+    // H07 · Ya no se escribe cache local. La lectura quedo confirmada por
+    // Supabase, de modo que descartar la copia vieja no puede perder nada.
+    purgarCacheOrdenesRetirada();
     ordenesConfirmadas = normalized;
     ordenesConfirmadasUid = (user && user.id) || null;
     aplicarOrdenesPrincipal(normalized, 'Supabase');
@@ -20618,6 +20632,10 @@ if(document.readyState==='loading'){
 
   const TIMELINE_TABLE='coi_timeline_events';
   const TIMELINE_STORAGE_KEY='coi_timeline_events_v1';
+  // H07 · Señal de sincronizacion entre pestañas. NO contiene eventos: solo una
+  // marca de tiempo y un contador, para que otra pestaña sepa que tiene que
+  // releer Supabase. No es dato operativo y no puede reconstruir nada.
+  const TIMELINE_SYNC_PING_KEY='coi_timeline_sync_ping_v1';
   const TIMELINE_LEGACY_KEY='coi_timeline_legacy_pending_v1';
   const TIMELINE_MIGRATION_KEY='coi_timeline_supabase_migrated_v1';
   const TIMELINE_SCHEMA='COI_TIMELINE_EVENTS_V2';
@@ -20772,7 +20790,12 @@ if(document.readyState==='loading'){
   function applyTimelineEvents(events,reason,{cache=true}={}){
     const normalized=sortEvents((Array.isArray(events)?events:[]).map(normalizeEvent));
     if(cache){
-      try{localStorage.setItem(TIMELINE_STORAGE_KEY,JSON.stringify(normalized));}
+      // H07: se emite una señal de sincronizacion SIN contenido operativo y se
+      // retira la cache de eventos que H06 habia dejado write-only.
+      try{
+        localStorage.removeItem(TIMELINE_STORAGE_KEY);
+        localStorage.setItem(TIMELINE_SYNC_PING_KEY,JSON.stringify({en:new Date().toISOString(),eventos:normalized.length}));
+      }
       catch(error){console.warn('Timeline COI: no se pudo actualizar la cach\u00e9.',error);}
     }
     window.coiTimelineEvents=normalized;
@@ -22097,7 +22120,10 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       }
     });
     window.addEventListener('storage',event=>{
-      if(event.key!==TIMELINE_STORAGE_KEY)return;
+      // Se escucha la señal H07 y, por compatibilidad con pestañas que todavia
+      // corran una version anterior, tambien la clave retirada. En los dos
+      // casos lo unico que se hace es releer Supabase.
+      if(event.key!==TIMELINE_SYNC_PING_KEY&&event.key!==TIMELINE_STORAGE_KEY)return;
       loadEvents();
     });
     window.addEventListener('coi:supabase-auth',event=>{
@@ -25930,7 +25956,11 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   // Cambio REAL de identidad: nada del operador anterior sobrevive, ni en
   // memoria ni en la cache local, y se invalida ANTES de adoptar el UID nuevo.
   function invalidarFinPorIdentidad(uidNuevo){const nuevo=uidNuevo||null;if(nuevo===(confirmadasFinUid||null))return false;if(confirmadasFinUid===null&&confirmadasFin===null&&nuevo){confirmadasFinUid=nuevo;return false;}runtime.authGeneration++;try{localStorage.removeItem(CACHE_KEY);}catch(error){}clearMemory();return true;}
-  function saveRemoteCache(remoteRows,remoteConsumptions=[]){const envelope={version:CACHE_VERSION,savedAt:new Date().toISOString(),source:'Supabase',positions:remoteRows,consumptions:remoteConsumptions,rows:remoteRows};localStorage.setItem(CACHE_KEY,JSON.stringify(envelope));return envelope;}
+  // H07 · La cache financiera local se retiro: era write-only desde H06 y
+  // guardaba posiciones y consumos operativos en reposo. Se deja de escribir y
+  // se descarta la copia vieja recien cuando Supabase confirmo la lectura, de
+  // modo que la purga no puede perder nada.
+  function saveRemoteCache(){try{localStorage.removeItem(CACHE_KEY);}catch(error){console.warn('COI finanzas: no se pudo retirar la cache local.',error);}return null;}
   async function currentUser(c=client()){if(typeof window.getUsuarioActual==='function'){const user=await window.getUsuarioActual();if(user)return user;}if(c?.auth?.getUser){const {data}=await c.auth.getUser();return data?.user||null;}return null;}
   function stateMessage(state,detail=''){
     if(state===STATES.CLIENTE_INICIALIZANDO)return 'Conectando con Supabase…';
@@ -27452,14 +27482,19 @@ document.addEventListener('click',function(event){
   };
 
   const runtime = {
-    origen: 'inicial',        // supabase | legacy-readonly | error-sin-sincronizar
+    origen: 'inicial',        // supabase | error-sin-sincronizar
     ultimoError: null,
     sincronizado: false,      // el modelo en memoria refleja una lectura remota confirmada
     generacion: 0,            // token de request: descarta respuestas viejas
     cargando: null,
     confirmado: null,         // ultimo modelo remoto confirmado
     crudas: null,             // filas remotas sin mapear, para remapeo diferido
-    authUserId: null          // UID de la sesion que produjo el modelo vigente
+    authUserId: null,         // UID de la sesion que produjo el modelo vigente
+    // H07 · Observaciones historicas que quedaron en la clave legada de un
+    // puesto que nunca corrio la importacion. NO son dato operativo: no entran
+    // al modelo, no alimentan KPIs y no habilitan escrituras. Se conservan
+    // intactas y se pueden ver, exportar o importar de forma explicita.
+    legadoEnCuarentena: 0
   };
   window.__COI_OBS_H03__ = runtime;
 
@@ -27645,12 +27680,48 @@ document.addEventListener('click',function(event){
   const marcadorPuesto = () => { try { return getItemNativo.call(window.localStorage, MARKER_KEY) === '1'; } catch (e) { return false; } };
   const ponerMarcador = () => { try { window.localStorage.setItem(MARKER_KEY, '1'); } catch (e) {} };
 
-  function legadoSoloLectura() {
+  // H07 · Material legado en CUARENTENA. Sigue existiendo tal cual en
+  // localStorage —no se borra— pero ya no se publica como observaciones
+  // operativas. Solo se puede mirar, exportar o importar explicitamente.
+  function legadoEnCuarentena() {
     let crudo = [];
     try { crudo = JSON.parse(leerLegacyCrudo() || '[]'); } catch (e) { crudo = []; }
     if (!Array.isArray(crudo)) return [];
-    return crudo.map((o) => Object.assign({}, o, { _origen: 'legacy-readonly', _soloLectura: true }));
+    return crudo.map((o) => Object.assign({}, o, { _origen: 'legado-cuarentena', _soloLectura: true, _autoritativo: false }));
   }
+  // Nombre historico conservado para los llamadores existentes.
+  function legadoSoloLectura() { return legadoEnCuarentena(); }
+
+  // Se recalcula en cada lectura: si el marcador de corte esta puesto, no hay
+  // nada pendiente porque la importacion ya ocurrio.
+  function registrarCuarentena() {
+    runtime.legadoEnCuarentena = marcadorPuesto() ? 0 : legadoEnCuarentena().length;
+    return runtime.legadoEnCuarentena;
+  }
+
+  window.__COI_OBS_H07_CUARENTENA__ = {
+    clave: LEGACY_KEY,
+    cantidad: () => registrarCuarentena(),
+    filas: legadoEnCuarentena,
+    autoritativo: false,
+    exportarJSON: () => {
+      const filas = legadoEnCuarentena();
+      const salida = JSON.stringify({
+        formato: 'COI_H07_OBSERVACIONES_LEGACY',
+        exportadoEl: new Date().toISOString(),
+        clave: LEGACY_KEY,
+        autoritativo: false,
+        nota: 'Observaciones historicas pendientes de importar a Supabase. NO son dato operativo.',
+        filas: filas
+      }, null, 2);
+      try {
+        if (typeof window.descargarArchivo === 'function') {
+          window.descargarArchivo('observaciones_legacy_' + Date.now() + '.json', salida, 'application/json;charset=utf-8');
+        }
+      } catch (e) {}
+      return salida;
+    }
+  };
 
   // ---------------------------------------------------------- lectura paginada
   async function leerPaginado(c) {
@@ -27691,11 +27762,10 @@ document.addEventListener('click',function(event){
         if (!vigente()) return window.observacionesOC;
         runtime.ultimoError = 'Supabase no disponible';
         runtime.sincronizado = false;
-        if (marcadorPuesto()) {
-          // Nunca se representa un error como "cero observaciones".
-          return aplicarEnMemoria(runtime.confirmado || [], 'error-sin-sincronizar');
-        }
-        return aplicarEnMemoria(legadoSoloLectura(), 'legacy-readonly');
+        // Nunca se representa un error como "cero observaciones": se conserva
+        // lo ultimo que Supabase confirmo. El legado NO entra al modelo.
+        registrarCuarentena();
+        return aplicarEnMemoria(runtime.confirmado || [], 'error-sin-sincronizar');
       }
       try {
         const crudas = await leerPaginado(c);
@@ -27714,19 +27784,23 @@ document.addEventListener('click',function(event){
         runtime.crudas = crudas;
         programarRemapeo();
         if (filas.length) ponerMarcador();
-        if (filas.length || marcadorPuesto()) return aplicarEnMemoria(filas, 'supabase');
-        return aplicarEnMemoria(legadoSoloLectura(), 'legacy-readonly');
+        // Remoto vacio es un estado valido. Si ademas hay material legado sin
+        // importar, queda en cuarentena: visible como pendiente, fuera del
+        // modelo y con la escritura bloqueada hasta resolverlo.
+        registrarCuarentena();
+        return aplicarEnMemoria(filas, 'supabase');
       } catch (error) {
         if (!vigente()) return window.observacionesOC;
         runtime.ultimoError = (error && error.message) || String(error);
         runtime.sincronizado = false;
         console.warn('COI observaciones: no se pudo leer Supabase.', error);
-        if (marcadorPuesto()) {
-          // Se conserva el ultimo modelo remoto confirmado y se avisa.
+        // Se conserva el ultimo modelo remoto confirmado y se avisa. Un fallo
+        // remoto nunca se rellena con la clave legada.
+        registrarCuarentena();
+        if (runtime.confirmado && runtime.confirmado.length) {
           avisar('No se pudieron actualizar las observaciones: se muestran las ultimas conocidas.', 'warn');
-          return aplicarEnMemoria(runtime.confirmado || [], 'error-sin-sincronizar');
         }
-        return aplicarEnMemoria(legadoSoloLectura(), 'legacy-readonly');
+        return aplicarEnMemoria(runtime.confirmado || [], 'error-sin-sincronizar');
       }
     })();
 
@@ -27864,7 +27938,10 @@ document.addEventListener('click',function(event){
   // pondria el marcador en la proxima lectura y dejaria esas filas historicas
   // fuera del alcance de los paneles antes de haberlas importado.
   function cutoverPendiente() {
-    return runtime.origen === 'legacy-readonly' && legadoSoloLectura().length > 0;
+    // La proteccion de KI-007 se conserva intacta: mientras haya material
+    // legado sin importar, las mutaciones siguen bloqueadas. Lo que cambia es
+    // que ese material ya NO se publica como observaciones operativas.
+    return registrarCuarentena() > 0;
   }
   function avisoCutover() {
     avisar('Hay observaciones históricas pendientes de migración a Supabase. La edición está temporalmente bloqueada.', 'warn');
@@ -30284,4 +30361,602 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   }
 })();
 </script>
+<script id="coi-h07-documentacion-supabase-first">
+/* H07 · Referencias documentales de OC con Supabase como unica autoridad.
+
+   La V64 guardaba estas referencias —tipo, numero, repositorio, ruta, link
+   externo y estado documental— exclusivamente en la clave localStorage
+   coi_documentacion_oc (KI-019). Era el ultimo dato operativo del sistema sin
+   autoridad remota: no se compartia entre operadores, se perdia al limpiar el
+   navegador y otro operador del mismo puesto heredaba las referencias.
+
+   Esta capa NO reescribe la UI documental: sustituye la persistencia por
+   debajo. Los renderers, el modal y los botones de la ficha OC siguen siendo
+   los mismos y siguen leyendo `documentacionOC`; lo que cambia es de donde sale
+   ese array y quien puede escribirlo.
+
+   Mismos principios que H05/H06:
+     - remoto vacio es un estado valido;
+     - un fallo remoto NUNCA se representa con datos locales;
+     - solo sobrevive el ultimo snapshot que ESTA sesion confirmo;
+     - el snapshot confirmado es privado: hacia afuera se publican copias;
+     - un cambio REAL de identidad invalida ANTES de adoptar el UID nuevo;
+     - TOKEN_REFRESHED del mismo UID no invalida nada;
+     - fail-closed: sin rol confirmado no hay mutaciones.
+
+   El legado NO se borra ni se importa solo: queda en cuarentena, visible y
+   exportable desde __COI_DOC_H07_LEGACY__, fuera del modelo operativo. */
+(function () {
+  'use strict';
+
+  const TABLA = 'coi_documentacion_oc';
+  const CAMPOS = 'id,orden_id,id_obra,id_servicio,tipo_registro,tipo_documento,nro_documento,nombre_archivo,extension_archivo,repositorio,ruta_documental,link_documento,link_carpeta,fecha_documento,periodo,acta_nro,estado_documento,observaciones,fecha_creacion,fecha_actualizacion';
+  const LEGACY_KEY = 'coi_documentacion_oc';
+  const LEGACY_EXTRA = ['coiDocumentos'];
+  const PAGE_SIZE = 1000;
+
+  const runtime = {
+    origen: 'inicial',        // supabase | error-sin-sincronizar | tabla-ausente
+    sincronizado: false,
+    generacion: 0,
+    confirmado: null,         // ultimo snapshot remoto confirmado de ESTA sesion
+    authUserId: null,
+    rol: null,
+    tablaDisponible: null,    // null = todavia no se sabe
+    ultimoError: null,
+    cargando: null
+  };
+  window.__COI_DOC_H07__ = runtime;
+
+  const texto = (v) => String(v == null ? '' : v).trim();
+  const esUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(texto(v));
+  const cliente = () => {
+    try { if (typeof window.getSupabaseClient === 'function') return window.getSupabaseClient(); } catch (e) {}
+    return window.__COI_SUPABASE_CLIENT__ || null;
+  };
+
+  function avisar(mensaje, tipo) {
+    for (const fn of ['coiToast', 'mostrarToast', 'toast', 'mostrarMensajeCOI']) {
+      try { if (typeof window[fn] === 'function') return window[fn](mensaje, tipo || 'info'); } catch (e) {}
+    }
+    if (tipo === 'error') console.error('COI documentacion:', mensaje);
+  }
+
+  // ------------------------------------------------------- mapeo remoto <-> V64
+  // El numero de OC no se guarda en la tabla: se resuelve contra el catalogo de
+  // ordenes, de modo que una renumeracion no deja copias viejas.
+  function indiceOrdenes() {
+    const porId = new Map();
+    try {
+      const filas = typeof window.todasLasOC === 'function' ? window.todasLasOC() : [];
+      filas.forEach((r) => {
+        const item = r && (r.item || r);
+        const id = item && item.supabaseId;
+        if (esUuid(id)) porId.set(String(id), item);
+      });
+    } catch (e) {}
+    return porId;
+  }
+
+  function desdeRemoto(row, porId) {
+    const oc = porId.get(String(row.orden_id)) || null;
+    return {
+      idDocumento: row.id,
+      _supabaseId: row.id,
+      _ordenId: row.orden_id,
+      _origen: 'supabase',
+      _version: row.fecha_actualizacion || null,
+      ocNro: oc ? texto(oc.numeroOC || oc.oc || oc.ocNro) : '',
+      idObra: texto(row.id_obra) || (oc ? texto(oc.idObra) : ''),
+      idServicio: texto(row.id_servicio),
+      tipoRegistro: texto(row.tipo_registro),
+      tipoDocumento: texto(row.tipo_documento),
+      nroDocumento: texto(row.nro_documento),
+      nombreArchivo: texto(row.nombre_archivo),
+      extensionArchivo: texto(row.extension_archivo),
+      repositorio: texto(row.repositorio),
+      rutaDocumental: texto(row.ruta_documental),
+      linkDocumento: texto(row.link_documento),
+      linkCarpeta: texto(row.link_carpeta),
+      fechaDocumento: texto(row.fecha_documento),
+      periodo: texto(row.periodo),
+      actaNro: texto(row.acta_nro),
+      estadoDocumento: texto(row.estado_documento) || 'Pendiente',
+      observaciones: texto(row.observaciones),
+      fechaCarga: row.fecha_creacion || '',
+      fechaUltimaModificacion: row.fecha_actualizacion || ''
+    };
+  }
+
+  function haciaRemoto(doc, ordenId) {
+    return {
+      orden_id: ordenId,
+      id_obra: texto(doc.idObra) || null,
+      id_servicio: texto(doc.idServicio) || null,
+      tipo_registro: texto(doc.tipoRegistro) || null,
+      tipo_documento: texto(doc.tipoDocumento),
+      nro_documento: texto(doc.nroDocumento) || null,
+      nombre_archivo: texto(doc.nombreArchivo) || null,
+      extension_archivo: texto(doc.extensionArchivo) || null,
+      repositorio: texto(doc.repositorio) || null,
+      ruta_documental: texto(doc.rutaDocumental) || null,
+      link_documento: texto(doc.linkDocumento) || null,
+      link_carpeta: texto(doc.linkCarpeta) || null,
+      fecha_documento: texto(doc.fechaDocumento) || null,
+      periodo: texto(doc.periodo) || null,
+      acta_nro: texto(doc.actaNro) || null,
+      estado_documento: texto(doc.estadoDocumento) || 'Pendiente',
+      observaciones: texto(doc.observaciones) || null
+    };
+  }
+
+  const lista = () => (Array.isArray(runtime.confirmado) ? runtime.confirmado : []);
+
+  // Filas remotas sin mapear, para poder volver a resolver el numero de OC
+  // cuando el catalogo de ordenes termine de cargar.
+  let crudasConfirmadas = null;
+  function remapearOC() {
+    if (!runtime.sincronizado || !Array.isArray(runtime.confirmado)) return false;
+    if (!Array.isArray(crudasConfirmadas) || !crudasConfirmadas.length) return false;
+    const porId = indiceOrdenes();
+    if (!porId.size) return false;
+    const docs = crudasConfirmadas.map((r) => desdeRemoto(r, porId));
+    const cambio = docs.some((d, i) => d.ocNro !== (lista()[i] || {}).ocNro);
+    if (!cambio) return false;
+    runtime.confirmado = Object.freeze(docs.map((d) => Object.freeze(d)));
+    publicar(runtime.confirmado);
+    return true;
+  }
+  const copiar = (l) => (Array.isArray(l) ? l : []).map((d) => Object.assign({}, d));
+
+  // ------------------------------------------------------------ publicacion
+  // El snapshot confirmado es privado e inmutable: hacia afuera solo salen
+  // copias, de modo que ninguna capa legada puede contaminarlo empujando filas.
+  let publicado = [];
+  function publicar(filas) {
+    publicado = copiar(filas);
+    try { window.__COI_DOC_H07_SET__(publicado); } catch (e) {}
+    return publicado;
+  }
+
+  // Congelamiento de la global: `documentacionOC` deja de ser un array que
+  // cualquiera pueda reasignar. Un intento externo se ignora y se registra: es
+  // exactamente el camino por el que el legado volvia a la vista.
+  const escriturasBloqueadas = [];
+  window.__COI_DOC_H07_ESCRITURAS__ = escriturasBloqueadas;
+  (function instalarHolder() {
+    let almacen = [];
+    window.__COI_DOC_H07_SET__ = (filas) => { almacen = Array.isArray(filas) ? filas : []; };
+    const definir = (nombre) => {
+      try {
+        Object.defineProperty(window, nombre, {
+          configurable: true,
+          get() { return almacen; },
+          set(valor) {
+            escriturasBloqueadas.push({
+              clave: nombre,
+              filas: Array.isArray(valor) ? valor.length : 0,
+              cuando: new Date().toISOString()
+            });
+            console.warn('COI documentacion H07: se ignoro una escritura sobre ' + nombre +
+              '. Supabase es la unica autoridad.');
+          }
+        });
+      } catch (e) {}
+    };
+    definir('documentacionOC');
+  })();
+
+  // -------------------------------------------------------------- autoridad
+  async function uidDeSesion() {
+    try {
+      const c = cliente();
+      if (!c || !c.auth || typeof c.auth.getSession !== 'function') return null;
+      const { data } = await c.auth.getSession();
+      return (data && data.session && data.session.user && data.session.user.id) || null;
+    } catch (e) { return null; }
+  }
+
+  async function rolDeSesion() {
+    const c = cliente();
+    if (!c || typeof c.rpc !== 'function') return { ok: false, rol: null };
+    try {
+      const { data, error } = await c.rpc('coi_current_role');
+      if (error) return { ok: false, rol: null };
+      const rol = texto(Array.isArray(data) ? data[0] : data);
+      return { ok: true, rol: rol || null };
+    } catch (e) { return { ok: false, rol: null }; }
+  }
+
+  const esAdministrador = () => runtime.rol === 'administrador';
+
+  // La tabla puede no existir todavia: la migracion H07 se versiona en el
+  // repositorio y se aplica por separado. Eso NO habilita volver a localStorage.
+  function esTablaAusente(error) {
+    const codigo = texto(error && error.code).toUpperCase();
+    const cuerpo = texto(error && (error.message || error.details)).toLowerCase();
+    return codigo === '42P01' || codigo === 'PGRST205' ||
+      /does not exist|no existe|could not find the table|schema cache/.test(cuerpo);
+  }
+
+  // H07-D · Un cambio REAL de identidad invalida TODO antes de adoptar el UID.
+  function invalidarPorIdentidad(uidNuevo, opciones) {
+    const nuevo = uidNuevo || null;
+    if (nuevo === (runtime.authUserId || null)) return false;
+    // El arranque no es un cambio de identidad: no hay nada de otro operador.
+    const arranque = runtime.authUserId === null && runtime.confirmado === null;
+    if (!(opciones && opciones.conservarGeneracion === true)) runtime.generacion++;
+    runtime.confirmado = null;
+    // Las filas crudas del remapeo son de la sesion anterior: sin esto, un
+    // timer de remapeo republicaba la documentacion del operador que se fue.
+    crudasConfirmadas = null;
+    runtime.sincronizado = false;
+    runtime.rol = null;
+    if (!arranque) {
+      runtime.origen = 'error-sin-sincronizar';
+      publicar([]);
+    }
+    runtime.authUserId = nuevo;
+    return !arranque;
+  }
+
+  // ------------------------------------------------------------------ lectura
+  async function leerPaginado(c) {
+    const filas = [];
+    let ultimoId = null;
+    for (let vuelta = 0; vuelta < 1000; vuelta++) {
+      let consulta = c.from(TABLA).select(CAMPOS).order('id', { ascending: true });
+      if (ultimoId !== null) consulta = consulta.gt('id', ultimoId);
+      const { data, error } = await consulta.limit(PAGE_SIZE);
+      if (error) throw error;
+      const pagina = Array.isArray(data) ? data : [];
+      if (!pagina.length) break;
+      filas.push.apply(filas, pagina);
+      ultimoId = pagina[pagina.length - 1].id;
+    }
+    const vistos = new Set();
+    return filas.filter((r) => (vistos.has(r.id) ? false : (vistos.add(r.id), true)));
+  }
+
+  async function cargar() {
+    const generacion = ++runtime.generacion;
+    const vigente = () => generacion === runtime.generacion;
+
+    const promesa = (async () => {
+      const c = cliente();
+      const uid = await uidDeSesion();
+      if (vigente() && (uid || null) !== (runtime.authUserId || null)) {
+        invalidarPorIdentidad(uid, { conservarGeneracion: true });
+      }
+
+      const conservar = (motivo, origen) => {
+        runtime.ultimoError = motivo;
+        runtime.sincronizado = false;
+        runtime.rol = null;
+        runtime.origen = origen || 'error-sin-sincronizar';
+        // Nunca se representa un error con datos locales: solo puede seguir a
+        // la vista lo que ESTA sesion ya confirmo contra Supabase.
+        return publicar(lista());
+      };
+
+      if (!c) return conservar('Supabase no disponible.');
+      if (!uid) return conservar('Sesión Supabase no autenticada.');
+
+      const perfil = await rolDeSesion();
+      if (!vigente()) return publicado;
+      if (!perfil.ok) return conservar('No se pudo verificar el perfil del usuario.');
+      if (!perfil.rol) return conservar('El usuario no tiene un perfil activo habilitado.');
+      if (vigente()) runtime.rol = perfil.rol;
+
+      try {
+        const crudas = await leerPaginado(c);
+        if (!vigente()) return publicado;
+        // La autoridad puede cambiar mientras el scan espera a Supabase.
+        const perfilFinal = await rolDeSesion();
+        if (!vigente()) return publicado;
+        if (!perfilFinal.ok || !perfilFinal.rol) {
+          runtime.rol = null;
+          throw new Error('El perfil Supabase dejó de estar activo durante la sincronización.');
+        }
+        runtime.rol = perfilFinal.rol;
+        runtime.tablaDisponible = true;
+
+        const porId = indiceOrdenes();
+        crudasConfirmadas = crudas;
+        const docs = crudas.map((r) => desdeRemoto(r, porId));
+        runtime.confirmado = Object.freeze(docs.map((d) => Object.freeze(d)));
+        runtime.sincronizado = true;
+        runtime.ultimoError = null;
+        runtime.origen = 'supabase';
+        return publicar(runtime.confirmado);
+      } catch (error) {
+        if (!vigente()) return publicado;
+        if (esTablaAusente(error)) {
+          runtime.tablaDisponible = false;
+          console.warn('COI documentacion H07: la tabla remota todavía no existe.', error);
+          return conservar(
+            'La tabla public.' + TABLA + ' todavía no está desplegada en Supabase. ' +
+            'La documentación no se muestra hasta que la migración H07 se aplique.',
+            'tabla-ausente');
+        }
+        console.warn('COI documentacion H07: no se pudo leer Supabase.', error);
+        return conservar((error && error.message) || String(error));
+      }
+    })();
+
+    runtime.cargando = promesa;
+    promesa.catch(() => {}).then(() => { if (runtime.cargando === promesa) runtime.cargando = null; });
+    return promesa;
+  }
+
+  async function recargarYRefrescar() {
+    await cargar();
+    try {
+      const oc = typeof window.v64BuscarOC === 'function'
+        ? window.v64BuscarOC(window.fichaOCActualKeyV64 || window.ocActualId || '')
+        : null;
+      if (oc && typeof window.v64RerenderFichaOC === 'function') {
+        window.v64RerenderFichaOC(oc.item || oc, 'panelFichaDocumentos');
+      }
+    } catch (e) {}
+    return publicado;
+  }
+
+  // ---------------------------------------------------------------- escritura
+  async function exigirEscritura() {
+    const c = cliente();
+    if (!c) throw new Error('Supabase no está disponible. Recargue la página e inicie sesión.');
+    if (navigator.onLine === false) throw new Error('Sin conexión: no se pueden guardar referencias documentales.');
+    if (runtime.tablaDisponible === false) {
+      throw new Error('La tabla public.' + TABLA + ' todavía no está desplegada: no se puede guardar.');
+    }
+    const { data, error } = await c.auth.getSession();
+    if (error) { runtime.rol = null; throw error; }
+    const uid = data && data.session && data.session.user && data.session.user.id;
+    if (!uid) { runtime.rol = null; throw new Error('Inicie sesión en Supabase para guardar.'); }
+    if ((uid || null) !== (runtime.authUserId || null)) runtime.rol = null;
+    const perfil = await rolDeSesion();
+    if (!perfil.ok) { runtime.rol = null; throw new Error('No se pudo verificar el perfil del usuario. No se guardó nada.'); }
+    runtime.rol = perfil.rol || null;
+    if (runtime.rol !== 'administrador') {
+      throw new Error('Su usuario no tiene permisos de Administrador para esta operación.');
+    }
+    return c;
+  }
+
+  function resolverOrdenId(oc) {
+    const directo = oc && (oc.supabaseId || oc.orden_id || oc.id);
+    if (esUuid(directo)) return String(directo);
+    // Segunda via: resolver por numero contra el catalogo remoto en memoria.
+    const numero = texto(oc && (oc.numeroOC || oc.oc || oc.ocNro || oc.OC_NRO));
+    if (!numero) return null;
+    let encontrado = null;
+    indiceOrdenes().forEach((item, id) => {
+      if (!encontrado && texto(item.numeroOC || item.oc || item.ocNro) === numero) encontrado = id;
+    });
+    return encontrado;
+  }
+
+  async function guardarDocumento(doc, oc, uuidExistente) {
+    const c = await exigirEscritura();
+    const ordenId = resolverOrdenId(oc);
+    if (!ordenId) {
+      throw new Error('No se pudo resolver la OC contra Supabase. Actualice las órdenes y reintente.');
+    }
+    if (!texto(doc.tipoDocumento)) throw new Error('El tipo de documento es obligatorio.');
+    const fila = haciaRemoto(doc, ordenId);
+
+    if (esUuid(uuidExistente)) {
+      // CAS optimista: la version que el operador vio viaja en el WHERE.
+      const previo = lista().find((d) => String(d._supabaseId) === String(uuidExistente)) || null;
+      let consulta = c.from(TABLA).update(fila).eq('id', uuidExistente);
+      if (previo && previo._version) consulta = consulta.eq('fecha_actualizacion', previo._version);
+      const { data, error } = await consulta.select(CAMPOS);
+      if (error) throw error;
+      if (!Array.isArray(data) || !data.length) {
+        throw new Error('La referencia documental cambió en otro puesto. Actualice y reintente.');
+      }
+      return data[0];
+    }
+    const { data, error } = await c.from(TABLA).insert(fila).select(CAMPOS).single();
+    if (error) throw error;
+    return data;
+  }
+
+  async function eliminarDocumento(uuid) {
+    const c = await exigirEscritura();
+    const { error } = await c.from(TABLA).delete().eq('id', uuid);
+    if (error) throw error;
+    return true;
+  }
+
+  // --------------------------------------------------- cuarentena legada
+  // El legado NO se importa solo y NO se borra: queda accesible, marcado como
+  // material de recuperacion y fuera del modelo operativo.
+  const getItemNativo = Storage.prototype.getItem;
+  function legadoCrudo(clave) {
+    try { return getItemNativo.call(window.localStorage, clave || LEGACY_KEY); } catch (e) { return null; }
+  }
+  function legadoFilas() {
+    const salida = [];
+    for (const clave of [LEGACY_KEY].concat(LEGACY_EXTRA)) {
+      try {
+        const crudo = legadoCrudo(clave);
+        if (!crudo) continue;
+        const parsed = JSON.parse(crudo);
+        const filas = Array.isArray(parsed) ? parsed : (Array.isArray(parsed && parsed.documentacionOC) ? parsed.documentacionOC : []);
+        filas.forEach((d) => salida.push(Object.assign({ _claveLegado: clave }, d)));
+      } catch (e) {}
+    }
+    return salida;
+  }
+  window.__COI_DOC_H07_LEGACY__ = {
+    clave: LEGACY_KEY,
+    crudo: legadoCrudo,
+    filas: legadoFilas,
+    cantidad: () => legadoFilas().length,
+    // Exportar es la unica accion automatica disponible: nunca se importa solo.
+    exportarJSON: () => {
+      const filas = legadoFilas();
+      const texto = JSON.stringify({
+        formato: 'COI_H07_DOCUMENTACION_LEGACY',
+        exportadoEl: new Date().toISOString(),
+        clave: LEGACY_KEY,
+        autoritativo: false,
+        nota: 'Material legado de recuperacion. NO es dato operativo: la autoridad es public.' + TABLA + '.',
+        filas: filas
+      }, null, 2);
+      if (typeof window.descargarArchivo === 'function') {
+        window.descargarArchivo('documentacion_oc_legacy_' + Date.now() + '.json', texto, 'application/json;charset=utf-8');
+      }
+      return texto;
+    },
+    // La importacion es EXPLICITA, idempotente y validada contra OCs remotas.
+    importar: async function (opciones) {
+      if (!(opciones && opciones.confirmado === true)) {
+        throw new Error('La importación del legado documental requiere { confirmado: true }.');
+      }
+      const c = await exigirEscritura();
+      const filas = legadoFilas();
+      const porId = indiceOrdenes();
+      const porNumero = new Map();
+      porId.forEach((item, id) => {
+        const n = texto(item.numeroOC || item.oc || item.ocNro);
+        if (n && !porNumero.has(n)) porNumero.set(n, id);
+      });
+      // Idempotencia: no se reimporta lo que ya existe con el mismo contenido.
+      const yaExiste = new Set(lista().map((d) => [
+        String(d._ordenId), texto(d.tipoDocumento).toUpperCase(),
+        texto(d.nroDocumento).toUpperCase(), texto(d.nombreArchivo).toUpperCase()
+      ].join('|')));
+      const importadas = [];
+      const omitidas = [];
+      for (const cruda of filas) {
+        const numero = texto(cruda.ocNro || cruda.OC_NRO || cruda.oc || cruda.numeroOC);
+        const ordenId = porNumero.get(numero) || null;
+        if (!ordenId) { omitidas.push({ fila: cruda, motivo: 'OC no existe en Supabase: ' + (numero || '(vacía)') }); continue; }
+        if (!texto(cruda.tipoDocumento)) { omitidas.push({ fila: cruda, motivo: 'Sin tipo de documento' }); continue; }
+        const clave = [String(ordenId), texto(cruda.tipoDocumento).toUpperCase(),
+          texto(cruda.nroDocumento).toUpperCase(), texto(cruda.nombreArchivo).toUpperCase()].join('|');
+        if (yaExiste.has(clave)) { omitidas.push({ fila: cruda, motivo: 'Ya existe en Supabase' }); continue; }
+        const { data, error } = await c.from(TABLA).insert(haciaRemoto(cruda, ordenId)).select(CAMPOS).single();
+        if (error) { omitidas.push({ fila: cruda, motivo: (error && error.message) || String(error) }); continue; }
+        yaExiste.add(clave);
+        importadas.push(data);
+      }
+      await recargarYRefrescar();
+      return { importadas: importadas.length, omitidas: omitidas.length, detalle: omitidas };
+    }
+  };
+
+  // ------------------------------------------------------ override de la V64
+  // Se sustituye la persistencia, no la interfaz: los renderers, el modal y los
+  // botones siguen siendo los del modulo V64.
+  function instalarOverrides() {
+    // Lectura: nunca mas desde localStorage.
+    window.v64CargarDocumentacionOC = function () { return copiar(lista()); };
+    // Guardado: la escritura real ya ocurrio contra Supabase; aca solo se
+    // reafirma el espejo. NO se toca localStorage.
+    window.v64GuardarDocumentacionOC = function () { return publicar(lista()); };
+    // Autoimportacion de documentos embebidos: prohibida por H07.
+    window.v64MigrarDocsEmbebidos = function () { return false; };
+
+    window.v64GuardarDocumentoDesdeForm = function (form) {
+      if (!esAdministrador()) { avisar('Solo Administrador puede agregar o editar documentos.', 'warn'); return; }
+      const ocKey = form && form.dataset ? form.dataset.ocKey : '';
+      const encontrado = typeof window.v64BuscarOC === 'function' ? window.v64BuscarOC(ocKey) : null;
+      const oc = (encontrado && (encontrado.item || encontrado)) || null;
+      if (!oc) { avisar('No se encontró la OC de esta ficha.', 'error'); return; }
+      const id = form.dataset.docId;
+      const previo = lista().find((d) => String(d.idDocumento) === String(id)) || null;
+      const doc = typeof window.v64LeerDocForm === 'function' ? window.v64LeerDocForm(form, oc, previo) : null;
+      if (!doc) return;
+      const uuid = previo ? previo._supabaseId : null;
+      guardarDocumento(doc, oc, uuid)
+        .then(() => {
+          try { window.v64DocEditandoId = ''; window.v64DocEditandoOC = ''; } catch (e) {}
+          avisar(uuid ? 'Documento actualizado en Supabase.' : 'Documento guardado en Supabase.', 'ok');
+          return recargarYRefrescar();
+        })
+        .catch((error) => {
+          avisar('No se pudo guardar: ' + ((error && error.message) || String(error)), 'error');
+          return recargarYRefrescar();
+        });
+    };
+
+    window.v64EliminarDocumento = function (id) {
+      if (!esAdministrador()) { avisar('Solo Administrador puede eliminar documentos.', 'warn'); return; }
+      const doc = lista().find((d) => String(d.idDocumento) === String(id)) || null;
+      if (!doc) return;
+      if (!window.confirm('¿Eliminar esta referencia documental? No se borrará ningún archivo externo.')) return;
+      eliminarDocumento(doc._supabaseId)
+        .then(() => { avisar('Referencia documental eliminada en Supabase.', 'ok'); return recargarYRefrescar(); })
+        .catch((error) => {
+          avisar('No se pudo eliminar: ' + ((error && error.message) || String(error)), 'error');
+          return recargarYRefrescar();
+        });
+    };
+  }
+
+  // ------------------------------------------------------------------ arranque
+  function arrancar() {
+    instalarOverrides();
+    publicar([]);
+    cargar().then(() => { try { window.v64RerenderFichaOC && 0; } catch (e) {} }).catch(() => {});
+
+    window.addEventListener('coi:supabase-auth', (ev) => {
+      const evento = (ev && ev.detail && ev.detail.event) || '';
+      const sesion = (ev && ev.detail && ev.detail.session) || null;
+      if (evento === 'SIGNED_OUT' || !sesion) runtime.rol = null;
+      uidDeSesion().then((uid) => {
+        invalidarPorIdentidad(uid);
+        return recargarYRefrescar();
+      }).catch(() => { runtime.rol = null; });
+    });
+
+    // Las capas legadas reinstalan sus propias funciones en timers propios.
+    [400, 1500, 3000, 6000].forEach((ms) => setTimeout(instalarOverrides, ms));
+    // Ventana acotada para resolver el numero de OC si el catalogo llego tarde.
+    [500, 1200, 2500, 5000].forEach((ms) => setTimeout(() => { try { remapearOC(); } catch (e) {} }, ms));
+    // Y en cuanto la aplicacion vuelva a cargar ordenes.
+    try {
+      const base = window.recargarDatosDesdeSupabase;
+      if (typeof base === 'function' && !base.__coiDocH07) {
+        const envuelto = function () {
+          const salida = base.apply(this, arguments);
+          Promise.resolve(salida).then(() => { try { remapearOC(); } catch (e) {} }).catch(() => {});
+          return salida;
+        };
+        envuelto.__coiDocH07 = true;
+        window.recargarDatosDesdeSupabase = envuelto;
+      }
+    } catch (e) {}
+  }
+
+  window.recargarDocumentacionOC = recargarYRefrescar;
+  window.COI_DOCUMENTACION_H07 = {
+    tabla: TABLA,
+    campos: CAMPOS,
+    cargar: recargarYRefrescar,
+    diagnostico: () => ({
+      origen: runtime.origen,
+      sincronizado: runtime.sincronizado,
+      confirmadas: Array.isArray(runtime.confirmado) ? runtime.confirmado.length : null,
+      uid: runtime.authUserId,
+      rol: runtime.rol,
+      tablaDisponible: runtime.tablaDisponible,
+      ultimoError: runtime.ultimoError,
+      legadoFilas: legadoFilas().length,
+      escriturasBloqueadas: escriturasBloqueadas.length
+    })
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', arrancar, { once: true });
+  } else {
+    arrancar();
+  }
+})();
+</script>
+
 </body></html>

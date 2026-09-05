@@ -750,5 +750,75 @@ Consecuencias. Los GAPs que quedan abiertos —documentación V64 (KI-019),
 observaciones sin marcador (KI-020) y cachés write-only (KI-021)— están
 documentados en vez de resueltos a ciegas. H07 decide su destino.
 
+## TD-046 — La documentación de OC se identifica por orden_id, no por número
+Fecha: 2026-09-04. PR: H07 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. `coi_documentos_oc` y `coi_servicios_tecnicos_um` guardan `nro_oc`
+denormalizado porque hay flujos que llegan con el número antes que con la orden;
+por eso H04 tuvo que construir trigger y row lock para que una renumeración no
+dejara copias viejas (TD-042).
+
+Decisión. `coi_documentacion_oc` guarda solo `orden_id`. Una referencia
+documental se crea SIEMPRE desde la ficha de una OC ya resuelta, y el cliente
+tiene el catálogo de órdenes en memoria: el número vigente se resuelve al
+publicar. Guardar una copia solo agregaría un dato capaz de quedar viejo.
+
+Alternativas descartadas. Replicar el aparato de trigger y lock de H04: es
+complejidad que aquí no compra nada, porque no existe el flujo «llega el número
+antes que la orden».
+
+Consecuencias. Si el catálogo de órdenes termina de cargar después que la
+documentación, el número queda vacío un instante; se resuelve con un remapeo
+diferido acotado —mismo criterio que H03— que además cae con el snapshot al
+cambiar de identidad, para que ningún timer republique lo del operador anterior.
+
+## TD-047 — Una caché que nadie puede leer no se conserva «por si acaso»
+Fecha: 2026-09-04. PR: H07 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. H06 dejó tres cachés write-only (KI-021) argumentando que alimentaban
+el backup y el diagnóstico de soporte.
+
+Decisión. Se retiran. Un backup o un diagnóstico no justifican mantener datos
+operativos en reposo en el navegador: el backup del Timeline se serializa desde
+el snapshot confirmado en memoria, y el diagnóstico informa el estado de la
+sesión, no el contenido de una copia. Lo que no puede obtenerse de forma
+autoritativa se informa como no disponible, no se recupera de una caché vieja.
+
+La purga de la copia preexistente ocurre recién cuando Supabase confirmó la
+lectura: es provablemente sin pérdida.
+
+Consecuencias. La sincronización entre pestañas del Timeline se conserva con
+`coi_timeline_sync_ping_v1`, que lleva marca de tiempo y contador y no puede
+reconstruir ningún evento. Un backup tomado sin sesión ya no incluye órdenes ni
+posiciones: refleja lo que la sesión pudo confirmar, que es lo honesto.
+
+## TD-048 — El legado sale del modelo operativo hacia una cuarentena explícita
+Fecha: 2026-09-04. PR: H07 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. H05 congeló el legado de UM/ST, H06 le quitó autoridad a las cachés y
+KI-020 dejó abierto el último camino: sin marcador de corte, H03 publicaba las
+observaciones legadas como modelo operativo. La decisión pendiente no era
+técnica —qué hacer con esas filas— y por eso H06 no la tocó.
+
+Decisión. Se separa mostrar de publicar. El material legado —observaciones sin
+marcador y referencias documentales— deja de entrar al modelo operativo y pasa a
+una cuarentena inspeccionable: se conserva intacto, se cuenta, se puede exportar
+y se puede importar de forma explícita, idempotente y validada contra las OC
+remotas. Nunca se importa solo y nunca se borra.
+
+Esto NO debilita la protección de KI-007: mientras haya material sin importar,
+las mutaciones siguen bloqueadas. Lo único que cambia es de dónde sale esa señal.
+
+Alternativas descartadas. (a) Borrar el legado: destruye material que ninguna
+migración repone. (b) Marcarlo como importado sin importarlo: miente sobre el
+estado del sistema y deja las filas fuera de alcance. (c) Dejarlo publicado: es
+exactamente lo que H07 viene a cerrar.
+
+Consecuencias. Después de H07 ningún dato operacional se reconstruye desde
+localStorage: ni en el arranque, ni ante un fallo de red, ni con el remoto
+vacío, ni al cambiar de identidad, ni al refrescar el token. Lo que queda en
+localStorage son preferencias, filtros, marcadores de migración, señales de
+sincronización y material legado en cuarentena.
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.

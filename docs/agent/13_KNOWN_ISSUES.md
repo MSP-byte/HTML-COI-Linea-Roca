@@ -325,8 +325,27 @@ divergencias correspondientes en
 Registrar PR, fecha, resolución y test de regresión.
 
 ## KI-019 — Documentación OC (V64) sigue siendo local-autoritativa
-Estado: abierto. GAP detectado y NO resuelto en H06 (PR de la rama
-`fix/h06-localstorage-non-authoritative`).
+Estado: RESUELTO EN CÓDIGO (2026-09-04) por H07, rama
+`fix/h07-final-localstorage-supabase-first`. **Pendiente de rollout remoto.**
+
+`supabase/migrations/202609040001_h07_documentacion_oc.sql` crea
+`public.coi_documentacion_oc` con `orden_id uuid` como identidad técnica,
+FK `ON DELETE RESTRICT` contra `coi_ordenes`, RLS RESTRICTIVE sobre
+`coi_current_role()` y versión de fila server-side. La capa
+`coi-h07-documentacion-supabase-first` de `index.html` publica únicamente lo
+que Supabase confirma; `v64CargarDocumentacionOC` y `v64GuardarDocumentacionOC`
+dejaron de tocar localStorage y la global `documentacionOC` quedó congelada
+frente a republicaciones. El legado se conserva intacto en cuarentena
+(`__COI_DOC_H07_LEGACY__`): se puede ver, exportar e importar de forma
+explícita e idempotente, nunca automáticamente.
+
+Mientras la migración NO esté aplicada en remoto, el módulo informa que la
+tabla no está disponible y NO publica nada: no vuelve a localStorage. Fijado por
+`H07-18` en `tests/h07_documentacion_supabase_first.spec.js`.
+
+Texto original conservado abajo como historia.
+
+### Texto original
 
 `coi_documentacion_oc` guarda las REFERENCIAS documentales de la V64 —tipo,
 número, repositorio, ruta, link de OneDrive/SharePoint, estado documental— y es
@@ -348,7 +367,24 @@ arquitectura nueva y quedó explícitamente fuera del alcance de H06. H07 decide
 si se migra a Supabase o si se declara dato no operativo.
 
 ## KI-020 — H03 sin marcador de corte todavía muestra observaciones legadas
-Estado: abierto por diseño. Heredado de H03 / KI-007.
+Estado: RESUELTO (2026-09-04) por H07, rama
+`fix/h07-final-localstorage-supabase-first`.
+
+El origen `legacy-readonly` desapareció: las observaciones legadas ya no se
+publican como modelo operativo en ningún camino. Ahora quedan en CUARENTENA
+(`__COI_OBS_H07_CUARENTENA__`), conservadas intactas, contabilizadas y
+exportables, pero fuera de `window.observacionesOC`, sin alimentar KPIs y sin
+poder sobrescribir filas de Supabase.
+
+La protección de KI-007 se mantiene exactamente igual: mientras exista material
+legado sin importar, `cutoverPendiente()` sigue bloqueando toda mutación —lo
+que cambió es de dónde saca la señal, ya no de que el legado esté publicado—.
+Fijado por `H07-10` y por `H06-10c`, que pasó de documentar el GAP a fijar su
+cierre.
+
+Texto original conservado abajo como historia.
+
+### Texto original
 
 Con el marcador `coi_observaciones_h03_imported_v1` puesto —el estado de
 PRODUCCIÓN desde que KI-007 quedó resuelto— H03 no vuelve a mirar la clave
@@ -366,7 +402,26 @@ esas filas —exportarlas, importarlas o descartarlas— y esa decisión no es
 técnica. El comportamiento queda fijado y es rastreable en `H06-10c`.
 
 ## KI-021 — Cachés operativas de localStorage quedaron write-only
-Estado: abierto (deuda menor introducida por H06).
+Estado: RESUELTO (2026-09-04) por H07, rama
+`fix/h07-final-localstorage-supabase-first`.
+
+Las tres dejaron de escribirse:
+
+- `coi_supabase_ordenes_cache_v2` — `cacheSupabaseOrders()` se sustituyó por
+  `purgarCacheOrdenesRetirada()`;
+- `coi_cache_posiciones_oc_supabase_v1` — `saveRemoteCache()` solo descarta;
+- `coi_timeline_events_v1` — `applyTimelineEvents()` ya no persiste eventos.
+
+La copia vieja se descarta recién cuando Supabase confirmó la lectura, de modo
+que la purga no puede perder nada. El Timeline conserva la sincronización entre
+pestañas con `coi_timeline_sync_ping_v1`, una señal con marca de tiempo y un
+contador: no contiene eventos y no puede reconstruir nada. El backup integral
+sigue llevando el Timeline, pero serializado desde el snapshot confirmado en
+memoria, no leyendo la caché. Fijado por `H07-11` y `H07-12`.
+
+Texto original conservado abajo como historia.
+
+### Texto original
 
 `coi_supabase_ordenes_cache_v2`, `coi_cache_posiciones_oc_supabase_v1` y
 `coi_timeline_events_v1` se siguen ESCRIBIENDO pero ya no se releen como
@@ -376,3 +431,34 @@ cambio de identidad las borran.
 
 Queda pendiente decidir si aportan lo suficiente como para justificar mantener
 datos operativos en reposo en el navegador. H07 puede retirarlas.
+
+## KI-022 — Migración H07 de documentación pendiente de aplicar en remoto
+Estado: abierto. Rama `fix/h07-final-localstorage-supabase-first`.
+
+`supabase/migrations/202609040001_h07_documentacion_oc.sql` existe en el
+repositorio pero NO fue aplicada a PRODUCCIÓN ni a STAGING. Mientras eso siga
+así, `public.coi_documentacion_oc` no existe y el módulo documental informa
+que la tabla no está disponible: no muestra referencias y no acepta altas.
+
+Es un estado degradado DELIBERADO y visible: el módulo no vuelve a localStorage
+en ningún caso. La divergencia está declarada en
+`tests/fixtures/production_schema_contract.json` →
+`_divergencias_pendientes.tablas`.
+
+Al aplicarla: actualizar el snapshot productivo y mover la entrada a
+`_divergencias_pendientes._resueltas`. Recién entonces conviene decidir qué se
+hace con el material documental que quede en cuarentena en cada puesto
+(`__COI_DOC_H07_LEGACY__.importar({ confirmado: true })`).
+
+## KI-023 — Escritores legados en la fuente, neutralizados en runtime
+Estado: abierto (deuda menor, sin impacto operativo conocido).
+
+`v65GuardarObservacionesOC` y otros escritores históricos de
+`coi_observaciones_oc` siguen existiendo en el código fuente de `index.html`,
+pero H03 los sustituye en `instalar()` por versiones que no persisten nada.
+H07 hizo lo mismo con `v64GuardarDocumentacionOC`, que además quedó neutralizado
+EN LA FUENTE y ya no escribe la clave documental.
+
+La deuda es que la garantía depende de que el override esté instalado. Las
+suites H03 y H07 lo verifican funcionalmente, pero convendría eliminar los
+cuerpos legados cuando se pueda tocar esa zona sin riesgo.

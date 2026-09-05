@@ -49,8 +49,10 @@ check(!/readSupabaseCache|SUPABASE_CACHE_KEY|localStorage/.test(degradar),
   'la degradacion de Ordenes no puede volver a leer localStorage');
 check(html.indexOf('function readSupabaseCache(') < 0,
   'no puede quedar un lector de la cache de Ordenes: era la via de autoridad local');
-// El snapshot confirmado solo lo fija una lectura remota exitosa.
-check(/cacheSupabaseOrders\(normalized\);\n    ordenesConfirmadas = normalized;/.test(html),
+// El snapshot confirmado solo lo fija una lectura remota exitosa. H07 retiro la
+// escritura de la cache local que acompañaba a esta linea: lo que se comprueba
+// sigue siendo lo mismo —quien fija el snapshot— sin exigir aquella cache.
+check(/purgarCacheOrdenesRetirada\(\);\n    ordenesConfirmadas = normalized;/.test(html),
   'solo una lectura remota confirmada puede fijar el snapshot de Ordenes');
 check(html.includes('requestGeneration !== supabaseAuthGeneration') && html.includes('supabaseCargaPendiente = true;'),
   'Ordenes tiene que descartar cargas stale y encolar la recarga de la identidad nueva');
