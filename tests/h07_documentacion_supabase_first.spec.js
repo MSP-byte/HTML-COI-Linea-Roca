@@ -641,3 +641,110 @@ test('H07-18 · si la tabla H07 no existe, el módulo falla claro y no cae a loc
   await page.waitForTimeout(600);
   expect(soloOp(await radiografia(page), 'insert:coi_documentacion_oc')).toHaveLength(0);
 });
+
+// ============================ 20, 21 · importacion legada idempotente (P2)
+//
+// La importacion explicita se declara idempotente, pero construia su set de
+// deduplicacion desde runtime.confirmado sin exigir que hubiera una lectura
+// remota confirmada. Si la primera lectura de la sesion fallaba, el snapshot
+// quedaba vacio y un documento que PostgreSQL YA tenia se volvia a insertar.
+
+// Mismo documento que DOC_REMOTO, pero en la clave legada.
+const DOC_LEGADO_EQUIVALENTE = [{
+  idDocumento: 'DOC-OC-LEGADO-EQUIV',
+  ocNro: ORDEN_NRO,
+  idObra: 'OBRA-H07',
+  tipoDocumento: DOC_REMOTO.tipo_documento,
+  nroDocumento: DOC_REMOTO.nro_documento,
+  nombreArchivo: DOC_REMOTO.nombre_archivo,
+  repositorio: 'OneDrive',
+  estadoDocumento: 'Pendiente',
+  observaciones: 'Copia legada del documento que ya esta en Supabase'
+}];
+
+test('H07-20 · importar sincroniza primero y no reinserta lo que Supabase ya tiene', async ({ page }) => {
+  // 1) Supabase contiene DOC_REMOTO. 2) localStorage tiene el equivalente.
+  // 3) la lectura documental inicial FALLA, de modo que 4) runtime.confirmado
+  // no contiene DOC_REMOTO.
+  await prepararH07(page, { documentos: [DOC_REMOTO], fallaDocumentos: true });
+  await page.addInitScript((legado) => {
+    localStorage.setItem('coi_documentacion_oc', JSON.stringify(legado));
+  }, DOC_LEGADO_EQUIVALENTE);
+  await abrirH07(page);
+
+  const antes = await radiografia(page);
+  expect(antes.diag.sincronizado).toBe(false);
+  expect(antes.diag.confirmadas).toBeNull();
+  expect(antes.docs).toEqual([]);
+
+  // 5) vuelve la lectura remota. 6) se importa explicitamente.
+  const resultado = await page.evaluate(async () => {
+    window.__H07_CFG__.fallaDocumentos = false;
+    return window.__COI_DOC_H07_LEGACY__.importar({ confirmado: true });
+  });
+
+  const r = await radiografia(page);
+  // 7) sincronizo antes de deduplicar y 8) reconocio el documento existente.
+  expect(r.diag.sincronizado).toBe(true);
+  // 9) importadas = 0.
+  expect(resultado.importadas).toBe(0);
+  expect(resultado.omitidas).toBe(1);
+  expect(resultado.detalle[0].motivo).toBe('Ya existe en Supabase');
+  // 10) cero INSERT nuevos.
+  expect(soloOp(r, 'insert:coi_documentacion_oc')).toHaveLength(0);
+  // 11) el documento remoto sigue siendo exactamente uno.
+  expect(await page.evaluate(() => window.__H07_DOCS__().length)).toBe(1);
+  expect(r.docs).toHaveLength(1);
+  expect(r.docs[0].id).toBe(DOC_REMOTO.id);
+  // El legado no se toco.
+  expect(r.legadoIntacto).toBe(true);
+});
+
+test('H07-21 · si la sincronización previa sigue fallando, importar aborta sin insertar nada', async ({ page }) => {
+  await prepararH07(page, { documentos: [DOC_REMOTO], fallaDocumentos: true });
+  await page.addInitScript((legado) => {
+    localStorage.setItem('coi_documentacion_oc', JSON.stringify(legado));
+  }, DOC_LEGADO_EQUIVALENTE);
+  await abrirH07(page);
+  expect((await radiografia(page)).diag.sincronizado).toBe(false);
+
+  // El remoto NO se restablece: la importacion tiene que fallar cerrada.
+  const salida = await page.evaluate(async () => {
+    try {
+      const r = await window.__COI_DOC_H07_LEGACY__.importar({ confirmado: true });
+      return { ok: true, r };
+    } catch (error) {
+      return { ok: false, mensaje: String((error && error.message) || error) };
+    }
+  });
+
+  expect(salida.ok).toBe(false);
+  expect(salida.mensaje).toMatch(/No se pudo confirmar el estado actual/i);
+  const r = await radiografia(page);
+  // Cero INSERT y el remoto intacto.
+  expect(soloOp(r, 'insert:coi_documentacion_oc')).toHaveLength(0);
+  expect(await page.evaluate(() => window.__H07_DOCS__().length)).toBe(1);
+  // El legado tampoco se toco ni se publico como dato operativo.
+  expect(r.legadoIntacto).toBe(true);
+  expect(r.docs).toEqual([]);
+});
+
+test('H07-22 · con el remoto confirmado y vacío, el legado válido sí se importa una sola vez', async ({ page }) => {
+  // Contracara de H07-20: la proteccion no puede volver inutil la importacion.
+  await prepararH07(page, { documentos: [] });
+  await page.addInitScript((legado) => {
+    localStorage.setItem('coi_documentacion_oc', JSON.stringify(legado));
+  }, DOC_LEGADO_EQUIVALENTE);
+  await abrirH07(page);
+
+  const primera = await page.evaluate(() => window.__COI_DOC_H07_LEGACY__.importar({ confirmado: true }));
+  expect(primera.importadas).toBe(1);
+  expect(await page.evaluate(() => window.__H07_DOCS__().length)).toBe(1);
+
+  // Y una segunda corrida no duplica: es idempotente.
+  const segunda = await page.evaluate(() => window.__COI_DOC_H07_LEGACY__.importar({ confirmado: true }));
+  expect(segunda.importadas).toBe(0);
+  expect(segunda.omitidas).toBe(1);
+  expect(await page.evaluate(() => window.__H07_DOCS__().length)).toBe(1);
+  expect((await radiografia(page)).legadoIntacto).toBe(true);
+});

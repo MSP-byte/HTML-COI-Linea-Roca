@@ -30816,6 +30816,23 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       if (!(opciones && opciones.confirmado === true)) {
         throw new Error('La importación del legado documental requiere { confirmado: true }.');
       }
+      // La idempotencia se apoya en saber que hay HOY en Supabase. El snapshot
+      // en memoria no sirve como prueba de inexistencia: si la primera lectura
+      // de la sesion fallo —o si la tabla todavia no estaba desplegada—
+      // runtime.confirmado queda vacio, y deducir de ahi que un documento «no
+      // existe» reinsertaria filas que PostgreSQL ya tiene.
+      //
+      // Por eso se fuerza una lectura documental remota REAL inmediatamente
+      // antes de deduplicar, y se exige que haya quedado confirmada. Si no se
+      // puede confirmar, la importacion no ocurre: FAIL CLOSED. No se importa
+      // nada, no se toca el legado y no se usa localStorage como autoridad.
+      await cargar();
+      if (runtime.sincronizado !== true) {
+        throw new Error(
+          'No se pudo confirmar el estado actual de la documentación en Supabase' +
+          (runtime.ultimoError ? ' (' + runtime.ultimoError + ')' : '') +
+          '. No se importó nada: sin una lectura confirmada no se puede saber qué ya existe.');
+      }
       const c = await exigirEscritura();
       const filas = legadoFilas();
       const porId = indiceOrdenes();
@@ -30824,7 +30841,8 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
         const n = texto(item.numeroOC || item.oc || item.ocNro);
         if (n && !porNumero.has(n)) porNumero.set(n, id);
       });
-      // Idempotencia: no se reimporta lo que ya existe con el mismo contenido.
+      // Idempotencia: se deduplica contra el snapshot RECIEN confirmado, nunca
+      // contra uno viejo ni contra la clave legada.
       const yaExiste = new Set(lista().map((d) => [
         String(d._ordenId), texto(d.tipoDocumento).toUpperCase(),
         texto(d.nroDocumento).toUpperCase(), texto(d.nombreArchivo).toUpperCase()
