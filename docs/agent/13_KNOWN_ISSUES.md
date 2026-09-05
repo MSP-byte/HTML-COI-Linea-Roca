@@ -413,9 +413,23 @@ Además, la clave legada quedó aislada de **todos** los lectores operativos: el
 es justo cuando menos hacía falta—. La API de cuarentena la sigue viendo por el
 getter nativo interno.
 
+En la segunda vuelta de review del PR #61 se cerraron tres huecos más:
+
+3. **La clave de conciliación no usaba los alias canónicos.** Le faltaban
+   `numeroOC` y `descripcion`, que `v65NormalizarObservacion()` sí acepta: una
+   fila legada con esa forma producía la clave vacía `|` y quedaba bloqueada
+   para siempre. Ahora se extraen exactamente los mismos alias (TD-055).
+4. **La salida existía pero solo desde consola.** Se agregó una superficie
+   mínima en el sector 7. Observaciones de la Ficha OC —conciliar, exportar,
+   descartar— sobre las mismas operaciones, sin API paralela (TD-054).
+5. **El legado publicado sobrevivía a la espera de Supabase.** Con red lenta,
+   los paneles seguían mostrando material local mientras la lectura remota no
+   contestaba. Ahora se retira sincrónicamente, antes del primer `await`
+   (TD-053).
+
 La protección de KI-007 se mantiene: mientras exista material sin conciliar,
-`cutoverPendiente()` bloquea toda mutación. Fijado por `H07-7` a `H07-10`
-en `tests/h07_cierre_localstorage.spec.js` y por `H06-10c`.
+`cutoverPendiente()` bloquea toda mutación. Fijado por `H07-7` a `H07-10`,
+`H07-13` a `H07-19` en `tests/h07_cierre_localstorage.spec.js` y por `H06-10c`.
 
 Texto original conservado abajo como historia.
 
@@ -502,3 +516,57 @@ EN LA FUENTE y ya no escribe la clave documental.
 La deuda es que la garantía depende de que el override esté instalado. Las
 suites H03 y H07 lo verifican funcionalmente, pero convendría eliminar los
 cuerpos legados cuando se pueda tocar esa zona sin riesgo.
+
+
+## KI-024 — El Diagnóstico avanzado V58.1 pedía «Asociar carpeta OneDrive/SharePoint»
+Estado: **RESUELTO (2026-09-05)** por H07, PR #61.
+
+Al retirar el modelo documental por referencia externa quedó una segunda
+superficie además del Centro de Alertas: la tabla del «Diagnóstico avanzado
+V58.1» mostraba el problema `OC activa sin carpeta documental/link asociado.`
+con la acción sugerida `Asociar carpeta OneDrive/SharePoint.`, y cada fila trae
+un botón **Enviar a Observaciones** que lleva ese texto completo en su payload.
+
+No era código muerto: cualquier administrador podía convertirlo en una
+observación real de la OC pidiendo una acción explícitamente retirada por
+AGENTS.md.
+
+Corrección mínima: el problema se filtra por su texto —no por su tipo— en
+`window.ejecutarDiagnosticoSistema` y, sobre todo, en
+`window.renderAdminDiagnostico`, que es el camino que usa el botón del panel
+(el `diagnostico()` interno se invoca por su referencia cerrada dentro de la
+IIFE, así que envolver solo el global no alcanzaba). El contador
+`problemasDocumentales` se recalcula. No se refactorizó la IIFE, no se
+reintrodujo OneDrive y no se tocó Supabase Storage.
+
+El otro problema documental, `Documento con fecha inválida.`, pertenece al
+camino vigente y se conserva. Fijado por `H07-24`, que comprueba el HTML
+renderizado y el payload del botón, y contrasta contra el generador sin filtrar
+para que el filtro no sea vacío.
+
+Queda como acceso programático sin superficie de UI `window.COI_V581.diagnostico`,
+que sigue devolviendo el resumen crudo.
+
+## KI-025 — (DESCARTADO) `getDocs()` no lee las claves documentales legadas
+Estado: **SIN EFECTO (2026-09-05).** Se abrió por una lectura apresurada del
+código y se verificó que era incorrecta. Se conserva la entrada para que nadie
+vuelva a abrirla por el mismo motivo.
+
+`getDocs()` del bloque V58.1 empieza por `if (typeof v62DocsGlobales === 'function')
+return v62DocsGlobales();`. Ese lector siempre existe —es una declaración de
+función global— y H07 lo sustituye por uno que devuelve `[]`. La rama que
+recorre `coi_documentacion_oc`, `coiDocumentos`, `documentacionOC` y
+`coi_documentos_oc` de localStorage es, por lo tanto, **inalcanzable**.
+
+Consecuencias verificadas por `H07-25`:
+
+- `resumen.totalDocumentos` del backup es `0`;
+- `datos.documentosOC` va vacío y no se mezcla con `coi_documentos_oc`;
+- el diagnóstico no genera problemas documentales del store retirado;
+- el legado no alimenta ningún KPI.
+
+El material legado solo aparece en `payload.localStorage`, que es el volcado
+crudo del navegador —una sección de recuperación, no documentación operativa—.
+`importarBackup()` restaura de ahí **únicamente** el Timeline, y por la ruta
+autoritativa de Supabase (`COI_TIMELINE_COI.replace`); el resto de las claves no
+se reescribe y el resumen informa qué datasets no se aplicaron localmente.

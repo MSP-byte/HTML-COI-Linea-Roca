@@ -127,3 +127,10 @@ Storage más las tablas vigentes son el camino activo. Ver KI-019 y TD-049.
 
 El material histórico de esa clave se conserva intacto, fuera del modelo
 operacional, contable y exportable por `__COI_DOC_H07_LEGACY__`.
+
+Consecuencia para el Centro de Alertas: las alertas que pedían cargar el link de
+una carpeta OneDrive/SharePoint o agregar una «referencia documental» externa
+quedaron **filtradas**, porque dirigían a una acción retirada y —con el store
+vacío— se disparaban para todas las OC. Las alertas documentales del camino
+vigente («OC activa sin Acta de Inicio», «Falta expediente», «Falta última
+acta», «Estado documental pendiente») siguen intactas. Ver TD-056 y `H07-21`.

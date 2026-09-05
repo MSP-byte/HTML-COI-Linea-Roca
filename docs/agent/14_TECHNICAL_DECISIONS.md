@@ -889,5 +889,119 @@ relectura, no una cadena.
 Consecuencias. La sincronización entre pestañas se conserva y deja de generar
 tráfico creciente. Fijado por `H07-6`.
 
+Actualización (2026-09-05): el **mecanismo** de esta decisión quedó superado por
+TD-052. El principio —un ping produce una relectura, no una cadena— sigue igual.
+
+## TD-052 — El origen de una recarga viaja con la petición, no en una global
+Fecha: 2026-09-05. PR #61 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. La primera implementación de TD-051 guardaba el origen en una única
+variable de módulo (`timelineOrigenRecarga`) con semántica guardar/restaurar. Con
+dos eventos `storage` solapados el restore es LIFO: el primero devuelve `local`
+y el segundo vuelve a poner `storage`. La variable quedaba pegada en `storage`
+para siempre y, a partir de ahí, **ninguna mutación local volvía a avisar a las
+otras pestañas**. El eco estaba resuelto al precio de romper la sincronización.
+
+Decisión. El origen deja de ser estado del módulo y pasa a ser un parámetro de
+la petición: `loadEvents({ emitirSync:false })` desde el listener de `storage`,
+`emitirSync` por defecto en los caminos locales, propagado hasta
+`applyTimelineEvents()`. Cada lectura captura su propio objeto de estado, de modo
+que una lectura posterior no puede alterar lo que otra ya decidió. Si una
+relectura pedida por otra pestaña se engancha a una lectura en curso, esa lectura
+se degrada a no emitir; nunca al revés.
+
+Alternativas descartadas. Contadores de anidamiento y timestamps de supresión:
+siguen siendo estado global y siguen teniendo ventanas de carrera.
+
+Consecuencias. No queda ninguna global mutable que restaurar. Fijado por
+`H07-20`, que solapa dos señales y después comprueba que una mutación local sí
+vuelve a emitir exactamente una.
+
+## TD-053 — El modelo se limpia antes del primer await, no después
+Fecha: 2026-09-05. PR #61.
+
+Contexto. El inicializador histórico publica en `window.observacionesOC` lo que
+encuentra en la clave legada, y eso ocurre mucho antes de que la capa H03
+empiece a leer Supabase. H03 lo retiraba, pero recién después de operaciones
+asíncronas. En un puesto con red lenta —o colgada— quedaba una ventana en la que
+paneles y KPIs seguían mostrando observaciones locales, que pueden ser incluso
+de otro operador del mismo navegador, como si fueran dato operativo.
+
+Decisión. Mientras la sesión no tenga una lectura remota confirmada, el modelo
+publicado se retira **sincrónicamente**, antes del primer `await` de la carga.
+No se toca `localStorage`: la materia prima sigue intacta y la cuarentena la lee
+con su getter nativo. Tampoco se presenta el vacío como lectura remota:
+`sincronizado` sigue en `false`.
+
+Consecuencias. Un snapshot remoto legítimo ya confirmado no se destruye por una
+recarga de la misma sesión: la retirada se saltea cuando hay snapshot. Fijado por
+`H07-13` (con la lectura demorada) y `H07-14`.
+
+## TD-054 — Una cuarentena que bloquea necesita una salida en la interfaz
+Fecha: 2026-09-05. PR #61.
+
+Contexto. TD-048 y TD-050 dejaron el material legado fuera del modelo y las
+mutaciones bloqueadas hasta conciliarlo. Las operaciones para resolverlo
+existían —`conciliar`, `exportarJSON`, `descartar`— pero solo eran alcanzables
+desde consola. Un operador real veía la edición bloqueada y no tenía salida.
+
+Decisión. Se monta una superficie mínima sobre el sector que ya existe —7.
+Observaciones de la Ficha OC, exactamente donde el operador se topa con el
+bloqueo— con tres acciones: conciliar, exportar y descartar. El núcleo son las
+operaciones que ya estaban; no se creó una API paralela. El aviso solo aparece
+cuando hay cuarentena pendiente y desaparece cuando se resuelve.
+
+Descartar exige confirmación explícita del usuario, exporta antes y **no** borra
+la clave legada ni la importa: solo registra que el operador decidió que deje de
+bloquear. El texto de la UI lo dice con esas palabras.
+
+Consecuencias. El bloqueo deja de ser un callejón sin salida. Fijado por
+`H07-15`, `H07-16`, `H07-17` y `H07-18`, todos por interacción real con la UI.
+
+## TD-055 — Una conciliación usa la misma semántica canónica que la normalización
+Fecha: 2026-09-05. PR #61.
+
+Contexto. La clave de conciliación del legado usaba alias propios. Le faltaban
+`numeroOC` y `descripcion`, que `v65NormalizarObservacion()` sí acepta. Una fila
+legada guardada con esa forma producía la clave vacía `|` y quedaba en cuarentena
+para siempre, aunque la observación ya estuviera en Supabase.
+
+Decisión. La conciliación extrae **exactamente** los mismos alias que la función
+canónica, en su mismo orden. Se extraen sin llamarla porque esa función genera
+ids y fechas y acá hace falta una lectura pura. No se mantienen dos
+normalizadores incompatibles.
+
+Consecuencias. Fijado por `H07-19`.
+
+## TD-056 — Una alerta no puede pedir una acción retirada
+Fecha: 2026-09-05. PR #61.
+
+Contexto. Retirado el modelo documental por referencia externa (TD-049), las
+capas V64 y V58 seguían emitiendo alertas que empujan al operador justo a lo que
+AGENTS.md y BASELINE_OPERATIVA prohíben reintroducir: «Cargar link de carpeta
+documental», «Agregar referencia documental», «Agregar link de
+SharePoint/OneDrive/Drive». Además se calculan sobre un store que ahora está
+siempre vacío, así que se disparaban para **todas** las OC.
+
+Decisión. Se filtran esas alertas por su tipo, al final de la cadena de
+`generarAlertasCOI()`. Solo esas. Las alertas documentales del camino vigente
+—Supabase Storage + `public.coi_documentos_oc`, que en el Centro de Alertas
+llegan por V58: «OC activa sin Acta de Inicio», «Falta expediente», «Falta última
+acta», «Estado documental pendiente»— quedan intactas.
+
+Alternativas descartadas. Borrar los emisores V64: viven dentro de IIFE y su
+reescritura tocaría zonas ajenas al alcance de H07 sin ganar nada operativo.
+
+Consecuencias. Fijado por `H07-21`, que además comprueba contra el generador sin
+filtrar que las alertas retiradas realmente se emitían: el filtro no es vacío.
+
+Alcance ampliado (2026-09-05). El «Diagnóstico avanzado V58.1» era una segunda
+superficie del mismo problema y **sí** era accionable: su tabla mostraba
+`Asociar carpeta OneDrive/SharePoint.` y cada fila lleva un botón que manda ese
+texto a Observaciones. Se aplicó el mismo criterio, filtrando por el texto del
+problema en `window.renderAdminDiagnostico` —el camino que usa el botón del
+panel, porque el `diagnostico()` interno se invoca por referencia cerrada— y en
+`window.ejecutarDiagnosticoSistema`. Ver KI-024 y `H07-24`.
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.
