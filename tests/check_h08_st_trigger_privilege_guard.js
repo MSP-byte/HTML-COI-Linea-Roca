@@ -118,23 +118,38 @@ async function main() {
   check(/search_path=.*pg_catalog.*public.*pg_temp/i.test(config),
     `search_path inseguro o incompleto: ${config}`);
 
-  const { rows: priv } = await db.query(`
-    select
-      has_table_privilege('authenticated','public.coi_ordenes','UPDATE') auth_update_oc,
-      has_function_privilege('authenticated','public.coi_st_resolver_nro_oc()','EXECUTE') auth_exec,
-      has_function_privilege('anon','public.coi_st_resolver_nro_oc()','EXECUTE') anon_exec`);
-  check(priv[0].auth_update_oc === false,
+  // Se usan catalogs de information_schema en vez de has_*_privilege(): PGlite
+  // no expone de forma portable los aliases de esas helpers, mientras que la
+  // suite H04/H05 ya valida grants con estos catalogs.
+  const { rows: updateGrant } = await db.query(`
+    select count(*)::int n
+      from information_schema.role_table_grants
+     where table_schema = 'public'
+       and table_name = 'coi_ordenes'
+       and grantee = 'authenticated'
+       and privilege_type = 'UPDATE'`);
+  check(updateGrant[0].n === 0,
     'H08 no puede conceder UPDATE directo sobre coi_ordenes a authenticated');
-  check(priv[0].auth_exec === false,
-    'authenticated no debe poder ejecutar directamente la funcion trigger');
-  check(priv[0].anon_exec === false,
-    'anon no debe poder ejecutar directamente la funcion trigger');
 
+  const { rows: execGrant } = await db.query(`
+    select count(*)::int n
+      from information_schema.routine_privileges
+     where routine_schema = 'public'
+       and routine_name = 'coi_st_resolver_nro_oc'
+       and grantee in ('PUBLIC', 'anon', 'authenticated')
+       and privilege_type = 'EXECUTE'`);
+  check(execGrant[0].n === 0,
+    'PUBLIC/anon/authenticated no deben tener EXECUTE directo sobre la funcion trigger');
+
+  // Prueba efectiva del limite: aunque sea Administrador, authenticated sigue
+  // sin poder tomar por si mismo el lock de coi_ordenes.
   const directa = await fallo(() => como(db, 'authenticated', ADMIN,
     `select id from public.coi_ordenes where id = $1 for update`, [orden.id]));
   check(Boolean(directa) && /permission denied/i.test(directa),
     `authenticated sigue sin poder lockear coi_ordenes directamente: ${directa}`);
 
+  // Pero el trigger SECURITY DEFINER SI puede tomar ese lock despues de que la
+  // RLS de la tabla hija haya autorizado la mutacion del Administrador.
   const alta = await fallo(() => como(db, 'authenticated', ADMIN,
     `insert into public.coi_servicios_tecnicos_um
        (unidad_id, nro_st, nro_oc, fecha, descripcion, estado)
@@ -153,13 +168,20 @@ async function main() {
 
   const reaplicar = await fallo(() => db.exec(leer(MIGRACION)));
   check(!reaplicar, `reaplicar H08 debe ser idempotente: ${reaplicar}`);
-  const { rows: tras } = await db.query(`
-    select p.prosecdef,
-           has_function_privilege('authenticated','public.coi_st_resolver_nro_oc()','EXECUTE') auth_exec
+
+  const { rows: trasFn } = await db.query(`
+    select p.prosecdef
       from pg_proc p
      where p.oid = 'public.coi_st_resolver_nro_oc()'::regprocedure`);
-  check(tras[0].prosecdef === true && tras[0].auth_exec === false,
-    'reaplicar H08 debe conservar SECURITY DEFINER y EXECUTE revocado');
+  const { rows: trasExec } = await db.query(`
+    select count(*)::int n
+      from information_schema.routine_privileges
+     where routine_schema = 'public'
+       and routine_name = 'coi_st_resolver_nro_oc'
+       and grantee in ('PUBLIC', 'anon', 'authenticated')
+       and privilege_type = 'EXECUTE'`);
+  check(trasFn[0].prosecdef === true && trasExec[0].n === 0,
+    'reaplicar H08 debe conservar SECURITY DEFINER y EXECUTE directo revocado');
 
   console.log(`OK H08 ST trigger privilege guard: ${aprobados} controles.`);
   await db.close();
