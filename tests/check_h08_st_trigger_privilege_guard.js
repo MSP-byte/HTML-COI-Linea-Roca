@@ -5,19 +5,18 @@
   H08 — El trigger ST -> OC necesita row locks sobre coi_ordenes sin abrir
   UPDATE directo a authenticated.
 
-  Reproduce el hallazgo real del rollout: antes de H08 un Administrador podia
-  pasar la RLS de coi_servicios_tecnicos_um pero el INSERT vinculado a una OC
-  fallaba dentro de coi_st_resolver_nro_oc() con permission denied, porque
-  SELECT ... FOR UPDATE sobre coi_ordenes exige privilegio UPDATE.
+  Este control reproduce el hallazgo REAL del rollout, no una suposicion sobre
+  los grants de la base sintetica:
 
-  El control exige simultaneamente:
-    1) coi_st_resolver_nro_oc() es SECURITY DEFINER;
-    2) search_path queda fijado a pg_catalog, public, pg_temp;
-    3) authenticated sigue SIN UPDATE directo sobre coi_ordenes;
-    4) anon/authenticated no pueden EXECUTE la funcion directamente;
-    5) un Administrador autenticado SI puede crear un ST vinculado a una OC;
-    6) el trigger completa orden_id y nro_oc canonico;
-    7) reaplicar la migracion es idempotente.
+    - construye el esquema hasta H07/H04/H05, SIN aplicar H08;
+    - replica explicitamente el limite remoto confirmado en STAGING:
+      authenticated NO tiene UPDATE directo sobre coi_ordenes;
+    - demuestra que el INSERT de un ST vinculado falla antes de H08 porque el
+      trigger invoker intenta SELECT ... FOR UPDATE sobre coi_ordenes;
+    - aplica H08;
+    - demuestra que el mismo INSERT pasa, sin devolver UPDATE directo al cliente;
+    - verifica SECURITY DEFINER, search_path endurecido, EXECUTE directo revocado,
+      resolucion UUID/numero canonico e idempotencia.
 
   No toca STAGING ni PRODUCCION.
 */
@@ -31,7 +30,8 @@ const { PGlite } = require('@electric-sql/pglite');
 const DIST_DIR = path.dirname(require.resolve('@electric-sql/pglite'));
 const PGCRYPTO_URL = pathToFileURL(path.join(DIST_DIR, 'pgcrypto.tar.gz'));
 const DIR = 'supabase/migrations';
-const MIGRACION = '202609050001_h08_st_trigger_privilege_guard.sql';
+const H08 = '202609050001_h08_st_trigger_privilege_guard.sql';
+const H08_RECONCILE = '202609050002_h08_st_trigger_privilege_reconcile.sql';
 const ADMIN = '88888888-8888-4888-8888-888888888888';
 
 const PLATAFORMA = [
@@ -73,23 +73,26 @@ async function como(db, rol, uid, sql, params) {
 }
 
 async function nuevaOC(db, nro) {
-  await db.exec('begin;');
-  try {
-    const { rows } = await db.query(
-      `insert into public.coi_ordenes (nro_oc, tipo, estado_coi)
-       values ($1, 'Servicio', 'En ejecución') returning id, nro_oc`, [nro]);
-    await db.query(
-      `insert into public.coi_ordenes_estaciones (orden_id, nro_oc, estacion, es_principal)
-       values ($1, $2, 'PLAZA CONSTITUCION', true)`, [rows[0].id, rows[0].nro_oc]);
-    await db.exec('commit;');
-    return rows[0];
-  } catch (error) {
-    await db.exec('rollback;');
-    throw error;
-  }
+  const { rows } = await db.query(
+    `insert into public.coi_ordenes (nro_oc, tipo, estado_coi)
+     values ($1, 'Servicio', 'En ejecución') returning id, nro_oc`, [nro]);
+  await db.query(
+    `insert into public.coi_ordenes_estaciones (orden_id, nro_oc, estacion, es_principal)
+     values ($1, $2, 'PLAZA CONSTITUCION', true)`, [rows[0].id, rows[0].nro_oc]);
+  return rows[0];
 }
 
-async function privilegiosDirectosTrigger(db) {
+async function grantsOCAuthenticated(db) {
+  const { rows } = await db.query(`
+    select table_name, grantee, privilege_type
+      from information_schema.role_table_grants
+     where table_schema = 'public'
+       and table_name = 'coi_ordenes'
+       and grantee = 'authenticated'`);
+  return rows.map((g) => String(g.privilege_type || '').toUpperCase()).sort();
+}
+
+async function execDirectoTrigger(db) {
   const { rows } = await db.query(`
     select grantee, privilege_type
       from information_schema.routine_privileges
@@ -102,7 +105,12 @@ async function privilegiosDirectosTrigger(db) {
 async function main() {
   const db = new PGlite({ extensions: { pgcrypto: PGCRYPTO_URL } });
   await db.exec(PLATAFORMA);
-  for (const f of archivos()) await db.exec(leer(f));
+
+  // Construccion PRE-H08: asi se prueba el fallo y luego su correccion.
+  for (const f of archivos()) {
+    if (f === H08 || f === H08_RECONCILE) continue;
+    await db.exec(leer(f));
+  }
 
   await db.exec(`
     insert into auth.users (id, email)
@@ -117,75 +125,110 @@ async function main() {
     values ('H08-UM-001', 'Ascensor', 'PLAZA CONSTITUCION', 'ACTIVA') returning id`);
   const unidadId = ums[0].id;
 
+  // El esquema sintetico historico puede traer grants mas amplios que el remoto.
+  // Se replica aqui el limite REAL confirmado por el smoke de STAGING: el cliente
+  // autenticado no tiene UPDATE directo sobre la tabla maestra de OCs.
+  await db.exec('revoke update on public.coi_ordenes from authenticated;');
+
+  let grants = await grantsOCAuthenticated(db);
+  check(!grants.includes('UPDATE'),
+    `fixture H08 invalido: authenticated conserva UPDATE sobre coi_ordenes (${grants.join(', ')})`);
+
+  const { rows: antesFn } = await db.query(`
+    select p.prosecdef
+      from pg_proc p
+     where p.oid = 'public.coi_st_resolver_nro_oc()'::regprocedure`);
+  check(antesFn.length === 1 && antesFn[0].prosecdef === false,
+    'antes de H08, coi_st_resolver_nro_oc() debe ejecutar con privilegios del invocante');
+
+  // Non-vacuity 1: el cliente tampoco puede tomar ese lock directamente.
+  const lockDirectoAntes = await fallo(() => como(db, 'authenticated', ADMIN,
+    `select id from public.coi_ordenes where id = $1 for update`, [orden.id]));
+  check(Boolean(lockDirectoAntes) && /permission denied/i.test(lockDirectoAntes),
+    `PRE-H08: SELECT FOR UPDATE directo deberia fallar por privilegios: ${lockDirectoAntes}`);
+
+  // Non-vacuity 2: se reproduce el bug exacto detectado en STAGING.
+  const altaAntes = await fallo(() => como(db, 'authenticated', ADMIN,
+    `insert into public.coi_servicios_tecnicos_um
+       (unidad_id, nro_st, nro_oc, fecha, descripcion, estado)
+     values ($1, 'H08-ST-001', 'OC 4530001234', current_date, 'Smoke pre H08', 'Pendiente')`,
+    [unidadId]));
+  check(Boolean(altaAntes) && /permission denied/i.test(altaAntes),
+    `PRE-H08: el ST vinculado deberia reproducir permission denied en coi_ordenes: ${altaAntes}`);
+
+  const { rows: ceroAntes } = await db.query(
+    `select count(*)::int n from public.coi_servicios_tecnicos_um where nro_st='H08-ST-001'`);
+  check(ceroAntes[0].n === 0, 'el intento PRE-H08 fallido no puede dejar un ST parcial');
+
+  // Aplicacion del hotfix y de la reconciliacion final exactamente como en repo.
+  await db.exec(leer(H08));
+  await db.exec(leer(H08_RECONCILE));
+
   const { rows: fn } = await db.query(`
     select p.prosecdef, p.proconfig, r.rolname owner
       from pg_proc p
       join pg_roles r on r.oid = p.proowner
      where p.oid = 'public.coi_st_resolver_nro_oc()'::regprocedure`);
-  check(fn.length === 1, 'falta coi_st_resolver_nro_oc()');
-  check(fn[0].prosecdef === true, 'coi_st_resolver_nro_oc() debe ser SECURITY DEFINER');
+  check(fn.length === 1, 'falta coi_st_resolver_nro_oc() despues de H08');
+  check(fn[0].prosecdef === true, 'H08 debe convertir coi_st_resolver_nro_oc() a SECURITY DEFINER');
   const config = String((fn[0].proconfig || []).join(' | '));
   check(/search_path=.*pg_catalog.*public.*pg_temp/i.test(config),
-    `search_path inseguro o incompleto: ${config}`);
+    `H08 debe fijar search_path endurecido; obtuvo: ${config}`);
 
-  // Mismo patron de inspeccion que check_h04_h05_role_guard.js: se traen las
-  // filas de information_schema y se filtran en JS. Eso es portable en PGlite.
-  const { rows: grantsOC } = await db.query(`
-    select table_name, grantee, privilege_type
-      from information_schema.role_table_grants
-     where table_schema = 'public'
-       and table_name = 'coi_ordenes'
-       and grantee = 'authenticated'`);
-  const updateDirecto = grantsOC.filter(
-    (g) => String(g.privilege_type || '').toUpperCase() === 'UPDATE');
-  check(updateDirecto.length === 0,
-    'H08 no puede conceder UPDATE directo sobre coi_ordenes a authenticated');
+  grants = await grantsOCAuthenticated(db);
+  check(!grants.includes('UPDATE'),
+    `H08 NO puede devolver UPDATE directo sobre coi_ordenes (${grants.join(', ')})`);
 
-  const execDirecto = await privilegiosDirectosTrigger(db);
+  const execDirecto = await execDirectoTrigger(db);
   check(execDirecto.length === 0,
     `PUBLIC/anon/authenticated no deben tener EXECUTE directo: ${execDirecto.map((g) => g.grantee).join(', ')}`);
 
-  // Prueba efectiva del limite: aunque sea Administrador, authenticated sigue
-  // sin poder tomar por si mismo el lock de coi_ordenes.
-  const directa = await fallo(() => como(db, 'authenticated', ADMIN,
+  // El limite directo se mantiene DESPUES del fix.
+  const lockDirectoDespues = await fallo(() => como(db, 'authenticated', ADMIN,
     `select id from public.coi_ordenes where id = $1 for update`, [orden.id]));
-  check(Boolean(directa) && /permission denied/i.test(directa),
-    `authenticated sigue sin poder lockear coi_ordenes directamente: ${directa}`);
+  check(Boolean(lockDirectoDespues) && /permission denied/i.test(lockDirectoDespues),
+    `POST-H08: authenticated sigue sin poder lockear coi_ordenes directamente: ${lockDirectoDespues}`);
 
-  // Pero el trigger SECURITY DEFINER SI puede tomar ese lock despues de que la
-  // RLS de la tabla hija haya autorizado la mutacion del Administrador.
-  const alta = await fallo(() => como(db, 'authenticated', ADMIN,
+  // Pero el trigger, una vez autorizada la fila hija por RLS, ya puede tomar el
+  // lock como su propietario y resolver la referencia sin ampliar grants cliente.
+  const altaDespues = await fallo(() => como(db, 'authenticated', ADMIN,
     `insert into public.coi_servicios_tecnicos_um
        (unidad_id, nro_st, nro_oc, fecha, descripcion, estado)
-     values ($1, 'H08-ST-001', 'OC 4530001234', current_date, 'Smoke H08', 'Pendiente')`,
+     values ($1, 'H08-ST-001', 'OC 4530001234', current_date, 'Smoke post H08', 'Pendiente')`,
     [unidadId]));
-  check(!alta, `un Administrador debe poder crear ST vinculado tras H08: ${alta}`);
+  check(!altaDespues, `POST-H08: Administrador debe poder crear ST vinculado: ${altaDespues}`);
 
   const { rows: st } = await db.query(`
     select orden_id, nro_oc from public.coi_servicios_tecnicos_um
      where nro_st = 'H08-ST-001'`);
-  check(st.length === 1, 'el ST de prueba no quedo insertado');
+  check(st.length === 1, 'POST-H08: el ST de prueba no quedo insertado');
   check(st[0].orden_id === orden.id,
-    `el trigger debe resolver el UUID de la OC; obtuvo ${st[0].orden_id}`);
+    `POST-H08: el trigger debe resolver UUID ${orden.id}; obtuvo ${st[0].orden_id}`);
   check(st[0].nro_oc === '4530001234',
-    `el trigger debe guardar el numero canonico; obtuvo ${st[0].nro_oc}`);
+    `POST-H08: el trigger debe guardar numero canonico; obtuvo ${st[0].nro_oc}`);
 
-  const reaplicar = await fallo(() => db.exec(leer(MIGRACION)));
+  // Reaplicar ambas migraciones es NO-OP funcional.
+  const reaplicar = await fallo(async () => {
+    await db.exec(leer(H08));
+    await db.exec(leer(H08_RECONCILE));
+  });
   check(!reaplicar, `reaplicar H08 debe ser idempotente: ${reaplicar}`);
-
   const { rows: trasFn } = await db.query(`
-    select p.prosecdef
-      from pg_proc p
+    select p.prosecdef from pg_proc p
      where p.oid = 'public.coi_st_resolver_nro_oc()'::regprocedure`);
-  const trasExec = await privilegiosDirectosTrigger(db);
-  check(trasFn[0].prosecdef === true && trasExec.length === 0,
-    'reaplicar H08 debe conservar SECURITY DEFINER y EXECUTE directo revocado');
+  const trasExec = await execDirectoTrigger(db);
+  const grantsTras = await grantsOCAuthenticated(db);
+  check(trasFn[0].prosecdef === true && trasExec.length === 0 && !grantsTras.includes('UPDATE'),
+    'reaplicar H08 debe conservar SECURITY DEFINER, EXECUTE revocado y UPDATE de OC sin conceder');
 
-  // Control estatico complementario: el SQL debe contener la revocacion, aun
-  // si un motor de test expone routine_privileges de forma distinta a Postgres.
-  const sql = leer(MIGRACION).replace(/--[^\n]*/g, ' ');
+  // Controles estaticos complementarios para evitar que un cambio futuro vuelva
+  // a resolver el problema con un GRANT amplio al cliente.
+  const sql = (leer(H08) + '\n' + leer(H08_RECONCILE)).replace(/--[^\n]*/g, ' ');
+  check(/security\s+definer/i.test(sql), 'H08 debe declarar SECURITY DEFINER');
   check(/revoke\s+all\s+on\s+function\s+public\.coi_st_resolver_nro_oc\(\)\s+from\s+public\s*,\s*anon\s*,\s*authenticated/i.test(sql),
-    'la migracion debe revocar EXECUTE directo a PUBLIC, anon y authenticated');
+    'H08 debe revocar EXECUTE directo a PUBLIC, anon y authenticated');
+  check(!/grant\s+(?:update|all)\s+on\s+(?:table\s+)?public\.coi_ordenes\s+to\s+authenticated/i.test(sql),
+    'H08 no puede resolver el lock concediendo UPDATE/ALL de coi_ordenes a authenticated');
 
   console.log(`OK H08 ST trigger privilege guard: ${aprobados} controles.`);
   await db.close();
