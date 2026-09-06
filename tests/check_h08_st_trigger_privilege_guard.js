@@ -73,13 +73,20 @@ async function como(db, rol, uid, sql, params) {
 }
 
 async function nuevaOC(db, nro) {
-  const { rows } = await db.query(
-    `insert into public.coi_ordenes (nro_oc, tipo, estado_coi)
-     values ($1, 'Servicio', 'En ejecución') returning id, nro_oc`, [nro]);
-  await db.query(
-    `insert into public.coi_ordenes_estaciones (orden_id, nro_oc, estacion, es_principal)
-     values ($1, $2, 'PLAZA CONSTITUCION', true)`, [rows[0].id, rows[0].nro_oc]);
-  return rows[0];
+  await db.exec('begin;');
+  try {
+    const { rows } = await db.query(
+      `insert into public.coi_ordenes (nro_oc, tipo, estado_coi)
+       values ($1, 'Servicio', 'En ejecución') returning id, nro_oc`, [nro]);
+    await db.query(
+      `insert into public.coi_ordenes_estaciones (orden_id, nro_oc, estacion, es_principal)
+       values ($1, $2, 'PLAZA CONSTITUCION', true)`, [rows[0].id, rows[0].nro_oc]);
+    await db.exec('commit;');
+    return rows[0];
+  } catch (error) {
+    await db.exec('rollback;');
+    throw error;
+  }
 }
 
 async function grantsOCAuthenticated(db) {
