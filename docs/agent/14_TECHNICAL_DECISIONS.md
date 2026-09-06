@@ -750,5 +750,522 @@ Consecuencias. Los GAPs que quedan abiertos —documentación V64 (KI-019),
 observaciones sin marcador (KI-020) y cachés write-only (KI-021)— están
 documentados en vez de resueltos a ciegas. H07 decide su destino.
 
+## TD-046 — (SUPERADA por TD-049) La documentación de OC se identifica por orden_id
+Fecha: 2026-09-04. PR: H07 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. `coi_documentos_oc` y `coi_servicios_tecnicos_um` guardan `nro_oc`
+denormalizado porque hay flujos que llegan con el número antes que con la orden;
+por eso H04 tuvo que construir trigger y row lock para que una renumeración no
+dejara copias viejas (TD-042).
+
+Decisión. `coi_documentacion_oc` guarda solo `orden_id`. Una referencia
+documental se crea SIEMPRE desde la ficha de una OC ya resuelta, y el cliente
+tiene el catálogo de órdenes en memoria: el número vigente se resuelve al
+publicar. Guardar una copia solo agregaría un dato capaz de quedar viejo.
+
+Alternativas descartadas. Replicar el aparato de trigger y lock de H04: es
+complejidad que aquí no compra nada, porque no existe el flujo «llega el número
+antes que la orden».
+
+Consecuencias. Si el catálogo de órdenes termina de cargar después que la
+documentación, el número queda vacío un instante; se resuelve con un remapeo
+diferido acotado —mismo criterio que H03— que además cae con el snapshot al
+cambiar de identidad, para que ningún timer republique lo del operador anterior.
+
+## TD-047 — Una caché que nadie puede leer no se conserva «por si acaso»
+Fecha: 2026-09-04. PR: H07 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. H06 dejó tres cachés write-only (KI-021) argumentando que alimentaban
+el backup y el diagnóstico de soporte.
+
+Decisión. Se retiran. Un backup o un diagnóstico no justifican mantener datos
+operativos en reposo en el navegador: el backup del Timeline se serializa desde
+el snapshot confirmado en memoria, y el diagnóstico informa el estado de la
+sesión, no el contenido de una copia. Lo que no puede obtenerse de forma
+autoritativa se informa como no disponible, no se recupera de una caché vieja.
+
+La purga de la copia preexistente ocurre recién cuando Supabase confirmó la
+lectura: es provablemente sin pérdida.
+
+Consecuencias. La sincronización entre pestañas del Timeline se conserva con
+`coi_timeline_sync_ping_v1`, que lleva marca de tiempo y contador y no puede
+reconstruir ningún evento. Un backup tomado sin sesión ya no incluye órdenes ni
+posiciones: refleja lo que la sesión pudo confirmar, que es lo honesto.
+
+## TD-048 — El legado sale del modelo operativo hacia una cuarentena explícita
+Fecha: 2026-09-04. PR: H07 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. H05 congeló el legado de UM/ST, H06 le quitó autoridad a las cachés y
+KI-020 dejó abierto el último camino: sin marcador de corte, H03 publicaba las
+observaciones legadas como modelo operativo. La decisión pendiente no era
+técnica —qué hacer con esas filas— y por eso H06 no la tocó.
+
+Decisión. Se separa mostrar de publicar. El material legado —observaciones sin
+marcador y referencias documentales— deja de entrar al modelo operativo y pasa a
+una cuarentena inspeccionable: se conserva intacto, se cuenta, se puede exportar
+y se puede importar de forma explícita, idempotente y validada contra las OC
+remotas. Nunca se importa solo y nunca se borra.
+
+Esto NO debilita la protección de KI-007: mientras haya material sin importar,
+las mutaciones siguen bloqueadas. Lo único que cambia es de dónde sale esa señal.
+
+Alternativas descartadas. (a) Borrar el legado: destruye material que ninguna
+migración repone. (b) Marcarlo como importado sin importarlo: miente sobre el
+estado del sistema y deja las filas fuera de alcance. (c) Dejarlo publicado: es
+exactamente lo que H07 viene a cerrar.
+
+Consecuencias. Después de H07 ningún dato operacional se reconstruye desde
+localStorage: ni en el arranque, ni ante un fallo de red, ni con el remoto
+vacío, ni al cambiar de identidad, ni al refrescar el token. Lo que queda en
+localStorage son preferencias, filtros, marcadores de migración, señales de
+sincronización y material legado en cuarentena.
+
+## TD-049 — H07 retira la documentación legada en vez de darle una tabla propia
+Fecha: 2026-09-05. PR #61 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. El objetivo de H07 es que ningún dato operacional dependa de
+localStorage. El módulo documental V64/V575 guardaba sus referencias —tipo,
+número, repositorio, ruta, «Carpeta documental OneDrive», links externos— solo
+en `coi_documentacion_oc` de localStorage (KI-019). El primer intento le dio
+autoridad creando `public.coi_documentacion_oc`.
+
+Decisión. Se retira ese intento. La baseline vigente dice que OneDrive y
+`Agregar link documental` **no se reintroducen** en Ficha OC y que el camino
+activo es Supabase Storage más las tablas documentales vigentes. Darle una tabla
+a ese modelo era construir un segundo camino operativo documental compitiendo
+con `public.coi_documentos_oc`: resolvía la dependencia de localStorage
+creando un problema arquitectónico mayor.
+
+H07 hace lo único que le corresponde: saca la clave legada del modelo
+operacional. `documentacionOC` queda vacío y congelado, las acciones del editor
+retirado quedan deshabilitadas con un mensaje operativo en vez de simular éxito,
+los lectores legados dejan de sumarla a conteos y backup, y el material se
+conserva intacto, contable y exportable, sin autoimportarse nunca.
+
+Alternativas descartadas. (a) Mantener la tabla nueva: contradice AGENTS.md y
+BASELINE_OPERATIVA. (b) Dejar el editor escribiendo en localStorage: es
+exactamente lo que H07 viene a cerrar. (c) Borrar el material: destruye
+referencias que ninguna migración repone.
+
+Consecuencias. H07 no aporta ninguna migración. Si en el futuro el negocio
+necesitara referencias documentales externas, la decisión previa es de producto
+—reabrir o no lo que la baseline retiró— y recién después técnica.
+
+## TD-050 — Un corte de legado se declara conciliando, no suponiendo
+Fecha: 2026-09-05. PR #61 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. El marcador de corte de H03 se ponía con `if (filas.length)`: bastaba
+una observación remota cualquiera para dar por migrado todo el legado local,
+poner la cuarentena en cero y liberar el bloqueo de escritura. Las filas locales
+sin conciliar desaparecían de la vista sin haber llegado nunca a Supabase.
+
+Decisión. La cuarentena se calcula comparando **fila por fila** —OC más texto
+normalizado, que son los campos presentes en las dos formas— contra el snapshot
+remoto confirmado. El corte se da por cumplido solo si no queda ninguna
+pendiente. Sin lectura confirmada, todo el legado cuenta como pendiente.
+
+Y la cuarentena deja de ser un callejón sin salida: `conciliar()` relee y
+libera solo si el remoto ya tiene todo, y `descartar({ confirmado: true })`
+exporta y libera el bloqueo sin borrar nada.
+
+Consecuencias. Un puesto con legado sin conciliar sigue bloqueado para escritura
+—la protección de KI-007 intacta— pero ahora tiene un camino explícito y seguro
+para salir. Fijado por `H07-7` a `H07-10`.
+
+## TD-051 — Una señal de sincronización no puede devolver el eco
+Fecha: 2026-09-05. PR #61 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. H07 reemplazó la caché de eventos del Timeline por una señal sin
+contenido operativo (`coi_timeline_sync_ping_v1`) para conservar la
+sincronización entre pestañas. Pero `applyTimelineEvents()` emitía la señal
+siempre: un `storage` de otra pestaña disparaba `loadEvents()`, que emitía
+otra señal, que la otra pestaña volvía a escuchar. Con dos pestañas abiertas eso
+es un eco sin fin contra Supabase.
+
+Decisión. La recarga lleva un origen. Cuando la provocó la señal de otra pestaña
+se actualiza el Timeline pero **no** se vuelve a emitir. Un ping produce una
+relectura, no una cadena.
+
+Consecuencias. La sincronización entre pestañas se conserva y deja de generar
+tráfico creciente. Fijado por `H07-6`.
+
+Actualización (2026-09-05): el **mecanismo** de esta decisión quedó superado por
+TD-052. El principio —un ping produce una relectura, no una cadena— sigue igual.
+
+## TD-052 — El origen de una recarga viaja con la petición, no en una global
+Fecha: 2026-09-05. PR #61 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. La primera implementación de TD-051 guardaba el origen en una única
+variable de módulo (`timelineOrigenRecarga`) con semántica guardar/restaurar. Con
+dos eventos `storage` solapados el restore es LIFO: el primero devuelve `local`
+y el segundo vuelve a poner `storage`. La variable quedaba pegada en `storage`
+para siempre y, a partir de ahí, **ninguna mutación local volvía a avisar a las
+otras pestañas**. El eco estaba resuelto al precio de romper la sincronización.
+
+Decisión. El origen deja de ser estado del módulo y pasa a ser un parámetro de
+la petición: `loadEvents({ emitirSync:false })` desde el listener de `storage`,
+`emitirSync` por defecto en los caminos locales, propagado hasta
+`applyTimelineEvents()`. Cada lectura captura su propio objeto de estado, de modo
+que una lectura posterior no puede alterar lo que otra ya decidió. Si una
+relectura pedida por otra pestaña se engancha a una lectura en curso, esa lectura
+se degrada a no emitir; nunca al revés.
+
+Alternativas descartadas. Contadores de anidamiento y timestamps de supresión:
+siguen siendo estado global y siguen teniendo ventanas de carrera.
+
+Consecuencias. No queda ninguna global mutable que restaurar. Fijado por
+`H07-20`, que solapa dos señales y después comprueba que una mutación local sí
+vuelve a emitir exactamente una.
+
+## TD-053 — El modelo se limpia antes del primer await, no después
+Fecha: 2026-09-05. PR #61.
+
+Contexto. El inicializador histórico publica en `window.observacionesOC` lo que
+encuentra en la clave legada, y eso ocurre mucho antes de que la capa H03
+empiece a leer Supabase. H03 lo retiraba, pero recién después de operaciones
+asíncronas. En un puesto con red lenta —o colgada— quedaba una ventana en la que
+paneles y KPIs seguían mostrando observaciones locales, que pueden ser incluso
+de otro operador del mismo navegador, como si fueran dato operativo.
+
+Decisión. Mientras la sesión no tenga una lectura remota confirmada, el modelo
+publicado se retira **sincrónicamente**, antes del primer `await` de la carga.
+No se toca `localStorage`: la materia prima sigue intacta y la cuarentena la lee
+con su getter nativo. Tampoco se presenta el vacío como lectura remota:
+`sincronizado` sigue en `false`.
+
+Consecuencias. Un snapshot remoto legítimo ya confirmado no se destruye por una
+recarga de la misma sesión: la retirada se saltea cuando hay snapshot. Fijado por
+`H07-13` (con la lectura demorada) y `H07-14`.
+
+## TD-054 — Una cuarentena que bloquea necesita una salida en la interfaz
+Fecha: 2026-09-05. PR #61.
+
+Contexto. TD-048 y TD-050 dejaron el material legado fuera del modelo y las
+mutaciones bloqueadas hasta conciliarlo. Las operaciones para resolverlo
+existían —`conciliar`, `exportarJSON`, `descartar`— pero solo eran alcanzables
+desde consola. Un operador real veía la edición bloqueada y no tenía salida.
+
+Decisión. Se monta una superficie mínima sobre el sector que ya existe —7.
+Observaciones de la Ficha OC, exactamente donde el operador se topa con el
+bloqueo— con tres acciones: conciliar, exportar y descartar. El núcleo son las
+operaciones que ya estaban; no se creó una API paralela. El aviso solo aparece
+cuando hay cuarentena pendiente y desaparece cuando se resuelve.
+
+Descartar exige confirmación explícita del usuario, exporta antes y **no** borra
+la clave legada ni la importa: solo registra que el operador decidió que deje de
+bloquear. El texto de la UI lo dice con esas palabras.
+
+Consecuencias. El bloqueo deja de ser un callejón sin salida. Fijado por
+`H07-15`, `H07-16`, `H07-17` y `H07-18`, todos por interacción real con la UI.
+
+Refuerzo (2026-09-05). Un mismo gesto puede emitir más de un evento `click`: en
+táctil el navegador sintetiza uno de compatibilidad además del real, y llega en
+un task posterior. El guard se liberaba en el microtask siguiente, así que ese
+segundo click volvía a entrar y «Descartar bloqueo» le preguntaba **dos veces**
+al operador por un solo toque. Ahora el guard se libera pasada una ventana de
+gesto y los botones quedan deshabilitados mientras la acción corre; un segundo
+click real, más tarde, sigue funcionando. Fijado por `H07-34`.
+
+## TD-055 — Una conciliación usa la misma semántica canónica que la normalización
+Fecha: 2026-09-05. PR #61.
+
+Contexto. La clave de conciliación del legado usaba alias propios. Le faltaban
+`numeroOC` y `descripcion`, que `v65NormalizarObservacion()` sí acepta. Una fila
+legada guardada con esa forma producía la clave vacía `|` y quedaba en cuarentena
+para siempre, aunque la observación ya estuviera en Supabase.
+
+Decisión. La conciliación extrae **exactamente** los mismos alias que la función
+canónica, en su mismo orden. Se extraen sin llamarla porque esa función genera
+ids y fechas y acá hace falta una lectura pura. No se mantienen dos
+normalizadores incompatibles.
+
+Consecuencias. Fijado por `H07-19`.
+
+## TD-056 — Una alerta no puede pedir una acción retirada
+Fecha: 2026-09-05. PR #61.
+
+Contexto. Retirado el modelo documental por referencia externa (TD-049), las
+capas V64 y V58 seguían emitiendo alertas que empujan al operador justo a lo que
+AGENTS.md y BASELINE_OPERATIVA prohíben reintroducir: «Cargar link de carpeta
+documental», «Agregar referencia documental», «Agregar link de
+SharePoint/OneDrive/Drive». Además se calculan sobre un store que ahora está
+siempre vacío, así que se disparaban para **todas** las OC.
+
+Decisión. Se filtran esas alertas por su tipo, al final de la cadena de
+`generarAlertasCOI()`. Solo esas. Las alertas documentales del camino vigente
+—Supabase Storage + `public.coi_documentos_oc`, que en el Centro de Alertas
+llegan por V58: «OC activa sin Acta de Inicio», «Falta expediente», «Falta última
+acta», «Estado documental pendiente»— quedan intactas.
+
+Alternativas descartadas. Borrar los emisores V64: viven dentro de IIFE y su
+reescritura tocaría zonas ajenas al alcance de H07 sin ganar nada operativo.
+
+Consecuencias. Fijado por `H07-21`, que además comprueba contra el generador sin
+filtrar que las alertas retiradas realmente se emitían: el filtro no es vacío.
+
+Alcance ampliado (2026-09-05). El «Diagnóstico avanzado V58.1» era una segunda
+superficie del mismo problema y **sí** era accionable: su tabla mostraba
+`Asociar carpeta OneDrive/SharePoint.` y cada fila lleva un botón que manda ese
+texto a Observaciones. Se aplicó el mismo criterio, filtrando por el texto del
+problema en `window.renderAdminDiagnostico` —el camino que usa el botón del
+panel, porque el `diagnostico()` interno se invoca por referencia cerrada— y en
+`window.ejecutarDiagnosticoSistema`. Ver KI-024 y `H07-24`.
+
+## TD-057 — Conciliar legado es comparar multisets, no conjuntos
+Fecha: 2026-09-05. PR #61 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. TD-050 fijó que el corte se declara conciliando fila por fila. La
+implementación comparaba contra un `Set` de claves remotas, y eso pierde la
+multiplicidad: con dos observaciones legadas idénticas —misma OC, mismo texto— y
+**una sola** equivalente en Supabase, las dos quedaban «conciliadas». El
+marcador se ponía, la cuarentena caía a cero y la segunda observación histórica
+desaparecía de la recuperación sin haber llegado nunca al remoto.
+
+Decisión. La comparación es de **multiset**: se cuenta cuántas filas remotas hay
+por clave y cada fila local equivalente consume exactamente una, recorriéndolas
+en orden. Agotado el contador, las locales que sobran quedan pendientes. Una
+fila remota concilia una sola fila local.
+
+`registrarCuarentena()` y `pendientesDeConciliar()` comparten el mismo recorrido
+(`faltanEnElRemoto`) para que no puedan volver a divergir.
+
+Alternativas descartadas. Un constraint de unicidad server-side: resolvería el
+duplicado en origen, pero es una migración y H07 no aporta ninguna. Queda como
+riesgo residual documentado.
+
+Consecuencias. Fijado por `H07-26` (2 locales / 1 remota → 1 pendiente),
+`H07-27` (2/2 → resuelta) y `H07-28` (3/2 → exactamente 1 pendiente).
+
+## TD-058 — Una caché retirada se descarta; nunca se filtra y se vuelve a guardar
+Fecha: 2026-09-05. PR #61.
+
+Contexto. H07 retiró `coi_cache_posiciones_oc_supabase_v1` y
+`coi_supabase_ordenes_cache_v2` del camino de escritura normal (KI-021). Pero
+los caminos de **borrado** seguían haciendo leer → filtrar la fila borrada →
+**volver a guardar**. Con el DELETE remoto exitoso y la relectura fallida
+(`refreshWarning`), esa reescritura dejaba las posiciones financieras restantes
+en reposo en el navegador: exactamente lo que se había retirado.
+
+Decisión. Sobre una clave retirada la única operación admitida es
+`removeItem`. `purgeCache()` del módulo de posiciones descarta la copia entera y
+`deleteDropCacheV60()` hace lo mismo en el borrado de OC. Si la relectura falla
+no se reconstruye nada: se conserva el warning y el comportamiento fail-closed, y
+la eliminación remota —que ya ocurrió— no se revierte.
+
+`coi_supabase_estaciones_cache_v1` **no** está retirada: se sigue escribiendo y
+leyendo en el camino normal, así que ahí se conserva el filtrado.
+
+Consecuencias. Cero escritores operativos hacia la clave financiera. Fijado por
+`H07-29`, que recorre el flujo real de la UI —selección, modal, confirmación— con
+el DELETE remoto exitoso y el readback fallido.
+
+## TD-059 — El backup lleva el Timeline autoritativo, no la caché
+Fecha: 2026-09-05. PR #61.
+
+Contexto. El backup maestro V58.1 tomaba el Timeline únicamente del volcado
+crudo `payload.localStorage`. H07 retiró `coi_timeline_events_v1`, de modo que
+desde entonces **todos los backups salían sin Timeline** y el importador
+informaba que el archivo no traía snapshot.
+
+Decisión. El payload gana una sección propia, `autoritativo.timeline`, con el
+snapshot **confirmado** en memoria (`window.coiTimelineEvents`), y solo cuando
+`COI_TIMELINE_COI.isAuthoritativeReady()` es `true`. El backup distingue así dos
+cosas que no se pueden mezclar: los snapshots autoritativos y el volcado crudo de
+recuperación. `resumen.totalEventosTimeline` vale `0` para un Timeline vacío
+**confirmado** y `null` cuando no hay lectura confirmada: vacío no es lo mismo
+que ausente.
+
+Sin lectura confirmada no se inventa nada: `confirmado:false`, sin eventos, y el
+importador no restaura. Un `coi_timeline_events_v1` que sobreviva de una versión
+anterior nunca se promueve a snapshot autoritativo.
+
+Restore. Prioriza el campo autoritativo y restaura siempre por la ruta remota
+canónica (`COI_TIMELINE_COI.replace`); la caché retirada no se reescribe en
+ningún caso. Los backups anteriores a H07 se siguen aceptando leyendo
+`localStorage.coi_timeline_events_v1` del payload, pero solo como formato legado.
+
+Consecuencias. Fijado por `H07-30` (export con la caché ausente), `H07-31`
+(restore por la ruta remota, sin escribir caché), `H07-32` (vacío confirmado) y
+`H07-33` (sin lectura confirmada no se inventa Timeline).
+
+## TD-060 — El corte de la cuarentena caduca si el legado cambia
+Fecha: 2026-09-05. PR #61 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. El marcador de KI-007 era un `'1'` pelado. Puesto una vez, daba la
+cuarentena por resuelta **para siempre**. Si la clave legada cambiaba después
+—un proceso viejo agrega una observación, se restaura un backup, alguien edita
+el archivo— esas filas nuevas quedaban ocultas: fuera del modelo operativo, sin
+llegar nunca a Supabase y sin que nada las señalara.
+
+Decisión. El marcador guarda la **huella** del contenido que se dio por
+conciliado: recuento y claves normalizadas ordenadas, calculadas con la misma
+`claveObs` de la conciliación. Si la huella actual no coincide, el corte deja de
+aplicar y la cuarentena se reabre —vuelve a contar, vuelve a bloquear las
+mutaciones y vuelve a mostrarse la salida—. Nunca se borra nada.
+
+El recuento va delante de las claves para que agregar un duplicado exacto
+también cuente como cambio; las claves se ordenan para que reescribir el mismo
+conjunto en otro orden no lo cuente.
+
+Compatibilidad. Un marcador histórico `'1'` sigue valiendo: no se puede
+reconstruir *qué* se concilió en el pasado, así que se adopta el contenido actual
+como el conciliado y se migra al formato nuevo. Ese puesto conserva exactamente
+el comportamiento que ya tenía, y desde ahí cualquier cambio posterior sí se
+detecta. La limitación es deliberada: no reabre retroactivamente cortes que se
+hayan puesto mal antes de esta versión.
+
+Consecuencias. Fijado por `H07-35` (aparece una fila nueva → cuarentena vuelve a
+1, mutaciones bloqueadas, aviso visible, nada borrado) y `H07-36` (el marcador
+histórico sigue valiendo y queda migrado).
+
+## TD-061 — Exportar documentación legada no puede parecerse a exportar la vigente
+Fecha: 2026-09-05. PR #61.
+
+Contexto. «Exportar documentación CSV» del panel de administración exportaba
+`documentacionOC`, que desde el retiro está **siempre vacío**. Entregaba un CSV
+sin filas con nombre de documentación activa: peor que no exportar nada, porque
+el operador se lleva un archivo que parece decir que no hay documentación.
+
+Decisión. La acción no se elimina, se **redirige** al exportador de cuarentena
+(`__COI_DOC_H07_LEGACY__.exportarJSON()`), que es el que sí tiene el material
+histórico, y el botón se reetiqueta para que diga lo que hace. Se intercepta en
+fase de captura, igual que «Limpiar documentación global», de modo que el handler
+histórico no llega a correr. El camino documental vigente —Supabase Storage y
+`public.coi_documentos_oc`— no se toca.
+
+Alternativas descartadas. Ocultar el botón: se pierde la única salida cómoda al
+material en cuarentena desde la UI.
+
+Consecuencias. Fijado por `H07-37`, que dibuja el panel real, comprueba el
+rótulo, hace click y verifica que no se generó ningún CSV y sí la exportación de
+cuarentena declarada como no autoritativa.
+
+## TD-062 — Un restore descartado no se anuncia como exitoso
+Fecha: 2026-09-05. PR #61.
+
+Contexto. `replaceTimelineEventsSupabase()` puede devolver `{discarded:true}`: la
+escritura llegó a Supabase pero una operación concurrente —cambio de sesión u
+otra mutación— invalidó el resultado y **no se publicó**. El restore del backup
+V58.1 ignoraba ese campo: marcaba `timelineRestored=true`, anunciaba éxito y
+recargaba la página como si hubiera restaurado.
+
+Decisión. Se captura el resultado y se aplica el mismo criterio que ya usaba el
+wrapper de backup integral (`if(replacement?.discarded)`). Con `discarded`: no se
+declara restaurado, no se anuncia éxito, no se recarga, y el aviso dice
+explícitamente que la restauración se descartó por una operación concurrente y
+que hay que verificar y reintentar. `coi_v581_backup_meta` registra el estado
+real (`restaurado` / `descartado` / `ausente`).
+
+Consecuencias. Fail-closed y reintentable. Fijado por `H07-38` (descartado) y
+`H07-39` (confirmado).
+
+## TD-063 — Un marcador histórico no prueba una conciliación
+Fecha: 2026-09-05. PR #61 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. TD-060 aceptaba el marcador histórico `'1'` adoptando el contenido
+actual como conciliado. Pero ese `'1'` pudo haberlo escrito la versión en la que
+**cualquier** observación remota liberaba la cuarentena (el defecto que cerró
+TD-050): adoptarlo a ciegas era heredar el bug y dejar filas legadas ocultas
+para siempre.
+
+Decisión. El `'1'` ya no se adopta sin verificar:
+
+- sin filas legadas, la migración a v2 es segura y se hace;
+- con filas legadas hace falta una **lectura remota confirmada**; sin ella,
+  fail-closed: la cuarentena sigue abierta y las mutaciones bloqueadas;
+- con lectura confirmada se reconcilian de verdad, con el mismo multiset de
+  TD-057, y el marcador v2 se escribe **solo** si todas aparecen en Supabase.
+
+Nada se borra de `localStorage` en ningún caso.
+
+Consecuencias. Un puesto cuyo corte se puso mal antes de esta versión vuelve a
+ver su cuarentena abierta: eso es KI-007 funcionando, no una regresión. Fijado
+por `H07-40` (pendiente + remoto ajeno → no libera), `H07-41` (legado ya en
+Supabase → migra), `H07-42` (sin legado → migra) y `H07-43` (Supabase caído →
+no libera).
+
+## TD-064 — Una señal que llega con una lectura en vuelo no se pierde
+Fecha: 2026-09-05. PR #61.
+
+Contexto. TD-052 dejó la decisión de emitir por petición. Faltaba el otro lado:
+si una señal de otra pestaña llegaba con una lectura ya en curso, se enganchaba
+a esa promesa y no producía ninguna otra lectura. Pero esa lectura pudo haber
+tomado su snapshot **antes** del cambio remoto que motivó la señal: el aviso se
+perdía y la pestaña se quedaba con datos viejos hasta la siguiente recarga.
+
+Decisión. La señal anota una relectura **pendiente**. Al terminar la lectura en
+curso, si quedó anotada se limpia la bandera y se lanza **una** relectura, sin
+emitir. Limpiar antes de lanzar hace que las señales que lleguen durante la
+relectura vuelvan a anotarse y produzcan a lo sumo una más: N señales durante la
+misma lectura coalescen en una sola relectura extra.
+
+Consecuencias. Fijado por `H07-44`: diez señales durante una lectura demorada
+producen exactamente una relectura adicional, el estado final incorpora el cambio
+remoto y esa relectura no reemite.
+
+## TD-065 — La superficie OneDrive de la Ficha OC se retira, no se bloquea
+Fecha: 2026-09-05. PR #61.
+
+Contexto. AGENTS.md y BASELINE_OPERATIVA son explícitos: OneDrive y `Agregar link
+documental` no se reintroducen. El render por defecto de la Ficha OC ya no
+dibujaba esa superficie —`organizarSubmodulosFichaOC` deja una cabecera neutra y
+la sección de Supabase Storage se agrega debajo—, pero el **renderizador
+retirado seguía existiendo**: cualquier camino que lo invocara (el refresco de
+los filtros documentales de la V572, por ejemplo) reintroducía la tarjeta
+«Carpeta documental OneDrive», los campos de repositorio/ruta/link, «Abrir
+carpeta documental», «Copiar estructura sugerida OneDrive», el modal de
+referencias externas y los dos exports CSV.
+
+Decisión. Se neutraliza el renderizador, no el camino actual:
+`v64RenderDocumentosFichaOC` y su alias V572 devuelven la misma cabecera neutra
+que ya usa el panel vigente, `v64RenderModalDoc` devuelve vacío y
+`v572RefrescarPanelDocumentos` queda en no-op —si corriera, reescribiría el panel
+entero y se llevaría por delante la sección de Storage, que vive dentro del mismo
+contenedor—. Los controles que sobrevivan en cualquier HTML ya pintado se
+interceptan en captura.
+
+El camino documental vigente —bucket `coi-documentos` y `public.coi_documentos_oc`,
+renderizados en `[data-documentos-storage]`— no se toca.
+
+Consecuencias. Fijado por `H07-45`, que además fuerza el renderizador legado y
+comprueba que no reintroduce nada ni rompe la sección de Storage.
+
+## TD-066 — Sin exportación canónica, el export por OC se retira
+Fecha: 2026-09-05. PR #61.
+
+Contexto. `[data-v64-doc-export]` y `[data-v572-doc-export-filtered]` exportaban
+CSV desde `v64DocsOC`/`documentacionOC`, que están siempre vacíos desde el
+retiro. No existe hoy una exportación canónica de la documentación de Supabase
+Storage que se pueda reutilizar.
+
+Decisión. Se retiran esos botones —ya no se renderizan y sus clicks se
+interceptan— en lugar de generar un CSV vacío o incompleto. Un archivo que
+parece decir que la OC no tiene documentación es peor que no exportar. No se
+implementa una exportación nueva: eso excede el cierre de H07 y queda anotado
+como KI-026.
+
+Consecuencias. No hay pérdida operativa: lo que se retira ya exportaba cero
+filas. Fijado por `H07-46`.
+
+## TD-067 — El backup preserva la cuarentena como recuperación, no como dato
+Fecha: 2026-09-05. PR #61.
+
+Contexto. El escudo hace, correctamente, que
+`localStorage.getItem('coi_observaciones_oc')` devuelva `'[]'` a cualquier
+consumidor operativo. Pero `snapshotLocalStorage()` usa ese mismo getter, así que
+el backup maestro se llevaba un `'[]'` y el material histórico en cuarentena **no
+quedaba respaldado en ninguna parte**.
+
+Decisión. El payload gana `recuperacion.observacionesLegacy`, leída por
+`__COI_OBS_H07_CUARENTENA__` (getter nativo), con `autoritativo:false`, la clave
+de origen, las filas y cuántas siguen pendientes. Queda separada del dataset
+autoritativo (`datos.observacionesOC` sigue siendo solo lo confirmado contra
+Supabase) y del volcado crudo. El importador la reconoce, avisa que el archivo la
+trae y **no la reimporta**: sigue siendo material de recuperación explícita.
+
+Consecuencias. El escudo sigue intacto para los lectores comunes. Fijado por
+`H07-47` (copia exacta, dataset autoritativo limpio, escudo vigente), `H07-48`
+(sin legado, sección explícitamente vacía) y `H07-49` (el restore no reimporta).
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.
