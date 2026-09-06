@@ -89,6 +89,16 @@ async function nuevaOC(db, nro) {
   }
 }
 
+async function privilegiosDirectosTrigger(db) {
+  const { rows } = await db.query(`
+    select grantee, privilege_type
+      from information_schema.routine_privileges
+     where routine_schema = 'public'
+       and routine_name = 'coi_st_resolver_nro_oc'
+       and grantee in ('PUBLIC', 'anon', 'authenticated')`);
+  return rows.filter((g) => String(g.privilege_type || '').toUpperCase() === 'EXECUTE');
+}
+
 async function main() {
   const db = new PGlite({ extensions: { pgcrypto: PGCRYPTO_URL } });
   await db.exec(PLATAFORMA);
@@ -118,28 +128,22 @@ async function main() {
   check(/search_path=.*pg_catalog.*public.*pg_temp/i.test(config),
     `search_path inseguro o incompleto: ${config}`);
 
-  // Se usan catalogs de information_schema en vez de has_*_privilege(): PGlite
-  // no expone de forma portable los aliases de esas helpers, mientras que la
-  // suite H04/H05 ya valida grants con estos catalogs.
-  const { rows: updateGrant } = await db.query(`
-    select count(*)::int n
+  // Mismo patron de inspeccion que check_h04_h05_role_guard.js: se traen las
+  // filas de information_schema y se filtran en JS. Eso es portable en PGlite.
+  const { rows: grantsOC } = await db.query(`
+    select table_name, grantee, privilege_type
       from information_schema.role_table_grants
      where table_schema = 'public'
        and table_name = 'coi_ordenes'
-       and grantee = 'authenticated'
-       and privilege_type = 'UPDATE'`);
-  check(updateGrant[0].n === 0,
+       and grantee = 'authenticated'`);
+  const updateDirecto = grantsOC.filter(
+    (g) => String(g.privilege_type || '').toUpperCase() === 'UPDATE');
+  check(updateDirecto.length === 0,
     'H08 no puede conceder UPDATE directo sobre coi_ordenes a authenticated');
 
-  const { rows: execGrant } = await db.query(`
-    select count(*)::int n
-      from information_schema.routine_privileges
-     where routine_schema = 'public'
-       and routine_name = 'coi_st_resolver_nro_oc'
-       and grantee in ('PUBLIC', 'anon', 'authenticated')
-       and privilege_type = 'EXECUTE'`);
-  check(execGrant[0].n === 0,
-    'PUBLIC/anon/authenticated no deben tener EXECUTE directo sobre la funcion trigger');
+  const execDirecto = await privilegiosDirectosTrigger(db);
+  check(execDirecto.length === 0,
+    `PUBLIC/anon/authenticated no deben tener EXECUTE directo: ${execDirecto.map((g) => g.grantee).join(', ')}`);
 
   // Prueba efectiva del limite: aunque sea Administrador, authenticated sigue
   // sin poder tomar por si mismo el lock de coi_ordenes.
@@ -173,15 +177,15 @@ async function main() {
     select p.prosecdef
       from pg_proc p
      where p.oid = 'public.coi_st_resolver_nro_oc()'::regprocedure`);
-  const { rows: trasExec } = await db.query(`
-    select count(*)::int n
-      from information_schema.routine_privileges
-     where routine_schema = 'public'
-       and routine_name = 'coi_st_resolver_nro_oc'
-       and grantee in ('PUBLIC', 'anon', 'authenticated')
-       and privilege_type = 'EXECUTE'`);
-  check(trasFn[0].prosecdef === true && trasExec[0].n === 0,
+  const trasExec = await privilegiosDirectosTrigger(db);
+  check(trasFn[0].prosecdef === true && trasExec.length === 0,
     'reaplicar H08 debe conservar SECURITY DEFINER y EXECUTE directo revocado');
+
+  // Control estatico complementario: el SQL debe contener la revocacion, aun
+  // si un motor de test expone routine_privileges de forma distinta a Postgres.
+  const sql = leer(MIGRACION).replace(/--[^\n]*/g, ' ');
+  check(/revoke\s+all\s+on\s+function\s+public\.coi_st_resolver_nro_oc\(\)\s+from\s+public\s*,\s*anon\s*,\s*authenticated/i.test(sql),
+    'la migracion debe revocar EXECUTE directo a PUBLIC, anon y authenticated');
 
   console.log(`OK H08 ST trigger privilege guard: ${aprobados} controles.`);
   await db.close();
