@@ -182,9 +182,13 @@ check(multiset.indexOf('if (quedan > 0) disponibles.set(k, quedan - 1);') >= 0,
   'una fila remota solo puede conciliar UNA fila local equivalente');
 check(multiset.indexOf('else faltan.push(o);') >= 0,
   'agotado el contador, la fila local queda pendiente');
-// Un unico recorrido compartido: los dos llamadores no pueden divergir.
-check((html.match(/faltanEnElRemoto\(locales\)/g) || []).length === 3,
-  'registrarCuarentena y pendientesDeConciliar tienen que usar el mismo recorrido');
+// Un unico recorrido compartido: ningun llamador puede divergir.
+check(html.indexOf('    const pendientes = faltanEnElRemoto(locales);') >= 0,
+  'registrarCuarentena tiene que usar el recorrido compartido');
+check(html.indexOf('    return faltanEnElRemoto(locales);') >= 0,
+  'pendientesDeConciliar tiene que usar el recorrido compartido');
+check(html.indexOf('      if (faltanEnElRemoto(locales).length) return false;') >= 0,
+  'la migracion del marcador historico tiene que reconciliar con el mismo recorrido');
 
 // ============ 6c) la cache financiera retirada no recibe escrituras nuevas
 // El camino de DELETE filtraba la cache y la volvia a guardar: con el borrado
@@ -297,6 +301,80 @@ check(html.indexOf("      boton.textContent = 'Exportar documentación legada (c
   'el rotulo del boton tiene que decir lo que hace');
 check(html.indexOf('    instalarReetiquetado();') >= 0,
   'el reetiquetado tiene que instalarse junto con el resto del retiro');
+
+// ============ 6g) el marcador historico NO se adopta a ciegas
+// Ese '1' pudo haberlo escrito la version en la que cualquier observacion
+// remota liberaba la cuarentena: no prueba ninguna conciliacion.
+const migracion = html.slice(html.indexOf('  function marcadorPuesto() {'), html.indexOf('  // H07 · Material legado en CUARENTENA'));
+check(migracion.indexOf('if (!locales.length) { ponerMarcador(); return true; }') >= 0,
+  'sin filas legadas la migracion del marcador es segura');
+check(migracion.indexOf('if (!runtime.sincronizado || !Array.isArray(runtime.confirmado)) return false;') >= 0,
+  'con filas legadas hace falta lectura remota confirmada: fail-closed');
+check(migracion.indexOf('if (faltanEnElRemoto(locales).length) return false;') >= 0,
+  'con filas legadas hay que reconciliarlas de verdad antes de migrar');
+check(migracion.lastIndexOf('ponerMarcador();') > migracion.indexOf('if (faltanEnElRemoto(locales).length) return false;'),
+  'el marcador v2 se escribe recien despues de conciliar');
+check(!/removeItem/.test(migracion),
+  'la migracion del marcador no puede borrar nada');
+
+// ============ 6h) una señal durante una lectura en curso no se pierde
+// La lectura en vuelo pudo tomar su snapshot ANTES del cambio que motivo el
+// ping: engancharse a ella no alcanza.
+check(html.indexOf('  let timelineReloadPendiente=false;') >= 0,
+  'hace falta anotar la relectura pendiente');
+check(html.indexOf('      if(options.emitirSync===false)timelineReloadPendiente=true;') >= 0,
+  'una señal que llega con una lectura en curso tiene que anotarse');
+check(html.indexOf('          timelineReloadPendiente=false;') >= 0,
+  'la bandera se limpia ANTES de lanzar la relectura, para coalescer las nuevas');
+check(html.indexOf('          Promise.resolve().then(()=>loadEvents({emitirSync:false})).catch(()=>{});') >= 0,
+  'la relectura pendiente corre una sola vez y sin reemitir');
+
+// ============ 9d) la superficie OneDrive de la Ficha OC queda retirada
+const superficie = html.slice(html.indexOf('  function retirarSuperficieDocumental() {'), html.indexOf('  function instalarRetiro() {'));
+check(superficie.indexOf('window.v64RenderDocumentosFichaOC = function () { return PANEL_DOCUMENTAL_VIGENTE; };') >= 0,
+  'el renderizador documental retirado no puede volver a emitir su superficie');
+check(superficie.indexOf('window.v572RenderDocumentosFichaOC = window.v64RenderDocumentosFichaOC;') >= 0,
+  'el alias V572 del renderizador tiene que quedar neutralizado tambien');
+check(superficie.indexOf("window.v64RenderModalDoc = function () { return ''; };") >= 0,
+  'el modal de referencias externas tiene que quedar retirado');
+check(superficie.indexOf('window.v572RefrescarPanelDocumentos = function () { return false; };') >= 0,
+  'el refresco legado no puede reescribir el panel y llevarse la seccion Storage');
+check(html.indexOf("    '<p class=\"muted\">Documentación persistida y consultada desde Supabase Storage.</p>';") >= 0,
+  'el panel 5 tiene que seguir anunciando el camino vigente');
+check(!/OneDrive|SharePoint/.test(superficie),
+  'la superficie de reemplazo no puede nombrar el repositorio retirado');
+check(html.indexOf('    retirarSuperficieDocumental();') >= 0,
+  'el retiro de la superficie tiene que instalarse con el resto');
+// Y los controles que sobrevivan en cualquier HTML ya pintado quedan interceptados.
+check(html.indexOf("    if (ev.target.closest('[data-v64-doc-export], [data-v572-doc-export-filtered]')) {") >= 0,
+  'los exports documentales por OC del modelo retirado tienen que interceptarse');
+check(html.indexOf("    if (ev.target.closest('[data-v64-open-folder], [data-v575-copy-onedrive]')) {") >= 0,
+  'abrir carpeta y copiar la estructura OneDrive tienen que interceptarse');
+// El camino documental ACTIVO no se toca.
+check(html.indexOf('data-documentos-storage') >= 0,
+  'la seccion de documentos de Supabase Storage tiene que seguir en pie');
+check(html.indexOf("const TABLE = 'coi_documentos_oc';") >= 0 && html.indexOf("const BUCKET = 'coi-documentos';") >= 0,
+  'el indice documental vigente tiene que seguir intacto');
+
+// ============ 6i) el backup preserva la cuarentena como material de recuperacion
+// snapshotLocalStorage() usa el getter publico, que el escudo enmascara: sin
+// esta seccion el backup maestro perdia el material historico.
+const recup = html.slice(html.indexOf('  function recuperacionLegacy(){'), html.indexOf('  function timelineAutoritativo(){'));
+check(recup.indexOf('const api=window.__COI_OBS_H07_CUARENTENA__;') >= 0,
+  'la recuperacion tiene que leerse por la API de cuarentena, que usa el getter nativo');
+check(recup.indexOf('autoritativo:false') >= 0,
+  'la seccion de recuperacion tiene que declararse NO autoritativa');
+check(html.indexOf('recuperacion:recuperacionLegacy()') >= 0,
+  'el payload del backup tiene que incluir la seccion de recuperacion');
+// Separada del dataset autoritativo: observacionesOC sigue siendo solo el remoto.
+check(html.indexOf('observacionesOC:getObs()') >= 0,
+  'datos.observacionesOC tiene que seguir saliendo del modelo, no del legado');
+check(!/datos:\{[^}]*recuperacion/.test(html),
+  'la recuperacion no puede mezclarse dentro de datos');
+check(importa.indexOf('const legacyRecuperacion=data.recuperacion&&data.recuperacion.observacionesLegacy;') >= 0,
+  'el importador tiene que reconocer la seccion de recuperacion');
+check(!/recuperacion[^;]*setItem|observacionesLegacy[^;]*setItem/.test(importa),
+  'el importador NO puede reimportar la cuarentena como dato operativo');
 
 // ============ 7) el legado publicado se retira ANTES del primer await
 // El inicializador historico publica en window.observacionesOC lo que encuentra

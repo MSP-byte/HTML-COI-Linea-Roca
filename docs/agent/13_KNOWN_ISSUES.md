@@ -598,3 +598,35 @@ crudo del navegador —una sección de recuperación, no documentación operativ
 `importarBackup()` restaura de ahí **únicamente** el Timeline, y por la ruta
 autoritativa de Supabase (`COI_TIMELINE_COI.replace`); el resto de las claves no
 se reescribe y el resumen informa qué datasets no se aplicaron localmente.
+
+## KI-026 — No existe una exportación canónica de la documentación Storage
+Estado: abierto (mejora, sin impacto operativo).
+
+Los exports documentales por OC del modelo retirado
+(`[data-v64-doc-export]`, `[data-v572-doc-export-filtered]`) quedaron **retirados**
+en el PR #61: exportaban CSV desde `v64DocsOC`/`documentacionOC`, siempre vacíos
+desde el retiro, y entregaban un archivo que parecía decir que la OC no tenía
+documentación (TD-066).
+
+No hay pérdida operativa —lo retirado exportaba cero filas—, pero tampoco existe
+hoy una exportación de la documentación **vigente**, la de
+`public.coi_documentos_oc` + Supabase Storage. El material ya está en memoria:
+`window.cargarDocumentosStorageOC(orden)` devuelve las filas por OC.
+
+Al retomarlo: construir la exportación sobre ese helper, no sobre el modelo
+retirado, y dejar explícito en el nombre del archivo y en la cabecera que la
+fuente es Supabase Storage.
+
+## KI-027 — El backup integral todavía sugiere una estructura OneDrive
+Estado: abierto (deuda menor, fuera del alcance de H07).
+
+`obtenerBackupCompletoCOI()` sigue agregando
+`payload.datos.estructuraOneDriveSugerida = DOC_ESTRUCTURA_ONEDRIVE_V575`, una
+plantilla de carpetas del modelo por referencia externa retirado.
+
+No es dato operativo, no alimenta KPIs, no entra en el restore y no aparece en
+ninguna superficie de la Ficha OC —la del PR #61 quedó retirada por TD-065—. Es
+un residuo informativo dentro de un archivo de backup.
+
+Se deja anotado para que no se confunda con un camino documental vigente. Al
+retomarlo, la corrección es quitar ese campo del payload.

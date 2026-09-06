@@ -175,3 +175,31 @@ guardarlas, porque eso reescribe datos operativos en reposo. Ver TD-058.
 
 `coi_supabase_estaciones_cache_v1` **no** está retirada: sigue siendo una caché
 activa del camino normal.
+
+### Sección de recuperación del backup
+
+El escudo hace que `localStorage.getItem('coi_observaciones_oc')` devuelva `[]` a
+cualquier consumidor operativo, y `snapshotLocalStorage()` usa ese mismo getter.
+Para que el material en cuarentena no quede sin respaldo, el payload lleva una
+tercera sección:
+
+```
+recuperacion: {
+  observacionesLegacy: { autoritativo: false, clave, filas, pendientes }
+}
+```
+
+Se lee por `__COI_OBS_H07_CUARENTENA__`, que usa el getter nativo. No alimenta
+KPIs, no se mezcla con `datos.observacionesOC` —que sigue siendo solo lo
+confirmado contra Supabase— y el importador **no la reimporta**: avisa que el
+archivo la trae y la conserva como material de recuperación explícita. Ver TD-067
+y `H07-47`…`H07-49`.
+
+### Documentación en Ficha OC
+
+El panel 5 muestra únicamente la sección `[data-documentos-storage]`, alimentada
+por `public.coi_documentos_oc` y el bucket `coi-documentos`. El renderizador del
+modelo por referencia externa quedó neutralizado: no puede emitir la tarjeta
+«Carpeta documental OneDrive», los campos de repositorio/ruta/link, «Abrir
+carpeta documental», «Copiar estructura sugerida OneDrive», el modal de
+referencias externas ni los exports CSV legados. Ver TD-065, TD-066, KI-026.

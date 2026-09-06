@@ -13027,6 +13027,27 @@ initNavegacionRespaldoCOI();
      Si esta sesion no confirmo ninguna lectura remota no se inventa nada: se
      declara confirmado:false y el importador no restaura. Un Timeline vacio
      CONFIRMADO se distingue de un Timeline ausente por ese mismo campo. */
+  /* H07 · Material en cuarentena, para RECUPERACION. No es dato operativo:
+     no alimenta KPIs, no se mezcla con datos.observacionesOC —que solo lleva lo
+     confirmado contra Supabase— y el importador no lo restaura. Se lee por la
+     API de cuarentena, que usa el getter nativo: el escudo sigue devolviendo
+     '[]' a los lectores comunes. */
+  function recuperacionLegacy(){
+    const salida={
+      nota:'Material historico conservado para recuperacion. NO es dato operativo y el restore no lo reimporta.',
+      observacionesLegacy:{autoritativo:false,clave:'coi_observaciones_oc',filas:[]}
+    };
+    try{
+      const api=window.__COI_OBS_H07_CUARENTENA__;
+      if(api&&typeof api.filas==='function'){
+        salida.observacionesLegacy.clave=api.clave||'coi_observaciones_oc';
+        salida.observacionesLegacy.filas=api.filas();
+        if(typeof api.cantidad==='function')salida.observacionesLegacy.pendientes=api.cantidad();
+      }
+    }catch(error){salida.observacionesLegacy.error=String(error&&error.message||error);}
+    return salida;
+  }
+
   function timelineAutoritativo(){
     const salida={confirmado:false,fuente:'sin-lectura-confirmada',tabla:'',eventos:[]};
     try{
@@ -13046,7 +13067,7 @@ initNavegacionRespaldoCOI();
     // `autoritativo` son snapshots confirmados contra Supabase. `localStorage`
     // es el volcado crudo del navegador, material de recuperacion sin
     // autoridad. Nunca se mezclan.
-    const payload={tipo:'backup-coi-linea-roca',version:VERSION,fechaExportacion:now(),usuario:'Local',resumen:{totalOC:getRows().length,totalUM:getUMs().length,totalPosiciones:getPositions().length,totalDocumentos:getDocs().length,totalObservaciones:getObs().length,totalST:getSTs().length,totalEventosTimeline:timeline.confirmado?timeline.eventos.length:null},autoritativo:{timeline:timeline},datos:{obrasServicios:getRows().map(r=>ocItem(r)),unidadesMantenimiento:getUMs(),posicionesFinancieras:getPositions(),documentosOC:getDocs(),observacionesOC:getObs(),alertasRevisadas:safeJSON(LS_ALERTAS_REV,[]),serviciosTecnicosUM:getSTs(),configuracion:{version:VERSION,fechaVersion:RELEASE_DATE}},localStorage:snapshotLocalStorage()};
+    const payload={tipo:'backup-coi-linea-roca',version:VERSION,fechaExportacion:now(),usuario:'Local',resumen:{totalOC:getRows().length,totalUM:getUMs().length,totalPosiciones:getPositions().length,totalDocumentos:getDocs().length,totalObservaciones:getObs().length,totalST:getSTs().length,totalEventosTimeline:timeline.confirmado?timeline.eventos.length:null},autoritativo:{timeline:timeline},recuperacion:recuperacionLegacy(),datos:{obrasServicios:getRows().map(r=>ocItem(r)),unidadesMantenimiento:getUMs(),posicionesFinancieras:getPositions(),documentosOC:getDocs(),observacionesOC:getObs(),alertasRevisadas:safeJSON(LS_ALERTAS_REV,[]),serviciosTecnicosUM:getSTs(),configuracion:{version:VERSION,fechaVersion:RELEASE_DATE}},localStorage:snapshotLocalStorage()};
     const name=`backup-coi-linea-roca-v58-1-${dateStamp()}.json`;download(name,JSON.stringify(payload,null,2));saveJSONKey(LS_BACKUP_META,{fecha:now(),tipo:'Exportado',version:VERSION,archivo:name,usuario:'Local'});inyectarAdmin();toast('Backup JSON exportado','ok',name);
   }
   function importarBackup(file){
@@ -13089,6 +13110,11 @@ initNavegacionRespaldoCOI();
         const omitted=data.datos&&typeof data.datos==='object'
           ?Object.entries(data.datos).filter(([,value])=>Array.isArray(value)&&value.length).map(([key])=>key)
           :[];
+        // La seccion de recuperacion NO se reimporta: es material historico sin
+        // autoridad. Se informa para que el operador sepa que viene en el
+        // archivo y que sigue siendo recuperable de forma explicita.
+        const legacyRecuperacion=data.recuperacion&&data.recuperacion.observacionesLegacy;
+        const legacyFilas=Array.isArray(legacyRecuperacion&&legacyRecuperacion.filas)?legacyRecuperacion.filas.length:0;
         const estadoTimeline=timelineDescartado?'descartado':(timelineRestored?'restaurado':'ausente');
         saveJSONKey(LS_BACKUP_META,{fecha:now(),tipo:'Importado Supabase-first',version:data.version||data.appVersion||VERSION,archivo:file.name,usuario:'Supabase',timeline:estadoTimeline});
         const detalleTimeline=timelineDescartado
@@ -13096,7 +13122,8 @@ initNavegacionRespaldoCOI();
           :(timelineRestored?'Timeline restaurado y confirmado en Supabase.':'El archivo no contenía un snapshot Timeline para restaurar.');
         const detail=[
           detalleTimeline,
-          omitted.length?`No se aplicaron localmente datasets canónicos sin RPC de restore: ${omitted.join(', ')}.`:''
+          omitted.length?`No se aplicaron localmente datasets canónicos sin RPC de restore: ${omitted.join(', ')}.`:'',
+          legacyFilas?`El archivo trae ${legacyFilas} observación(es) legadas en la sección de recuperación: NO se reimportan como dato operativo.`:''
         ].filter(Boolean).join(' ');
         toast(timelineDescartado?'Restauración del Timeline descartada':'Backup procesado',
           (timelineDescartado||omitted.length||!timelineRestored)?'warn':'ok',detail);
@@ -20713,6 +20740,9 @@ if(document.readyState==='loading'){
   // dos eventos `storage` se solapaban— y cada lectura lee su propio objeto,
   // capturado por su closure, aunque despues arranque otra.
   let timelineLoadState=null;
+  // Relectura pendiente pedida por otra pestaña mientras habia una lectura en
+  // curso. Coalesce: N señales durante la misma lectura producen UNA sola.
+  let timelineReloadPendiente=false;
   const TIMELINE_LEGACY_KEY='coi_timeline_legacy_pending_v1';
   const TIMELINE_MIGRATION_KEY='coi_timeline_supabase_migrated_v1';
   const TIMELINE_SCHEMA='COI_TIMELINE_EVENTS_V2';
@@ -21011,6 +21041,10 @@ if(document.readyState==='loading'){
       // Si una relectura pedida por otra pestaña se engancha a una lectura ya
       // en curso, esa lectura tampoco puede reemitir la señal.
       if(timelineLoadState&&options.emitirSync===false)timelineLoadState.emitirSync=false;
+      // Y ademas queda anotada: la lectura en curso pudo haber tomado su
+      // snapshot ANTES del cambio que motivo la señal, asi que engancharse a
+      // ella no alcanza. Se hara una relectura al terminar.
+      if(options.emitirSync===false)timelineReloadPendiente=true;
       return timelineLoadPromise;
     }
     timelineLoadGeneration=loadGeneration;
@@ -21067,6 +21101,12 @@ if(document.readyState==='loading'){
       if(timelineLoadPromise===currentLoad){
         timelineLoadPromise=null;
         timelineLoadGeneration=-1;
+        if(timelineReloadPendiente){
+          // Se limpia ANTES de lanzar: las señales que lleguen durante la
+          // relectura vuelven a anotarse y producen a lo sumo una mas.
+          timelineReloadPendiente=false;
+          Promise.resolve().then(()=>loadEvents({emitirSync:false})).catch(()=>{});
+        }
       }
     }
   }
@@ -27816,11 +27856,18 @@ document.addEventListener('click',function(event){
     const m = marcadorGuardado();
     if (!m) return false;
     if (m.v === 1) {
-      // Marcador historico sin huella. No hay forma de reconstruir QUE se
-      // concilio en su momento, asi que se adopta el contenido actual como el
-      // conciliado y se migra al formato nuevo: se conserva exactamente el
-      // comportamiento que ese puesto ya tenia. A partir de aca, cualquier
-      // cambio posterior de la clave legada SI reabre la cuarentena.
+      // Marcador historico sin huella. NO se adopta a ciegas: ese '1' pudo
+      // haberlo escrito la version en la que cualquier observacion remota
+      // liberaba la cuarentena, de modo que no prueba ninguna conciliacion.
+      const locales = legadoEnCuarentena();
+      // Sin filas legadas no hay nada que conciliar: la migracion es segura.
+      if (!locales.length) { ponerMarcador(); return true; }
+      // Con filas legadas hace falta una lectura remota confirmada para poder
+      // afirmar algo. Sin ella, fail-closed: la cuarentena sigue abierta.
+      if (!runtime.sincronizado || !Array.isArray(runtime.confirmado)) return false;
+      // Y se reconcilian de verdad, con el mismo multiset del resto de la capa.
+      if (faltanEnElRemoto(locales).length) return false;
+      // Todas estan en Supabase: recien ahi el corte queda registrado con huella.
       ponerMarcador();
       return true;
     }
@@ -30976,7 +31023,29 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     window.generarAlertasCOI = envuelto;
   }
 
+  // Cabecera neutra del panel 5, identica a la que ya deja
+  // organizarSubmodulosFichaOC. La seccion de Supabase Storage se agrega debajo
+  // y no se toca.
+  const PANEL_DOCUMENTAL_VIGENTE =
+    '<h3>5. Documentos</h3>' +
+    '<p class="muted">Documentación persistida y consultada desde Supabase Storage.</p>';
+
+  function retirarSuperficieDocumental() {
+    // El renderizador del modelo por referencia externa ya no puede emitir
+    // ninguno de sus controles.
+    window.v64RenderDocumentosFichaOC = function () { return PANEL_DOCUMENTAL_VIGENTE; };
+    window.v572RenderDocumentosFichaOC = window.v64RenderDocumentosFichaOC;
+    // El modal de alta/edicion de referencias externas tampoco.
+    window.v64RenderModalDoc = function () { return ''; };
+    // Y el refresco de los filtros documentales legados queda en nada: si
+    // corriera, reescribiria el panel entero y se llevaria por delante la
+    // seccion de Supabase Storage que vive dentro del mismo contenedor.
+    window.v572RefrescarPanelDocumentos = function () { return false; };
+  }
+
   function instalarRetiro() {
+    // Superficie visible de la Ficha OC: sin OneDrive.
+    retirarSuperficieDocumental();
     // Lectura: nunca desde localStorage.
     window.v64CargarDocumentacionOC = function () { return []; };
     // Persistencia: no hay. Se conserva el choke point historico porque varias
@@ -31027,6 +31096,28 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
         ? 'Se exportaron ' + filas + ' referencia(s) documentales en cuarentena. No son documentación operativa: la vigente vive en Supabase Storage.'
         : 'No hay documentación legada en cuarentena para exportar. La documentación vigente vive en Supabase Storage.',
         filas ? 'ok' : 'warn');
+      return;
+    }
+
+    // Exports del modelo retirado. No existe hoy una exportacion canonica de
+    // la documentacion de Supabase Storage, y generar un CSV desde
+    // v64DocsOC/documentacionOC —siempre vacio— seria peor que no exportar:
+    // el operador se llevaria un archivo que parece decir que la OC no tiene
+    // documentacion. Se retiran hasta que exista una exportacion canonica.
+    if (ev.target.closest('[data-v64-doc-export], [data-v572-doc-export-filtered]')) {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      avisar('La exportación documental por OC del modelo retirado ya no está disponible. ' +
+        'La documentación vigente se consulta en Supabase Storage, dentro de la misma ficha.', 'warn');
+      return;
+    }
+
+    // Controles de la carpeta externa: abrir carpeta y copiar la estructura
+    // OneDrive sugerida.
+    if (ev.target.closest('[data-v64-open-folder], [data-v575-copy-onedrive]')) {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      avisar(MENSAJE_RETIRADO, 'warn');
       return;
     }
 

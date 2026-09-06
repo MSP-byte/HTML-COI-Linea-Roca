@@ -136,6 +136,11 @@ async function prepararH07(page, opciones = {}) {
     // Posiciones financieras remotas, para el camino real de borrado.
     posiciones: [],
     consumos: [],
+    // Arranque sin sesion utilizable: la lectura remota no se puede confirmar.
+    sesionCaida: false,
+    // Retardo de la lectura del Timeline, para abrir la ventana en la que
+    // llega una señal de otra pestaña con una lectura ya en vuelo.
+    demoraTimeline: 0,
     marcadorH03: true
   }, opciones);
   const obsLegadas = opciones.legadoObsFilas || OBS_LEGADA;
@@ -152,7 +157,7 @@ async function prepararH07(page, opciones = {}) {
     localStorage.setItem('coi_v2_theme', 'dark');
 
     let uid = uidInicial;
-    let activa = true;
+    let activa = c.sesionCaida !== true;
     const oyentes = [];
     let observaciones = c.observaciones.slice();
     window.__H07_OBS__ = () => observaciones;
@@ -215,7 +220,11 @@ async function prepararH07(page, opciones = {}) {
         registrar('rpc:' + nombre, null);
         if (!activa) return { data: null, error: null };
         if (nombre === 'coi_current_role') return { data: window.__H07_CFG__.rol, error: null };
-        if (nombre === 'coi_timeline_list_page') return { data: window.__H07_CFG__.eventos, error: null };
+        if (nombre === 'coi_timeline_list_page') {
+          const demora = Number(window.__H07_CFG__.demoraTimeline || 0);
+          if (demora) await new Promise((r) => setTimeout(r, demora));
+          return { data: window.__H07_CFG__.eventos, error: null };
+        }
         return { data: null, error: null };
       },
       auth: {
@@ -1316,12 +1325,14 @@ test('H07-35 · si la clave legada cambia después del corte, la cuarentena se r
   await expect(page.locator('[data-h07-obs-cuarentena]')).toBeVisible();
 });
 
-test('H07-36 · un marcador histórico «1» sigue valiendo y se migra a huella', async ({ page }) => {
-  // Compatibilidad: los puestos que ya tenían el corte hecho no pueden ver la
-  // cuarentena reabierta de golpe. Se adopta su contenido actual como el
-  // conciliado y se migra al formato nuevo.
-  await prepararH07(page, { legadoObservaciones: true, marcadorH03: true });
+test('H07-36 · un marcador histórico «1» con legado y remoto vacío NO se migra', async ({ page }) => {
+  // Compatibilidad NO significa adopción a ciegas: ese '1' pudo haberlo escrito
+  // la versión en la que cualquier observación remota liberaba la cuarentena.
+  // Con el remoto vacío —estado válido— la fila legada sigue sin estar en
+  // Supabase, así que el corte no puede darse por hecho.
+  await prepararH07(page, { legadoObservaciones: true, marcadorH03: true, observaciones: [] });
   await abrirH07(page);
+  await page.waitForFunction(() => window.__COI_OBS_H03__.sincronizado === true, null, { timeout: 20000 });
 
   const r = await page.evaluate(() => ({
     cuarentena: window.__COI_OBS_H07_CUARENTENA__.cantidad(),
@@ -1329,9 +1340,9 @@ test('H07-36 · un marcador histórico «1» sigue valiendo y se migra a huella'
     filas: window.__COI_OBS_H07_CUARENTENA__.filas().length
   }));
 
-  expect(r.cuarentena).toBe(0);
-  // Ya no es un '1' pelado: quedó migrado con huella.
-  expect(marcadorConHuella(r.marcador)).toBe(true);
+  expect(r.cuarentena).toBe(1);
+  // El marcador histórico se conserva tal cual: no hay conciliación que registrar.
+  expect(r.marcador).toBe('1');
   // Y el material sigue intacto.
   expect(r.filas).toBe(1);
 });
@@ -1468,4 +1479,292 @@ test('H07-39 · un restore confirmado sí se declara restaurado', async ({ page 
 
   expect(r.aviso).toContain('Timeline restaurado y confirmado');
   expect(r.meta && r.meta.timeline).toBe('restaurado');
+});
+
+// ============ 21 · el marcador histórico no se adopta a ciegas (F1)
+
+// Ese '1' pudo haberlo escrito la versión en la que CUALQUIER observación
+// remota liberaba la cuarentena: no prueba ninguna conciliación.
+async function conMarcadorHistorico(page, opciones) {
+  await prepararH07(page, Object.assign({ marcadorH03: true, legadoObservaciones: true }, opciones));
+  await abrirH07(page);
+  await page.waitForTimeout(1200);
+  return page.evaluate(() => ({
+    cuarentena: window.__COI_OBS_H07_CUARENTENA__.cantidad(),
+    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1'),
+    filas: window.__COI_OBS_H07_CUARENTENA__.filas().length,
+    sincronizado: window.__COI_OBS_H03__.sincronizado
+  }));
+}
+
+test('H07-40 · A · marcador «1» con legado pendiente y remoto ajeno NO libera', async ({ page }) => {
+  const r = await conMarcadorHistorico(page, { observaciones: [OBS_REMOTA_AJENA] });
+  expect(r.sincronizado).toBe(true);
+  // La fila legada no está en Supabase: la cuarentena sigue abierta.
+  expect(r.cuarentena).toBe(1);
+  // Y el marcador histórico NO se migró: no hay conciliación que registrar.
+  expect(r.marcador).toBe('1');
+  expect(r.filas).toBe(1);
+
+  // Mutaciones bloqueadas.
+  await page.evaluate(async () => {
+    let ta = document.getElementById('v65NuevaObservacion');
+    if (!ta) { ta = document.createElement('textarea'); ta.id = 'v65NuevaObservacion'; document.body.appendChild(ta); }
+    ta.value = 'NO DEBERIA LLEGAR';
+    window.guardarObservacionOC('4530007777');
+    await new Promise((r) => setTimeout(r, 900));
+  });
+  expect(await page.evaluate(() =>
+    window.__H07_LLAMADAS__.filter((l) => l.op === 'insert:coi_observaciones_oc').length)).toBe(0);
+});
+
+test('H07-41 · B · marcador «1» con el legado ya en Supabase migra a huella', async ({ page }) => {
+  const r = await conMarcadorHistorico(page, {
+    observaciones: [obsRemota('99999999-9999-4999-8999-999999999999', 'OBSERVACION LOCAL SIN CONCILIAR')]
+  });
+  expect(r.cuarentena).toBe(0);
+  expect(marcadorConHuella(r.marcador)).toBe(true);
+  expect(r.filas).toBe(1);
+});
+
+test('H07-42 · C · marcador «1» sin legado migra sin necesitar el remoto', async ({ page }) => {
+  const r = await conMarcadorHistorico(page, { legadoObservaciones: false });
+  expect(r.cuarentena).toBe(0);
+  expect(marcadorConHuella(r.marcador)).toBe(true);
+  expect(r.filas).toBe(0);
+});
+
+test('H07-43 · D · marcador «1» con legado y Supabase caído no libera nada', async ({ page }) => {
+  await prepararH07(page, {
+    marcadorH03: true, legadoObservaciones: true, observaciones: [], sesionCaida: true
+  });
+  await abrirH07(page);
+  await page.waitForTimeout(1200);
+
+  const r = await page.evaluate(() => ({
+    sincronizado: window.__COI_OBS_H03__.sincronizado,
+    cuarentena: window.__COI_OBS_H07_CUARENTENA__.cantidad(),
+    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1'),
+    modelo: (window.observacionesOC || []).length
+  }));
+
+  // Sin lectura remota confirmada no se puede afirmar nada: fail-closed.
+  expect(r.sincronizado).toBe(false);
+  expect(r.cuarentena).toBe(1);
+  expect(r.marcador).toBe('1');
+  // Y el legado tampoco entra al modelo.
+  expect(r.modelo).toBe(0);
+});
+
+// ============ 22 · una señal durante una lectura en curso no se pierde (F2)
+
+test('H07-44 · un ping durante una lectura en vuelo produce UNA relectura posterior', async ({ page }) => {
+  await prepararH07(page, { eventos: [], demoraTimeline: 1200 });
+  await abrirH07(page);
+  await page.waitForFunction(() => window.COI_TIMELINE_COI.isAuthoritativeReady() === true, null, { timeout: 20000 });
+
+  const r = await page.evaluate(async () => {
+    const lecturas = () => window.__H07_LLAMADAS__.filter((l) => l.op === 'rpc:coi_timeline_list_page').length;
+    const ping = () => localStorage.getItem('coi_timeline_sync_ping_v1');
+    const antes = { lecturas: lecturas(), ping: ping() };
+
+    // Lectura A arranca y toma su snapshot del remoto ANTES del cambio.
+    const A = window.COI_TIMELINE_COI.reload();
+    await new Promise((r) => setTimeout(r, 150));
+
+    // El remoto cambia y otra pestaña avisa. Diez señales, todas durante A.
+    window.__H07_CFG__.eventos = [
+      { id: 'nuevo', fecha: '2026-09-03', tipo_evento: 'Nota', oc: '4530007777', titulo: 'EVENTO POSTERIOR AL SNAPSHOT' }
+    ];
+    for (let i = 0; i < 10; i++) {
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'coi_timeline_sync_ping_v1',
+        newValue: JSON.stringify({ en: new Date().toISOString(), i })
+      }));
+    }
+    const pingTrasSeñales = ping();
+
+    await A;
+    // Se le da margen a la relectura pendiente.
+    await new Promise((r) => setTimeout(r, 2500));
+
+    return {
+      antes,
+      pingTrasSeñales,
+      lecturasFinal: lecturas(),
+      pingFinal: ping(),
+      titulos: (window.coiTimelineEvents || []).map((e) => String(e.titulo || ''))
+    };
+  });
+
+  // El estado final incorpora el cambio remoto: la señal no se perdió.
+  expect(r.titulos).toContain('EVENTO POSTERIOR AL SNAPSHOT');
+  // Diez señales durante la misma lectura coalescen: A + exactamente una más.
+  expect(r.lecturasFinal - r.antes.lecturas).toBe(2);
+  // Y la relectura provocada por la señal no reemitió.
+  expect(r.pingFinal).toBe(r.pingTrasSeñales);
+});
+
+// ============ 23 · Ficha OC sin OneDrive ni exports legados (F3 · F4)
+
+const RETIRADO_RE = /OneDrive|SharePoint|Carpeta documental|Abrir carpeta|referencia documental/i;
+
+async function radiografiaFicha(page) {
+  return page.evaluate(async () => {
+    const filas = window.todasLasOC();
+    const clave = filas[0] && filas[0].item && (filas[0].item.idObra || filas[0].item.idOC);
+    window.abrirFichaOC(clave);
+    if (typeof window.activarSubmoduloFichaOC === 'function') window.activarSubmoduloFichaOC('panelFichaDocumentos');
+    await new Promise((r) => setTimeout(r, 1500));
+    const panel = document.getElementById('panelFichaDocumentos');
+    return {
+      html: panel ? panel.innerHTML : '',
+      texto: panel ? panel.textContent : '',
+      folderCards: document.querySelectorAll('.doc-folder-card').length,
+      exports: document.querySelectorAll('[data-v64-doc-export],[data-v572-doc-export-filtered]').length,
+      abrirCarpeta: document.querySelectorAll('[data-v64-open-folder]').length,
+      copiarOneDrive: document.querySelectorAll('[data-v575-copy-onedrive]').length,
+      modal: document.querySelectorAll('[data-v64-doc-modal]').length,
+      storage: panel ? panel.querySelectorAll('[data-documentos-storage]').length : 0,
+      // Forzar el camino legado no puede reintroducir nada ni romper Storage.
+      forzado: (() => {
+        const oc = filas[0] && (filas[0].item || filas[0]);
+        const legado = typeof window.v64RenderDocumentosFichaOC === 'function'
+          ? window.v64RenderDocumentosFichaOC(oc) : '';
+        const refresco = typeof window.v572RefrescarPanelDocumentos === 'function'
+          ? window.v572RefrescarPanelDocumentos() : null;
+        return { legado, refresco, storageTrasRefresco: panel ? panel.querySelectorAll('[data-documentos-storage]').length : 0 };
+      })()
+    };
+  });
+}
+
+test('H07-45 · la Ficha OC no ofrece OneDrive ni referencias externas', async ({ page }) => {
+  await prepararH07(page);
+  await abrirH07(page);
+  const r = await radiografiaFicha(page);
+
+  // Nada del modelo retirado en la superficie visible.
+  expect(r.texto).not.toMatch(RETIRADO_RE);
+  expect(r.html).not.toMatch(RETIRADO_RE);
+  expect(r.folderCards).toBe(0);
+  expect(r.abrirCarpeta).toBe(0);
+  expect(r.copiarOneDrive).toBe(0);
+  expect(r.modal).toBe(0);
+  expect(r.exports).toBe(0);
+
+  // El panel documental vigente sigue en pie.
+  expect(r.storage).toBe(1);
+  expect(r.texto).toContain('Supabase Storage');
+
+  // Forzar el renderizador legado tampoco reintroduce nada…
+  expect(r.forzado.legado).not.toMatch(RETIRADO_RE);
+  expect(r.forzado.legado).toContain('Supabase Storage');
+  // …ni el refresco legado se lleva por delante la sección de Storage.
+  expect(r.forzado.refresco).toBe(false);
+  expect(r.forzado.storageTrasRefresco).toBe(1);
+});
+
+test('H07-46 · los exports documentales por OC del modelo retirado no generan CSV', async ({ page }) => {
+  await prepararH07(page);
+  await abrirH07(page);
+
+  const r = await page.evaluate(async () => {
+    window.__H07_CSV__ = [];
+    window.v64ExportarDocumentosCSV = (docs, nombre) =>
+      window.__H07_CSV__.push({ filas: (docs || []).length, nombre });
+
+    // Aunque alguien vuelva a pintar los botones a mano, no exportan.
+    const caja = document.createElement('div');
+    caja.innerHTML = '<button type="button" data-v64-doc-export="OBRA-H07">Exportar documentos CSV</button>' +
+      '<button type="button" data-v572-doc-export-filtered="OBRA-H07">Exportar vista filtrada CSV</button>' +
+      '<button type="button" data-v64-open-folder="OBRA-H07">Abrir carpeta documental</button>' +
+      '<button type="button" data-v575-copy-onedrive>Copiar estructura sugerida OneDrive</button>';
+    document.body.appendChild(caja);
+    [...caja.querySelectorAll('button')].forEach((b) => b.click());
+    await new Promise((r) => setTimeout(r, 500));
+
+    return { csv: window.__H07_CSV__, alertas: window.__H07_ALERTAS__ || [] };
+  });
+
+  // Ningún CSV vacío haciéndose pasar por la documentación de la OC.
+  expect(r.csv).toEqual([]);
+});
+
+// ============ 24 · el backup preserva la cuarentena como recuperación (F5)
+
+test('H07-47 · A/B/D · el backup lleva la cuarentena en una sección de recuperación', async ({ page }) => {
+  await prepararH07(page, {
+    legadoObservaciones: true, marcadorH03: false, observaciones: [OBS_REMOTA_AJENA]
+  });
+  await abrirH07(page);
+  await page.waitForFunction(() => window.__COI_OBS_H03__.sincronizado === true, null, { timeout: 20000 });
+
+  const backup = await backupDe(page);
+
+  // A · copia exacta del material en cuarentena.
+  expect(backup.recuperacion.observacionesLegacy.autoritativo).toBe(false);
+  expect(backup.recuperacion.observacionesLegacy.clave).toBe('coi_observaciones_oc');
+  expect(backup.recuperacion.observacionesLegacy.filas.map((o) => o.texto))
+    .toEqual(['OBSERVACION LOCAL SIN CONCILIAR']);
+  expect(backup.recuperacion.observacionesLegacy.pendientes).toBe(1);
+
+  // B · el dataset autoritativo sigue siendo solo el remoto confirmado.
+  expect(backup.datos.observacionesOC.map((o) => String(o.texto || '')))
+    .toEqual(['OBSERVACION REMOTA AJENA']);
+  expect(JSON.stringify(backup.datos)).not.toContain('OBSERVACION LOCAL SIN CONCILIAR');
+
+  // E · el escudo sigue funcionando para los lectores comunes.
+  expect(await page.evaluate(() => localStorage.getItem('coi_observaciones_oc'))).toBe('[]');
+  // …y el volcado crudo, que usa ese mismo getter, tampoco la expone.
+  expect(backup.localStorage['coi_observaciones_oc']).toBe('[]');
+});
+
+test('H07-48 · D · sin legado, la sección de recuperación queda explícitamente vacía', async ({ page }) => {
+  await prepararH07(page, { legadoObservaciones: false });
+  await abrirH07(page);
+
+  const backup = await backupDe(page);
+  expect(backup.recuperacion.observacionesLegacy.autoritativo).toBe(false);
+  expect(backup.recuperacion.observacionesLegacy.filas).toEqual([]);
+});
+
+test('H07-49 · C · restaurar un backup NO reimporta la cuarentena como dato operativo', async ({ page }) => {
+  await prepararH07(page, {
+    legadoObservaciones: true, marcadorH03: false, observaciones: [OBS_REMOTA_AJENA]
+  });
+  await abrirH07(page);
+  await page.waitForFunction(() => window.__COI_OBS_H03__.sincronizado === true, null, { timeout: 20000 });
+
+  const backup = await backupDe(page);
+  expect(backup.recuperacion.observacionesLegacy.filas.length).toBe(1);
+
+  const r = await page.evaluate(async (payload) => {
+    window.COI_TIMELINE_COI.replace = async (eventos) => ({ ok: true, count: (eventos || []).length, events: eventos, refreshed: true });
+    window.confirm = () => true;
+    const antes = window.__H07_LLAMADAS__.length;
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.id = 'fileImportarBackupV581';
+    document.body.appendChild(input);
+    const dt = new DataTransfer();
+    dt.items.add(new File([JSON.stringify(payload)], 'backup.json', { type: 'application/json' }));
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 450));
+
+    const caja = document.getElementById('coiToastV581');
+    return {
+      aviso: caja ? String(caja.textContent || '') : '',
+      modelo: (window.observacionesOC || []).map((o) => String(o.texto || '')),
+      inserts: window.__H07_LLAMADAS__.slice(antes).filter((l) => /^insert:/.test(l.op)).length
+    };
+  }, backup);
+
+  // Ni una sola escritura de las observaciones legadas.
+  expect(r.inserts).toBe(0);
+  expect(r.modelo).not.toContain('OBSERVACION LOCAL SIN CONCILIAR');
+  // Y se le avisa al operador que el archivo las trae, sin reimportarlas.
+  expect(r.aviso).toContain('NO se reimportan');
 });

@@ -1159,5 +1159,113 @@ real (`restaurado` / `descartado` / `ausente`).
 Consecuencias. Fail-closed y reintentable. Fijado por `H07-38` (descartado) y
 `H07-39` (confirmado).
 
+## TD-063 — Un marcador histórico no prueba una conciliación
+Fecha: 2026-09-05. PR #61 (`fix/h07-final-localstorage-supabase-first`).
+
+Contexto. TD-060 aceptaba el marcador histórico `'1'` adoptando el contenido
+actual como conciliado. Pero ese `'1'` pudo haberlo escrito la versión en la que
+**cualquier** observación remota liberaba la cuarentena (el defecto que cerró
+TD-050): adoptarlo a ciegas era heredar el bug y dejar filas legadas ocultas
+para siempre.
+
+Decisión. El `'1'` ya no se adopta sin verificar:
+
+- sin filas legadas, la migración a v2 es segura y se hace;
+- con filas legadas hace falta una **lectura remota confirmada**; sin ella,
+  fail-closed: la cuarentena sigue abierta y las mutaciones bloqueadas;
+- con lectura confirmada se reconcilian de verdad, con el mismo multiset de
+  TD-057, y el marcador v2 se escribe **solo** si todas aparecen en Supabase.
+
+Nada se borra de `localStorage` en ningún caso.
+
+Consecuencias. Un puesto cuyo corte se puso mal antes de esta versión vuelve a
+ver su cuarentena abierta: eso es KI-007 funcionando, no una regresión. Fijado
+por `H07-40` (pendiente + remoto ajeno → no libera), `H07-41` (legado ya en
+Supabase → migra), `H07-42` (sin legado → migra) y `H07-43` (Supabase caído →
+no libera).
+
+## TD-064 — Una señal que llega con una lectura en vuelo no se pierde
+Fecha: 2026-09-05. PR #61.
+
+Contexto. TD-052 dejó la decisión de emitir por petición. Faltaba el otro lado:
+si una señal de otra pestaña llegaba con una lectura ya en curso, se enganchaba
+a esa promesa y no producía ninguna otra lectura. Pero esa lectura pudo haber
+tomado su snapshot **antes** del cambio remoto que motivó la señal: el aviso se
+perdía y la pestaña se quedaba con datos viejos hasta la siguiente recarga.
+
+Decisión. La señal anota una relectura **pendiente**. Al terminar la lectura en
+curso, si quedó anotada se limpia la bandera y se lanza **una** relectura, sin
+emitir. Limpiar antes de lanzar hace que las señales que lleguen durante la
+relectura vuelvan a anotarse y produzcan a lo sumo una más: N señales durante la
+misma lectura coalescen en una sola relectura extra.
+
+Consecuencias. Fijado por `H07-44`: diez señales durante una lectura demorada
+producen exactamente una relectura adicional, el estado final incorpora el cambio
+remoto y esa relectura no reemite.
+
+## TD-065 — La superficie OneDrive de la Ficha OC se retira, no se bloquea
+Fecha: 2026-09-05. PR #61.
+
+Contexto. AGENTS.md y BASELINE_OPERATIVA son explícitos: OneDrive y `Agregar link
+documental` no se reintroducen. El render por defecto de la Ficha OC ya no
+dibujaba esa superficie —`organizarSubmodulosFichaOC` deja una cabecera neutra y
+la sección de Supabase Storage se agrega debajo—, pero el **renderizador
+retirado seguía existiendo**: cualquier camino que lo invocara (el refresco de
+los filtros documentales de la V572, por ejemplo) reintroducía la tarjeta
+«Carpeta documental OneDrive», los campos de repositorio/ruta/link, «Abrir
+carpeta documental», «Copiar estructura sugerida OneDrive», el modal de
+referencias externas y los dos exports CSV.
+
+Decisión. Se neutraliza el renderizador, no el camino actual:
+`v64RenderDocumentosFichaOC` y su alias V572 devuelven la misma cabecera neutra
+que ya usa el panel vigente, `v64RenderModalDoc` devuelve vacío y
+`v572RefrescarPanelDocumentos` queda en no-op —si corriera, reescribiría el panel
+entero y se llevaría por delante la sección de Storage, que vive dentro del mismo
+contenedor—. Los controles que sobrevivan en cualquier HTML ya pintado se
+interceptan en captura.
+
+El camino documental vigente —bucket `coi-documentos` y `public.coi_documentos_oc`,
+renderizados en `[data-documentos-storage]`— no se toca.
+
+Consecuencias. Fijado por `H07-45`, que además fuerza el renderizador legado y
+comprueba que no reintroduce nada ni rompe la sección de Storage.
+
+## TD-066 — Sin exportación canónica, el export por OC se retira
+Fecha: 2026-09-05. PR #61.
+
+Contexto. `[data-v64-doc-export]` y `[data-v572-doc-export-filtered]` exportaban
+CSV desde `v64DocsOC`/`documentacionOC`, que están siempre vacíos desde el
+retiro. No existe hoy una exportación canónica de la documentación de Supabase
+Storage que se pueda reutilizar.
+
+Decisión. Se retiran esos botones —ya no se renderizan y sus clicks se
+interceptan— en lugar de generar un CSV vacío o incompleto. Un archivo que
+parece decir que la OC no tiene documentación es peor que no exportar. No se
+implementa una exportación nueva: eso excede el cierre de H07 y queda anotado
+como KI-026.
+
+Consecuencias. No hay pérdida operativa: lo que se retira ya exportaba cero
+filas. Fijado por `H07-46`.
+
+## TD-067 — El backup preserva la cuarentena como recuperación, no como dato
+Fecha: 2026-09-05. PR #61.
+
+Contexto. El escudo hace, correctamente, que
+`localStorage.getItem('coi_observaciones_oc')` devuelva `'[]'` a cualquier
+consumidor operativo. Pero `snapshotLocalStorage()` usa ese mismo getter, así que
+el backup maestro se llevaba un `'[]'` y el material histórico en cuarentena **no
+quedaba respaldado en ninguna parte**.
+
+Decisión. El payload gana `recuperacion.observacionesLegacy`, leída por
+`__COI_OBS_H07_CUARENTENA__` (getter nativo), con `autoritativo:false`, la clave
+de origen, las filas y cuántas siguen pendientes. Queda separada del dataset
+autoritativo (`datos.observacionesOC` sigue siendo solo lo confirmado contra
+Supabase) y del volcado crudo. El importador la reconoce, avisa que el archivo la
+trae y **no la reimporta**: sigue siendo material de recuperación explícita.
+
+Consecuencias. El escudo sigue intacto para los lectores comunes. Fijado por
+`H07-47` (copia exacta, dataset autoritativo limpio, escudo vigente), `H07-48`
+(sin legado, sección explícitamente vacía) y `H07-49` (el restore no reimporta).
+
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.
