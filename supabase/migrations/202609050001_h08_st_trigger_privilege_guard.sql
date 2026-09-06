@@ -26,6 +26,13 @@
 --   - RLS/policies de la tabla hija siguen decidiendo quien puede INSERT/UPDATE;
 --   - no se agrega ningun grant sobre coi_ordenes.
 --
+-- PRERREQUISITO
+--   H08 depende de 202608310004_h04_st_oc_referencial.sql, que crea la funcion.
+--   Los controles de reproducibilidad tambien construyen deliberadamente una
+--   base SIN H04 para verificar el estado anterior. En esa base artificial H08
+--   debe ser un NO-OP, no un error por funcion ausente. En STAGING/PRODUCCION
+--   H04 ya existe y este bloque aplica el hardening normalmente.
+--
 -- ALCANCE
 --   Solo atributos de public.coi_st_resolver_nro_oc(). No modifica filas,
 --   constraints, policies, grants de tablas ni otros RPC.
@@ -33,14 +40,23 @@
 -- IDEMPOTENCIA
 --   Reaplicarla deja los mismos atributos y privilegios.
 
-alter function public.coi_st_resolver_nro_oc()
-  security definer;
+do $h08$
+begin
+  if not exists (
+    select 1
+      from pg_proc p
+      join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public'
+       and p.proname = 'coi_st_resolver_nro_oc'
+       and p.pronargs = 0
+  ) then
+    return;
+  end if;
 
-alter function public.coi_st_resolver_nro_oc()
-  set search_path = pg_catalog, public, pg_temp;
-
-revoke all on function public.coi_st_resolver_nro_oc()
-  from public, anon, authenticated;
-
-comment on function public.coi_st_resolver_nro_oc() is
-  'Trigger SECURITY DEFINER H08: resuelve/serializa ST -> OC con row locks sobre coi_ordenes sin conceder UPDATE directo a authenticated. search_path fijo y EXECUTE directo revocado; las policies de coi_servicios_tecnicos_um siguen gobernando quien puede mutar la fila hija.';
+  execute 'alter function public.coi_st_resolver_nro_oc() security definer';
+  execute 'alter function public.coi_st_resolver_nro_oc() set search_path = pg_catalog, public, pg_temp';
+  execute 'revoke all on function public.coi_st_resolver_nro_oc() from public, anon, authenticated';
+  execute $sql$comment on function public.coi_st_resolver_nro_oc() is
+    'Trigger SECURITY DEFINER H08: resuelve/serializa ST -> OC con row locks sobre coi_ordenes sin conceder UPDATE directo a authenticated. search_path fijo y EXECUTE directo revocado; las policies de coi_servicios_tecnicos_um siguen gobernando quien puede mutar la fila hija.'$sql$;
+end
+$h08$;
