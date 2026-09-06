@@ -630,3 +630,34 @@ un residuo informativo dentro de un archivo de backup.
 
 Se deja anotado para que no se confunda con un camino documental vigente. Al
 retomarlo, la corrección es quitar ese campo del payload.
+
+## KI-028 — «UM vinculada» del listado de Órdenes no es el inventario
+Estado: abierto (deuda menor, sin impacto operativo).
+
+La columna y el filtro **UM vinculada** del módulo Órdenes salen de
+`item.umVinculada || item.unidadMantenimiento || item.umClave || especialidad`:
+es un texto de la propia OC, no una referencia al inventario
+`coi_unidades_mantenimiento`. Dos cosas distintas con el mismo nombre.
+
+H09 **no la tocó**, deliberadamente: está poblada —cae en `especialidad` cuando
+no hay otra cosa—, de modo que no es ruido visual vacío, y quitarla o cambiarle
+el sentido sería una decisión de producto, no del cierre de H09. Lo que sí
+cambió es el eje del módulo UM: la OC pasó a ser una referencia opcional
+(TD-068), así que esa columna ya no puede confundirse con el eje del inventario.
+
+Al retomarlo: decidir si se renombra a «Especialidad / tipo de trabajo», que es
+lo que realmente muestra, o si se la vincula de verdad contra el inventario.
+
+## KI-029 — El inventario de UM sigue sin datos en producción
+Estado: abierto (dato, no defecto).
+
+`coi_unidades_mantenimiento` y `coi_servicios_tecnicos_um` tienen **0 filas** en
+PRODUCCIÓN y en STAGING. H05 retiró deliberadamente el autoimport de las 28 UM y
+3 ST de demostración que quedaron en `localStorage`, y H09 mantiene esa
+decisión: el módulo muestra el estado vacío explícito
+—«No hay Unidades de Mantenimiento cargadas en Supabase.»— y ofrece el alta.
+
+El material legado se conserva físicamente en `localStorage` para una eventual
+recuperación manual: no se importa, no se muestra como operativo y no se borra.
+
+La carga inicial del inventario real de la red es trabajo operativo, no técnico.

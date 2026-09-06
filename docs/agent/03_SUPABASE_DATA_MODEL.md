@@ -203,3 +203,34 @@ modelo por referencia externa quedó neutralizado: no puede emitir la tarjeta
 «Carpeta documental OneDrive», los campos de repositorio/ruta/link, «Abrir
 carpeta documental», «Copiar estructura sugerida OneDrive», el modal de
 referencias externas ni los exports CSV legados. Ver TD-065, TD-066, KI-026.
+
+## Estado de registro de una OC — archivar sin borrar
+
+`public.coi_ordenes.estado_registro` es el estado **de registro** de la orden y
+admite `Activo` y `Archivado`. No debe confundirse con `estado_coi`, que es el
+estado **operativo** (En ejecución, Cerrada, …): archivar no cambia lo que la OC
+fue operativamente.
+
+El único camino para cambiarlo es la RPC canónica
+`coi_actualizar_orden_integral`, a través de `COI_REPOSITORY.ordenes.actualizar()`,
+que relee la fila y verifica el cambio contra el servidor. La interfaz solo se
+actualiza después de esa confirmación; si falla, la OC conserva su estado.
+localStorage no participa. Ver TD-069.
+
+El listado de Órdenes filtra por estado de registro —Activas por defecto,
+Archivadas, Todas— de modo que una OC archivada sale de la operación diaria pero
+sigue siendo accesible.
+
+## Inventario de la red — UM y Servicios Técnicos
+
+El eje del inventario es la red, no la Orden de Compra:
+
+    RED ROCA → ESTACIÓN → UNIDADES DE MANTENIMIENTO → HISTORIAL DE ST
+
+`coi_servicios_tecnicos_um.nro_oc` es una **referencia opcional**: un ST se
+identifica por su unidad, su número, su fecha y su descripción. La asociación
+esencial de una UM es con su estación.
+
+Ambas tablas están vacías en PRODUCCIÓN y STAGING (KI-029). Remoto vacío es un
+estado válido: el módulo lo dice explícitamente y no siembra la demo legada. Ver
+TD-068.
