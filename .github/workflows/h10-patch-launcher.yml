@@ -1,0 +1,55 @@
+name: H10 Patch Launcher
+
+on:
+  push:
+    branches: [x]
+
+permissions:
+  contents: write
+
+jobs:
+  publish-h10:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout helper branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Reassemble and verify final H10 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .h10patch/part00.b64 .h10patch/part01.b64 .h10patch/part02.b64 .h10patch/part03.b64 | base64 -d > /tmp/h10_pr64_final.patch
+          echo "1b7aaa8c68bbebdf44c0d04f2d577c501780e7d99e7ca1b4dfb35d2b0ff30b0d  /tmp/h10_pr64_final.patch" | sha256sum -c -
+          grep -q '^From eaf4d4c61f12053d1fc4afc07db363957d497b90 ' /tmp/h10_pr64_final.patch
+
+      - name: Require unchanged PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected='8f2a1c6ae7019575e97c4ec91e9460329d7c74c0'
+          actual="$(git ls-remote origin refs/heads/fix/h10-routing-close-archive-workflow | awk '{print $1}')"
+          echo "PR head: $actual"
+          test "$actual" = "$expected"
+
+      - name: Apply patch on exact PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'H10 Patch Publisher'
+          git config user.email 'actions@users.noreply.github.com'
+          git checkout --detach 8f2a1c6ae7019575e97c4ec91e9460329d7c74c0
+          git am /tmp/h10_pr64_final.patch
+          git diff --check HEAD^ HEAD
+          test "$(git diff --name-only HEAD^ HEAD | sort | tr '\n' ' ')" = "index.html tests/check_h10_routing_cierre_archivo.js tests/h10_routing_cierre_archivo.spec.js "
+          echo "NEW_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Publish fast-forward to PR 64 branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:refs/heads/fix/h10-routing-close-archive-workflow
+          echo "Published $NEW_HEAD"
