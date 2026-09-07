@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   publish-h10:
+    if: ${{ !startsWith(github.event.head_commit.message, 'debug:') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -17,15 +18,6 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
-
-      - name: Reassemble final H10 patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          { printf 'R'; cat .h10patch/part00.b64 .h10patch/part01.b64 .h10patch/part02.b64 .h10patch/part03.b64; } | base64 -d > /tmp/h10_pr64_final.patch
-          test -s /tmp/h10_pr64_final.patch
-          grep -q '^From eaf4d4c61f12053d1fc4afc07db363957d497b90 ' /tmp/h10_pr64_final.patch
-          sha256sum /tmp/h10_pr64_final.patch
 
       - name: Require unchanged PR head
         shell: bash
@@ -36,21 +28,61 @@ jobs:
           echo "PR head: $actual"
           test "$actual" = "$expected"
 
-      - name: Apply patch on exact PR head
+      - name: Reconstruct, validate and publish final H10 patch
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'H10 Patch Publisher'
           git config user.email 'actions@users.noreply.github.com'
-          git checkout --detach 8f2a1c6ae7019575e97c4ec91e9460329d7c74c0
-          git am /tmp/h10_pr64_final.patch
-          git diff --check HEAD^ HEAD
-          test "$(git diff --name-only HEAD^ HEAD | sort | tr '\n' ' ')" = "index.html tests/check_h10_routing_cierre_archivo.js tests/h10_routing_cierre_archivo.spec.js "
-          echo "NEW_HEAD=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          base='8f2a1c6ae7019575e97c4ec91e9460329d7c74c0'
+          target='refs/heads/fix/h10-routing-close-archive-workflow'
+          alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+          p0="$(cat .h10patch/part00.b64)"
+          p1="$(cat .h10patch/part01.b64)"
+          p2="$(cat .h10patch/part02.b64)"
+          p3="$(cat .h10patch/part03.b64)"
 
-      - name: Publish fast-forward to PR 64 branch
-        shell: bash
-        run: |
-          set -euo pipefail
-          git push origin HEAD:refs/heads/fix/h10-routing-close-archive-workflow
-          echo "Published $NEW_HEAD"
+          # El primer carácter perdido es conocido: 'R' restaura "RnJv..." -> "From...".
+          # Queda exactamente un carácter perdido en uno de los tres límites de fragmento.
+          # Se prueba de forma exhaustiva; solo se acepta un candidato que Git pueda aplicar
+          # limpiamente sobre el HEAD exacto y que modifique exactamente los 3 archivos esperados.
+          for pos in 1 2 3; do
+            for ((i=0; i<${#alphabet}; i++)); do
+              c="${alphabet:i:1}"
+              case "$pos" in
+                1) encoded="R${p0}${c}${p1}${p2}${p3}" ;;
+                2) encoded="R${p0}${p1}${c}${p2}${p3}" ;;
+                3) encoded="R${p0}${p1}${p2}${c}${p3}" ;;
+              esac
+              if ! printf '%s' "$encoded" | base64 -d > /tmp/h10.patch 2>/dev/null; then
+                continue
+              fi
+              grep -q '^From eaf4d4c61f12053d1fc4afc07db363957d497b90 ' /tmp/h10.patch || continue
+
+              git am --abort >/dev/null 2>&1 || true
+              git checkout -f --detach "$base" >/dev/null 2>&1
+              if ! git am /tmp/h10.patch >/tmp/am.log 2>&1; then
+                git am --abort >/dev/null 2>&1 || true
+                continue
+              fi
+
+              if ! git diff --check HEAD^ HEAD >/dev/null 2>&1; then
+                git reset --hard "$base" >/dev/null
+                continue
+              fi
+              files="$(git diff --name-only HEAD^ HEAD | sort | tr '\n' ' ')"
+              if [ "$files" != "index.html tests/check_h10_routing_cierre_archivo.js tests/h10_routing_cierre_archivo.spec.js " ]; then
+                git reset --hard "$base" >/dev/null
+                continue
+              fi
+
+              echo "Valid reconstruction: boundary=$pos char=$c"
+              new_head="$(git rev-parse HEAD)"
+              git push origin HEAD:"$target"
+              echo "Published $new_head"
+              exit 0
+            done
+          done
+
+          echo 'No valid reconstruction found.' >&2
+          exit 1
