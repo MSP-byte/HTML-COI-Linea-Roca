@@ -64,7 +64,31 @@ const OC_ARCHIVADA = Object.assign({}, BASE, {
   fecha_cierre_operativo: '2026-08-20', observacion_cierre: 'Cierre previo'
 });
 
-const TODAS = [OC_ACTIVA, OC_CERRADA, OC_ARCHIVADA];
+// Finalizada por el circuito tecnico, pero NUNCA cerrada: sin
+// fecha_cierre_operativo y sin el 'Cerrado' historico en estado_registro.
+// Es la OC que el finding 1 dejaba archivar sin que nadie hubiera cerrado nada.
+const OC_FINALIZADA = Object.assign({}, BASE, {
+  id: '44444444-4444-4444-8444-444444444444', nro_oc: '4530000004',
+  id_obra: 'OBRA-H10-FINALIZADA', proveedor: 'PROVEEDOR FINALIZADO',
+  estado_coi: 'Finalizada', estado_registro: 'Activo'
+});
+
+// Variante con el texto largo del circuito, que tambien contenia DEFINITIVA.
+const OC_ACTA_DEFINITIVA = Object.assign({}, BASE, {
+  id: '55555555-5555-4555-8555-555555555555', nro_oc: '4530000005',
+  id_obra: 'OBRA-H10-DEFINITIVA', proveedor: 'PROVEEDOR DEFINITIVA',
+  estado_coi: 'Finalizada con acta definitiva', estado_registro: 'Activo'
+});
+
+const TODAS = [OC_ACTIVA, OC_CERRADA, OC_ARCHIVADA, OC_FINALIZADA, OC_ACTA_DEFINITIVA];
+
+// Unidades de Mantenimiento para las rutas #ficha-um.
+const UM_UNA = {
+  id: '66666666-6666-4666-8666-666666666666',
+  codigo_um: 'ASC-H10-01', tipo_um: 'Ascensor', estacion: 'PLAZA CONSTITUCION',
+  ubicacion_tecnica: 'Hall central', estado: 'ACTIVA',
+  fecha_creacion: '2026-08-01T10:00:00.000Z', fecha_actualizacion: '2026-08-01T10:00:00.000Z'
+};
 
 // Claves operativas que ninguna de estas acciones puede escribir.
 const CLAVES_OPERATIVAS = [
@@ -75,7 +99,15 @@ const CLAVES_OPERATIVAS = [
 // ============================================================ fixture
 
 async function prepararH10(page, opciones = {}) {
-  const cfg = Object.assign({ ordenes: TODAS, fallaRpc: false, rol: 'administrador' }, opciones);
+  const cfg = Object.assign({
+    ordenes: TODAS, fallaRpc: false, rol: 'administrador',
+    // Unidades de Mantenimiento que publica el remoto, y cuanto tarda en
+    // publicarlas. El retraso es real —la promesa queda pendiente—, no un
+    // flag: asi __COI_UM_H05__.sincronizado pasa por false de verdad.
+    ums: [], umDelayMs: 0,
+    // Fallos de carga, para separar «error remoto» de «entidad inexistente».
+    fallaOrdenes: false, fallaSesion: false
+  }, opciones);
 
   await page.route((url) => url.hostname !== '127.0.0.1', (route) => route.abort());
 
@@ -101,9 +133,19 @@ async function prepararH10(page, opciones = {}) {
       return setItemNativo.call(this, k, v);
     };
 
+    const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
+    let umsPublicadas = c.umDelayMs > 0 ? null : c.ums.slice();
+    if (c.umDelayMs > 0) {
+      setTimeout(() => { umsPublicadas = c.ums.slice(); }, c.umDelayMs);
+    }
+
     function consulta(tabla) {
       const st = { tabla, filtros: [], conteo: false };
-      const datos = () => (tabla === 'coi_ordenes' ? filas : []);
+      const datos = () => {
+        if (tabla === 'coi_ordenes') return filas;
+        if (tabla === 'coi_unidades_mantenimiento') return umsPublicadas || [];
+        return [];
+      };
       const cumple = (f) => st.filtros.every((x) => String(f[x.col]) === String(x.val));
       const api = {
         select(cols, o) { st.conteo = Boolean(o && o.head); return api; },
@@ -117,6 +159,14 @@ async function prepararH10(page, opciones = {}) {
           return f ? { data: Object.assign({}, f), error: null } : { data: null, error: { message: 'no rows' } };
         },
         async _run() {
+          if (tabla === 'coi_ordenes' && c.fallaOrdenes) {
+            return { data: null, count: null, error: { message: 'fixture H10: lectura de órdenes rechazada' } };
+          }
+          // Mientras el remoto de UM no publico nada, la consulta NO resuelve:
+          // es exactamente el estado que el router tiene que esperar.
+          if (tabla === 'coi_unidades_mantenimiento' && umsPublicadas === null) {
+            while (umsPublicadas === null) await dormir(60);
+          }
           const todas = datos().filter(cumple).map((x) => Object.assign({}, x));
           if (st.conteo) return { data: null, count: todas.length, error: null };
           return { data: todas, error: null };
@@ -142,7 +192,9 @@ async function prepararH10(page, opciones = {}) {
         return { data: null, error: null };
       },
       auth: {
-        getSession: async () => ({ data: { session: { user: { id: uid, email: 'admin@coiroca.test' } } }, error: null }),
+        getSession: async () => (c.fallaSesion
+          ? { data: { session: null }, error: { message: 'fixture H10: sesión no disponible' } }
+          : { data: { session: { user: { id: uid, email: 'admin@coiroca.test' } } }, error: null }),
         getUser: async () => ({ data: { user: { id: uid } }, error: null }),
         onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } })
       }
@@ -186,6 +238,30 @@ async function abrir(page) {
   await page.waitForTimeout(900);
   return errores;
 }
+
+// Abre la aplicacion SIN exigir catalogo: para los casos en que el remoto
+// falla o esta legitimamente vacio, donde esperar filas colgaria la prueba.
+async function abrirCrudo(page, hash) {
+  const errores = [];
+  page.on('pageerror', (e) => errores.push('pageerror: ' + e.message));
+  await page.goto('/index.html' + (hash || ''), { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(window.COI_ROUTING_H10), null, { timeout: 20000 });
+  await page.waitForTimeout(3000);
+  return errores;
+}
+
+const estadoRuta = (page) => page.evaluate(() => ({
+  hash: location.hash,
+  noEncontrada: Boolean(document.getElementById('h10OCNoEncontrada')),
+  ocNoEncontrada: (document.getElementById('h10OCNoEncontrada') || {}).dataset
+    ? document.getElementById('h10OCNoEncontrada').getAttribute('data-h10-oc') : '',
+  errorCatalogo: Boolean(document.getElementById('h10CatalogoNoDisponible')),
+  errorUM: Boolean(document.getElementById('h10UMNoDisponible')),
+  umNoEncontrada: Boolean(document.getElementById('h10UMNoEncontrada')),
+  rutaInvalida: Boolean(document.getElementById('h10RutaInvalida')),
+  vista: (document.querySelector('.view.active') || {}).id || '',
+  texto: (document.getElementById('fichaOCBody') || {}).textContent || ''
+}));
 
 // Recarga real, esperando que el router termine de restaurar.
 async function recargar(page) {
@@ -766,4 +842,283 @@ test('H10-25 · sin hash se conserva la landing canónica vigente', async ({ pag
   // Inicio operativo sigue siendo la vista de arranque; el router solo la rotula.
   expect(p.vista).toBe('vistaDashboard');
   expect(p.hash).toBe('#inicio');
+});
+
+// ============================================================ C · revisión Codex del PR #64
+//
+// Comportamiento en navegador de los 7 findings. Los controles estáticos de
+// tests/check_h10_routing_cierre_archivo.js fijan la FORMA del código; estos
+// fijan lo que el operador ve y lo que llega al remoto.
+
+// ---------------------------------------------------------------- F1 · cierre explícito
+
+test('H10-29 · F1 · una OC Finalizada sin cierre explícito no se puede archivar', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await abrirFicha(page, OC_FINALIZADA.nro_oc);
+
+  // Finalizada describe el fin del circuito técnico, no el acto de cerrar.
+  const antes = await pantalla(page);
+  expect(antes.archivarDeshabilitado).toBe(true);
+  expect(antes.tituloArchivar).toContain('cerrar la OC');
+  // Y «Cerrar OC» sigue disponible, porque justamente falta cerrarla.
+  expect(antes.textoCerrar).toContain('Cerrar');
+
+  // La llamada directa tampoco archiva: 0 escritura remota.
+  const ok = await page.evaluate((n) => window.archivarOC(n), OC_FINALIZADA.nro_oc);
+  await page.waitForTimeout(1200);
+  expect(ok).toBe(false);
+  expect(await cambiosRPC(page)).toHaveLength(0);
+  expect((await remoto(page, OC_FINALIZADA.nro_oc)).estado_registro).toBe('Activo');
+});
+
+test('H10-30 · F1 · «Finalizada con acta definitiva» tampoco habilita archivar', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await abrirFicha(page, OC_ACTA_DEFINITIVA.nro_oc);
+
+  expect((await pantalla(page)).archivarDeshabilitado).toBe(true);
+  await page.evaluate((n) => window.archivarOC(n), OC_ACTA_DEFINITIVA.nro_oc);
+  await page.waitForTimeout(1200);
+  expect(await cambiosRPC(page)).toHaveLength(0);
+  expect((await remoto(page, OC_ACTA_DEFINITIVA.nro_oc)).estado_registro).toBe('Activo');
+});
+
+test('H10-31 · F1 · tras cerrar de verdad, archivar queda habilitado', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await abrirFicha(page, OC_FINALIZADA.nro_oc);
+
+  await page.evaluate(() => window.cerrarOC());
+  await page.waitForTimeout(2500);
+
+  const r = await remoto(page, OC_FINALIZADA.nro_oc);
+  expect(r.estado_coi).toBe('Cerrada');
+  expect(r.cierre).toBeTruthy();
+
+  await abrirFicha(page, OC_FINALIZADA.nro_oc);
+  expect((await pantalla(page)).archivarDeshabilitado).toBe(false);
+
+  await page.evaluate((n) => window.archivarOC(n), OC_FINALIZADA.nro_oc);
+  await page.waitForTimeout(2000);
+  expect((await remoto(page, OC_FINALIZADA.nro_oc)).estado_registro).toBe('Archivado');
+});
+
+// ---------------------------------------------------------------- F2 · entry point exportado
+
+test('H10-32 · F2 · el export de H09 no puede archivar una OC abierta', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await abrirFicha(page, OC_ACTIVA.nro_oc);
+
+  // Entrada pública que saltaba el guard y entraba directo al ejecutor.
+  const ok = await page.evaluate((n) => window.COI_ARCHIVO_OC_H09.archivar(n), OC_ACTIVA.nro_oc);
+  await page.waitForTimeout(1500);
+
+  expect(ok).toBe(false);
+  const archivados = (await cambiosRPC(page)).filter((c) => c && c.estado_registro === 'Archivado');
+  expect(archivados).toHaveLength(0);
+  expect((await remoto(page, OC_ACTIVA.nro_oc)).estado_registro).toBe('Activo');
+});
+
+test('H10-33 · F2 · el export de H09 sí archiva una OC cerrada, y desarchivar sigue libre', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await abrirFicha(page, OC_CERRADA.nro_oc);
+
+  const ok = await page.evaluate((n) => window.COI_ARCHIVO_OC_H09.archivar(n), OC_CERRADA.nro_oc);
+  await page.waitForTimeout(2000);
+  expect(ok).not.toBe(false);
+  expect((await remoto(page, OC_CERRADA.nro_oc)).estado_registro).toBe('Archivado');
+
+  // Sacar del historial no reabre nada y no pasa por la regla de cierre.
+  await page.evaluate((n) => window.COI_ARCHIVO_OC_H09.desarchivar(n), OC_CERRADA.nro_oc);
+  await page.waitForTimeout(2000);
+  const r = await remoto(page, OC_CERRADA.nro_oc);
+  expect(r.estado_registro).toBe('Activo');
+  expect(r.estado_coi).toBe('Cerrada');
+});
+
+test('H10-34 · F2 · el guard sigue puesto después de que H09 se reinstala', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  // H09 se reinstala hasta los 6 s: si el guard no se reaplica, la puerta se
+  // reabre sola pasado ese tiempo.
+  await page.waitForTimeout(7000);
+  await abrirFicha(page, OC_ACTIVA.nro_oc);
+
+  const ok = await page.evaluate((n) => window.COI_ARCHIVO_OC_H09.archivar(n), OC_ACTIVA.nro_oc);
+  await page.waitForTimeout(1500);
+  expect(ok).toBe(false);
+  expect((await remoto(page, OC_ACTIVA.nro_oc)).estado_registro).toBe('Activo');
+});
+
+// ---------------------------------------------------------------- F3 · fecha local
+
+test.describe('F3 · fecha de cierre en calendario local', () => {
+  // Zona real del operador. Con el reloj congelado a las 22:30 del 7, en UTC
+  // ya es el 8: es la ventana en que toISOString corría la fecha un día.
+  test.use({ timezoneId: 'America/Argentina/Buenos_Aires' });
+
+  test('H10-35 · F3 · un cierre nocturno guarda la fecha del día local, no la de UTC', async ({ page }) => {
+    await prepararH10(page);
+    // 2026-09-08T01:30:00Z === 2026-09-07 22:30 en Argentina (UTC-3).
+    await page.addInitScript(() => {
+      const FIJO = Date.parse('2026-09-08T01:30:00.000Z');
+      const Real = Date;
+      function Falso(...args) {
+        if (args.length === 0) return new Real(FIJO);
+        return new Real(...args);
+      }
+      Falso.prototype = Real.prototype;
+      Falso.now = () => FIJO;
+      Falso.parse = Real.parse;
+      Falso.UTC = Real.UTC;
+      window.Date = Falso;
+    });
+    await abrir(page);
+    await abrirFicha(page, OC_ACTIVA.nro_oc);
+
+    await page.evaluate(() => window.cerrarOC());
+    await page.waitForTimeout(2500);
+
+    // Se mira el payload REAL que recibió el remoto del fixture.
+    const cambios = await cambiosRPC(page);
+    expect(cambios).toHaveLength(1);
+    expect(cambios[0].fecha_cierre_operativo).toBe('2026-09-07');
+    expect(cambios[0].fecha_cierre_operativo).not.toBe('2026-09-08');
+    expect((await remoto(page, OC_ACTIVA.nro_oc)).cierre).toBe('2026-09-07');
+  });
+});
+
+// ---------------------------------------------------------------- F4 · snapshot UM
+
+test('H10-36 · F4 · #ficha-um espera el snapshot de UM y no pierde la ruta', async ({ page }) => {
+  // El remoto de UM tarda: durante ese rato __COI_UM_H05__.sincronizado es
+  // false de verdad y la UM todavía no está publicada.
+  await prepararH10(page, { ums: [UM_UNA], umDelayMs: 4000 });
+  const errores = await abrirCrudo(page, '#ficha-um/' + UM_UNA.codigo_um);
+
+  // Mientras carga, la ruta pedida NO se pierde ni se normaliza a otra vista.
+  expect((await estadoRuta(page)).hash).toContain('ficha-um/' + UM_UNA.codigo_um);
+
+  await page.waitForFunction(
+    () => Boolean(window.__COI_UM_H05__ && window.__COI_UM_H05__.sincronizado === true),
+    null, { timeout: 20000 });
+  await page.waitForTimeout(2500);
+
+  const fin = await estadoRuta(page);
+  expect(fin.hash).toContain('ficha-um/' + UM_UNA.codigo_um);
+  expect(fin.vista).toBe('vistaFichaUM');
+  expect(fin.errorUM).toBe(false);
+  expect(fin.umNoEncontrada).toBe(false);
+  expect(errores).toEqual([]);
+});
+
+test('H10-37 · F4 · UM confirmada vacía muestra «no encontrada», no un error de carga', async ({ page }) => {
+  await prepararH10(page, { ums: [] });
+  await abrirCrudo(page, '#ficha-um/ASC-INEXISTENTE');
+  await page.waitForFunction(
+    () => Boolean(window.__COI_UM_H05__ && window.__COI_UM_H05__.sincronizado === true),
+    null, { timeout: 20000 });
+  await page.waitForTimeout(2000);
+
+  const e = await estadoRuta(page);
+  expect(e.umNoEncontrada).toBe(true);
+  expect(e.errorUM).toBe(false);
+  expect(e.texto).toContain('No se encontró la Unidad de Mantenimiento');
+  // La dirección pedida sobrevive: no se cae a Inicio ni a Red.
+  expect(e.hash).toContain('ficha-um/ASC-INEXISTENTE');
+});
+
+// ---------------------------------------------------------------- F5 · error ≠ inexistente
+
+test('H10-38 · F5 · si la lectura de Órdenes falla, no se afirma que la OC no existe', async ({ page }) => {
+  await prepararH10(page, { fallaOrdenes: true });
+  await abrirCrudo(page, '#ficha-oc/' + OC_ACTIVA.nro_oc);
+
+  const e = await estadoRuta(page);
+  expect(e.errorCatalogo).toBe(true);
+  expect(e.noEncontrada).toBe(false);
+  expect(e.texto).toContain('No se pudo cargar el catálogo');
+  expect(e.texto).not.toContain('No se encontró la Orden de Compra solicitada');
+});
+
+test('H10-39 · F5 · si la sesión falla tampoco se afirma que la OC no existe', async ({ page }) => {
+  await prepararH10(page, { fallaSesion: true });
+  await abrirCrudo(page, '#ficha-oc/' + OC_ACTIVA.nro_oc);
+
+  const e = await estadoRuta(page);
+  expect(e.noEncontrada).toBe(false);
+  expect(e.texto).not.toContain('No se encontró la Orden de Compra solicitada');
+});
+
+test('H10-40 · F5 · con catálogo remoto confirmado vacío sí se afirma que no existe', async ({ page }) => {
+  // Lectura remota confirmada, y devolvió []. Ahí la afirmación es verificada.
+  await prepararH10(page, { ordenes: [] });
+  await abrirCrudo(page, '#ficha-oc/4530999999');
+
+  const e = await estadoRuta(page);
+  expect(e.noEncontrada).toBe(true);
+  expect(e.errorCatalogo).toBe(false);
+  expect(e.texto).toContain('No se encontró la Orden de Compra solicitada');
+});
+
+// ---------------------------------------------------------------- F6 · identidad stale
+
+test('H10-41 · F6 · el not-found conserva la OC pedida y no vuelve a la anterior', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await abrirFicha(page, OC_ACTIVA.nro_oc);
+  expect((await pantalla(page)).hash).toContain(OC_ACTIVA.nro_oc);
+
+  // Cambio manual del hash a una OC que no existe.
+  await page.evaluate(() => { location.hash = '#ficha-oc/4530999999'; });
+  await page.waitForTimeout(3000);
+
+  const e = await estadoRuta(page);
+  expect(e.noEncontrada).toBe(true);
+  expect(e.ocNoEncontrada).toBe('4530999999');
+  // La URL sigue siendo la pedida: no la reemplaza la OC anterior.
+  expect(e.hash).toContain('4530999999');
+  expect(e.hash).not.toContain(OC_ACTIVA.nro_oc);
+
+  // Y F5 sobre esa ruta sigue mostrando B, no A.
+  await recargar(page);
+  const tras = await estadoRuta(page);
+  expect(tras.hash).toContain('4530999999');
+  expect(tras.hash).not.toContain(OC_ACTIVA.nro_oc);
+  expect(tras.noEncontrada).toBe(true);
+});
+
+// ---------------------------------------------------------------- F7 · hash malformado
+
+for (const hash of ['#%', '#ficha-oc/ABC%', '#estacion/%ZZ']) {
+  test(`H10-42 · F7 · el hash malformado ${hash} muestra ruta inválida sin romper`, async ({ page }) => {
+    await prepararH10(page);
+    const errores = await abrirCrudo(page, hash);
+
+    // decodeURIComponent lanzaba URIError y la excepción se tragaba.
+    expect(errores.filter((e) => /URIError/.test(e))).toEqual([]);
+
+    const e = await estadoRuta(page);
+    expect(e.rutaInvalida).toBe(true);
+    expect(e.texto).toContain('No se pudo interpretar la dirección solicitada');
+    // Hay salida: el operador no queda encerrado en el error.
+    expect(await page.evaluate(() => Boolean(document.getElementById('h10VolverAOrdenes')))).toBe(true);
+  });
+}
+
+test('H10-43 · F7 · desde la ruta inválida se vuelve a Órdenes y la URL se corrige', async ({ page }) => {
+  await prepararH10(page);
+  await abrirCrudo(page, '#ficha-oc/ABC%');
+  expect((await estadoRuta(page)).rutaInvalida).toBe(true);
+
+  await page.click('#h10VolverAOrdenes');
+  await page.waitForTimeout(1500);
+
+  const e = await estadoRuta(page);
+  expect(e.vista).toBe('vistaOrdenes');
+  expect(e.hash).toContain('ordenes');
+  expect(e.rutaInvalida).toBe(false);
 });

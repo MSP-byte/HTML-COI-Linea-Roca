@@ -32083,20 +32083,52 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     return texto(nav && nav.getAttribute('data-oc'));
   }
 
-  // Cierre OPERATIVO. Deliberadamente NO mira estado_registro='Archivado':
-  // archivar es gestion del historial y no cierra nada.
+  // Cierre OPERATIVO EXPLICITO. Deliberadamente NO mira estado_registro
+  // ='Archivado': archivar es gestion del historial y no cierra nada.
+  //
+  // Y, sobre todo, NO reconoce FINALIZADA ni DEFINITIVA como cierre. Una OC
+  // «Finalizada» o «Finalizada con acta definitiva» describe el final del
+  // circuito tecnico, no el acto administrativo de cerrarla: mientras se
+  // aceptaban esos textos, una OC podia archivarse sin haber pasado nunca por
+  // «Cerrar OC» y, por lo tanto, sin fecha_cierre_operativo ni
+  // observacion_cierre. El historial quedaba con OC cuyo cierre nadie
+  // registro ni firmo.
+  //
+  // Solo cuentan marcadores de un cierre que ALGUIEN EJECUTO:
+  //   · estado_coi exactamente Cerrada/Cerrado;
+  //   · fecha_cierre_operativo presente —la escribe «Cerrar OC»—;
+  //   · estado_registro = 'Cerrado', que es como lo escribia el cierre
+  //     historico anterior a H10 (compatibilidad hacia atras);
+  //   · la marca interna item.cerrada === true.
+  //
+  // Consecuencia buscada: una OC Finalizada que nunca se cerro sigue viendo
+  // «Cerrar OC» habilitado y «Archivar OC» deshabilitado.
+  const ESTADOS_CIERRE_EXPLICITO = ['CERRADA', 'CERRADO'];
+
   function cerradaOperativa(item) {
     const i = item || {};
     if (i.cerrada === true) return true;
-    const t = norm([
-      i.estadoCOI, i.estado_coi, i.estado, crudo(i, 'estado_coi'),
-      i.estadoVigenciaOperativa, i.estadoDocumental, i.ESTADO_DOCUMENTAL
-    ].filter(Boolean).join(' '));
-    if (t.indexOf('CERRAD') >= 0 || t.indexOf('FINALIZAD') >= 0 || t.indexOf('DEFINITIVA') >= 0) return true;
+    // Igualdad exacta, no «contiene»: «Cerrada parcialmente» o cualquier
+    // estado futuro que incluya la palabra no es un cierre.
+    const estado = norm(i.estadoCOI || i.estado_coi || crudo(i, 'estado_coi') || i.estado);
+    if (ESTADOS_CIERRE_EXPLICITO.indexOf(estado) >= 0) return true;
     // Compatibilidad: el cierre historico escribia 'Cerrado' en estado_registro.
     if (norm(estadoRegistroDe(i)) === 'CERRADO') return true;
     if (texto(i.fechaCierreOperativo || i.fecha_cierre_operativo || crudo(i, 'fecha_cierre_operativo'))) return true;
     return false;
+  }
+
+  // Predicado LAXO, conservado solo para el envoltorio de estaOCCerrada de mas
+  // abajo, que corrige una lectura historica de presentacion. No participa de
+  // la elegibilidad de archivar ni del estado de los botones.
+  function cierreLaxoHistorico(item) {
+    const i = item || {};
+    if (cerradaOperativa(i)) return true;
+    const t = norm([
+      i.estadoCOI, i.estado_coi, i.estado, crudo(i, 'estado_coi'),
+      i.estadoVigenciaOperativa, i.estadoDocumental, i.ESTADO_DOCUMENTAL
+    ].filter(Boolean).join(' '));
+    return t.indexOf('CERRAD') >= 0 || t.indexOf('FINALIZAD') >= 0 || t.indexOf('DEFINITIVA') >= 0;
   }
 
   // Una OC archivada y sin ningun marcador operativo de cierre NO esta cerrada.
@@ -32104,7 +32136,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   const _estaOCCerradaBase = typeof window.estaOCCerrada === 'function' ? window.estaOCCerrada : null;
   if (_estaOCCerradaBase && !_estaOCCerradaBase.__coiH10) {
     const envuelto = function (oc) {
-      if (oc && estaArchivada(oc) && !cerradaOperativa(oc)) return false;
+      if (oc && estaArchivada(oc) && !cierreLaxoHistorico(oc)) return false;
       return _estaOCCerradaBase.apply(this, arguments);
     };
     envuelto.__coiH10 = true;
@@ -32162,6 +32194,16 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     } catch (e) { return 'Cierre operativo manual'; }
   }
 
+  // La fecha de cierre es la del CALENDARIO del operador, no la de UTC.
+  // toISOString() convierte a UTC: en Argentina (UTC-3) una OC cerrada a las
+  // 21:30 quedaba registrada con la fecha del dia siguiente, y el cierre
+  // aparecia ocurrido un dia despues de la reunion en que se decidio.
+  function fechaLocalISO(fecha) {
+    const d = fecha instanceof Date ? fecha : new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+
   async function cerrar(referencia) {
     if (enCurso) return false;
     const item = itemDe(referencia);
@@ -32193,7 +32235,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       // estado de registro y la usa exclusivamente archivar/desarchivar.
       await repo.actualizar(uuid, {
         estado_coi: CERRADA,
-        fecha_cierre_operativo: new Date().toISOString().slice(0, 10),
+        fecha_cierre_operativo: fechaLocalISO(),
         observacion_cierre: texto(motivo) || 'Cierre operativo manual'
       });
       avisar('OC cerrada operativamente.', 'ok');
@@ -32217,22 +32259,60 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   window.cerrarOC.__coiH10 = true;
 
   // ---------------------------------------------------------- archivar solo cerradas
-  const _archivarBase = typeof window.archivarOC === 'function' ? window.archivarOC : null;
-  if (_archivarBase && !_archivarBase.__coiH10) {
+  //
+  // UNA SOLA PUERTA. Envolver window.archivarOC no alcanzaba: H09 tambien
+  // exporta window.COI_ARCHIVO_OC_H09.archivar(ref), que entra directo al
+  // ejecutor y podia mandar al historial una OC en ejecucion sin pasar por
+  // ninguna comprobacion. Cualquier entrada publica capaz de emitir
+  // estado_registro='Archivado' tiene que pasar por este mismo predicado.
+  //
+  // Desarchivar NO se toca: sacar del historial no reabre nada y no escribe
+  // estado_coi.
+  function puedeArchivar(referencia) {
+    const item = itemDe(referencia);
+    // Sin item no se decide aca: el ejecutor de H09 informara que no la
+    // encuentra. Bloquear aca convertiria «no la encuentro» en «cerrala».
+    if (!item) return true;
+    // Ya archivada: se deja pasar (des/rearchivar no reabre nada).
+    if (estaArchivada(item)) return true;
+    return cerradaOperativa(item);
+  }
+
+  function guardarArchivado(fn, contexto) {
+    if (typeof fn !== 'function' || fn.__coiH10Guard) return fn;
     const envuelto = function (referencia) {
       const ref = referencia || referenciaFicha() || '';
-      const item = itemDe(ref);
-      // Desarchivar siempre se permite: no reabre nada.
-      if (item && !estaArchivada(item) && !cerradaOperativa(item)) {
+      if (!puedeArchivar(ref)) {
         avisar('Primero debe cerrar la OC para enviarla al historial.', 'error');
         return Promise.resolve(false);
       }
-      return _archivarBase.apply(this, arguments);
+      return fn.apply(this, arguments);
     };
-    envuelto.__coiH10 = true;
-    envuelto.__coiH10Base = _archivarBase;
-    window.archivarOC = envuelto;
+    envuelto.__coiH10Guard = true;
+    envuelto.__coiH10GuardBase = fn;
+    envuelto.__coiH10GuardCtx = contexto;
+    return envuelto;
   }
+
+  window.archivarOC = guardarArchivado(window.archivarOC, 'window.archivarOC');
+
+  // El export de H09 se envuelve en su propia propiedad, no en una copia: si
+  // H09 se reinstala mas tarde y reemplaza el objeto, el reinstalador de mas
+  // abajo lo vuelve a cubrir.
+  function protegerExportH09() {
+    const api = window.COI_ARCHIVO_OC_H09;
+    if (!api || typeof api.archivar !== 'function' || api.archivar.__coiH10Guard) return;
+    api.archivar = guardarArchivado(api.archivar, 'COI_ARCHIVO_OC_H09.archivar');
+  }
+  protegerExportH09();
+  // H09 se reinstala en varios tiempos ([0,400,1500,3000,6000] ms): se cubre
+  // cada reinstalacion, porque una puerta que se abre sola a los 6 segundos no
+  // es una puerta cerrada.
+  [0, 450, 1600, 3100, 6100].forEach((ms) => setTimeout(() => {
+    try { protegerExportH09(); } catch (e) {}
+  }, ms));
+
+  window.__COI_H10_PUEDE_ARCHIVAR__ = puedeArchivar;
 
   // ---------------------------------------------------------- jerarquia visual
   const AYUDA_CERRAR = 'Finaliza operativamente la OC cuando ya no quedan actividades pendientes. ' +
@@ -32503,8 +32583,26 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     return m ? texto(m[1]) : '';
   }
 
+  // Identidad de ruta de los estados de error del router.
+  //
+  // Mientras se muestra «OC no encontrada» la pantalla NO representa ninguna
+  // OC del catalogo, pero window.ocActualId podia seguir apuntando a la OC
+  // que se estaba viendo antes. rutaVigente() derivaba esa OC anterior y la
+  // normalizacion posterior reemplazaba la URL: quedaba el mensaje de la OC B
+  // debajo de la direccion de la OC A, y F5 devolvia a A en silencio.
+  //
+  // Se resuelve con un estado propio del router en vez de mutar el binding
+  // global, que es compartido con la ficha y fragil de revertir.
+  let rutaError = '';
+
+  function fijarRutaError(ruta) { rutaError = texto(ruta); }
+  function limpiarRutaError() { rutaError = ''; }
+
   // La ruta que describe lo que hay en pantalla ahora mismo.
   function rutaVigente() {
+    // Un estado de error manda sobre cualquier derivacion: es lo que hay en
+    // pantalla, y su direccion tiene que sobrevivir al refresco.
+    if (rutaError) return rutaError;
     const vista = vistaActiva();
     if (vista === 'vistaFichaOC') {
       const nro = ocEnPantalla();
@@ -32587,14 +32685,137 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     return itemDe(referencia);
   }
 
+  // ---------------------------------------------------------- decodificacion segura
+  //
+  // decodeURIComponent lanza URIError con un porcentaje suelto: «#%»,
+  // «#ficha-oc/ABC%». El error se tragaba y la UI se quedaba en la pantalla
+  // anterior con el hash roto en la barra: el operador veia una direccion que
+  // no correspondia a lo que estaba mirando y no habia forma de saberlo.
+  function safeDecode(segmento) {
+    const bruto = texto(segmento);
+    if (!bruto) return { ok: true, value: '' };
+    try { return { ok: true, value: decodeURIComponent(bruto) }; }
+    catch (e) { return { ok: false, value: '' }; }
+  }
+
+  // ---------------------------------------------------------- estados de ruta
+  const escHtml = (v) => texto(v).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+
+  function pintarEstadoRuta(id, titulo, detalle, botonId, botonTexto) {
+    try { if (typeof window.mostrarVista === 'function') window.mostrarVista('vistaFichaOC'); } catch (e) {}
+    const body = $('fichaOCBody');
+    if (!body) return false;
+    body.innerHTML = '<section class="oc-card" id="' + id + '">' +
+      '<h3>' + escHtml(titulo) + '</h3>' +
+      '<p class="muted">' + detalle + '</p>' +
+      '<div class="card-actions"><button type="button" id="' + botonId + '" class="primary">' +
+      escHtml(botonTexto) + '</button></div></section>';
+    return true;
+  }
+
+  // Fallo de sincronizacion != entidad inexistente.
+  //
+  // esperarArranque() devolvia false cuando fallaba la sesion, el perfil o la
+  // lectura de Ordenes, pero restaurar() ignoraba ese resultado y seguia. Sin
+  // catalogo confirmado, esperarOC() terminaba en null y la pantalla afirmaba
+  // que la OC «no existe en el catalogo de Supabase». Es una afirmacion que
+  // nadie verifico: nunca hubo catalogo que consultar.
+  function mostrarErrorCatalogo(ruta) {
+    fijarRutaError(texto(ruta));
+    pintarEstadoRuta('h10CatalogoNoDisponible',
+      'No se pudo cargar el catálogo de Órdenes desde el servidor.',
+      'No se confirmó ninguna lectura remota, así que no se puede afirmar si la Orden existe. ' +
+      'Reintente la sincronización.',
+      'h10ReintentarCatalogo', 'Reintentar sincronización');
+  }
+
+  function mostrarRutaInvalida(hashCrudo) {
+    fijarRutaError('');
+    pintarEstadoRuta('h10RutaInvalida',
+      'No se pudo interpretar la dirección solicitada.',
+      'La dirección <b>' + escHtml('#' + texto(hashCrudo)) + '</b> está mal formada y no ' +
+      'corresponde a ninguna pantalla del sistema.',
+      'h10VolverAOrdenes', 'Volver a Órdenes');
+  }
+
+  // ---------------------------------------------------------- snapshot UM
+  //
+  // La ruta #ficha-um/<id> esperaba el catalogo de Ordenes, que no dice nada
+  // sobre si las Unidades de Mantenimiento ya estan. H05 publica su propio
+  // estado en window.__COI_UM_H05__: hasta que ese snapshot no es autoritativo
+  // no tiene sentido preguntar si la UM existe.
+  //
+  // No hay fallback a localStorage: H05/H06 dejaron Supabase como unica
+  // autoridad y volver al navegador aca reintroduciria el problema que
+  // cerraron.
+  function estadoUM() {
+    const h05 = window.__COI_UM_H05__;
+    if (!h05) return 'cargando';
+    if (h05.sincronizado === true) return 'listo';
+    // Un error registrado con snapshot ya confirmado sigue siendo utilizable:
+    // se responde con lo confirmado, no con un error.
+    if (h05.ultimoError) return 'error';
+    return 'cargando';
+  }
+
+  function buscarUM(id) {
+    const clave = texto(id).replace(/[\s.\/-]+/g, '').toUpperCase();
+    if (!clave) return null;
+    let lista = [];
+    try { lista = window.unidadesMantenimiento || []; } catch (e) { lista = []; }
+    return (Array.isArray(lista) ? lista : []).find((u) => {
+      const cand = [u && u.codigoUM, u && u.idUM, u && u._supabaseId, u && u.id];
+      return cand.some((v) => texto(v).replace(/[\s.\/-]+/g, '').toUpperCase() === clave);
+    }) || null;
+  }
+
+  async function esperarUM(id) {
+    const fin = Date.now() + LIMITE_ESPERA_MS;
+    while (Date.now() < fin) {
+      const estado = estadoUM();
+      if (estado === 'listo') {
+        const um = buscarUM(id);
+        return um ? { estado: 'encontrada', um: um } : { estado: 'ausente' };
+      }
+      if (estado === 'error') return { estado: 'error' };
+      await dormir(150);
+    }
+    // Se agoto el limite sin snapshot autoritativo: es un problema de carga,
+    // no una UM inexistente.
+    return estadoUM() === 'listo'
+      ? (buscarUM(id) ? { estado: 'encontrada', um: buscarUM(id) } : { estado: 'ausente' })
+      : { estado: 'error' };
+  }
+
+  function mostrarErrorUM(ruta) {
+    fijarRutaError(texto(ruta));
+    pintarEstadoRuta('h10UMNoDisponible',
+      'No se pudo cargar el inventario de Unidades de Mantenimiento.',
+      'No se confirmó ninguna lectura remota, así que no se puede afirmar si la Unidad existe. ' +
+      'Reintente la sincronización.',
+      'h10ReintentarUM', 'Reintentar sincronización');
+  }
+
+  function mostrarUMNoEncontrada(id) {
+    fijarRutaError('ficha-um/' + encodeURIComponent(texto(id)));
+    pintarEstadoRuta('h10UMNoEncontrada',
+      'No se encontró la Unidad de Mantenimiento solicitada.',
+      'La dirección pedía la UM <b>' + escHtml(id) + '</b> y no existe en el inventario ' +
+      'confirmado por Supabase, o su código cambió.',
+      'h10VolverAUM', 'Volver a Unidades de Mantenimiento');
+  }
+
   // ---------------------------------------------------------- ruta invalida
   function mostrarNoEncontrada(nro) {
+    // La ruta del not-found es la OC PEDIDA, no la que estaba antes en
+    // pantalla: sin esto la URL volvia sola a la anterior.
+    fijarRutaError('ficha-oc/' + encodeURIComponent(texto(nro)));
     try { if (typeof window.mostrarVista === 'function') window.mostrarVista('vistaFichaOC'); } catch (e) {}
     const body = $('fichaOCBody');
     if (!body) return;
-    const esc = (v) => texto(v).replace(/[&<>"']/g, (c) => ({
-      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[c]));
+    const esc = escHtml;
     body.innerHTML = '<section class="oc-card" id="h10OCNoEncontrada" data-h10-oc="' + esc(nro) + '">' +
       '<h3>No se encontró la Orden de Compra solicitada.</h3>' +
       '<p class="muted">La dirección pedía la OC <b>' + esc(nro) + '</b> y no existe en el catálogo ' +
@@ -32627,15 +32848,35 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   }
 
   async function aplicarInterno(ruta) {
-    const partes = texto(ruta).split('/').filter((p) => p !== '');
-    const cabeza = decodeURIComponent(partes[0] || '') || RUTA_INICIAL;
+    const crudo = texto(ruta);
+    const partes = crudo.split('/').filter((p) => p !== '');
+
+    // Todos los segmentos se decodifican de una vez y con el helper seguro: si
+    // cualquiera esta mal formado la ruta entera es invalida y se dice, en vez
+    // de dejar la pantalla anterior debajo de un hash roto.
+    const decodificados = [];
+    for (const parte of partes) {
+      const d = safeDecode(parte);
+      if (!d.ok) { mostrarRutaInvalida(crudo); return; }
+      decodificados.push(d.value);
+    }
+
+    // Salvo que se pinte un estado de error, la ruta deja de ser de error.
+    limpiarRutaError();
+
+    const cabeza = decodificados[0] || RUTA_INICIAL;
 
     if (cabeza === 'ficha-oc') {
-      const nro = decodeURIComponent(partes[1] || '');
+      const nro = decodificados[1] || '';
       if (!nro) { abrirVista('vistaOrdenes'); return; }
-      const slug = decodeURIComponent(partes[2] || '') || 'resumen';
+      const slug = decodificados[2] || 'resumen';
       const item = await esperarOC(nro);
-      if (!item) { mostrarNoEncontrada(nro); return; }
+      if (!item) {
+        // Solo se afirma que no existe si hubo una lectura remota confirmada.
+        if (!datosListos()) { mostrarErrorCatalogo(crudo); return; }
+        mostrarNoEncontrada(nro);
+        return;
+      }
       const clave = texto(item.idObra || item.idOC || item.numeroOC || item.oc) || nro;
       if (typeof window.abrirFichaOC === 'function') window.abrirFichaOC(clave);
       else { abrirVista('vistaFichaOC'); if (typeof window.renderFichaOC === 'function') window.renderFichaOC(clave); }
@@ -32647,13 +32888,20 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
 
     {
       if (cabeza === 'ficha-um') {
-        const id = decodeURIComponent(partes[1] || '');
-        if (id && typeof window.abrirFichaUM === 'function') window.abrirFichaUM(id);
+        const id = decodificados[1] || '';
+        if (!id) { abrirVista('vistaFichaUM'); return; }
+        // La ficha UM no se intenta abrir contra un modelo a medio cargar: si
+        // abrirFichaUM falla, el router normaliza la ruta a otra vista y la
+        // direccion pedida se pierde sin reintento.
+        const um = await esperarUM(id);
+        if (um.estado === 'error') { mostrarErrorUM(crudo); return; }
+        if (um.estado === 'ausente') { mostrarUMNoEncontrada(id); return; }
+        if (typeof window.abrirFichaUM === 'function') window.abrirFichaUM(id);
         else abrirVista('vistaFichaUM');
         return;
       }
       if (cabeza === 'estacion') {
-        const nombre = decodeURIComponent(partes[1] || '');
+        const nombre = decodificados[1] || '';
         abrirVista('vistaRed');
         const norm = (v) => texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
         const est = listaEstaciones().find((e) => norm(e && e.nombre) === norm(nombre));
@@ -32662,12 +32910,12 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       }
       if (cabeza === 'ordenes') {
         abrirVista('vistaOrdenes');
-        aplicarModoRegistro(decodeURIComponent(partes[1] || '') || modoRegistro());
+        aplicarModoRegistro(decodificados[1] || modoRegistro());
         return;
       }
       if (cabeza === 'um') {
         abrirVista('vistaUnidadesMantenimiento');
-        aplicarTabUM(decodeURIComponent(partes[1] || '') || 'inventario');
+        aplicarTabUM(decodificados[1] || 'inventario');
         return;
       }
       abrirVista(vistaDe(cabeza) || vistaDe(RUTA_INICIAL));
@@ -32764,7 +33012,22 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       refrescarHash({ reemplazar: true });
       return;
     }
-    await esperarArranque();
+    // El resultado de esperarArranque SI se mira: sin datos autoritativos no
+    // se aplica una ruta que terminaria afirmando que la entidad no existe.
+    const listo = await esperarArranque();
+    if (!listo) {
+      const partes = texto(inicial).split('/').filter((x) => x !== '');
+      const cabeza = safeDecode(partes[0] || '');
+      // Solo las rutas que resuelven una entidad concreta dependen del
+      // catalogo. #ordenes o #red se abren igual: no afirman nada sobre una
+      // entidad puntual.
+      if (cabeza.ok && (cabeza.value === 'ficha-oc' || cabeza.value === 'ficha-um') && partes[1]) {
+        if (cabeza.value === 'ficha-um') mostrarErrorUM(inicial);
+        else mostrarErrorCatalogo(inicial);
+        refrescarHash({ reemplazar: true });
+        return;
+      }
+    }
     await aplicar(inicial);
     for (const ms of [700, 1800]) {
       await dormir(ms);
@@ -32792,8 +33055,27 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       if (!t || !t.closest) return;
       if (t.closest('#h10VolverAOrdenes')) {
         ev.preventDefault();
+        // Al salir del estado de error se limpia su identidad de ruta: a
+        // partir de aca la URL vuelve a describir lo que hay en pantalla.
+        limpiarRutaError();
         abrirVista('vistaOrdenes');
         programarRefresco();
+        return;
+      }
+      if (t.closest('#h10VolverAUM')) {
+        ev.preventDefault();
+        limpiarRutaError();
+        abrirVista('vistaUnidadesMantenimiento');
+        programarRefresco();
+        return;
+      }
+      if (t.closest('#h10ReintentarCatalogo') || t.closest('#h10ReintentarUM')) {
+        ev.preventDefault();
+        // Reintentar es volver a aplicar la MISMA ruta pedida: el operador no
+        // pierde la direccion por un fallo de sincronizacion.
+        const ruta = rutaError || hashActual();
+        limpiarRutaError();
+        Promise.resolve(aplicar(ruta)).catch(() => {});
         return;
       }
       if (t.closest('#h09Tabs [data-h09-tab]') || t.closest('[data-ficha-submodulo]')) programarRefresco();
