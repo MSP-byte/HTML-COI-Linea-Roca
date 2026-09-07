@@ -13,7 +13,8 @@ const { test, expect } = require('@playwright/test');
       fase ejecutiva llegaba a Supabase pero escribia la misma columna, ademas
       por UPDATE directo en vez de la RPC canonica.
 
-      Ahora son dos ejes separados, sin columnas nuevas ni migracion:
+      Ahora son dos ejes separados, sin columnas nuevas. H10 agrega una
+      migracion de hardening que protege las transiciones en PostgreSQL:
 
         ESTADO OPERATIVO   estado_coi + fecha_cierre_operativo + observacion_cierre
         ESTADO DE REGISTRO estado_registro  (Activo / Archivado)
@@ -211,7 +212,29 @@ async function prepararH10(page, opciones = {}) {
           if (c.fallaRpc) return { data: null, error: { code: '42501', message: 'permission denied fixture H10' } };
           const f = filas.find((x) => x.id === args.p_orden_id);
           if (!f) return { data: null, error: { message: 'la OC no existe' } };
-          Object.assign(f, args.p_cambios || {});
+          const cambios = args.p_cambios || {};
+          const n = (v) => String(v ?? '').trim().toUpperCase();
+          const estadoCerrado = (r) => ['CERRADA','CERRADO'].includes(n(r.estado_coi));
+          const cerrado = (r) => estadoCerrado(r) || Boolean(r.fecha_cierre_operativo) || n(r.estado_registro) === 'CERRADO';
+          const antes = Object.assign({}, f), despues = Object.assign({}, f, cambios);
+          const oldClosed = cerrado(antes), newClosed = cerrado(despues);
+          const has = (k) => Object.prototype.hasOwnProperty.call(cambios, k);
+
+          if (n(despues.estado_registro) === 'ARCHIVADO' && n(antes.estado_registro) !== 'ARCHIVADO' && !oldClosed)
+            return { data: null, error: { code: 'P0001', message: 'COI_ARCHIVE_REQUIRES_CLOSED_ORDER' } };
+          if (oldClosed && has('estado_coi') && estadoCerrado(antes) && !estadoCerrado(despues))
+            return { data: null, error: { code: 'P0001', message: 'COI_CLOSURE_IMMUTABLE' } };
+          if (oldClosed && ((has('fecha_cierre_operativo')) || (has('observacion_cierre'))))
+            return { data: null, error: { code: 'P0001', message: 'COI_CLOSURE_IMMUTABLE' } };
+          if (oldClosed && !newClosed)
+            return { data: null, error: { code: 'P0001', message: 'COI_CLOSURE_IMMUTABLE' } };
+          if (!oldClosed && n(despues.estado_registro) === 'CERRADO')
+            return { data: null, error: { code: 'P0001', message: 'COI_CLOSE_REQUIRES_ATOMIC_AUDIT' } };
+          if (!oldClosed && (estadoCerrado(despues) || has('fecha_cierre_operativo') || has('observacion_cierre'))) {
+            if (!estadoCerrado(despues) || !despues.fecha_cierre_operativo || !String(despues.observacion_cierre || '').trim())
+              return { data: null, error: { code: 'P0001', message: 'COI_CLOSE_REQUIRES_ATOMIC_AUDIT' } };
+          }
+          Object.assign(f, cambios);
           persistir();
           return { data: { orden: Object.assign({}, f) }, error: null };
         }
@@ -1569,4 +1592,88 @@ test('H10-63 · P2 · una estación inexistente limpia la selección anterior y 
   expect(e.panel).toBe(false);
   expect(e.hash).toBe('#red');
   expect(e.ruta).toBe('red');
+});
+
+// ============================================================ F · revisión final Codex del PR #64
+
+test('H10-64 · P2 · #ficha-um sin identificador vuelve al inventario y no hereda una UM previa', async ({ page }) => {
+  await prepararH10(page, { ums: [UM_UNA] });
+  await abrir(page);
+  await page.evaluate((id) => { location.hash = '#ficha-um/' + id; }, UM_UNA.codigo_um);
+  await page.waitForFunction(() => (document.querySelector('.view.active') || {}).id === 'vistaFichaUM', null, { timeout: 12000 });
+
+  await page.evaluate(() => { location.hash = '#ficha-um'; });
+  await page.waitForTimeout(2200);
+  const e = await page.evaluate(() => ({
+    hash: location.hash,
+    vista: (document.querySelector('.view.active') || {}).id || '',
+    umActual: String(window.umActualId || '')
+  }));
+  expect(e.vista).toBe('vistaUnidadesMantenimiento');
+  expect(e.hash).toBe('#um');
+  expect(e.umActual).toBe('');
+});
+
+test('H10-65 · P1 · el servidor rechaza archivar una OC abierta aunque se saltee la UI', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  const r = await page.evaluate(async (id) => window.getSupabaseClient().rpc('coi_actualizar_orden_integral', {
+    p_orden_id: id, p_cambios: { estado_registro: 'Archivado' }
+  }), OC_ACTIVA.id);
+  expect(r.error && r.error.message).toBe('COI_ARCHIVE_REQUIRES_CLOSED_ORDER');
+  expect((await remoto(page, OC_ACTIVA.nro_oc)).estado_registro).toBe('Activo');
+});
+
+test('H10-66 · P1 · la auditoría del primer cierre no puede sobrescribirse por el RPC genérico', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  const r = await page.evaluate(async (id) => window.getSupabaseClient().rpc('coi_actualizar_orden_integral', {
+    p_orden_id: id, p_cambios: { observacion_cierre: 'Intento de pisado' }
+  }), OC_CERRADA.id);
+  expect(r.error && r.error.message).toBe('COI_CLOSURE_IMMUTABLE');
+  const f = await page.evaluate((n) => window.__H10__.fila(n), OC_CERRADA.nro_oc);
+  expect(f.observacion_cierre).toBe('Cierre previo');
+  expect(f.fecha_cierre_operativo).toBe('2026-08-25');
+});
+
+test('H10-67 · P1 · no se puede crear un cierre incompleto desde estado_coi', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  const r = await page.evaluate(async (id) => window.getSupabaseClient().rpc('coi_actualizar_orden_integral', {
+    p_orden_id: id, p_cambios: { estado_coi: 'Cerrada' }
+  }), OC_ACTIVA.id);
+  expect(r.error && r.error.message).toBe('COI_CLOSE_REQUIRES_ATOMIC_AUDIT');
+  expect((await remoto(page, OC_ACTIVA.nro_oc)).estado_coi).toBe('En ejecución');
+});
+
+test('H10-68 · P1 · dos cierres competidores conservan los datos del primero', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  const r = await page.evaluate(async (id) => {
+    const c = window.getSupabaseClient();
+    const primero = await c.rpc('coi_actualizar_orden_integral', { p_orden_id: id, p_cambios: {
+      estado_coi: 'Cerrada', fecha_cierre_operativo: '2026-09-07', observacion_cierre: 'Primer cierre'
+    }});
+    const segundo = await c.rpc('coi_actualizar_orden_integral', { p_orden_id: id, p_cambios: {
+      estado_coi: 'Cerrada', fecha_cierre_operativo: '2026-09-07', observacion_cierre: 'Segundo cierre'
+    }});
+    return { primero, segundo, fila: window.__H10__.fila('4530000001') };
+  }, OC_ACTIVA.id);
+  expect(r.primero.error).toBeNull();
+  expect(r.segundo.error && r.segundo.error.message).toBe('COI_CLOSURE_IMMUTABLE');
+  expect(r.fila.observacion_cierre).toBe('Primer cierre');
+});
+
+test('H10-69 · P1 · el editor genérico no renderiza archivo ni campos de auditoría de cierre', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await abrirFicha(page, OC_ACTIVA.nro_oc);
+  await page.evaluate((n) => window.abrirEdicionFichaOC(n), OC_ACTIVA.nro_oc);
+  await page.waitForFunction(() => {
+    const m = document.getElementById('coiEditOCModalV60');
+    return Boolean(m && !m.hidden);
+  }, null, { timeout: 12000 });
+  for (const campo of ['estado_registro','fecha_cierre_operativo','observacion_cierre']) {
+    await expect(page.locator(`[data-coi-edit-field="${campo}"]`)).toHaveCount(0);
+  }
 });

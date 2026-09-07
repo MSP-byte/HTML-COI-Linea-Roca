@@ -26429,6 +26429,8 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const ALLOWED=Object.freeze(['id_obra','tipo','tipo_trabajo','especialidad','descripcion','proveedor','estacion','ramal','sector','expediente','monto_total','moneda','fecha_acta_inicio','plazo_dias','fecha_vencimiento','proxima_certificacion','fecha_recepcion_documentacion','estado_coi','estado_documental','estado_registro','observaciones','certificable_con_saldo','justificacion_administrativa','link_documental_principal','estado_link_documental','calidad_datos_estado','calidad_datos_score','prioridad_operativa','responsable_coi','fecha_ultimo_control','requiere_accion','motivo_requiere_accion','fecha_cierre_operativo','observacion_cierre','control_terceros_hasta']);
   const PROTECTED=Object.freeze(['id','nro_oc','creado_por','fecha_creacion','actualizado_por','fecha_actualizacion','saldo_remanente']);
+  const EDITOR_BLOCKED=new Set(['estado_registro','fecha_cierre_operativo','observacion_cierre']);
+  const EDITOR_FIELDS=Object.freeze(ALLOWED.filter(name=>!EDITOR_BLOCKED.has(name)));
   const DATE_FIELDS=new Set(['fecha_acta_inicio','fecha_vencimiento','proxima_certificacion','fecha_recepcion_documentacion','fecha_ultimo_control','fecha_cierre_operativo','control_terceros_hasta']);
   const BOOLEAN_FIELDS=new Set(['certificable_con_saldo','requiere_accion']);
   const NUMBER_FIELDS=new Set(['monto_total','plazo_dias','calidad_datos_score']);
@@ -26441,9 +26443,8 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
     ['Ubicación y alcance',['estacion','ramal','sector']],
     ['Financiero general',['monto_total','moneda','certificable_con_saldo','justificacion_administrativa']],
     ['Documentación',['fecha_recepcion_documentacion','estado_documental']],
-    ['Gestión COI',['estado_coi','estado_registro','observaciones','responsable_coi','requiere_accion','motivo_requiere_accion','fecha_ultimo_control']],
+    ['Gestión COI',['estado_coi','observaciones','responsable_coi','requiere_accion','motivo_requiere_accion','fecha_ultimo_control']],
     ['Control de Terceros',['control_terceros_hasta']],
-    ['Cierre',['fecha_cierre_operativo','observacion_cierre']],
     ['Calidad y prioridad',['calidad_datos_estado','calidad_datos_score','prioridad_operativa']]
   ];
   const LABELS={id_obra:'ID obra',tipo:'Tipo',tipo_trabajo:'Tipo de trabajo',especialidad:'Especialidad',descripcion:'Descripción',proveedor:'Proveedor',estacion:'Estación principal',ramal:'Ramal',sector:'Sector',expediente:'Expediente',monto_total:'Monto total',moneda:'Moneda',fecha_acta_inicio:'Acta de inicio',plazo_dias:'Plazo en días',fecha_vencimiento:'Vencimiento',proxima_certificacion:'Próxima certificación',fecha_recepcion_documentacion:'Recepción documentación',estado_coi:'Estado COI',estado_documental:'Estado documental',estado_registro:'Estado del registro',observaciones:'Observaciones',certificable_con_saldo:'Certificable con saldo',justificacion_administrativa:'Justificación administrativa',link_documental_principal:'Link documental principal',estado_link_documental:'Estado del link',calidad_datos_estado:'Estado calidad',calidad_datos_score:'Puntaje calidad',prioridad_operativa:'Prioridad operativa',responsable_coi:'Responsable COI',fecha_ultimo_control:'Último control',requiere_accion:'Requiere acción',motivo_requiere_accion:'Motivo de acción',fecha_cierre_operativo:'Cierre operativo',observacion_cierre:'Observación de cierre',control_terceros_hasta:'Control de Terceros hasta',control_terceros_estado:'Estado Control de Terceros'};
@@ -26832,10 +26833,14 @@ document.addEventListener('click',function(event){
   renumberOrder();
 });
 
+  function estadoCierreEditor(value){const n=text(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();return n==='CERRADA'||n==='CERRADO';}
+  function validarLifecycleEditor(current,baseline){
+    if(has(current,'estado_coi')&&has(baseline,'estado_coi')&&comparable('estado_coi',current.estado_coi)!==comparable('estado_coi',baseline.estado_coi)&&(estadoCierreEditor(current.estado_coi)||estadoCierreEditor(baseline.estado_coi)))throw new Error('El cierre operativo no se edita desde este formulario. Use «Cerrar OC».');
+  }
   async function saveEditor(){
     if(!editState||savePromise)return;const modal=editState.modal,button=modal.querySelector('#coiEditSaveV60'),errorBox=modal.querySelector('#coiEditErrorV60');showFieldErrors();errorBox.textContent='';button.disabled=true;button.textContent='Guardando…';
     try{
-      const current=collectForm(modal),baseline=JSON.parse(editState.baseline),changes={};for(const name of ALLOWED)if(has(current,name)&&comparable(name,current[name])!==comparable(name,baseline[name]))changes[name]=current[name];
+      const current=collectForm(modal),baseline=JSON.parse(editState.baseline);validarLifecycleEditor(current,baseline);const changes={};for(const name of EDITOR_FIELDS)if(has(current,name)&&comparable(name,current[name])!==comparable(name,baseline[name]))changes[name]=current[name];
       const result=await actualizar(editState.orderId,changes);editState.dirty=false;modal.hidden=true;editState=null;
       const warning=result.warnings?.length?` Advertencias: ${result.warnings.join(' | ')}`:'';if(typeof window.coiToast==='function')window.coiToast(`OC actualizada correctamente en Supabase.${warning}`,result.warnings?.length?'warning':'ok');
     }catch(error){console.error('[COI][ORDENES][UPDATE][ERROR]',error);errorBox.textContent=error?.message||String(error);showFieldErrors(error.fieldErrors||{});}
@@ -26859,7 +26864,7 @@ document.addEventListener('click',function(event){
   window.abrirEdicionFichaOC=openEditor;
   window.guardarEdicionIntegralOC=saveEditor;
   window.cancelarModoEdicionOC=closeEditor;
-  window.COI_ORDENES_EDIT_V60=Object.freeze({version:'V60.0-EDITAR-OC-A',abrir:openEditor,cerrar:closeEditor,actualizar,parseAmount,normalizarCambios:normalizeChanges,camposEditables:ALLOWED,camposProtegidos:PROTECTED,rpcRenumerarInstalada:RENUMBER_RPC_INSTALLED,cacheKey:CACHE_KEY});
+  window.COI_ORDENES_EDIT_V60=Object.freeze({version:'V60.0-EDITAR-OC-A',abrir:openEditor,cerrar:closeEditor,actualizar,parseAmount,normalizarCambios:normalizeChanges,camposEditables:EDITOR_FIELDS,camposProtegidos:PROTECTED,rpcRenumerarInstalada:RENUMBER_RPC_INSTALLED,cacheKey:CACHE_KEY});
 })();
 </script>
 
@@ -32243,21 +32248,6 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
   }
 
-  async function leerCierreRemoto(uuid) {
-    const client = typeof window.getSupabaseClient === 'function'
-      ? window.getSupabaseClient()
-      : window.__COI_SUPABASE_CLIENT__;
-    if (!client || typeof client.from !== 'function') {
-      throw new Error('Cliente Supabase no disponible para verificar el cierre actual.');
-    }
-    const consulta = await client.from('coi_ordenes')
-      .select('id,estado_coi,estado_registro,fecha_cierre_operativo,observacion_cierre')
-      .eq('id', uuid).single();
-    if (consulta && consulta.error) throw consulta.error;
-    if (!consulta || !consulta.data) throw new Error('Supabase no devolvió la OC antes del cierre.');
-    return consulta.data;
-  }
-
   async function refrescarTrasCierreAjeno() {
     try {
       if (typeof window.recargarDatosDesdeSupabase === 'function') {
@@ -32293,18 +32283,9 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
 
     enCurso = true;
     try {
-      // El snapshot local puede haber quedado viejo mientras otro operador
-      // cerraba la OC. Antes de escribir se relee Supabase y se preserva el
-      // PRIMER cierre confirmado: fecha y observacion no se pisan con una
-      // segunda decision tomada sobre una pantalla desactualizada.
-      const remotoAntes = await leerCierreRemoto(uuid);
-      if (cerradaOperativa(remotoAntes)) {
-        await refrescarTrasCierreAjeno();
-        avisar('La OC ya fue cerrada operativamente por otra actualización. Se conservó el cierre existente.', 'info');
-        sincronizar();
-        return false;
-      }
-
+      // La atomicidad vive en PostgreSQL: coi_actualizar_orden_integral toma
+      // FOR UPDATE y los guards H10 impiden que un segundo cierre modifique
+      // fecha u observacion del primer cierre confirmado.
       // Cierre = estado OPERATIVO. Nunca estado_registro: esa columna es el
       // estado de registro y la usa exclusivamente archivar/desarchivar.
       await repo.actualizar(uuid, {
@@ -32317,6 +32298,12 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       return true;
     } catch (error) {
       const detalle = (error && error.message) || String(error);
+      if (/COI_CLOSURE_IMMUTABLE|COI_ORDER_ALREADY_CLOSED/.test(detalle)) {
+        await refrescarTrasCierreAjeno();
+        avisar('La OC ya fue cerrada operativamente por otra actualización. Se conservó el cierre existente.', 'info');
+        sincronizar();
+        return false;
+      }
       avisar('No se pudo cerrar la OC: ' + detalle + ' El estado no cambió.', 'error');
       sincronizar();
       return false;
@@ -33103,7 +33090,12 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     {
       if (cabeza === 'ficha-um') {
         const id = decodificados[1] || '';
-        if (!id) { abrirVista('vistaFichaUM'); return; }
+        if (!id) {
+          try { window.umActualId = ''; } catch (e) {}
+          abrirVista('vistaUnidadesMantenimiento');
+          aplicarTabUM('inventario');
+          return;
+        }
         // La ficha UM no se intenta abrir contra un modelo a medio cargar: si
         // abrirFichaUM falla, el router normaliza la ruta a otra vista y la
         // direccion pedida se pierde sin reintento.

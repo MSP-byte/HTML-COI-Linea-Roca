@@ -1388,7 +1388,7 @@ El cierre de la fase ejecutiva, `closeOrder()`, sí llegaba a Supabase, pero
 escribía la misma columna (`estado_registro:'Cerrado'`) y por un `UPDATE`
 directo a la tabla en vez de la RPC canónica.
 
-Decisión. Los dos ejes se separan, sin columnas nuevas y sin migración, porque
+Decisión. Los dos ejes se separan, sin columnas nuevas; la revisión final agrega un guard PostgreSQL H10, porque
 los cuatro campos ya existen en `public.coi_ordenes` y los cuatro ya están en la
 lista permitida de `coi_actualizar_orden_integral`:
 

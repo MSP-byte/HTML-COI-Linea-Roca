@@ -19,8 +19,8 @@
     6) el routing publica e interpreta location.hash con guard de reentrada,
        espera los datos autoritativos antes de abrir una entidad y responde a
        una ruta invalida con un mensaje, no con una pantalla en blanco;
-    7) H10 no crea migraciones: los tres campos del cierre y estado_registro
-       ya existen y ya estan permitidos por coi_actualizar_orden_integral.
+    7) H10 no crea columnas ni tablas. La revisión final agrega un guard
+       PostgreSQL de ciclo de vida para atomicidad e inmutabilidad del cierre.
 */
 
 const assert = require('node:assert/strict');
@@ -466,16 +466,44 @@ check(routerCodigo.indexOf("removeChild(nodo)") >= 0 &&
       !/fichaOCBody'\)\.innerHTML = ''/.test(routerCodigo),
   'la limpieza no puede destruir una Ficha OC normal');
 
-// ============ 7) sin migraciones
+// ============ 7) hardening PostgreSQL, sin tablas ni columnas nuevas
 const migraciones = fs.readdirSync('supabase/migrations').filter((f) => /h10/i.test(f));
-check(migraciones.length === 0, `H10 no crea migraciones (encontradas: ${migraciones.join(', ')})`);
+check(migraciones.length === 1 && migraciones[0] === '202609070001_h10_order_lifecycle_guard.sql',
+  `H10 requiere exactamente su migracion de guard (encontradas: ${migraciones.join(', ')})`);
+const h10Sql = fs.readFileSync('supabase/migrations/202609070001_h10_order_lifecycle_guard.sql', 'utf8');
+check(/before update of fecha_cierre_operativo, observacion_cierre/i.test(h10Sql),
+  'la auditoria de cierre tiene un guard BEFORE UPDATE');
+check(/before update of estado_coi, estado_registro/i.test(h10Sql),
+  'estado operativo y archivo tienen un guard BEFORE UPDATE');
+check(h10Sql.indexOf('COI_CLOSURE_IMMUTABLE') >= 0 && h10Sql.indexOf('COI_ARCHIVE_REQUIRES_CLOSED_ORDER') >= 0,
+  'PostgreSQL protege primer cierre y cierre-antes-de-archivo');
+check(!/create\s+table|alter\s+table[^;]*add\s+column/i.test(h10Sql),
+  'H10 no agrega tablas ni columnas');
+
+// ============ 10) revisión final Codex — invariantes de ciclo de vida
+check(cierreCodigo.indexOf('leerCierreRemoto') < 0,
+  'el cierre no puede hacer SELECT previo + UPDATE: la atomicidad vive en la transaccion PostgreSQL');
+check(cierreCodigo.indexOf('COI_CLOSURE_IMMUTABLE') >= 0,
+  'el frontend reconoce el conflicto atomico y refresca el primer cierre');
+check(html.indexOf("const EDITOR_BLOCKED=new Set(['estado_registro','fecha_cierre_operativo','observacion_cierre'])") >= 0,
+  'el editor separa campos de transicion de la allowlist del repositorio');
+check(/for\(const name of EDITOR_FIELDS\)/.test(html),
+  'saveEditor solo recorre campos realmente editables');
+check(!/\['Gestión COI',\[[^\]]*'estado_registro'/.test(html),
+  'estado_registro no puede editarse desde Gestion COI');
+check(html.indexOf("['Cierre',['fecha_cierre_operativo','observacion_cierre']]") < 0,
+  'fecha y observacion de cierre no se renderizan como inputs genericos');
+check(/function validarLifecycleEditor\(current,baseline\)/.test(html),
+  'el editor bloquea entrar/salir de Cerrada por el formulario generico');
+check(/if \(!id\) \{[\s\S]{0,220}?vistaUnidadesMantenimiento[\s\S]{0,120}?aplicarTabUM\('inventario'\)/.test(routerCodigo),
+  '#ficha-um sin id vuelve al inventario');
 
 console.log('H10: cierre operativo, archivo de registro y navegación por URL.');
 console.log('  Cerrar       : estado_coi + fecha_cierre_operativo + observacion_cierre, por la RPC canónica');
 console.log('  Archivar     : estado_registro, y solo sobre una OC cerrada');
 console.log('  Desarchivar  : devuelve al registro activo sin reabrir la contratación');
 console.log('  Routing      : location.hash con guard de reentrada y datos antes que entidad');
-console.log('  Migraciones  : H10 no crea ninguna');
+console.log('  Migraciones  : 1 guard H10; sin tablas ni columnas nuevas');
 console.log('  Codex #64    : cierre explícito, puerta única de archivado, fecha local,');
 console.log('                 espera UM, error != inexistente, not-found sin identidad stale,');
 console.log('                 hash malformado con estado visible');
