@@ -8,81 +8,57 @@ permissions:
   contents: write
 
 jobs:
-  publish-h10:
+  diagnose-fragments:
     if: ${{ !startsWith(github.event.head_commit.message, 'debug:') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout helper branch
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: true
-
-      - name: Require unchanged PR head
+      - name: Decode fragment boundaries
         shell: bash
         run: |
           set -euo pipefail
-          expected='8f2a1c6ae7019575e97c4ec91e9460329d7c74c0'
-          actual="$(git ls-remote origin refs/heads/fix/h10-routing-close-archive-workflow | awk '{print $1}')"
-          echo "PR head: $actual"
-          test "$actual" = "$expected"
-
-      - name: Reconstruct, validate and publish final H10 patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'H10 Patch Publisher'
-          git config user.email 'actions@users.noreply.github.com'
-          base='8f2a1c6ae7019575e97c4ec91e9460329d7c74c0'
-          target='refs/heads/fix/h10-routing-close-archive-workflow'
+          python3 - <<'PY'
+          import base64, pathlib
           alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
-          p0="$(cat .h10patch/part00.b64)"
-          p1="$(cat .h10patch/part01.b64)"
-          p2="$(cat .h10patch/part02.b64)"
-          p3="$(cat .h10patch/part03.b64)"
-
-          # El primer carácter perdido es conocido: 'R' restaura "RnJv..." -> "From...".
-          # Queda exactamente un carácter perdido en uno de los tres límites de fragmento.
-          # Se prueba de forma exhaustiva; solo se acepta un candidato que Git pueda aplicar
-          # limpiamente sobre el HEAD exacto y que modifique exactamente los 3 archivos esperados.
-          for pos in 1 2 3; do
-            for ((i=0; i<${#alphabet}; i++)); do
-              c="${alphabet:i:1}"
-              case "$pos" in
-                1) encoded="R${p0}${c}${p1}${p2}${p3}" ;;
-                2) encoded="R${p0}${p1}${c}${p2}${p3}" ;;
-                3) encoded="R${p0}${p1}${p2}${c}${p3}" ;;
-              esac
-              if ! printf '%s' "$encoded" | base64 -d > /tmp/h10.patch 2>/dev/null; then
-                continue
-              fi
-              grep -q '^From eaf4d4c61f12053d1fc4afc07db363957d497b90 ' /tmp/h10.patch || continue
-
-              git am --abort >/dev/null 2>&1 || true
-              git checkout -f --detach "$base" >/dev/null 2>&1
-              if ! git am /tmp/h10.patch >/tmp/am.log 2>&1; then
-                git am --abort >/dev/null 2>&1 || true
-                continue
-              fi
-
-              if ! git diff --check HEAD^ HEAD >/dev/null 2>&1; then
-                git reset --hard "$base" >/dev/null
-                continue
-              fi
-              files="$(git diff --name-only HEAD^ HEAD | sort | tr '\n' ' ')"
-              if [ "$files" != "index.html tests/check_h10_routing_cierre_archivo.js tests/h10_routing_cierre_archivo.spec.js " ]; then
-                git reset --hard "$base" >/dev/null
-                continue
-              fi
-
-              echo "Valid reconstruction: boundary=$pos char=$c"
-              new_head="$(git rev-parse HEAD)"
-              git push origin HEAD:"$target"
-              echo "Published $new_head"
-              exit 0
-            done
-          done
-
-          echo 'No valid reconstruction found.' >&2
-          exit 1
+          out=[]
+          for i in range(4):
+              p=pathlib.Path(f'.h10patch/part{i:02d}.b64').read_text().strip()
+              out.append(f'PART {i:02d} stored_len={len(p)} start={p[:16]!r} end={p[-16:]!r}')
+              # Try every possible missing leading base64 character. Wrong choices only alter
+              # the first decoded byte when the fragment boundary is on a base64 group boundary.
+              seen=[]
+              for c in alphabet:
+                  s=c+p
+                  s += '='*((4-len(s)%4)%4)
+                  try:
+                      d=base64.b64decode(s, validate=True)
+                  except Exception:
+                      continue
+                  first=d[:1]
+                  if first and first not in seen:
+                      seen.append(first)
+                      if len(seen)<=40:
+                          try: ch=first.decode('utf-8')
+                          except: ch=f'0x{first.hex()}'
+                          out.append(f'  lead {c!r} -> first_byte {ch!r}')
+              # use A only to expose bytes 2.. and the tail; its first byte is the only uncertain one
+              s='A'+p; s += '='*((4-len(s)%4)%4)
+              try:
+                  d=base64.b64decode(s, validate=True)
+                  out.append('  FIRST120_AFTER_UNKNOWN='+repr(d[:120]))
+                  out.append('  LAST160='+repr(d[-160:]))
+              except Exception as e:
+                  out.append('  DECODE_ERROR='+repr(e))
+              out.append('')
+          pathlib.Path('h10_fragment_diagnostics.txt').write_text('\n'.join(out), encoding='utf-8')
+          PY
+          cat h10_fragment_diagnostics.txt
+          git config user.name 'H10 Patch Diagnostics'
+          git config user.email 'actions@users.noreply.github.com'
+          git add h10_fragment_diagnostics.txt
+          git commit -m 'debug: inspect H10 fragment boundaries'
+          git push origin HEAD:x
