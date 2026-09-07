@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   publish-h10:
-    if: ${{ startsWith(github.event.head_commit.message, 'launch: H10 exact patch') }}
+    if: "${{ startsWith(github.event.head_commit.message, 'launch: H10 exact patch') }}"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
