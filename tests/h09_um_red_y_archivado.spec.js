@@ -414,7 +414,11 @@ async function prepararArchivo(page, opciones = {}) {
         moneda: 'ARS', monto_total: 1000, plazo_dias: 30,
         fecha_acta_inicio: '2026-08-01', fecha_vencimiento: '2026-08-31',
         estado_documental: 'Pendiente',
-        estado_coi: 'En ejecución', estado_registro: c.estadoInicial,
+        // H10 · solo se archiva una OC CERRADA (TD-071). Estas pruebas fijan el
+        // MECANISMO de archivado, no la legalidad de archivar una OC abierta:
+        // por eso la OC del fixture llega ya cerrada operativamente.
+        estado_coi: 'Cerrada', fecha_cierre_operativo: '2026-08-25',
+        estado_registro: c.estadoInicial,
         fecha_actualizacion: '2026-09-01T10:00:00.000Z'
       },
       rpc: [], escriturasLocales: 0, toasts: [], recargas: 0, fallaRpc: c.fallaRpc
@@ -427,12 +431,12 @@ async function prepararArchivo(page, opciones = {}) {
     const construirItem = () => ({
       supabaseId: id, id: id, idObra: 'OBRA-H09', numeroOC: nro, oc: nro,
       tipo: 'Obra', estacion: 'PLAZA CONSTITUCION', proveedor: 'PROVEEDOR H09',
-      estado: 'En ejecución', estadoRegistro: estado.memoria.estado_registro,
+      estado: 'Cerrada', estadoCOI: 'Cerrada', estadoRegistro: estado.memoria.estado_registro,
       _supabaseRaw: Object.assign({}, estado.remota, { estado_registro: estado.memoria.estado_registro })
     });
     const construirFila = () => ({
       item: construirItem(), oc: nro, tipo: 'Obra',
-      estacion: 'PLAZA CONSTITUCION', estado: 'En ejecución'
+      estacion: 'PLAZA CONSTITUCION', estado: 'Cerrada'
     });
     estado.construirFila = construirFila;
 

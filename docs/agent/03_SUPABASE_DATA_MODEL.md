@@ -204,6 +204,26 @@ modelo por referencia externa quedó neutralizado: no puede emitir la tarjeta
 carpeta documental», «Copiar estructura sugerida OneDrive», el modal de
 referencias externas ni los exports CSV legados. Ver TD-065, TD-066, KI-026.
 
+## Estado operativo y estado de registro son dos ejes
+
+Una OC tiene dos estados que no se pisan y no se mezclan:
+
+| Eje | Campo | Valores | Lo cambia |
+|---|---|---|---|
+| Operativo / contractual | `estado_coi` (+ `fecha_cierre_operativo`, `observacion_cierre`) | vocabulario `ESTADOS_COI`, incluida `Cerrada` | Cerrar OC |
+| De registro | `estado_registro` | `Activo`, `Archivado` | Archivar / Desarchivar OC |
+
+Hasta H10 los dos caminos escribian `estado_registro`: cerrar dejaba `Cerrado`
+y archivar dejaba `Archivado`, de modo que cada accion pisaba a la otra. Ver
+TD-070.
+
+Ninguno de los cuatro campos es nuevo y ninguno necesito migracion: los cuatro
+existen en `public.coi_ordenes` desde el esquema base y los cuatro estan en la
+lista permitida de `coi_actualizar_orden_integral`.
+
+El valor legado `estado_registro = 'Cerrado'`, escrito por el cierre historico,
+se sigue leyendo como cierre operativo por compatibilidad, pero ya no se escribe.
+
 ## Estado de registro de una OC — archivar sin borrar
 
 `public.coi_ordenes.estado_registro` es el estado **de registro** de la orden y
@@ -220,6 +240,9 @@ localStorage no participa. Ver TD-069.
 El listado de Órdenes filtra por estado de registro —Activas por defecto,
 Archivadas, Todas— de modo que una OC archivada sale de la operación diaria pero
 sigue siendo accesible.
+
+Desde H10 solo se archiva una OC **cerrada**, y desarchivar devuelve la OC al
+registro activo sin tocar su estado operativo. Ver TD-071.
 
 ## Inventario de la red — UM y Servicios Técnicos
 

@@ -661,3 +661,57 @@ El material legado se conserva físicamente en `localStorage` para una eventual
 recuperación manual: no se importa, no se muestra como operativo y no se borra.
 
 La carga inicial del inventario real de la red es trabajo operativo, no técnico.
+
+## KI-030 — El cierre operativo no valida saldo ni actividad pendiente
+Estado: abierto (límite del modelo, no defecto).
+
+La definición funcional dice que se cierra una OC cuando está finalizada o
+vencida, sin saldo operativo pendiente y sin certificaciones o actividades
+pendientes. El modelo remoto solo permite verificar dos de esos tres puntos con
+una fuente canónica confiable: `fecha_vencimiento` y `proxima_certificacion`.
+
+«Saldo operativo pendiente» no tiene una fuente segura: `saldo_remanente` es el
+saldo remanente **certificable**, que es otra cosa, y usarlo como gate sería
+inventar una regla. «Actividad pendiente» no está modelada en ninguna columna.
+
+Decisión deliberada: H10 **no bloquea** el cierre. La confirmación informa el
+vencimiento y avisa explícitamente cuando figura una certificación pendiente
+con su fecha, y decide el operador. Bloquear por datos que el modelo no
+contempla produciría falsos negativos sobre OCs que legítimamente hay que
+cerrar.
+
+Cerrar lo que corresponda es, hoy, criterio operativo. Si en algún momento el
+modelo incorpora una noción canónica de actividad pendiente, la validación puede
+endurecerse sin tocar el camino de escritura.
+
+## KI-031 — `ocActualId` es un binding léxico, no una propiedad de window
+Estado: abierto (deuda estructural acotada).
+
+`index.html` declara `let ocActualId = null;` en el script principal. Un `let` de
+nivel superior crea un binding léxico global que **no** es una propiedad de
+`window`, de modo que `window.ocActualId` queda vacío en la aplicación real
+—salvo por una asignación aislada que lo deja en `''`—.
+
+Cualquier capa que resuelva «la OC que está abierta» leyendo
+`window.ocActualId` obtiene cadena vacía y no resuelve nada. H10 lo detectó al
+ver que el rótulo «Desarchivar OC» de H09 no aparecía nunca fuera de las
+pruebas, donde el fixture asigna `window.ocActualId` explícitamente.
+
+Mitigación aplicada: H09 y H10 resuelven la referencia con el mismo helper
+—binding léxico primero, después `window.ocActualId`, después el `data-oc` que
+la propia ficha publica en su subnav—.
+
+Queda abierto: unificar la variable en un único accesor, en vez de repetir el
+helper en cada capa nueva. No se hizo en H10 para no ampliar el alcance.
+
+## KI-032 — La Ficha OC no tiene una subpestaña «historial»
+Estado: abierto (dato, no defecto).
+
+Las rutas de H10 cubren las siete subpestañas que la ficha realmente tiene:
+resumen, contractual, certificaciones, financiero, documentos, fotos y
+observaciones. `#ficha-oc/<nro>/historial` no existe porque el panel no existe:
+el historial de cambios de la OC se renderiza dentro de otra sección, no como
+submódulo propio.
+
+Una ruta desconocida en esa posición cae en `resumen` en vez de fallar, que es
+el comportamiento deseado para un enlace viejo o mal tipeado.

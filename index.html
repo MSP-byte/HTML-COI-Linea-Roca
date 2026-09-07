@@ -31728,6 +31728,18 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
 
   function estaArchivada(item) { return norm(estadoRegistro(item)) === norm(ARCHIVADO); }
 
+  // `ocActualId` se declara con `let` en el script principal: es un binding
+  // lexico global y NO una propiedad de window, de modo que `window.ocActualId`
+  // queda vacio en la aplicacion real. Se lee el binding lexico primero y, si
+  // no hay, la OC que la propia ficha publica en su subnav.
+  function referenciaFicha() {
+    try { if (typeof ocActualId !== 'undefined' && texto(ocActualId)) return texto(ocActualId); } catch (e) {}
+    const w = texto(window.ocActualId);
+    if (w) return w;
+    const nav = document.querySelector('#fichaOCBody [data-ficha-oc-subnav]');
+    return texto(nav && nav.getAttribute('data-oc'));
+  }
+
   // ---------------------------------------------------------- mutacion
   let enCurso = false;
 
@@ -31760,7 +31772,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       if (destino === ARCHIVADO && cfg.ofrecerDeshacer !== false) {
         mostrarDeshacer(salida.uuid);
       } else {
-        avisar(destino === ARCHIVADO ? 'OC archivada en Supabase.' : 'OC restaurada como Activa en Supabase.', 'ok');
+        avisar(destino === ARCHIVADO ? 'OC archivada correctamente.' : 'OC restaurada al registro activo.', 'ok');
       }
       return true;
     } catch (error) {
@@ -31781,19 +31793,19 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   }
 
   window.archivarOC = function (referencia) {
-    const ref = referencia || window.ocActualId ||
+    const ref = referencia || referenciaFicha() ||
       (document.getElementById('f_idObra') && document.getElementById('f_idObra').value) || '';
     const item = itemDe(ref);
     if (item && estaArchivada(item)) return ejecutar(ref, ACTIVO);
-    if (!confirmar('Se va a archivar la OC en Supabase.\n\nDeja de figurar en el listado de activas, ' +
-      'pero no se borra: se puede desarchivar cuando quiera.\n\n¿Confirma?')) {
+    if (!confirmar('Se va a mover la OC al historial de archivadas.\n\nDeja de figurar en el listado ' +
+      'de activas, pero no se elimina: puede restaurarse cuando quiera.\n\n¿Confirma?')) {
       return Promise.resolve(false);
     }
     return ejecutar(ref, ARCHIVADO);
   };
 
   window.desarchivarOC = function (referencia) {
-    const ref = referencia || window.ocActualId || '';
+    const ref = referencia || referenciaFicha() || '';
     return ejecutar(ref, ACTIVO);
   };
   window.restaurarOC = window.desarchivarOC;
@@ -31810,7 +31822,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
         'border-radius:12px;padding:10px 14px;font-weight:800;box-shadow:0 10px 24px rgba(31,78,121,.18)';
       document.body.appendChild(caja);
     }
-    caja.innerHTML = '<span>OC archivada</span>' +
+    caja.innerHTML = '<span>OC archivada correctamente</span>' +
       '<button type="button" id="h09BtnDeshacerArchivo" data-h09-deshacer="' + esc(uuid) + '">Deshacer</button>';
     caja.hidden = false;
     clearTimeout(caja._h09T);
@@ -31826,7 +31838,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   const BOTONES = ['btnArchivarOCFicha', 'btnArchivarOCFichaTop', 'btnArchivarOC'];
 
   function sincronizarBotones() {
-    const item = itemDe(window.ocActualId || '');
+    const item = itemDe(referenciaFicha());
     const archivada = Boolean(item && estaArchivada(item));
     BOTONES.forEach((id) => {
       const btn = document.getElementById(id);
@@ -31834,10 +31846,15 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       btn.textContent = archivada ? 'Desarchivar OC' : 'Archivar OC';
       btn.dataset.h09Estado = archivada ? ARCHIVADO : ACTIVO;
       btn.title = archivada
-        ? 'Restaura la OC como Activa en Supabase.'
-        : 'Archiva la OC en Supabase. No se borra: se puede desarchivar.';
+        ? 'Devuelve la OC al registro consultable sin modificar su estado operativo.'
+        : 'Mueve la OC al historial de archivadas. No se elimina y puede restaurarse.';
     });
     marcarFicha(archivada, item);
+    // Costura para H10: la habilitacion depende del estado OPERATIVO —solo se
+    // archiva una OC cerrada—, que es un concepto distinto del de registro.
+    try {
+      if (typeof window.__COI_H10_ACCIONES__ === 'function') window.__COI_H10_ACCIONES__(archivada, item);
+    } catch (e) {}
   }
 
   // La ficha tiene que decir con todas las letras que la OC esta archivada.
@@ -31854,9 +31871,9 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       aviso.className = 'doc-contract-note';
       body.insertBefore(aviso, body.firstChild);
     }
-    aviso.innerHTML = '<b>OC ARCHIVADA</b><p class="muted">Esta Orden de Compra está archivada en Supabase ' +
-      '(estado de registro: Archivado). No aparece en el listado de activas. Sus datos se conservan y ' +
-      'puede restaurarse con «Desarchivar OC».</p>';
+    aviso.innerHTML = '<b>OC ARCHIVADA</b><p class="muted">Esta Orden de Compra está en el historial de ' +
+      'archivadas. No aparece en el listado de activas y su estado operativo no cambió. Sus datos se ' +
+      'conservan y puede restaurarse con «Desarchivar OC».</p>';
     if (item) aviso.dataset.h09Oc = texto(item.numeroOC || item.oc || item.idObra || '');
   }
 
@@ -31959,6 +31976,865 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   function arrancar() {
     instalar();
     [0, 400, 1500, 3000, 6000].forEach((ms) => setTimeout(() => { try { instalar(); } catch (e) {} }, ms));
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', arrancar, { once: true });
+  } else {
+    arrancar();
+  }
+})();
+</script>
+
+<script id="coi-h10-cierre-operativo">
+/* H10 · CERRAR una OC y ARCHIVARLA son dos decisiones distintas.
+
+   Diagnostico del cierre que habia:
+
+   1. `cerrarOC()` (V59) era el handler vivo de #btnCerrarOCFicha,
+      #btnCerrarOCFichaTop, #btnCerrarOC y [data-v59-cerrar-oc]. Mutaba el
+      objeto en memoria y llamaba a v59GuardarBase() -> localStorage. Supabase
+      nunca se enteraba: el cierre desaparecia en el siguiente F5. Y escribia
+      `estadoRegistro = 'Cerrado'`, es decir, la MISMA columna que H09 usa para
+      archivar: cerrar pisaba el archivo y archivar pisaba el cierre.
+
+   2. `closeOrder()` (fase ejecutiva) si llegaba a Supabase, pero tambien
+      escribia `estado_registro:'Cerrado'` —la misma colision— y ademas por un
+      UPDATE directo a la tabla en vez de la RPC canonica.
+
+   Correccion, sin columnas nuevas y sin migracion. public.coi_ordenes YA tiene
+   los tres campos del cierre operativo, y los tres estan en la lista permitida
+   de coi_actualizar_orden_integral:
+
+     estado_coi              -> 'Cerrada'   (vocabulario ya existente)
+     fecha_cierre_operativo  -> ISO del cierre
+     observacion_cierre      -> motivo
+
+   `estado_registro` queda reservado para el ESTADO DE REGISTRO —Activo y
+   Archivado— y nadie mas lo toca.
+
+     ESTADO OPERATIVO / CONTRACTUAL   !=   ESTADO DE REGISTRO
+     estado_coi                            estado_registro
+
+   Secuencia, igual que en H09: confirmacion -> RPC -> verificacion remota ->
+   recarga del modelo -> recien ahi la interfaz. Si Supabase falla, la OC sigue
+   como estaba y no se cachea nada.
+
+   Regla de negocio: solo se archiva una OC CERRADA.
+
+     EN EJECUCION -> Cerrar OC -> CERRADA -> Archivar OC -> CERRADA + ARCHIVADA
+
+   Y a la inversa, desarchivar NO reabre: devuelve la OC al registro activo
+   dejando intacto su estado operativo. */
+(function () {
+  'use strict';
+
+  const CERRADA = 'Cerrada';
+  const ARCHIVADO = 'Archivado';
+
+  const texto = (v) => String(v == null ? '' : v).trim();
+  const norm = (v) => texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+
+  function avisar(mensaje, tipo) {
+    for (const fn of ['coiToast', 'mostrarToast', 'toast']) {
+      try { if (typeof window[fn] === 'function') return window[fn](mensaje, tipo || 'info'); } catch (e) {}
+    }
+    try { console.info('COI cierre OC:', mensaje); } catch (e) {}
+  }
+
+  // ---------------------------------------------------------- resolucion
+  function itemDe(referencia) {
+    const candidatos = [];
+    try { if (typeof window.resolverOrdenActual === 'function') candidatos.push(window.resolverOrdenActual(referencia)); } catch (e) {}
+    try { if (typeof window.buscarPorIdObra === 'function') candidatos.push(window.buscarPorIdObra(referencia)); } catch (e) {}
+    try { if (typeof window.obtenerOC === 'function') candidatos.push(window.obtenerOC(referencia)); } catch (e) {}
+    for (const c of candidatos) {
+      const item = c && (c.item || c);
+      if (item && typeof item === 'object') return item;
+    }
+    return null;
+  }
+
+  function uuidDe(item) {
+    const i = item || {};
+    const crudo = i.supabaseId || i.id || (i._supabaseRaw && i._supabaseRaw.id) || null;
+    const v = texto(crudo);
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) ? v : null;
+  }
+
+  const crudo = (i, campo) => (i && i._supabaseRaw && i._supabaseRaw[campo]) || '';
+
+  function estadoRegistroDe(item) {
+    const i = item || {};
+    return texto(i.estado_registro || i.estadoRegistro || crudo(i, 'estado_registro')) || 'Activo';
+  }
+
+  function estaArchivada(item) { return norm(estadoRegistroDe(item)) === norm(ARCHIVADO); }
+
+  // `ocActualId` se declara con `let` en el script principal: es un binding
+  // lexico global y NO una propiedad de window, de modo que `window.ocActualId`
+  // queda vacio en la aplicacion real. Se lee el binding lexico primero y, si
+  // no hay, la OC que la propia ficha publica en su subnav.
+  function referenciaFicha() {
+    try { if (typeof ocActualId !== 'undefined' && texto(ocActualId)) return texto(ocActualId); } catch (e) {}
+    const w = texto(window.ocActualId);
+    if (w) return w;
+    const nav = document.querySelector('#fichaOCBody [data-ficha-oc-subnav]');
+    return texto(nav && nav.getAttribute('data-oc'));
+  }
+
+  // Cierre OPERATIVO. Deliberadamente NO mira estado_registro='Archivado':
+  // archivar es gestion del historial y no cierra nada.
+  function cerradaOperativa(item) {
+    const i = item || {};
+    if (i.cerrada === true) return true;
+    const t = norm([
+      i.estadoCOI, i.estado_coi, i.estado, crudo(i, 'estado_coi'),
+      i.estadoVigenciaOperativa, i.estadoDocumental, i.ESTADO_DOCUMENTAL
+    ].filter(Boolean).join(' '));
+    if (t.indexOf('CERRAD') >= 0 || t.indexOf('FINALIZAD') >= 0 || t.indexOf('DEFINITIVA') >= 0) return true;
+    // Compatibilidad: el cierre historico escribia 'Cerrado' en estado_registro.
+    if (norm(estadoRegistroDe(i)) === 'CERRADO') return true;
+    if (texto(i.fechaCierreOperativo || i.fecha_cierre_operativo || crudo(i, 'fecha_cierre_operativo'))) return true;
+    return false;
+  }
+
+  // Una OC archivada y sin ningun marcador operativo de cierre NO esta cerrada.
+  // Es el unico caso que se corrige del predicado historico; el resto se delega.
+  const _estaOCCerradaBase = typeof window.estaOCCerrada === 'function' ? window.estaOCCerrada : null;
+  if (_estaOCCerradaBase && !_estaOCCerradaBase.__coiH10) {
+    const envuelto = function (oc) {
+      if (oc && estaArchivada(oc) && !cerradaOperativa(oc)) return false;
+      return _estaOCCerradaBase.apply(this, arguments);
+    };
+    envuelto.__coiH10 = true;
+    envuelto.__coiH10Base = _estaOCCerradaBase;
+    window.estaOCCerrada = envuelto;
+    try { estaOCCerrada = envuelto; } catch (e) {}
+  }
+
+  // ---------------------------------------------------------- cierre
+  let enCurso = false;
+
+  const fmt = (iso) => {
+    const v = texto(iso).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return '';
+    const p = v.split('-');
+    return p[2] + '/' + p[1] + '/' + p[0];
+  };
+
+  function dias(iso) {
+    const v = texto(iso).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+    const d = new Date(v + 'T12:00:00');
+    if (Number.isNaN(d.getTime())) return null;
+    const hoy = new Date();
+    hoy.setHours(12, 0, 0, 0);
+    return Math.round((d - hoy) / 86400000);
+  }
+
+  // El sistema no tiene una fuente canonica de «actividad pendiente», asi que
+  // no se inventa un bloqueo: se informa lo que SI esta modelado —vencimiento y
+  // proxima certificacion— y decide el operador. Ver KI-030.
+  function textoConfirmacion(item) {
+    const nro = texto(item.numeroOC || item.oc || item.idObra || 'la OC');
+    const venc = texto(item.vencimiento || item.fechaFin || crudo(item, 'fecha_vencimiento'));
+    const cert = texto(item.proximaCertificacion || crudo(item, 'proxima_certificacion'));
+    const dv = dias(venc);
+    const dc = dias(cert);
+    let t = 'Cerrar operativamente la OC ' + nro + '.\n\n' +
+      'El cierre es una decisión operativa: la OC deja de figurar como activa para ' +
+      'certificaciones y vencimientos. No la archiva ni la elimina, y sigue siendo consultable.\n';
+    if (venc) t += '\nVencimiento: ' + fmt(venc) + (dv !== null && dv >= 0 ? ' (vigente, faltan ' + dv + ' días)' : '');
+    if (cert && dc !== null && dc >= 0) t += '\nATENCIÓN: figura una certificación pendiente para el ' + fmt(cert) + '.';
+    return t + '\n\n¿Confirma el cierre operativo?';
+  }
+
+  function confirmar(mensaje) {
+    try { return typeof window.confirm === 'function' ? window.confirm(mensaje) : true; }
+    catch (e) { return true; }
+  }
+
+  function pedirMotivo() {
+    try {
+      if (typeof window.prompt !== 'function') return 'Cierre operativo manual';
+      return window.prompt('Motivo del cierre operativo:', 'Cierre operativo manual');
+    } catch (e) { return 'Cierre operativo manual'; }
+  }
+
+  async function cerrar(referencia) {
+    if (enCurso) return false;
+    const item = itemDe(referencia);
+    if (!item) { avisar('No se encontró la OC para cerrar.', 'error'); return false; }
+    if (cerradaOperativa(item)) {
+      avisar('La OC ya está cerrada operativamente.', 'info');
+      sincronizar();
+      return false;
+    }
+    if (!confirmar(textoConfirmacion(item))) return false;
+    const motivo = pedirMotivo();
+    if (motivo === null) return false;
+
+    const uuid = uuidDe(item);
+    if (!uuid) {
+      avisar('La OC no tiene identificador remoto: no se puede cerrar contra Supabase. ' +
+        'Sincronice el catálogo e intente de nuevo.', 'error');
+      return false;
+    }
+    const repo = window.COI_REPOSITORY && window.COI_REPOSITORY.ordenes;
+    if (!repo || typeof repo.actualizar !== 'function') {
+      avisar('El repositorio remoto de Órdenes no está disponible. No se cerró nada.', 'error');
+      return false;
+    }
+
+    enCurso = true;
+    try {
+      // Cierre = estado OPERATIVO. Nunca estado_registro: esa columna es el
+      // estado de registro y la usa exclusivamente archivar/desarchivar.
+      await repo.actualizar(uuid, {
+        estado_coi: CERRADA,
+        fecha_cierre_operativo: new Date().toISOString().slice(0, 10),
+        observacion_cierre: texto(motivo) || 'Cierre operativo manual'
+      });
+      avisar('OC cerrada operativamente.', 'ok');
+      sincronizar();
+      return true;
+    } catch (error) {
+      const detalle = (error && error.message) || String(error);
+      avisar('No se pudo cerrar la OC: ' + detalle + ' El estado no cambió.', 'error');
+      sincronizar();
+      return false;
+    } finally {
+      enCurso = false;
+    }
+  }
+
+  window.cerrarOC = function (referencia) {
+    const ref = referencia || referenciaFicha() ||
+      (document.getElementById('f_idObra') && document.getElementById('f_idObra').value) || '';
+    return cerrar(ref);
+  };
+  window.cerrarOC.__coiH10 = true;
+
+  // ---------------------------------------------------------- archivar solo cerradas
+  const _archivarBase = typeof window.archivarOC === 'function' ? window.archivarOC : null;
+  if (_archivarBase && !_archivarBase.__coiH10) {
+    const envuelto = function (referencia) {
+      const ref = referencia || referenciaFicha() || '';
+      const item = itemDe(ref);
+      // Desarchivar siempre se permite: no reabre nada.
+      if (item && !estaArchivada(item) && !cerradaOperativa(item)) {
+        avisar('Primero debe cerrar la OC para enviarla al historial.', 'error');
+        return Promise.resolve(false);
+      }
+      return _archivarBase.apply(this, arguments);
+    };
+    envuelto.__coiH10 = true;
+    envuelto.__coiH10Base = _archivarBase;
+    window.archivarOC = envuelto;
+  }
+
+  // ---------------------------------------------------------- jerarquia visual
+  const AYUDA_CERRAR = 'Finaliza operativamente la OC cuando ya no quedan actividades pendientes. ' +
+    'No la archiva ni la elimina.';
+  const AYUDA_ARCHIVAR_BLOQUEADA = 'Primero debe cerrar la OC para enviarla al historial.';
+
+  const BOTONES_CERRAR = ['btnCerrarOCFicha', 'btnCerrarOCFichaTop', 'btnCerrarOC'];
+  const BOTONES_ARCHIVAR = ['btnArchivarOCFicha', 'btnArchivarOCFichaTop', 'btnArchivarOC'];
+
+  function instalarEstilos() {
+    if (document.getElementById('coi-h10-estilos')) return;
+    const s = document.createElement('style');
+    s.id = 'coi-h10-estilos';
+    s.textContent = [
+      '.h10-sep-historial{display:inline-block;width:1px;align-self:stretch;min-height:22px;',
+      'margin:0 10px;background:#c9d6e2}',
+      '.h10-accion-historial{opacity:.92}',
+      '.h10-accion-historial[disabled]{opacity:.5;cursor:not-allowed}'
+    ].join('');
+    document.head.appendChild(s);
+  }
+
+  // Cerrar OC es la accion operativa; Archivar OC es gestion del historial.
+  // No deben leerse como dos botones equivalentes puestos uno al lado del otro.
+  function separar() {
+    BOTONES_ARCHIVAR.forEach((id) => {
+      const btn = document.getElementById(id);
+      if (!btn || !btn.parentElement) return;
+      btn.classList.add('h10-accion-historial');
+      const previo = btn.previousElementSibling;
+      if (previo && previo.classList && previo.classList.contains('h10-sep-historial')) return;
+      const sep = document.createElement('span');
+      sep.className = 'h10-sep-historial';
+      sep.setAttribute('aria-hidden', 'true');
+      btn.parentElement.insertBefore(sep, btn);
+    });
+  }
+
+  function sincronizar() {
+    const item = itemDe(referenciaFicha());
+    const cerrada = Boolean(item && cerradaOperativa(item));
+    const archivada = Boolean(item && estaArchivada(item));
+
+    BOTONES_CERRAR.forEach((id) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.title = cerrada ? 'La OC ya está cerrada operativamente.' : AYUDA_CERRAR;
+      btn.textContent = cerrada ? 'OC cerrada' : 'Cerrar OC';
+      btn.disabled = cerrada;
+      btn.dataset.h10Estado = cerrada ? 'cerrada' : 'abierta';
+    });
+
+    BOTONES_ARCHIVAR.forEach((id) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      // Solo se archiva una OC cerrada. Desarchivar nunca se bloquea.
+      const bloquear = !archivada && !cerrada;
+      btn.disabled = bloquear;
+      btn.dataset.h10Bloqueado = bloquear ? '1' : '0';
+      if (bloquear) btn.title = AYUDA_ARCHIVAR_BLOQUEADA;
+    });
+    separar();
+  }
+
+  // H09 avisa despues de repintar el rotulo Archivar/Desarchivar.
+  window.__COI_H10_ACCIONES__ = function () { try { sincronizar(); } catch (e) {} };
+
+  // ---------------------------------------------------------- interceptores
+  if (!window.__COI_H10_CIERRE_BOUND__) {
+    window.__COI_H10_CIERRE_BOUND__ = true;
+
+    // El cierre de la fase ejecutiva escribia estado_registro por UPDATE
+    // directo. Se intercepta en captura sobre window —antes que el listener de
+    // captura de esa IIFE, que vive en document— y se reencamina al canonico.
+    window.addEventListener('click', (ev) => {
+      const t = ev.target;
+      if (!t || !t.closest) return;
+      if (!t.closest('#execBtnClose')) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      ev.stopImmediatePropagation();
+      window.cerrarOC();
+    }, true);
+
+    const observador = new MutationObserver(() => {
+      clearTimeout(observador._h10T);
+      observador._h10T = setTimeout(() => { try { sincronizar(); } catch (e) {} }, 90);
+    });
+    try {
+      observador.observe(document.getElementById('fichaOCBody') || document.body,
+        { childList: true, subtree: true });
+    } catch (e) {}
+  }
+
+  window.COI_CIERRE_OC_H10 = {
+    version: 'H10-CIERRE',
+    campos: { operativo: 'estado_coi', fecha: 'fecha_cierre_operativo', observacion: 'observacion_cierre' },
+    registro: 'estado_registro',
+    valorCerrada: CERRADA,
+    cerrar: (ref) => cerrar(ref),
+    estaCerrada: (ref) => cerradaOperativa(itemDe(ref)),
+    estaArchivada: (ref) => estaArchivada(itemDe(ref)),
+    sincronizar
+  };
+
+  function arrancar() {
+    instalarEstilos();
+    sincronizar();
+    [0, 400, 1500, 3000].forEach((ms) => setTimeout(() => { try { sincronizar(); } catch (e) {} }, ms));
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', arrancar, { once: true });
+  } else {
+    arrancar();
+  }
+})();
+</script>
+
+<script id="coi-h10-routing-hash">
+/* H10 · Navegacion persistente por URL.
+
+   La aplicacion no tenia routing: ni una sola lectura de location.hash en
+   32.000 lineas. Cualquier F5 devolvia al operador a la vista inicial, con la
+   Ficha OC que estaba mirando perdida. Para un tablero operativo eso no es un
+   detalle estetico: se pierde el contexto de trabajo en cada recarga.
+
+   El hash es estado de NAVEGACION, no autoridad de datos. Dice que vista,
+   que entidad y que subpestaña mirar; el dato sigue viniendo de Supabase. Por
+   eso la restauracion respeta el orden:
+
+     carga -> sesion -> identidad confirmada -> datos autoritativos
+       -> recien ahi se interpreta el hash -> se abre vista/entidad/subpestaña
+
+   Nunca al reves: no se abre una entidad antes de que el modelo pueda
+   resolverla, y no hay fallback local.
+
+   Rutas:
+
+     #inicio            #ordenes/activas|archivadas|todas   #calendario
+     #alertas           #red            #estacion/<nombre>  #carga
+     #um  #um/servicios #buscador       #administracion     #acerca
+     #ficha-oc/<nro>[/<subpestaña>]     #ficha-um/<id>
+
+   La subpestaña de la Ficha OC usa los siete paneles reales: resumen,
+   contractual, certificaciones, financiero, documentos, fotos y observaciones.
+
+   Un unico guard de reentrada evita el bucle clasico
+   (routing abre vista -> vista publica hash -> hash reabre vista). */
+(function () {
+  'use strict';
+
+  const RUTA_INICIAL = 'inicio';
+  const LIMITE_ESPERA_MS = 12000;
+  const GRACIA_MS = 1500;
+
+  const texto = (v) => String(v == null ? '' : v).trim();
+  const $ = (id) => document.getElementById(id);
+  const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // ---------------------------------------------------------- mapa de rutas
+  const VISTAS = [
+    ['inicio', 'vistaDashboard'],
+    ['ordenes', 'vistaOrdenes'],
+    ['calendario', 'vistaCalendarioCOI'],
+    ['alertas', 'vistaCentroAlertas'],
+    ['red', 'vistaRed'],
+    ['um', 'vistaUnidadesMantenimiento'],
+    ['carga', 'vistaCarga'],
+    ['buscador', 'vistaBuscador'],
+    ['administracion', 'vistaAdministracionSistema'],
+    ['acerca', 'vistaAcercaSistema'],
+    ['vencimientos', 'vistaCalendarioVencimientos'],
+    ['certificaciones-calendario', 'vistaCalendarioCertificaciones'],
+    ['ficha-oc', 'vistaFichaOC'],
+    ['ficha-um', 'vistaFichaUM']
+  ];
+  const vistaDe = (ruta) => (VISTAS.find((p) => p[0] === ruta) || [])[1] || '';
+  const rutaDe = (vista) => (VISTAS.find((p) => p[1] === vista) || [])[0] || '';
+
+  const SUBPESTANAS = [
+    ['resumen', 'panelFichaResumen'],
+    ['contractual', 'panelFichaContractual'],
+    ['certificaciones', 'panelFichaCertificaciones'],
+    ['financiero', 'panelFichaFinanciero'],
+    ['documentos', 'panelFichaDocumentos'],
+    ['fotos', 'panelFichaFotos'],
+    ['observaciones', 'panelFichaObservaciones']
+  ];
+  const panelDe = (slug) => (SUBPESTANAS.find((p) => p[0] === slug) || [])[1] || '';
+  const slugDe = (panel) => (SUBPESTANAS.find((p) => p[1] === panel) || [])[0] || '';
+
+  const MODOS_REGISTRO = ['activas', 'archivadas', 'todas'];
+
+  // ---------------------------------------------------------- resolucion
+  function itemDe(referencia) {
+    if (!texto(referencia)) return null;
+    const candidatos = [];
+    try { if (typeof window.resolverOrdenActual === 'function') candidatos.push(window.resolverOrdenActual(referencia)); } catch (e) {}
+    try { if (typeof window.obtenerOC === 'function') candidatos.push(window.obtenerOC(referencia)); } catch (e) {}
+    try { if (typeof window.buscarPorIdObra === 'function') candidatos.push(window.buscarPorIdObra(referencia)); } catch (e) {}
+    for (const c of candidatos) {
+      const item = c && (c.item || c);
+      if (item && typeof item === 'object' && Object.keys(item).length) return item;
+    }
+    return null;
+  }
+
+  function nroDe(referencia) {
+    const item = itemDe(referencia);
+    const crudo = item && item._supabaseRaw;
+    return texto((item && (item.numeroOC || item.oc)) || (crudo && crudo.nro_oc)) || texto(referencia);
+  }
+
+  // ---------------------------------------------------------- estado visible
+  function vistaActiva() {
+    const v = document.querySelector('.view.active');
+    return (v && v.id) || '';
+  }
+
+  // `ocActualId` es un binding lexico global, no una propiedad de window.
+  function referenciaFicha() {
+    try { if (typeof ocActualId !== 'undefined' && texto(ocActualId)) return texto(ocActualId); } catch (e) {}
+    const w = texto(window.ocActualId);
+    if (w) return w;
+    const nav = document.querySelector('#fichaOCBody [data-ficha-oc-subnav]');
+    return texto(nav && nav.getAttribute('data-oc'));
+  }
+
+  function ocEnPantalla() {
+    const ref = referenciaFicha();
+    if (!ref) return '';
+    return nroDe(ref) || ref;
+  }
+
+  function subpestanaVisible() {
+    const panel = document.querySelector('#fichaOCBody .ficha-oc-panel.active,#fichaOCBody .ficha-oc-panel.is-active');
+    const porPanel = slugDe((panel && panel.id) || '');
+    if (porPanel) return porPanel;
+    const btn = document.querySelector('#fichaOCBody [data-ficha-submodulo].active');
+    return slugDe(texto(btn && btn.dataset.fichaSubmodulo)) || 'resumen';
+  }
+
+  function modoRegistro() {
+    const sel = $('ordenesFiltroRegistro');
+    const v = texto(sel && sel.value).toLowerCase();
+    return MODOS_REGISTRO.indexOf(v) >= 0 ? v : 'activas';
+  }
+
+  function tabUM() {
+    const btn = document.querySelector('#h09Tabs [data-h09-tab].active');
+    return texto(btn && btn.dataset.h09Tab) === 'servicios' ? 'servicios' : 'inventario';
+  }
+
+  function listaEstaciones() {
+    try { if (typeof estaciones !== 'undefined' && Array.isArray(estaciones)) return estaciones; } catch (e) {}
+    return Array.isArray(window.estaciones) ? window.estaciones : [];
+  }
+
+  let estacionVigente = '';
+
+  function estacionAbierta() {
+    const panel = $('panelEstacion');
+    if (!panel || !panel.classList.contains('active')) return '';
+    if (estacionVigente) return estacionVigente;
+    const t = texto(($('pTitle') || {}).textContent);
+    const m = /—\s*(.+)$/.exec(t);
+    return m ? texto(m[1]) : '';
+  }
+
+  // La ruta que describe lo que hay en pantalla ahora mismo.
+  function rutaVigente() {
+    const vista = vistaActiva();
+    if (vista === 'vistaFichaOC') {
+      const nro = ocEnPantalla();
+      if (!nro) return '';
+      return 'ficha-oc/' + encodeURIComponent(nro) + '/' + subpestanaVisible();
+    }
+    if (vista === 'vistaFichaUM') {
+      const id = texto(window.umActualId);
+      return id ? 'ficha-um/' + encodeURIComponent(id) : 'ficha-um';
+    }
+    if (vista === 'vistaOrdenes') return 'ordenes/' + modoRegistro();
+    if (vista === 'vistaUnidadesMantenimiento') {
+      const tab = tabUM();
+      return tab === 'servicios' ? 'um/servicios' : 'um';
+    }
+    if (vista === 'vistaRed') {
+      const est = estacionAbierta();
+      return est ? 'estacion/' + encodeURIComponent(est) : 'red';
+    }
+    return rutaDe(vista);
+  }
+
+  // ---------------------------------------------------------- publicacion
+  let aplicando = false;      // el router esta imponiendo una ruta
+  let silencio = 0;           // hashchange que causamos nosotros
+  let pendiente = null;
+
+  const hashActual = () => texto(location.hash).replace(/^#/, '');
+
+  function publicar(ruta, opciones) {
+    const cfg = opciones || {};
+    const limpia = texto(ruta);
+    if (!limpia || limpia === hashActual()) return false;
+    if (cfg.reemplazar) {
+      // replaceState NO dispara hashchange: no hace falta silenciar nada.
+      try { history.replaceState(history.state, '', '#' + limpia); } catch (e) { silencio++; location.hash = '#' + limpia; }
+      return true;
+    }
+    silencio++;
+    location.hash = '#' + limpia;
+    return true;
+  }
+
+  function refrescarHash(opciones) {
+    if (aplicando) return false;          // la ruta la impuso el router
+    return publicar(rutaVigente(), opciones);
+  }
+
+  function programarRefresco(opciones) {
+    clearTimeout(pendiente);
+    pendiente = setTimeout(() => { try { refrescarHash(opciones); } catch (e) {} }, 45);
+  }
+
+  // ---------------------------------------------------------- datos listos
+  function datosListos() {
+    try {
+      const h06 = window.__COI_H06_ORDENES__;
+      if (h06 && typeof h06.confirmadas === 'function') {
+        const n = h06.confirmadas();
+        if (n !== null && n !== undefined) return true;
+      }
+    } catch (e) {}
+    try { if ((window.todasLasOC() || []).length) return true; } catch (e) {}
+    return false;
+  }
+
+  // No se abre la entidad antes de que el modelo pueda resolverla.
+  async function esperarOC(referencia) {
+    const fin = Date.now() + LIMITE_ESPERA_MS;
+    let confirmadoDesde = 0;
+    while (Date.now() < fin) {
+      const item = itemDe(referencia);
+      if (item) return item;
+      if (datosListos()) {
+        if (!confirmadoDesde) confirmadoDesde = Date.now();
+        else if (Date.now() - confirmadoDesde > GRACIA_MS) return null;
+      }
+      await dormir(150);
+    }
+    return itemDe(referencia);
+  }
+
+  // ---------------------------------------------------------- ruta invalida
+  function mostrarNoEncontrada(nro) {
+    try { if (typeof window.mostrarVista === 'function') window.mostrarVista('vistaFichaOC'); } catch (e) {}
+    const body = $('fichaOCBody');
+    if (!body) return;
+    const esc = (v) => texto(v).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+    body.innerHTML = '<section class="oc-card" id="h10OCNoEncontrada" data-h10-oc="' + esc(nro) + '">' +
+      '<h3>No se encontró la Orden de Compra solicitada.</h3>' +
+      '<p class="muted">La dirección pedía la OC <b>' + esc(nro) + '</b> y no existe en el catálogo ' +
+      'de Supabase, o su número cambió.</p>' +
+      '<div class="card-actions"><button type="button" id="h10VolverAOrdenes" class="primary">' +
+      'Volver a Órdenes</button></div></section>';
+  }
+
+  // ---------------------------------------------------------- aplicacion
+  function abrirVista(id) {
+    try { if (typeof window.mostrarVista === 'function') window.mostrarVista(id); } catch (e) {}
+  }
+
+  function aplicarModoRegistro(modo) {
+    const sel = $('ordenesFiltroRegistro');
+    if (!sel || MODOS_REGISTRO.indexOf(modo) < 0 || sel.value === modo) return;
+    sel.value = modo;
+    try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+  }
+
+  function aplicarTabUM(tab) {
+    const btn = document.querySelector('#h09Tabs [data-h09-tab="' + (tab === 'servicios' ? 'servicios' : 'inventario') + '"]');
+    if (btn && !btn.classList.contains('active')) btn.click();
+  }
+
+  function aplicarSubpestana(slug) {
+    const panel = panelDe(slug);
+    if (!panel) return;
+    try { if (typeof window.activarSubmoduloFichaOC === 'function') window.activarSubmoduloFichaOC(panel); } catch (e) {}
+  }
+
+  async function aplicarInterno(ruta) {
+    const partes = texto(ruta).split('/').filter((p) => p !== '');
+    const cabeza = decodeURIComponent(partes[0] || '') || RUTA_INICIAL;
+
+    if (cabeza === 'ficha-oc') {
+      const nro = decodeURIComponent(partes[1] || '');
+      if (!nro) { abrirVista('vistaOrdenes'); return; }
+      const slug = decodeURIComponent(partes[2] || '') || 'resumen';
+      const item = await esperarOC(nro);
+      if (!item) { mostrarNoEncontrada(nro); return; }
+      const clave = texto(item.idObra || item.idOC || item.numeroOC || item.oc) || nro;
+      if (typeof window.abrirFichaOC === 'function') window.abrirFichaOC(clave);
+      else { abrirVista('vistaFichaOC'); if (typeof window.renderFichaOC === 'function') window.renderFichaOC(clave); }
+      // La subpestaña se aplica cuando la ficha ya se pinto.
+      await dormir(220);
+      aplicarSubpestana(slug);
+      return;
+    }
+
+    {
+      if (cabeza === 'ficha-um') {
+        const id = decodeURIComponent(partes[1] || '');
+        if (id && typeof window.abrirFichaUM === 'function') window.abrirFichaUM(id);
+        else abrirVista('vistaFichaUM');
+        return;
+      }
+      if (cabeza === 'estacion') {
+        const nombre = decodeURIComponent(partes[1] || '');
+        abrirVista('vistaRed');
+        const norm = (v) => texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+        const est = listaEstaciones().find((e) => norm(e && e.nombre) === norm(nombre));
+        if (est && typeof window.selectStation === 'function') window.selectStation(est);
+        return;
+      }
+      if (cabeza === 'ordenes') {
+        abrirVista('vistaOrdenes');
+        aplicarModoRegistro(decodeURIComponent(partes[1] || '') || modoRegistro());
+        return;
+      }
+      if (cabeza === 'um') {
+        abrirVista('vistaUnidadesMantenimiento');
+        aplicarTabUM(decodeURIComponent(partes[1] || '') || 'inventario');
+        return;
+      }
+      abrirVista(vistaDe(cabeza) || vistaDe(RUTA_INICIAL));
+    }
+  }
+
+  // Guard de reentrada: mientras el router aplica una ruta, nadie publica.
+  // Si llega otra solicitud durante la aplicacion se coalesce y se atiende la
+  // ultima, en vez de perderla o de encadenar aplicaciones superpuestas.
+  let solicitada = null;
+
+  async function aplicar(ruta) {
+    solicitada = texto(ruta);
+    if (aplicando) return;
+    aplicando = true;
+    try {
+      while (solicitada !== null) {
+        const r = solicitada;
+        solicitada = null;
+        await aplicarInterno(r);
+      }
+    } finally {
+      aplicando = false;
+      clearTimeout(pendiente);   // se descartan los refrescos encolados al aplicar
+    }
+    // Normalizacion sin ensuciar el historial.
+    publicar(rutaVigente(), { reemplazar: true });
+  }
+
+  // ---------------------------------------------------------- envoltorios
+  function envolver(nombre) {
+    const base = window[nombre];
+    if (typeof base !== 'function' || base.__coiH10Router) return;
+    const envuelto = function () {
+      const salida = base.apply(this, arguments);
+      programarRefresco();
+      return salida;
+    };
+    envuelto.__coiH10Router = true;
+    envuelto.__coiH10RouterBase = base;
+    window[nombre] = envuelto;
+  }
+
+  function envolverEstacion() {
+    const base = window.selectStation;
+    if (typeof base !== 'function' || base.__coiH10Router) return;
+    const envuelto = function (s) {
+      estacionVigente = texto(s && s.nombre);
+      const salida = base.apply(this, arguments);
+      programarRefresco();
+      return salida;
+    };
+    envuelto.__coiH10Router = true;
+    envuelto.__coiH10RouterBase = base;
+    window.selectStation = envuelto;
+  }
+
+  function instalarEnvoltorios() {
+    ['mostrarVista', 'abrirFichaOC', 'renderFichaOC', 'activarSubmoduloFichaOC',
+      'abrirFichaUM'].forEach(envolver);
+    envolverEstacion();
+  }
+
+  // ---------------------------------------------------------- arranque
+  let arrancado = false;
+
+  // Identidad y datos autoritativos antes de abrir nada.
+  async function esperarArranque() {
+    const fin = Date.now() + 6000;
+    while (Date.now() < fin) {
+      if (datosListos()) return true;
+      await dormir(150);
+    }
+    return false;
+  }
+
+  // Se vuelve a imponer la ruta solo si sigue siendo la pedida y la pantalla
+  // se movio a otra cosa. Si el operador navego, el hash ya cambio y no se
+  // le pisa la navegacion.
+  async function reafirmar(ruta) {
+    if (hashActual() !== ruta) return;
+    if (rutaVigente() === ruta) return;
+    await aplicar(ruta);
+  }
+
+  async function restaurar() {
+    if (arrancado) return;
+    arrancado = true;
+    const inicial = hashActual();
+    if (!inicial) {
+      // Sin hash se conserva la landing canonica vigente —Inicio operativo—
+      // y solo se rotula la URL. No se cambia la vista de arranque.
+      await dormir(900);
+      refrescarHash({ reemplazar: true });
+      return;
+    }
+    await esperarArranque();
+    await aplicar(inicial);
+    for (const ms of [700, 1800]) {
+      await dormir(ms);
+      await reafirmar(inicial);
+    }
+    // La ruta se normaliza sin ensuciar el historial.
+    refrescarHash({ reemplazar: true });
+  }
+
+  if (!window.__COI_H10_ROUTER_BOUND__) {
+    window.__COI_H10_ROUTER_BOUND__ = true;
+
+    window.addEventListener('hashchange', () => {
+      if (silencio > 0) { silencio--; return; }
+      // Atras / Adelante del navegador, o una URL pegada a mano.
+      Promise.resolve(aplicar(hashActual())).catch(() => {});
+    });
+
+    document.addEventListener('change', (ev) => {
+      if (ev.target && ev.target.id === 'ordenesFiltroRegistro') programarRefresco();
+    });
+
+    document.addEventListener('click', (ev) => {
+      const t = ev.target;
+      if (!t || !t.closest) return;
+      if (t.closest('#h10VolverAOrdenes')) {
+        ev.preventDefault();
+        abrirVista('vistaOrdenes');
+        programarRefresco();
+        return;
+      }
+      if (t.closest('#h09Tabs [data-h09-tab]') || t.closest('[data-ficha-submodulo]')) programarRefresco();
+    });
+
+    // La vista activa se marca con la clase .active sobre la propia seccion.
+    // Observarla cubre TODOS los caminos de navegacion —mostrarVista,
+    // mostrarVistaFix, showView y cualquier capa legada que toque las clases—
+    // sin tener que interceptarlos uno por uno.
+    try {
+      const observador = new MutationObserver((mutaciones) => {
+        for (const m of mutaciones) {
+          const t = m.target;
+          if (t && t.classList && t.classList.contains('view')) { programarRefresco(); return; }
+          if (t && t.id === 'panelEstacion') { programarRefresco(); return; }
+        }
+      });
+      observador.observe(document.body, {
+        attributes: true, attributeFilter: ['class'], subtree: true
+      });
+    } catch (e) {}
+  }
+
+  window.COI_ROUTING_H10 = {
+    version: 'H10-ROUTING',
+    rutaVigente,
+    hash: hashActual,
+    aplicar: (r) => aplicar(r),
+    publicar: (r, o) => publicar(r, o),
+    refrescar: (o) => refrescarHash(o),
+    vistas: VISTAS,
+    subpestanas: SUBPESTANAS,
+    enAplicacion: () => aplicando
+  };
+
+  function arrancar() {
+    instalarEnvoltorios();
+    // Los envoltorios se reinstalan porque varias capas legadas reasignan
+    // estos globales sobre temporizadores.
+    [200, 800, 2000].forEach((ms) => setTimeout(() => { try { instalarEnvoltorios(); } catch (e) {} }, ms));
+    Promise.resolve(restaurar()).catch(() => {});
   }
 
   if (document.readyState === 'loading') {
