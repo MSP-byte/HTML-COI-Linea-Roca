@@ -25,7 +25,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .coi-qa/h10-r3/part{01,02,03,04,05,06,07}.b64 | base64 -d > /tmp/h10_pr64_r3.patch
+          cat .coi-qa/h10-r3/part01.b64 .coi-qa/h10-r3/part02.b64 .coi-qa/h10-r3/part03.b64 .coi-qa/h10-r3/part04a.b64 .coi-qa/h10-r3/part04b.b64 .coi-qa/h10-r3/part05.b64 .coi-qa/h10-r3/part06.b64 .coi-qa/h10-r3/part07.b64 | base64 -d > /tmp/h10_pr64_r3.patch
           echo 'f7579e82ca96eb1a03d0446d9961b686f9cb740bb13ab62ff9acca315d841d7e  /tmp/h10_pr64_r3.patch' | sha256sum -c -
           grep -q '^diff --git a/index.html b/index.html$' /tmp/h10_pr64_r3.patch
           grep -q '^diff --git a/tests/check_h10_routing_cierre_archivo.js b/tests/check_h10_routing_cierre_archivo.js$' /tmp/h10_pr64_r3.patch
