@@ -78,6 +78,17 @@ historiales que le corresponden.
 Escribe `estado_coi = 'Cerrada'`, `fecha_cierre_operativo` y
 `observacion_cierre`, por la RPC canónica. **Nunca** `estado_registro`.
 
+El primer cierre confirmado es **inmutable**. La migración
+`202609070001_h10_order_lifecycle_guard.sql` instala guards `BEFORE UPDATE` en
+PostgreSQL: fecha y observación de cierre solo pueden escribirse en la primera
+transición válida y no pueden sobrescribirse después, aunque dos operadores
+intenten cerrar la misma OC de forma concurrente.
+
+La transición inicial debe ser completa en una sola escritura: estado Cerrada,
+fecha y observación. Un intento incompleto se rechaza fail-closed. El editor
+genérico de OC no ofrece los campos de auditoría del cierre ni permite entrar o
+salir de Cerrada; para eso se usa la acción específica «Cerrar OC».
+
 El sistema no bloquea el cierre por saldo ni por actividad pendiente: no tiene
 una fuente canónica para eso. Informa el vencimiento, avisa si figura una
 certificación pendiente y decide el operador. Ver KI-030.
@@ -95,6 +106,16 @@ Cerrar no archiva automáticamente. Son dos decisiones distintas.
 
 Escribe `estado_registro = 'Archivado'`. **Nunca** `estado_coi`.
 
+La regla «cerrar antes de archivar» también se aplica en PostgreSQL por el guard
+H10. No depende solo del botón: un intento directo por RPC de archivar una OC
+abierta se rechaza. `estado_registro` tampoco forma parte de la edición genérica
+de OC; Archivar/Desarchivar son transiciones controladas.
+
+El cierre histórico legado `estado_registro = 'Cerrado'` se reconoce para
+compatibilidad, pero antes de reemplazar ese marcador por `Archivado` se
+canonicaliza el cierre en el eje operativo. Si la preservación falla, no se
+archiva.
+
 ## Desarchivar OC
 Cambia únicamente la condición de registro: `Archivado → Activo`.
 
@@ -110,3 +131,7 @@ recién después de que la identidad y los datos autoritativos estén disponible
 Una OC archivada es alcanzable por URL directa y por el buscador global aunque
 el filtro del listado esté en Activas. Una ruta a una OC inexistente informa y
 ofrece volver a Órdenes; no deja pantalla en blanco ni redirige en silencio.
+
+Timeline también tiene ruta persistente (`#timeline`). Una ruta incompleta
+`#ficha-um` sin identificador no reutiliza la UM anterior: limpia la identidad y
+vuelve al inventario `#um`.
