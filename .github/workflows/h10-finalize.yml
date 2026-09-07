@@ -28,7 +28,13 @@ jobs:
           test "$(git hash-object tests/check_h10_routing_cierre_archivo.js)" = "94d10770db839b8cd38ea3f6ffe9a8c018acb5c6"
 
       - name: Apply deterministic H10 fixes
-        run: python3 .github/h10_finalize.py
+        run: |
+          python3 .github/h10_finalize.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('tests/h10_routing_cierre_archivo.spec.js')
+          p.write_text(p.read_text(encoding='utf-8').rstrip() + '\n', encoding='utf-8')
+          PY
 
       - name: Validate patch shape
         shell: bash
