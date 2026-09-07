@@ -1269,3 +1269,100 @@ Consecuencias. El escudo sigue intacto para los lectores comunes. Fijado por
 
 ## Formato nueva decisión
 ID, fecha, contexto, decisión, alternativas, consecuencias, PR.
+
+## TD-068 — La UM es inventario de la RED, no un accesorio de la OC
+Fecha: 2026-09-06. PR H09 (`fix/h09-um-network-inventory-archive-persistence`).
+
+Contexto. El módulo de Unidades de Mantenimiento existía y era **inalcanzable**:
+la navegación real es la barra V2 y su lista `NAV` no incluía el inventario; la
+`.module-nav` legada —donde sí estaba el botón— está oculta por completo, y
+encima `restoreNavigation()` le ponía `hidden`/`display:none`/`aria-hidden` en
+cada pasada y `ensureAdminUM()` movía la vista dentro de Administración. El
+resultado práctico: un inventario que solo aparecía como pestaña de
+configuración, cuando aparecía.
+
+Además la UM se leía como un accesorio de la Orden de Compra.
+
+Decisión. El eje pasa a ser la red:
+
+    RED ROCA → ESTACIÓN → UNIDADES DE MANTENIMIENTO → HISTORIAL DE ST
+
+La OC queda como **referencia opcional**. En el modelo remoto ya lo era
+—`prepararFilaST()` exige `unidad_id`, N° ST, fecha y descripción, nunca
+`nro_oc`—, pero la interfaz no lo reflejaba.
+
+Concretamente:
+
+- el módulo entra en la barra V2 bajo «Gestión», junto a Red Línea Roca, con el
+  rótulo **UM / Servicios Técnicos**; el acceso se reafirma con un observador de
+  atributos en lugar de pelear con los temporizadores de las capas legadas, y la
+  vista vuelve a las vistas globales si alguien la mueve a Administración;
+- el inventario suma **Fabricante** y **Modelo** —campos canónicos `marca` y
+  `modelo`, que ya se mapeaban— y un KPI de cobertura: **estaciones con UM**;
+- **Servicios Técnicos** deja de existir solo dentro de la ficha de cada UM y
+  pasa a ser una sección consultable del módulo, con filtros por UM, estación,
+  estado, rango de fechas y búsqueda libre —que incluye la OC referencial—.
+
+No se agregan columnas de base de datos, no se crean migraciones y no se
+reintroducen los campos que el esquema canónico no tiene (criticidad, ubicación
+técnica, OC actual: ver KI-010).
+
+**Por qué no alcanzaba con la navegación.** El motivo de fondo no era el CSS:
+`window.mostrarVista` interceptaba `vistaUnidadesMantenimiento` y llamaba a
+`abrirUMDesdeAdministracion()`, y `ensureAdminUM()` **se llevaba la vista global
+adentro del panel de Administración**, quitándole las clases `view`/`active`. La
+app metía el módulo en Configuración a propósito. H09 retira ese desvío: la
+vista se abre como global, Administración conserva su pestaña convertida en un
+puntero al módulo, y «Volver» desde una ficha de UM regresa al módulo global
+—interceptado en fase de captura, porque el handler legado detiene la
+propagación inmediata—.
+
+Alternativas descartadas. Reescribir el renderizador del inventario: H05 ya lo
+resolvió Supabase-first y duplicarlo habría creado dos verdades. H09 se apoya en
+`window.unidadesMantenimiento` / `window.serviciosTecnicos`, que publica H05.
+
+Consecuencias. Remoto vacío sigue siendo un estado válido y explícito: no se
+siembra la demo legada, no se lee `localStorage` y el material histórico local
+se conserva sin importarse. Fijado por `H09-1`…`H09-7`.
+
+## TD-069 — Archivar una OC es un cambio de estado confirmado por Supabase
+Fecha: 2026-09-06. PR H09.
+
+Contexto. `archivarOC()` hacía esto:
+
+    found.item.estadoRegistro = 'Archivado';
+    guardarBaseLocal();
+
+es decir, mutaba el objeto en memoria y lo escribía en `localStorage`. La OC
+«quedaba archivada» hasta el siguiente F5, porque Supabase nunca se enteraba. Es
+el mismo patrón que el proyecto ya cerró en H03/H05/H06/H07: interfaz optimista
+sobre un estado que ninguna autoridad confirmó.
+
+Decisión. No hace falta ninguna columna nueva ni ninguna migración:
+`public.coi_ordenes` ya tiene `estado_registro` y `coi_actualizar_orden_integral`
+ya lo admite. Se reutiliza `COI_REPOSITORY.ordenes.actualizar()` —el repositorio
+que el proyecto ya expone—, que además relee la fila y **verifica** el cambio
+contra el servidor antes de darlo por bueno.
+
+La secuencia no admite atajos:
+
+    confirmación del usuario
+      → RPC Supabase
+      → verificación remota
+      → recarga del modelo desde Supabase
+      → recién entonces cambia la interfaz
+
+Si Supabase falla, la OC sigue Activa, el botón no cambia, se informa el error y
+no se cachea nada. `estado_coi` **no** se usa para archivar: es el estado
+operativo de la OC y mezclarlos perdería información.
+
+Con la OC archivada, el botón pasa a **Desarchivar OC** y la ficha lo dice con
+todas las letras. «Deshacer» no es visual: ejecuta la reversión remota a
+`Activo` y solo después toca la pantalla.
+
+El listado gana un filtro **Estado de registro** —Activas / Archivadas / Todas—
+con Activas por defecto: una OC archivada sale del listado operativo pero nunca
+queda inaccesible.
+
+Consecuencias. Fijado por `H09-8`…`H09-15`, incluidos el fallo de RPC, la
+persistencia tras relectura y la ausencia de escritura local.

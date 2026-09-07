@@ -18717,8 +18717,16 @@ const APP_DATA_MODE = "supabase_first";
     const view=$('vistaAdministracionSistema'),tabs=view?.querySelector('.admin-tabs');if(!view||!tabs)return;
     let btn=tabs.querySelector('[data-admin-tab="unidadesMantenimiento"]');if(!btn){btn=document.createElement('button');btn.type='button';btn.className='admin-subtab';btn.dataset.adminTab='unidadesMantenimiento';btn.textContent='Unidades de Mantenimiento';tabs.appendChild(btn);}
     let panel=$('adminTabUnidadesMantenimiento');if(!panel){panel=document.createElement('section');panel.id='adminTabUnidadesMantenimiento';panel.className='admin-tab-panel';view.querySelector('.view-body')?.appendChild(panel);}
-    const um=$('vistaUnidadesMantenimiento');if(um&&um.parentElement!==panel){um.classList.remove('view','active');um.classList.add('admin-um-panel');panel.appendChild(um);}
-    $('btnUnidadesMantenimiento')?.setAttribute('aria-hidden','true');
+    // H09: la vista de UM ya NO se mueve dentro de Administracion. El
+    // inventario es un modulo global (TD-068) y esta pestaña solo lo señala.
+    if(!panel.dataset.h09Puntero){
+      panel.dataset.h09Puntero='1';
+      panel.innerHTML='<div class="admin-panel"><h3>Unidades de Mantenimiento</h3>'+
+        '<p class="muted">El inventario de UM y su historial de Servicios T\u00e9cnicos ' +
+        'es un m\u00f3dulo global: se abre desde <b>UM / Servicios T\u00e9cnicos</b> en el men\u00fa.</p>'+
+        '<div class="admin-actions"><button type="button" id="btnAdminIrAUM" class="primary">'+
+        'Abrir UM / Servicios T\u00e9cnicos</button></div></div>';
+    }
   }
   function activarSubmoduloAdministracion(nombre){
     const tab=nombre==='um'?'unidadesMantenimiento':nombre;window.subvistaAdministracionActiva=tab;ensureAdminUM();
@@ -25809,6 +25817,7 @@ body.coi-v2-light input,body.coi-v2-light select,body.coi-v2-light textarea{back
     {id:'btnCalendarioCOI',view:'vistaCalendarioCOI',label:'Calendario COI',icon:'calendar'},
     {id:'btnCentroAlertas',view:'vistaCentroAlertas',label:'Centro de alertas',icon:'alerts',count:'alerts'},
     {section:'Gestión',id:'btnRed',view:'vistaRed',label:'Red Línea Roca',icon:'map'},
+    {id:'btnUnidadesMantenimiento',view:'vistaUnidadesMantenimiento',label:'UM / Servicios Técnicos',icon:'map'},
     {id:'btnCarga',view:'vistaCarga',label:'Carga operativa',icon:'upload'},
     {id:'btnTimelineCOI',view:'vistaTimelineCOI',label:'Timeline COI',icon:'timeline',dynamic:true},
     {section:'Sistema',id:'btnAdministracionSistema',view:'vistaAdministracionSistema',label:'Administración',icon:'admin'},
@@ -30162,7 +30171,10 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     // La cabecera legada mostraba Criticidad, Ubicacion tecnica y OC actual:
     // ninguna existe en el esquema canonico, de modo que serian columnas
     // permanentemente vacias. Se reemplazan por campos reales de la tabla.
-    thead.innerHTML = ['Código UM', 'Tipo', 'Estación', 'Ramal', 'Sector', 'Estado', 'Proveedor', 'N° de serie', 'ST', 'Ficha']
+    // H09: se agregan Fabricante y Modelo. El inventario de la red tiene que
+    // permitir identificar el activo, no solo ubicarlo. Ambos son campos reales
+    // del esquema canonico (marca, modelo) y ya venian mapeados.
+    thead.innerHTML = ['Código UM', 'Tipo', 'Estación', 'Sector', 'Estado', 'Fabricante', 'Modelo', 'Ramal', 'Proveedor', 'N° de serie', 'ST', 'Ficha']
       .map((t) => '<th>' + esc(t) + '</th>').join('');
     thead.dataset.h05 = '1';
   }
@@ -30236,15 +30248,17 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
         '<td><b>' + esc(u.codigoUM) + '</b></td>' +
         '<td>' + esc(u.tipoUM || '—') + '</td>' +
         '<td>' + esc(u.estacion || '—') + '</td>' +
-        '<td>' + esc(u.ramal || '—') + '</td>' +
         '<td>' + esc(u.sector || '—') + '</td>' +
         '<td>' + badgeUM(u.estado) + '</td>' +
+        '<td>' + esc(u.marca || '—') + '</td>' +
+        '<td>' + esc(u.modelo || '—') + '</td>' +
+        '<td>' + esc(u.ramal || '—') + '</td>' +
         '<td>' + esc(u.proveedorMantenimiento || '—') + '</td>' +
         '<td>' + esc(u.nroSerie || '—') + '</td>' +
         '<td>' + stDeUM(u._supabaseId).length + '</td>' +
         '<td><button type="button" class="btn-open-um" data-h05-open-um="' + esc(u._supabaseId) + '">Ver ficha UM</button></td>' +
         '</tr>'
-      ).join('') || '<tr><td colspan="10">' + esc(mensajeVacio(lista.length)) + '</td></tr>';
+      ).join('') || '<tr><td colspan="12">' + esc(mensajeVacio(lista.length)) + '</td></tr>';
     }
     renderEstado();
   }
@@ -31173,6 +31187,784 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   [0, 400, 1500, 3000, 6000].forEach((ms) => setTimeout(instalarRetiro, ms));
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', instalarRetiro, { once: true });
+  }
+})();
+</script>
+
+<script id="coi-h09-um-red-inventario">
+/* H09 · Unidades de Mantenimiento como INVENTARIO DE LA RED ROCA.
+
+   Cambia el eje funcional del modulo. Hasta aca la UM se leia como un accesorio
+   de la OC; la definicion vigente es:
+
+     RED ROCA -> ESTACION -> UNIDADES DE MANTENIMIENTO -> HISTORIAL DE ST
+
+   La relacion con una OC pasa a ser una REFERENCIA OPCIONAL. Ya lo era en el
+   modelo remoto —prepararFilaST() exige unidad_id, N° ST, fecha y descripcion,
+   nunca nro_oc— pero la UI no lo reflejaba.
+
+   Que resuelve esta capa, sin tocar el modelo de datos ni agregar columnas:
+
+     1. ACCESO. El boton del modulo estaba oculto por CSS
+        (#btnUnidadesMantenimiento{display:none!important}), de modo que el
+        inventario existia y era inalcanzable desde la navegacion. Se lo
+        reestablece y se lo rotula «UM / Servicios Técnicos».
+     2. SERVICIOS TECNICOS como seccion consultable del modulo global, con sus
+        propios filtros: UM, estacion, estado, rango de fechas y busqueda libre
+        —que incluye la OC referencial—. Antes solo existia el historial dentro
+        de la ficha de cada UM y el panel de alta.
+     3. Un KPI de cobertura de red: estaciones con UM.
+
+   H05 sigue siendo la unica autoridad de datos: lectura, alta y edicion pasan
+   por su capa Supabase-first. Aca no se lee ni se escribe localStorage, no se
+   siembran datos de demostracion y el remoto vacio se muestra como vacio. */
+(function () {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  const texto = (v) => String(v == null ? '' : v).trim();
+  const norm = (v) => texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  const esc = (v) => texto(v).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+
+  const VISTA = 'vistaUnidadesMantenimiento';
+  const ROTULO = 'UM / Servicios Técnicos';
+  let tabActiva = 'inventario';
+
+  // Modelo publicado por H05. Nunca se lee localStorage.
+  const listaUM = () => (Array.isArray(window.unidadesMantenimiento) ? window.unidadesMantenimiento : []);
+  const listaST = () => (Array.isArray(window.serviciosTecnicos) ? window.serviciosTecnicos : []);
+  const runtimeUM = () => window.__COI_UM_H05__ || null;
+
+  // ------------------------------------------------------------ 1) acceso
+  function instalarEstilos() {
+    if ($('coi-h09-estilos')) return;
+    const style = document.createElement('style');
+    style.id = 'coi-h09-estilos';
+    // Misma especificidad que la regla que lo ocultaba, pero mas abajo en el
+    // documento: el modulo vuelve a la navegacion global.
+    style.textContent =
+      '#btnUnidadesMantenimiento{display:inline-block!important}' +
+      '.h09-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}' +
+      '.h09-tabs button{border-radius:999px;border:1px solid #d4e2ed;background:#fff;color:#24445d;' +
+      'padding:9px 14px;font-weight:900;transition:.16s ease}' +
+      '.h09-tabs button:hover{border-color:#9fcce8;background:#f0f8ff}' +
+      '.h09-tabs button.active{background:#2f6fa3;border-color:#2f6fa3;color:#fff}' +
+      '.h09-st-filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin:0 0 12px}' +
+      '.h09-st-filtros label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:800;color:#24445d}' +
+      '.h09-st-nota{border:1px solid #d8e4ef;background:#f8fbff;border-radius:12px;padding:10px 12px;margin:0 0 12px;color:#24445d}';
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  // Hogar original de la vista, capturado antes de que ninguna capa la mueva.
+  const hogarVista = (function () {
+    const v = $(VISTA);
+    return v ? { padre: v.parentElement, siguiente: v.nextElementSibling } : null;
+  })();
+
+  // Ocultarlo por CSS no era todo: restoreNavigation() le pone hidden +
+  // display:none + aria-hidden en cada pasada. Se reafirma el rotulo y la
+  // visibilidad del boton legado, que es lo que openModule() termina clickeando.
+  function asegurarAccesoGlobal() {
+    const btn = $('btnUnidadesMantenimiento');
+    if (!btn) return;
+    if (btn.hidden) btn.hidden = false;
+    if (btn.style.display === 'none') btn.style.display = '';
+    if (btn.getAttribute('aria-hidden') === 'true') btn.setAttribute('aria-hidden', 'false');
+    if (texto(btn.textContent) !== ROTULO) {
+      btn.textContent = ROTULO;
+      btn.title = 'Inventario de Unidades de Mantenimiento de la red y su historial de Servicios Técnicos.';
+    }
+    btn.dataset.h09 = '1';
+  }
+
+  // ensureAdminUM() MUEVE la vista dentro del panel de Administracion. Se la
+  // reclama solo cuando se abre el modulo global, para no pelearle la vista a
+  // la pestaña de Administracion mientras esa es la que el operador esta usando.
+  function reclamarVista() {
+    const vista = $(VISTA);
+    const panelAdmin = $('adminTabUnidadesMantenimiento');
+    if (!vista || !hogarVista || !hogarVista.padre) return;
+    if (panelAdmin && panelAdmin.contains(vista)) {
+      vista.classList.remove('admin-um-panel');
+      if (hogarVista.siguiente && hogarVista.siguiente.parentElement === hogarVista.padre) {
+        hogarVista.padre.insertBefore(vista, hogarVista.siguiente);
+      } else {
+        hogarVista.padre.appendChild(vista);
+      }
+    }
+    vista.classList.add('view');
+  }
+
+  // El modulo se abre como VISTA GLOBAL. La aplicacion desviaba
+  // mostrarVista('vistaUnidadesMantenimiento') a abrirUMDesdeAdministracion():
+  // ese desvio es exactamente lo que convertia al inventario en una pestaña de
+  // Configuracion, y es lo que H09 retira.
+  function abrirModuloUM() {
+    asegurarAccesoGlobal();
+    reclamarVista();
+    try {
+      document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
+      const vista = $(VISTA);
+      if (vista) { vista.hidden = false; vista.classList.add('active'); }
+      if (typeof window.ocultarPanelEstacion === 'function') window.ocultarPanelEstacion();
+    } catch (e) {}
+    try {
+      if (typeof window.renderUnidadesMantenimiento === 'function') window.renderUnidadesMantenimiento();
+      else montar();
+    } catch (e) { try { montar(); } catch (e2) {} }
+    return true;
+  }
+
+  function instalarNavegacionGlobal() {
+    const base = window.mostrarVista;
+    if (typeof base === 'function' && !base.__coiH09) {
+      const envuelto = function (id) {
+        if (id === VISTA) { abrirModuloUM(); return; }
+        return base.apply(this, arguments);
+      };
+      envuelto.__coiH09 = true;
+      envuelto.__coiH09Base = base;
+      window.mostrarVista = envuelto;
+    }
+    // «Volver» desde la ficha de una UM tiene que devolver al modulo global,
+    // no a Administracion.
+    window.volverUM = abrirModuloUM;
+    window.volverUMRobusto = abrirModuloUM;
+  }
+
+  function vigilarAcceso() {
+    const btn = $('btnUnidadesMantenimiento');
+    if (!btn || btn.dataset.h09Vigilado === '1' || typeof MutationObserver !== 'function') return;
+    btn.dataset.h09Vigilado = '1';
+    // Las capas legadas vuelven a ocultarlo en cada render: se reafirma el
+    // acceso en lugar de pelear con sus temporizadores.
+    new MutationObserver(() => { try { asegurarAccesoGlobal(); } catch (e) {} })
+      .observe(btn, { attributes: true, attributeFilter: ['hidden', 'style', 'aria-hidden'] });
+  }
+
+  // ------------------------------------------------------- 2) tabs del modulo
+  function cuerpoVista() {
+    const vista = $(VISTA);
+    if (!vista) return null;
+    return vista.querySelector('.view-body') || vista;
+  }
+
+  function asegurarTabs() {
+    const cuerpo = cuerpoVista();
+    if (!cuerpo || $('h09Tabs')) return;
+    const nav = document.createElement('div');
+    nav.className = 'h09-tabs';
+    nav.id = 'h09Tabs';
+    nav.setAttribute('aria-label', 'Secciones del módulo UM');
+    nav.innerHTML =
+      '<button type="button" data-h09-tab="inventario">Inventario UM</button>' +
+      '<button type="button" data-h09-tab="servicios">Servicios Técnicos</button>';
+    cuerpo.insertBefore(nav, cuerpo.firstChild);
+    // Encabezado del modulo: el inventario es de la RED, no de las OC.
+    const head = $(VISTA) && $(VISTA).querySelector('.view-head .muted');
+    if (head) {
+      head.textContent = 'Inventario de activos mantenibles de la red: Estación → Unidades de Mantenimiento → ' +
+        'historial de Servicios Técnicos. La Orden de Compra es una referencia opcional.';
+    }
+  }
+
+  function asegurarPanelST() {
+    const cuerpo = cuerpoVista();
+    if (!cuerpo || $('h09PanelST')) return;
+    const panel = document.createElement('section');
+    panel.id = 'h09PanelST';
+    panel.className = 'view-card';
+    panel.style.margin = '0';
+    panel.hidden = true;
+    panel.innerHTML =
+      '<div class="view-head"><h2>Servicios Técnicos de la red</h2>' +
+      '<div class="muted">Historial técnico consultable por Unidad de Mantenimiento, estación, estado y fecha. ' +
+      'La OC es una referencia opcional del servicio.</div></div>' +
+      '<div class="view-body">' +
+      '<div class="h09-st-filtros">' +
+      '<label>Unidad de Mantenimiento<select id="h09StUM"><option value="">Todas las UM</option></select></label>' +
+      '<label>Estación<select id="h09StEstacion"><option value="">Todas las estaciones</option></select></label>' +
+      '<label>Estado<select id="h09StEstado"><option value="">Todos los estados</option></select></label>' +
+      '<label>Desde<input type="date" id="h09StDesde"></label>' +
+      '<label>Hasta<input type="date" id="h09StHasta"></label>' +
+      '<label>Buscar<input type="search" id="h09StBuscar" placeholder="N° ST, OC, técnico, descripción..."></label>' +
+      '<button type="button" id="h09StLimpiar">Limpiar filtros</button>' +
+      '</div>' +
+      '<div class="h09-st-kpis um-kpis">' +
+      '<div class="um-kpi"><b id="h09StKTotal">0</b><span>Servicios Técnicos</span></div>' +
+      '<div class="um-kpi"><b id="h09StKUM">0</b><span>UM con servicios</span></div>' +
+      '<div class="um-kpi"><b id="h09StKSinOC">0</b><span>Sin OC referencial</span></div>' +
+      '</div>' +
+      '<div class="table-wrap"><table class="coi-table"><thead><tr>' +
+      ['N° ST', 'Fecha', 'UM', 'Tipo UM', 'Estación', 'Estado', 'OC (referencial)', 'Técnico', 'Descripción']
+        .map((t) => '<th>' + esc(t) + '</th>').join('') +
+      '</tr></thead><tbody id="h09StTbody"></tbody></table></div>' +
+      '</div>';
+    cuerpo.appendChild(panel);
+  }
+
+  // Nodos del inventario: todo lo que cuelga del cuerpo salvo las tabs y el
+  // panel de ST. Se resuelve en cada cambio de pestaña para no depender de
+  // conocer uno por uno los paneles que agregan H05 y las capas legadas.
+  function nodosInventario() {
+    const cuerpo = cuerpoVista();
+    if (!cuerpo) return [];
+    return Array.prototype.filter.call(cuerpo.children, (el) => el.id !== 'h09Tabs' && el.id !== 'h09PanelST');
+  }
+
+  function aplicarTab() {
+    const nav = $('h09Tabs');
+    if (nav) {
+      Array.prototype.forEach.call(nav.querySelectorAll('[data-h09-tab]'), (b) => {
+        b.classList.toggle('active', b.dataset.h09Tab === tabActiva);
+      });
+    }
+    const enST = tabActiva === 'servicios';
+    nodosInventario().forEach((el) => { el.hidden = enST; });
+    const panel = $('h09PanelST');
+    if (panel) panel.hidden = !enST;
+    if (enST) renderST();
+  }
+
+  // ------------------------------------------------- 3) KPI de cobertura
+  function asegurarKpiEstaciones() {
+    const total = $('umKTotal');
+    const grid = total && total.closest('.um-kpis');
+    if (!grid || $('h09KEstaciones')) return;
+    const card = document.createElement('div');
+    card.className = 'um-kpi';
+    card.innerHTML = '<b id="h09KEstaciones">0</b><span>Estaciones con UM</span>';
+    grid.appendChild(card);
+  }
+
+  function renderKpiEstaciones() {
+    const el = $('h09KEstaciones');
+    if (!el) return;
+    const estaciones = new Set(listaUM().map((u) => norm(u.estacion)).filter(Boolean));
+    el.textContent = String(estaciones.size);
+  }
+
+  // ------------------------------------------------- 4) Servicios Técnicos
+  function umPorCodigo() {
+    const mapa = new Map();
+    listaUM().forEach((u) => { if (u && u.codigoUM) mapa.set(norm(u.codigoUM), u); });
+    return mapa;
+  }
+
+  function filasST() {
+    const mapa = umPorCodigo();
+    return listaST().map((s) => {
+      const um = mapa.get(norm(s.idUM || s.um)) || null;
+      return {
+        st: s,
+        codigoUM: texto(s.idUM || s.um),
+        tipoUM: texto(s.tipoUM || (um && um.tipoUM)),
+        estacion: texto(um && um.estacion),
+        estado: texto(s.estado),
+        fecha: texto(s.fecha),
+        nroOC: texto(s.nroOC)
+      };
+    });
+  }
+
+  function opciones(id, valores, etiqueta) {
+    const el = $(id);
+    if (!el) return;
+    const actual = el.value;
+    el.innerHTML = '<option value="">' + esc(etiqueta) + '</option>' +
+      Array.from(new Set(valores.map(texto).filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b, 'es'))
+        .map((v) => '<option value="' + esc(v) + '">' + esc(v) + '</option>').join('');
+    if (Array.prototype.some.call(el.options, (o) => o.value === actual)) el.value = actual;
+  }
+
+  function filtrarST(filas) {
+    const um = norm($('h09StUM') && $('h09StUM').value);
+    const est = norm($('h09StEstacion') && $('h09StEstacion').value);
+    const estado = norm($('h09StEstado') && $('h09StEstado').value);
+    const desde = texto($('h09StDesde') && $('h09StDesde').value);
+    const hasta = texto($('h09StHasta') && $('h09StHasta').value);
+    const q = norm($('h09StBuscar') && $('h09StBuscar').value);
+    return filas.filter((f) => {
+      const libre = norm([f.st.nroST, f.nroOC, f.st.tecnico, f.st.proveedor, f.st.descripcion,
+        f.st.observaciones, f.codigoUM, f.estacion].join(' '));
+      return (!um || norm(f.codigoUM) === um) &&
+        (!est || norm(f.estacion) === est) &&
+        (!estado || norm(f.estado) === estado) &&
+        (!desde || (f.fecha && f.fecha >= desde)) &&
+        (!hasta || (f.fecha && f.fecha <= hasta)) &&
+        (!q || libre.indexOf(q) >= 0);
+    });
+  }
+
+  function mensajeVacioST(total) {
+    const rt = runtimeUM();
+    if (rt && rt.sincronizado !== true && rt.ultimoError) {
+      return 'No se pudo sincronizar con Supabase. No se muestran datos locales.';
+    }
+    if (!total) return 'No hay Servicios Técnicos cargados en Supabase.';
+    return 'Sin Servicios Técnicos para los filtros seleccionados.';
+  }
+
+  function renderST() {
+    const panel = $('h09PanelST');
+    if (!panel) return;
+    const filas = filasST();
+    opciones('h09StUM', filas.map((f) => f.codigoUM), 'Todas las UM');
+    opciones('h09StEstacion', filas.map((f) => f.estacion), 'Todas las estaciones');
+    opciones('h09StEstado', filas.map((f) => f.estado), 'Todos los estados');
+
+    const visibles = filtrarST(filas);
+    const kpi = (id, v) => { const el = $(id); if (el) el.textContent = String(v); };
+    kpi('h09StKTotal', visibles.length);
+    kpi('h09StKUM', new Set(visibles.map((f) => norm(f.codigoUM)).filter(Boolean)).size);
+    kpi('h09StKSinOC', visibles.filter((f) => !f.nroOC).length);
+
+    const body = $('h09StTbody');
+    if (!body) return;
+    body.innerHTML = visibles.map((f) =>
+      '<tr class="row-clickable" data-h09-open-um="' + esc(f.codigoUM) + '">' +
+      '<td><b>' + esc(f.st.nroST || '—') + '</b></td>' +
+      '<td>' + esc(f.fecha || '—') + '</td>' +
+      '<td>' + esc(f.codigoUM || '—') + '</td>' +
+      '<td>' + esc(f.tipoUM || '—') + '</td>' +
+      '<td>' + esc(f.estacion || '—') + '</td>' +
+      '<td>' + esc(f.estado || '—') + '</td>' +
+      '<td>' + esc(f.nroOC || '—') + '</td>' +
+      '<td>' + esc(f.st.tecnico || '—') + '</td>' +
+      '<td>' + esc(f.st.descripcion || '—') + '</td>' +
+      '</tr>'
+    ).join('') || '<tr><td colspan="9">' + esc(mensajeVacioST(filas.length)) + '</td></tr>';
+  }
+
+  // ------------------------------------------------------------ instalacion
+  function montar() {
+    instalarEstilos();
+    asegurarAccesoGlobal();
+    vigilarAcceso();
+    instalarNavegacionGlobal();
+    asegurarTabs();
+    asegurarPanelST();
+    asegurarKpiEstaciones();
+    renderKpiEstaciones();
+    aplicarTab();
+  }
+
+  function envolverRender() {
+    const base = window.renderUnidadesMantenimiento;
+    if (typeof base !== 'function' || base.__coiH09) return;
+    const envuelto = function () {
+      const r = base.apply(this, arguments);
+      try { montar(); } catch (e) { console.warn('COI H09: no se pudo montar el módulo UM.', e); }
+      return r;
+    };
+    envuelto.__coiH09 = true;
+    envuelto.__coiH09Base = base;
+    window.renderUnidadesMantenimiento = envuelto;
+  }
+
+  if (!window.__COI_H09_UM_BOUND__) {
+    window.__COI_H09_UM_BOUND__ = true;
+    document.addEventListener('click', (ev) => {
+      const t = ev.target;
+      if (!t || !t.closest) return;
+      const tab = t.closest('[data-h09-tab]');
+      if (tab) {
+        ev.preventDefault();
+        tabActiva = tab.dataset.h09Tab === 'servicios' ? 'servicios' : 'inventario';
+        aplicarTab();
+        return;
+      }
+      if (t.closest('#h09StLimpiar')) {
+        ev.preventDefault();
+        ['h09StUM', 'h09StEstacion', 'h09StEstado', 'h09StDesde', 'h09StHasta', 'h09StBuscar']
+          .forEach((id) => { const el = $(id); if (el) el.value = ''; });
+        renderST();
+        return;
+      }
+      // Desde un ST se llega a su UM: el eje es la unidad, no la OC.
+      const fila = t.closest('[data-h09-open-um]');
+      if (fila && typeof window.abrirFichaUM === 'function') {
+        const codigo = fila.getAttribute('data-h09-open-um');
+        if (codigo) { ev.preventDefault(); window.abrirFichaUM(codigo); }
+      }
+    });
+    // «Volver» desde la ficha de una UM, y el puntero de Administracion, tienen
+    // que devolver al MODULO GLOBAL. Captura: el handler legado detiene la
+    // propagacion inmediata y ademas abre Administracion.
+    window.addEventListener('click', (ev) => {
+      const t = ev.target;
+      if (!t || !t.closest) return;
+      if (!t.closest('#btnVolverUM') && !t.closest('#btnAdminIrAUM')) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      ev.stopImmediatePropagation();
+      abrirModuloUM();
+    }, true);
+
+    document.addEventListener('input', (ev) => {
+      const t = ev.target;
+      if (!t || !t.id) return;
+      if (['h09StUM', 'h09StEstacion', 'h09StEstado', 'h09StDesde', 'h09StHasta', 'h09StBuscar'].indexOf(t.id) >= 0) renderST();
+    });
+    document.addEventListener('change', (ev) => {
+      const t = ev.target;
+      if (!t || !t.id) return;
+      if (['h09StUM', 'h09StEstacion', 'h09StEstado', 'h09StDesde', 'h09StHasta'].indexOf(t.id) >= 0) renderST();
+    });
+  }
+
+  window.COI_UM_H09 = {
+    version: 'H09-UM-RED',
+    rotulo: ROTULO,
+    tab: () => tabActiva,
+    abrirTab: (nombre) => { tabActiva = nombre === 'servicios' ? 'servicios' : 'inventario'; aplicarTab(); return tabActiva; },
+    montar,
+    diagnostico: () => ({
+      unidades: listaUM().length,
+      servicios: listaST().length,
+      estacionesConUM: new Set(listaUM().map((u) => norm(u.estacion)).filter(Boolean)).size,
+      sincronizado: Boolean(runtimeUM() && runtimeUM().sincronizado),
+      ocObligatoriaParaUM: false
+    })
+  };
+
+  function arrancar() {
+    montar();
+    envolverRender();
+    // Las capas legadas reinstalan sus propias funciones en timers propios.
+    [0, 400, 1500, 3000, 6000].forEach((ms) => setTimeout(() => {
+      try { montar(); envolverRender(); } catch (e) {}
+    }, ms));
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', arrancar, { once: true });
+  } else {
+    arrancar();
+  }
+})();
+</script>
+
+<script id="coi-h09-archivar-oc-supabase">
+/* H09 · Archivar / Desarchivar OC contra Supabase.
+
+   El handler historico hacia esto:
+
+     found.item.estadoRegistro = 'Archivado';
+     guardarBaseLocal();
+
+   es decir, mutaba el objeto en memoria y lo escribia en localStorage. La OC
+   «quedaba archivada» hasta el siguiente F5, porque Supabase nunca se entero.
+   Era exactamente el patron que el proyecto ya cerro en H03/H05/H06/H07: UI
+   optimista sobre un estado que ninguna autoridad confirmo.
+
+   Aca no hace falta ninguna columna nueva ni ninguna migracion:
+   public.coi_ordenes YA tiene `estado_registro` y la RPC canonica
+   coi_actualizar_orden_integral YA lo admite. Se reutiliza el repositorio que
+   el proyecto ya expone —COI_REPOSITORY.ordenes.actualizar()— que ademas relee
+   la fila y verifica el cambio contra el servidor antes de dar por buena la
+   escritura.
+
+   Secuencia, sin atajos:
+
+     confirmacion del usuario
+       -> RPC Supabase
+       -> verificacion remota
+       -> recarga del modelo desde Supabase
+       -> recien ahi cambia la UI
+
+   Si Supabase falla, la OC sigue Activa, el boton no cambia y se informa el
+   error. No se cachea ningun estado que el servidor no haya confirmado.
+
+   `estado_coi` NO se usa para archivar: es el estado operativo de la OC y
+   mezclarlos perderia informacion. */
+(function () {
+  'use strict';
+
+  const ACTIVO = 'Activo';
+  const ARCHIVADO = 'Archivado';
+
+  const texto = (v) => String(v == null ? '' : v).trim();
+  const norm = (v) => texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  const esc = (v) => texto(v).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+
+  function avisar(mensaje, tipo) {
+    for (const fn of ['coiToast', 'mostrarToast', 'toast']) {
+      try { if (typeof window[fn] === 'function') return window[fn](mensaje, tipo || 'info'); } catch (e) {}
+    }
+    try { console.info('COI archivo OC:', mensaje); } catch (e) {}
+  }
+
+  // ---------------------------------------------------------- resolucion
+  function itemDe(referencia) {
+    const candidatos = [];
+    try { if (typeof window.resolverOrdenActual === 'function') candidatos.push(window.resolverOrdenActual(referencia)); } catch (e) {}
+    try { if (typeof window.buscarPorIdObra === 'function') candidatos.push(window.buscarPorIdObra(referencia)); } catch (e) {}
+    try { if (typeof window.obtenerOC === 'function') candidatos.push(window.obtenerOC(referencia)); } catch (e) {}
+    for (const c of candidatos) {
+      const item = c && (c.item || c);
+      if (item && typeof item === 'object') return item;
+    }
+    return null;
+  }
+
+  function uuidDe(item) {
+    const i = item || {};
+    const crudo = i.supabaseId || i.id || (i._supabaseRaw && i._supabaseRaw.id) || null;
+    const v = texto(crudo);
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) ? v : null;
+  }
+
+  function estadoRegistro(item) {
+    const i = item || {};
+    return texto(i.estado_registro || i.estadoRegistro ||
+      (i._supabaseRaw && i._supabaseRaw.estado_registro)) || ACTIVO;
+  }
+
+  function estaArchivada(item) { return norm(estadoRegistro(item)) === norm(ARCHIVADO); }
+
+  // ---------------------------------------------------------- mutacion
+  let enCurso = false;
+
+  async function cambiarEstadoRegistro(referencia, destino) {
+    const item = itemDe(referencia);
+    if (!item) throw new Error('No se encontró la OC para cambiar su estado de registro.');
+    const uuid = uuidDe(item);
+    if (!uuid) {
+      throw new Error('La OC no tiene identificador remoto: no se puede archivar contra Supabase. ' +
+        'Sincronice el catálogo e intente de nuevo.');
+    }
+    const repo = window.COI_REPOSITORY && window.COI_REPOSITORY.ordenes;
+    if (!repo || typeof repo.actualizar !== 'function') {
+      throw new Error('El repositorio remoto de Órdenes no está disponible. No se archivó nada.');
+    }
+    // Un unico campo, y es estado_registro: nunca estado_coi.
+    const resultado = await repo.actualizar(uuid, { estado_registro: destino });
+    return { resultado: resultado, item: item, uuid: uuid };
+  }
+
+  async function ejecutar(referencia, destino, opciones) {
+    if (enCurso) return false;
+    enCurso = true;
+    const cfg = opciones || {};
+    try {
+      const salida = await cambiarEstadoRegistro(referencia, destino);
+      // Recien aca, con la escritura verificada contra Supabase y el modelo
+      // recargado por el repositorio, se toca la interfaz.
+      sincronizarBotones();
+      if (destino === ARCHIVADO && cfg.ofrecerDeshacer !== false) {
+        mostrarDeshacer(salida.uuid);
+      } else {
+        avisar(destino === ARCHIVADO ? 'OC archivada en Supabase.' : 'OC restaurada como Activa en Supabase.', 'ok');
+      }
+      return true;
+    } catch (error) {
+      const detalle = (error && error.message) || String(error);
+      avisar('No se pudo ' + (destino === ARCHIVADO ? 'archivar' : 'desarchivar') +
+        ' la OC: ' + detalle + ' El estado no cambió.', 'error');
+      // La UI no se toca: la OC sigue como estaba en Supabase.
+      sincronizarBotones();
+      return false;
+    } finally {
+      enCurso = false;
+    }
+  }
+
+  function confirmar(mensaje) {
+    try { return typeof window.confirm === 'function' ? window.confirm(mensaje) : true; }
+    catch (e) { return true; }
+  }
+
+  window.archivarOC = function (referencia) {
+    const ref = referencia || window.ocActualId ||
+      (document.getElementById('f_idObra') && document.getElementById('f_idObra').value) || '';
+    const item = itemDe(ref);
+    if (item && estaArchivada(item)) return ejecutar(ref, ACTIVO);
+    if (!confirmar('Se va a archivar la OC en Supabase.\n\nDeja de figurar en el listado de activas, ' +
+      'pero no se borra: se puede desarchivar cuando quiera.\n\n¿Confirma?')) {
+      return Promise.resolve(false);
+    }
+    return ejecutar(ref, ARCHIVADO);
+  };
+
+  window.desarchivarOC = function (referencia) {
+    const ref = referencia || window.ocActualId || '';
+    return ejecutar(ref, ACTIVO);
+  };
+  window.restaurarOC = window.desarchivarOC;
+
+  // ---------------------------------------------------------- deshacer real
+  function mostrarDeshacer(uuid) {
+    let caja = document.getElementById('h09DeshacerArchivo');
+    if (!caja) {
+      caja = document.createElement('div');
+      caja.id = 'h09DeshacerArchivo';
+      caja.className = 'coi-toast-v581 show ok';
+      caja.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:9999;' +
+        'display:flex;gap:12px;align-items:center;border:1px solid #cfe2ff;background:#eef6ff;color:#174a8b;' +
+        'border-radius:12px;padding:10px 14px;font-weight:800;box-shadow:0 10px 24px rgba(31,78,121,.18)';
+      document.body.appendChild(caja);
+    }
+    caja.innerHTML = '<span>OC archivada</span>' +
+      '<button type="button" id="h09BtnDeshacerArchivo" data-h09-deshacer="' + esc(uuid) + '">Deshacer</button>';
+    caja.hidden = false;
+    clearTimeout(caja._h09T);
+    caja._h09T = setTimeout(() => { caja.hidden = true; }, 12000);
+  }
+
+  function ocultarDeshacer() {
+    const caja = document.getElementById('h09DeshacerArchivo');
+    if (caja) { clearTimeout(caja._h09T); caja.hidden = true; }
+  }
+
+  // ---------------------------------------------------------- botones
+  const BOTONES = ['btnArchivarOCFicha', 'btnArchivarOCFichaTop', 'btnArchivarOC'];
+
+  function sincronizarBotones() {
+    const item = itemDe(window.ocActualId || '');
+    const archivada = Boolean(item && estaArchivada(item));
+    BOTONES.forEach((id) => {
+      const btn = document.getElementById(id);
+      if (!btn) return;
+      btn.textContent = archivada ? 'Desarchivar OC' : 'Archivar OC';
+      btn.dataset.h09Estado = archivada ? ARCHIVADO : ACTIVO;
+      btn.title = archivada
+        ? 'Restaura la OC como Activa en Supabase.'
+        : 'Archiva la OC en Supabase. No se borra: se puede desarchivar.';
+    });
+    marcarFicha(archivada, item);
+  }
+
+  // La ficha tiene que decir con todas las letras que la OC esta archivada.
+  function marcarFicha(archivada, item) {
+    const body = document.getElementById('fichaOCBody');
+    let aviso = document.getElementById('h09AvisoArchivada');
+    if (!archivada || !body) {
+      if (aviso) aviso.remove();
+      return;
+    }
+    if (!aviso) {
+      aviso = document.createElement('div');
+      aviso.id = 'h09AvisoArchivada';
+      aviso.className = 'doc-contract-note';
+      body.insertBefore(aviso, body.firstChild);
+    }
+    aviso.innerHTML = '<b>OC ARCHIVADA</b><p class="muted">Esta Orden de Compra está archivada en Supabase ' +
+      '(estado de registro: Archivado). No aparece en el listado de activas. Sus datos se conservan y ' +
+      'puede restaurarse con «Desarchivar OC».</p>';
+    if (item) aviso.dataset.h09Oc = texto(item.numeroOC || item.oc || item.idObra || '');
+  }
+
+  // ---------------------------------------------------------- filtro del listado
+  function asegurarFiltroRegistro() {
+    if (document.getElementById('ordenesFiltroRegistro')) return;
+    const ancla = document.getElementById('ordenesFiltroEstado') ||
+      document.getElementById('ordenesFiltroEstacion');
+    const grupo = ancla && ancla.closest('.ordenes-filtro-group');
+    const cont = grupo && grupo.parentElement;
+    if (!cont) return;
+    const nuevo = document.createElement('div');
+    nuevo.className = 'ordenes-filtro-group';
+    nuevo.innerHTML = '<label for="ordenesFiltroRegistro">Estado de registro</label>' +
+      '<select id="ordenesFiltroRegistro">' +
+      '<option value="activas" selected>Activas</option>' +
+      '<option value="archivadas">Archivadas</option>' +
+      '<option value="todas">Todas</option>' +
+      '</select>';
+    cont.appendChild(nuevo);
+  }
+
+  function envolverFiltro() {
+    const base = window.filtrarOrdenes;
+    if (typeof base !== 'function' || base.__coiH09) return;
+    const envuelto = function (rows) {
+      const salida = base.apply(this, arguments);
+      const lista = Array.isArray(salida) ? salida : [];
+      const sel = document.getElementById('ordenesFiltroRegistro');
+      // Por defecto se listan las activas: una OC archivada sale del listado
+      // operativo, pero nunca queda inaccesible.
+      const modo = texto(sel && sel.value) || 'activas';
+      if (modo === 'todas') return lista;
+      const quiereArchivadas = modo === 'archivadas';
+      return lista.filter((row) => {
+        const item = (row && (row.item || row)) || {};
+        return estaArchivada(item) === quiereArchivadas;
+      });
+    };
+    envuelto.__coiH09 = true;
+    envuelto.__coiH09Base = base;
+    window.filtrarOrdenes = envuelto;
+    try { filtrarOrdenes = envuelto; } catch (e) {}
+  }
+
+  // ---------------------------------------------------------- instalacion
+  function instalar() {
+    asegurarFiltroRegistro();
+    envolverFiltro();
+    sincronizarBotones();
+  }
+
+  if (!window.__COI_H09_ARCHIVO_BOUND__) {
+    window.__COI_H09_ARCHIVO_BOUND__ = true;
+
+    // Deshacer REAL: revierte contra Supabase antes de tocar la interfaz.
+    document.addEventListener('click', (ev) => {
+      const t = ev.target;
+      if (!t || !t.closest) return;
+      const btn = t.closest('[data-h09-deshacer]');
+      if (!btn) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      btn.disabled = true;
+      btn.textContent = 'Deshaciendo…';
+      Promise.resolve(ejecutar(btn.getAttribute('data-h09-deshacer'), ACTIVO, { ofrecerDeshacer: false }))
+        .then((ok) => {
+          if (ok) ocultarDeshacer();
+          else { btn.disabled = false; btn.textContent = 'Deshacer'; }
+        });
+    }, true);
+
+    document.addEventListener('change', (ev) => {
+      if (ev.target && ev.target.id === 'ordenesFiltroRegistro') {
+        try { if (typeof window.renderOrdenes === 'function') window.renderOrdenes(); } catch (e) {}
+      }
+    });
+
+    // La ficha se repinta por muchos caminos: se resincroniza el rotulo.
+    const observador = new MutationObserver(() => {
+      clearTimeout(observador._h09T);
+      observador._h09T = setTimeout(() => { try { sincronizarBotones(); } catch (e) {} }, 60);
+    });
+    try {
+      const body = document.getElementById('fichaOCBody') || document.body;
+      observador.observe(body, { childList: true, subtree: true });
+    } catch (e) {}
+  }
+
+  window.COI_ARCHIVO_OC_H09 = {
+    version: 'H09-ARCHIVO',
+    campo: 'estado_registro',
+    valores: { activo: ACTIVO, archivado: ARCHIVADO },
+    archivar: (ref) => ejecutar(ref, ARCHIVADO, { ofrecerDeshacer: false }),
+    desarchivar: (ref) => ejecutar(ref, ACTIVO),
+    estadoDe: (ref) => estadoRegistro(itemDe(ref)),
+    sincronizarBotones
+  };
+
+  function arrancar() {
+    instalar();
+    [0, 400, 1500, 3000, 6000].forEach((ms) => setTimeout(() => { try { instalar(); } catch (e) {} }, ms));
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', arrancar, { once: true });
+  } else {
+    arrancar();
   }
 })();
 </script>
