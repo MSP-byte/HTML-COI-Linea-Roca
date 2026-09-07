@@ -19018,9 +19018,41 @@ function ordenarOrdenesPorMonto(lista,criterio){
   else if(criterio==='asc')resultado.sort((a,b)=>obtenerMontoOC(a)-obtenerMontoOC(b));
   return resultado;
 }
+/* H10 · El filtro de ESTADO DE REGISTRO se aplica aca, en el renderer canonico.
+   aplicarModoRegistro() movia el selector #ordenesFiltroRegistro y la URL, pero
+   esta funcion —que es la que arma las filas que pinta renderOrdersFinal()— no
+   miraba estado_registro: la URL y el selector decian «Archivadas» mientras la
+   tabla mezclaba activas y archivadas.
+
+   Semantica de H09, sin cambios:
+     activas     -> se excluyen las archivadas
+     archivadas  -> exclusivamente las archivadas
+     todas       -> no se filtra por este eje
+   Se leen los alias reales del modelo, porque una misma fila puede venir del
+   mapeo (estadoRegistro), del crudo de Supabase o de una capa legada. */
+function coiEstadoRegistroDeFila(row){
+  const r=row||{};
+  const v=r.estadoRegistro||r.estado_registro||(r._supabaseRaw&&r._supabaseRaw.estado_registro)||'';
+  return String(v==null?'':v).trim().toUpperCase();
+}
+function coiModoRegistroVigente(){
+  try{
+    const sel=document.getElementById('ordenesFiltroRegistro');
+    const v=String((sel&&sel.value)||'').trim().toLowerCase();
+    if(v==='archivadas'||v==='todas'||v==='activas')return v;
+  }catch(e){}
+  return 'activas';
+}
+function coiFiltrarPorRegistro(rows){
+  const modo=coiModoRegistroVigente();
+  if(modo==='todas')return rows;
+  if(modo==='archivadas')return rows.filter(r=>coiEstadoRegistroDeFila(r)==='ARCHIVADO');
+  return rows.filter(r=>coiEstadoRegistroDeFila(r)!=='ARCHIVADO');
+}
+
 function obtenerOrdenesFiltradas(){
   asegurarSelectorOrdenVencimiento();
-  const rows=[...getRowsFinal()];
+  const rows=coiFiltrarPorRegistro([...getRowsFinal()]);
   const q=fold($('ordenesBusqueda')?.value),typeValue=clean($('ordenesFiltroTipo')?.value),wanted=typeValue?normalizarTipoFinal(typeValue):'',est=fold($('ordenesFiltroEstacion')?.value),prov=fold($('ordenesFiltroProveedor')?.value),state=fold($('ordenesFiltroEstado')?.value),um=fold($('ordenesFiltroUM')?.value),doc=fold($('ordenesFiltroDoc')?.value),ordenVencimiento=clean($('ordenesFiltroMesVenc')?.value),ordenMonto=clean($('ordenMontoOrden')?.value),onlyActive=fold($('uxOrderContext')?.textContent).includes('SOLO OCS ACTIVAS');
   const filtered=rows.filter(row=>{
     const type=clasificarOrdenFinal(row),station=clean(field(row,['estacion'],'')),provider=clean(field(row,['proveedor','PROVEEDOR','razon_social','razonSocial'],'')),sec=clean(field(row,['sector'],'')),umv=clean(field(row,['umVinculada','um_vinculada','unidadMantenimiento','especialidad'],'')),st=clean(field(row,['estado_coi','estadoCOI','estado'],'')),docv=clean(field(row,['estadoDocumental','estado_documental'],''));
@@ -32278,13 +32310,72 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     return cerradaOperativa(item);
   }
 
+  // Cierre LEGACY-ONLY: la unica evidencia de que la OC se cerro es
+  // estado_registro='Cerrado', que es como lo escribia el cierre anterior a
+  // H10. El problema es que archivar escribe esa MISMA columna con
+  // 'Archivado', de modo que el archivado borraba la unica prueba del cierre:
+  // al releer Supabase la OC volvia a leerse como abierta.
+  //
+  // Antes de archivar se canonicaliza el cierre en su eje propio —estado_coi—,
+  // que archivar no toca. Lo que NO se hace es inventar historia: no se
+  // fabrica una fecha_cierre_operativo ni una observacion_cierre que nadie
+  // registro. Queda constancia de que esta cerrada, sin afirmar cuando ni por
+  // que.
+  function cierreSoloLegacy(item) {
+    const i = item || {};
+    if (!i) return false;
+    if (norm(estadoRegistroDe(i)) !== 'CERRADO') return false;
+    const estado = norm(i.estadoCOI || i.estado_coi || crudo(i, 'estado_coi') || i.estado);
+    if (ESTADOS_CIERRE_EXPLICITO.indexOf(estado) >= 0) return false;
+    if (texto(i.fechaCierreOperativo || i.fecha_cierre_operativo || crudo(i, 'fecha_cierre_operativo'))) return false;
+    return true;
+  }
+
+  // Devuelve true si se puede seguir con el archivado.
+  async function canonicalizarCierreLegacy(referencia) {
+    const item = itemDe(referencia);
+    // El camino normal —una OC ya cerrada canonicamente— no paga ninguna
+    // escritura extra.
+    if (!item || !cierreSoloLegacy(item)) return true;
+
+    const uuid = uuidDe(item);
+    if (!uuid) {
+      avisar('La OC no tiene identificador remoto: no se puede preservar su cierre histórico. ' +
+        'Sincronice el catálogo e intente de nuevo.', 'error');
+      return false;
+    }
+    const repo = window.COI_REPOSITORY && window.COI_REPOSITORY.ordenes;
+    if (!repo || typeof repo.actualizar !== 'function') {
+      avisar('El repositorio remoto de Órdenes no está disponible. No se archivó nada.', 'error');
+      return false;
+    }
+    try {
+      // Solo estado_coi. Ni fecha ni observacion: no se inventan.
+      await repo.actualizar(uuid, { estado_coi: CERRADA });
+      return true;
+    } catch (error) {
+      // Fail closed: si el cierre no quedo preservado, no se archiva. Archivar
+      // igual destruiria la evidencia.
+      const detalle = (error && error.message) || String(error);
+      avisar('No se pudo preservar el cierre histórico de la OC: ' + detalle +
+        ' No se archivó nada.', 'error');
+      return false;
+    }
+  }
+
   function guardarArchivado(fn, contexto) {
     if (typeof fn !== 'function' || fn.__coiH10Guard) return fn;
-    const envuelto = function (referencia) {
+    const envuelto = async function (referencia) {
       const ref = referencia || referenciaFicha() || '';
       if (!puedeArchivar(ref)) {
         avisar('Primero debe cerrar la OC para enviarla al historial.', 'error');
-        return Promise.resolve(false);
+        return false;
+      }
+      // Solo cuando la OC va HACIA el historial. Desarchivar no destruye nada.
+      const item = itemDe(ref);
+      if (item && !estaArchivada(item)) {
+        const preservado = await canonicalizarCierreLegacy(ref);
+        if (!preservado) return false;
       }
       return fn.apply(this, arguments);
     };
@@ -32574,6 +32665,16 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
 
   let estacionVigente = '';
 
+  // Vuelve la Red a su raiz: sin estacion seleccionada. No toca los hotspots
+  // ni ningun otro comportamiento de la vista.
+  function limpiarEstacion() {
+    estacionVigente = '';
+    try {
+      const panel = $('panelEstacion');
+      if (panel) panel.classList.remove('active');
+    } catch (e) {}
+  }
+
   function estacionAbierta() {
     const panel = $('panelEstacion');
     if (!panel || !panel.classList.contains('active')) return '';
@@ -32595,8 +32696,27 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   // global, que es compartido con la ficha y fragil de revertir.
   let rutaError = '';
 
+  // Ids de los estados que pinta el router dentro de #fichaOCBody. Se listan
+  // para poder retirarlos: dejar el nodo montado hacia que la pantalla
+  // siguiente arrastrara el error anterior debajo de una URL ya corregida.
+  const IDS_ESTADO_RUTA = [
+    'h10RutaInvalida', 'h10CatalogoNoDisponible', 'h10OCNoEncontrada',
+    'h10UMNoDisponible', 'h10UMNoEncontrada'
+  ];
+
+  // Retira SOLO los estados del router. Una Ficha OC normal no se toca: se
+  // borra el nodo del estado, no el contenedor.
+  function limpiarDOMEstadoRuta() {
+    for (const id of IDS_ESTADO_RUTA) {
+      try {
+        const nodo = document.getElementById(id);
+        if (nodo && nodo.parentNode) nodo.parentNode.removeChild(nodo);
+      } catch (e) {}
+    }
+  }
+
   function fijarRutaError(ruta) { rutaError = texto(ruta); }
-  function limpiarRutaError() { rutaError = ''; }
+  function limpiarRutaError() { rutaError = ''; limpiarDOMEstadoRuta(); }
 
   // La ruta que describe lo que hay en pantalla ahora mismo.
   function rutaVigente() {
@@ -32900,6 +33020,15 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
         else abrirVista('vistaFichaUM');
         return;
       }
+      // #red es la Red GENERAL. Sin limpiar el contexto, estacionVigente y
+      // #panelEstacion.active sobrevivian a la navegacion y rutaVigente()
+      // volvia a derivar #estacion/<nombre>, reemplazando el #red recien
+      // pedido: Atras desde una estacion no lograba salir de ella.
+      if (cabeza === 'red' && !decodificados[1]) {
+        limpiarEstacion();
+        abrirVista('vistaRed');
+        return;
+      }
       if (cabeza === 'estacion') {
         const nombre = decodificados[1] || '';
         abrirVista('vistaRed');
@@ -33018,12 +33147,19 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     if (!listo) {
       const partes = texto(inicial).split('/').filter((x) => x !== '');
       const cabeza = safeDecode(partes[0] || '');
-      // Solo las rutas que resuelven una entidad concreta dependen del
-      // catalogo. #ordenes o #red se abren igual: no afirman nada sobre una
-      // entidad puntual.
-      if (cabeza.ok && (cabeza.value === 'ficha-oc' || cabeza.value === 'ficha-um') && partes[1]) {
-        if (cabeza.value === 'ficha-um') mostrarErrorUM(inicial);
-        else mostrarErrorCatalogo(inicial);
+      // El gate de arranque comprueba el snapshot de ORDENES, y por lo tanto
+      // solo puede bloquear rutas que dependan de ese catalogo.
+      //
+      // #ficha-um NO depende de coi_ordenes: su autoridad es el snapshot H05
+      // de Unidades de Mantenimiento. Bloquearla aca era hacer que un fallo de
+      // Ordenes tapara una ficha UM que el remoto podia servir perfectamente.
+      // Esa ruta entra al camino normal, donde esperarUM() ya espera
+      // __COI_UM_H05__.sincronizado y distingue encontrada / ausente / error.
+      //
+      // Las rutas que no resuelven una entidad puntual —#ordenes, #red, #um—
+      // tampoco se bloquean: no afirman nada sobre una entidad concreta.
+      if (cabeza.ok && cabeza.value === 'ficha-oc' && partes[1]) {
+        mostrarErrorCatalogo(inicial);
         refrescarHash({ reemplazar: true });
         return;
       }
@@ -33071,11 +33207,33 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       }
       if (t.closest('#h10ReintentarCatalogo') || t.closest('#h10ReintentarUM')) {
         ev.preventDefault();
-        // Reintentar es volver a aplicar la MISMA ruta pedida: el operador no
-        // pierde la direccion por un fallo de sincronizacion.
+        // Reintentar tiene que LEER DE NUEVO. Volver a aplicar la ruta sobre el
+        // mismo estado fallido solo repintaba el mismo error: el boton parecia
+        // hacer algo y no hacia nada.
+        //
+        // Se usa el camino canonico de cada modulo —el mismo que usa el resto
+        // de la aplicacion—, no una lectura paralela a la tabla ni un
+        // location.reload(). Y la direccion pedida se conserva: el operador no
+        // pierde la ruta por un fallo de sincronizacion.
         const ruta = rutaError || hashActual();
+        const esUM = Boolean(t.closest('#h10ReintentarUM'));
         limpiarRutaError();
-        Promise.resolve(aplicar(ruta)).catch(() => {});
+        (async () => {
+          try {
+            if (esUM) {
+              if (typeof window.recargarUnidadesMantenimiento === 'function') {
+                await window.recargarUnidadesMantenimiento();
+              }
+            } else if (typeof window.recargarDatosDesdeSupabase === 'function') {
+              await window.recargarDatosDesdeSupabase({ silencioso: true });
+            }
+          } catch (e) {
+            // Si la relectura vuelve a fallar, aplicar() reevalua el estado y
+            // vuelve al error que corresponda. Nunca se afirma que la entidad
+            // no existe.
+          }
+          await aplicar(ruta);
+        })().catch(() => {});
         return;
       }
       if (t.closest('#h09Tabs [data-h09-tab]') || t.closest('[data-ficha-submodulo]')) programarRefresco();

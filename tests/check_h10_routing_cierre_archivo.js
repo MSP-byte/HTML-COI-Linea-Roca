@@ -372,6 +372,100 @@ const decodesCrudos = (routerCodigo.match(/decodeURIComponent\(/g) || []).length
 check(decodesCrudos === 1,
   `solo safeDecode puede llamar a decodeURIComponent y hay ${decodesCrudos} llamadas`);
 
+// ============ 9) segunda revision Codex sobre el PR #64
+// Controles de FORMA, complementarios de los casos DOM H10-44..H10-55.
+
+// P1 · el cierre legacy se canonicaliza ANTES de archivar.
+check(/function cierreSoloLegacy\(item\)/.test(cierreCodigo),
+  'hace falta detectar el cierre legacy-only antes de archivarlo');
+check(/async function canonicalizarCierreLegacy\(referencia\)/.test(cierreCodigo),
+  'el cierre legacy tiene que preservarse en su eje propio antes del archivado');
+const cuerpoCanon = cierreCodigo.slice(
+  cierreCodigo.indexOf('async function canonicalizarCierreLegacy'),
+  cierreCodigo.indexOf('function guardarArchivado'));
+check(/repo\.actualizar\(uuid, \{ estado_coi: CERRADA \}\)/.test(cuerpoCanon),
+  'la canonicalizacion tiene que escribir SOLO estado_coi por el repositorio');
+check(cuerpoCanon.indexOf('fecha_cierre_operativo') < 0 &&
+      cuerpoCanon.indexOf('observacion_cierre') < 0,
+  'no se inventa fecha ni observacion de un cierre que nadie registro');
+check(cuerpoCanon.indexOf('return false;') >= 0,
+  'si la canonicalizacion falla no se archiva: fail closed');
+// Solo hacia el historial, y solo si el marcador es legacy-only.
+check(/if \(item && !estaArchivada\(item\)\) \{/.test(cierreCodigo),
+  'la canonicalizacion solo corre cuando la OC va hacia el historial');
+// Que la funcion exista no alcanza: el guard tiene que LLAMARLA y respetar su
+// resultado, o el archivado sigue destruyendo la evidencia del cierre.
+check(/const preservado = await canonicalizarCierreLegacy\(ref\);/.test(cierreCodigo),
+  'el guard de archivado tiene que llamar a la canonicalizacion');
+check(/if \(!preservado\) return false;/.test(cierreCodigo),
+  'si el cierre no se pudo preservar, el archivado se corta');
+check(/if \(!item \|\| !cierreSoloLegacy\(item\)\) return true;/.test(cuerpoCanon),
+  'una OC ya cerrada canonicamente no puede pagar una escritura extra');
+
+// P2 · la ruta de ficha UM no depende del catalogo de Ordenes.
+const gateArranque = routerCodigo.slice(routerCodigo.indexOf('const listo = await esperarArranque();'));
+check(gateArranque.slice(0, 900).indexOf("cabeza.value === 'ficha-oc'") >= 0,
+  'el gate de arranque solo puede bloquear rutas que dependan de Ordenes');
+check(gateArranque.slice(0, 900).indexOf("cabeza.value === 'ficha-um'") < 0,
+  'ficha-um NO puede quedar bloqueada por el snapshot de Ordenes: su autoridad es H05');
+
+// P2 · Reintentar relee de verdad, por el camino canonico de cada modulo.
+const cuerpoReintento = routerCodigo.slice(
+  routerCodigo.indexOf("if (t.closest('#h10ReintentarCatalogo')"),
+  routerCodigo.indexOf("if (t.closest('#h09Tabs"));
+check(cuerpoReintento.indexOf("window.recargarDatosDesdeSupabase({ silencioso: true })") >= 0,
+  'reintentar el catalogo tiene que releer por el camino canonico de Ordenes');
+check(cuerpoReintento.indexOf('window.recargarUnidadesMantenimiento()') >= 0,
+  'reintentar UM tiene que releer por el camino canonico de UM');
+check(cuerpoReintento.indexOf('await aplicar(ruta)') >= 0,
+  'la ruta pedida se reaplica DESPUES de la relectura');
+check(cuerpoReintento.indexOf('location.reload') < 0 && cuerpoReintento.indexOf('localStorage') < 0,
+  'reintentar no puede recargar la pagina ni leer localStorage');
+check(cuerpoReintento.indexOf('.from(') < 0,
+  'reintentar no puede abrir una lectura paralela a la tabla');
+
+// P2 · #red limpia el contexto de estacion.
+check(/function limpiarEstacion\(\)/.test(routerCodigo),
+  'volver a la Red general necesita un reset explicito de estacion');
+check(/estacionVigente = '';/.test(routerCodigo),
+  'la estacion vigente tiene que limpiarse');
+check(/panel\.classList\.remove\('active'\)/.test(routerCodigo),
+  'el panel de estacion tiene que dejar de estar activo en la Red general');
+check(/if \(cabeza === 'red' && !decodificados\[1\]\) \{/.test(routerCodigo),
+  'la ruta exacta #red tiene que limpiar el contexto antes de abrir la vista');
+
+// P2 · el filtro de registro vive en el renderer canonico.
+const htmlSinComentarios = sinComentarios(html);
+check(/function obtenerOrdenesFiltradas\(\)\{[\s\S]{0,200}coiFiltrarPorRegistro\(\[\.\.\.getRowsFinal\(\)\]\)/.test(htmlSinComentarios),
+  'obtenerOrdenesFiltradas tiene que aplicar el filtro de estado de registro');
+check(/function coiEstadoRegistroDeFila\(row\)/.test(htmlSinComentarios),
+  'el estado de registro tiene que leerse con sus alias reales');
+for (const alias of ['r.estadoRegistro', 'r.estado_registro', '_supabaseRaw&&r._supabaseRaw.estado_registro']) {
+  check(htmlSinComentarios.indexOf(alias) >= 0, `falta el alias ${alias} del estado de registro`);
+}
+check(/if\(modo==='archivadas'\)return rows\.filter\(r=>coiEstadoRegistroDeFila\(r\)==='ARCHIVADO'\);/.test(htmlSinComentarios),
+  'archivadas incluye exclusivamente las archivadas');
+check(/return rows\.filter\(r=>coiEstadoRegistroDeFila\(r\)!=='ARCHIVADO'\);/.test(htmlSinComentarios),
+  'activas excluye las archivadas');
+check(/if\(modo==='todas'\)return rows;/.test(htmlSinComentarios),
+  'todas no filtra por estado de registro');
+
+// CI · el DOM temporal del router se retira al salir del error.
+check(/const IDS_ESTADO_RUTA = \[/.test(routerCodigo),
+  'los estados del router tienen que estar enumerados para poder retirarlos');
+check(/function limpiarDOMEstadoRuta\(\)/.test(routerCodigo),
+  'hace falta retirar el nodo del estado de error, no solo taparlo');
+check(/function limpiarRutaError\(\) \{ rutaError = ''; limpiarDOMEstadoRuta\(\); \}/.test(routerCodigo),
+  'limpiar la ruta de error tiene que limpiar tambien su DOM');
+for (const id of ['h10RutaInvalida', 'h10CatalogoNoDisponible', 'h10OCNoEncontrada',
+                  'h10UMNoDisponible', 'h10UMNoEncontrada']) {
+  check(routerCodigo.indexOf("'" + id + "'") >= 0, `${id} tiene que poder retirarse del DOM`);
+}
+// Se retira el nodo del estado, no el contenedor de la ficha.
+check(routerCodigo.indexOf("removeChild(nodo)") >= 0 &&
+      !/fichaOCBody'\)\.innerHTML = ''/.test(routerCodigo),
+  'la limpieza no puede destruir una Ficha OC normal');
+
 // ============ 7) sin migraciones
 const migraciones = fs.readdirSync('supabase/migrations').filter((f) => /h10/i.test(f));
 check(migraciones.length === 0, `H10 no crea migraciones (encontradas: ${migraciones.join(', ')})`);

@@ -80,7 +80,17 @@ const OC_ACTA_DEFINITIVA = Object.assign({}, BASE, {
   estado_coi: 'Finalizada con acta definitiva', estado_registro: 'Activo'
 });
 
-const TODAS = [OC_ACTIVA, OC_CERRADA, OC_ARCHIVADA, OC_FINALIZADA, OC_ACTA_DEFINITIVA];
+// Cierre HISTORICO: la unica evidencia es estado_registro='Cerrado', que es la
+// columna que archivar sobrescribe. Sin canonicalizacion previa, archivarla
+// borraba la prueba de su cierre.
+const OC_LEGACY_CERRADA = Object.assign({}, BASE, {
+  id: '77777777-7777-4777-8777-777777777777', nro_oc: '4530000007',
+  id_obra: 'OBRA-H10-LEGACY', proveedor: 'PROVEEDOR LEGACY',
+  estado_coi: 'En ejecución', estado_registro: 'Cerrado'
+});
+
+const TODAS = [OC_ACTIVA, OC_CERRADA, OC_ARCHIVADA, OC_FINALIZADA, OC_ACTA_DEFINITIVA,
+  OC_LEGACY_CERRADA];
 
 // Unidades de Mantenimiento para las rutas #ficha-um.
 const UM_UNA = {
@@ -106,7 +116,10 @@ async function prepararH10(page, opciones = {}) {
     // flag: asi __COI_UM_H05__.sincronizado pasa por false de verdad.
     ums: [], umDelayMs: 0,
     // Fallos de carga, para separar «error remoto» de «entidad inexistente».
-    fallaOrdenes: false, fallaSesion: false
+    // Con `soloPrimeraLectura` el fallo se cura solo tras la primera lectura,
+    // que es lo que permite demostrar que Reintentar LEE DE NUEVO.
+    fallaOrdenes: false, fallaSesion: false,
+    fallaUms: false, soloPrimeraLectura: false
   }, opciones);
 
   await page.route((url) => url.hostname !== '127.0.0.1', (route) => route.abort());
@@ -122,6 +135,10 @@ async function prepararH10(page, opciones = {}) {
 
     window.__H10__ = {
       rpc: [], toasts: [], locales: 0, escriturasOperativas: [],
+      // Lecturas remotas por tabla: la evidencia de que Reintentar volvio a
+      // consultar Supabase y no solo repinto la pantalla.
+      lecturas: { coi_ordenes: 0, coi_unidades_mantenimiento: 0 },
+      sanar: () => { window.__H10_SANO__ = true; },
       remoto: () => filas.map((f) => Object.assign({}, f)),
       fila: (nro) => filas.find((f) => String(f.nro_oc) === String(nro)) || null
     };
@@ -159,8 +176,17 @@ async function prepararH10(page, opciones = {}) {
           return f ? { data: Object.assign({}, f), error: null } : { data: null, error: { message: 'no rows' } };
         },
         async _run() {
-          if (tabla === 'coi_ordenes' && c.fallaOrdenes) {
+          if (Object.prototype.hasOwnProperty.call(window.__H10__.lecturas, tabla)) {
+            window.__H10__.lecturas[tabla] += 1;
+          }
+          // `soloPrimeraLectura` hace que el fallo se cure tras la primera
+          // consulta: si el boton no relee, el error nunca desaparece.
+          const sano = c.soloPrimeraLectura && window.__H10_SANO__ === true;
+          if (tabla === 'coi_ordenes' && c.fallaOrdenes && !sano) {
             return { data: null, count: null, error: { message: 'fixture H10: lectura de órdenes rechazada' } };
+          }
+          if (tabla === 'coi_unidades_mantenimiento' && c.fallaUms && !sano) {
+            return { data: null, count: null, error: { message: 'fixture H10: lectura de UM rechazada' } };
           }
           // Mientras el remoto de UM no publico nada, la consulta NO resuelve:
           // es exactamente el estado que el router tiene que esperar.
@@ -249,6 +275,8 @@ async function abrirCrudo(page, hash) {
   await page.waitForTimeout(3000);
   return errores;
 }
+
+const lecturas = (page, tabla) => page.evaluate((t) => window.__H10__.lecturas[t], tabla);
 
 const estadoRuta = (page) => page.evaluate(() => ({
   hash: location.hash,
@@ -1037,6 +1065,12 @@ test('H10-38 · F5 · si la lectura de Órdenes falla, no se afirma que la OC no
   await prepararH10(page, { fallaOrdenes: true });
   await abrirCrudo(page, '#ficha-oc/' + OC_ACTIVA.nro_oc);
 
+  // El router da hasta 6 s para dar por no confirmado el catálogo. Se espera el
+  // estado TERMINAL, no un sleep fijo: con 3 s el Gate inspeccionaba antes de
+  // tiempo y veía errorCatalogo=false. Bajar el límite productivo para que el
+  // test pase sería falsear la prueba.
+  await expect(page.locator('#h10CatalogoNoDisponible')).toBeVisible({ timeout: 12000 });
+
   const e = await estadoRuta(page);
   expect(e.errorCatalogo).toBe(true);
   expect(e.noEncontrada).toBe(false);
@@ -1047,6 +1081,12 @@ test('H10-38 · F5 · si la lectura de Órdenes falla, no se afirma que la OC no
 test('H10-39 · F5 · si la sesión falla tampoco se afirma que la OC no existe', async ({ page }) => {
   await prepararH10(page, { fallaSesion: true });
   await abrirCrudo(page, '#ficha-oc/' + OC_ACTIVA.nro_oc);
+
+  // Mismo criterio determinista que H10-38.
+  await page.waitForFunction(
+    () => Boolean(document.getElementById('h10CatalogoNoDisponible')) ||
+          Boolean(document.getElementById('h10OCNoEncontrada')),
+    null, { timeout: 12000 });
 
   const e = await estadoRuta(page);
   expect(e.noEncontrada).toBe(false);
@@ -1120,5 +1160,240 @@ test('H10-43 · F7 · desde la ruta inválida se vuelve a Órdenes y la URL se c
   const e = await estadoRuta(page);
   expect(e.vista).toBe('vistaOrdenes');
   expect(e.hash).toContain('ordenes');
+  // El nodo del error tiene que quedar RETIRADO del DOM, no solo tapado: si
+  // sigue montado, la pantalla siguiente arrastra el error bajo una URL ya
+  // corregida.
   expect(e.rutaInvalida).toBe(false);
+  expect(await page.locator('#h10RutaInvalida').count()).toBe(0);
+  expect(await page.evaluate(() => window.COI_ROUTING_H10.rutaVigente())).not.toContain('ABC');
+});
+
+// ============================================================ D · segunda revisión Codex del PR #64
+
+// ---------------------------------------------------------------- P1 · cierre legacy preservado
+
+test('H10-44 · P1 · archivar una OC con cierre legacy canonicaliza antes y no destruye la evidencia', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await abrirFicha(page, OC_LEGACY_CERRADA.nro_oc);
+
+  // Se puede archivar: el cierre histórico vale como cierre.
+  expect((await pantalla(page)).archivarDeshabilitado).toBe(false);
+
+  await page.evaluate((n) => window.archivarOC(n), OC_LEGACY_CERRADA.nro_oc);
+  await page.waitForTimeout(3000);
+
+  // Dos escrituras, en este orden: primero se preserva el cierre en su eje
+  // propio, después se archiva.
+  const cambios = await cambiosRPC(page);
+  expect(cambios).toHaveLength(2);
+  expect(cambios[0]).toEqual({ estado_coi: 'Cerrada' });
+  expect(cambios[1]).toHaveProperty('estado_registro', 'Archivado');
+  // No se inventa historia que nadie registró.
+  expect(cambios[0]).not.toHaveProperty('fecha_cierre_operativo');
+  expect(cambios[0]).not.toHaveProperty('observacion_cierre');
+
+  const r = await remoto(page, OC_LEGACY_CERRADA.nro_oc);
+  expect(r.estado_coi).toBe('Cerrada');
+  expect(r.estado_registro).toBe('Archivado');
+  expect(r.cierre || '').toBe('');
+
+  // Y tras releer Supabase sigue leyéndose como cerrada.
+  await recargar(page);
+  await abrirFicha(page, OC_LEGACY_CERRADA.nro_oc);
+  const tras = await remoto(page, OC_LEGACY_CERRADA.nro_oc);
+  expect(tras.estado_coi).toBe('Cerrada');
+  expect(tras.estado_registro).toBe('Archivado');
+  const p = await pantalla(page);
+  expect(p.textoArchivar).toContain('Desarchivar');
+});
+
+test('H10-45 · P1 · una OC ya cerrada canónicamente no paga una escritura extra', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await abrirFicha(page, OC_CERRADA.nro_oc);
+
+  await page.evaluate((n) => window.archivarOC(n), OC_CERRADA.nro_oc);
+  await page.waitForTimeout(2500);
+
+  const cambios = await cambiosRPC(page);
+  expect(cambios).toHaveLength(1);
+  expect(cambios[0]).toHaveProperty('estado_registro', 'Archivado');
+});
+
+test('H10-46 · P1 · si la canonicalización falla no se archiva nada', async ({ page }) => {
+  await prepararH10(page, { fallaRpc: true });
+  await abrir(page);
+  await abrirFicha(page, OC_LEGACY_CERRADA.nro_oc);
+
+  const ok = await page.evaluate((n) => window.archivarOC(n), OC_LEGACY_CERRADA.nro_oc);
+  await page.waitForTimeout(2500);
+
+  expect(ok).toBe(false);
+  // Fail closed: el estado de registro no se movió, así que el cierre
+  // histórico sigue siendo legible.
+  expect((await remoto(page, OC_LEGACY_CERRADA.nro_oc)).estado_registro).toBe('Cerrado');
+});
+
+// ---------------------------------------------------------------- P2 · ficha UM independiente de Órdenes
+
+test('H10-47 · P2 · #ficha-um abre aunque el catálogo de Órdenes falle', async ({ page }) => {
+  // Órdenes caído, UM sano: la ficha UM no depende de coi_ordenes.
+  await prepararH10(page, { fallaOrdenes: true, ums: [UM_UNA] });
+  await abrirCrudo(page, '#ficha-um/' + UM_UNA.codigo_um);
+
+  await page.waitForFunction(
+    () => (document.querySelector('.view.active') || {}).id === 'vistaFichaUM',
+    null, { timeout: 15000 });
+
+  const e = await estadoRuta(page);
+  expect(e.vista).toBe('vistaFichaUM');
+  expect(e.errorUM).toBe(false);
+  expect(e.errorCatalogo).toBe(false);
+  expect(e.hash).toContain('ficha-um/' + UM_UNA.codigo_um);
+});
+
+// ---------------------------------------------------------------- P2 · Reintentar relee Supabase
+
+test('H10-48 · P2 · Reintentar catálogo dispara una lectura nueva de coi_ordenes', async ({ page }) => {
+  await prepararH10(page, { fallaOrdenes: true, soloPrimeraLectura: true, ordenes: TODAS });
+  await abrirCrudo(page, '#ficha-oc/' + OC_ACTIVA.nro_oc);
+  await expect(page.locator('#h10CatalogoNoDisponible')).toBeVisible({ timeout: 12000 });
+
+  const antes = await lecturas(page, 'coi_ordenes');
+  // A partir de acá el remoto responde bien: si el botón no relee, el error
+  // no puede desaparecer.
+  await page.evaluate(() => window.__H10__.sanar());
+  await page.click('#h10ReintentarCatalogo');
+
+  await page.waitForFunction(
+    () => !document.getElementById('h10CatalogoNoDisponible'), null, { timeout: 15000 });
+
+  expect(await lecturas(page, 'coi_ordenes')).toBeGreaterThan(antes);
+  const e = await estadoRuta(page);
+  expect(e.errorCatalogo).toBe(false);
+  expect(e.noEncontrada).toBe(false);
+  expect(e.hash).toContain(OC_ACTIVA.nro_oc);
+});
+
+test('H10-49 · P2 · Reintentar UM dispara una lectura nueva de coi_unidades_mantenimiento', async ({ page }) => {
+  await prepararH10(page, { fallaUms: true, soloPrimeraLectura: true, ums: [UM_UNA] });
+  await abrirCrudo(page, '#ficha-um/' + UM_UNA.codigo_um);
+  await expect(page.locator('#h10UMNoDisponible')).toBeVisible({ timeout: 15000 });
+
+  const antes = await lecturas(page, 'coi_unidades_mantenimiento');
+  await page.evaluate(() => window.__H10__.sanar());
+  await page.click('#h10ReintentarUM');
+
+  await page.waitForFunction(
+    () => !document.getElementById('h10UMNoDisponible'), null, { timeout: 15000 });
+
+  expect(await lecturas(page, 'coi_unidades_mantenimiento')).toBeGreaterThan(antes);
+  expect((await estadoRuta(page)).hash).toContain('ficha-um/' + UM_UNA.codigo_um);
+});
+
+test('H10-50 · P2 · si la relectura vuelve a fallar se conserva el error, no se afirma inexistencia', async ({ page }) => {
+  await prepararH10(page, { fallaOrdenes: true });
+  await abrirCrudo(page, '#ficha-oc/' + OC_ACTIVA.nro_oc);
+  await expect(page.locator('#h10CatalogoNoDisponible')).toBeVisible({ timeout: 12000 });
+
+  const antes = await lecturas(page, 'coi_ordenes');
+  await page.click('#h10ReintentarCatalogo');
+  await page.waitForTimeout(9000);
+
+  expect(await lecturas(page, 'coi_ordenes')).toBeGreaterThan(antes);
+  const e = await estadoRuta(page);
+  expect(e.noEncontrada).toBe(false);
+  expect(e.texto).not.toContain('No se encontró la Orden de Compra solicitada');
+});
+
+// ---------------------------------------------------------------- P2 · #red limpia la estación
+
+test('H10-51 · P2 · volver a #red deja la Red general, sin estación seleccionada', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+
+  await page.evaluate(() => { location.hash = '#estacion/Temperley'; });
+  await page.waitForTimeout(2500);
+  let e = await page.evaluate(() => ({
+    hash: location.hash,
+    panel: Boolean(document.querySelector('#panelEstacion.active'))
+  }));
+  expect(e.hash).toContain('estacion/Temperley');
+  expect(e.panel).toBe(true);
+
+  await page.evaluate(() => { location.hash = '#red'; });
+  await page.waitForTimeout(3000);
+
+  e = await page.evaluate(() => ({
+    hash: location.hash,
+    vista: (document.querySelector('.view.active') || {}).id || '',
+    panel: Boolean(document.querySelector('#panelEstacion.active')),
+    ruta: window.COI_ROUTING_H10.rutaVigente()
+  }));
+  expect(e.hash).toBe('#red');
+  expect(e.vista).toBe('vistaRed');
+  expect(e.panel).toBe(false);
+  expect(e.ruta).toBe('red');
+  expect(e.hash).not.toContain('Temperley');
+});
+
+test('H10-52 · P2 · Atrás desde una estación no vuelve sola a la estación', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+
+  await page.evaluate(() => { location.hash = '#red'; });
+  await page.waitForTimeout(2000);
+  await page.evaluate(() => { location.hash = '#estacion/Temperley'; });
+  await page.waitForTimeout(2500);
+
+  await page.goBack();
+  await page.waitForTimeout(3000);
+
+  const e = await page.evaluate(() => ({
+    hash: location.hash,
+    panel: Boolean(document.querySelector('#panelEstacion.active'))
+  }));
+  expect(e.hash).toBe('#red');
+  expect(e.panel).toBe(false);
+});
+
+// ---------------------------------------------------------------- P2 · filtro de registro real
+
+const filasVisibles = (page) => page.evaluate(() =>
+  Array.from(document.querySelectorAll('#ordenesTbody tr')).map((tr) => tr.textContent || '').join(' | '));
+
+test('H10-53 · P2 · #ordenes/archivadas muestra solo archivadas', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await page.evaluate(() => { location.hash = '#ordenes/archivadas'; });
+  await page.waitForTimeout(3000);
+
+  const sel = await page.evaluate(() => (document.getElementById('ordenesFiltroRegistro') || {}).value);
+  expect(sel).toBe('archivadas');
+  const filas = await filasVisibles(page);
+  expect(filas).toContain(OC_ARCHIVADA.id_obra);
+  expect(filas).not.toContain(OC_ACTIVA.id_obra);
+});
+
+test('H10-54 · P2 · #ordenes/activas excluye las archivadas', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await page.evaluate(() => { location.hash = '#ordenes/activas'; });
+  await page.waitForTimeout(3000);
+
+  const filas = await filasVisibles(page);
+  expect(filas).toContain(OC_ACTIVA.id_obra);
+  expect(filas).not.toContain(OC_ARCHIVADA.id_obra);
+});
+
+test('H10-55 · P2 · #ordenes/todas muestra ambas', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await page.evaluate(() => { location.hash = '#ordenes/todas'; });
+  await page.waitForTimeout(3000);
+
+  const filas = await filasVisibles(page);
+  expect(filas).toContain(OC_ACTIVA.id_obra);
+  expect(filas).toContain(OC_ARCHIVADA.id_obra);
 });
