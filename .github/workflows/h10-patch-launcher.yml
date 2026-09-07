@@ -9,9 +9,9 @@ permissions:
 
 jobs:
   publish-h10:
-    if: ${{ startsWith(github.event.head_commit.message, 'publish:') }}
+    if: ${{ startsWith(github.event.head_commit.message, 'launch: H10 exact patch') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -25,7 +25,7 @@ jobs:
           target='refs/heads/fix/h10-routing-close-archive-workflow'
           actual="$(git ls-remote origin "$target" | awk '{print $1}')"
           test "$actual" = "$base"
-          cat .h10patch/seq00.b64 .h10patch/seq01.b64 .h10patch/seq02.b64 .h10patch/exact03.b64 .h10patch/exact04.b64 .h10patch/exact05.b64 .h10patch/exact06.b64 .h10patch/exact07.b64 .h10patch/exact08.b64 .h10patch/exact09.b64 | base64 -d > /tmp/h10.patch
+          base64 -d .h10patch/final_patch.gz.b64 | gzip -d > /tmp/h10.patch
           test "$(wc -c < /tmp/h10.patch)" = '57236'
           test "$(sha256sum /tmp/h10.patch | awk '{print $1}')" = '1b7aaa8ce416631a5edf30c7fe13df57cd0781aaebd22fbe3c1ada38e38c1d68'
           grep -q '^From eaf4d4c61f12053d1fc4afc07db363957d497b90 ' /tmp/h10.patch
