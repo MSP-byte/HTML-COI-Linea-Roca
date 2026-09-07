@@ -1,0 +1,49 @@
+name: H10 R3 apply exact patch
+
+on:
+  push:
+    branches:
+      - fix/h10-routing-close-archive-workflow
+    paths:
+      - .github/workflows/h10-r3-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/h10-routing-close-archive-workflow
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Rebuild and verify exact patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .coi-qa/h10-r3/part{01,02,03,04,05,06,07}.b64 | base64 -d > /tmp/h10_pr64_r3.patch
+          echo 'f7579e82ca96eb1a03d0446d9961b686f9cb740bb13ab62ff9acca315d841d7e  /tmp/h10_pr64_r3.patch' | sha256sum -c -
+          grep -q '^diff --git a/index.html b/index.html$' /tmp/h10_pr64_r3.patch
+          grep -q '^diff --git a/tests/check_h10_routing_cierre_archivo.js b/tests/check_h10_routing_cierre_archivo.js$' /tmp/h10_pr64_r3.patch
+          grep -q '^diff --git a/tests/h10_routing_cierre_archivo.spec.js b/tests/h10_routing_cierre_archivo.spec.js$' /tmp/h10_pr64_r3.patch
+
+      - name: Apply H10 R3
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'MSP-byte'
+          git config user.email '197020980+MSP-byte@users.noreply.github.com'
+          git am /tmp/h10_pr64_r3.patch
+          git diff --check HEAD^ HEAD
+
+      - name: Remove transport helpers and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm -r .coi-qa/h10-r3 .github/workflows/h10-r3-apply.yml
+          git commit -m 'chore: remove H10 R3 patch transport helpers'
+          git push origin HEAD:fix/h10-routing-close-archive-workflow
