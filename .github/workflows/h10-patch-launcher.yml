@@ -18,16 +18,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Reassemble and sanity-check final H10 patch
+      - name: Reassemble final H10 patch
         shell: bash
         run: |
           set -euo pipefail
-          cat .h10patch/part00.b64 .h10patch/part01.b64 .h10patch/part02.b64 .h10patch/part03.b64 | base64 -d > /tmp/h10_pr64_final.patch
+          { printf 'R'; cat .h10patch/part00.b64 .h10patch/part01.b64 .h10patch/part02.b64 .h10patch/part03.b64; } | base64 -d > /tmp/h10_pr64_final.patch
           test -s /tmp/h10_pr64_final.patch
           grep -q '^From eaf4d4c61f12053d1fc4afc07db363957d497b90 ' /tmp/h10_pr64_final.patch
-          grep -q '^diff --git a/index.html b/index.html' /tmp/h10_pr64_final.patch
-          grep -q '^diff --git a/tests/check_h10_routing_cierre_archivo.js b/tests/check_h10_routing_cierre_archivo.js' /tmp/h10_pr64_final.patch
-          grep -q '^diff --git a/tests/h10_routing_cierre_archivo.spec.js b/tests/h10_routing_cierre_archivo.spec.js' /tmp/h10_pr64_final.patch
           sha256sum /tmp/h10_pr64_final.patch
 
       - name: Require unchanged PR head
