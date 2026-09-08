@@ -74,6 +74,21 @@ jobs:
           p.write_text(s.replace(old, new, 1), encoding='utf-8')
           PY
 
+      - name: Normalize text EOF
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          for f in [
+              'tests/check_h10_insert_lifecycle_guard.js',
+              'tests/check_h10_routing_cierre_archivo.js',
+              'tests/h10_routing_cierre_archivo.spec.js',
+          ]:
+              p = Path(f)
+              p.write_text(p.read_text(encoding='utf-8').rstrip() + '\n', encoding='utf-8')
+          PY
+
       - name: Install dependencies
         run: npm ci
 
