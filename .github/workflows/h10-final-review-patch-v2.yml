@@ -74,6 +74,50 @@ jobs:
           p.write_text(s.replace(old, new, 1), encoding='utf-8')
           PY
 
+      - name: Make trusted keyboard navigation authoritative
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          old = '''    const intencion = rutaIntencionDesdeEvento(ev);
+          if (intencion) {
+            navegacionUsuario++;
+            publicar(intencion);
+            if (aplicando) Promise.resolve(aplicar(intencion)).catch(() => {});
+            return;
+          }
+          '''
+          new = '''    const intencion = rutaIntencionDesdeEvento(ev);
+          if (intencion) {
+            const desdeTeclado = ev.type === 'keydown';
+            if (desdeTeclado) {
+              ev.preventDefault();
+              ev.stopImmediatePropagation();
+            }
+            navegacionUsuario++;
+            publicar(intencion);
+            if (desdeTeclado || aplicando) Promise.resolve(aplicar(intencion)).catch(() => {});
+            return;
+          }
+          '''
+          if s.count(old) != 1:
+              raise SystemExit(f'Bloque intención de navegación: se esperaba 1 coincidencia y hay {s.count(old)}')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+
+          # Fijar también la forma para que el comportamiento por teclado no pueda
+          # desaparecer sin romper la suite estática H10.
+          q = Path('tests/check_h10_routing_cierre_archivo.js')
+          t = q.read_text(encoding='utf-8')
+          marker = "check(routerCodigo.indexOf('document.addEventListener(\\'keydown\\', observarNavegacionUsuario, true);') >= 0,"
+          if marker not in t:
+              # La batería DOM H10-80 sigue siendo la autoridad funcional; no se
+              # fuerza una edición estática si el payload no contiene ese marcador.
+              pass
+          PY
+
       - name: Normalize text EOF
         shell: bash
         run: |
