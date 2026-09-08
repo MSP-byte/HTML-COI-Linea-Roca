@@ -48,54 +48,53 @@ jobs:
           from pathlib import Path
           p = Path('tests/h10_routing_cierre_archivo.spec.js')
           s = p.read_text(encoding='utf-8')
-
           old_cfg = "    fallaOrdenes: false, fallaSesion: false,\n    fallaUms: false, soloPrimeraLectura: false"
           new_cfg = "    fallaOrdenes: false, fallaSesion: false, ordenesDelayMs: 0,\n    fallaUms: false, soloPrimeraLectura: false"
           if s.count(old_cfg) != 1:
               raise SystemExit(f'fixture cfg mismatch: {s.count(old_cfg)}')
           s = s.replace(old_cfg, new_cfg, 1)
-
           old_run = "          const sano = c.soloPrimeraLectura && window.__H10_SANO__ === true;\n          if (tabla === 'coi_ordenes' && c.fallaOrdenes && !sano) {"
           new_run = "          const sano = c.soloPrimeraLectura && window.__H10_SANO__ === true;\n          if (tabla === 'coi_ordenes' && Number(c.ordenesDelayMs || 0) > 0) {\n            await dormir(Number(c.ordenesDelayMs));\n          }\n          if (tabla === 'coi_ordenes' && c.fallaOrdenes && !sano) {"
           if s.count(old_run) != 1:
               raise SystemExit(f'fixture order delay insertion mismatch: {s.count(old_run)}')
           s = s.replace(old_run, new_run, 1)
-
-          old_test = """test('H10-80 · P2 · Enter sobre acceso rápido durante startup cuenta como intención real del operador', async ({ page }) => {
-  await prepararH10(page, { fallaOrdenes: true });
-  await page.goto('/index.html#ficha-oc/' + OC_ACTIVA.nro_oc, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => Boolean(window.COI_ROUTING_H10), null, { timeout: 20000 });
-  const acceso = page.locator('[data-v2-open-module=\"btnRed\"]').first();
-  await acceso.focus();
-  await acceso.press('Enter');
-  await page.waitForTimeout(7500);
-  const e = await estadoRuta(page);
-  expect(e.vista).toBe('vistaRed');
-  expect(e.hash).toBe('#red');
-});"""
-          new_test = """test('H10-80 · P2 · Enter sobre navegación V2 visible durante startup gana al deep-link pendiente', async ({ page }) => {
-  await prepararH10(page, { ordenesDelayMs: 3000 });
-  await page.goto('/index.html#ficha-oc/' + OC_ACTIVA.nro_oc, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => Boolean(window.COI_ROUTING_H10), null, { timeout: 20000 });
-
-  const selector = '[data-v2-nav=\"btnRed\"]';
-  await page.waitForSelector(selector, { state: 'attached', timeout: 12000 });
-  const mobile = await page.evaluate(() => matchMedia('(max-width: 760px)').matches);
-  if (mobile) {
-    await page.locator('#coiV2Menu').click();
-    await page.waitForFunction(() => document.body.classList.contains('coi-v2-mobile-open'), null, { timeout: 5000 });
-  }
-  const acceso = page.locator(selector).first();
-  await expect(acceso).toBeVisible();
-  await acceso.focus();
-  expect(await page.evaluate(() => document.activeElement?.getAttribute?.('data-v2-nav') || '')).toBe('btnRed');
-  await acceso.press('Enter');
-
-  await page.waitForTimeout(6500);
-  const e = await estadoRuta(page);
-  expect(e.vista).toBe('vistaRed');
-  expect(e.hash).toBe('#red');
-});"""
+          old_test = (
+              "test('H10-80 · P2 · Enter sobre acceso rápido durante startup cuenta como intención real del operador', async ({ page }) => {\n"
+              "  await prepararH10(page, { fallaOrdenes: true });\n"
+              "  await page.goto('/index.html#ficha-oc/' + OC_ACTIVA.nro_oc, { waitUntil: 'domcontentloaded' });\n"
+              "  await page.waitForFunction(() => Boolean(window.COI_ROUTING_H10), null, { timeout: 20000 });\n"
+              "  const acceso = page.locator('[data-v2-open-module=\\\"btnRed\\\"]').first();\n"
+              "  await acceso.focus();\n"
+              "  await acceso.press('Enter');\n"
+              "  await page.waitForTimeout(7500);\n"
+              "  const e = await estadoRuta(page);\n"
+              "  expect(e.vista).toBe('vistaRed');\n"
+              "  expect(e.hash).toBe('#red');\n"
+              "});"
+          )
+          new_test = (
+              "test('H10-80 · P2 · Enter sobre navegación V2 visible durante startup gana al deep-link pendiente', async ({ page }) => {\n"
+              "  await prepararH10(page, { ordenesDelayMs: 3000 });\n"
+              "  await page.goto('/index.html#ficha-oc/' + OC_ACTIVA.nro_oc, { waitUntil: 'domcontentloaded' });\n"
+              "  await page.waitForFunction(() => Boolean(window.COI_ROUTING_H10), null, { timeout: 20000 });\n"
+              "  const selector = '[data-v2-nav=\\\"btnRed\\\"]';\n"
+              "  await page.waitForSelector(selector, { state: 'attached', timeout: 12000 });\n"
+              "  const mobile = await page.evaluate(() => matchMedia('(max-width: 760px)').matches);\n"
+              "  if (mobile) {\n"
+              "    await page.locator('#coiV2Menu').click();\n"
+              "    await page.waitForFunction(() => document.body.classList.contains('coi-v2-mobile-open'), null, { timeout: 5000 });\n"
+              "  }\n"
+              "  const acceso = page.locator(selector).first();\n"
+              "  await expect(acceso).toBeVisible();\n"
+              "  await acceso.focus();\n"
+              "  expect(await page.evaluate(() => document.activeElement?.getAttribute?.('data-v2-nav') || '')).toBe('btnRed');\n"
+              "  await acceso.press('Enter');\n"
+              "  await page.waitForTimeout(6500);\n"
+              "  const e = await estadoRuta(page);\n"
+              "  expect(e.vista).toBe('vistaRed');\n"
+              "  expect(e.hash).toBe('#red');\n"
+              "});"
+          )
           if s.count(old_test) != 1:
               raise SystemExit(f'H10-80 original mismatch: {s.count(old_test)}')
           s = s.replace(old_test, new_test, 1)
