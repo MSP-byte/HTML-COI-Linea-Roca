@@ -1,0 +1,79 @@
+name: H10 Mobile Test Fix Once
+
+on:
+  push:
+    branches:
+      - fix/h10-routing-close-archive-workflow
+    paths:
+      - .github/workflows/h10-mobile-test-fix-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-mobile-test-fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/h10-routing-close-archive-workflow
+          fetch-depth: 2
+
+      - name: Verify expected parent
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD^)" = "4cfc41bea5b5d2ce2c293be5040cee75e84a1d04"
+
+      - name: Make H10-70 exercise the real mobile sidebar flow
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('tests/h10_routing_cierre_archivo.spec.js')
+          text = p.read_text(encoding='utf-8')
+          old = '''  await page.waitForSelector('[data-v2-nav="btnRed"]', { state: 'visible', timeout: 12000 });
+
+  // Este es el caso que no cubría H10-61: el operador NO toca location.hash;
+  // usa la navegación real. El guard de restauración no debe tragarse su click.
+  await page.click('[data-v2-nav="btnRed"]');
+'''
+          new = '''  await page.waitForSelector('[data-v2-nav="btnRed"]', { state: 'visible', timeout: 12000 });
+
+  // En viewport mobile el sidebar V2 está correctamente off-canvas. Playwright
+  // todavía considera visible su botón interno, pero un operador real primero
+  // abre el menú y recién después toca Red. Reproducimos ese mismo gesto sin
+  // force-click ni atajos que debiliten la regresión.
+  const esMobile = await page.evaluate(() => matchMedia('(max-width: 760px)').matches);
+  if (esMobile) {
+    await page.click('#coiV2Menu');
+    await page.waitForFunction(
+      () => document.body.classList.contains('coi-v2-mobile-open'),
+      null, { timeout: 4000 });
+  }
+
+  // Este es el caso que no cubría H10-61: el operador NO toca location.hash;
+  // usa la navegación real. El guard de restauración no debe tragarse su click.
+  await page.click('[data-v2-nav="btnRed"]');
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one H10-70 block, got {text.count(old)}')
+          p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+      - name: Syntax check
+        shell: bash
+        run: |
+          node --check tests/h10_routing_cierre_archivo.spec.js
+          git diff --check
+
+      - name: Commit test fix and remove one-time workflow
+        shell: bash
+        run: |
+          rm .github/workflows/h10-mobile-test-fix-once.yml
+          git config user.name "MSP-byte"
+          git config user.email "mespecial92@gmail.com"
+          git add tests/h10_routing_cierre_archivo.spec.js .github/workflows/h10-mobile-test-fix-once.yml
+          git diff --cached --check
+          git commit -m "test(h10): follow real mobile sidebar flow"
+          git push origin HEAD:fix/h10-routing-close-archive-workflow
