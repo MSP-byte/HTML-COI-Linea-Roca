@@ -60,7 +60,7 @@ jobs:
           p.write_text(s.replace(old, new, 1), encoding='utf-8')
           PY
 
-      - name: Make trusted keyboard navigation authoritative
+      - name: Make trusted keyboard navigation authoritative from router bind
         shell: bash
         run: |
           set -euo pipefail
@@ -68,11 +68,18 @@ jobs:
           from pathlib import Path
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
-          old = "    const intencion = rutaIntencionDesdeEvento(ev);\n    if (intencion) {\n      navegacionUsuario++;\n      publicar(intencion);\n      if (aplicando) Promise.resolve(aplicar(intencion)).catch(() => {});\n      return;\n    }"
-          new = "    const intencion = rutaIntencionDesdeEvento(ev);\n    if (intencion) {\n      const desdeTeclado = ev.type === 'keydown';\n      if (desdeTeclado) {\n        ev.preventDefault();\n        ev.stopImmediatePropagation();\n      }\n      navegacionUsuario++;\n      publicar(intencion);\n      if (desdeTeclado || aplicando) Promise.resolve(aplicar(intencion)).catch(() => {});\n      return;\n    }"
-          if s.count(old) != 1:
-              raise SystemExit(f'Bloque intención de navegación: se esperaba 1 coincidencia y hay {s.count(old)}')
-          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+
+          old_guard = "  function observarNavegacionUsuario(ev) {\n    if ((!restaurando && !aplicando) || !ev || ev.isTrusted !== true) return;\n    if (ev.type === 'keydown' && ev.key !== 'Enter' && ev.key !== ' ') return;\n\n    // Los controles V2 declaran destino. Un click del operador gana al\n    // deep-link pendiente aunque la vista transitoria ya coincida.\n    const intencion = rutaIntencionDesdeEvento(ev);"
+          new_guard = "  function observarNavegacionUsuario(ev) {\n    if (!ev || ev.isTrusted !== true) return;\n    if (ev.type === 'keydown' && ev.key !== 'Enter' && ev.key !== ' ') return;\n\n    // Los controles V2 declaran destino. Un click del operador gana al\n    // deep-link pendiente aunque la vista transitoria ya coincida.\n    const intencion = rutaIntencionDesdeEvento(ev);\n    const tecladoConIntencion = ev.type === 'keydown' && Boolean(intencion);\n    // Enter/Espacio sobre un destino declarado es intención de usuario desde\n    // el instante en que el router queda enlazado, incluso si restaurar() aún\n    // no alcanzó a marcar restaurando=true. Click/change ordinarios siguen\n    // limitados a una restauración/aplicación activa para evitar duplicados.\n    if (!restaurando && !aplicando && !tecladoConIntencion) return;"
+          if s.count(old_guard) != 1:
+              raise SystemExit(f'Guard de navegación: se esperaba 1 coincidencia y hay {s.count(old_guard)}')
+          s = s.replace(old_guard, new_guard, 1)
+
+          old_intent = "    if (intencion) {\n      navegacionUsuario++;\n      publicar(intencion);\n      if (aplicando) Promise.resolve(aplicar(intencion)).catch(() => {});\n      return;\n    }"
+          new_intent = "    if (intencion) {\n      const desdeTeclado = ev.type === 'keydown';\n      if (desdeTeclado) {\n        ev.preventDefault();\n        ev.stopImmediatePropagation();\n      }\n      navegacionUsuario++;\n      publicar(intencion);\n      if (desdeTeclado || aplicando) Promise.resolve(aplicar(intencion)).catch(() => {});\n      return;\n    }"
+          if s.count(old_intent) != 1:
+              raise SystemExit(f'Bloque intención de navegación: se esperaba 1 coincidencia y hay {s.count(old_intent)}')
+          p.write_text(s.replace(old_intent, new_intent, 1), encoding='utf-8')
           PY
 
       - name: Normalize text EOF
