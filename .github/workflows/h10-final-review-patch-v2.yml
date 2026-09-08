@@ -117,14 +117,6 @@ jobs:
               raise SystemExit(f'API pública H10: se esperaba 1 coincidencia y hay {s.count(old_public)}')
           s = s.replace(old_public, new_public, 1)
           p.write_text(s, encoding='utf-8')
-
-          q = Path('tests/check_h10_routing_cierre_archivo.js')
-          t = q.read_text(encoding='utf-8')
-          anchor = "check(routerCodigo.indexOf(\"document.addEventListener('keydown', observarNavegacionUsuario, true);\") >= 0,\n  'el router debe observar navegación real por teclado durante startup');"
-          extra = anchor + "\ncheck(routerCodigo.indexOf('navegarVistaUsuario') >= 0,\n  'el router debe exponer una entrada explícita para intención de navegación por teclado');\ncheck(html.indexOf(\"router.navegarVistaUsuario(vista)\") >= 0,\n  'el shell V2 debe entregar Enter/Espacio directamente al router H10 y no depender de click sintético');"
-          if t.count(anchor) != 1:
-              raise SystemExit(f'Ancla estática keyboard: se esperaba 1 coincidencia y hay {t.count(anchor)}')
-          q.write_text(t.replace(anchor, extra, 1), encoding='utf-8')
           PY
 
       - name: Normalize text EOF
