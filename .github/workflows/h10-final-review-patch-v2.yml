@@ -1,0 +1,107 @@
+name: H10 final review corrections v2
+
+on:
+  push:
+    branches:
+      - fix/h10-routing-close-archive-workflow
+    paths:
+      - .github/workflows/h10-final-review-patch-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - name: Checkout exact branch with history
+        uses: actions/checkout@v4
+        with:
+          ref: fix/h10-routing-close-archive-workflow
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Recover validated patch payload from history
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, gzip, re, subprocess
+          old = subprocess.check_output([
+              'git','show','bb6a0da52bc4de40173392653dee8ed48bd1fc5b:.github/workflows/h10-final-review-patch.yml'
+          ], text=True)
+          m = re.search(r"printf '%s' '([^']+)' \| base64 -d \| gzip -d", old)
+          if not m:
+              raise SystemExit('No se encontró el payload validado en el helper histórico')
+          raw = gzip.decompress(base64.b64decode(m.group(1)))
+          open('/tmp/h10_final_review_patch.py','wb').write(raw)
+          PY
+          python /tmp/h10_final_review_patch.py
+
+      - name: Update obsolete structural startup assertion
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('tests/check_h10_routing_cierre_archivo.js')
+          s = p.read_text(encoding='utf-8')
+          old = '''// P2 · la ruta de ficha UM no depende del catalogo de Ordenes.
+          const gateArranque = routerCodigo.slice(routerCodigo.indexOf('const listo = await esperarArranque();'));
+          check(gateArranque.slice(0, 900).indexOf("cabeza.value === 'ficha-oc'") >= 0,
+            'el gate de arranque solo puede bloquear rutas que dependan de Ordenes');
+          check(gateArranque.slice(0, 900).indexOf("cabeza.value === 'ficha-um'") < 0,
+            'ficha-um NO puede quedar bloqueada por el snapshot de Ordenes: su autoridad es H05');
+          '''
+          new = '''// P2 · la ruta de ficha UM no depende del catalogo de Ordenes.
+          check(routerCodigo.indexOf('function rutaNecesitaCatalogoOrdenes(ruta)') >= 0,
+            'el router debe clasificar las rutas que realmente dependen de Ordenes');
+          const gateArranque = routerCodigo.slice(routerCodigo.indexOf('function rutaNecesitaCatalogoOrdenes(ruta)'));
+          check(gateArranque.slice(0, 650).indexOf("cabeza.value === 'ficha-oc'") >= 0,
+            'solo ficha-oc con identidad puede depender del catalogo de Ordenes');
+          check(gateArranque.slice(0, 650).indexOf("cabeza.value === 'ficha-um'") < 0,
+            'ficha-um NO puede depender del snapshot de Ordenes: su autoridad es H05');
+          '''
+          if s.count(old) != 1:
+              raise SystemExit(f'Bloque startup estático: se esperaba 1 coincidencia y hay {s.count(old)}')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate static suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check tests/h10_routing_cierre_archivo.spec.js
+          npm test
+          git diff --check
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Validate H10-71 to H10-83 desktop and mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx playwright test tests/h10_routing_cierre_archivo.spec.js --grep 'H10-(71|72|73|74|75|76|77|78|79|80|81|82|83)' --project=chromium-desktop --project=chromium-mobile --workers=1
+
+      - name: Commit only clean functional corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/h10-final-review-patch.yml .github/workflows/h10-final-review-patch-v2.yml
+          git config user.name 'MSP-byte'
+          git config user.email 'mespecial92@gmail.com'
+          git add index.html supabase/migrations/202609070001_h10_order_lifecycle_guard.sql tests/h10_routing_cierre_archivo.spec.js tests/check_h10_routing_cierre_archivo.js tests/check_h10_insert_lifecycle_guard.js .github/workflows/h10-final-review-patch.yml .github/workflows/h10-final-review-patch-v2.yml
+          git diff --cached --check
+          git commit -m 'fix(h10): close final lifecycle and routing review gaps'
+          git push origin HEAD:fix/h10-routing-close-archive-workflow
