@@ -1463,7 +1463,16 @@ test('H10-57 · P1 · un cierre remoto concurrente conserva fecha y observación
   await page.waitForTimeout(1200);
 
   expect(ok).toBe(false);
-  expect(await cambiosRPC(page)).toEqual([]);
+  // Con H10 la atomicidad vive en PostgreSQL, no en un SELECT preventivo del
+  // navegador. Una pestaña con snapshot obsoleto puede intentar el cierre por
+  // la RPC canónica; el FOR UPDATE + guard server-side rechazan ese segundo
+  // cierre y preservan la auditoría ya confirmada.
+  const intentos = await cambiosRPC(page);
+  expect(intentos).toHaveLength(1);
+  expect(intentos[0]).toHaveProperty('estado_coi', 'Cerrada');
+  expect(intentos[0]).toHaveProperty('fecha_cierre_operativo');
+  expect(intentos[0]).toHaveProperty('observacion_cierre', 'Cierre operativo de prueba');
+  expect(intentos[0]).not.toHaveProperty('estado_registro');
   const r = await page.evaluate((n) => {
     const f = window.__H10__.fila(n) || {};
     return {
