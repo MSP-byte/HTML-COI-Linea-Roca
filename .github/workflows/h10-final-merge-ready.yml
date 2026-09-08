@@ -53,11 +53,11 @@ jobs:
           if s.count(old_cfg) != 1:
               raise SystemExit(f'fixture cfg mismatch: {s.count(old_cfg)}')
           s = s.replace(old_cfg, new_cfg, 1)
-          old_run = "          const sano = c.soloPrimeraLectura && window.__H10_SANO__ === true;\n          if (tabla === 'coi_ordenes' && c.fallaOrdenes && !sano) {"
-          new_run = "          const sano = c.soloPrimeraLectura && window.__H10_SANO__ === true;\n          if (tabla === 'coi_ordenes' && Number(c.ordenesDelayMs || 0) > 0) {\n            await dormir(Number(c.ordenesDelayMs));\n          }\n          if (tabla === 'coi_ordenes' && c.fallaOrdenes && !sano) {"
-          if s.count(old_run) != 1:
-              raise SystemExit(f'fixture order delay insertion mismatch: {s.count(old_run)}')
-          s = s.replace(old_run, new_run, 1)
+          anchor = "          if (tabla === 'coi_ordenes' && c.fallaOrdenes && !sano) {"
+          delay = "          if (tabla === 'coi_ordenes' && Number(c.ordenesDelayMs || 0) > 0) {\n            await dormir(Number(c.ordenesDelayMs));\n          }\n"
+          if s.count(anchor) != 1:
+              raise SystemExit(f'fixture order anchor mismatch: {s.count(anchor)}')
+          s = s.replace(anchor, delay + anchor, 1)
           old_test = (
               "test('H10-80 · P2 · Enter sobre acceso rápido durante startup cuenta como intención real del operador', async ({ page }) => {\n"
               "  await prepararH10(page, { fallaOrdenes: true });\n"
