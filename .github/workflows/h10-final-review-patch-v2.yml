@@ -13,178 +13,115 @@ permissions:
 jobs:
   patch:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 55
     steps:
-      - name: Checkout exact branch with history
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: fix/h10-routing-close-archive-workflow
           fetch-depth: 0
           persist-credentials: true
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
-      - name: Recover validated patch payload from history
+      - name: Rebuild validated candidate
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
-          import base64, gzip, re, subprocess
-          old = subprocess.check_output([
-              'git','show','bb6a0da52bc4de40173392653dee8ed48bd1fc5b:.github/workflows/h10-final-review-patch.yml'
-          ], text=True)
+          import base64, gzip, re, subprocess, textwrap
+          from pathlib import Path
+          old = subprocess.check_output(['git','show','bb6a0da52bc4de40173392653dee8ed48bd1fc5b:.github/workflows/h10-final-review-patch.yml'], text=True)
           m = re.search(r"printf '%s' '([^']+)' \| base64 -d \| gzip -d", old)
-          if not m:
-              raise SystemExit('No se encontró el payload validado en el helper histórico')
-          raw = gzip.decompress(base64.b64decode(m.group(1)))
-          open('/tmp/h10_final_review_patch.py','wb').write(raw)
+          if not m: raise SystemExit('payload missing')
+          Path('/tmp/h10_final_review_patch.py').write_bytes(gzip.decompress(base64.b64decode(m.group(1))))
+          subprocess.check_call(['python','/tmp/h10_final_review_patch.py'])
+          y = subprocess.check_output(['git','show','792e94538a4775f094f4a15eb6e0179748e3c910:.github/workflows/h10-final-review-patch-v2.yml'], text=True)
+          blocks = re.findall(r"python - <<'PY'\n(.*?)\n\s+PY", y, flags=re.S)
+          if len(blocks) < 6: raise SystemExit(f'expected >=6 python blocks, got {len(blocks)}')
+          for idx in [1,2,3,4,5]:
+              exec(compile(textwrap.dedent(blocks[idx]), f'<helper-{idx}>', 'exec'), {})
           PY
-          python /tmp/h10_final_review_patch.py
-
-      - name: Update obsolete structural startup assertion
+      - name: Resolve quick access directly by module id
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          p = Path('tests/check_h10_routing_cierre_archivo.js')
-          s = p.read_text(encoding='utf-8')
-          old = "// P2 · la ruta de ficha UM no depende del catalogo de Ordenes.\nconst gateArranque = routerCodigo.slice(routerCodigo.indexOf('const listo = await esperarArranque();'));\ncheck(gateArranque.slice(0, 900).indexOf(\"cabeza.value === 'ficha-oc'\") >= 0,\n  'el gate de arranque solo puede bloquear rutas que dependan de Ordenes');\ncheck(gateArranque.slice(0, 900).indexOf(\"cabeza.value === 'ficha-um'\") < 0,\n  'ficha-um NO puede quedar bloqueada por el snapshot de Ordenes: su autoridad es H05');\n"
-          new = "// P2 · la ruta de ficha UM no depende del catalogo de Ordenes.\ncheck(routerCodigo.indexOf('function rutaNecesitaCatalogoOrdenes(ruta)') >= 0,\n  'el router debe clasificar las rutas que realmente dependen de Ordenes');\nconst gateArranque = routerCodigo.slice(routerCodigo.indexOf('function rutaNecesitaCatalogoOrdenes(ruta)'));\ncheck(gateArranque.slice(0, 650).indexOf(\"cabeza.value === 'ficha-oc'\") >= 0,\n  'solo ficha-oc con identidad puede depender del catalogo de Ordenes');\ncheck(gateArranque.slice(0, 650).indexOf(\"cabeza.value === 'ficha-um'\") < 0,\n  'ficha-um NO puede depender del snapshot de Ordenes: su autoridad es H05');\n"
-          if s.count(old) != 1:
-              raise SystemExit(f'Bloque startup estático: se esperaba 1 coincidencia y hay {s.count(old)}')
-          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          p=Path('index.html'); s=p.read_text(encoding='utf-8')
+          old="""    const acceso = t.closest('[data-v2-open-module]');
+    if (acceso) {
+      const id = texto(acceso.getAttribute('data-v2-open-module'));
+      const botones = Array.from(document.querySelectorAll('[data-v2-nav]'));
+      const espejo = botones.find((b) => texto(b.getAttribute('data-v2-nav')) === id);
+      if (espejo) return rutaIntencionDesdeVista(espejo.getAttribute('data-v2-view'));
+    }"""
+          new="""    const acceso = t.closest('[data-v2-open-module]');
+    if (acceso) {
+      const id = texto(acceso.getAttribute('data-v2-open-module'));
+      const vistasPorModulo = {
+        btnDashboard: 'vistaDashboard', btnOrdenes: 'vistaOrdenes',
+        btnCalendarioCOI: 'vistaCalendarioCOI', btnCentroAlertas: 'vistaCentroAlertas',
+        btnRed: 'vistaRed', btnUnidadesMantenimiento: 'vistaUnidadesMantenimiento',
+        btnCarga: 'vistaCarga', btnTimelineCOI: 'vistaTimelineCOI',
+        btnAdministracionSistema: 'vistaAdministracionSistema', btnAcercaSistema: 'vistaAcercaSistema'
+      };
+      const vistaDirecta = vistasPorModulo[id] || '';
+      if (vistaDirecta) return rutaIntencionDesdeVista(vistaDirecta);
+      const espejo = Array.from(document.querySelectorAll('[data-v2-nav]'))
+        .find((b) => texto(b.getAttribute('data-v2-nav')) === id);
+      if (espejo) return rutaIntencionDesdeVista(espejo.getAttribute('data-v2-view'));
+    }"""
+          if s.count(old)!=1: raise SystemExit(f'module resolver matches={s.count(old)}')
+          s=s.replace(old,new,1)
+          old2="const id=module.dataset.v2OpenModule;const vista=NAV.find(item=>item.id===id)?.view||'';const rutaTemprana="
+          new2="const id=module.dataset.v2OpenModule;const vista={btnDashboard:'vistaDashboard',btnOrdenes:'vistaOrdenes',btnCalendarioCOI:'vistaCalendarioCOI',btnCentroAlertas:'vistaCentroAlertas',btnRed:'vistaRed',btnUnidadesMantenimiento:'vistaUnidadesMantenimiento',btnCarga:'vistaCarga',btnTimelineCOI:'vistaTimelineCOI',btnAdministracionSistema:'vistaAdministracionSistema',btnAcercaSistema:'vistaAcercaSistema'}[id]||NAV.find(item=>item.id===id)?.view||'';const rutaTemprana="
+          if s.count(old2)!=1: raise SystemExit(f'early module resolver matches={s.count(old2)}')
+          p.write_text(s.replace(old2,new2,1),encoding='utf-8')
           PY
-
-      - name: Make trusted keyboard navigation authoritative from router bind
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('index.html')
-          s = p.read_text(encoding='utf-8')
-
-          old_guard = "  function observarNavegacionUsuario(ev) {\n    if ((!restaurando && !aplicando) || !ev || ev.isTrusted !== true) return;\n    if (ev.type === 'keydown' && ev.key !== 'Enter' && ev.key !== ' ') return;\n\n    // Los controles V2 declaran destino. Un click del operador gana al\n    // deep-link pendiente aunque la vista transitoria ya coincida.\n    const intencion = rutaIntencionDesdeEvento(ev);"
-          new_guard = "  function observarNavegacionUsuario(ev) {\n    if (!ev || ev.isTrusted !== true) return;\n    if (ev.type === 'keydown' && ev.key !== 'Enter' && ev.key !== ' ') return;\n\n    // Los controles V2 declaran destino. Un click del operador gana al\n    // deep-link pendiente aunque la vista transitoria ya coincida.\n    const intencion = rutaIntencionDesdeEvento(ev);\n    const tecladoConIntencion = ev.type === 'keydown' && Boolean(intencion);\n    // Enter/Espacio sobre un destino declarado es intención de usuario desde\n    // el instante en que el router queda enlazado, incluso si restaurar() aún\n    // no alcanzó a marcar restaurando=true. Click/change ordinarios siguen\n    // limitados a una restauración/aplicación activa para evitar duplicados.\n    if (!restaurando && !aplicando && !tecladoConIntencion) return;"
-          if s.count(old_guard) != 1:
-              raise SystemExit(f'Guard de navegación: se esperaba 1 coincidencia y hay {s.count(old_guard)}')
-          s = s.replace(old_guard, new_guard, 1)
-
-          old_intent = "    if (intencion) {\n      navegacionUsuario++;\n      publicar(intencion);\n      if (aplicando) Promise.resolve(aplicar(intencion)).catch(() => {});\n      return;\n    }"
-          new_intent = "    if (intencion) {\n      const desdeTeclado = ev.type === 'keydown';\n      if (desdeTeclado) ev.preventDefault();\n      navegacionUsuario++;\n      publicar(intencion);\n      if (desdeTeclado || aplicando) Promise.resolve(aplicar(intencion)).catch(() => {});\n      return;\n    }"
-          if s.count(old_intent) != 1:
-              raise SystemExit(f'Bloque intención de navegación: se esperaba 1 coincidencia y hay {s.count(old_intent)}')
-          p.write_text(s.replace(old_intent, new_intent, 1), encoding='utf-8')
-
-          q = Path('tests/check_h10_routing_cierre_archivo.js')
-          t = q.read_text(encoding='utf-8')
-          old_check = "check(routerCodigo.indexOf(\"if ((!restaurando && !aplicando)\") >= 0,\n  'la intención del operador debe poder cancelar restauración y aplicación pendientes');"
-          new_check = "check(routerCodigo.indexOf(\"if (!restaurando && !aplicando && !tecladoConIntencion) return;\") >= 0,\n  'la intención del operador debe cancelar restauración/aplicación y el teclado con destino debe contar incluso antes del restore');"
-          if t.count(old_check) != 1:
-              raise SystemExit(f'Control estático de intención: se esperaba 1 coincidencia y hay {t.count(old_check)}')
-          q.write_text(t.replace(old_check, new_check, 1), encoding='utf-8')
-          PY
-
-      - name: Bridge V2 keyboard directly into H10 router
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('index.html')
-          s = p.read_text(encoding='utf-8')
-
-          old_v2 = "    document.addEventListener('keydown',event=>{const oc=event.target.closest?.('[data-v2-open-oc],[data-v2-open-module]');if(oc&&(event.key==='Enter'||event.key===' ')){event.preventDefault();oc.click();return}if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName||'')){event.preventDefault();$('coiV2GlobalSearch')?.focus()}if(event.key==='Escape'){$('coiV2SearchPanel')?.classList.remove('open');document.body.classList.remove('coi-v2-mobile-open')}});"
-          new_v2 = "    document.addEventListener('keydown',event=>{const target=event.target.closest?.('[data-v2-open-oc],[data-v2-open-module]');if(target&&(event.key==='Enter'||event.key===' ')){event.preventDefault();const module=target.closest?.('[data-v2-open-module]');if(module){const id=module.dataset.v2OpenModule;const vista=NAV.find(item=>item.id===id)?.view||'';const router=window.COI_ROUTING_H10;if(vista&&router&&typeof router.navegarVistaUsuario==='function'&&router.navegarVistaUsuario(vista)!==false){setTimeout(syncNav,80);return}openModule(id);setTimeout(syncNav,80);return}const oc=target.closest?.('[data-v2-open-oc]');if(oc){openOC(oc.dataset.v2OpenOc);$('coiV2SearchPanel')?.classList.remove('open');setTimeout(syncNav,80);return}}if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName||'')){event.preventDefault();$('coiV2GlobalSearch')?.focus()}if(event.key==='Escape'){$('coiV2SearchPanel')?.classList.remove('open');document.body.classList.remove('coi-v2-mobile-open')}});"
-          if s.count(old_v2) != 1:
-              raise SystemExit(f'Handler V2 de teclado: se esperaba 1 coincidencia y hay {s.count(old_v2)}')
-          s = s.replace(old_v2, new_v2, 1)
-
-          marker = "  function observarNavegacionUsuario(ev) {"
-          helper = "  function navegarVistaUsuario(vista) {\n    const ruta = rutaIntencionDesdeVista(vista);\n    if (!ruta) return false;\n    navegacionUsuario++;\n    publicar(ruta);\n    Promise.resolve(aplicar(ruta)).catch(() => {});\n    return true;\n  }\n\n"
-          if s.count(marker) != 1:
-              raise SystemExit(f'Marcador del observer H10: se esperaba 1 coincidencia y hay {s.count(marker)}')
-          s = s.replace(marker, helper + marker, 1)
-
-          old_public = "    refrescar: (o) => refrescarHash(o),\n    vistas: VISTAS,"
-          new_public = "    refrescar: (o) => refrescarHash(o),\n    navegarVistaUsuario,\n    vistas: VISTAS,"
-          if s.count(old_public) != 1:
-              raise SystemExit(f'API pública H10: se esperaba 1 coincidencia y hay {s.count(old_public)}')
-          s = s.replace(old_public, new_public, 1)
-          p.write_text(s, encoding='utf-8')
-          PY
-
-      - name: Persist keyboard intent before H10 router exists
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('index.html')
-          s = p.read_text(encoding='utf-8')
-          old = "const vista=NAV.find(item=>item.id===id)?.view||'';const router=window.COI_ROUTING_H10;"
-          new = "const vista=NAV.find(item=>item.id===id)?.view||'';const rutaTemprana={vistaDashboard:'inicio',vistaOrdenes:'ordenes/activas',vistaCalendarioCOI:'calendario',vistaCentroAlertas:'alertas',vistaRed:'red',vistaUnidadesMantenimiento:'um',vistaCarga:'carga',vistaTimelineCOI:'timeline',vistaAdministracionSistema:'administracion',vistaAcercaSistema:'acerca'}[vista]||'';if(rutaTemprana&&location.hash!=='#'+rutaTemprana){try{history.pushState(history.state,'','#'+rutaTemprana)}catch(e){location.hash='#'+rutaTemprana}}const router=window.COI_ROUTING_H10;"
-          if s.count(old) != 1:
-              raise SystemExit(f'Bridge pre-router: se esperaba 1 coincidencia y hay {s.count(old)}')
-          p.write_text(s.replace(old, new, 1), encoding='utf-8')
-          PY
-
       - name: Normalize text EOF
         shell: bash
         run: |
-          set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          for f in [
-              'tests/check_h10_insert_lifecycle_guard.js',
-              'tests/check_h10_routing_cierre_archivo.js',
-              'tests/h10_routing_cierre_archivo.spec.js',
-          ]:
-              p = Path(f)
-              p.write_text(p.read_text(encoding='utf-8').rstrip() + '\n', encoding='utf-8')
+          for f in ['tests/check_h10_insert_lifecycle_guard.js','tests/check_h10_routing_cierre_archivo.js','tests/h10_routing_cierre_archivo.spec.js']:
+              p=Path(f); p.write_text(p.read_text(encoding='utf-8').rstrip()+'\n',encoding='utf-8')
           PY
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Validate static suite
+      - name: Install and validate static suite
         shell: bash
         run: |
           set -euo pipefail
+          npm ci
           node --check tests/h10_routing_cierre_archivo.spec.js
           npm test
           git diff --check
-
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-
-      - name: Validate H10-80 first desktop and mobile
+      - name: Validate H10-80 desktop and mobile
         shell: bash
         run: |
           set -euo pipefail
-          npx playwright test tests/h10_routing_cierre_archivo.spec.js --grep 'H10-80' --project=chromium-desktop --project=chromium-mobile --workers=1
-
+          npx playwright test tests/h10_routing_cierre_archivo.spec.js --grep 'H10-80' --project=chromium-desktop --project=chromium-mobile --workers=1 --retries=0
       - name: Validate H10-71 to H10-83 desktop and mobile
         shell: bash
         run: |
           set -euo pipefail
-          npx playwright test tests/h10_routing_cierre_archivo.spec.js --grep 'H10-(71|72|73|74|75|76|77|78|79|80|81|82|83)' --project=chromium-desktop --project=chromium-mobile --workers=1
-
-      - name: Commit only clean functional corrections
+          npx playwright test tests/h10_routing_cierre_archivo.spec.js --grep 'H10-(71|72|73|74|75|76|77|78|79|80|81|82|83)' --project=chromium-desktop --project=chromium-mobile --workers=1 --retries=0
+      - name: Commit functional corrections and remove temporary helpers
         shell: bash
         run: |
           set -euo pipefail
-          rm -f .github/workflows/h10-final-review-patch.yml .github/workflows/h10-final-review-patch-v2.yml
+          rm -f \
+            .github/workflows/h10-final-review-patch.yml \
+            .github/workflows/h10-final-review-patch-v2.yml \
+            .github/workflows/h10-inspect-h80.yml \
+            .github/workflows/h10-test-direct-intent.yml \
+            .github/workflows/h10-debug-h80-final.yml \
+            .github/workflows/h10-finalize-v3.yml \
+            docs/agent/H10_DEBUG_H80.md
           git config user.name 'MSP-byte'
           git config user.email 'mespecial92@gmail.com'
-          git add index.html supabase/migrations/202609070001_h10_order_lifecycle_guard.sql tests/h10_routing_cierre_archivo.spec.js tests/check_h10_routing_cierre_archivo.js tests/check_h10_insert_lifecycle_guard.js .github/workflows/h10-final-review-patch.yml .github/workflows/h10-final-review-patch-v2.yml
+          git add -A
           git diff --cached --check
-          git commit -m 'fix(h10): close final lifecycle and routing review gaps'
+          git commit -m 'fix(h10): close lifecycle routing and final review gaps'
           git push origin HEAD:fix/h10-routing-close-archive-workflow
-
-# retrigger 2026-09-08 finalization
