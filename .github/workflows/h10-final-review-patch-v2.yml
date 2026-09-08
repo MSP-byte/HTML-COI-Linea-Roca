@@ -76,7 +76,7 @@ jobs:
           s = s.replace(old_guard, new_guard, 1)
 
           old_intent = "    if (intencion) {\n      navegacionUsuario++;\n      publicar(intencion);\n      if (aplicando) Promise.resolve(aplicar(intencion)).catch(() => {});\n      return;\n    }"
-          new_intent = "    if (intencion) {\n      const desdeTeclado = ev.type === 'keydown';\n      if (desdeTeclado) {\n        ev.preventDefault();\n        ev.stopImmediatePropagation();\n      }\n      navegacionUsuario++;\n      publicar(intencion);\n      if (desdeTeclado || aplicando) Promise.resolve(aplicar(intencion)).catch(() => {});\n      return;\n    }"
+          new_intent = "    if (intencion) {\n      const desdeTeclado = ev.type === 'keydown';\n      if (desdeTeclado) ev.preventDefault();\n      navegacionUsuario++;\n      publicar(intencion);\n      if (desdeTeclado || aplicando) Promise.resolve(aplicar(intencion)).catch(() => {});\n      return;\n    }"
           if s.count(old_intent) != 1:
               raise SystemExit(f'Bloque intención de navegación: se esperaba 1 coincidencia y hay {s.count(old_intent)}')
           p.write_text(s.replace(old_intent, new_intent, 1), encoding='utf-8')
@@ -88,6 +88,43 @@ jobs:
           if t.count(old_check) != 1:
               raise SystemExit(f'Control estático de intención: se esperaba 1 coincidencia y hay {t.count(old_check)}')
           q.write_text(t.replace(old_check, new_check, 1), encoding='utf-8')
+          PY
+
+      - name: Bridge V2 keyboard directly into H10 router
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          old_v2 = "    document.addEventListener('keydown',event=>{const oc=event.target.closest?.('[data-v2-open-oc],[data-v2-open-module]');if(oc&&(event.key==='Enter'||event.key===' ')){event.preventDefault();oc.click();return}if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName||'')){event.preventDefault();$('coiV2GlobalSearch')?.focus()}if(event.key==='Escape'){$('coiV2SearchPanel')?.classList.remove('open');document.body.classList.remove('coi-v2-mobile-open')}});"
+          new_v2 = "    document.addEventListener('keydown',event=>{const target=event.target.closest?.('[data-v2-open-oc],[data-v2-open-module]');if(target&&(event.key==='Enter'||event.key===' ')){event.preventDefault();const module=target.closest?.('[data-v2-open-module]');if(module){const id=module.dataset.v2OpenModule;const vista=NAV.find(item=>item.id===id)?.view||'';const router=window.COI_ROUTING_H10;if(vista&&router&&typeof router.navegarVistaUsuario==='function'&&router.navegarVistaUsuario(vista)!==false){setTimeout(syncNav,80);return}openModule(id);setTimeout(syncNav,80);return}const oc=target.closest?.('[data-v2-open-oc]');if(oc){openOC(oc.dataset.v2OpenOc);$('coiV2SearchPanel')?.classList.remove('open');setTimeout(syncNav,80);return}}if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName||'')){event.preventDefault();$('coiV2GlobalSearch')?.focus()}if(event.key==='Escape'){$('coiV2SearchPanel')?.classList.remove('open');document.body.classList.remove('coi-v2-mobile-open')}});"
+          if s.count(old_v2) != 1:
+              raise SystemExit(f'Handler V2 de teclado: se esperaba 1 coincidencia y hay {s.count(old_v2)}')
+          s = s.replace(old_v2, new_v2, 1)
+
+          marker = "  function observarNavegacionUsuario(ev) {"
+          helper = "  function navegarVistaUsuario(vista) {\n    const ruta = rutaIntencionDesdeVista(vista);\n    if (!ruta) return false;\n    navegacionUsuario++;\n    publicar(ruta);\n    Promise.resolve(aplicar(ruta)).catch(() => {});\n    return true;\n  }\n\n"
+          if s.count(marker) != 1:
+              raise SystemExit(f'Marcador del observer H10: se esperaba 1 coincidencia y hay {s.count(marker)}')
+          s = s.replace(marker, helper + marker, 1)
+
+          old_public = "    refrescar: (o) => refrescarHash(o),\n    vistas: VISTAS,"
+          new_public = "    refrescar: (o) => refrescarHash(o),\n    navegarVistaUsuario,\n    vistas: VISTAS,"
+          if s.count(old_public) != 1:
+              raise SystemExit(f'API pública H10: se esperaba 1 coincidencia y hay {s.count(old_public)}')
+          s = s.replace(old_public, new_public, 1)
+          p.write_text(s, encoding='utf-8')
+
+          q = Path('tests/check_h10_routing_cierre_archivo.js')
+          t = q.read_text(encoding='utf-8')
+          anchor = "check(routerCodigo.indexOf(\"document.addEventListener('keydown', observarNavegacionUsuario, true);\") >= 0,\n  'el router debe observar navegación real por teclado durante startup');"
+          extra = anchor + "\ncheck(routerCodigo.indexOf('navegarVistaUsuario') >= 0,\n  'el router debe exponer una entrada explícita para intención de navegación por teclado');\ncheck(html.indexOf(\"router.navegarVistaUsuario(vista)\") >= 0,\n  'el shell V2 debe entregar Enter/Espacio directamente al router H10 y no depender de click sintético');"
+          if t.count(anchor) != 1:
+              raise SystemExit(f'Ancla estática keyboard: se esperaba 1 coincidencia y hay {t.count(anchor)}')
+          q.write_text(t.replace(anchor, extra, 1), encoding='utf-8')
           PY
 
       - name: Normalize text EOF
