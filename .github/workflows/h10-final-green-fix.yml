@@ -28,7 +28,7 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Apply exact H10 routing/test patch
+      - name: Apply structural H10 routing/test patch
         shell: bash
         run: |
           set -euo pipefail
@@ -37,27 +37,11 @@ jobs:
 
           p = Path('index.html')
           s = p.read_text(encoding='utf-8')
-          old = '''  function observarNavegacionUsuario(ev) {
-            if (!restaurando || !ev || ev.isTrusted !== true) return;
-            const antes = rutaVigente();
-            let resuelta = false;
-            const verificar = () => {
-              if (resuelta || !restaurando) return;
-              const despues = rutaVigente();
-              if (!despues || despues === antes) return;
-              resuelta = true;
-              navegacionUsuario++;
-              publicar(despues);
-            };
-            // La mayoria de los botones cambia vista en el mismo dispatch; algunas
-            // capas V2 sincronizan despues. Se cubren ambos sin convertir un simple
-            // click sin navegacion en cancelacion del restore.
-            setTimeout(verificar, 0);
-            setTimeout(verificar, 90);
-            setTimeout(verificar, 220);
-          }
-          '''
-          new = '''  function rutaIntencionDesdeVista(vista) {
+          start_marker = '  function observarNavegacionUsuario(ev) {'
+          end_marker = '  // ---------------------------------------------------------- datos listos'
+          start = s.index(start_marker)
+          end = s.index(end_marker, start)
+          replacement = '''  function rutaIntencionDesdeVista(vista) {
             const v = texto(vista);
             if (!v) return '';
             if (v === 'vistaOrdenes') return 'ordenes/' + modoRegistro();
@@ -87,10 +71,8 @@ jobs:
           function observarNavegacionUsuario(ev) {
             if (!restaurando || !ev || ev.isTrusted !== true) return;
 
-            // Los controles de navegacion V2 declaran la vista de destino. Esa
-            // intencion es suficiente aunque el startup ya este mostrando de forma
-            // transitoria la misma vista: hacer click en «Red» significa abandonar el
-            // deep-link pendiente incluso si Red ya esta visible por un repintado.
+            // Los controles V2 declaran destino. Un click del operador gana al
+            // deep-link pendiente aunque la vista transitoria ya coincida.
             const intencion = rutaIntencionDesdeEvento(ev);
             if (intencion) {
               navegacionUsuario++;
@@ -108,27 +90,23 @@ jobs:
               navegacionUsuario++;
               publicar(despues);
             };
-            // Para controles que no declaran destino se conserva la deteccion por
-            // resultado visible. MutationObserver y temporizadores siguen sin poder
-            // cancelar el restore porque no generan eventos trusted.
+            // Para controles sin destino declarado se conserva la deteccion por
+            // resultado visible. Repintados automaticos no son eventos trusted.
             setTimeout(verificar, 0);
             setTimeout(verificar, 90);
             setTimeout(verificar, 220);
           }
-          '''
-          if old not in s:
-              raise SystemExit('index.html: target observer block not found exactly')
-          s = s.replace(old, new, 1)
+
+'''
+          s = s[:start] + replacement + s[end:]
           p.write_text(s, encoding='utf-8')
 
           p = Path('tests/h10_routing_cierre_archivo.spec.js')
           s = p.read_text(encoding='utf-8')
-          anchor = '''const lecturas = (page, tabla) => page.evaluate((t) => window.__H10__.lecturas[t], tabla);
 
-          const estadoRuta = (page) => page.evaluate(() => ({
-          '''
-          helper = '''const lecturas = (page, tabla) => page.evaluate((t) => window.__H10__.lecturas[t], tabla);
-
+          anchor = 'const lecturas = (page, tabla) => page.evaluate((t) => window.__H10__.lecturas[t], tabla);\n'
+          pos = s.index(anchor) + len(anchor)
+          helper = '''
           async function navegarV2(page, navId) {
             const selector = `[data-v2-nav="${navId}"]`;
             await page.waitForSelector(selector, { state: 'attached', timeout: 12000 });
@@ -140,44 +118,28 @@ jobs:
             }
             await page.locator(selector).click();
           }
-
-          const estadoRuta = (page) => page.evaluate(() => ({
           '''
-          if anchor not in s:
-              raise SystemExit('spec: helper anchor not found exactly')
-          s = s.replace(anchor, helper, 1)
+          if 'async function navegarV2(page, navId)' not in s:
+              s = s[:pos] + helper + s[pos:]
 
-          old60 = '''  // El shell V2 oculta los botones legacy de #moduleNav; navegar por el
-            // entry point ordinario evita que el test dependa de un control de respaldo
-            // deliberadamente no visible y sigue cubriendo la limpieza de rutaError.
-            await page.evaluate(() => window.mostrarVista('vistaOrdenes'));
-            await page.waitForTimeout(1800);
-          '''
-          new60 = '''  // Se usa el shell visible real. Durante startup este click tiene que ganar
+          t60 = s.index("test('H10-60 · P2 · navegación ordinaria limpia la identidad de un error de ruta'")
+          a60 = s.index('  // El shell V2 oculta los botones legacy de #moduleNav;', t60)
+          b60 = s.index('\n\n  const e = await estadoRuta(page);', a60)
+          repl60 = '''  // Se usa el shell visible real. Durante startup este click tiene que ganar
             // al deep-link anterior y, en mobile, abrir primero el menu off-canvas.
             await navegarV2(page, 'btnOrdenes');
-            await page.waitForTimeout(2200);
-          '''
-          if old60 not in s:
-              raise SystemExit('spec: H10-60 target not found exactly')
-          s = s.replace(old60, new60, 1)
+            await page.waitForTimeout(2200);'''
+          s = s[:a60] + repl60 + s[b60:]
 
-          old70 = '''  await page.waitForSelector('[data-v2-nav="btnRed"]', { state: 'visible', timeout: 12000 });
-
-            // Este es el caso que no cubría H10-61: el operador NO toca location.hash;
-            // usa la navegación real. El guard de restauración no debe tragarse su click.
-            await page.click('[data-v2-nav="btnRed"]');
-            await page.waitForTimeout(7500);
-          '''
-          new70 = '''  // Este es el caso que no cubría H10-61: el operador NO toca location.hash;
+          t70 = s.index("test('H10-70 · P2 · un click real del sidebar durante startup gana al deep-link inicial'")
+          a70 = s.index('  await page.waitForSelector(\'[data-v2-nav="btnRed"]\'', t70)
+          b70 = s.index('\n\n  const e = await estadoRuta(page);', a70)
+          repl70 = '''  // Este es el caso que no cubría H10-61: el operador NO toca location.hash;
             // usa la navegación real. En mobile abre primero el menú off-canvas, igual
             // que un operador; no hay force-click ni bypass del layout.
             await navegarV2(page, 'btnRed');
-            await page.waitForTimeout(7500);
-          '''
-          if old70 not in s:
-              raise SystemExit('spec: H10-70 target not found exactly')
-          s = s.replace(old70, new70, 1)
+            await page.waitForTimeout(7500);'''
+          s = s[:a70] + repl70 + s[b70:]
           p.write_text(s, encoding='utf-8')
           PY
 
