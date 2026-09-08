@@ -1,0 +1,107 @@
+from pathlib import Path
+
+p = Path('index.html')
+s = p.read_text(encoding='utf-8')
+start_marker = '  function observarNavegacionUsuario(ev) {'
+end_marker = '  // ---------------------------------------------------------- datos listos'
+start = s.index(start_marker)
+end = s.index(end_marker, start)
+replacement = '''  function rutaIntencionDesdeVista(vista) {
+    const v = texto(vista);
+    if (!v) return '';
+    if (v === 'vistaOrdenes') return 'ordenes/' + modoRegistro();
+    if (v === 'vistaUnidadesMantenimiento') {
+      const tab = tabUM();
+      return tab === 'servicios' ? 'um/servicios' : 'um';
+    }
+    if (v === 'vistaRed') return 'red';
+    return rutaDe(v);
+  }
+
+  function rutaIntencionDesdeEvento(ev) {
+    const t = ev && ev.target && ev.target.closest ? ev.target : null;
+    if (!t) return '';
+    const nav = t.closest('[data-v2-view]');
+    if (nav) return rutaIntencionDesdeVista(nav.getAttribute('data-v2-view'));
+    const acceso = t.closest('[data-v2-open-module]');
+    if (acceso) {
+      const id = texto(acceso.getAttribute('data-v2-open-module'));
+      const botones = Array.from(document.querySelectorAll('[data-v2-nav]'));
+      const espejo = botones.find((b) => texto(b.getAttribute('data-v2-nav')) === id);
+      if (espejo) return rutaIntencionDesdeVista(espejo.getAttribute('data-v2-view'));
+    }
+    return '';
+  }
+
+  function observarNavegacionUsuario(ev) {
+    if (!restaurando || !ev || ev.isTrusted !== true) return;
+
+    // Los controles V2 declaran destino. Un click del operador gana al
+    // deep-link pendiente aunque la vista transitoria ya coincida.
+    const intencion = rutaIntencionDesdeEvento(ev);
+    if (intencion) {
+      navegacionUsuario++;
+      publicar(intencion);
+      return;
+    }
+
+    const antes = rutaVigente();
+    let resuelta = false;
+    const verificar = () => {
+      if (resuelta || !restaurando) return;
+      const despues = rutaVigente();
+      if (!despues || despues === antes) return;
+      resuelta = true;
+      navegacionUsuario++;
+      publicar(despues);
+    };
+    // Para controles sin destino declarado se conserva la deteccion por
+    // resultado visible. Repintados automaticos no son eventos trusted.
+    setTimeout(verificar, 0);
+    setTimeout(verificar, 90);
+    setTimeout(verificar, 220);
+  }
+
+'''
+s = s[:start] + replacement + s[end:]
+p.write_text(s, encoding='utf-8')
+
+p = Path('tests/h10_routing_cierre_archivo.spec.js')
+s = p.read_text(encoding='utf-8')
+anchor = 'const lecturas = (page, tabla) => page.evaluate((t) => window.__H10__.lecturas[t], tabla);\n'
+pos = s.index(anchor) + len(anchor)
+helper = '''
+async function navegarV2(page, navId) {
+  const selector = `[data-v2-nav="${navId}"]`;
+  await page.waitForSelector(selector, { state: 'attached', timeout: 12000 });
+  const mobile = await page.evaluate(() => matchMedia('(max-width: 760px)').matches);
+  if (mobile) {
+    await page.locator('#coiV2Menu').click();
+    await page.waitForFunction(() => document.body.classList.contains('coi-v2-mobile-open'),
+      null, { timeout: 5000 });
+  }
+  await page.locator(selector).click();
+}
+'''
+if 'async function navegarV2(page, navId)' not in s:
+    s = s[:pos] + helper + s[pos:]
+
+t60 = s.index("test('H10-60 · P2 · navegación ordinaria limpia la identidad de un error de ruta'")
+a60 = s.index('  // El shell V2 oculta los botones legacy de #moduleNav;', t60)
+b60 = s.index('\n\n  const e = await estadoRuta(page);', a60)
+repl60 = '''  // Se usa el shell visible real. Durante startup este click tiene que ganar
+  // al deep-link anterior y, en mobile, abrir primero el menu off-canvas.
+  await navegarV2(page, 'btnOrdenes');
+  await page.waitForTimeout(2200);'''
+s = s[:a60] + repl60 + s[b60:]
+
+t70 = s.index("test('H10-70 · P2 · un click real del sidebar durante startup gana al deep-link inicial'")
+a70 = s.index('  await page.waitForSelector(\'[data-v2-nav="btnRed"]\'', t70)
+b70 = s.index('\n\n  const e = await estadoRuta(page);', a70)
+repl70 = '''  // Este es el caso que no cubría H10-61: el operador NO toca location.hash;
+  // usa la navegación real. En mobile abre primero el menú off-canvas, igual
+  // que un operador; no hay force-click ni bypass del layout.
+  await navegarV2(page, 'btnRed');
+  await page.waitForTimeout(7500);'''
+s = s[:a70] + repl70 + s[b70:]
+p.write_text(s, encoding='utf-8')
