@@ -186,3 +186,5 @@ jobs:
           git diff --cached --check
           git commit -m 'fix(h10): close final lifecycle and routing review gaps'
           git push origin HEAD:fix/h10-routing-close-archive-workflow
+
+# retrigger 2026-09-08 finalization
