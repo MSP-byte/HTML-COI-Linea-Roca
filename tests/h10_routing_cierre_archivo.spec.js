@@ -1469,10 +1469,16 @@ test('H10-57 · P1 · un cierre remoto concurrente conserva fecha y observación
   // cierre y preservan la auditoría ya confirmada.
   const intentos = await cambiosRPC(page);
   expect(intentos).toHaveLength(1);
-  expect(intentos[0]).toHaveProperty('estado_coi', 'Cerrada');
+  // El repositorio normaliza el patch contra la fila remota que acaba de leer.
+  // Si otro operador ya puso estado_coi='Cerrada', ese campo redundante puede
+  // desaparecer antes de llamar al RPC. Lo que importa es que el intento de
+  // cambiar la auditoria llegue al guard server-side y sea rechazado.
   expect(intentos[0]).toHaveProperty('fecha_cierre_operativo');
   expect(intentos[0]).toHaveProperty('observacion_cierre', 'Cierre operativo de prueba');
   expect(intentos[0]).not.toHaveProperty('estado_registro');
+  if (Object.prototype.hasOwnProperty.call(intentos[0], 'estado_coi')) {
+    expect(intentos[0].estado_coi).toBe('Cerrada');
+  }
   const r = await page.evaluate((n) => {
     const f = window.__H10__.fila(n) || {};
     return {
@@ -1536,7 +1542,10 @@ test('H10-60 · P2 · navegación ordinaria limpia la identidad de un error de r
   await page.waitForFunction(() => Boolean(document.getElementById('h10OCNoEncontrada')),
     null, { timeout: 12000 });
 
-  await page.click('#btnOrdenes');
+  // El shell V2 oculta los botones legacy de #moduleNav; navegar por el
+  // entry point ordinario evita que el test dependa de un control de respaldo
+  // deliberadamente no visible y sigue cubriendo la limpieza de rutaError.
+  await page.evaluate(() => window.mostrarVista('vistaOrdenes'));
   await page.waitForTimeout(1800);
 
   const e = await estadoRuta(page);
@@ -1555,6 +1564,25 @@ test('H10-61 · P2 · el arranque lento no reabre la ruta inicial después de qu
 
   // Mientras restaurar() espera el snapshot de Órdenes, el operador sale a Red.
   await page.evaluate(() => { location.hash = '#red'; });
+  await page.waitForTimeout(7500);
+
+  const e = await estadoRuta(page);
+  expect(e.hash).toBe('#red');
+  expect(e.vista).toBe('vistaRed');
+  expect(e.errorCatalogo).toBe(false);
+});
+
+// ---------------------------------------------------------------- P2 · navegación real durante restauración
+
+test('H10-70 · P2 · un click real del sidebar durante startup gana al deep-link inicial', async ({ page }) => {
+  await prepararH10(page, { fallaOrdenes: true });
+  await page.goto('/index.html#ficha-oc/' + OC_ACTIVA.nro_oc, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(window.COI_ROUTING_H10), null, { timeout: 20000 });
+  await page.waitForSelector('[data-v2-nav="btnRed"]', { state: 'visible', timeout: 12000 });
+
+  // Este es el caso que no cubría H10-61: el operador NO toca location.hash;
+  // usa la navegación real. El guard de restauración no debe tragarse su click.
+  await page.click('[data-v2-nav="btnRed"]');
   await page.waitForTimeout(7500);
 
   const e = await estadoRuta(page);

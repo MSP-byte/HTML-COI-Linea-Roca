@@ -32825,6 +32825,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   // ---------------------------------------------------------- publicacion
   let aplicando = false;      // el router esta imponiendo una ruta
   let restaurando = false;    // preserva el hash inicial mientras espera datos
+  let navegacionUsuario = 0;  // version independiente: una accion real del operador gana al startup
   let silencio = 0;           // hashchange que causamos nosotros
   let pendiente = null;
 
@@ -32856,6 +32857,35 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   function programarRefresco(opciones) {
     clearTimeout(pendiente);
     pendiente = setTimeout(() => { try { refrescarHash(opciones); } catch (e) {} }, 45);
+  }
+
+  // Durante restaurar() no alcanza con mirar location.hash: los repintados
+  // automaticos deben quedar silenciados, pero una navegacion REAL del operador
+  // tiene que ganar aunque el hash inicial siga temporalmente en la barra.
+  //
+  // Se observa el resultado visible de un click/change confiable. Si la ruta
+  // que describe la pantalla cambia, se registra una nueva version de intencion
+  // de usuario y se publica esa ruta directamente. publicar() silencia su propio
+  // hashchange, de modo que no hay reentrada; restaurar() detecta la version y
+  // descarta el deep-link capturado al inicio.
+  function observarNavegacionUsuario(ev) {
+    if (!restaurando || !ev || ev.isTrusted !== true) return;
+    const antes = rutaVigente();
+    let resuelta = false;
+    const verificar = () => {
+      if (resuelta || !restaurando) return;
+      const despues = rutaVigente();
+      if (!despues || despues === antes) return;
+      resuelta = true;
+      navegacionUsuario++;
+      publicar(despues);
+    };
+    // La mayoria de los botones cambia vista en el mismo dispatch; algunas
+    // capas V2 sincronizan despues. Se cubren ambos sin convertir un simple
+    // click sin navegacion en cancelacion del restore.
+    setTimeout(verificar, 0);
+    setTimeout(verificar, 90);
+    setTimeout(verificar, 220);
   }
 
   // ---------------------------------------------------------- datos listos
@@ -33245,6 +33275,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     restaurando = true;
     try {
       const inicial = hashActual();
+      const versionUsuarioInicial = navegacionUsuario;
       if (!inicial) {
         // Sin hash se conserva la landing canonica vigente —Inicio operativo—.
         // Mientras restaurando=true los repintados intermedios no publican una
@@ -33257,7 +33288,10 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       const listo = await esperarArranque();
       // esperarArranque() es asincrono. Si durante esa espera el operador ya
       // navego, la ruta capturada al inicio quedo obsoleta y NO puede volver a
-      // imponerse sobre su accion mas reciente.
+      // imponerse sobre su accion mas reciente. La version de usuario es
+      // independiente del hash: cubre justamente el intervalo en que los
+      // refrescos automaticos estan suspendidos por restaurando=true.
+      if (navegacionUsuario !== versionUsuarioInicial) return;
       if (hashActual() !== inicial) return;
       if (!listo) {
         const partes = texto(inicial).split('/').filter((x) => x !== '');
@@ -33281,6 +33315,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       await aplicar(inicial);
       for (const ms of [700, 1800]) {
         await dormir(ms);
+        if (navegacionUsuario !== versionUsuarioInicial) return;
         await reafirmar(inicial);
       }
     } finally {
@@ -33294,6 +33329,12 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
 
   if (!window.__COI_H10_ROUTER_BOUND__) {
     window.__COI_H10_ROUTER_BOUND__ = true;
+
+    // Captura solo interacciones reales del operador. Los MutationObserver,
+    // temporizadores y repintados programaticos no son eventos trusted y no
+    // pueden cancelar una restauracion valida.
+    document.addEventListener('click', observarNavegacionUsuario, true);
+    document.addEventListener('change', observarNavegacionUsuario, true);
 
     window.addEventListener('hashchange', () => {
       if (silencio > 0) { silencio--; return; }
