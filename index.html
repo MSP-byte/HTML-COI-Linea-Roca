@@ -10510,7 +10510,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       if(ev.target.closest('#btnAgregarFilasCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); agregarFilasCargaFix(cargaTipoFix,5); return;}
       if(ev.target.closest('#btnLimpiarCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); renderTablaCargaFix(cargaTipoFix); return;}
       if(ev.target.closest('#btnGuardarCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); guardarCargaFix(); return;}
-      if(ev.target.closest('#btnOrdenesLimpiar')){ev.preventDefault(); ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert','ordenMontoOrden'].forEach(id=>{if($fix(id))$fix(id).value='';}); try{window.renderOrdenes?.();}catch(e){console.error('COI limpiar filtros',e);} return;}
+      if(ev.target.closest('#btnOrdenesLimpiar')){ev.preventDefault(); ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert','ordenMontoOrden'].forEach(id=>{if($fix(id))$fix(id).value='';}); const reg=$fix('ordenesFiltroRegistro');if(reg){reg.value='activas';try{reg.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}} try{window.renderOrdenes?.();}catch(e){console.error('COI limpiar filtros',e);} return;}
       if(ev.target.closest('#btnCoiCsv')){ev.preventDefault(); exportCalendarioFix('csv'); return;}
       if(ev.target.closest('#btnCoiIcs')){ev.preventDefault(); exportCalendarioFix('ics'); return;}
       if(ev.target.closest('#btnExportAlertasCSV')){ev.preventDefault(); const rows=[['Categoria','Severidad','Tipo alerta','OC','ID','Tipo','Estacion','Proveedor','Fecha','Dias','Mensaje','Accion'],...alertasFix().map(a=>[a.categoria,a.severidad,a.tipoAlerta,a.oc,a.idObra,a.tipo,a.estacion,a.proveedor,a.fechaReferencia,a.dias,a.mensaje,a.accionSugerida])]; descargarArchivo('centro_alertas_v58_0r.csv',rows.map(r=>r.map(coiCSVCell).join(';')).join('\n'),'text/csv;charset=utf-8'); return;}
@@ -14631,6 +14631,10 @@ const APP_DATA_MODE = "supabase_first";
   // relectura falla; la cache de localStorage dejo de ser autoridad.
   let ordenesConfirmadas = null;        // null = nunca hubo lectura confirmada
   let ordenesConfirmadasUid = null;     // UID que produjo ese snapshot
+  // H10 final review · freshness of the LATEST full remote catalog read.
+  // The last confirmed in-memory snapshot may be retained during an outage,
+  // but it is not evidence that an absent OC is currently absent remotely.
+  let ordenesLecturaEstado = 'pendiente'; // pendiente | cargando | listo | error
 
   const $sb = (id) => document.getElementById(id);
   const clean = (value) => String(value ?? '').trim();
@@ -15594,6 +15598,7 @@ const APP_DATA_MODE = "supabase_first";
     // no hay a quien atribuirlo y no puede sobrevivir.
     ordenesConfirmadas = null;
     ordenesConfirmadasUid = null;
+    ordenesLecturaEstado = 'error';
     aplicarOrdenesPrincipal([], 'Sin sesión');
     supabaseEstacionesAsociadas = [];
     window.__coiEstacionesAsociadas = [];
@@ -15621,6 +15626,7 @@ const APP_DATA_MODE = "supabase_first";
   // a la vista: un remoto que no se pudo leer no se representa con datos
   // locales.
   function degradarSinAutoridadLocal(reason = 'Supabase no disponible.', options = {}) {
+    ordenesLecturaEstado = 'error';
     const authenticated = options.authenticated === true || Boolean(supabaseUsuario);
     if (!authenticated) {
       vaciarDatosOperativosSinSesion();
@@ -15649,6 +15655,7 @@ const APP_DATA_MODE = "supabase_first";
   function invalidarOperacionalPorIdentidad(uidNuevo) {
     const nuevo = uidNuevo || null;
     if (nuevo === (ordenesConfirmadasUid || null)) return false;
+    ordenesLecturaEstado = 'pendiente';
     // La primera sesion recuperada adopta su UID sin borrar operaciones
     // idempotentes pendientes de una pestaña que acaba de recargarse.
     if (ordenesConfirmadasUid === null && ordenesConfirmadas === null && nuevo) {
@@ -15689,6 +15696,7 @@ const APP_DATA_MODE = "supabase_first";
     supabaseColumnas = new Set(rows.flatMap((row) => Object.keys(row || {})));
     const normalized = deduplicarOrdenes(rows.map(normalizarOrdenDesdeSupabase));
     const duplicates = Math.max(0, rows.length - normalized.length);
+    ordenesLecturaEstado = 'listo';
     // H07 · Ya no se escribe cache local. La lectura quedo confirmada por
     // Supabase, de modo que descartar la copia vieja no puede perder nada.
     purgarCacheOrdenesRetirada();
@@ -15728,9 +15736,14 @@ const APP_DATA_MODE = "supabase_first";
       invalidarOperacionalPorIdentidad(user && user.id);
       const authGeneration = supabaseAuthGeneration;
       const authUid = (user && user.id) || null;
-      if (user && navigator.onLine) return await cargarOrdenesDesdeSupabase({ ...options, authGeneration, authUid });
+      if (user && navigator.onLine) {
+        ordenesLecturaEstado = 'cargando';
+        return await cargarOrdenesDesdeSupabase({ ...options, authGeneration, authUid });
+      }
+      ordenesLecturaEstado = 'error';
       return degradarSinAutoridadLocal(user ? 'Supabase no disponible.' : 'Sin sesión Supabase.', { authenticated: Boolean(user) });
     } catch (error) {
+      ordenesLecturaEstado = 'error';
       console.error('COI Supabase: carga principal fallida', error);
       return degradarSinAutoridadLocal(error?.message || 'Supabase no disponible.', { authenticated: Boolean(user) });
     } finally {
@@ -16927,7 +16940,9 @@ const APP_DATA_MODE = "supabase_first";
   window.invalidarOperacionalPorIdentidad = invalidarOperacionalPorIdentidad;
   window.__COI_H06_ORDENES__ = {
     confirmadas: () => (Array.isArray(ordenesConfirmadas) ? ordenesConfirmadas.length : null),
-    uidConfirmado: () => ordenesConfirmadasUid
+    uidConfirmado: () => ordenesConfirmadasUid,
+    estadoLectura: () => ordenesLecturaEstado,
+    lecturaActualConfirmada: () => ordenesLecturaEstado === 'listo'
   };
   window.purgarCachesOperativasSensibles = purgarCachesOperativasSensibles;
   window.cargarOrdenesPrincipal = cargarOrdenesPrincipal;
@@ -25905,7 +25920,7 @@ body.coi-v2-light input,body.coi-v2-light select,body.coi-v2-light textarea{back
       const oc=event.target.closest('[data-v2-open-oc]');if(oc){event.preventDefault();openOC(oc.dataset.v2OpenOc);$('coiV2SearchPanel')?.classList.remove('open');setTimeout(syncNav,80);return}
       if(!event.target.closest('.coi-v2-search-wrap'))$('coiV2SearchPanel')?.classList.remove('open');
     });
-    document.addEventListener('keydown',event=>{const oc=event.target.closest?.('[data-v2-open-oc],[data-v2-open-module]');if(oc&&(event.key==='Enter'||event.key===' ')){event.preventDefault();oc.click();return}if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName||'')){event.preventDefault();$('coiV2GlobalSearch')?.focus()}if(event.key==='Escape'){$('coiV2SearchPanel')?.classList.remove('open');document.body.classList.remove('coi-v2-mobile-open')}});
+    document.addEventListener('keydown',event=>{const target=event.target.closest?.('[data-v2-open-oc],[data-v2-open-module]');if(target&&(event.key==='Enter'||event.key===' ')){event.preventDefault();const module=target.closest?.('[data-v2-open-module]');if(module){const id=module.dataset.v2OpenModule;const vista={btnDashboard:'vistaDashboard',btnOrdenes:'vistaOrdenes',btnCalendarioCOI:'vistaCalendarioCOI',btnCentroAlertas:'vistaCentroAlertas',btnRed:'vistaRed',btnUnidadesMantenimiento:'vistaUnidadesMantenimiento',btnCarga:'vistaCarga',btnTimelineCOI:'vistaTimelineCOI',btnAdministracionSistema:'vistaAdministracionSistema',btnAcercaSistema:'vistaAcercaSistema'}[id]||NAV.find(item=>item.id===id)?.view||'';const rutaTemprana={vistaDashboard:'inicio',vistaOrdenes:'ordenes/activas',vistaCalendarioCOI:'calendario',vistaCentroAlertas:'alertas',vistaRed:'red',vistaUnidadesMantenimiento:'um',vistaCarga:'carga',vistaTimelineCOI:'timeline',vistaAdministracionSistema:'administracion',vistaAcercaSistema:'acerca'}[vista]||'';if(rutaTemprana&&location.hash!=='#'+rutaTemprana){try{history.pushState(history.state,'','#'+rutaTemprana)}catch(e){location.hash='#'+rutaTemprana}}const router=window.COI_ROUTING_H10;if(vista&&router&&typeof router.navegarVistaUsuario==='function'&&router.navegarVistaUsuario(vista)!==false){setTimeout(syncNav,80);return}openModule(id);setTimeout(syncNav,80);return}const oc=target.closest?.('[data-v2-open-oc]');if(oc){openOC(oc.dataset.v2OpenOc);$('coiV2SearchPanel')?.classList.remove('open');setTimeout(syncNav,80);return}}if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName||'')){event.preventDefault();$('coiV2GlobalSearch')?.focus()}if(event.key==='Escape'){$('coiV2SearchPanel')?.classList.remove('open');document.body.classList.remove('coi-v2-mobile-open')}});
     $('coiV2GlobalSearch')?.addEventListener('input',event=>renderSearch(event.target.value));
     $('coiV2Menu')?.addEventListener('click',()=>{if(matchMedia('(max-width: 760px)').matches){document.body.classList.toggle('coi-v2-mobile-open')}else{const collapsed=document.body.classList.toggle('coi-v2-sidebar-collapsed');localStorage.setItem('coi_v2_sidebar_collapsed',collapsed?'1':'0')}});
     $('coiV2Theme')?.addEventListener('click',()=>{const light=document.body.classList.toggle('coi-v2-light');localStorage.setItem('coi_v2_theme',light?'light':'dark')});
@@ -26477,6 +26492,7 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
     if(name==='calidad_datos_score'){const amount=Number(value);if(!Number.isFinite(amount)||amount<0||amount>100)throw fieldError(name,'El puntaje debe estar entre 0 y 100.');return amount;}
     if(name==='tipo'){const type=text(value).toUpperCase();if(!['OBRA','SERVICIO'].includes(type))throw fieldError(name,'Tipo permitido: Obra o Servicio.');return type==='OBRA'?'Obra':'Servicio';}
     if(name==='moneda'){const currency=text(value).toUpperCase();if(!currency)throw fieldError(name,'La moneda no puede quedar vacía.');return currency;}
+    if(name==='estado_coi'){const clean=text(value),state=clean.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();if(state==='ARCHIVADA'||state==='ARCHIVADO')throw fieldError(name,'Archivar no es un estado operativo. Use «Archivar OC» para mover la Orden al historial.');return clean||null;}
     const clean=text(value);return clean||null;
   }
   function comparable(name,value){if(value===null||value===undefined||value==='')return null;if(BOOLEAN_FIELDS.has(name))return Boolean(value);if(NUMBER_FIELDS.has(name))return Number(value);if(DATE_FIELDS.has(name))return text(value).slice(0,10);if(name==='estado_coi')return text(value).toLocaleUpperCase('es-AR');return text(value);}
@@ -26538,7 +26554,7 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
       const verifiedResult=await access.client.from(TABLE).select('*').eq('id',ordenId).single();if(verifiedResult.error)throw verifiedResult.error;const verified=verifiedResult.data;
       const mismatches=Object.keys(patch).filter(field=>!equalValue(field,patch[field],verified?.[field]));if(mismatches.length){const error=new Error(`Verificación remota fallida para: ${mismatches.join(', ')}.`);error.code='COI_UPDATE_VERIFY';throw error;}
       const warnings=[];
-      await refreshApplication(verified);
+      try{await refreshApplication(verified);}catch(error){console.warn('[COI][ORDENES][UPDATE][POST_COMMIT_SYNC]',error);warnings.push('La actualización quedó confirmada en el servidor, pero la pantalla no pudo resincronizarse. Use «Actualizar» para refrescar la vista.');}
       warnings.push(...await registerHistory(verified,before,fields,access.session));
       return {ok:true,row:verified,fields,warnings};
     })();
@@ -26834,8 +26850,11 @@ document.addEventListener('click',function(event){
 });
 
   function estadoCierreEditor(value){const n=text(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();return n==='CERRADA'||n==='CERRADO';}
+  function estadoArchivoEditor(value){const n=text(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();return n==='ARCHIVADA'||n==='ARCHIVADO';}
   function validarLifecycleEditor(current,baseline){
-    if(has(current,'estado_coi')&&has(baseline,'estado_coi')&&comparable('estado_coi',current.estado_coi)!==comparable('estado_coi',baseline.estado_coi)&&(estadoCierreEditor(current.estado_coi)||estadoCierreEditor(baseline.estado_coi)))throw new Error('El cierre operativo no se edita desde este formulario. Use «Cerrar OC».');
+    const cambio=has(current,'estado_coi')&&has(baseline,'estado_coi')&&comparable('estado_coi',current.estado_coi)!==comparable('estado_coi',baseline.estado_coi);
+    if(cambio&&estadoArchivoEditor(current.estado_coi))throw new Error('Archivar no es un estado operativo. Use «Archivar OC» para mover la Orden al historial.');
+    if(cambio&&(estadoCierreEditor(current.estado_coi)||estadoCierreEditor(baseline.estado_coi)))throw new Error('El cierre operativo no se edita desde este formulario. Use «Cerrar OC».');
   }
   async function saveEditor(){
     if(!editState||savePromise)return;const modal=editState.modal,button=modal.querySelector('#coiEditSaveV60'),errorBox=modal.querySelector('#coiEditErrorV60');showFieldErrors();errorBox.textContent='';button.disabled=true;button.textContent='Guardando…';
@@ -32087,14 +32106,27 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   }
 
   // ---------------------------------------------------------- resolucion
+  function identidadMutacion(v) { return texto(v).toUpperCase(); }
+
+  function coincideMutacionExacta(item, referencia) {
+    const i = item || {};
+    const raw = i._supabaseRaw || {};
+    const buscada = identidadMutacion(referencia);
+    if (!buscada) return false;
+    return [i.id, i.supabaseId, i.idOC, i.idObra, i.id_obra, i.numeroOC, i.nro_oc, i.oc,
+      raw.id, raw.id_obra, raw.nro_oc].some((v) => identidadMutacion(v) === buscada);
+  }
+
   function itemDe(referencia) {
+    if (referencia && typeof referencia === 'object') return referencia.item || referencia;
+    if (!texto(referencia)) return null;
     const candidatos = [];
     try { if (typeof window.resolverOrdenActual === 'function') candidatos.push(window.resolverOrdenActual(referencia)); } catch (e) {}
     try { if (typeof window.buscarPorIdObra === 'function') candidatos.push(window.buscarPorIdObra(referencia)); } catch (e) {}
     try { if (typeof window.obtenerOC === 'function') candidatos.push(window.obtenerOC(referencia)); } catch (e) {}
     for (const c of candidatos) {
       const item = c && (c.item || c);
-      if (item && typeof item === 'object') return item;
+      if (item && typeof item === 'object' && coincideMutacionExacta(item, referencia)) return item;
     }
     return null;
   }
@@ -32288,12 +32320,13 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       // fecha u observacion del primer cierre confirmado.
       // Cierre = estado OPERATIVO. Nunca estado_registro: esa columna es el
       // estado de registro y la usa exclusivamente archivar/desarchivar.
-      await repo.actualizar(uuid, {
+      const resultado = await repo.actualizar(uuid, {
         estado_coi: CERRADA,
         fecha_cierre_operativo: fechaLocalISO(),
         observacion_cierre: texto(motivo) || 'Cierre operativo manual'
       });
-      avisar('OC cerrada operativamente.', 'ok');
+      const advertencias = Array.isArray(resultado && resultado.warnings) ? resultado.warnings.filter(Boolean) : [];
+      avisar(advertencias.length ? 'OC cerrada operativamente. ' + advertencias.join(' ') : 'OC cerrada operativamente.', advertencias.length ? 'warning' : 'ok');
       sincronizar();
       return true;
     } catch (error) {
@@ -32331,9 +32364,9 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   // estado_coi.
   function puedeArchivar(referencia) {
     const item = itemDe(referencia);
-    // Sin item no se decide aca: el ejecutor de H09 informara que no la
-    // encuentra. Bloquear aca convertiria «no la encuentro» en «cerrala».
-    if (!item) return true;
+    // Una mutación de ciclo de vida falla cerrada si la identidad no es exacta.
+    // Un resolver legado por substring nunca puede decidir qué OC modificar.
+    if (!item) return false;
     // Ya archivada: se deja pasar (des/rearchivar no reabre nada).
     if (estaArchivada(item)) return true;
     return cerradaOperativa(item);
@@ -32399,7 +32432,12 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     if (typeof fn !== 'function' || fn.__coiH10Guard) return fn;
     const envuelto = async function (referencia) {
       const ref = referencia || referenciaFicha() || '';
-      if (!puedeArchivar(ref)) {
+      const itemExacto = itemDe(ref);
+      if (!itemExacto) {
+        avisar('No se pudo identificar una OC exacta para archivar. Revise el número o vuelva a sincronizar.', 'error');
+        return false;
+      }
+      if (!puedeArchivar(itemExacto)) {
         avisar('Primero debe cerrar la OC para enviarla al historial.', 'error');
         return false;
       }
@@ -32888,34 +32926,73 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     const acceso = t.closest('[data-v2-open-module]');
     if (acceso) {
       const id = texto(acceso.getAttribute('data-v2-open-module'));
-      const botones = Array.from(document.querySelectorAll('[data-v2-nav]'));
-      const espejo = botones.find((b) => texto(b.getAttribute('data-v2-nav')) === id);
+      const vistasPorModulo = {
+        btnDashboard: 'vistaDashboard', btnOrdenes: 'vistaOrdenes',
+        btnCalendarioCOI: 'vistaCalendarioCOI', btnCentroAlertas: 'vistaCentroAlertas',
+        btnRed: 'vistaRed', btnUnidadesMantenimiento: 'vistaUnidadesMantenimiento',
+        btnCarga: 'vistaCarga', btnTimelineCOI: 'vistaTimelineCOI',
+        btnAdministracionSistema: 'vistaAdministracionSistema', btnAcercaSistema: 'vistaAcercaSistema'
+      };
+      const vistaDirecta = vistasPorModulo[id] || '';
+      if (vistaDirecta) return rutaIntencionDesdeVista(vistaDirecta);
+      const espejo = Array.from(document.querySelectorAll('[data-v2-nav]'))
+        .find((b) => texto(b.getAttribute('data-v2-nav')) === id);
       if (espejo) return rutaIntencionDesdeVista(espejo.getAttribute('data-v2-view'));
+    }
+    const oc = t.closest('[data-v2-open-oc]');
+    if (oc) {
+      const ref = texto(oc.getAttribute('data-v2-open-oc'));
+      const nro = nroDe(ref);
+      if (nro) return 'ficha-oc/' + encodeURIComponent(nro) + '/resumen';
     }
     return '';
   }
 
+  function navegarVistaUsuario(vista) {
+    const ruta = rutaIntencionDesdeVista(vista);
+    if (!ruta) return false;
+    navegacionUsuario++;
+    publicar(ruta);
+    Promise.resolve(aplicar(ruta)).catch(() => {});
+    return true;
+  }
+
   function observarNavegacionUsuario(ev) {
-    if (!restaurando || !ev || ev.isTrusted !== true) return;
+    if (!ev || ev.isTrusted !== true) return;
+    if (ev.type === 'keydown' && ev.key !== 'Enter' && ev.key !== ' ') return;
 
     // Los controles V2 declaran destino. Un click del operador gana al
     // deep-link pendiente aunque la vista transitoria ya coincida.
     const intencion = rutaIntencionDesdeEvento(ev);
+    const tecladoConIntencion = ev.type === 'keydown' && Boolean(intencion);
+    // Enter/Espacio sobre un destino declarado es intención de usuario desde
+    // el instante en que el router queda enlazado, incluso si restaurar() aún
+    // no alcanzó a marcar restaurando=true. Click/change ordinarios siguen
+    // limitados a una restauración/aplicación activa para evitar duplicados.
+    if (!restaurando && !aplicando && !tecladoConIntencion) return;
     if (intencion) {
+      const desdeTeclado = ev.type === 'keydown';
+      if (desdeTeclado) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        ev.stopImmediatePropagation();
+      }
       navegacionUsuario++;
       publicar(intencion);
+      if (desdeTeclado || aplicando) Promise.resolve(aplicar(intencion)).catch(() => {});
       return;
     }
 
     const antes = rutaVigente();
     let resuelta = false;
     const verificar = () => {
-      if (resuelta || !restaurando) return;
+      if (resuelta || (!restaurando && !aplicando)) return;
       const despues = rutaVigente();
       if (!despues || despues === antes) return;
       resuelta = true;
       navegacionUsuario++;
       publicar(despues);
+      if (aplicando) Promise.resolve(aplicar(despues)).catch(() => {});
     };
     // Para controles sin destino declarado se conserva la deteccion por
     // resultado visible. Repintados automaticos no son eventos trusted.
@@ -32925,17 +33002,23 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   }
 
   // ---------------------------------------------------------- datos listos
-  function datosListos() {
+  function estadoCatalogoOrdenes() {
     try {
       const h06 = window.__COI_H06_ORDENES__;
+      if (h06 && typeof h06.estadoLectura === 'function') {
+        const estado = texto(h06.estadoLectura()).toLowerCase();
+        if (estado === 'listo' || estado === 'error' || estado === 'cargando' || estado === 'pendiente') return estado;
+      }
+      if (h06 && typeof h06.lecturaActualConfirmada === 'function' && h06.lecturaActualConfirmada() === true) return 'listo';
       if (h06 && typeof h06.confirmadas === 'function') {
         const n = h06.confirmadas();
-        if (n !== null && n !== undefined) return true;
+        if (n !== null && n !== undefined) return 'listo';
       }
     } catch (e) {}
-    try { if ((window.todasLasOC() || []).length) return true; } catch (e) {}
-    return false;
+    return 'cargando';
   }
+
+  function datosListos() { return estadoCatalogoOrdenes() === 'listo'; }
 
   // No se abre la entidad antes de que el modelo pueda resolverla.
   async function esperarOC(referencia) {
@@ -32944,7 +33027,9 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     while (Date.now() < fin) {
       const item = itemDe(referencia);
       if (item) return item;
-      if (datosListos()) {
+      const estadoCatalogo = estadoCatalogoOrdenes();
+      if (estadoCatalogo === 'error') return null;
+      if (estadoCatalogo === 'listo') {
         if (!confirmadoDesde) confirmadoDesde = Date.now();
         else if (Date.now() - confirmadoDesde > GRACIA_MS) return null;
       }
@@ -33114,12 +33199,15 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   }
 
   function aplicarSubpestana(slug) {
-    const panel = panelDe(slug);
+    const panel = panelDe(slug) || panelDe('resumen');
     if (!panel) return;
     try { if (typeof window.activarSubmoduloFichaOC === 'function') window.activarSubmoduloFichaOC(panel); } catch (e) {}
   }
 
-  async function aplicarInterno(ruta) {
+  function aplicacionObsoleta(version) { return version !== versionAplicacion; }
+
+  async function aplicarInterno(ruta, version) {
+    if (aplicacionObsoleta(version)) return;
     const crudo = texto(ruta);
     const partes = crudo.split('/').filter((p) => p !== '');
 
@@ -33143,6 +33231,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       if (!nro) { abrirVista('vistaOrdenes'); return; }
       const slug = decodificados[2] || 'resumen';
       const item = await esperarOC(nro);
+      if (aplicacionObsoleta(version)) return;
       if (!item) {
         // Solo se afirma que no existe si hubo una lectura remota confirmada.
         if (!datosListos()) { mostrarErrorCatalogo(crudo); return; }
@@ -33154,6 +33243,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       else { abrirVista('vistaFichaOC'); if (typeof window.renderFichaOC === 'function') window.renderFichaOC(clave); }
       // La subpestaña se aplica cuando la ficha ya se pinto.
       await dormir(220);
+      if (aplicacionObsoleta(version)) return;
       aplicarSubpestana(slug);
       return;
     }
@@ -33171,6 +33261,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
         // abrirFichaUM falla, el router normaliza la ruta a otra vista y la
         // direccion pedida se pierde sin reintento.
         const um = await esperarUM(id);
+        if (aplicacionObsoleta(version)) return;
         if (um.estado === 'error') { mostrarErrorUM(crudo); return; }
         if (um.estado === 'ausente') { mostrarUMNoEncontrada(id); return; }
         if (typeof window.abrirFichaUM === 'function') window.abrirFichaUM(id);
@@ -33222,7 +33313,9 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
         aplicarTabUM(decodificados[1] || 'inventario');
         return;
       }
-      abrirVista(vistaDe(cabeza) || vistaDe(RUTA_INICIAL));
+      const vista = vistaDe(cabeza);
+      if (!vista) { mostrarRutaInvalida(crudo); return; }
+      abrirVista(vista);
     }
   }
 
@@ -33230,8 +33323,10 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   // Si llega otra solicitud durante la aplicacion se coalesce y se atiende la
   // ultima, en vez de perderla o de encadenar aplicaciones superpuestas.
   let solicitada = null;
+  let versionAplicacion = 0;
 
   async function aplicar(ruta) {
+    versionAplicacion++;
     solicitada = texto(ruta);
     if (aplicando) return;
     aplicando = true;
@@ -33239,7 +33334,8 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       while (solicitada !== null) {
         const r = solicitada;
         solicitada = null;
-        await aplicarInterno(r);
+        const version = versionAplicacion;
+        await aplicarInterno(r, version);
       }
     } finally {
       aplicando = false;
@@ -33286,14 +33382,22 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   // ---------------------------------------------------------- arranque
   let arrancado = false;
 
-  // Identidad y datos autoritativos antes de abrir nada.
+  // Identidad y datos autoritativos antes de abrir una OC puntual.
   async function esperarArranque() {
     const fin = Date.now() + 6000;
     while (Date.now() < fin) {
-      if (datosListos()) return true;
+      const estado = estadoCatalogoOrdenes();
+      if (estado === 'listo') return true;
+      if (estado === 'error') return false;
       await dormir(150);
     }
     return false;
+  }
+
+  function rutaNecesitaCatalogoOrdenes(ruta) {
+    const partes = texto(ruta).split('/').filter((x) => x !== '');
+    const cabeza = safeDecode(partes[0] || '');
+    return Boolean(cabeza.ok && cabeza.value === 'ficha-oc' && partes[1]);
   }
 
   // Se vuelve a imponer la ruta solo si sigue siendo la pedida y la pantalla
@@ -33319,9 +33423,10 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
         await dormir(900);
         return;
       }
-      // El resultado de esperarArranque SI se mira: sin datos autoritativos no
-      // se aplica una ruta que terminaria afirmando que la entidad no existe.
-      const listo = await esperarArranque();
+      // Solo las rutas que resuelven una OC puntual esperan el catálogo de
+      // Órdenes. Red, Timeline, UM y demás módulos independientes no pagan un
+      // timeout por una tabla que no usan.
+      const listo = rutaNecesitaCatalogoOrdenes(inicial) ? await esperarArranque() : true;
       // esperarArranque() es asincrono. Si durante esa espera el operador ya
       // navego, la ruta capturada al inicio quedo obsoleta y NO puede volver a
       // imponerse sobre su accion mas reciente. La version de usuario es
@@ -33330,23 +33435,8 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       if (navegacionUsuario !== versionUsuarioInicial) return;
       if (hashActual() !== inicial) return;
       if (!listo) {
-        const partes = texto(inicial).split('/').filter((x) => x !== '');
-        const cabeza = safeDecode(partes[0] || '');
-        // El gate de arranque comprueba el snapshot de ORDENES, y por lo tanto
-        // solo puede bloquear rutas que dependan de ese catalogo.
-        //
-        // #ficha-um NO depende de coi_ordenes: su autoridad es el snapshot H05
-        // de Unidades de Mantenimiento. Bloquearla aca era hacer que un fallo de
-        // Ordenes tapara una ficha UM que el remoto podia servir perfectamente.
-        // Esa ruta entra al camino normal, donde esperarUM() ya espera
-        // __COI_UM_H05__.sincronizado y distingue encontrada / ausente / error.
-        //
-        // Las rutas que no resuelven una entidad puntual —#ordenes, #red, #um—
-        // tampoco se bloquean: no afirman nada sobre una entidad concreta.
-        if (cabeza.ok && cabeza.value === 'ficha-oc' && partes[1]) {
-          mostrarErrorCatalogo(inicial);
-          return;
-        }
+        mostrarErrorCatalogo(inicial);
+        return;
       }
       await aplicar(inicial);
       for (const ms of [700, 1800]) {
@@ -33370,7 +33460,9 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     // temporizadores y repintados programaticos no son eventos trusted y no
     // pueden cancelar una restauracion valida.
     document.addEventListener('click', observarNavegacionUsuario, true);
+    document.addEventListener('keydown', observarNavegacionUsuario, true);
     document.addEventListener('change', observarNavegacionUsuario, true);
+    document.addEventListener('keydown', observarNavegacionUsuario, true);
 
     window.addEventListener('hashchange', () => {
       if (silencio > 0) { silencio--; return; }
@@ -33460,6 +33552,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     aplicar: (r) => aplicar(r),
     publicar: (r, o) => publicar(r, o),
     refrescar: (o) => refrescarHash(o),
+    navegarVistaUsuario,
     vistas: VISTAS,
     subpestanas: SUBPESTANAS,
     enAplicacion: () => aplicando

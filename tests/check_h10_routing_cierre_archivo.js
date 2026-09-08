@@ -204,8 +204,8 @@ check(router.indexOf('async function esperarOC(referencia)') >= 0 &&
 check(router.indexOf('function datosListos()') >= 0 &&
   router.indexOf('__COI_H06_ORDENES__') >= 0,
   'la restauracion tiene que apoyarse en la lectura confirmada de Supabase');
-check(router.indexOf('await esperarArranque();') >= 0,
-  'la ruta se aplica despues del arranque, no durante');
+check(router.indexOf('rutaNecesitaCatalogoOrdenes(inicial) ? await esperarArranque() : true') >= 0,
+  'solo las rutas de Ficha OC deben esperar el catálogo de Órdenes en startup');
 
 // Una OC archivada se resuelve por URL directa, sin depender del filtro.
 check(router.indexOf('window.obtenerOC') >= 0 && router.indexOf('window.resolverOrdenActual') >= 0,
@@ -334,8 +334,8 @@ check(routerCodigo.indexOf('No se pudo cargar el catálogo de Órdenes desde el 
 check(/if \(!datosListos\(\)\) \{ mostrarErrorCatalogo\(crudo\); return; \}/.test(routerCodigo),
   'no se puede afirmar que la OC no existe sin una lectura remota confirmada');
 // restaurar() deja de ignorar el resultado de esperarArranque.
-check(/const listo = await esperarArranque\(\);/.test(routerCodigo),
-  'restaurar tiene que mirar el resultado de esperarArranque');
+check(/const listo = rutaNecesitaCatalogoOrdenes\(inicial\) \? await esperarArranque\(\) : true/.test(routerCodigo),
+  'restaurar tiene que esperar Órdenes solo cuando la ruta realmente usa ese catálogo');
 check(/if \(!listo\)/.test(routerCodigo),
   'un arranque sin datos autoritativos no puede seguir como si los tuviera');
 
@@ -403,11 +403,13 @@ check(/if \(!item \|\| !cierreSoloLegacy\(item\)\) return true;/.test(cuerpoCano
   'una OC ya cerrada canonicamente no puede pagar una escritura extra');
 
 // P2 · la ruta de ficha UM no depende del catalogo de Ordenes.
-const gateArranque = routerCodigo.slice(routerCodigo.indexOf('const listo = await esperarArranque();'));
-check(gateArranque.slice(0, 900).indexOf("cabeza.value === 'ficha-oc'") >= 0,
-  'el gate de arranque solo puede bloquear rutas que dependan de Ordenes');
-check(gateArranque.slice(0, 900).indexOf("cabeza.value === 'ficha-um'") < 0,
-  'ficha-um NO puede quedar bloqueada por el snapshot de Ordenes: su autoridad es H05');
+check(routerCodigo.indexOf('function rutaNecesitaCatalogoOrdenes(ruta)') >= 0,
+  'el router debe clasificar las rutas que realmente dependen de Ordenes');
+const gateArranque = routerCodigo.slice(routerCodigo.indexOf('function rutaNecesitaCatalogoOrdenes(ruta)'));
+check(gateArranque.slice(0, 650).indexOf("cabeza.value === 'ficha-oc'") >= 0,
+  'solo ficha-oc con identidad puede depender del catalogo de Ordenes');
+check(gateArranque.slice(0, 650).indexOf("cabeza.value === 'ficha-um'") < 0,
+  'ficha-um NO puede depender del snapshot de Ordenes: su autoridad es H05');
 
 // P2 · Reintentar relee de verdad, por el camino canonico de cada modulo.
 const cuerpoReintento = routerCodigo.slice(
@@ -508,3 +510,36 @@ console.log('  Codex #64    : cierre explícito, puerta única de archivado, fec
 console.log('                 espera UM, error != inexistente, not-found sin identidad stale,');
 console.log('                 hash malformado con estado visible');
 console.log(`${aprobados} controles H10 aprobados; 0 fallidos.`);
+
+// ============ 10) cierre final de review — invariantes de navegación/lifecycle
+check(cierreCodigo.indexOf('function coincideMutacionExacta(item, referencia)') >= 0,
+  'Cerrar/Archivar deben resolver identidad exacta antes de mutar');
+check(cierreCodigo.indexOf('No se pudo identificar una OC exacta para archivar') >= 0,
+  'el archivo debe fallar cerrado ante una referencia ambigua');
+check(html.indexOf("reg.value='activas'") >= 0,
+  'Limpiar filtros debe restablecer el filtro de registro a Activas');
+check(html.indexOf("Archivar no es un estado operativo. Use «Archivar OC»") >= 0,
+  'el editor debe rechazar Archivada/Archivado en estado_coi');
+check(html.indexOf('[COI][ORDENES][UPDATE][POST_COMMIT_SYNC]') >= 0,
+  'un refresh posterior al commit debe quedar como advertencia y no como rollback falso');
+check(routerCodigo.indexOf("document.addEventListener('keydown', observarNavegacionUsuario, true)") >= 0,
+  'el routing debe reconocer navegación originada por teclado');
+check(routerCodigo.indexOf("if (!restaurando && !aplicando && !tecladoConIntencion) return;") >= 0,
+  'la intención del operador debe cancelar restauración/aplicación y el teclado con destino debe contar incluso antes del restore');
+check(routerCodigo.indexOf('let versionAplicacion = 0;') >= 0 &&
+      routerCodigo.indexOf('function aplicacionObsoleta(version)') >= 0,
+  'las rutas asincrónicas necesitan versionado para descartar aplicaciones obsoletas');
+check(routerCodigo.indexOf("if (!vista) { mostrarRutaInvalida(crudo); return; }") >= 0,
+  'un nombre de ruta desconocido debe mostrar estado inválido, no caer silenciosamente a Inicio');
+check(routerCodigo.indexOf("const panel = panelDe(slug) || panelDe('resumen');") >= 0,
+  'una subpestaña OC desconocida debe caer explícitamente en Resumen');
+check(routerCodigo.indexOf('function estadoCatalogoOrdenes()') >= 0 &&
+      routerCodigo.indexOf("estadoCatalogo === 'error'") >= 0,
+  'la ausencia de una OC solo puede afirmarse con una lectura actual confirmada');
+
+check(routerCodigo.indexOf("document.addEventListener('keydown', observarNavegacionUsuario, true);") >= 0,
+  'H10 debe capturar Enter/Espacio antes del handler V2 durante una ruta pendiente');
+check(routerCodigo.indexOf('ev.stopImmediatePropagation();') >= 0,
+  'la intención de teclado H10 debe impedir que el handler legacy vuelva a sintetizar navegación');
+
+console.log('H10 final review guards: OK');

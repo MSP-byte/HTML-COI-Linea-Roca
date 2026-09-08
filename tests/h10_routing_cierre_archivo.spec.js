@@ -119,8 +119,10 @@ async function prepararH10(page, opciones = {}) {
     // Fallos de carga, para separar «error remoto» de «entidad inexistente».
     // Con `soloPrimeraLectura` el fallo se cura solo tras la primera lectura,
     // que es lo que permite demostrar que Reintentar LEE DE NUEVO.
-    fallaOrdenes: false, fallaSesion: false,
-    fallaUms: false, soloPrimeraLectura: false
+    fallaOrdenes: false, fallaSesion: false, ordenesDelayMs: 0,
+    fallaUms: false, soloPrimeraLectura: false,
+    // Permite simular una caída POSTERIOR a un snapshot válido de Órdenes.
+    fallaOrdenesTrasRotura: false
   }, opciones);
 
   await page.route((url) => url.hostname !== '127.0.0.1', (route) => route.abort());
@@ -140,6 +142,7 @@ async function prepararH10(page, opciones = {}) {
       // consultar Supabase y no solo repinto la pantalla.
       lecturas: { coi_ordenes: 0, coi_unidades_mantenimiento: 0 },
       sanar: () => { window.__H10_SANO__ = true; },
+      romper: () => { window.__H10_ROTO__ = true; },
       remoto: () => filas.map((f) => Object.assign({}, f)),
       fila: (nro) => filas.find((f) => String(f.nro_oc) === String(nro)) || null
     };
@@ -183,6 +186,12 @@ async function prepararH10(page, opciones = {}) {
           // `soloPrimeraLectura` hace que el fallo se cure tras la primera
           // consulta: si el boton no relee, el error nunca desaparece.
           const sano = c.soloPrimeraLectura && window.__H10_SANO__ === true;
+          if (tabla === 'coi_ordenes' && c.fallaOrdenesTrasRotura && window.__H10_ROTO__ === true) {
+            return { data: null, count: null, error: { message: 'fixture H10: lectura posterior de órdenes rechazada' } };
+          }
+          if (tabla === 'coi_ordenes' && Number(c.ordenesDelayMs || 0) > 0) {
+            await dormir(Number(c.ordenesDelayMs));
+          }
           if (tabla === 'coi_ordenes' && c.fallaOrdenes && !sano) {
             return { data: null, count: null, error: { message: 'fixture H10: lectura de órdenes rechazada' } };
           }
@@ -219,7 +228,13 @@ async function prepararH10(page, opciones = {}) {
           const antes = Object.assign({}, f), despues = Object.assign({}, f, cambios);
           const oldClosed = cerrado(antes), newClosed = cerrado(despues);
           const has = (k) => Object.prototype.hasOwnProperty.call(cambios, k);
+          const estadoArchivadoCoi = (r) => ['ARCHIVADA','ARCHIVADO'].includes(n(r.estado_coi));
+          const legacyOnly = n(antes.estado_registro) === 'CERRADO' && !estadoCerrado(antes) && !antes.fecha_cierre_operativo;
 
+          if (has('estado_coi') && estadoArchivadoCoi(despues) && !estadoArchivadoCoi(antes))
+            return { data: null, error: { code: 'P0001', message: 'COI_ARCHIVE_STATE_FIELD_FORBIDDEN' } };
+          if (legacyOnly && n(despues.estado_registro) === 'ARCHIVADO' && !estadoCerrado(despues))
+            return { data: null, error: { code: 'P0001', message: 'COI_LEGACY_CLOSE_REQUIRES_CANONICALIZATION' } };
           if (n(despues.estado_registro) === 'ARCHIVADO' && n(antes.estado_registro) !== 'ARCHIVADO' && !oldClosed)
             return { data: null, error: { code: 'P0001', message: 'COI_ARCHIVE_REQUIRES_CLOSED_ORDER' } };
           if (oldClosed && has('estado_coi') && estadoCerrado(antes) && !estadoCerrado(despues))
@@ -1723,4 +1738,181 @@ test('H10-69 · P1 · el editor genérico no renderiza archivo ni campos de audi
   for (const campo of ['estado_registro','fecha_cierre_operativo','observacion_cierre']) {
     await expect(page.locator(`[data-coi-edit-field="${campo}"]`)).toHaveCount(0);
   }
+});
+
+// ============================================================ G · cierre final de review PR #64
+
+test('H10-71 · P2 · un click real en Inicio durante startup cancela el deep-link aunque Inicio ya sea visible', async ({ page }) => {
+  await prepararH10(page, { fallaOrdenes: true });
+  await page.goto('/index.html#ficha-oc/' + OC_ACTIVA.nro_oc, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(window.COI_ROUTING_H10), null, { timeout: 20000 });
+  await navegarV2(page, 'btnDashboard');
+  await page.waitForTimeout(7500);
+  const e = await estadoRuta(page);
+  expect(e.vista).toBe('vistaDashboard');
+  expect(e.hash).toBe('#inicio');
+  expect(e.errorCatalogo).toBe(false);
+});
+
+test('H10-72 · P2 · #red no espera el catálogo de Órdenes cuando Órdenes falla', async ({ page }) => {
+  await prepararH10(page, { fallaOrdenes: true });
+  await page.goto('/index.html#red', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(window.COI_ROUTING_H10), null, { timeout: 20000 });
+  const inicio = Date.now();
+  await page.waitForFunction(() => (document.querySelector('.view.active') || {}).id === 'vistaRed',
+    null, { timeout: 4500 });
+  expect(Date.now() - inicio).toBeLessThan(4500);
+  expect((await estadoRuta(page)).hash).toBe('#red');
+});
+
+test('H10-73 · P2 · navegación del operador cancela una ficha UM que sigue esperando remoto', async ({ page }) => {
+  await prepararH10(page, { ums: [UM_UNA], umDelayMs: 6500 });
+  await abrir(page);
+  await page.evaluate((id) => { location.hash = '#ficha-um/' + encodeURIComponent(id); }, UM_UNA.codigo_um);
+  await page.waitForTimeout(500);
+  await navegarV2(page, 'btnRed');
+  await page.waitForTimeout(7200);
+  const e = await estadoRuta(page);
+  expect(e.vista).toBe('vistaRed');
+  expect(e.hash).toBe('#red');
+  expect(e.umNoEncontrada).toBe(false);
+});
+
+test('H10-74 · P2 · un nombre de ruta desconocido conserva la URL y muestra ruta inválida', async ({ page }) => {
+  await prepararH10(page);
+  await abrirCrudo(page, '#informes');
+  await page.waitForFunction(() => Boolean(document.getElementById('h10RutaInvalida')),
+    null, { timeout: 8000 });
+  const e = await estadoRuta(page);
+  expect(e.rutaInvalida).toBe(true);
+  expect(e.hash).toBe('#informes');
+});
+
+test('H10-75 · P1 · un snapshot retenido no autoriza un falso “OC inexistente” tras fallar la última lectura', async ({ page }) => {
+  await prepararH10(page, { fallaOrdenesTrasRotura: true });
+  await abrir(page);
+  await page.evaluate(async () => {
+    window.__H10__.romper();
+    await window.recargarDatosDesdeSupabase({ silencioso: true });
+  });
+  expect(await page.evaluate(() => window.__COI_H06_ORDENES__.estadoLectura())).toBe('error');
+  await page.evaluate(() => { location.hash = '#ficha-oc/9999999998'; });
+  await page.waitForFunction(() => Boolean(document.getElementById('h10CatalogoNoDisponible')),
+    null, { timeout: 8000 });
+  const e = await estadoRuta(page);
+  expect(e.errorCatalogo).toBe(true);
+  expect(e.noEncontrada).toBe(false);
+  expect(e.hash).toContain('9999999998');
+});
+
+test('H10-76 · P2 · Limpiar filtros restablece Activas y su ruta canónica', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await navegarV2(page, 'btnOrdenes');
+  await page.selectOption('#ordenesFiltroRegistro', 'archivadas');
+  await page.waitForTimeout(600);
+  await page.evaluate(() => document.getElementById('btnOrdenesLimpiar').click());
+  await page.waitForTimeout(900);
+  await expect(page.locator('#ordenesFiltroRegistro')).toHaveValue('activas');
+  expect((await estadoRuta(page)).hash).toBe('#ordenes/activas');
+});
+
+test('H10-77 · P2 · una subpestaña OC desconocida cae explícitamente en Resumen', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await abrirFicha(page, OC_ACTIVA.nro_oc);
+  await page.click('[data-ficha-submodulo="panelFichaCertificaciones"]');
+  await page.waitForTimeout(500);
+  await page.evaluate((n) => { location.hash = '#ficha-oc/' + n + '/historial'; }, OC_ACTIVA.nro_oc);
+  await page.waitForTimeout(1800);
+  const p = await pantalla(page);
+  expect(p.panel).toBe('panelFichaResumen');
+  expect(p.hash).toBe('#ficha-oc/' + OC_ACTIVA.nro_oc + '/resumen');
+});
+
+test('H10-78 · P1 · una referencia parcial no puede cerrar ni archivar otra OC', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  const r = await page.evaluate(async () => ({
+    cerrar: await window.cerrarOC('4530'),
+    archivar: await window.COI_ARCHIVO_OC_H09.archivar('4530')
+  }));
+  expect(r.cerrar).toBe(false);
+  expect(r.archivar).toBe(false);
+  expect((await cambiosRPC(page)).length).toBe(0);
+  expect((await remoto(page, OC_ACTIVA.nro_oc)).estado_coi).toBe('En ejecución');
+});
+
+test('H10-79 · P1 · cierre confirmado sigue siendo éxito si falla solo la resincronización posterior', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await abrirFicha(page, OC_ACTIVA.nro_oc);
+  const resultado = await page.evaluate(async () => {
+    window.recargarDatosDesdeSupabase = async () => { throw new Error('fixture H10: refresh post-commit falló'); };
+    return await window.cerrarOC();
+  });
+  expect(resultado).toBe(true);
+  const r = await remoto(page, OC_ACTIVA.nro_oc);
+  expect(r.estado_coi).toBe('Cerrada');
+  expect(r.cierre).toBeTruthy();
+  expect(await page.evaluate(() => window.__H10__.toasts.some((t) => /confirmada en el servidor|resincronizar/i.test(t.m)))).toBe(true);
+});
+
+test('H10-80 · P2 · Enter sobre navegación V2 visible durante startup gana al deep-link pendiente', async ({ page }) => {
+  await prepararH10(page, { ordenesDelayMs: 3000 });
+  await page.goto('/index.html#ficha-oc/' + OC_ACTIVA.nro_oc, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(window.COI_ROUTING_H10), null, { timeout: 20000 });
+  const selector = '[data-v2-nav="btnRed"]';
+  await page.waitForSelector(selector, { state: 'attached', timeout: 12000 });
+  const mobile = await page.evaluate(() => matchMedia('(max-width: 760px)').matches);
+  if (mobile) {
+    await page.locator('#coiV2Menu').click();
+    await page.waitForFunction(() => document.body.classList.contains('coi-v2-mobile-open'), null, { timeout: 5000 });
+  }
+  const acceso = page.locator(selector).first();
+  await expect(acceso).toBeVisible();
+  await acceso.focus();
+  expect(await page.evaluate(() => document.activeElement?.getAttribute?.('data-v2-nav') || '')).toBe('btnRed');
+  await acceso.press('Enter');
+  await page.waitForTimeout(6500);
+  const e = await estadoRuta(page);
+  expect(e.vista).toBe('vistaRed');
+  expect(e.hash).toBe('#red');
+});
+
+test('H10-81 · P2 · el editor ordinario rechaza estado_coi Archivada sin emitir RPC', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await abrirFicha(page, OC_ACTIVA.nro_oc);
+  await page.evaluate((n) => window.abrirEdicionFichaOC(n), OC_ACTIVA.nro_oc);
+  await page.waitForFunction(() => {
+    const m = document.getElementById('coiEditOCModalV60');
+    return Boolean(m && !m.hidden);
+  }, null, { timeout: 12000 });
+  await page.fill('[data-coi-edit-field="estado_coi"]', 'Archivada');
+  await page.click('#coiEditSaveV60');
+  await expect(page.locator('#coiEditErrorV60')).toContainText('Archivar no es un estado operativo');
+  expect((await cambiosRPC(page)).length).toBe(0);
+});
+
+test('H10-82 · P1 · el servidor rechaza una nueva escritura legacy Archivada en estado_coi', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  const r = await page.evaluate(async (id) => window.getSupabaseClient().rpc('coi_actualizar_orden_integral', {
+    p_orden_id: id, p_cambios: { estado_coi: 'Archivada' }
+  }), OC_ACTIVA.id);
+  expect(r.error && r.error.message).toBe('COI_ARCHIVE_STATE_FIELD_FORBIDDEN');
+  expect((await remoto(page, OC_ACTIVA.nro_oc)).estado_coi).toBe('En ejecución');
+});
+
+test('H10-83 · P1 · archivo directo legacy-only exige canonicalizar el cierre antes de borrar su marcador', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  const r = await page.evaluate(async (id) => window.getSupabaseClient().rpc('coi_actualizar_orden_integral', {
+    p_orden_id: id, p_cambios: { estado_registro: 'Archivado' }
+  }), OC_LEGACY_CERRADA.id);
+  expect(r.error && r.error.message).toBe('COI_LEGACY_CLOSE_REQUIRES_CANONICALIZATION');
+  const fila = await page.evaluate((n) => window.__H10__.fila(n), OC_LEGACY_CERRADA.nro_oc);
+  expect(fila.estado_registro).toBe('Cerrado');
+  expect(fila.estado_coi).toBe('En ejecución');
 });

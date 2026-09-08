@@ -18,8 +18,10 @@ declare
   v_old_registro text;
   v_new_registro text;
   v_new_observacion text;
+  v_new_estado_archivado boolean;
 begin
   v_new_estado_cerrado := upper(btrim(coalesce(new.estado_coi, ''))) in ('CERRADA', 'CERRADO');
+  v_new_estado_archivado := upper(btrim(coalesce(new.estado_coi, ''))) in ('ARCHIVADA', 'ARCHIVADO');
   v_new_registro := upper(btrim(coalesce(new.estado_registro, '')));
   v_new_observacion := nullif(btrim(coalesce(new.observacion_cierre, '')), '');
 
@@ -29,6 +31,13 @@ begin
   --  * si el alta ya representa un cierre, estado + fecha + motivo deben venir
   --    completos en la misma escritura.
   if tg_op = 'INSERT' then
+    if v_new_estado_archivado then
+      raise exception using
+        errcode = 'P0001',
+        message = 'COI_ARCHIVE_STATE_FIELD_FORBIDDEN',
+        detail = 'el archivo se registra en estado_registro, no en estado_coi';
+    end if;
+
     if v_new_registro = 'ARCHIVADO' then
       raise exception using
         errcode = 'P0001',
@@ -61,6 +70,30 @@ begin
 
   v_old_estado_cerrado := upper(btrim(coalesce(old.estado_coi, ''))) in ('CERRADA', 'CERRADO');
   v_old_registro := upper(btrim(coalesce(old.estado_registro, '')));
+
+  -- Archivada/Archivado es un valor legacy del eje equivocado. No se admite
+  -- como nueva escritura operativa: archivar pertenece a estado_registro.
+  if v_new_estado_archivado
+     and upper(btrim(coalesce(new.estado_coi, ''))) is distinct from upper(btrim(coalesce(old.estado_coi, ''))) then
+    raise exception using
+      errcode = 'P0001',
+      message = 'COI_ARCHIVE_STATE_FIELD_FORBIDDEN',
+      detail = 'use estado_registro=Archivado para archivar una OC';
+  end if;
+
+  -- Si el unico marcador historico es estado_registro=Cerrado, reemplazarlo
+  -- directamente por Archivado destruiria la evidencia del cierre. Exigir que
+  -- el mismo UPDATE canonicalice estado_coi o que el cliente lo haga antes.
+  if v_old_registro = 'CERRADO'
+     and not v_old_estado_cerrado
+     and old.fecha_cierre_operativo is null
+     and v_new_registro = 'ARCHIVADO'
+     and not v_new_estado_cerrado then
+    raise exception using
+      errcode = 'P0001',
+      message = 'COI_LEGACY_CLOSE_REQUIRES_CANONICALIZATION',
+      detail = 'preserve el cierre historico en estado_coi antes de archivar';
+  end if;
 
   v_old_cerrado := v_old_estado_cerrado
     or old.fecha_cierre_operativo is not null

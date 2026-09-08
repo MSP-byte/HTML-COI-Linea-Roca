@@ -40,3 +40,12 @@ check(!/create\s+table|alter\s+table[^;]*add\s+column/i.test(sql),
   'el fix H10 de INSERT no debe agregar tablas ni columnas');
 
 console.log('H10 INSERT lifecycle guard: OK');
+
+check(/COI_ARCHIVE_STATE_FIELD_FORBIDDEN/.test(sql) && /ARCHIVADA.*ARCHIVADO/s.test(sql),
+  'estado_coi no puede recibir nuevas escrituras Archivada/Archivado');
+check(/COI_LEGACY_CLOSE_REQUIRES_CANONICALIZATION/.test(sql),
+  'el archivo server-side debe impedir destruir un cierre legacy-only');
+check(/v_old_registro\s*=\s*'CERRADO'[\s\S]*?v_new_registro\s*=\s*'ARCHIVADO'[\s\S]*?not\s+v_new_estado_cerrado/i.test(sql),
+  'el guard legacy debe exigir canonicalización del estado operativo antes de archivar');
+
+console.log('H10 lifecycle final review: OK');
