@@ -16922,7 +16922,10 @@ const APP_DATA_MODE = "supabase_first";
     installEstacionesAsociadasEvents();
     setTimeout(() => { wrapFichaOCStations(); wrapStationDashboardAssociations(); }, 120);
     vaciarOrdenesEnMemoria();
-    fallbackLocalStorageSiFallaSupabase('Inicializando Supabase como fuente principal.');
+    // H10 final review: arrancar no es fallar. Mientras initSupabase() todavía
+    // no confirmó ni rechazó una lectura remota, el catálogo permanece pendiente.
+    // Solo los caminos de error reales llaman a degradarSinAutoridadLocal().
+    ordenesLecturaEstado = 'pendiente';
     initSupabase();
     setTimeout(inyectarPanelAdminSupabase, 400);
     window.addEventListener('online', () => cargarOrdenesPrincipal());
@@ -32491,7 +32494,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     'No la archiva ni la elimina.';
   const AYUDA_ARCHIVAR_BLOQUEADA = 'Primero debe cerrar la OC para enviarla al historial.';
 
-  const BOTONES_CERRAR = ['btnCerrarOCFicha', 'btnCerrarOCFichaTop', 'btnCerrarOC'];
+  const BOTONES_CERRAR = ['btnCerrarOCFicha', 'btnCerrarOCFichaTop', 'btnCerrarOC', 'execBtnClose'];
   const BOTONES_ARCHIVAR = ['btnArchivarOCFicha', 'btnArchivarOCFichaTop', 'btnArchivarOC'];
 
   function instalarEstilos() {

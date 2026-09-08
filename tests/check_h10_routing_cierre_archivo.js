@@ -542,4 +542,18 @@ check(routerCodigo.indexOf("document.addEventListener('keydown', observarNavegac
 check(routerCodigo.indexOf('ev.stopImmediatePropagation();') >= 0,
   'la intención de teclado H10 debe impedir que el handler legacy vuelva a sintetizar navegación');
 
+
+// ============ 11) review final pre-merge PR #64
+const bootstrapInicio = html.slice(
+  html.indexOf('function bootstrapSupabasePrincipal()'),
+  html.indexOf('window.initSupabase = initSupabase;'));
+check(bootstrapInicio.length > 0,
+  'se debe poder inspeccionar el bootstrap principal de Supabase');
+check(bootstrapInicio.indexOf("fallbackLocalStorageSiFallaSupabase('Inicializando Supabase como fuente principal.')") < 0,
+  'inicializar Supabase no puede marcar el catálogo como error antes del primer intento remoto');
+check(/vaciarOrdenesEnMemoria\(\);[\s\S]{0,420}ordenesLecturaEstado = 'pendiente';[\s\S]{0,120}initSupabase\(\);/.test(bootstrapInicio),
+  'el catálogo debe permanecer pendiente hasta que initSupabase resuelva éxito o error real');
+check(cierreCodigo.indexOf("const BOTONES_CERRAR = ['btnCerrarOCFicha', 'btnCerrarOCFichaTop', 'btnCerrarOC', 'execBtnClose'];") >= 0,
+  'el botón ejecutivo de cierre debe sincronizar texto, disabled y estado con los demás botones H10');
+
 console.log('H10 final review guards: OK');
