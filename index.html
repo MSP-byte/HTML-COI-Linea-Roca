@@ -32868,8 +32868,45 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   // de usuario y se publica esa ruta directamente. publicar() silencia su propio
   // hashchange, de modo que no hay reentrada; restaurar() detecta la version y
   // descarta el deep-link capturado al inicio.
+  function rutaIntencionDesdeVista(vista) {
+    const v = texto(vista);
+    if (!v) return '';
+    if (v === 'vistaOrdenes') return 'ordenes/' + modoRegistro();
+    if (v === 'vistaUnidadesMantenimiento') {
+      const tab = tabUM();
+      return tab === 'servicios' ? 'um/servicios' : 'um';
+    }
+    if (v === 'vistaRed') return 'red';
+    return rutaDe(v);
+  }
+
+  function rutaIntencionDesdeEvento(ev) {
+    const t = ev && ev.target && ev.target.closest ? ev.target : null;
+    if (!t) return '';
+    const nav = t.closest('[data-v2-view]');
+    if (nav) return rutaIntencionDesdeVista(nav.getAttribute('data-v2-view'));
+    const acceso = t.closest('[data-v2-open-module]');
+    if (acceso) {
+      const id = texto(acceso.getAttribute('data-v2-open-module'));
+      const botones = Array.from(document.querySelectorAll('[data-v2-nav]'));
+      const espejo = botones.find((b) => texto(b.getAttribute('data-v2-nav')) === id);
+      if (espejo) return rutaIntencionDesdeVista(espejo.getAttribute('data-v2-view'));
+    }
+    return '';
+  }
+
   function observarNavegacionUsuario(ev) {
     if (!restaurando || !ev || ev.isTrusted !== true) return;
+
+    // Los controles V2 declaran destino. Un click del operador gana al
+    // deep-link pendiente aunque la vista transitoria ya coincida.
+    const intencion = rutaIntencionDesdeEvento(ev);
+    if (intencion) {
+      navegacionUsuario++;
+      publicar(intencion);
+      return;
+    }
+
     const antes = rutaVigente();
     let resuelta = false;
     const verificar = () => {
@@ -32880,9 +32917,8 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       navegacionUsuario++;
       publicar(despues);
     };
-    // La mayoria de los botones cambia vista en el mismo dispatch; algunas
-    // capas V2 sincronizan despues. Se cubren ambos sin convertir un simple
-    // click sin navegacion en cancelacion del restore.
+    // Para controles sin destino declarado se conserva la deteccion por
+    // resultado visible. Repintados automaticos no son eventos trusted.
     setTimeout(verificar, 0);
     setTimeout(verificar, 90);
     setTimeout(verificar, 220);

@@ -301,6 +301,18 @@ async function abrirCrudo(page, hash) {
 
 const lecturas = (page, tabla) => page.evaluate((t) => window.__H10__.lecturas[t], tabla);
 
+async function navegarV2(page, navId) {
+  const selector = `[data-v2-nav="${navId}"]`;
+  await page.waitForSelector(selector, { state: 'attached', timeout: 12000 });
+  const mobile = await page.evaluate(() => matchMedia('(max-width: 760px)').matches);
+  if (mobile) {
+    await page.locator('#coiV2Menu').click();
+    await page.waitForFunction(() => document.body.classList.contains('coi-v2-mobile-open'),
+      null, { timeout: 5000 });
+  }
+  await page.locator(selector).click();
+}
+
 const estadoRuta = (page) => page.evaluate(() => ({
   hash: location.hash,
   noEncontrada: Boolean(document.getElementById('h10OCNoEncontrada')),
@@ -1542,11 +1554,10 @@ test('H10-60 · P2 · navegación ordinaria limpia la identidad de un error de r
   await page.waitForFunction(() => Boolean(document.getElementById('h10OCNoEncontrada')),
     null, { timeout: 12000 });
 
-  // El shell V2 oculta los botones legacy de #moduleNav; navegar por el
-  // entry point ordinario evita que el test dependa de un control de respaldo
-  // deliberadamente no visible y sigue cubriendo la limpieza de rutaError.
-  await page.evaluate(() => window.mostrarVista('vistaOrdenes'));
-  await page.waitForTimeout(1800);
+  // Se usa el shell visible real. Durante startup este click tiene que ganar
+  // al deep-link anterior y, en mobile, abrir primero el menu off-canvas.
+  await navegarV2(page, 'btnOrdenes');
+  await page.waitForTimeout(2200);
 
   const e = await estadoRuta(page);
   expect(e.vista).toBe('vistaOrdenes');
@@ -1578,11 +1589,10 @@ test('H10-70 · P2 · un click real del sidebar durante startup gana al deep-lin
   await prepararH10(page, { fallaOrdenes: true });
   await page.goto('/index.html#ficha-oc/' + OC_ACTIVA.nro_oc, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => Boolean(window.COI_ROUTING_H10), null, { timeout: 20000 });
-  await page.waitForSelector('[data-v2-nav="btnRed"]', { state: 'visible', timeout: 12000 });
-
   // Este es el caso que no cubría H10-61: el operador NO toca location.hash;
-  // usa la navegación real. El guard de restauración no debe tragarse su click.
-  await page.click('[data-v2-nav="btnRed"]');
+  // usa la navegación real. En mobile abre primero el menú off-canvas, igual
+  // que un operador; no hay force-click ni bypass del layout.
+  await navegarV2(page, 'btnRed');
   await page.waitForTimeout(7500);
 
   const e = await estadoRuta(page);
