@@ -1,0 +1,49 @@
+name: H10 inspect H80
+
+on:
+  push:
+    branches:
+      - fix/h10-routing-close-archive-workflow
+    paths:
+      - .github/workflows/h10-inspect-h80.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/h10-routing-close-archive-workflow
+          fetch-depth: 0
+      - name: Recover staged final patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, gzip, re, subprocess
+          old = subprocess.check_output(['git','show','bb6a0da52bc4de40173392653dee8ed48bd1fc5b:.github/workflows/h10-final-review-patch.yml'], text=True)
+          m = re.search(r"printf '%s' '([^']+)' \| base64 -d \| gzip -d", old)
+          if not m:
+              raise SystemExit('payload missing')
+          raw = gzip.decompress(base64.b64decode(m.group(1)))
+          open('/tmp/h10_final_review_patch.py','wb').write(raw)
+          PY
+          python /tmp/h10_final_review_patch.py
+      - name: Print exact H10-80 source
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s = Path('tests/h10_routing_cierre_archivo.spec.js').read_text(encoding='utf-8')
+          key = 'H10-80'
+          i = s.index(key)
+          start = s.rfind('test(', 0, i)
+          end = s.find('\ntest(', i)
+          if end < 0: end = min(len(s), i + 2500)
+          print('===== H10-80 EXACT SOURCE =====')
+          print(s[start:end])
+          print('===== END H10-80 =====')
+          PY
