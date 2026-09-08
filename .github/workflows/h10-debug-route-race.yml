@@ -1,0 +1,65 @@
+name: H10 trace route race
+
+on:
+  push:
+    branches:
+      - fix/h10-routing-close-archive-workflow
+    paths:
+      - .github/workflows/h10-debug-route-race.yml
+
+jobs:
+  trace:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/h10-routing-close-archive-workflow
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build candidate and inject trace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64, re, subprocess
+          from pathlib import Path
+          y = Path('.github/workflows/h10-final-review-patch-v2.yml').read_text(encoding='utf-8')
+          m = re.search(r"printf '%s' '([^']+)' \| base64 -d > /tmp/h10_build_final.py", y)
+          if not m:
+              raise SystemExit('candidate payload missing')
+          Path('/tmp/h10_build_final.py').write_bytes(base64.b64decode(m.group(1)))
+          subprocess.check_call(['python','/tmp/h10_build_final.py'])
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          marker = "  const hashActual = () => texto(location.hash).replace(/^#/, '');"
+          trace = "  const hashActual = () => texto(location.hash).replace(/^#/, '');\n  function h10Trace(evento, extra) {\n    try {\n      const fila = Object.assign({ evento, t: Math.round(performance.now()), hash: location.hash, vista: vistaActiva(), aplicando, restaurando, navegacionUsuario, solicitada: typeof solicitada === 'undefined' ? null : solicitada }, extra || {});\n      (window.__H10_ROUTER_TRACE__ = window.__H10_ROUTER_TRACE__ || []).push(fila);\n    } catch (e) {}\n  }"
+          if s.count(marker) != 1: raise SystemExit('hash marker mismatch')
+          s = s.replace(marker, trace, 1)
+          s = s.replace("  function observarNavegacionUsuario(ev) {", "  function observarNavegacionUsuario(ev) {\n    h10Trace('observer-enter', { tipo: ev && ev.type, key: ev && ev.key, targetModule: ev && ev.target && ev.target.closest ? ((ev.target.closest('[data-v2-open-module]')||{}).dataset||{}).v2OpenModule || '' : '' });", 1)
+          s = s.replace("    const intencion = rutaIntencionDesdeEvento(ev);", "    const intencion = rutaIntencionDesdeEvento(ev);\n    h10Trace('observer-intent', { intencion });", 1)
+          s = s.replace("  async function aplicar(ruta) {", "  async function aplicar(ruta) {\n    h10Trace('aplicar-enter', { ruta });", 1)
+          s = s.replace("        await aplicarInterno(r, version);", "        h10Trace('aplicar-interno-before', { r, version });\n        await aplicarInterno(r, version);\n        h10Trace('aplicar-interno-after', { r, version });", 1)
+          s = s.replace("  async function restaurar() {", "  async function restaurar() {\n    h10Trace('restaurar-enter');", 1)
+          s = s.replace("      const inicial = hashActual();", "      const inicial = hashActual();\n      h10Trace('restaurar-inicial', { inicial });", 1)
+          needle = "      const listo = rutaNecesitaCatalogoOrdenes(inicial) ? await esperarArranque() : true;"
+          if needle in s:
+              s = s.replace(needle, needle + "\n      h10Trace('restaurar-post-espera', { inicial, listo, versionUsuarioInicial, versionUsuarioActual: navegacionUsuario, hashAhora: hashActual() });", 1)
+          s = s.replace("      restaurando = false;\n      refrescarHash({ reemplazar: true });", "      h10Trace('restaurar-finally-before');\n      restaurando = false;\n      refrescarHash({ reemplazar: true });\n      h10Trace('restaurar-finally-after');", 1)
+          p.write_text(s, encoding='utf-8')
+
+          q = Path('tests/h10_routing_cierre_archivo.spec.js')
+          t = q.read_text(encoding='utf-8')
+          old = "  await acceso.press('Enter');\n  await page.waitForTimeout(7500);\n  const e = await estadoRuta(page);"
+          new = "  await acceso.press('Enter');\n  await page.waitForTimeout(250);\n  console.log('H80@250', JSON.stringify(await estadoRuta(page)), JSON.stringify(await page.evaluate(() => window.__H10_ROUTER_TRACE__ || [])));\n  await page.waitForTimeout(7250);\n  const e = await estadoRuta(page);\n  console.log('H80@final', JSON.stringify(e), JSON.stringify(await page.evaluate(() => window.__H10_ROUTER_TRACE__ || [])));"
+          if t.count(old) != 1: raise SystemExit('H10-80 test block mismatch')
+          q.write_text(t.replace(old,new,1), encoding='utf-8')
+          PY
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Trace H10-80
+        run: npx playwright test tests/h10_routing_cierre_archivo.spec.js --grep 'H10-80' --project=chromium-desktop --workers=1 --retries=0
