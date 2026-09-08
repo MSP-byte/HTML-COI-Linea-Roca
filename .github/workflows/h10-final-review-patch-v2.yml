@@ -80,6 +80,14 @@ jobs:
           if s.count(old_intent) != 1:
               raise SystemExit(f'Bloque intención de navegación: se esperaba 1 coincidencia y hay {s.count(old_intent)}')
           p.write_text(s.replace(old_intent, new_intent, 1), encoding='utf-8')
+
+          q = Path('tests/check_h10_routing_cierre_archivo.js')
+          t = q.read_text(encoding='utf-8')
+          old_check = "check(routerCodigo.indexOf(\"if ((!restaurando && !aplicando)\") >= 0,\n  'la intención del operador debe poder cancelar restauración y aplicación pendientes');"
+          new_check = "check(routerCodigo.indexOf(\"if (!restaurando && !aplicando && !tecladoConIntencion) return;\") >= 0,\n  'la intención del operador debe cancelar restauración/aplicación y el teclado con destino debe contar incluso antes del restore');"
+          if t.count(old_check) != 1:
+              raise SystemExit(f'Control estático de intención: se esperaba 1 coincidencia y hay {t.count(old_check)}')
+          q.write_text(t.replace(old_check, new_check, 1), encoding='utf-8')
           PY
 
       - name: Normalize text EOF
