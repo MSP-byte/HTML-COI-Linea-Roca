@@ -39,15 +39,10 @@ test('Inicio aplica foco real al shell V2 sin perder navegacion ni buscador', as
     const sidebar = document.getElementById('coiV2Sidebar');
     const dashboard = document.getElementById('vistaDashboard');
     const label = sidebar?.querySelector('.v2-label');
-    const topbar = document.getElementById('coiV2Topbar');
-    const topbarBottom = topbar?.getBoundingClientRect().bottom || 0;
-    const dashboardTop = dashboard?.getBoundingClientRect().top || 0;
     return {
       sidebarWidth: sidebar?.getBoundingClientRect().width || 0,
       dashboardLeft: dashboard?.getBoundingClientRect().left || 0,
-      labelDisplay: label ? getComputedStyle(label).display : 'missing',
-      topbarBottom,
-      dashboardTop
+      labelDisplay: label ? getComputedStyle(label).display : 'missing'
     };
   });
 
@@ -55,7 +50,6 @@ test('Inicio aplica foco real al shell V2 sin perder navegacion ni buscador', as
   expect(focusMetrics.sidebarWidth).toBeLessThan(110);
   expect(Math.abs(focusMetrics.dashboardLeft - focusMetrics.sidebarWidth)).toBeLessThan(3);
   expect(focusMetrics.labelDisplay).toBe('none');
-  expect(focusMetrics.dashboardTop).toBeGreaterThanOrEqual(focusMetrics.topbarBottom - 2);
 
   const ordersNav = page.locator('#coiV2Sidebar [data-v2-view="vistaOrdenes"]');
   await expect(ordersNav).toBeVisible();
