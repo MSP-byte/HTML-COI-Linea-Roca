@@ -1,0 +1,83 @@
+name: PR65 finish focus navigation fix
+
+on:
+  push:
+    branches:
+      - fix/dashboard-focus-motion-defaults
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Preserve V2 topbar and mobile navigation in focus
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+
+          old = '''body.dashboard-focus-mode.coi-v2-ready #coiV2Topbar{display:none!important}\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar{width:var(--v2-side-collapsed)!important}\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-brand-copy,\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-section,\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-label,\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-count,\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-copy,\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-action{display:none!important}\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-sidebar-brand,\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-btn,\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile{justify-content:center!important}\nbody.dashboard-focus-mode.coi-v2-ready #vistaDashboard{margin-left:var(--v2-side-collapsed)!important;padding:18px 22px 36px!important}'''
+
+          new = '''/* El foco conserva la topbar V2: buscador global y menú móvil siguen disponibles. */\nbody.dashboard-focus-mode.coi-v2-ready #vistaDashboard{padding-top:84px!important}\n@media (min-width:761px){\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar{width:var(--v2-side-collapsed)!important}\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-brand-copy,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-section,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-label,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-count,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-copy,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-action{display:none!important}\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-sidebar-brand,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-btn,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile{justify-content:center!important}\n  body.dashboard-focus-mode.coi-v2-ready #vistaDashboard{margin-left:var(--v2-side-collapsed)!important;padding:84px 22px 36px!important}\n}'''
+
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'Expected one current V2 focus block, found {count}')
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Verify focus contract
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('index.html').read_text(encoding='utf-8')
+          assert 'body.dashboard-focus-mode.coi-v2-ready #coiV2Topbar{display:none!important}' not in text
+          assert '@media (min-width:761px)' in text
+          assert 'body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar{width:var(--v2-side-collapsed)!important}' in text
+          assert 'body.dashboard-focus-mode.coi-v2-ready #vistaDashboard{padding-top:84px!important}' in text
+          assert 'function motionEnabled(){return true;}' in text
+          assert "new MutationObserver(syncDashboardFocus)" in text
+          assert "button('coiToggleMotion'" not in text
+          assert "button('coiFocusMode'" not in text
+          print('PR65 final focus/navigation contract: OK')
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run focused regressions
+        shell: bash
+        run: |
+          npx playwright test tests/dashboard_charts_motion_paused.spec.js tests/dashboard_focus_v2_shell.spec.js tests/delete_button.spec.js tests/final_ux_alerts_orders_filter.spec.js
+          npx playwright test tests/h10_routing_cierre_archivo.spec.js -g "H10-23"
+
+      - name: Run static regression suite
+        run: npm test
+
+      - name: Diff check
+        run: git diff --check
+
+      - name: Commit validated navigation-safe focus
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "fix: keep V2 navigation available in dashboard focus"
+          git push origin HEAD:fix/dashboard-focus-motion-defaults
