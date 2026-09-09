@@ -1,0 +1,80 @@
+name: PR65 resolve dashboard P1
+
+on:
+  push:
+    branches:
+      - fix/dashboard-focus-motion-defaults
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Apply V2 focus shell fix
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          old = '''body.dashboard-focus-mode #vistaDashboard>.view-card{margin:0;max-width:1880px;margin-inline:auto}\nbody.dashboard-focus-mode #coiFocusMode::before{content:"↙"}\nbody:not(.dashboard-focus-mode) #coiFocusMode::before{content:"↗"}'''
+          new = '''body.dashboard-focus-mode #vistaDashboard>.view-card{margin:0;max-width:1880px;margin-inline:auto}\n/* Foco permanente de Inicio sobre el shell V2: maximiza el tablero sin perder navegación. */\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Topbar{display:none!important}\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar{width:var(--v2-side-collapsed)!important}\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-brand-copy,\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-section,\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-label,\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-count,\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-copy,\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-action{display:none!important}\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-sidebar-brand,\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-btn,\nbody.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile{justify-content:center!important}\nbody.dashboard-focus-mode.coi-v2-ready #vistaDashboard{margin-left:var(--v2-side-collapsed)!important;padding:18px 22px 36px!important}'''
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected one legacy focus CSS block, found {text.count(old)}')
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Verify focused contract statically
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('index.html').read_text(encoding='utf-8')
+          required = [
+            'body.dashboard-focus-mode.coi-v2-ready #coiV2Topbar{display:none!important}',
+            'body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar{width:var(--v2-side-collapsed)!important}',
+            'body.dashboard-focus-mode.coi-v2-ready #vistaDashboard{margin-left:var(--v2-side-collapsed)!important;padding:18px 22px 36px!important}',
+            'function motionEnabled(){return true;}',
+            "new MutationObserver(syncDashboardFocus)",
+          ]
+          for token in required:
+              assert token in text, token
+          assert '#coiFocusMode::before' not in text
+          assert "button('coiToggleMotion'" not in text
+          assert "button('coiFocusMode'" not in text
+          print('PR65 focus/motion static contract: OK')
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run focused Chromium regressions
+        run: npx playwright test tests/dashboard_charts_motion_paused.spec.js tests/dashboard_focus_v2_shell.spec.js
+
+      - name: Run static regression suite
+        run: npm test
+
+      - name: Diff check
+        run: git diff --check
+
+      - name: Commit validated V2 focus fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "fix: apply dashboard focus to V2 shell"
+          git push origin HEAD:fix/dashboard-focus-motion-defaults
