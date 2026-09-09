@@ -1,0 +1,57 @@
+name: H10 PR64 final desarchive identity
+
+on:
+  push:
+    branches:
+      - fix/h10-routing-close-archive-workflow
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/h10-routing-close-archive-workflow
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply exact desarchive guard
+        run: python3 .github/scripts/h10_pr64_fix_desarchivar_identity.py
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Full static and integration suite
+        run: npm test
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Focused desarchive regressions
+        run: npx playwright test tests/h10_routing_cierre_archivo.spec.js --grep "H10-88|H10-89"
+
+      - name: Diff check
+        run: git diff --check
+
+      - name: Commit validated correction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html tests/h10_routing_cierre_archivo.spec.js tests/check_h10_routing_cierre_archivo.js
+          if git diff --cached --quiet; then
+            echo "No functional changes to commit."
+            exit 0
+          fi
+          git commit -m "fix(h10): require exact identity for desarchive"
+          git push origin HEAD:fix/h10-routing-close-archive-workflow
