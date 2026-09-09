@@ -25,6 +25,10 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Anchor helper inside H09 archive module
+        run: |
+          python3 -c "from pathlib import Path; p=Path('.github/scripts/h10_pr64_close_final_p2.py'); s=p.read_text(encoding='utf-8'); old=\"execute_start = html.find('async function ejecutar(')\"; new=\"archive_script = html.find('<script id=\\\"coi-h09-archivar-oc-supabase\\\">')\\nif archive_script < 0:\\n    raise SystemExit('H09 archive script not found')\\nexecute_start = html.find('async function ejecutar(', archive_script)\"; assert old in s; p.write_text(s.replace(old,new,1), encoding='utf-8')"
+
       - name: Apply final P2 corrections
         run: python3 .github/scripts/h10_pr64_close_final_p2.py
 
