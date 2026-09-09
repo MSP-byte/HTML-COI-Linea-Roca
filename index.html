@@ -1457,18 +1457,21 @@ body.dashboard-focus-mode header.main-header,body.dashboard-focus-mode .module-n
 body.dashboard-focus-mode #vistaDashboard{min-height:100vh;padding:18px}
 body.dashboard-focus-mode #vistaDashboard>.view-card{margin:0;max-width:1880px;margin-inline:auto}
 /* Foco permanente de Inicio sobre el shell V2: maximiza el tablero sin perder navegación. */
-body.dashboard-focus-mode.coi-v2-ready #coiV2Topbar{display:none!important}
-body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar{width:var(--v2-side-collapsed)!important}
-body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-brand-copy,
-body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-section,
-body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-label,
-body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-count,
-body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-copy,
-body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-action{display:none!important}
-body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-sidebar-brand,
-body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-btn,
-body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile{justify-content:center!important}
-body.dashboard-focus-mode.coi-v2-ready #vistaDashboard{margin-left:var(--v2-side-collapsed)!important;padding:18px 22px 36px!important}
+/* El foco conserva la topbar V2: buscador global y menú móvil siguen disponibles. */
+body.dashboard-focus-mode.coi-v2-ready #vistaDashboard{padding-top:84px!important}
+@media (min-width:761px){
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar{width:var(--v2-side-collapsed)!important}
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-brand-copy,
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-section,
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-label,
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-count,
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-copy,
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-action{display:none!important}
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-sidebar-brand,
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-btn,
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile{justify-content:center!important}
+  body.dashboard-focus-mode.coi-v2-ready #vistaDashboard{margin-left:var(--v2-side-collapsed)!important;padding:84px 22px 36px!important}
+}
 body.coi-motion-off *,body.coi-motion-off *::before,body.coi-motion-off *::after{animation-play-state:paused!important;scroll-behavior:auto!important}
 body.coi-motion-off .d33-kpi,body.coi-motion-off .d33-card,body.coi-motion-off .d33-chip{transition-duration:.01ms!important}
 body.coi-motion-off .d33-segment,
