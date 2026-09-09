@@ -97,3 +97,24 @@ test('Inicio aplica foco real al shell V2 sin perder navegacion ni buscador', as
   await expect(topbar).toBeVisible();
   await expect(page.locator('#coiV2GlobalSearch')).toBeVisible();
 });
+
+test('Shell V2 nace con nombres accesibles aun con sidebar colapsado persistido', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name.includes('mobile'), 'Cobertura del shell V2 de escritorio');
+  await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
+  await page.addInitScript(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    localStorage.setItem('coi_v2_sidebar_collapsed', '1');
+  });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(document.body.classList.contains('coi-v2-ready') && document.getElementById('coiV2Sidebar')));
+  await page.evaluate(() => document.body.classList.remove('auth-locked'));
+
+  const result = await page.evaluate(() => [...document.querySelectorAll('#coiV2Sidebar .coi-v2-nav-btn')].map(btn => ({
+    aria: btn.getAttribute('aria-label') || '',
+    title: btn.getAttribute('title') || '',
+    label: btn.querySelector('.v2-label')?.textContent?.trim() || ''
+  })));
+  expect(result.length).toBeGreaterThan(5);
+  expect(result.every(item => item.label && item.aria === item.label && item.title === item.label)).toBe(true);
+});
