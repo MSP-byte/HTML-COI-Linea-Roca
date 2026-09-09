@@ -19067,8 +19067,9 @@ function coiModoRegistroVigente(){
 function coiFiltrarPorRegistro(rows){
   const modo=coiModoRegistroVigente();
   if(modo==='todas')return rows;
-  if(modo==='archivadas')return rows.filter(r=>coiEstadoRegistroDeFila(r)==='ARCHIVADO');
-  return rows.filter(r=>coiEstadoRegistroDeFila(r)!=='ARCHIVADO');
+  const archivada=(r)=>['ARCHIVADO','ARCHIVADA'].includes(coiEstadoRegistroDeFila(r));
+  if(modo==='archivadas')return rows.filter(archivada);
+  return rows.filter(r=>!archivada(r));
 }
 
 function obtenerOrdenesFiltradas(){
@@ -31788,7 +31789,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       (i._supabaseRaw && i._supabaseRaw.estado_registro)) || ACTIVO;
   }
 
-  function estaArchivada(item) { return norm(estadoRegistro(item)) === norm(ARCHIVADO); }
+  function estaArchivada(item) { return ['ARCHIVADO','ARCHIVADA'].includes(norm(estadoRegistro(item))); }
 
   // `ocActualId` se declara con `let` en el script principal: es un binding
   // lexico global y NO una propiedad de window, de modo que `window.ocActualId`
@@ -31830,6 +31831,15 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
       const salida = await cambiarEstadoRegistro(referencia, destino);
       // Recien aca, con la escritura verificada contra Supabase y el modelo
       // recargado por el repositorio, se toca la interfaz.
+      const advertencias = Array.from(new Set([].concat(
+        Array.isArray(salida && salida.warnings) ? salida.warnings : [],
+        Array.isArray(salida && salida.resultado && salida.resultado.warnings) ? salida.resultado.warnings : []
+      ).filter(Boolean)));
+      if (advertencias.length) {
+        avisar((destino === ARCHIVADO ? 'OC archivada correctamente. ' : 'OC restaurada al registro activo. ') +
+          advertencias.join(' '), 'warning');
+        return true;
+      }
       sincronizarBotones();
       if (destino === ARCHIVADO && cfg.ofrecerDeshacer !== false) {
         mostrarDeshacer(salida.uuid);
@@ -32148,7 +32158,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     return texto(i.estado_registro || i.estadoRegistro || crudo(i, 'estado_registro')) || 'Activo';
   }
 
-  function estaArchivada(item) { return norm(estadoRegistroDe(item)) === norm(ARCHIVADO); }
+  function estaArchivada(item) { return ['ARCHIVADO','ARCHIVADA'].includes(norm(estadoRegistroDe(item))); }
 
   // `ocActualId` se declara con `let` en el script principal: es un binding
   // lexico global y NO una propiedad de window, de modo que `window.ocActualId`
@@ -32867,6 +32877,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   let aplicando = false;      // el router esta imponiendo una ruta
   let restaurando = false;    // preserva el hash inicial mientras espera datos
   let navegacionUsuario = 0;  // version independiente: una accion real del operador gana al startup
+  let reintentando = false;   // una relectura no puede reabrir una ruta que el operador abandono
   let silencio = 0;           // hashchange que causamos nosotros
   let pendiente = null;
 
@@ -32891,7 +32902,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     // mientras llegan sesion y snapshots. Publicar la vista transitoria en ese
     // momento pisaria el hash solicitado (por ejemplo #ficha-um/... -> #inicio)
     // antes de que el router alcance a resolverlo.
-    if (aplicando || restaurando) return false;
+    if (aplicando || restaurando || reintentando) return false;
     return publicar(rutaVigente(), opciones);
   }
 
@@ -32972,7 +32983,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     // el instante en que el router queda enlazado, incluso si restaurar() aún
     // no alcanzó a marcar restaurando=true. Click/change ordinarios siguen
     // limitados a una restauración/aplicación activa para evitar duplicados.
-    if (!restaurando && !aplicando && !tecladoConIntencion) return;
+    if (!restaurando && !aplicando && !reintentando && !tecladoConIntencion) return;
     if (intencion) {
       const desdeTeclado = ev.type === 'keydown';
       if (desdeTeclado) {
@@ -32989,7 +33000,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     const antes = rutaVigente();
     let resuelta = false;
     const verificar = () => {
-      if (resuelta || (!restaurando && !aplicando)) return;
+      if (resuelta || (!restaurando && !aplicando && !reintentando)) return;
       const despues = rutaVigente();
       if (!despues || despues === antes) return;
       resuelta = true;
@@ -33508,6 +33519,9 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
         // pierde la ruta por un fallo de sincronizacion.
         const ruta = rutaError || hashActual();
         const esUM = Boolean(t.closest('#h10ReintentarUM'));
+        const versionUsuarioReintento = navegacionUsuario;
+        const hashReintento = hashActual();
+        reintentando = true;
         limpiarRutaError();
         (async () => {
           try {
@@ -33523,8 +33537,12 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
             // vuelve al error que corresponda. Nunca se afirma que la entidad
             // no existe.
           }
+          // La lectura puede tardar. Si entretanto el operador eligio otro
+          // modulo, ese destino es mas nuevo que la ruta de error capturada y
+          // el retry queda obsoleto: no puede reabrirla al finalizar.
+          if (navegacionUsuario !== versionUsuarioReintento || hashActual() !== hashReintento) return;
           await aplicar(ruta);
-        })().catch(() => {});
+        })().catch(() => {}).finally(() => { reintentando = false; });
         return;
       }
       if (t.closest('#h09Tabs [data-h09-tab]') || t.closest('[data-ficha-submodulo]')) programarRefresco();

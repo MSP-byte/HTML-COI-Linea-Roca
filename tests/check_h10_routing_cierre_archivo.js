@@ -445,10 +445,12 @@ check(/function coiEstadoRegistroDeFila\(row\)/.test(htmlSinComentarios),
 for (const alias of ['r.estadoRegistro', 'r.estado_registro', '_supabaseRaw&&r._supabaseRaw.estado_registro']) {
   check(htmlSinComentarios.indexOf(alias) >= 0, `falta el alias ${alias} del estado de registro`);
 }
-check(/if\(modo==='archivadas'\)return rows\.filter\(r=>coiEstadoRegistroDeFila\(r\)==='ARCHIVADO'\);/.test(htmlSinComentarios),
-  'archivadas incluye exclusivamente las archivadas');
-check(/return rows\.filter\(r=>coiEstadoRegistroDeFila\(r\)!=='ARCHIVADO'\);/.test(htmlSinComentarios),
-  'activas excluye las archivadas');
+check(/const archivada=\(r\)=>\['ARCHIVADO','ARCHIVADA'\]\.includes\(coiEstadoRegistroDeFila\(r\)\);/.test(htmlSinComentarios),
+  'el filtro de registro reconoce Archivado y la variante histórica Archivada');
+check(/if\(modo==='archivadas'\)return rows\.filter\(archivada\);/.test(htmlSinComentarios),
+  'archivadas incluye exclusivamente ambos marcadores archivados');
+check(/return rows\.filter\(r=>!archivada\(r\)\);/.test(htmlSinComentarios),
+  'activas excluye ambos marcadores archivados');
 check(/if\(modo==='todas'\)return rows;/.test(htmlSinComentarios),
   'todas no filtra por estado de registro');
 
@@ -524,7 +526,7 @@ check(html.indexOf('[COI][ORDENES][UPDATE][POST_COMMIT_SYNC]') >= 0,
   'un refresh posterior al commit debe quedar como advertencia y no como rollback falso');
 check(routerCodigo.indexOf("document.addEventListener('keydown', observarNavegacionUsuario, true)") >= 0,
   'el routing debe reconocer navegación originada por teclado');
-check(routerCodigo.indexOf("if (!restaurando && !aplicando && !tecladoConIntencion) return;") >= 0,
+check(routerCodigo.indexOf("if (!restaurando && !aplicando && !reintentando && !tecladoConIntencion) return;") >= 0,
   'la intención del operador debe cancelar restauración/aplicación y el teclado con destino debe contar incluso antes del restore');
 check(routerCodigo.indexOf('let versionAplicacion = 0;') >= 0 &&
       routerCodigo.indexOf('function aplicacionObsoleta(version)') >= 0,
@@ -555,5 +557,26 @@ check(/vaciarOrdenesEnMemoria\(\);[\s\S]{0,420}ordenesLecturaEstado = 'pendiente
   'el catálogo debe permanecer pendiente hasta que initSupabase resuelva éxito o error real');
 check(cierreCodigo.indexOf("const BOTONES_CERRAR = ['btnCerrarOCFicha', 'btnCerrarOCFichaTop', 'btnCerrarOC', 'execBtnClose'];") >= 0,
   'el botón ejecutivo de cierre debe sincronizar texto, disabled y estado con los demás botones H10');
+
+
+// ============ 12) cierre de los tres P2 posteriores al Quality Gate verde
+check(h10Sql.indexOf("v_new_registro in ('ARCHIVADO', 'ARCHIVADA')") >= 0,
+  'PostgreSQL debe reconocer ambas grafías archivadas al aplicar el lifecycle guard');
+check(h10Sql.indexOf("v_new_registro = 'ARCHIVADA'") >= 0 &&
+      h10Sql.indexOf('COI_ARCHIVE_STATE_CANONICAL_REQUIRED') >= 0,
+  'una escritura nueva con Archivada debe rechazarse y exigir Archivado canónico');
+check(cierreCodigo.indexOf("['ARCHIVADO','ARCHIVADA'].includes(norm(estadoRegistroDe(item)))") >= 0,
+  'H10 debe leer Archivada histórica como archivada, no como activa');
+check(archivoCodigo.indexOf("['ARCHIVADO','ARCHIVADA'].includes(norm(estadoRegistro(item)))") >= 0,
+  'H09 debe leer Archivada histórica como archivada, no como activa');
+check(archivoCodigo.indexOf('salida.resultado && salida.resultado.warnings') >= 0 &&
+      archivoCodigo.indexOf("advertencias.join(' '), 'warning'") >= 0,
+  'archivar/desarchivar debe propagar warnings de resincronización post-commit');
+check(routerCodigo.indexOf('let reintentando = false;') >= 0,
+  'el router debe modelar explícitamente una relectura de retry en vuelo');
+check(routerCodigo.indexOf('navegacionUsuario !== versionUsuarioReintento || hashActual() !== hashReintento') >= 0,
+  'un retry debe descartarse si el operador navegó durante la relectura');
+check(routerCodigo.indexOf('aplicando || restaurando || reintentando') >= 0,
+  'los repintados automáticos no pueden publicar una ruta transitoria durante retry');
 
 console.log('H10 final review guards: OK');

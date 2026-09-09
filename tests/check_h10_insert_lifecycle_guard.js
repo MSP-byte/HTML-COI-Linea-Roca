@@ -20,7 +20,7 @@ check(insertStart >= 0 && insertEnd > insertStart,
   'no se pudo aislar la rama INSERT del guard H10');
 const insertBranch = sql.slice(insertStart, insertEnd + 'return new;'.length);
 
-check(/v_new_registro\s*=\s*'ARCHIVADO'/i.test(insertBranch) &&
+check(/v_new_registro\s+in\s*\(\s*'ARCHIVADO'\s*,\s*'ARCHIVADA'\s*\)/i.test(insertBranch) &&
       /COI_ARCHIVE_REQUIRES_CLOSED_ORDER/.test(insertBranch),
   'una OC no puede nacer Archivada: archivar es una transición posterior');
 check(/v_new_registro\s*=\s*'CERRADO'/i.test(insertBranch) &&
@@ -45,7 +45,7 @@ check(/COI_ARCHIVE_STATE_FIELD_FORBIDDEN/.test(sql) && /ARCHIVADA.*ARCHIVADO/s.t
   'estado_coi no puede recibir nuevas escrituras Archivada/Archivado');
 check(/COI_LEGACY_CLOSE_REQUIRES_CANONICALIZATION/.test(sql),
   'el archivo server-side debe impedir destruir un cierre legacy-only');
-check(/v_old_registro\s*=\s*'CERRADO'[\s\S]*?v_new_registro\s*=\s*'ARCHIVADO'[\s\S]*?not\s+v_new_estado_cerrado/i.test(sql),
+check(/v_old_registro\s*=\s*'CERRADO'[\s\S]*?v_new_registro\s+in\s*\(\s*'ARCHIVADO'\s*,\s*'ARCHIVADA'\s*\)[\s\S]*?not\s+v_new_estado_cerrado/i.test(sql),
   'el guard legacy debe exigir canonicalización del estado operativo antes de archivar');
 
 console.log('H10 lifecycle final review: OK');

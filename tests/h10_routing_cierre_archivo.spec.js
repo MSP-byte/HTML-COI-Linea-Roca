@@ -229,13 +229,16 @@ async function prepararH10(page, opciones = {}) {
           const oldClosed = cerrado(antes), newClosed = cerrado(despues);
           const has = (k) => Object.prototype.hasOwnProperty.call(cambios, k);
           const estadoArchivadoCoi = (r) => ['ARCHIVADA','ARCHIVADO'].includes(n(r.estado_coi));
+          const registroArchivado = (v) => ['ARCHIVADO','ARCHIVADA'].includes(n(v));
           const legacyOnly = n(antes.estado_registro) === 'CERRADO' && !estadoCerrado(antes) && !antes.fecha_cierre_operativo;
 
           if (has('estado_coi') && estadoArchivadoCoi(despues) && !estadoArchivadoCoi(antes))
             return { data: null, error: { code: 'P0001', message: 'COI_ARCHIVE_STATE_FIELD_FORBIDDEN' } };
-          if (legacyOnly && n(despues.estado_registro) === 'ARCHIVADO' && !estadoCerrado(despues))
+          if (has('estado_registro') && n(despues.estado_registro) === 'ARCHIVADA' && n(antes.estado_registro) !== 'ARCHIVADA')
+            return { data: null, error: { code: 'P0001', message: 'COI_ARCHIVE_STATE_CANONICAL_REQUIRED' } };
+          if (legacyOnly && registroArchivado(despues.estado_registro) && !estadoCerrado(despues))
             return { data: null, error: { code: 'P0001', message: 'COI_LEGACY_CLOSE_REQUIRES_CANONICALIZATION' } };
-          if (n(despues.estado_registro) === 'ARCHIVADO' && n(antes.estado_registro) !== 'ARCHIVADO' && !oldClosed)
+          if (registroArchivado(despues.estado_registro) && !registroArchivado(antes.estado_registro) && !oldClosed)
             return { data: null, error: { code: 'P0001', message: 'COI_ARCHIVE_REQUIRES_CLOSED_ORDER' } };
           if (oldClosed && has('estado_coi') && estadoCerrado(antes) && !estadoCerrado(despues))
             return { data: null, error: { code: 'P0001', message: 'COI_CLOSURE_IMMUTABLE' } };
@@ -1915,4 +1918,63 @@ test('H10-83 · P1 · archivo directo legacy-only exige canonicalizar el cierre 
   const fila = await page.evaluate((n) => window.__H10__.fila(n), OC_LEGACY_CERRADA.nro_oc);
   expect(fila.estado_registro).toBe('Cerrado');
   expect(fila.estado_coi).toBe('En ejecución');
+});
+
+test('H10-84 · P2 · estado_registro Archivada no puede escribirse como variante nueva', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  const r = await page.evaluate(async (id) => window.getSupabaseClient().rpc('coi_actualizar_orden_integral', {
+    p_orden_id: id, p_cambios: { estado_registro: 'Archivada' }
+  }), OC_ACTIVA.id);
+  expect(r.error && r.error.message).toBe('COI_ARCHIVE_STATE_CANONICAL_REQUIRED');
+  expect((await remoto(page, OC_ACTIVA.nro_oc)).estado_registro).toBe('Activo');
+});
+
+test('H10-85 · P2 · archivado confirmado con refresh fallido informa warning de sincronización', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await abrirFicha(page, OC_CERRADA.nro_oc);
+  const resultado = await page.evaluate(async (n) => {
+    window.recargarDatosDesdeSupabase = async () => { throw new Error('fixture H10: refresh archivo post-commit falló'); };
+    return await window.archivarOC(n);
+  }, OC_CERRADA.nro_oc);
+  expect(resultado).toBe(true);
+  expect((await remoto(page, OC_CERRADA.nro_oc)).estado_registro).toBe('Archivado');
+  expect(await page.evaluate(() => window.__H10__.toasts.some((t) =>
+    t.t === 'warning' && /confirmada en el servidor|resincronizar|actualizar/i.test(t.m)))).toBe(true);
+});
+
+test('H10-86 · P2 · restauración confirmada con refresh fallido informa warning de sincronización', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await abrirFicha(page, OC_ARCHIVADA.nro_oc);
+  const resultado = await page.evaluate(async (n) => {
+    window.recargarDatosDesdeSupabase = async () => { throw new Error('fixture H10: refresh restore post-commit falló'); };
+    return await window.desarchivarOC(n);
+  }, OC_ARCHIVADA.nro_oc);
+  expect(resultado).toBe(true);
+  expect((await remoto(page, OC_ARCHIVADA.nro_oc)).estado_registro).toBe('Activo');
+  expect(await page.evaluate(() => window.__H10__.toasts.some((t) =>
+    t.t === 'warning' && /confirmada en el servidor|resincronizar|actualizar/i.test(t.m)))).toBe(true);
+});
+
+test('H10-87 · P2 · un retry lento no reabre la ruta de error si el operador navega a Red', async ({ page }) => {
+  await prepararH10(page, { fallaOrdenes: true });
+  await abrirCrudo(page, '#ficha-oc/' + OC_ACTIVA.nro_oc);
+  await page.waitForFunction(() => Boolean(document.getElementById('h10CatalogoNoDisponible')),
+    null, { timeout: 12000 });
+  await page.evaluate(() => {
+    window.recargarDatosDesdeSupabase = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+      throw new Error('fixture H10: retry sigue sin remoto');
+    };
+  });
+  await page.click('#h10ReintentarCatalogo');
+  await page.waitForTimeout(180);
+  await navegarV2(page, 'btnRed');
+  await page.waitForTimeout(2600);
+  const e = await estadoRuta(page);
+  expect(e.vista).toBe('vistaRed');
+  expect(e.hash).toBe('#red');
+  expect(e.errorCatalogo).toBe(false);
 });

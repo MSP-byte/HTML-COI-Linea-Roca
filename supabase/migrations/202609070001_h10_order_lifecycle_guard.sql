@@ -38,7 +38,7 @@ begin
         detail = 'el archivo se registra en estado_registro, no en estado_coi';
     end if;
 
-    if v_new_registro = 'ARCHIVADO' then
+    if v_new_registro in ('ARCHIVADO', 'ARCHIVADA') then
       raise exception using
         errcode = 'P0001',
         message = 'COI_ARCHIVE_REQUIRES_CLOSED_ORDER',
@@ -87,7 +87,7 @@ begin
   if v_old_registro = 'CERRADO'
      and not v_old_estado_cerrado
      and old.fecha_cierre_operativo is null
-     and v_new_registro = 'ARCHIVADO'
+     and v_new_registro in ('ARCHIVADO', 'ARCHIVADA')
      and not v_new_estado_cerrado then
     raise exception using
       errcode = 'P0001',
@@ -123,6 +123,19 @@ begin
     return new;
   end if;
 
+  -- `Archivado` es el unico valor canonico que H10 escribe. Filas historicas
+  -- con `Archivada` siguen reconociendose como ya archivadas para poder
+  -- restaurarlas/normalizarlas, pero una escritura NUEVA con esa variante se
+  -- rechaza: de otro modo Supabase puede guardar un estado que algunos filtros
+  -- leen como activo y otros como archivado.
+  if v_new_registro = 'ARCHIVADA'
+     and v_old_registro is distinct from 'ARCHIVADA' then
+    raise exception using
+      errcode = 'P0001',
+      message = 'COI_ARCHIVE_STATE_CANONICAL_REQUIRED',
+      detail = 'use estado_registro=Archivado para archivar una OC';
+  end if;
+
   -- Nunca crear cierres nuevos en la columna historica de registro.
   if not v_old_cerrado and v_new_registro = 'CERRADO' then
     raise exception using
@@ -131,8 +144,8 @@ begin
   end if;
 
   -- Archivar es una segunda transicion: exige cierre previo ya confirmado.
-  if v_new_registro = 'ARCHIVADO'
-     and v_old_registro <> 'ARCHIVADO'
+  if v_new_registro in ('ARCHIVADO', 'ARCHIVADA')
+     and v_old_registro not in ('ARCHIVADO', 'ARCHIVADA')
      and not v_old_cerrado then
     raise exception using
       errcode = 'P0001',
