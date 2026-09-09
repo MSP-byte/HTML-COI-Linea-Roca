@@ -1978,3 +1978,24 @@ test('H10-87 · P2 · un retry lento no reabre la ruta de error si el operador n
   expect(e.hash).toBe('#red');
   expect(e.errorCatalogo).toBe(false);
 });
+
+test('H10-88 · P1 · desarchivar global exige identidad exacta antes de mutar', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  const parcial = OC_ARCHIVADA.nro_oc.slice(-6);
+  const resultado = await page.evaluate(async (ref) => window.desarchivarOC(ref), parcial);
+  expect(resultado).toBe(false);
+  expect((await remoto(page, OC_ARCHIVADA.nro_oc)).estado_registro).toBe('Archivado');
+  expect((await cambiosRPC(page)).length).toBe(0);
+});
+
+test('H10-89 · P1 · export H09 desarchivar exige identidad exacta antes de mutar', async ({ page }) => {
+  await prepararH10(page);
+  await abrir(page);
+  await page.waitForFunction(() => Boolean(window.COI_ARCHIVO_OC_H09 && typeof window.COI_ARCHIVO_OC_H09.desarchivar === 'function'));
+  const parcial = OC_ARCHIVADA.nro_oc.slice(-6);
+  const resultado = await page.evaluate(async (ref) => window.COI_ARCHIVO_OC_H09.desarchivar(ref), parcial);
+  expect(resultado).toBe(false);
+  expect((await remoto(page, OC_ARCHIVADA.nro_oc)).estado_registro).toBe('Archivado');
+  expect((await cambiosRPC(page)).length).toBe(0);
+});

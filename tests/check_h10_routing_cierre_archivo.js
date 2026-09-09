@@ -580,3 +580,9 @@ check(routerCodigo.indexOf('aplicando || restaurando || reintentando') >= 0,
   'los repintados automáticos no pueden publicar una ruta transitoria durante retry');
 
 console.log('H10 final review guards: OK');
+
+check(cierreCodigo.indexOf('function guardarDesarchivado(fn, contexto)') >= 0,
+  'desarchivar debe exigir identidad exacta antes de mutar');
+check(cierreCodigo.indexOf("api.desarchivar = guardarDesarchivado(api.desarchivar, 'COI_ARCHIVO_OC_H09.desarchivar')") >= 0,
+  'el export H09 desarchivar debe usar el mismo guard de identidad exacta');
+console.log('H10 desarchive exact-identity final guard: OK');

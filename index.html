@@ -32479,22 +32479,57 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     return envuelto;
   }
 
+  function guardarDesarchivado(fn, contexto) {
+    if (typeof fn !== 'function' || fn.__coiH10ExactRestore) return fn;
+    const envuelto = function (referencia) {
+      const ref = referencia || referenciaFicha() || '';
+      const itemExacto = itemDe(ref);
+      if (!itemExacto) {
+        avisar('No se pudo identificar una OC exacta para restaurar. Revise el número o vuelva a sincronizar.', 'error');
+        return Promise.resolve(false);
+      }
+      return fn.call(this, ref);
+    };
+    envuelto.__coiH10ExactRestore = true;
+    envuelto.__coiH10ExactRestoreBase = fn;
+    envuelto.__coiH10ExactRestoreCtx = contexto;
+    return envuelto;
+  }
+
+  function protegerDesarchivoGlobal() {
+    if (typeof window.desarchivarOC === 'function' && !window.desarchivarOC.__coiH10ExactRestore) {
+      window.desarchivarOC = guardarDesarchivado(window.desarchivarOC, 'window.desarchivarOC');
+    }
+    if (typeof window.restaurarOC === 'function' && !window.restaurarOC.__coiH10ExactRestore) {
+      window.restaurarOC = guardarDesarchivado(window.restaurarOC, 'window.restaurarOC');
+    }
+  }
+
   window.archivarOC = guardarArchivado(window.archivarOC, 'window.archivarOC');
+  protegerDesarchivoGlobal();
 
   // El export de H09 se envuelve en su propia propiedad, no en una copia: si
   // H09 se reinstala mas tarde y reemplaza el objeto, el reinstalador de mas
   // abajo lo vuelve a cubrir.
   function protegerExportH09() {
     const api = window.COI_ARCHIVO_OC_H09;
-    if (!api || typeof api.archivar !== 'function' || api.archivar.__coiH10Guard) return;
-    api.archivar = guardarArchivado(api.archivar, 'COI_ARCHIVO_OC_H09.archivar');
+    if (!api) return;
+    if (typeof api.archivar === 'function' && !api.archivar.__coiH10Guard) {
+      api.archivar = guardarArchivado(api.archivar, 'COI_ARCHIVO_OC_H09.archivar');
+    }
+    if (typeof api.desarchivar === 'function' && !api.desarchivar.__coiH10ExactRestore) {
+      api.desarchivar = guardarDesarchivado(api.desarchivar, 'COI_ARCHIVO_OC_H09.desarchivar');
+    }
+    if (typeof api.restaurar === 'function' && !api.restaurar.__coiH10ExactRestore) {
+      api.restaurar = guardarDesarchivado(api.restaurar, 'COI_ARCHIVO_OC_H09.restaurar');
+    }
   }
   protegerExportH09();
   // H09 se reinstala en varios tiempos ([0,400,1500,3000,6000] ms): se cubre
   // cada reinstalacion, porque una puerta que se abre sola a los 6 segundos no
   // es una puerta cerrada.
   [0, 450, 1600, 3100, 6100].forEach((ms) => setTimeout(() => {
-    try { protegerExportH09(); } catch (e) {}
+    try { protegerExportH09(); protegerDesarchivoGlobal(); } catch (e) {}
   }, ms));
 
   window.__COI_H10_PUEDE_ARCHIVAR__ = puedeArchivar;
