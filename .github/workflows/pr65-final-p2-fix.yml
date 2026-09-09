@@ -1,0 +1,104 @@
+name: PR65 final P2 focus geometry accessibility
+
+on:
+  push:
+    branches:
+      - fix/dashboard-focus-motion-defaults
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Fix focus rail geometry and accessibility
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+
+          old = '''  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar{width:var(--v2-side-collapsed)!important}\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-brand-copy,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-section,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-label,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-count,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-copy,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-action{display:none!important}\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-sidebar-brand,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-btn,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile{justify-content:center!important}\n  body.dashboard-focus-mode.coi-v2-ready #vistaDashboard{margin-left:var(--v2-side-collapsed)!important;padding:84px 22px 36px!important}\n}'''
+
+          new = '''  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar{width:var(--v2-side-collapsed)!important}\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Topbar{left:var(--v2-side-collapsed)!important}\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-brand-copy,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-section,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-count,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-copy,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-action{display:none!important}\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-label{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-sidebar-brand,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-btn,\n  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile{justify-content:center!important}\n  body.dashboard-focus-mode.coi-v2-ready #vistaDashboard{margin-left:var(--v2-side-collapsed)!important;padding:84px 22px 36px!important}\n}'''
+
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected one focus rail CSS block, found {text.count(old)}')
+          text = text.replace(old, new, 1)
+
+          old_js = '''  function syncDashboardFocus(){const view=$('vistaDashboard');document.body.classList.toggle('dashboard-focus-mode',!!view?.classList.contains('active'));}'''
+          new_js = '''  function syncDashboardFocus(){const view=$('vistaDashboard'),active=!!view?.classList.contains('active');document.body.classList.toggle('dashboard-focus-mode',active);document.querySelectorAll('#coiV2Sidebar .coi-v2-nav-btn').forEach(btn=>{const label=btn.querySelector('.v2-label')?.textContent?.trim();if(label){btn.setAttribute('aria-label',label);btn.setAttribute('title',label);}});}'''
+          if text.count(old_js) != 1:
+              raise SystemExit(f'Expected one syncDashboardFocus function, found {text.count(old_js)}')
+          text = text.replace(old_js, new_js, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Extend Chromium regression
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tests/dashboard_focus_v2_shell.spec.js')
+          text = path.read_text(encoding='utf-8')
+          old = '''    return {\n      sidebarWidth: sidebar?.getBoundingClientRect().width || 0,\n      dashboardLeft: dashboard?.getBoundingClientRect().left || 0,\n      labelDisplay: label ? getComputedStyle(label).display : 'missing'\n    };'''
+          new = '''    const topbar = document.getElementById('coiV2Topbar');\n    const ordersButton = sidebar?.querySelector('[data-v2-view="vistaOrdenes"]');\n    return {\n      sidebarWidth: sidebar?.getBoundingClientRect().width || 0,\n      dashboardLeft: dashboard?.getBoundingClientRect().left || 0,\n      topbarLeft: topbar?.getBoundingClientRect().left || 0,\n      labelWidth: label?.getBoundingClientRect().width || 0,\n      navAria: ordersButton?.getAttribute('aria-label') || '',\n      navTitle: ordersButton?.getAttribute('title') || ''\n    };'''
+          if text.count(old) != 1:
+              raise SystemExit('focusMetrics block not found exactly once')
+          text = text.replace(old, new, 1)
+          old_assert = '''  expect(Math.abs(focusMetrics.dashboardLeft - focusMetrics.sidebarWidth)).toBeLessThan(3);\n  expect(focusMetrics.labelDisplay).toBe('none');'''
+          new_assert = '''  expect(Math.abs(focusMetrics.dashboardLeft - focusMetrics.sidebarWidth)).toBeLessThan(3);\n  expect(Math.abs(focusMetrics.topbarLeft - focusMetrics.sidebarWidth)).toBeLessThan(3);\n  expect(focusMetrics.labelWidth).toBeLessThanOrEqual(1);\n  expect(focusMetrics.navAria).toMatch(/Órdenes/i);\n  expect(focusMetrics.navTitle).toMatch(/Órdenes/i);'''
+          if text.count(old_assert) != 1:
+              raise SystemExit('focus assertion block not found exactly once')
+          text = text.replace(old_assert, new_assert, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Static contract
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('index.html').read_text(encoding='utf-8')
+          assert 'body.dashboard-focus-mode.coi-v2-ready #coiV2Topbar{left:var(--v2-side-collapsed)!important}' in text
+          assert '#coiV2Sidebar .v2-label{position:absolute!important;width:1px!important' in text
+          assert "btn.setAttribute('aria-label',label);btn.setAttribute('title',label)" in text
+          assert 'body.dashboard-focus-mode.coi-v2-ready #coiV2Topbar{display:none!important}' not in text
+          print('PR65 final P2 static contract: OK')
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run focused Chromium regressions
+        shell: bash
+        run: |
+          npx playwright test tests/dashboard_focus_v2_shell.spec.js tests/dashboard_charts_motion_paused.spec.js tests/delete_button.spec.js tests/final_ux_alerts_orders_filter.spec.js
+          npx playwright test tests/h10_routing_cierre_archivo.spec.js -g "H10-23"
+
+      - name: Run static suite
+        run: npm test
+
+      - name: Diff check
+        run: git diff --check
+
+      - name: Commit validated P2 fixes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html tests/dashboard_focus_v2_shell.spec.js
+          git commit -m "fix: align focus topbar and preserve rail accessibility"
+          git push origin HEAD:fix/dashboard-focus-motion-defaults
