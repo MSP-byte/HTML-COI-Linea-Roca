@@ -1,0 +1,1194 @@
+﻿{
+  "generatedAt": "2026-07-22T02:25:13.083Z",
+  "baseUrl": "http://127.0.0.1:4173/",
+  "results": [
+    {
+      "scenario": "clean-incognito",
+      "domContentLoadedMs": 7353,
+      "loadMs": 8817,
+      "elapsedMs": 19257,
+      "errors": [],
+      "rejections": [],
+      "requestsPending": [],
+      "interactions": [
+        {
+          "id": "btnDashboard",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 157,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnDashboard",
+            "className": "active",
+            "legitimate": true
+          },
+          "activeView": "vistaDashboard",
+          "clicked": true
+        },
+        {
+          "id": "btnRed",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 282,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnRed",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaRed",
+          "clicked": true
+        },
+        {
+          "id": "btnCalendarioCOI",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 421,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCalendarioCOI",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaCalendarioCOI",
+          "clicked": true
+        },
+        {
+          "id": "btnOrdenes",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 536,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnOrdenes",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaOrdenes",
+          "clicked": true
+        },
+        {
+          "id": "btnCarga",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 620,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCarga",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaCarga",
+          "clicked": true
+        },
+        {
+          "id": "btnAdministracionSistema",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 727,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAdministracionSistema",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaAdministracionSistema",
+          "clicked": true
+        },
+        {
+          "id": "btnCentroAlertas",
+          "disabled": false,
+          "visible": false,
+          "point": {
+            "x": 0,
+            "y": 0
+          },
+          "top": {
+            "tag": "HEADER",
+            "id": "",
+            "className": "main-header",
+            "legitimate": false
+          }
+        },
+        {
+          "id": "btnAccesoBusquedaOrdenes",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 874,
+            "y": 42
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAccesoBusquedaOrdenes",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaOrdenes",
+          "clicked": true
+        }
+      ],
+      "runtime": {
+        "bodyClassName": "modo-consulta",
+        "activeView": "vistaOrdenes",
+        "fixed": [
+          {
+            "tag": "FOOTER",
+            "id": "footerOperativo",
+            "className": "operative-footer",
+            "display": "flex",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "13",
+            "area": 70560
+          },
+          {
+            "tag": "DIV",
+            "id": "d33Tooltip",
+            "className": "d33-tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "100000",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "ordAnaliticaTooltipR36",
+            "className": "orders-chart-tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "100000",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "tip",
+            "className": "tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "99",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "supabaseAuthModal",
+            "className": "supabase-auth-modal",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "10050",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "coiBootIndicator",
+            "className": "coi-boot-indicator",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "100000",
+            "area": 0
+          }
+        ],
+        "visibleOverlays": [],
+        "appReady": null,
+        "rejections": [],
+        "localStorageKeys": [
+          "coi.visual.motion.enabled",
+          "coi_admin_logs_v47",
+          "coi_admin_users_v47",
+          "coi_data_last_update_v50",
+          "coi_fase11_auditoria_cache_v1",
+          "coi_linea_roca_master_v18",
+          "coi_roca_unidades_mantenimiento",
+          "coi_servicios_tecnicos",
+          "coi_supabase_estaciones_cache_v1",
+          "coi_supabase_meta_v2",
+          "coi_timeline_events_v1",
+          "coi_version_actual",
+          "roca_coi_intervenciones_v10"
+        ]
+      }
+    },
+    {
+      "scenario": "persistent-empty",
+      "domContentLoadedMs": 4830,
+      "loadMs": 6194,
+      "elapsedMs": 16049,
+      "errors": [],
+      "rejections": [],
+      "requestsPending": [],
+      "interactions": [
+        {
+          "id": "btnDashboard",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 157,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnDashboard",
+            "className": "active",
+            "legitimate": true
+          },
+          "activeView": "vistaDashboard",
+          "clicked": true
+        },
+        {
+          "id": "btnRed",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 282,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnRed",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaRed",
+          "clicked": true
+        },
+        {
+          "id": "btnCalendarioCOI",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 421,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCalendarioCOI",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaCalendarioCOI",
+          "clicked": true
+        },
+        {
+          "id": "btnOrdenes",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 536,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnOrdenes",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaOrdenes",
+          "clicked": true
+        },
+        {
+          "id": "btnCarga",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 620,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCarga",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaCarga",
+          "clicked": true
+        },
+        {
+          "id": "btnAdministracionSistema",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 727,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAdministracionSistema",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaAdministracionSistema",
+          "clicked": true
+        },
+        {
+          "id": "btnCentroAlertas",
+          "disabled": false,
+          "visible": false,
+          "point": {
+            "x": 0,
+            "y": 0
+          },
+          "top": {
+            "tag": "HEADER",
+            "id": "",
+            "className": "main-header",
+            "legitimate": false
+          }
+        },
+        {
+          "id": "btnAccesoBusquedaOrdenes",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 874,
+            "y": 42
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAccesoBusquedaOrdenes",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaOrdenes",
+          "clicked": true
+        }
+      ],
+      "runtime": {
+        "bodyClassName": "modo-consulta",
+        "activeView": "vistaOrdenes",
+        "fixed": [
+          {
+            "tag": "FOOTER",
+            "id": "footerOperativo",
+            "className": "operative-footer",
+            "display": "flex",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "13",
+            "area": 70560
+          },
+          {
+            "tag": "DIV",
+            "id": "d33Tooltip",
+            "className": "d33-tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "100000",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "ordAnaliticaTooltipR36",
+            "className": "orders-chart-tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "100000",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "tip",
+            "className": "tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "99",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "supabaseAuthModal",
+            "className": "supabase-auth-modal",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "10050",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "coiBootIndicator",
+            "className": "coi-boot-indicator",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "100000",
+            "area": 0
+          }
+        ],
+        "visibleOverlays": [],
+        "appReady": null,
+        "rejections": [],
+        "localStorageKeys": [
+          "coi.visual.motion.enabled",
+          "coi_admin_logs_v47",
+          "coi_admin_users_v47",
+          "coi_data_last_update_v50",
+          "coi_fase11_auditoria_cache_v1",
+          "coi_linea_roca_master_v18",
+          "coi_roca_unidades_mantenimiento",
+          "coi_servicios_tecnicos",
+          "coi_supabase_estaciones_cache_v1",
+          "coi_supabase_meta_v2",
+          "coi_timeline_events_v1",
+          "coi_version_actual",
+          "roca_coi_intervenciones_v10"
+        ]
+      }
+    },
+    {
+      "scenario": "persistent-old-mode",
+      "domContentLoadedMs": 4901,
+      "loadMs": 6265,
+      "elapsedMs": 16499,
+      "errors": [],
+      "rejections": [],
+      "requestsPending": [],
+      "interactions": [
+        {
+          "id": "btnDashboard",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 157,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnDashboard",
+            "className": "active",
+            "legitimate": true
+          },
+          "activeView": "vistaDashboard",
+          "clicked": true
+        },
+        {
+          "id": "btnRed",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 282,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnRed",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaRed",
+          "clicked": true
+        },
+        {
+          "id": "btnCalendarioCOI",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 421,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCalendarioCOI",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaCalendarioCOI",
+          "clicked": true
+        },
+        {
+          "id": "btnOrdenes",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 536,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnOrdenes",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaOrdenes",
+          "clicked": true
+        },
+        {
+          "id": "btnCarga",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 620,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCarga",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaCarga",
+          "clicked": true
+        },
+        {
+          "id": "btnAdministracionSistema",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 727,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAdministracionSistema",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaAdministracionSistema",
+          "clicked": true
+        },
+        {
+          "id": "btnCentroAlertas",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 1338,
+            "y": 116
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCentroAlertas",
+            "className": "nav-alertas-right",
+            "legitimate": true
+          },
+          "activeView": "vistaCentroAlertas",
+          "clicked": true
+        },
+        {
+          "id": "btnAccesoBusquedaOrdenes",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 874,
+            "y": 42
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAccesoBusquedaOrdenes",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaOrdenes",
+          "clicked": true
+        }
+      ],
+      "runtime": {
+        "bodyClassName": "modo-admin",
+        "activeView": "vistaOrdenes",
+        "fixed": [
+          {
+            "tag": "FOOTER",
+            "id": "footerOperativo",
+            "className": "operative-footer",
+            "display": "flex",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "13",
+            "area": 70560
+          },
+          {
+            "tag": "DIV",
+            "id": "d33Tooltip",
+            "className": "d33-tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "100000",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "ordAnaliticaTooltipR36",
+            "className": "orders-chart-tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "100000",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "tip",
+            "className": "tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "99",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "supabaseAuthModal",
+            "className": "supabase-auth-modal",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "10050",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "coiBootIndicator",
+            "className": "coi-boot-indicator",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "100000",
+            "area": 0
+          }
+        ],
+        "visibleOverlays": [],
+        "appReady": null,
+        "rejections": [],
+        "localStorageKeys": [
+          "coi.visual.motion.enabled",
+          "coi_admin_logs_v47",
+          "coi_admin_role",
+          "coi_admin_users_v47",
+          "coi_data_last_update_v50",
+          "coi_fase11_auditoria_cache_v1",
+          "coi_linea_roca_master_v18",
+          "coi_modo",
+          "coi_modo_usuario",
+          "coi_roca_unidades_mantenimiento",
+          "coi_rol_usuario",
+          "coi_servicios_tecnicos",
+          "coi_supabase_estaciones_cache_v1",
+          "coi_supabase_meta_v2",
+          "coi_timeline_events_v1",
+          "coi_version_actual",
+          "roca_coi_intervenciones_v10",
+          "rolActivo"
+        ]
+      }
+    },
+    {
+      "scenario": "persistent-invalid-view",
+      "domContentLoadedMs": 5737,
+      "loadMs": 6006,
+      "elapsedMs": 17168,
+      "errors": [],
+      "rejections": [],
+      "requestsPending": [],
+      "interactions": [
+        {
+          "id": "btnDashboard",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 157,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnDashboard",
+            "className": "active",
+            "legitimate": true
+          },
+          "activeView": "vistaDashboard",
+          "clicked": true
+        },
+        {
+          "id": "btnRed",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 282,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnRed",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaRed",
+          "clicked": true
+        },
+        {
+          "id": "btnCalendarioCOI",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 421,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCalendarioCOI",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaCalendarioCOI",
+          "clicked": true
+        },
+        {
+          "id": "btnOrdenes",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 536,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnOrdenes",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaOrdenes",
+          "clicked": true
+        },
+        {
+          "id": "btnCarga",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 620,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCarga",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaCarga",
+          "clicked": true
+        },
+        {
+          "id": "btnAdministracionSistema",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 727,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAdministracionSistema",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaAdministracionSistema",
+          "clicked": true
+        },
+        {
+          "id": "btnCentroAlertas",
+          "disabled": false,
+          "visible": false,
+          "point": {
+            "x": 0,
+            "y": 0
+          },
+          "top": {
+            "tag": "HEADER",
+            "id": "",
+            "className": "main-header",
+            "legitimate": false
+          }
+        },
+        {
+          "id": "btnAccesoBusquedaOrdenes",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 874,
+            "y": 42
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAccesoBusquedaOrdenes",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaOrdenes",
+          "clicked": true
+        }
+      ],
+      "runtime": {
+        "bodyClassName": "modo-consulta",
+        "activeView": "vistaOrdenes",
+        "fixed": [
+          {
+            "tag": "FOOTER",
+            "id": "footerOperativo",
+            "className": "operative-footer",
+            "display": "flex",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "13",
+            "area": 70560
+          },
+          {
+            "tag": "DIV",
+            "id": "d33Tooltip",
+            "className": "d33-tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "100000",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "ordAnaliticaTooltipR36",
+            "className": "orders-chart-tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "100000",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "tip",
+            "className": "tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "99",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "supabaseAuthModal",
+            "className": "supabase-auth-modal",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "10050",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "coiBootIndicator",
+            "className": "coi-boot-indicator",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "100000",
+            "area": 0
+          }
+        ],
+        "visibleOverlays": [],
+        "appReady": null,
+        "rejections": [],
+        "localStorageKeys": [
+          "activeView",
+          "coi.visual.motion.enabled",
+          "coi_active_view",
+          "coi_admin_logs_v47",
+          "coi_admin_users_v47",
+          "coi_data_last_update_v50",
+          "coi_fase11_auditoria_cache_v1",
+          "coi_linea_roca_master_v18",
+          "coi_roca_unidades_mantenimiento",
+          "coi_servicios_tecnicos",
+          "coi_supabase_estaciones_cache_v1",
+          "coi_supabase_meta_v2",
+          "coi_timeline_events_v1",
+          "coi_version_actual",
+          "roca_coi_intervenciones_v10"
+        ]
+      }
+    },
+    {
+      "scenario": "restored-session",
+      "domContentLoadedMs": 5932,
+      "loadMs": 6157,
+      "elapsedMs": 17094,
+      "errors": [],
+      "rejections": [],
+      "requestsPending": [],
+      "interactions": [
+        {
+          "id": "btnDashboard",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 157,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnDashboard",
+            "className": "active",
+            "legitimate": true
+          },
+          "activeView": "vistaDashboard",
+          "clicked": true
+        },
+        {
+          "id": "btnRed",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 282,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnRed",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaRed",
+          "clicked": true
+        },
+        {
+          "id": "btnCalendarioCOI",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 421,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCalendarioCOI",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaCalendarioCOI",
+          "clicked": true
+        },
+        {
+          "id": "btnOrdenes",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 536,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnOrdenes",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaOrdenes",
+          "clicked": true
+        },
+        {
+          "id": "btnCarga",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 620,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnCarga",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaCarga",
+          "clicked": true
+        },
+        {
+          "id": "btnAdministracionSistema",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 727,
+            "y": 115
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAdministracionSistema",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaAdministracionSistema",
+          "clicked": true
+        },
+        {
+          "id": "btnCentroAlertas",
+          "disabled": false,
+          "visible": false,
+          "point": {
+            "x": 0,
+            "y": 0
+          },
+          "top": {
+            "tag": "HEADER",
+            "id": "",
+            "className": "main-header",
+            "legitimate": false
+          }
+        },
+        {
+          "id": "btnAccesoBusquedaOrdenes",
+          "disabled": false,
+          "visible": true,
+          "point": {
+            "x": 967,
+            "y": 42
+          },
+          "top": {
+            "tag": "BUTTON",
+            "id": "btnAccesoBusquedaOrdenes",
+            "className": "",
+            "legitimate": true
+          },
+          "activeView": "vistaOrdenes",
+          "clicked": true
+        }
+      ],
+      "runtime": {
+        "bodyClassName": "modo-consulta",
+        "activeView": "vistaOrdenes",
+        "fixed": [
+          {
+            "tag": "FOOTER",
+            "id": "footerOperativo",
+            "className": "operative-footer",
+            "display": "flex",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "13",
+            "area": 70560
+          },
+          {
+            "tag": "DIV",
+            "id": "d33Tooltip",
+            "className": "d33-tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "100000",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "ordAnaliticaTooltipR36",
+            "className": "orders-chart-tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "100000",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "tip",
+            "className": "tooltip",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "none",
+            "zIndex": "99",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "supabaseAuthModal",
+            "className": "supabase-auth-modal",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "10050",
+            "area": 0
+          },
+          {
+            "tag": "DIV",
+            "id": "coiBootIndicator",
+            "className": "coi-boot-indicator",
+            "display": "none",
+            "visibility": "visible",
+            "opacity": "1",
+            "pointerEvents": "auto",
+            "zIndex": "100000",
+            "area": 0
+          }
+        ],
+        "visibleOverlays": [],
+        "appReady": null,
+        "rejections": [],
+        "localStorageKeys": [
+          "coi.visual.motion.enabled",
+          "coi_admin_logs_v47",
+          "coi_admin_users_v47",
+          "coi_data_last_update_v50",
+          "coi_fase11_auditoria_cache_v1",
+          "coi_fase11_sesion_actual_v1",
+          "coi_linea_roca_master_v18",
+          "coi_modo",
+          "coi_roca_unidades_mantenimiento",
+          "coi_rol_usuario",
+          "coi_servicios_tecnicos",
+          "coi_supabase_estaciones_cache_v1",
+          "coi_supabase_meta_v2",
+          "coi_supabase_ordenes_cache_v2",
+          "coi_timeline_events_v1",
+          "coi_version_actual",
+          "roca_coi_intervenciones_v10"
+        ]
+      }
+    }
+  ]
+}
