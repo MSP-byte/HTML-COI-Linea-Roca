@@ -1366,3 +1366,151 @@ queda inaccesible.
 
 Consecuencias. Fijado por `H09-8`…`H09-15`, incluidos el fallo de RPC, la
 persistencia tras relectura y la ausencia de escritura local.
+
+## TD-070 — Cerrar una OC y archivarla son dos ejes, no dos valores del mismo campo
+Fecha: 2026-09-06. PR H10.
+
+Contexto. El handler vivo de «Cerrar OC» —`cerrarOC()`, de V59, enganchado a
+`#btnCerrarOCFicha`, `#btnCerrarOCFichaTop`, `#btnCerrarOC` y
+`[data-v59-cerrar-oc]`— hacía esto:
+
+    oc.estadoRegistro = 'Cerrado';
+    oc.estado = 'Cerrada';
+    v59GuardarBase();          // → localStorage
+
+Dos defectos en una sola función. El primero, el ya conocido: el cierre no
+llegaba a Supabase y desaparecía en el siguiente F5. El segundo, más grave:
+`estado_registro` es, desde H09, el campo del **archivo**. Cerrar pisaba el
+archivado y archivar pisaba el cierre. Eran la misma columna con tres valores
+incompatibles —`Activo`, `Archivado`, `Cerrado`— disputándosela.
+
+El cierre de la fase ejecutiva, `closeOrder()`, sí llegaba a Supabase, pero
+escribía la misma columna (`estado_registro:'Cerrado'`) y por un `UPDATE`
+directo a la tabla en vez de la RPC canónica.
+
+Decisión. Los dos ejes se separan, sin columnas nuevas; la revisión final agrega un guard PostgreSQL H10, porque
+los cuatro campos ya existen en `public.coi_ordenes` y los cuatro ya están en la
+lista permitida de `coi_actualizar_orden_integral`:
+
+    ESTADO OPERATIVO / CONTRACTUAL      ESTADO DE REGISTRO
+    estado_coi = 'Cerrada'              estado_registro = 'Activo' | 'Archivado'
+    fecha_cierre_operativo (date)
+    observacion_cierre
+
+`'Cerrada'` no es un valor inventado: ya está en el vocabulario `ESTADOS_COI`
+que usa el editor de la OC.
+
+Cerrar usa `COI_REPOSITORY.ordenes.actualizar()`, igual que archivar: RPC,
+verificación remota releyendo la fila, recarga del modelo y recién entonces la
+interfaz. Si Supabase falla, la OC no cambia de estado y no se cachea nada.
+`#execBtnClose` se reencamina al mismo camino; su listener vive en captura sobre
+`document`, así que el interceptor está en captura sobre `window`, que va antes
+en el recorrido del evento.
+
+Efecto lateral corregido. El predicado `estaOCCerrada()` contaba `'ARCHIVAD'`
+como cierre: archivar una OC la sacaba en silencio de KPIs, calendario y
+alertas, como si se hubiera cerrado. Ahora una OC archivada **sin** marcador
+operativo de cierre no se lee como cerrada. El cierre legado escrito en
+`estado_registro = 'Cerrado'` sí se sigue leyendo como cerrado: es
+compatibilidad con los datos que ya existen.
+
+Consecuencias. Fijado por `H10-1`…`H10-12`, `H10-26` y `H10-27`. No-vacuidad
+verificada devolviendo el cierre a `estado_registro` (caen `H10-1` y `H10-2`) y
+retirando el reemplazo de `window.cerrarOC`, con lo que el botón real de la ficha
+vuelve al camino local (cae `H10-27`).
+
+## TD-071 — Archivar exige haber cerrado; desarchivar no reabre
+Fecha: 2026-09-06. PR H10.
+
+Contexto. Con los dos ejes separados hace falta decir en qué orden se recorren.
+Archivar una OC en ejecución equivale a esconder trabajo vivo del listado
+operativo, y desarchivar no puede convertirse en una forma encubierta de
+reabrir una contratación terminada.
+
+Decisión. La secuencia es:
+
+    EN EJECUCIÓN → Cerrar OC → CERRADA → Archivar OC → CERRADA + ARCHIVADA
+
+«Archivar OC» queda deshabilitado mientras la OC no esté cerrada, con la ayuda
+«Primero debe cerrar la OC para enviarla al historial.», y la invocación
+directa tampoco emite ninguna escritura remota: el bloqueo no es solo del botón.
+
+Cerrar **no** archiva. Son dos decisiones distintas y las toma el operador.
+
+Desarchivar solo cambia `estado_registro` a `Activo`. El estado operativo, la
+fecha de cierre y la observación de cierre quedan intactos:
+
+    OC cerrada + archivada → Desarchivar → OC cerrada + activa en el registro
+
+Nunca «En ejecución». «Deshacer» comparte ese camino: revierte contra Supabase
+y solo después toca la pantalla.
+
+Visualmente las dos acciones dejan de leerse como equivalentes: «Cerrar OC» es
+la acción operativa y «Archivar OC» queda separada como gestión del historial.
+Los textos también dejan de nombrar la base de datos: el operador lee «Mueve la
+OC al historial de archivadas», no «Archiva la OC en Supabase».
+
+Consecuencias. Cuatro pruebas de H09 —`H09-8`, `H09-10`, `H09-12` y `H09-13`—
+archivaban una OC `En ejecución`, que es exactamente lo que esta regla prohíbe.
+Verifican el **mecanismo** de archivado —RPC, fallo remoto, Deshacer,
+persistencia tras relectura—, no la legalidad de archivar una OC abierta, así que
+su fixture pasa a partir de una OC ya cerrada. Ninguna aserción se relajó: sigue
+fijando que el payload lleva `estado_registro` y nunca `estado_coi`.
+
+Fijado por `H10-4`…`H10-9` y `H10-12`. No-vacuidad verificada
+permitiendo archivar una OC abierta (cae `H10-4`) y haciendo que desarchivar
+toque `estado_coi` (caen `H10-6`, `H10-7` y `H10-9`).
+
+## TD-072 — La URL guarda la navegación; Supabase sigue guardando los datos
+Fecha: 2026-09-06. PR H10.
+
+Contexto. La aplicación no tenía routing: ni una sola lectura de
+`location.hash` en 32.000 líneas. Cualquier F5 devolvía al operador a la vista
+inicial y perdía la Ficha OC que estaba mirando. En un tablero operativo eso no
+es un detalle estético: se pierde el contexto de trabajo en cada recarga, y una
+OC recién archivada quedaba fuera del filtro por defecto, de modo que volver a
+ella exigía rehacer el camino entero.
+
+Decisión. `location.hash` describe **vista, entidad y subpestaña**. Es estado de
+navegación, no autoridad de datos: el dato sigue viniendo de Supabase.
+
+    #inicio     #ordenes/activas|archivadas|todas   #calendario   #alertas
+    #red        #estacion/<nombre>                  #carga        #buscador
+    #um  #um/servicios   #administracion   #acerca
+    #ficha-oc/<nro>[/<subpestaña>]        #ficha-um/<id>
+
+Las subpestañas son los siete paneles reales de la ficha: `resumen`,
+`contractual`, `certificaciones`, `financiero`, `documentos`, `fotos` y
+`observaciones`.
+
+El orden de restauración no se negocia:
+
+    carga → sesión → identidad confirmada → datos autoritativos
+      → se interpreta el hash → se abre vista / entidad / subpestaña
+
+No se abre una entidad antes de que el modelo pueda resolverla, y no hay
+fallback local. Una ruta directa a una OC se resuelve por el mecanismo canónico
+(`resolverOrdenActual` / `obtenerOC`), no por el listado filtrado: una OC
+archivada se abre por URL aunque el filtro por defecto sea Activas.
+
+Publicar el hash envolviendo `mostrarVista()` no alcanzaba: la aplicación cambia
+de vista por al menos tres caminos —`mostrarVista`, `mostrarVistaFix` y
+`showView`— y los dos últimos manipulan las clases del DOM directamente. La
+única fuente de verdad de «qué vista está abierta» es el DOM, así que el hash se
+publica observando la clase `.active` de las vistas.
+
+El bucle clásico —el router abre una vista, la vista publica el hash, el hash
+reabre la vista— se corta con un guard en las dos direcciones: mientras el
+router aplica una ruta nadie publica, y el `hashchange` que provoca el propio
+router se descuenta. Las rutas que llegan durante una aplicación se coalescen en
+la última, no se pierden ni se encadenan.
+
+Una ruta a una OC inexistente informa —«No se encontró la Orden de Compra
+solicitada.», con «Volver a Órdenes»— en vez de dejar la pantalla en blanco o
+redirigir en silencio. Sin hash se conserva la landing vigente del sistema
+—Inicio operativo, `vistaDashboard`—: el router solo rotula la URL.
+
+Consecuencias. Fijado por `H10-13`…`H10-25`. No-vacuidad verificada retirando la
+restauración de ruta (caen `H10-14`, `H10-15`, `H10-16`, `H10-18` y `H10-19`) y
+retirando la publicación del hash de la ficha (caen `H10-13`, `H10-14` y
+`H10-23`).

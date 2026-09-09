@@ -31,14 +31,26 @@ assert.match(
 
 assert.match(
   html,
-  /\['Gestión COI',\['estado_coi','estado_registro','observaciones'/,
+  /\['Gestión COI',\['estado_coi','observaciones'/,
   'Observaciones generales deben permanecer vinculadas a public.coi_ordenes.observaciones.'
+);
+
+assert.doesNotMatch(
+  html,
+  /\['Gestión COI',\[[^\]]*'estado_registro'/,
+  'H10: estado_registro no puede exponerse en la edición ordinaria; Archivar tiene su transición controlada.'
+);
+
+assert.doesNotMatch(
+  html,
+  /\['Cierre',\['fecha_cierre_operativo','observacion_cierre'\]\]/,
+  'H10: la auditoría del primer cierre no puede renderizarse como campos editables ordinarios.'
 );
 
 assert.match(
   html,
-  /\['Cierre',\['fecha_cierre_operativo','observacion_cierre'\]\]/,
-  'Observación de cierre debe permanecer separada de Observaciones generales.'
+  /EDITOR_BLOCKED=new Set\(\['estado_registro','fecha_cierre_operativo','observacion_cierre'\]\)/,
+  'H10: archivo y auditoría de cierre deben quedar fuera del payload del editor ordinario.'
 );
 
-console.log('Edición ordinaria RC2: botón histórico delega al editor transaccional y campos de observación quedan separados.');
+console.log('Edición ordinaria RC2: observaciones generales editables; archivo y auditoría de cierre protegidos por H10.');
