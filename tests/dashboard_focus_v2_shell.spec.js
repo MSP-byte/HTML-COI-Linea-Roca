@@ -31,7 +31,7 @@ test('Inicio aplica foco real al shell V2 sin perder navegacion ni buscador', as
   await expect(sidebar).toBeVisible();
   await expect(topbar).toBeVisible();
   await expect(page.locator('#coiV2GlobalSearch')).toBeVisible();
-  await expect(page.locator('#coiV2Menu')).toBeVisible();
+  await expect(page.locator('#coiV2Menu')).toBeHidden();
   await expect(page.locator('#coiToggleMotion')).toHaveCount(0);
   await expect(page.locator('#coiFocusMode')).toHaveCount(0);
 
@@ -58,6 +58,21 @@ test('Inicio aplica foco real al shell V2 sin perder navegacion ni buscador', as
   expect(focusMetrics.labelWidth).toBeLessThanOrEqual(1);
   expect(focusMetrics.navAria).toMatch(/Órdenes/i);
   expect(focusMetrics.navTitle).toMatch(/Órdenes/i);
+
+  // En foco forzado, el control desktop no debe mutar silenciosamente la preferencia normal del sidebar.
+  const focusMenuState = await page.evaluate(() => {
+    const beforeClass = document.body.classList.contains('coi-v2-sidebar-collapsed');
+    const beforeSaved = localStorage.getItem('coi_v2_sidebar_collapsed');
+    document.getElementById('coiV2Menu')?.click();
+    return {
+      beforeClass,
+      afterClass: document.body.classList.contains('coi-v2-sidebar-collapsed'),
+      beforeSaved,
+      afterSaved: localStorage.getItem('coi_v2_sidebar_collapsed')
+    };
+  });
+  expect(focusMenuState.afterClass).toBe(focusMenuState.beforeClass);
+  expect(focusMenuState.afterSaved).toBe(focusMenuState.beforeSaved);
 
   const ordersNav = page.locator('#coiV2Sidebar [data-v2-view="vistaOrdenes"]');
   await expect(ordersNav).toBeVisible();
