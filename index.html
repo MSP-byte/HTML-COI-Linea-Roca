@@ -24979,10 +24979,10 @@ function coiR31UpdateVersion(){
     [[18,20],[59,7],[102,7],[160,20]].forEach(([cx,cy])=>{const c=document.createElementNS(ns,'circle');c.setAttribute('cx',cx);c.setAttribute('cy',cy);c.setAttribute('r','4.5');c.setAttribute('class','coi-rail-node');svg.appendChild(c);});
     const label=document.createElement('span');label.textContent='Red, contratos y decisiones en una sola vista';wrap.append(svg,label);return wrap;
   }
-  function button(id,label,title){const b=document.createElement('button');b.type='button';b.id=id;b.className='coi-visual-btn';b.textContent=label;b.title=title;return b;}
-  function motionEnabled(){if(reduced())return false;try{return localStorage.getItem(MOTION_KEY)!=='0';}catch(_e){return true;}}
-  function applyMotion(enabled){document.body.classList.toggle('coi-motion-off',!enabled);const b=$('coiToggleMotion');if(b){b.setAttribute('aria-pressed',String(enabled));b.textContent=enabled?'Movimiento activo':'Movimiento pausado';b.title=enabled?'Pausar animaciones decorativas':'Activar animaciones decorativas';}try{localStorage.setItem(MOTION_KEY,enabled?'1':'0');}catch(_e){}}
-  function toggleFocus(){const active=document.body.classList.toggle('dashboard-focus-mode');const b=$('coiFocusMode');if(b){b.setAttribute('aria-pressed',String(active));b.textContent=active?'Salir de modo foco':'Modo foco';}if(active)window.scrollTo({top:0,behavior:motionEnabled()?'smooth':'auto'});}
+  function motionEnabled(){return true;}
+  function applyMotion(){document.body.classList.remove('coi-motion-off');try{localStorage.removeItem(MOTION_KEY);}catch(_e){}}
+  function syncDashboardFocus(){const view=$('vistaDashboard');document.body.classList.toggle('dashboard-focus-mode',!!view?.classList.contains('active'));}
+  function toggleFocus(){syncDashboardFocus();}
   function safeName(value){return String(value||'grafico-coi').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase();}
   function exportSvg(svg,name){
     if(!svg){if(typeof window.mostrarToastCOI==='function')window.mostrarToastCOI('El gráfico todavía no está disponible.','warning');return;}
@@ -25001,17 +25001,17 @@ function coiR31UpdateVersion(){
   function decorate(){
     updateVersion();const mount=$('dashboardInteractivoMount'),head=mount?.querySelector('.d33-head');if(!mount||!head)return false;
     if(!head.querySelector('.coi-rail-signature'))head.querySelector('div')?.appendChild(createRailSignature());
-    if(!head.querySelector('.coi-visual-controls')){const controls=document.createElement('div');controls.className='coi-visual-controls';const motion=button('coiToggleMotion','Movimiento activo','Pausar animaciones decorativas');motion.setAttribute('aria-pressed','true');motion.addEventListener('click',()=>applyMotion(document.body.classList.contains('coi-motion-off')));const focus=button('coiFocusMode','Modo foco','Maximizar el Dashboard para presentación');focus.setAttribute('aria-pressed','false');focus.addEventListener('click',toggleFocus);controls.append(motion,focus);head.appendChild(controls);}
     const cards=[...mount.querySelectorAll('.d33-card')];cards.forEach(card=>{const title=card.querySelector('h4')?.textContent||'';if(title.includes('Estado contractual'))addExportButton(card,'estado-contractual-oc','d33Donut');if(title.includes('Agenda COI'))addExportButton(card,'agenda-coi-seis-meses','d33Agenda');});
-    applyMotion(motionEnabled());return true;
+    syncDashboardFocus();applyMotion(true);return true;
   }
   function springPress(el){if(!el||document.body.classList.contains('coi-motion-off')||reduced()||typeof el.animate!=='function')return;el.animate([{transform:getComputedStyle(el).transform},{transform:'scale(.975)'},{transform:getComputedStyle(el).transform}],{duration:360,easing:'cubic-bezier(.2,1.35,.3,1)'});}
   function bind(){
     if(document.__coiVisualR34)return;document.__coiVisualR34=true;
     const mount=$('dashboardInteractivoMount');
+    const dashboardView=$('vistaDashboard');
+    if(dashboardView){const focusObserver=new MutationObserver(syncDashboardFocus);focusObserver.observe(dashboardView,{attributes:true,attributeFilter:['class']});syncDashboardFocus();}
     mount?.addEventListener('pointermove',event=>{const r=mount.getBoundingClientRect();mount.style.setProperty('--coi-pointer-x',`${event.clientX-r.left}px`);mount.style.setProperty('--coi-pointer-y',`${event.clientY-r.top}px`);const card=event.target.closest('.d33-card,.d33-kpi');if(card){const c=card.getBoundingClientRect();card.style.setProperty('--spot-x',`${event.clientX-c.left}px`);card.style.setProperty('--spot-y',`${event.clientY-c.top}px`);}} ,{passive:true});
-    document.addEventListener('click',event=>{const interactive=event.target.closest('.d33-kpi,.d33-chip,.d33-priority,.d33-activity,.d33-legend-item,.coi-visual-btn');if(interactive)springPress(interactive);if(event.target.closest('#moduleNav button')&&!event.target.closest('#btnDashboard'))document.body.classList.remove('dashboard-focus-mode');},true);
-    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&document.body.classList.contains('dashboard-focus-mode'))toggleFocus();});
+    document.addEventListener('click',event=>{const interactive=event.target.closest('.d33-kpi,.d33-chip,.d33-priority,.d33-activity,.d33-legend-item,.coi-visual-btn');if(interactive)springPress(interactive);},true);
   }
   function enhanceRenderer(){const base=window.renderDashboardInteractivo;if(typeof base!=='function'||base.__coiVisualR34)return;const wrapped=function(...args){const result=base.apply(this,args);setTimeout(decorate,0);return result;};wrapped.__coiVisualR34=true;window.renderDashboardInteractivo=wrapped;if(window.COI?.dashboard)window.COI.dashboard.render=wrapped;}
   function init(){updateVersion();let attempts=0;const run=()=>{attempts++;const ok=decorate();enhanceRenderer();if(!ok&&attempts<10)setTimeout(run,250);};run();bind();}
