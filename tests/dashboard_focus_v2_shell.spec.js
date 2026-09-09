@@ -20,7 +20,7 @@ async function openIsolated(page) {
   await page.evaluate(() => document.body.classList.remove('auth-locked'));
 }
 
-test('Inicio aplica foco real al shell V2 y conserva una navegacion compacta', async ({ page }, testInfo) => {
+test('Inicio aplica foco real al shell V2 sin perder navegacion ni buscador', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name.includes('mobile'), 'Cobertura visual del shell V2 de escritorio');
   await openIsolated(page);
 
@@ -29,7 +29,9 @@ test('Inicio aplica foco real al shell V2 y conserva una navegacion compacta', a
   const dashboard = page.locator('#vistaDashboard');
 
   await expect(sidebar).toBeVisible();
-  await expect(topbar).toBeHidden();
+  await expect(topbar).toBeVisible();
+  await expect(page.locator('#coiV2GlobalSearch')).toBeVisible();
+  await expect(page.locator('#coiV2Menu')).toBeVisible();
   await expect(page.locator('#coiToggleMotion')).toHaveCount(0);
   await expect(page.locator('#coiFocusMode')).toHaveCount(0);
 
@@ -37,10 +39,15 @@ test('Inicio aplica foco real al shell V2 y conserva una navegacion compacta', a
     const sidebar = document.getElementById('coiV2Sidebar');
     const dashboard = document.getElementById('vistaDashboard');
     const label = sidebar?.querySelector('.v2-label');
+    const topbar = document.getElementById('coiV2Topbar');
+    const topbarBottom = topbar?.getBoundingClientRect().bottom || 0;
+    const dashboardTop = dashboard?.getBoundingClientRect().top || 0;
     return {
       sidebarWidth: sidebar?.getBoundingClientRect().width || 0,
       dashboardLeft: dashboard?.getBoundingClientRect().left || 0,
-      labelDisplay: label ? getComputedStyle(label).display : 'missing'
+      labelDisplay: label ? getComputedStyle(label).display : 'missing',
+      topbarBottom,
+      dashboardTop
     };
   });
 
@@ -48,6 +55,7 @@ test('Inicio aplica foco real al shell V2 y conserva una navegacion compacta', a
   expect(focusMetrics.sidebarWidth).toBeLessThan(110);
   expect(Math.abs(focusMetrics.dashboardLeft - focusMetrics.sidebarWidth)).toBeLessThan(3);
   expect(focusMetrics.labelDisplay).toBe('none');
+  expect(focusMetrics.dashboardTop).toBeGreaterThanOrEqual(focusMetrics.topbarBottom - 2);
 
   const ordersNav = page.locator('#coiV2Sidebar [data-v2-view="vistaOrdenes"]');
   await expect(ordersNav).toBeVisible();
@@ -56,6 +64,7 @@ test('Inicio aplica foco real al shell V2 y conserva una navegacion compacta', a
   await expect(page.locator('#vistaOrdenes')).toHaveClass(/\bactive\b/);
   await expect(page.locator('body')).not.toHaveClass(/\bdashboard-focus-mode\b/);
   await expect(topbar).toBeVisible();
+  await expect(page.locator('#coiV2GlobalSearch')).toBeVisible();
 
   const normalMetrics = await page.evaluate(() => ({
     sidebarWidth: document.getElementById('coiV2Sidebar')?.getBoundingClientRect().width || 0,
@@ -68,5 +77,6 @@ test('Inicio aplica foco real al shell V2 y conserva una navegacion compacta', a
   await page.locator('#coiV2Sidebar [data-v2-view="vistaDashboard"]').click();
   await expect(dashboard).toHaveClass(/\bactive\b/);
   await expect(page.locator('body')).toHaveClass(/\bdashboard-focus-mode\b/);
-  await expect(topbar).toBeHidden();
+  await expect(topbar).toBeVisible();
+  await expect(page.locator('#coiV2GlobalSearch')).toBeVisible();
 });
