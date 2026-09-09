@@ -39,17 +39,25 @@ test('Inicio aplica foco real al shell V2 sin perder navegacion ni buscador', as
     const sidebar = document.getElementById('coiV2Sidebar');
     const dashboard = document.getElementById('vistaDashboard');
     const label = sidebar?.querySelector('.v2-label');
+    const topbar = document.getElementById('coiV2Topbar');
+    const ordersButton = sidebar?.querySelector('[data-v2-view="vistaOrdenes"]');
     return {
       sidebarWidth: sidebar?.getBoundingClientRect().width || 0,
       dashboardLeft: dashboard?.getBoundingClientRect().left || 0,
-      labelDisplay: label ? getComputedStyle(label).display : 'missing'
+      topbarLeft: topbar?.getBoundingClientRect().left || 0,
+      labelWidth: label?.getBoundingClientRect().width || 0,
+      navAria: ordersButton?.getAttribute('aria-label') || '',
+      navTitle: ordersButton?.getAttribute('title') || ''
     };
   });
 
   expect(focusMetrics.sidebarWidth).toBeGreaterThan(40);
   expect(focusMetrics.sidebarWidth).toBeLessThan(110);
   expect(Math.abs(focusMetrics.dashboardLeft - focusMetrics.sidebarWidth)).toBeLessThan(3);
-  expect(focusMetrics.labelDisplay).toBe('none');
+  expect(Math.abs(focusMetrics.topbarLeft - focusMetrics.sidebarWidth)).toBeLessThan(3);
+  expect(focusMetrics.labelWidth).toBeLessThanOrEqual(1);
+  expect(focusMetrics.navAria).toMatch(/Órdenes/i);
+  expect(focusMetrics.navTitle).toMatch(/Órdenes/i);
 
   const ordersNav = page.locator('#coiV2Sidebar [data-v2-view="vistaOrdenes"]');
   await expect(ordersNav).toBeVisible();

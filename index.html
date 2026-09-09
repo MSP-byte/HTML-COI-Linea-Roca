@@ -1461,12 +1461,13 @@ body.dashboard-focus-mode #vistaDashboard>.view-card{margin:0;max-width:1880px;m
 body.dashboard-focus-mode.coi-v2-ready #vistaDashboard{padding-top:84px!important}
 @media (min-width:761px){
   body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar{width:var(--v2-side-collapsed)!important}
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Topbar{left:var(--v2-side-collapsed)!important}
   body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-brand-copy,
   body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-section,
-  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-label,
   body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-count,
   body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-copy,
   body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-action{display:none!important}
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-label{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
   body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-sidebar-brand,
   body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-btn,
   body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile{justify-content:center!important}
@@ -24995,7 +24996,7 @@ function coiR31UpdateVersion(){
   }
   function motionEnabled(){return true;}
   function applyMotion(){document.body.classList.remove('coi-motion-off');try{localStorage.removeItem(MOTION_KEY);}catch(_e){}}
-  function syncDashboardFocus(){const view=$('vistaDashboard');document.body.classList.toggle('dashboard-focus-mode',!!view?.classList.contains('active'));}
+  function syncDashboardFocus(){const view=$('vistaDashboard'),active=!!view?.classList.contains('active');document.body.classList.toggle('dashboard-focus-mode',active);document.querySelectorAll('#coiV2Sidebar .coi-v2-nav-btn').forEach(btn=>{const label=btn.querySelector('.v2-label')?.textContent?.trim();if(label){btn.setAttribute('aria-label',label);btn.setAttribute('title',label);}});}
   function toggleFocus(){syncDashboardFocus();}
   function safeName(value){return String(value||'grafico-coi').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase();}
   function exportSvg(svg,name){
