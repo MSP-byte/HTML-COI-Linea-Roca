@@ -77,7 +77,7 @@ jobs:
         run: npm ci
 
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Run focused Chromium regressions
         run: npx playwright test tests/dashboard_focus_v2_shell.spec.js tests/dashboard_charts_motion_paused.spec.js
