@@ -1,0 +1,98 @@
+name: PR65 final nav accessibility init fix
+
+on:
+  push:
+    branches:
+      - fix/dashboard-focus-motion-defaults
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Label V2 nav buttons at shell construction
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          old = "navHtml+=`<button type=\"button\" class=\"coi-v2-nav-btn\" data-v2-nav=\"${esc(item.id)}\" data-v2-view=\"${esc(item.view)}\" ${item.dynamic?'data-v2-dynamic=\"1\"':''}>${icon(item.icon)}<span class=\"v2-label\">${esc(item.label)}</span>${item.count?`<span class=\"v2-count\" data-v2-count=\"${item.count}\">0</span>`:''}</button>`"
+          new = "navHtml+=`<button type=\"button\" class=\"coi-v2-nav-btn\" data-v2-nav=\"${esc(item.id)}\" data-v2-view=\"${esc(item.view)}\" aria-label=\"${esc(item.label)}\" title=\"${esc(item.label)}\" ${item.dynamic?'data-v2-dynamic=\"1\"':''}>${icon(item.icon)}<span class=\"v2-label\">${esc(item.label)}</span>${item.count?`<span class=\"v2-count\" data-v2-count=\"${item.count}\">0</span>`:''}</button>`"
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected one V2 nav template, found {text.count(old)}')
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Add persisted-collapse accessibility regression
+        shell: bash
+        run: |
+          cat >> tests/dashboard_focus_v2_shell.spec.js <<'EOF'
+
+          test('Shell V2 nace con nombres accesibles aun con sidebar colapsado persistido', async ({ page }, testInfo) => {
+            test.skip(testInfo.project.name.includes('mobile'), 'Cobertura del shell V2 de escritorio');
+            await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
+            await page.addInitScript(() => {
+              localStorage.clear();
+              sessionStorage.clear();
+              localStorage.setItem('coi_v2_sidebar_collapsed', '1');
+            });
+            await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+            await page.waitForFunction(() => Boolean(document.body.classList.contains('coi-v2-ready') && document.getElementById('coiV2Sidebar')));
+            await page.evaluate(() => document.body.classList.remove('auth-locked'));
+
+            const result = await page.evaluate(() => [...document.querySelectorAll('#coiV2Sidebar .coi-v2-nav-btn')].map(btn => ({
+              aria: btn.getAttribute('aria-label') || '',
+              title: btn.getAttribute('title') || '',
+              label: btn.querySelector('.v2-label')?.textContent?.trim() || ''
+            })));
+            expect(result.length).toBeGreaterThan(5);
+            expect(result.every(item => item.label && item.aria === item.label && item.title === item.label)).toBe(true);
+          });
+          EOF
+
+      - name: Static contract
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('index.html').read_text(encoding='utf-8')
+          test = Path('tests/dashboard_focus_v2_shell.spec.js').read_text(encoding='utf-8')
+          assert 'aria-label="${esc(item.label)}" title="${esc(item.label)}"' in text
+          assert 'sidebar colapsado persistido' in test
+          print('PR65 nav accessibility initialization contract: OK')
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run focused Chromium regressions
+        run: npx playwright test tests/dashboard_focus_v2_shell.spec.js tests/dashboard_charts_motion_paused.spec.js
+
+      - name: Run static suite
+        run: npm test
+
+      - name: Diff check
+        run: git diff --check
+
+      - name: Commit validated accessibility init fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html tests/dashboard_focus_v2_shell.spec.js
+          git commit -m "fix: label V2 navigation at shell construction"
+          git push origin HEAD:fix/dashboard-focus-motion-defaults
