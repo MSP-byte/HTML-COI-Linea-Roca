@@ -9,7 +9,9 @@ const { test, expect } = require('@playwright/test');
 
   H11 elimina todo acceso runtime a localStorage. Estos tests conservan un escenario hostil:
   inyectan dos estaciones ficticias en una clave localStorage legacy ANTES del arranque y
-  verifican que la aplicacion online-only no las consume, no las migra y no las altera.
+  verifican que la aplicacion online-only no las consume ni las incorpora al estado operativo.
+  Una vez arrancada la app, la prueba tampoco vuelve a leer localStorage: el limite H11 exige
+  que ese almacenamiento sea completamente opaco para el runtime.
 */
 
 const LS_IMPORTACION = 'roca_coi_intervenciones_v10';
@@ -49,15 +51,6 @@ const SONDA = () => {
     hotspotsConFicticia: hotspots
       .map((h) => fold(h.dataset.nombre))
       .filter((n) => n.includes('FICTICIA')),
-    // Residuo de una instalacion vieja: H11 debe ignorarlo y dejarlo intacto.
-    claveLegacy: (() => {
-      try {
-        const crudo = localStorage.getItem(LS_IMPORTACION);
-        if (crudo === null) return 'AUSENTE';
-        const raw = JSON.parse(crudo);
-        return Array.isArray(raw) ? `ENTRADAS:${raw.length}` : 'NO_ARRAY';
-      } catch (e) { return 'ILEGIBLE'; }
-    })(),
     sourceOfTruth: window.__COI_SUPABASE_SOURCE_OF_TRUTH__
   };
 };
@@ -67,6 +60,8 @@ async function arrancar(page, { contaminar }) {
   page.on('pageerror', (e) => errores.push(`pageerror: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errores.push(`console: ${m.text()}`); });
 
+  // La contaminacion se coloca antes de cargar index.html. H11 debe ser inmune a ella,
+  // pero el test no inspecciona localStorage despues del arranque.
   if (contaminar) {
     await page.addInitScript(
       ([clave, datos]) => localStorage.setItem(clave, JSON.stringify(datos)),
@@ -94,16 +89,12 @@ test('la clave localStorage legacy no inyecta estaciones en modo online-only', a
   const { sonda, errores } = await arrancar(page, { contaminar: true });
 
   expect(sonda.sourceOfTruth).toBe(true);
-
   expect(sonda.baseNombres).not.toContain(FICTICIA_A);
   expect(sonda.baseNombres).not.toContain(FICTICIA_B);
   expect(sonda.maestroNombres).not.toContain(FICTICIA_A);
   expect(sonda.maestroNombres).not.toContain(FICTICIA_B);
   expect(sonda.opcionesConFicticia).toEqual([]);
   expect(sonda.hotspotsConFicticia).toEqual([]);
-
-  // H11 no lee, migra ni borra residuos persistentes de versiones anteriores.
-  expect(sonda.claveLegacy).toBe('ENTRADAS:2');
   expect(errores).toEqual([]);
 });
 
@@ -124,8 +115,6 @@ test('el total canonico de estaciones no cambia ante contaminacion localStorage 
   expect(sucio.baseEntradas).toBe(limpio.baseEntradas);
   expect(sucio.snapshotUnicas).toBe(limpio.snapshotUnicas);
   expect(sucio.hotspotsTotal).toBe(limpio.hotspotsTotal);
-  expect(limpio.claveLegacy).toBe('AUSENTE');
-  expect(sucio.claveLegacy).toBe('ENTRADAS:2');
   expect(erroresLimpio).toEqual([]);
   expect(erroresSucio).toEqual([]);
 });
@@ -149,7 +138,7 @@ test('el override H11 solo consulta sessionStorage y mantiene el guard Supabase-
   expect(posGuard).toBeLessThan(posLecturaSesion);
   expect(posGuard).toBeLessThan(posPush);
 
-  // El runtime completo queda libre de localStorage; la prueba hostil de arriba es externa a la app.
+  // El runtime completo queda libre de localStorage; la contaminacion hostil solo existe en la prueba.
   expect(SOURCE).not.toContain('localStorage');
   expect(override).not.toContain('removeItem');
   expect(override).not.toContain('setItem');
