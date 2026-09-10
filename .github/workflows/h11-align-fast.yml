@@ -1,0 +1,46 @@
+name: H11 fast alignment validation
+
+on:
+  push:
+    branches:
+      - fix/h11-online-only-no-localstorage
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: ${{ !contains(github.event.head_commit.message, '[h11-fastbot]') && !contains(github.event.head_commit.message, '[h11-alignbot]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: fix/h11-online-only-no-localstorage
+          persist-credentials: true
+          fetch-depth: 0
+      - name: Apply alignment
+        run: python scripts/h11_align_legacy_tests.py
+      - name: Install dependencies
+        run: npm ci
+      - name: Static suite
+        run: npm test
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: H03 changed contracts
+        run: npx playwright test tests/h03_observaciones_supabase_first.spec.js --project=chromium-desktop --workers=1 --grep "Supabase vacio ignora|F10 ·|F10b ·|ningun writer activo"
+      - name: H05 changed contracts
+        run: npx playwright test tests/h05_um_st_supabase_first.spec.js --project=chromium-desktop --workers=1 --grep "3b ·|4 · el residuo|45 ·|85 ·|86 ·|crear UM escribe|crear ST escribe|guardar la edicion"
+      - name: H06 boundary contracts
+        run: npx playwright test tests/h06_localstorage_non_authoritative.spec.js --project=chromium-desktop --workers=1
+      - name: H11 and adjacent regressions
+        run: npx playwright test tests/h01_contain_legacy_localstorage.spec.js tests/h11_online_only.spec.js tests/proxima_certificacion.spec.js tests/final_ux_alerts_orders_filter.spec.js tests/dashboard_focus_v2_shell.spec.js --project=chromium-desktop --workers=1
+      - name: Commit aligned tests
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/h03_observaciones_supabase_first.spec.js tests/h05_um_st_supabase_first.spec.js tests/h06_localstorage_non_authoritative.spec.js
+          git diff --cached --check
+          git commit -m "[h11-fastbot] test: align legacy regressions with online-only runtime"
+          git push origin HEAD:fix/h11-online-only-no-localstorage
