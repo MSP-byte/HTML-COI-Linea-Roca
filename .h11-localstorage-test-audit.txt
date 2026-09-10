@@ -1,0 +1,263 @@
+# H11 localStorage test reference audit
+
+Generated from branch fix/h11-online-only-no-localstorage.
+
+tests/h05_um_st_supabase_first.spec.js:8:  migrar las 28 UM / 3 ST de demostracion que quedaron en localStorage. Por eso
+tests/h05_um_st_supabase_first.spec.js:11:  en localStorage.
+tests/h05_um_st_supabase_first.spec.js:125:    if (c.legadoUM) localStorage.setItem('coi_roca_unidades_mantenimiento', JSON.stringify(c.legadoUM));
+tests/h05_um_st_supabase_first.spec.js:126:    if (c.legadoST) localStorage.setItem('coi_servicios_tecnicos_um', JSON.stringify(c.legadoST));
+tests/h05_um_st_supabase_first.spec.js:128:    // Cualquier intento de persistir UM/ST operativos en localStorage queda
+tests/h05_um_st_supabase_first.spec.js:499:  legacyUM: localStorage.getItem('coi_roca_unidades_mantenimiento'),
+tests/h05_um_st_supabase_first.spec.js:501:  legacyST: localStorage.getItem('coi_servicios_tecnicos_um'),
+tests/h05_um_st_supabase_first.spec.js:544:test('3 · leer y renderizar no escribe UM ni ST operativos en localStorage', async ({ page }) => {
+tests/h05_um_st_supabase_first.spec.js:566:    localStorage.setItem('coi_roca_unidades_mantenimiento', JSON.stringify([{ idUM: 'PISOTON' }]));
+tests/h05_um_st_supabase_first.spec.js:573:        return localStorage.getItem('coi_h05_prueba_deliberada');
+tests/h05_um_st_supabase_first.spec.js:583:test('4 · el escudo impide que un lector legado elija localStorage como fuente', async ({ page }) => {
+tests/h05_um_st_supabase_first.spec.js:609:test('6 · crear UM escribe en Supabase y nunca en localStorage', async ({ page }) => {
+tests/h05_um_st_supabase_first.spec.js:753:test('13 · crear ST escribe unidad_id UUID en Supabase y no en localStorage', async ({ page }) => {
+tests/h05_um_st_supabase_first.spec.js:1161:test('32 · guardar la edicion es UN update contra el UUID, sin insert ni delete ni localStorage', async ({ page }) => {
+tests/h05_um_st_supabase_first.spec.js:1442:    localStorage.removeItem('coi_roca_unidades_mantenimiento');
+tests/h05_um_st_supabase_first.spec.js:1443:    localStorage.removeItem('coi_servicios_tecnicos_um');
+tests/h05_um_st_supabase_first.spec.js:1447:      operativo: localStorage.getItem('coi_roca_unidades_mantenimiento'),
+tests/h05_um_st_supabase_first.spec.js:1466:    localStorage.setItem('coi_clave_ajena_h05', 'valor');
+tests/h05_um_st_supabase_first.spec.js:1467:    const antes = localStorage.getItem('coi_clave_ajena_h05');
+tests/h05_um_st_supabase_first.spec.js:1468:    localStorage.removeItem('coi_clave_ajena_h05');
+tests/h05_um_st_supabase_first.spec.js:1469:    return { antes: antes, despues: localStorage.getItem('coi_clave_ajena_h05') };
+tests/h05_um_st_supabase_first.spec.js:2359:// --- F2 (P2): localStorage.clear() no puede llevarse el legado.
+tests/h05_um_st_supabase_first.spec.js:2368:    localStorage.setItem('coi_clave_normal_h05', 'contenido normal');
+tests/h05_um_st_supabase_first.spec.js:2369:    const antesNormal = localStorage.getItem('coi_clave_normal_h05');
+tests/h05_um_st_supabase_first.spec.js:2371:    localStorage.clear();
+tests/h05_um_st_supabase_first.spec.js:2374:      normalDespues: localStorage.getItem('coi_clave_normal_h05'),
+tests/h05_um_st_supabase_first.spec.js:2379:      operativoUM: localStorage.getItem('coi_roca_unidades_mantenimiento'),
+tests/h05_um_st_supabase_first.spec.js:2403:  await page.evaluate(() => localStorage.clear());
+tests/check_h11_online_only.js:4:assert(!html.includes('localStorage'), 'index.html must contain zero localStorage references');
+tests/check_h09_um_red_y_archivado.js:17:    4) H09 no lee ni escribe localStorage y no siembra datos de demostracion;
+tests/check_h09_um_red_y_archivado.js:19:       nunca por `estado_coi` ni por localStorage;
+tests/check_h09_um_red_y_archivado.js:104:// ============ 4) H09 no toca localStorage ni siembra datos
+tests/check_h09_um_red_y_archivado.js:105:check(!/localStorage\s*\.\s*(get|set|remove|clear)/.test(codigoUM),
+tests/check_h09_um_red_y_archivado.js:106:  'la capa de inventario no puede leer ni escribir localStorage');
+tests/check_h09_um_red_y_archivado.js:124:check(!/localStorage|guardarBaseLocal|saveJSON/.test(codigoArchivo),
+tests/check_h09_um_red_y_archivado.js:125:  'el archivado no puede persistir nada en localStorage');
+tests/check_h09_um_red_y_archivado.js:161:console.log('  Archivado    : RPC canónica con estado_registro; sin optimismo ni localStorage');
+tests/proxima_certificacion.spec.js:10:  await page.addInitScript(() => localStorage.clear());
+tests/proxima_certificacion.spec.js:170:test('la próxima certificación se confirma por RPC y la recarga conserva Supabase sobre localStorage', async ({ page }) => {
+tests/proxima_certificacion.spec.js:176:    localStorage.setItem('coi_supabase_ordenes_cache_v2', JSON.stringify({
+tests/proxima_certificacion.spec.js:184:    const cacheCruda = localStorage.getItem('coi_supabase_ordenes_cache_v2');
+tests/proxima_certificacion.spec.js:202:  // Supabase gana sobre localStorage: la fila forjada localmente no solo no se
+tests/h11_online_only.spec.js:3:test('H11 no lee ni modifica localStorage durante arranque y navegación básica', async ({ page }) => {
+tests/h11_online_only.spec.js:9:    localStorage.setItem('h11_probe', 'sentinel');
+tests/h11_online_only.spec.js:10:    localStorage.setItem('coi.visual.motion.enabled', '0');
+tests/h11_online_only.spec.js:11:    localStorage.setItem('coi_v2_sidebar_collapsed', '1');
+tests/h11_online_only.spec.js:24:      if (this === window.localStorage) window.__h11LocalStorageCalls.get++;
+tests/h11_online_only.spec.js:28:      if (this === window.localStorage) window.__h11LocalStorageCalls.set++;
+tests/h11_online_only.spec.js:32:      if (this === window.localStorage) window.__h11LocalStorageCalls.remove++;
+tests/h11_online_only.spec.js:36:      if (this === window.localStorage) window.__h11LocalStorageCalls.clear++;
+tests/h11_online_only.spec.js:40:      if (this === window.localStorage) window.__h11LocalStorageCalls.key++;
+tests/h11_online_only.spec.js:64:      probe: localStorage.getItem('h11_probe'),
+tests/h11_online_only.spec.js:65:      staleMotion: localStorage.getItem('coi.visual.motion.enabled'),
+tests/h11_online_only.spec.js:66:      staleSidebar: localStorage.getItem('coi_v2_sidebar_collapsed'),
+tests/timeline_render_runtime.spec.js:42:    localStorage.clear();
+tests/dashboard_focus_v2_shell.spec.js:6:    localStorage.clear();
+tests/dashboard_focus_v2_shell.spec.js:65:    const beforeSaved = localStorage.getItem('coi_v2_sidebar_collapsed');
+tests/dashboard_focus_v2_shell.spec.js:71:      afterSaved: localStorage.getItem('coi_v2_sidebar_collapsed')
+tests/dashboard_focus_v2_shell.spec.js:105:    localStorage.clear();
+tests/dashboard_focus_v2_shell.spec.js:107:    localStorage.setItem('coi_v2_sidebar_collapsed', '1');
+tests/contractual_ct_hotfix.spec.js:38:    localStorage.clear();
+tests/h06_localstorage_non_authoritative.spec.js:4:  H06 — localStorage deja de ser AUTORIDAD operacional.
+tests/h06_localstorage_non_authoritative.spec.js:6:  Supabase es la fuente unica de verdad. localStorage sobrevive solo como
+tests/h06_localstorage_non_authoritative.spec.js:12:    - remoto en error NO se representa con datos de localStorage: solo puede
+tests/h06_localstorage_non_authoritative.spec.js:41:// OC que solo existe en localStorage: jamas puede llegar a una vista operativa.
+tests/h06_localstorage_non_authoritative.spec.js:104:// Contenido legado sembrado en localStorage antes del arranque. Nada de esto
+tests/h06_localstorage_non_authoritative.spec.js:154:    if (c.sembrarLegado) Object.entries(legado).forEach(([k, v]) => localStorage.setItem(k, v));
+tests/h06_localstorage_non_authoritative.spec.js:155:    if (c.marcadorH03) localStorage.setItem('coi_observaciones_h03_imported_v1', '1');
+tests/h06_localstorage_non_authoritative.spec.js:156:    if (c.sembrarPreferencias) Object.entries(preferencias).forEach(([k, v]) => localStorage.setItem(k, v));
+tests/h06_localstorage_non_authoritative.spec.js:290:      maestro: Boolean(localStorage.getItem('roca_coi_intervenciones_v10')),
+tests/h06_localstorage_non_authoritative.spec.js:291:      um: Boolean(localStorage.getItem('coi_roca_unidades_mantenimiento')),
+tests/h06_localstorage_non_authoritative.spec.js:292:      obs: Boolean(localStorage.getItem('coi_observaciones_oc'))
+tests/h06_localstorage_non_authoritative.spec.js:295:      tema: localStorage.getItem('coi_v2_theme'),
+tests/h06_localstorage_non_authoritative.spec.js:296:      sidebar: localStorage.getItem('coi_v2_sidebar_collapsed'),
+tests/h06_localstorage_non_authoritative.spec.js:297:      filtros: localStorage.getItem('coi_dashboard_filters_v33')
+tests/h06_localstorage_non_authoritative.spec.js:302:// Nada de lo sembrado solo en localStorage puede aparecer en una vista operativa.
+tests/h06_localstorage_non_authoritative.spec.js:327:  // Y el legado no se borro: sigue fisicamente en localStorage.
+tests/h06_localstorage_non_authoritative.spec.js:352:// ============================== 3 · fallo remoto no promueve localStorage
+tests/h06_localstorage_non_authoritative.spec.js:354:test('H06-3 · un fallo remoto no publica localStorage como autoridad', async ({ page }) => {
+tests/h06_localstorage_non_authoritative.spec.js:428:test('H06-5 · las preferencias de interfaz en localStorage siguen funcionando', async ({ page }) => {
+tests/h06_localstorage_non_authoritative.spec.js:439:  await page.evaluate(() => localStorage.setItem('coi_v2_theme', 'light'));
+tests/h06_localstorage_non_authoritative.spec.js:440:  expect(await page.evaluate(() => localStorage.getItem('coi_v2_theme'))).toBe('light');
+tests/h06_localstorage_non_authoritative.spec.js:457:  const claves = await page.evaluate((ks) => ks.map((k) => [k, localStorage.getItem(k) !== null]), [
+tests/h06_localstorage_non_authoritative.spec.js:462:  expect(await page.evaluate((k) => localStorage.getItem(k), K.timelineCache)).toBeNull();
+tests/h06_localstorage_non_authoritative.spec.js:499:  expect(await page.evaluate((k) => localStorage.getItem(k), K.ordenesCache)).toBeNull();
+tests/h06_localstorage_non_authoritative.spec.js:547:    claveIntacta: localStorage.getItem('coi_observaciones_oc') !== null
+tests/h06_localstorage_non_authoritative.spec.js:573:  expect(await page.evaluate((k) => Boolean(localStorage.getItem(k)), K.timelineCache)).toBe(true);
+tests/final_ux_alerts_orders_filter.spec.js:8:    localStorage.clear();
+tests/final_ux_alerts_orders_filter.spec.js:153:    JSON.parse(localStorage.getItem('coi_alertas_revisadas_v581') || '[]').includes('ALERTA-UX-1')
+tests/kpi_estaciones_tabla_oc.spec.js:24:// con lo que encuentre en localStorage y corre antes de reconstruir el catálogo maestro.
+tests/kpi_estaciones_tabla_oc.spec.js:61:      ([clave, datos]) => localStorage.setItem(clave, JSON.stringify(datos)),
+tests/kpi_estaciones_tabla_oc.spec.js:88:  expect(helper).not.toContain('localStorage');
+tests/kpi_estaciones_tabla_oc.spec.js:102:test('ESCENARIO A — sin localStorage el KPI muestra el total real de la Red Línea Roca', async ({ page }) => {
+tests/kpi_estaciones_tabla_oc.spec.js:110:test('ESCENARIO B — la contaminación de localStorage no altera el KPI Estaciones', async ({ page }) => {
+tests/kpi_estaciones_tabla_oc.spec.js:125:test('la contaminación de localStorage no mueve ningún KPI del resumen operativo secundario', async ({ browser }) => {
+tests/check_h10_routing_cierre_archivo.js:17:    4) ningun camino de cierre o archivo persiste en localStorage;
+tests/check_h10_routing_cierre_archivo.js:145:  const llamadas = codigo.match(/localStorage\.(setItem|getItem|removeItem)/g) || [];
+tests/check_h10_routing_cierre_archivo.js:146:  check(llamadas.length === 0, `${nombre}: no puede tocar localStorage (encontrado ${llamadas.join(', ')})`);
+tests/check_h10_routing_cierre_archivo.js:325:check(cuerpoEsperarUM.indexOf('localStorage') < 0,
+tests/check_h10_routing_cierre_archivo.js:326:  'la espera de UM no puede caer a localStorage');
+tests/check_h10_routing_cierre_archivo.js:424:check(cuerpoReintento.indexOf('location.reload') < 0 && cuerpoReintento.indexOf('localStorage') < 0,
+tests/check_h10_routing_cierre_archivo.js:425:  'reintentar no puede recargar la pagina ni leer localStorage');
+tests/check_timeline_supabase_first.js:54:assert.doesNotMatch(html, /Se conserva localStorage/);
+tests/h03_observaciones_supabase_first.spec.js:53:    if (c.legado) localStorage.setItem('coi_observaciones_oc', JSON.stringify(c.legado));
+tests/h03_observaciones_supabase_first.spec.js:54:    if (c.marker) localStorage.setItem('coi_observaciones_h03_imported_v1', '1');
+tests/h03_observaciones_supabase_first.spec.js:56:    // Cualquier intento de persistir observaciones en localStorage queda registrado.
+tests/h03_observaciones_supabase_first.spec.js:230:  legacyKey: localStorage.getItem('coi_observaciones_oc'),
+tests/h03_observaciones_supabase_first.spec.js:235:  marker: localStorage.getItem('coi_observaciones_h03_imported_v1'),
+tests/h03_observaciones_supabase_first.spec.js:259:  // lectura: era el ultimo camino por el que localStorage representaba datos
+tests/h03_observaciones_supabase_first.spec.js:343:test('9 · ningun writer activo persiste observaciones en localStorage', async ({ page }) => {
+tests/h03_observaciones_supabase_first.spec.js:675:    try { ls = JSON.parse(localStorage.getItem('coi_observaciones_oc') || '[]'); } catch (e) { ls = []; }
+tests/h03_observaciones_supabase_first.spec.js:697:  expect(await page.evaluate(() => localStorage.getItem('coi_observaciones_oc'))).toBe('[]');
+tests/h03_observaciones_supabase_first.spec.js:894:test('N5 · el panel ya no afirma que las observaciones se guardan en localStorage', () => {
+tests/h03_observaciones_supabase_first.spec.js:895:  expect(SOURCE).not.toContain('Las observaciones se guardan en localStorage');
+tests/check_integrity_guards.js:11:  /localStorage\.clear\s*\(/,
+tests/check_integrity_guards.js:12:  'La importación no puede vaciar todo localStorage'
+tests/check_h06_localstorage_non_authoritative.js:5:  H06 — localStorage deja de ser AUTORIDAD operacional.
+tests/check_h06_localstorage_non_authoritative.js:9:  promover una clave de localStorage a verdad operativa cuando el remoto falla,
+tests/check_h06_localstorage_non_authoritative.js:48:check(!/readSupabaseCache|SUPABASE_CACHE_KEY|localStorage/.test(degradar),
+tests/check_h06_localstorage_non_authoritative.js:49:  'la degradacion de Ordenes no puede volver a leer localStorage');
+tests/check_h06_localstorage_non_authoritative.js:91:  'la degradacion financiera no puede volver a publicar la cache de localStorage');
+tests/check_h06_localstorage_non_authoritative.js:153:check(!/localStorage\.clear\(\)/.test(
+tests/check_h06_localstorage_non_authoritative.js:155:  'H06 no puede introducir un localStorage.clear()');
+tests/check_h06_localstorage_non_authoritative.js:169:console.log('H06 localStorage no autoritativo: capa verificada.');
+tests/check_h06_localstorage_non_authoritative.js:175:console.log('  Interfaz  : tema, sidebar y filtros siguen en localStorage');
+tests/final_filters_expiry_order.spec.js:30:    localStorage.clear();
+tests/dashboard_charts_motion_paused.spec.js:6:    localStorage.clear();
+tests/dashboard_charts_motion_paused.spec.js:9:    localStorage.setItem('coi.visual.motion.enabled', '0');
+tests/dashboard_charts_motion_paused.spec.js:14:    localStorage.getItem('coi.visual.motion.enabled') === null
+tests/dashboard_charts_motion_paused.spec.js:26:    storedMotion: localStorage.getItem('coi.visual.motion.enabled'),
+tests/check_crud_ordenes.js:108:  !/localStorage\.clear\s*\(/.test(canonicalBlock),
+tests/check_crud_ordenes.js:109:  'El flujo V60 no debe vaciar todo localStorage'
+tests/check_h07_cierre_localstorage.js:23:    2) documentacionOC no se siembra ni se persiste en localStorage;
+tests/check_h07_cierre_localstorage.js:83:  'la lectura documental no puede volver a salir de localStorage');
+tests/check_h07_cierre_localstorage.js:84:check(!/localStorage\.setItem/.test(codigo),
+tests/check_h07_cierre_localstorage.js:85:  'la capa de retiro no puede escribir en localStorage');
+tests/check_h07_cierre_localstorage.js:230:// Como el Timeline dejo de vivir en localStorage y el backup lo tomaba solo del
+tests/check_h07_cierre_localstorage.js:237:check(!/localStorage/.test(tl),
+tests/check_h07_cierre_localstorage.js:238:  'el Timeline del backup no puede volver a depender de localStorage');
+tests/check_h07_cierre_localstorage.js:287:  'reabrir la cuarentena no puede borrar nada de localStorage');
+tests/check_h07_cierre_localstorage.js:391:check(!/removeItem|localStorage\.setItem/.test(cargarObs),
+tests/check_h07_cierre_localstorage.js:392:  'retirar el legado publicado NO puede tocar localStorage');
+tests/check_h07_cierre_localstorage.js:482:// legada de localStorage. Lo que no puede sobrevivir es afirmar que existe una
+tests/check_h07_cierre_localstorage.js:500:  'la clave legada de localStorage se conserva: no se borra mecanicamente');
+tests/h10_routing_cierre_archivo.spec.js:10:      localStorage: el cierre no llegaba a Supabase y desaparecia en el
+tests/h10_routing_cierre_archivo.spec.js:538:test('H10-10 · ni cerrar ni archivar escriben estos estados en localStorage', async ({ page }) => {
+tests/h10_routing_cierre_archivo.spec.js:553:    rastro: Object.keys(localStorage).filter((k) => {
+tests/h10_routing_cierre_archivo.spec.js:554:      const v = String(localStorage.getItem(k) || '');
+tests/check_proxima_certificacion.js:40:assert.doesNotMatch(updateBlock, /localStorage/, 'La mutación no puede persistirse sólo en localStorage');
+tests/check_h05_um_supabase_first.js:15:       datos operativos de UM/ST en localStorage;
+tests/check_h05_um_supabase_first.js:196:// comentarios del bloque nombran a proposito localStorage.clear() para explicar
+tests/check_h05_um_supabase_first.js:199:for (const destructivo of [/localStorage\.removeItem/, /localStorage\.clear/]) {
+tests/check_h05_um_supabase_first.js:240:// La capa no persiste UM/ST en localStorage por ninguna via.
+tests/check_h05_um_supabase_first.js:242:  /localStorage\.setItem/,
+tests/check_h05_um_supabase_first.js:246:  /localStorage\.clear/
+tests/check_h05_um_supabase_first.js:247:]) check(!prohibido.test(capa.texto), `la capa H05 no puede escribir ni borrar localStorage: ${prohibido}`);
+tests/h01_contain_legacy_localstorage.spec.js:10:  H11 elimina todo acceso runtime a localStorage. Estos tests conservan un escenario hostil:
+tests/h01_contain_legacy_localstorage.spec.js:11:  inyectan dos estaciones ficticias en una clave localStorage legacy ANTES del arranque y
+tests/h01_contain_legacy_localstorage.spec.js:55:        const crudo = localStorage.getItem(LS_IMPORTACION);
+tests/h01_contain_legacy_localstorage.spec.js:72:      ([clave, datos]) => localStorage.setItem(clave, JSON.stringify(datos)),
+tests/h01_contain_legacy_localstorage.spec.js:93:test('la clave localStorage legacy no inyecta estaciones en modo online-only', async ({ page }) => {
+tests/h01_contain_legacy_localstorage.spec.js:110:test('el total canonico de estaciones no cambia ante contaminacion localStorage legacy', async ({ browser }) => {
+tests/h01_contain_legacy_localstorage.spec.js:152:  // El runtime completo queda libre de localStorage; la prueba hostil de arriba es externa a la app.
+tests/h01_contain_legacy_localstorage.spec.js:153:  expect(SOURCE).not.toContain('localStorage');
+tests/admin_login.spec.js:6:    localStorage.clear();
+tests/multioc_certs_docs_pdf.spec.js:25:    localStorage.clear();
+tests/multioc_certs_docs_pdf.spec.js:60:  await page.addInitScript(() => { localStorage.clear(); sessionStorage.clear(); });
+tests/multioc_certs_docs_pdf.spec.js:434:      localStorage.setItem('coi_supabase_ordenes_cache_v2', JSON.stringify({
+tests/final_ui_obras_alertas.spec.js:10:    localStorage.clear();
+tests/final_ui_obras_alertas.spec.js:317:test('recarga: Supabase prevalece sobre localStorage y un rechazo no deja éxito visual falso', async ({ page }) => {
+tests/final_ui_obras_alertas.spec.js:337:    localStorage.setItem('coi_supabase_ordenes_cache_v2', JSON.stringify({
+tests/final_ui_obras_alertas.spec.js:341:    localStorage.setItem('coi_certificaciones_oc', JSON.stringify([{
+tests/final_ui_obras_alertas.spec.js:387:  await expect(body).not.toContainText('Se guarda automáticamente en localStorage');
+tests/alerts_collapsible_init.spec.js:23:    localStorage.clear();
+tests/h07_cierre_localstorage.spec.js:18:  localStorage, y ninguna accion retirada puede anunciar exito sin autoridad.
+tests/h07_cierre_localstorage.spec.js:40:// Documentacion que solo existe en localStorage: material historico retirado.
+tests/h07_cierre_localstorage.spec.js:153:    if (c.legadoDocumental) localStorage.setItem('coi_documentacion_oc', JSON.stringify(docLegado));
+tests/h07_cierre_localstorage.spec.js:154:    if (c.legadoV33) localStorage.setItem('coiDocumentos', JSON.stringify(docV33));
+tests/h07_cierre_localstorage.spec.js:155:    if (c.legadoObservaciones) localStorage.setItem('coi_observaciones_oc', JSON.stringify(obsLegada));
+tests/h07_cierre_localstorage.spec.js:156:    if (c.marcadorH03) localStorage.setItem('coi_observaciones_h03_imported_v1', '1');
+tests/h07_cierre_localstorage.spec.js:157:    localStorage.setItem('coi_v2_theme', 'dark');
+tests/h07_cierre_localstorage.spec.js:279:    legadoIntacto: localStorage.getItem('coi_documentacion_oc') !== null,
+tests/h07_cierre_localstorage.spec.js:280:    v33Intacto: localStorage.getItem('coiDocumentos') !== null,
+tests/h07_cierre_localstorage.spec.js:281:    tema: localStorage.getItem('coi_v2_theme'),
+tests/h07_cierre_localstorage.spec.js:359:  const crudo = await page.evaluate(() => localStorage.getItem('coi_documentacion_oc'));
+tests/h07_cierre_localstorage.spec.js:388:    ping: localStorage.getItem('coi_timeline_sync_ping_v1')
+tests/h07_cierre_localstorage.spec.js:402:    ping: localStorage.getItem('coi_timeline_sync_ping_v1')
+tests/h07_cierre_localstorage.spec.js:415:  // localStorage tiene OBS-A; Supabase tiene OBS-B, que no tiene relacion.
+tests/h07_cierre_localstorage.spec.js:428:    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1'),
+tests/h07_cierre_localstorage.spec.js:429:    claveIntacta: localStorage.getItem('coi_observaciones_oc') !== null
+tests/h07_cierre_localstorage.spec.js:476:  expect(await page.evaluate(() => localStorage.getItem('coi_observaciones_h03_imported_v1'))).toBeNull();
+tests/h07_cierre_localstorage.spec.js:496:  expect(await page.evaluate(() => localStorage.getItem('coi_observaciones_oc'))).not.toBeNull();
+tests/h07_cierre_localstorage.spec.js:518:  expect(await page.evaluate(() => localStorage.getItem('coi_observaciones_oc'))).not.toBeNull();
+tests/h07_cierre_localstorage.spec.js:542:  await page.evaluate(() => localStorage.setItem('coi_v2_theme', 'light'));
+tests/h07_cierre_localstorage.spec.js:543:  expect(await page.evaluate(() => localStorage.getItem('coi_v2_theme'))).toBe('light');
+tests/h07_cierre_localstorage.spec.js:570:    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1')
+tests/h07_cierre_localstorage.spec.js:627:  expect(await page.evaluate(() => localStorage.getItem('coi_observaciones_h03_imported_v1'))).toBeNull();
+tests/h07_cierre_localstorage.spec.js:637:    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1')
+tests/h07_cierre_localstorage.spec.js:694:    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1')
+tests/h07_cierre_localstorage.spec.js:711:    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1'),
+tests/h07_cierre_localstorage.spec.js:780:  expect(marcadorConHuella(await page.evaluate(() => localStorage.getItem('coi_observaciones_h03_imported_v1')))).toBe(true);
+tests/h07_cierre_localstorage.spec.js:790:    const ping = () => localStorage.getItem('coi_timeline_sync_ping_v1');
+tests/h07_cierre_localstorage.spec.js:883:    crudo: localStorage.getItem('coi_observaciones_oc'),
+tests/h07_cierre_localstorage.spec.js:979:  // legado solo puede viajar en el volcado crudo de localStorage, que es una
+tests/h07_cierre_localstorage.spec.js:990:  expect(JSON.stringify(backup.localStorage)).toContain('DOC-OC-LEGADO-H07');
+tests/h07_cierre_localstorage.spec.js:1011:    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1'),
+tests/h07_cierre_localstorage.spec.js:1057:    localStorage.setItem(CLAVE, JSON.stringify({
+tests/h07_cierre_localstorage.spec.js:1096:      cache: localStorage.getItem(CLAVE),
+tests/h07_cierre_localstorage.spec.js:1135:  expect(await page.evaluate(() => localStorage.getItem('coi_timeline_events_v1'))).toBeNull();
+tests/h07_cierre_localstorage.spec.js:1144:  expect(Object.prototype.hasOwnProperty.call(backup.localStorage, 'coi_timeline_events_v1')).toBe(false);
+tests/h07_cierre_localstorage.spec.js:1146:  expect(await page.evaluate(() => localStorage.getItem('coi_timeline_events_v1'))).toBeNull();
+tests/h07_cierre_localstorage.spec.js:1176:    return { registro, cache: localStorage.getItem('coi_timeline_events_v1') };
+tests/h07_cierre_localstorage.spec.js:1207:    localStorage.setItem('coi_timeline_events_v1', JSON.stringify([{ id: 'legado', titulo: 'NO DEBE APARECER' }]));
+tests/h07_cierre_localstorage.spec.js:1281:    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1')
+tests/h07_cierre_localstorage.spec.js:1289:    const actual = JSON.parse(localStorage.getItem('coi_observaciones_oc') === '[]'
+tests/h07_cierre_localstorage.spec.js:1290:      ? '[]' : localStorage.getItem('coi_observaciones_oc') || '[]');
+tests/h07_cierre_localstorage.spec.js:1292:    localStorage.setItem('coi_observaciones_oc', JSON.stringify([
+tests/h07_cierre_localstorage.spec.js:1299:      marcadorConservado: localStorage.getItem('coi_observaciones_h03_imported_v1') !== null,
+tests/h07_cierre_localstorage.spec.js:1339:    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1'),
+tests/h07_cierre_localstorage.spec.js:1427:    try { meta = JSON.parse(localStorage.getItem('coi_v581_backup_meta') || 'null'); } catch (e) {}
+tests/h07_cierre_localstorage.spec.js:1433:      cache: localStorage.getItem('coi_timeline_events_v1')
+tests/h07_cierre_localstorage.spec.js:1476:    try { meta = JSON.parse(localStorage.getItem('coi_v581_backup_meta') || 'null'); } catch (e) {}
+tests/h07_cierre_localstorage.spec.js:1494:    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1'),
+tests/h07_cierre_localstorage.spec.js:1547:    marcador: localStorage.getItem('coi_observaciones_h03_imported_v1'),
+tests/h07_cierre_localstorage.spec.js:1568:    const ping = () => localStorage.getItem('coi_timeline_sync_ping_v1');
+tests/h07_cierre_localstorage.spec.js:1718:  expect(await page.evaluate(() => localStorage.getItem('coi_observaciones_oc'))).toBe('[]');
+tests/h07_cierre_localstorage.spec.js:1720:  expect(backup.localStorage['coi_observaciones_oc']).toBe('[]');
+tests/h09_um_red_y_archivado.spec.js:14:  B · «Archivar OC» mutaba el objeto en memoria y escribia localStorage: la OC
+tests/h09_um_red_y_archivado.spec.js:20:  se respeta: no se siembra la demo legada, no se usa localStorage como
+tests/h09_um_red_y_archivado.spec.js:85:// Inventario de demostracion que quedo en localStorage y NO se importa.
+tests/h09_um_red_y_archivado.spec.js:106:      localStorage.setItem('coi_roca_unidades_mantenimiento', JSON.stringify(c.legadoUM));
+tests/h09_um_red_y_archivado.spec.js:107:      localStorage.setItem('coi_servicios_tecnicos_um', JSON.stringify(c.legadoST));
+tests/h09_um_red_y_archivado.spec.js:273:    // El legado sigue fisicamente en localStorage: no se borra.
+tests/h09_um_red_y_archivado.spec.js:274:    legadoIntacto: localStorage.getItem('coi_roca_unidades_mantenimiento') !== null,
+tests/h09_um_red_y_archivado.spec.js:392:  // Y el alta viaja a Supabase, nunca a localStorage.
+tests/h09_um_red_y_archivado.spec.js:645:test('H09-15 · archivar no escribe el estado en localStorage', async ({ page }) => {
+tests/h09_um_red_y_archivado.spec.js:647:  const antes = await page.evaluate(() => JSON.stringify(Object.keys(localStorage).sort()));
+tests/h09_um_red_y_archivado.spec.js:652:    const ahora = Object.keys(localStorage).sort();
+tests/h09_um_red_y_archivado.spec.js:653:    const volcado = ahora.map((k) => String(localStorage.getItem(k) || '')).join(' ');
+tests/check_p0_containment.js:45:const localStorage = {
+tests/check_p0_containment.js:52:  localStorage,
+tests/check_p0_containment.js:77:  localStorage,
+tests/check_p0_containment.js:102:  assert.equal(localStorage.getItem('coi_pending_financial_rpc_v1'), null, 'La clave pendiente se limpia sólo después de la confirmación');
+tests/timeline_supabase_first.spec.js:10:    localStorage.clear();
+tests/timeline_supabase_first.spec.js:12:    localStorage.setItem(storageKey, JSON.stringify([{
+tests/timeline_supabase_first.spec.js:40:    Boolean(localStorage.getItem(legacyKey)),
+tests/timeline_supabase_first.spec.js:226:test('migra localStorage una vez y hace CRUD de Mailing con Supabase como autoridad', async ({ page }) => {
+tests/timeline_supabase_first.spec.js:232:  expect(await page.evaluate(migrationKey => Boolean(localStorage.getItem(migrationKey)), MIGRATION_KEY)).toBe(true);
+tests/timeline_supabase_first.spec.js:270:    localStorage.removeItem(storageKey);
+tests/timeline_supabase_first.spec.js:325:  expect(await page.evaluate(legacyKey => Boolean(localStorage.getItem(legacyKey)), LEGACY_KEY)).toBe(true);
+tests/timeline_supabase_first.spec.js:336:  expect(await page.evaluate(storageKey => localStorage.getItem(storageKey), STORAGE_KEY)).toBeNull();
+tests/timeline_supabase_first.spec.js:337:  expect(await page.evaluate(legacyKey => Boolean(localStorage.getItem(legacyKey)), LEGACY_KEY)).toBe(true);
+tests/timeline_supabase_first.spec.js:389:    localStorage.setItem('coi_test_rollback', 'antes');
+tests/timeline_supabase_first.spec.js:404:    return { value: localStorage.getItem('coi_test_rollback'), error };
+tests/delete_button.spec.js:5:  await page.addInitScript(() => localStorage.clear());
+tests/delete_button.spec.js:107:    localStorage.setItem('coi_supabase_ordenes_cache_v2', JSON.stringify({
+tests/delete_button.spec.js:111:    localStorage.setItem('coi_cache_posiciones_oc_supabase_v1', JSON.stringify({
+tests/delete_button.spec.js:125:  expect(await page.evaluate(() => localStorage.getItem('coi_supabase_ordenes_cache_v2'))).toBeNull();
+tests/delete_button.spec.js:126:  expect(await page.evaluate(() => localStorage.getItem('coi_cache_posiciones_oc_supabase_v1'))).toBeNull();
