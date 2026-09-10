@@ -33,6 +33,8 @@ must(/revoke\s+all\s+on\s+function\s+public\.coi_registrar_auditoria_frontend\([
 
 const mark = sql.match(/create\s+or\s+replace\s+function\s+public\.coi_marcar_alerta_revisada[\s\S]*?\$\$;/i)?.[0] || '';
 must(/security\s+definer/i, 'marcar alerta revisada debe ser SECURITY DEFINER', mark);
+must(/v_role\s+is\s+distinct\s+from\s+'administrador'/i,
+  'marcar alerta revisada debe exigir administrador', mark);
 must(/on\s+conflict\s*\(\s*revisada_por\s*,\s*alerta_id\s*\)/i,
   'el upsert de alertas revisadas debe ser por usuario + alerta', mark);
 must(/values\s*\(\s*v_alerta\s*,\s*auth\.uid\(\)/i,
@@ -40,6 +42,8 @@ must(/values\s*\(\s*v_alerta\s*,\s*auth\.uid\(\)/i,
 
 const list = sql.match(/create\s+or\s+replace\s+function\s+public\.coi_listar_alertas_revisadas[\s\S]*?\$\$;/i)?.[0] || '';
 must(/security\s+definer/i, 'listar alertas revisadas debe ser SECURITY DEFINER', list);
+must(/v_role\s+is\s+distinct\s+from\s+'administrador'/i,
+  'listar alertas revisadas debe exigir administrador', list);
 must(/where\s+r\.revisada_por\s*=\s*auth\.uid\(\)/i,
   'el listado debe estar aislado por el usuario actual', list);
 
