@@ -75,6 +75,7 @@ begin
   if auth.uid() is null then raise exception using errcode = '42501', message = 'COI_AUTH_REQUIRED'; end if;
   v_role := public.coi_current_role();
   if v_role is null then raise exception using errcode = '42501', message = 'COI_ROLE_REQUIRED'; end if;
+  if v_role is distinct from 'administrador' then raise exception using errcode = '42501', message = 'COI_ADMIN_REQUIRED'; end if;
   v_alerta := nullif(btrim(coalesce(p_alerta_id, '')), '');
   if v_alerta is null then raise exception using errcode = '22023', message = 'COI_ALERT_ID_REQUIRED'; end if;
   insert into public.coi_alertas_revisadas (alerta_id, revisada_por, fecha_revision)
@@ -105,6 +106,7 @@ begin
   if auth.uid() is null then raise exception using errcode = '42501', message = 'COI_AUTH_REQUIRED'; end if;
   v_role := public.coi_current_role();
   if v_role is null then raise exception using errcode = '42501', message = 'COI_ROLE_REQUIRED'; end if;
+  if v_role is distinct from 'administrador' then raise exception using errcode = '42501', message = 'COI_ADMIN_REQUIRED'; end if;
   return query
     select r.alerta_id, r.fecha_revision, r.revisada_por
     from public.coi_alertas_revisadas r
