@@ -6,47 +6,32 @@ permissions:
   contents: write
 jobs:
   inspect:
-    if: github.event.head_commit.message == 'RUN_H11_INSPECT_FILE'
+    if: github.event.head_commit.message == 'RUN_H11_CHUNKS'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Build targeted current/main snippets
+      - name: Build focused source chunks
         shell: bash
         run: |
-          git fetch origin main
           python - <<'PY'
-          import subprocess
           from pathlib import Path
-          cur=Path('index.html').read_text(encoding='utf-8').splitlines()
-          main=subprocess.check_output(['git','show','origin/main:index.html'], text=True).splitlines()
-          terms=[
-            'REMOTE_TABLES_READY_KEY','coiRemoteMarkAlertReview','marcarAlertaRevisada','desmarcarAlerta',
-            'coiPurgarPersistenciaLegacyV11','SENSITIVE_OPERATIONAL_CACHE_KEYS','logoutSupabase','onAuthStateChange',
-            'coiRegistrarAuditoriaOperacionV10','registrarAuditoriaGlobal','__COI_OBS_H07_CUARENTENA__',
-            '__COI_DOC_H07_LEGACY__','coi_timeline_events_v1','coi_timeline_legacy_pending_v1',
-            'coi_posiciones_financieras','idempot','coi_ejecutar_comando_financiero',
-            'LS_FOTOS_ESTACION','guardarFotoEstacion','coi_linea_roca_fotos_oc_v20','LS_ADMIN_CATALOGOS',
-            'coi_certificaciones_oc','coi_certificaciones_acta_inicio_v581r1','localStorage','sessionStorage',
-            'crearBackup','restaurarBackup','backup','BroadcastChannel'
+          lines=Path('index.html').read_text(encoding='utf-8').splitlines()
+          ranges=[
+            (4200,4450),(5450,5670),(9000,9340),(12750,13180),(13980,14280),
+            (15450,15880),(16600,17080),(20700,21180),(24150,24650),
+            (25950,26380),(26750,27180),(27500,28350),(30750,31280)
           ]
-          out=[]
-          for term in terms:
-            out.append('\n'+'='*90+f'\nTERM {term}\n')
-            for label,lines in [('CURRENT',cur),('MAIN',main)]:
-              hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
-              out.append(f'--- {label} hits={hits[:20]}\n')
-              for i in hits[:6]:
-                a=max(0,i-8); b=min(len(lines),i+15)
-                out.append(f'[{label} {a+1}-{b}]\n')
-                out.extend(f'{n+1:06d}: {lines[n]}\n' for n in range(a,b))
-          Path('.github/h11-inspect-output.txt').write_text(''.join(out),encoding='utf-8')
+          outdir=Path('.github/h11-inspect');outdir.mkdir(parents=True,exist_ok=True)
+          for a,b in ranges:
+            text=''.join(f'{i+1:06d}: {lines[i]}\n' for i in range(a-1,min(b,len(lines))))
+            (outdir/f'{a}_{b}.txt').write_text(text,encoding='utf-8')
           PY
-      - name: Commit inspection output
+      - name: Commit chunks
         run: |
           git config user.name "MSP-byte"
           git config user.email "mespecial92@gmail.com"
-          git add .github/h11-inspect-output.txt
-          git commit -m "chore: capture H11 inspection context"
+          git add .github/h11-inspect
+          git commit -m "chore: capture focused H11 source chunks"
           git push origin HEAD:fix/h11-online-only-no-localstorage
