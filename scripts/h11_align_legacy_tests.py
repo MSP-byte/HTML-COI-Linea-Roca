@@ -103,16 +103,6 @@ if old not in s:
     raise SystemExit('H05 spy anchor missing')
 s = s.replace(old, new, 1)
 
-# La sonda de estado H11 no necesita inspeccionar el contenido persistente: solo el runtime remoto.
-# Conservamos campos legacy con un valor opaco para no romper helpers historicos que no son autoridad.
-old = "    const legacyRaw = typeof window.__COI_UM_H05_LEGACY_RAW__ === 'function'\n      ? window.__COI_UM_H05_LEGACY_RAW__\n      : (key) => localStorage.getItem(key);"
-new = "    const legacyRaw = () => '[]';"
-if old not in s:
-    raise SystemExit('H05 legacyRaw anchor missing')
-s = s.replace(old, new, 1)
-s = s.replace("      legacyUMReal: localStorage.getItem(keyUm),", "      legacyUMReal: '[]',", 1)
-s = s.replace("      legacySTReal: localStorage.getItem(keySt),", "      legacySTReal: '[]',", 1)
-
 s = between(
     s,
     "test('3b · los intentos de escritura del legado quedan bloqueados y contabilizados', async ({ page }) => {",
