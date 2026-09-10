@@ -203,7 +203,7 @@ check(bloquesConClaveFin.length > 0, 'la clave financiera retirada tiene que seg
 check(html.indexOf('  function purgeCache(){') >= 0,
   'purgeCache no puede seguir recibiendo un id: ya no filtra, descarta');
 const purge = html.slice(html.indexOf('  function purgeCache(){'), html.indexOf('  function purgeMemory(id){'));
-check(purge.indexOf('localStorage.removeItem(CACHE_KEY);') >= 0,
+check(purge.indexOf('sessionStorage.removeItem(CACHE_KEY);') >= 0,
   'el camino de DELETE tiene que RETIRAR la cache financiera');
 check(!/setItem/.test(purge),
   'el camino de DELETE no puede reescribir la cache financiera');
