@@ -20812,6 +20812,8 @@ if(document.readyState==='loading'){
   // marca de tiempo y un contador, para que otra pestaña sepa que tiene que
   // releer Supabase. No es dato operativo y no puede reconstruir nada.
   const TIMELINE_SYNC_PING_KEY='coi_timeline_sync_ping_v1';
+  const TIMELINE_SYNC_CHANNEL='coi_timeline_sync_v2';
+  const timelineSyncChannel=typeof BroadcastChannel==='function'?new BroadcastChannel(TIMELINE_SYNC_CHANNEL):null;
   // Estado de la lectura EN CURSO. `emitirSync` pertenece a esa lectura y no al
   // modulo: se fija cuando arranca y solo puede degradarse a false si mientras
   // corre se engancha una relectura provocada por otra pestaña. No hay
@@ -20986,6 +20988,7 @@ if(document.readyState==='loading'){
         sessionStorage.removeItem(TIMELINE_STORAGE_KEY);
         if(emitirSync){
           sessionStorage.setItem(TIMELINE_SYNC_PING_KEY,JSON.stringify({en:new Date().toISOString(),eventos:normalized.length}));
+          if(timelineSyncChannel)timelineSyncChannel.postMessage({en:new Date().toISOString(),eventos:normalized.length});
         }
       }
       catch(error){console.warn('Timeline COI: no se pudo actualizar la cach\u00e9.',error);}
@@ -22340,6 +22343,10 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       if(event.key!==TIMELINE_SYNC_PING_KEY&&event.key!==TIMELINE_STORAGE_KEY)return;
       Promise.resolve(loadEvents({emitirSync:false})).catch(()=>{});
     });
+    if(timelineSyncChannel){
+      timelineSyncChannel.addEventListener('message',()=>{Promise.resolve(loadEvents({emitirSync:false})).catch(()=>{});});
+      window.addEventListener('beforeunload',()=>timelineSyncChannel.close(),{once:true});
+    }
     window.addEventListener('coi:supabase-auth',event=>{
       const authEvent=event.detail?.event||'';
       const authSession=event.detail?.session||null;
