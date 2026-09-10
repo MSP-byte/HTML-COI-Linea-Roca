@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message == 'ci: run one-shot H11 final review fixes'
+    if: github.event.head_commit.message == 'RUN_H11_FINAL_FIXES'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
