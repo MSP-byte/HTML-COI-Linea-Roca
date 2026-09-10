@@ -1,0 +1,851 @@
+027500:   function clearEditingStateForOrdersNavigation() {
+027501:     if (!window.APP_STATE || !window.APP_STATE.editingOC) return;
+027502:     window.APP_STATE.editingOC = false;
+027503:     window.APP_STATE.editingOCKey = null;
+027504:     window.APP_STATE.editingOCSnapshot = null;
+027505:     document.getElementById('coiEditIntegralOC')?.remove();
+027506:   }
+027507: 
+027508:   function goBackToOrders(event) {
+027509:     const target = event.target instanceof Element ? event.target.closest(BACK_SELECTOR) : null;
+027510:     if (!target || !target.closest('#vistaFichaOC')) return;
+027511: 
+027512:     if (window.APP_STATE && window.APP_STATE.editingOC) {
+027513:       event.preventDefault();
+027514:       event.stopPropagation();
+027515:       if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+027516: 
+027517:       const shouldLeave = typeof window.confirm !== 'function'
+027518:         || window.confirm('Hay cambios de edición sin guardar. ¿Salir igual?');
+027519:       if (!shouldLeave) return;
+027520: 
+027521:       clearEditingStateForOrdersNavigation();
+027522:       navigateToOrders();
+027523:       return;
+027524:     }
+027525: 
+027526:     event.preventDefault();
+027527:     event.stopPropagation();
+027528:     if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+027529:     navigateToOrders();
+027530:   }
+027531: 
+027532:   document.addEventListener('click', goBackToOrders, true);
+027533: 
+027534:   function isVisible(element) {
+027535:     if (!element || !element.isConnected) return false;
+027536:     const style = window.getComputedStyle(element);
+027537:     if (style.display === 'none' || style.visibility === 'hidden') return false;
+027538:     return Boolean(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+027539:   }
+027540: 
+027541:   function destroyInstance(key) {
+027542:     const instance = instances.get(key);
+027543:     if (!instance) return;
+027544:     instance.top.removeEventListener('scroll', instance.onTopScroll);
+027545:     instance.container.removeEventListener('scroll', instance.onContainerScroll);
+027546:     if (instance.resizeObserver) instance.resizeObserver.disconnect();
+027547:     if (instance.top.isConnected) instance.top.remove();
+027548:     if (instance.container && instance.container.classList) {
+027549:       instance.container.classList.remove('coi-top-scroll-managed');
+027550:     }
+027551:     instances.delete(key);
+027552:   }
+027553: 
+027554:   function installTopHorizontalScrollbar(container, key) {
+027555:     if (!(container instanceof HTMLElement)) return null;
+027556: 
+027557:     const existing = instances.get(key);
+027558:     if (existing && existing.container === container && existing.top.isConnected) {
+027559:       existing.refresh();
+027560:       return existing;
+027561:     }
+027562:     if (existing) destroyInstance(key);
+027563: 
+027564:     const stale = document.querySelectorAll('.coi-top-horizontal-scroll[data-top-scroll-key="' + key + '"]');
+027565:     stale.forEach((node) => node.remove());
+027566: 
+027567:     const top = document.createElement('div');
+027568:     top.className = 'coi-top-horizontal-scroll';
+027569:     top.dataset.topScrollKey = key;
+027570:     top.setAttribute('aria-label', 'Desplazamiento horizontal superior');
+027571:     top.setAttribute('role', 'region');
+027572: 
+027573:     const inner = document.createElement('div');
+027574:     inner.className = 'coi-top-horizontal-scroll-inner';
+027575:     top.appendChild(inner);
+027576: 
+027577:     container.parentNode.insertBefore(top, container);
+027578:     container.classList.add('coi-top-scroll-managed');
+027579: 
+027580:     let syncing = false;
+027581:     let refreshRaf = 0;
+027582: 
+027583:     const refresh = () => {
+027584:       if (!container.isConnected || !top.isConnected) return;
+027585:       if (refreshRaf) cancelAnimationFrame(refreshRaf);
+027586:       refreshRaf = requestAnimationFrame(() => {
+027587:         refreshRaf = 0;
+027588:         const width = Math.max(container.scrollWidth, container.clientWidth);
+027589:         inner.style.width = width + 'px';
+027590:         const hasOverflow = container.scrollWidth > container.clientWidth + 1;
+027591:         top.style.display = hasOverflow ? 'block' : 'none';
+027592:         if (hasOverflow && Math.abs(top.scrollLeft - container.scrollLeft) > 1) {
+027593:           top.scrollLeft = container.scrollLeft;
+027594:         }
+027595:       });
+027596:     };
+027597: 
+027598:     const onTopScroll = () => {
+027599:       if (syncing) return;
+027600:       syncing = true;
+027601:       container.scrollLeft = top.scrollLeft;
+027602:       syncing = false;
+027603:     };
+027604: 
+027605:     const onContainerScroll = () => {
+027606:       if (syncing) return;
+027607:       syncing = true;
+027608:       top.scrollLeft = container.scrollLeft;
+027609:       syncing = false;
+027610:     };
+027611: 
+027612:     top.addEventListener('scroll', onTopScroll, { passive: true });
+027613:     container.addEventListener('scroll', onContainerScroll, { passive: true });
+027614: 
+027615:     let resizeObserver = null;
+027616:     if (typeof ResizeObserver === 'function') {
+027617:       resizeObserver = new ResizeObserver(refresh);
+027618:       resizeObserver.observe(container);
+027619:       if (container.firstElementChild) resizeObserver.observe(container.firstElementChild);
+027620:     }
+027621: 
+027622:     const instance = {
+027623:       key,
+027624:       top,
+027625:       inner,
+027626:       container,
+027627:       refresh,
+027628:       onTopScroll,
+027629:       onContainerScroll,
+027630:       resizeObserver
+027631:     };
+027632:     instances.set(key, instance);
+027633:     refresh();
+027634:     return instance;
+027635:   }
+027636: 
+027637:   window.installTopHorizontalScrollbar = installTopHorizontalScrollbar;
+027638: 
+027639:   function findAlertsContainer() {
+027640:     const containers = Array.from(document.querySelectorAll('.coi-alertas-scroll'))
+027641:       .filter((container) => container.querySelector('table.coi-alertas-table'));
+027642:     return containers.find(isVisible) || containers[0] || null;
+027643:   }
+027644: 
+027645:   function findOrdersContainer() {
+027646:     const tables = Array.from(document.querySelectorAll('table.ordenes-table'));
+027647:     const table = tables.find(isVisible) || tables[0] || null;
+027648:     return table ? table.closest('.table-wrap') : null;
+027649:   }
+027650: 
+027651:   function reconcileTopScrollbars() {
+027652:     for (const [key, instance] of Array.from(instances.entries())) {
+027653:       if (!instance.container.isConnected || !instance.top.isConnected) destroyInstance(key);
+027654:     }
+027655: 
+027656:     const alerts = findAlertsContainer();
+027657:     if (alerts) installTopHorizontalScrollbar(alerts, 'alertas');
+027658: 
+027659:     const orders = findOrdersContainer();
+027660:     if (orders) installTopHorizontalScrollbar(orders, 'ordenes');
+027661:   }
+027662: 
+027663:   function scheduleReconcile() {
+027664:     if (mutationRaf) return;
+027665:     mutationRaf = requestAnimationFrame(() => {
+027666:       mutationRaf = 0;
+027667:       reconcileTopScrollbars();
+027668:     });
+027669:   }
+027670: 
+027671:   const start = () => {
+027672:     scheduleReconcile();
+027673:     if (document.body && typeof MutationObserver === 'function') {
+027674:       const observer = new MutationObserver(scheduleReconcile);
+027675:       observer.observe(document.body, { childList: true, subtree: true });
+027676:       window.__COI_FINAL_NAV_TOP_SCROLLBARS_OBSERVER__ = observer;
+027677:     }
+027678:     window.addEventListener('resize', scheduleReconcile, { passive: true });
+027679:   };
+027680: 
+027681:   if (document.readyState === 'loading') {
+027682:     document.addEventListener('DOMContentLoaded', start, { once: true });
+027683:   } else {
+027684:     start();
+027685:   }
+027686: })();
+027687: </script>
+027688: 
+027689: <script id="coi-h03-observaciones-supabase-first">
+027690: /* H03 - Observaciones OC: Supabase como unica fuente de verdad.
+027691: 
+027692:    Antes de esta capa, observacionesOC vivia en sessionStorage['coi_observaciones_oc']:
+027693:    lo que cargaba un operador no existia para nadie mas y desaparecia al limpiar el
+027694:    navegador.
+027695: 
+027696:      lectura      -> select paginado sobre public.coi_observaciones_oc
+027697:      mutacion     -> insert/update fila por fila, nunca "guardar el array entero"
+027698:      memoria      -> window.observacionesOC es solo el modelo de la UI
+027699:      sessionStorage -> fallback de solo lectura del legado, jamas destino de escritura
+027700: 
+027701:    Las acciones reales de la UI viven dentro de IIFEs que no se pueden reasignar
+027702:    desde window y que ademas llaman a stopImmediatePropagation. Por eso los clicks
+027703:    se interceptan en fase de captura sobre window, que corre antes que cualquier
+027704:    listener de document: es el mismo mecanismo que ya usa el modulo R27 de PDF. */
+027705: (function(){
+027706:   'use strict';
+027707: 
+027708:   const TABLA = 'coi_observaciones_oc';
+027709:   const LEGACY_KEY = 'coi_observaciones_oc';
+027710:   const MARKER_KEY = 'coi_observaciones_h03_imported_v1';
+027711:   const CAMPOS = 'id,orden_id,nro_oc,observacion,estado,prioridad,creado_por,resuelto_por,fecha_creacion,fecha_resolucion';
+027712:   const PAGE_SIZE = 1000;
+027713: 
+027714:   // Referencia propia a getItem: el fallback legado la usa aunque mas abajo se
+027715:   // instale el escudo que impide que otros lectores elijan el legado.
+027716:   const getItemNativo = Storage.prototype.getItem;
+027717:   const leerLegacyCrudo = () => {
+027718:     try { return getItemNativo.call(window.sessionStorage, LEGACY_KEY); } catch (e) { return null; }
+027719:   };
+027720: 
+027721:   const runtime = {
+027722:     origen: 'inicial',        // supabase | error-sin-sincronizar
+027723:     ultimoError: null,
+027724:     sincronizado: false,      // el modelo en memoria refleja una lectura remota confirmada
+027725:     generacion: 0,            // token de request: descarta respuestas viejas
+027726:     cargando: null,
+027727:     confirmado: null,         // ultimo modelo remoto confirmado
+027728:     crudas: null,             // filas remotas sin mapear, para remapeo diferido
+027729:     authUserId: null,         // UID de la sesion que produjo el modelo vigente
+027730:     // H07 · Observaciones historicas que quedaron en la clave legada de un
+027731:     // puesto que nunca corrio la importacion. NO son dato operativo: no entran
+027732:     // al modelo, no alimentan KPIs y no habilitan escrituras. Se conservan
+027733:     // intactas y se pueden ver, exportar o importar de forma explicita.
+027734:     legadoEnCuarentena: 0,
+027735:     // Cuantas veces se retiro de memoria un modelo legado publicado por el
+027736:     // inicializador historico antes de tener lectura remota confirmada.
+027737:     legadoRetirado: 0
+027738:   };
+027739:   window.__COI_OBS_H03__ = runtime;
+027740: 
+027741:   const texto = (v) => String(v == null ? '' : v).trim();
+027742:   const norm = (v) => texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, '');
+027743:   const ahora = () => new Date().toISOString();
+027744:   const esUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(texto(v));
+027745: 
+027746:   function cliente() {
+027747:     try { if (typeof window.getSupabaseClient === 'function') return window.getSupabaseClient(); } catch (e) {}
+027748:     return window.__COI_SUPABASE_CLIENT__ || null;
+027749:   }
+027750: 
+027751:   // Los toast de la aplicacion viven dentro de IIFEs y no hay ninguno expuesto en
+027752:   // window, de modo que delegar a window.toast dejaba al operador sin feedback.
+027753:   // Se reutiliza el contenedor y las clases que ya usa la UI de Alertas.
+027754:   function avisar(mensaje, tipo) {
+027755:     const clase = tipo === 'error' ? 'error' : (tipo === 'warn' ? 'warn' : 'ok');
+027756:     for (const fn of ['coiToast', 'mostrarToast', 'toast']) {
+027757:       try {
+027758:         if (typeof window[fn] === 'function') return window[fn](mensaje, tipo || 'info');
+027759:       } catch (e) { /* se intenta el siguiente */ }
+027760:     }
+027761:     try {
+027762:       let caja = document.getElementById('coiToastV581');
+027763:       if (!caja) {
+027764:         caja = document.createElement('div');
+027765:         caja.id = 'coiToastV581';
+027766:         document.body.appendChild(caja);
+027767:       }
+027768:       caja.className = 'coi-toast-v581 show ' + clase;
+027769:       caja.textContent = mensaje;
+027770:       clearTimeout(caja._coiObsT);
+027771:       caja._coiObsT = setTimeout(() => caja.classList.remove('show'), 3600);
+027772:     } catch (e) { /* sin DOM disponible */ }
+027773:     if (tipo === 'error') console.error('COI observaciones:', mensaje);
+027774:   }
+027775: 
+027776:   // UID de la sesion vigente. Se usa para distinguir un cambio real de usuario
+027777:   // de un simple TOKEN_REFRESHED / USER_UPDATED del mismo operador.
+027778:   async function uidDeSesion() {
+027779:     try {
+027780:       const c = cliente();
+027781:       if (!c || !c.auth || typeof c.auth.getSession !== 'function') return null;
+027782:       const { data } = await c.auth.getSession();
+027783:       return (data && data.session && data.session.user && data.session.user.id) || null;
+027784:     } catch (e) { return null; }
+027785:   }
+027786: 
+027787:   async function exigirEscritura() {
+027788:     const c = cliente();
+027789:     if (!c) throw new Error('Supabase no esta disponible. Recargue la pagina e inicie sesion.');
+027790:     if (navigator.onLine === false) throw new Error('Sin conexion: no se pueden guardar observaciones.');
+027791:     const { data, error } = await c.auth.getSession();
+027792:     if (error) throw error;
+027793:     if (!data || !data.session) throw new Error('Inicie sesion en Supabase para guardar observaciones.');
+027794:     return { c, uid: data.session.user && data.session.user.id };
+027795:   }
+027796: 
+027797:   // ---------------------------------------------------------- identidades
+027798:   const perfiles = new Map();
+027799:   // La request de profiles la autoriza la RLS de la sesion que la inicio. Si
+027800:   // termina despues de un cambio de sesion, escribir su resultado filtraria a la
+027801:   // sesion nueva nombres que su propia policy no le deja ver. Por eso la
+027802:   // respuesta se valida ANTES de tocar el mapa (generacion + UID de origen) y,
+027803:   // si no corresponde, se descarta entera: nunca se escribe parcialmente.
+027804:   async function cargarPerfiles(c, ids, contexto) {
+027805:     const faltan = ids.filter((id) => esUuid(id) && !perfiles.has(id));
+027806:     if (!faltan.length) return;
+027807:     let filas = null;
+027808:     try {
+027809:       const { data, error } = await c.from('profiles').select('id,email,nombre,apellido').in('id', faltan);
+027810:       if (error) throw error;
+027811:       filas = data || [];
+027812:     } catch (e) { filas = null; /* sin perfiles se usa la representacion neutra */ }
+027813:     if (contexto) {
+027814:       const mismaGeneracion = contexto.generacion === runtime.generacion;
+027815:       const mismaIdentidad = (contexto.uid || null) === (runtime.authUserId || null);
+027816:       if (!mismaGeneracion || !mismaIdentidad) return;
+027817:     }
+027818:     (filas || []).forEach((r) => {
+027819:       const nombre = [texto(r.nombre), texto(r.apellido)].filter(Boolean).join(' ');
+027820:       perfiles.set(r.id, nombre || texto(r.email) || null);
+027821:     });
+027822:     faltan.forEach((id) => { if (!perfiles.has(id)) perfiles.set(id, null); });
+027823:   }
+027824:   // Nunca se inventa un nombre: si no se resuelve, se muestra el UUID abreviado.
+027825:   function mostrarUsuario(id) {
+027826:     if (!esUuid(id)) return '';
+027827:     const nombre = perfiles.get(id);
+027828:     return nombre || ('Usuario ' + String(id).slice(0, 8));
+027829:   }
+027830: 
+027831:   // ---------------------------------------------------------- resolucion de OC
+027832:   function filasOC() {
+027833:     try { return (typeof window.todasLasOC === 'function' ? window.todasLasOC() : []) || []; } catch (e) { return []; }
+027834:   }
+027835:   function idMaestroDe(item) {
+027836:     const i = item || {};
+027837:     return i.supabaseId || i.id || (i._supabaseRaw && i._supabaseRaw.id) || null;
+027838:   }
+027839:   // La identidad canonica es orden_id. nro_oc solo se usa como respaldo legado,
+027840:   // de modo que una renumeracion no desvincula la observacion de su OC.
+027841:   function ocPorOrdenId(ordenId) {
+027842:     if (!esUuid(ordenId)) return null;
+027843:     return filasOC().find((r) => {
+027844:       const i = (r && r.item) || r || {};
+027845:       return String(idMaestroDe(i)) === String(ordenId);
+027846:     }) || null;
+027847:   }
+027848:   function ocPorNro(nroOC) {
+027849:     const k = norm(nroOC);
+027850:     if (!k) return null;
+027851:     return filasOC().find((r) => {
+027852:       const i = (r && r.item) || r || {};
+027853:       return [r && r.oc, i.numeroOC, i.oc, i.nro_oc, i.OC_NRO].some((v) => norm(v) === k);
+027854:     }) || null;
+027855:   }
+027856:   function ordenIdDe(nroOC) {
+027857:     const encontrada = ocPorNro(nroOC);
+027858:     return idMaestroDe((encontrada && (encontrada.item || encontrada)) || {});
+027859:   }
+027860: 
+027861:   function desdeSupabase(row) {
+027862:     // 1) por UUID maestro; 2) recien entonces por nro_oc legado.
+027863:     const encontrada = ocPorOrdenId(row.orden_id) || ocPorNro(row.nro_oc);
+027864:     const item = (encontrada && (encontrada.item || encontrada)) || null;
+027865:     const nroCanonico = item
+027866:       ? texto(item.numeroOC || item.oc || item.nro_oc || item.OC_NRO) || texto(row.nro_oc)
+027867:       : texto(row.nro_oc);
+027868:     const base = {
+027869:       idObservacion: row.id,
+027870:       ocNro: nroCanonico,
+027871:       idObra: (item && (item.idObra || item.idOC)) || '',
+027872:       idServicio: (item && (item.idServicio || item.ID_SERVICIO)) || '',
+027873:       texto: texto(row.observacion),
+027874:       estadoObservacion: texto(row.estado) || 'Pendiente',
+027875:       prioridadObservacion: texto(row.prioridad) || 'Normal',
+027876:       fechaCarga: row.fecha_creacion || '',
+027877:       fechaResolucion: row.fecha_resolucion || '',
+027878:       creadoPorId: row.creado_por || '',
+027879:       resueltoPorId: row.resuelto_por || '',
+027880:       usuarioCarga: mostrarUsuario(row.creado_por),
+027881:       usuarioResolucion: mostrarUsuario(row.resuelto_por),
+027882:       _supabaseId: row.id,
+027883:       _ordenId: row.orden_id,
+027884:       _origen: 'supabase'
+027885:     };
+027886:     try {
+027887:       if (typeof window.v65NormalizarObservacion === 'function') {
+027888:         const out = window.v65NormalizarObservacion(base, item);
+027889:         // La normalizacion legacy pone 'Local' cuando no hay usuario: se preserva
+027890:         // la identidad remota real, o una representacion neutra.
+027891:         out.usuarioCarga = base.usuarioCarga || '';
+027892:         out.usuarioResolucion = base.usuarioResolucion || '';
+027893:         out.creadoPorId = base.creadoPorId;
+027894:         out.resueltoPorId = base.resueltoPorId;
+027895:         return out;
+027896:       }
+027897:     } catch (e) {}
+027898:     return base;
+027899:   }
+027900: 
+027901:   // ---------------------------------------------------------- memoria y UI
+027902:   function aplicarEnMemoria(lista, origen) {
+027903:     runtime.origen = origen;
+027904:     const arr = Array.isArray(lista) ? lista : [];
+027905:     window.observacionesOC = arr;
+027906:     try { if (typeof observacionesOC !== 'undefined') observacionesOC = arr; } catch (e) {}
+027907:     return arr;
+027908:   }
+027909: 
+027910:   function refrescarUI() {
+027911:     try { if (typeof window.v65RefrescarPanelObsActual === 'function') window.v65RefrescarPanelObsActual(); } catch (e) {}
+027912:     try {
+027913:       const vista = document.getElementById('vistaCentroAlertas');
+027914:       if (vista && vista.classList.contains('active') && typeof window.renderCentroAlertas === 'function') {
+027915:         window.renderCentroAlertas();
+027916:       }
+027917:     } catch (e) {}
+027918:   }
+027919: 
+027920:   // Version del formato del marcador de corte.
+027921:   const MARCA_V = 2;
+027922: 
+027923:   // Huella determinista del contenido legado presente AHORA. Se ordena para que
+027924:   // reescribir el mismo conjunto en otro orden no cuente como cambio; el
+027925:   // recuento va delante para que agregar un duplicado exacto tambien se note.
+027926:   function huellaLegado() {
+027927:     const claves = legadoEnCuarentena().map(claveObs).sort();
+027928:     return claves.length + ':' + claves.join('~');
+027929:   }
+027930: 
+027931:   function marcadorGuardado() {
+027932:     let crudo = null;
+027933:     try { crudo = getItemNativo.call(window.sessionStorage, MARKER_KEY); } catch (e) { return null; }
+027934:     if (!crudo) return null;
+027935:     // Formato historico: un '1' pelado, sin huella.
+027936:     if (crudo === '1') return { v: 1, huella: null };
+027937:     try {
+027938:       const m = JSON.parse(crudo);
+027939:       return (m && m.v === MARCA_V && typeof m.huella === 'string') ? m : null;
+027940:     } catch (e) { return null; }
+027941:   }
+027942: 
+027943:   function ponerMarcador() {
+027944:     try {
+027945:       window.sessionStorage.setItem(MARKER_KEY, JSON.stringify({
+027946:         v: MARCA_V, huella: huellaLegado(), en: new Date().toISOString()
+027947:       }));
+027948:     } catch (e) {}
+027949:   }
+027950: 
+027951:   function marcadorPuesto() {
+027952:     const m = marcadorGuardado();
+027953:     if (!m) return false;
+027954:     if (m.v === 1) {
+027955:       // Marcador historico sin huella. NO se adopta a ciegas: ese '1' pudo
+027956:       // haberlo escrito la version en la que cualquier observacion remota
+027957:       // liberaba la cuarentena, de modo que no prueba ninguna conciliacion.
+027958:       const locales = legadoEnCuarentena();
+027959:       // Sin filas legadas no hay nada que conciliar: la migracion es segura.
+027960:       if (!locales.length) { ponerMarcador(); return true; }
+027961:       // Con filas legadas hace falta una lectura remota confirmada para poder
+027962:       // afirmar algo. Sin ella, fail-closed: la cuarentena sigue abierta.
+027963:       if (!runtime.sincronizado || !Array.isArray(runtime.confirmado)) return false;
+027964:       // Y se reconcilian de verdad, con el mismo multiset del resto de la capa.
+027965:       if (faltanEnElRemoto(locales).length) return false;
+027966:       // Todas estan en Supabase: recien ahi el corte queda registrado con huella.
+027967:       ponerMarcador();
+027968:       return true;
+027969:     }
+027970:     // El corte solo sigue valiendo mientras el contenido legado sea el mismo
+027971:     // que se concilio. Si cambio, se reabre.
+027972:     return m.huella === huellaLegado();
+027973:   }
+027974: 
+027975:   // H07 · Material legado en CUARENTENA. Sigue existiendo tal cual en
+027976:   // sessionStorage —no se borra— pero ya no se publica como observaciones
+027977:   // operativas. Solo se puede mirar, exportar o importar explicitamente.
+027978:   function legadoEnCuarentena() {
+027979:     let crudo = [];
+027980:     try { crudo = JSON.parse(leerLegacyCrudo() || '[]'); } catch (e) { crudo = []; }
+027981:     if (!Array.isArray(crudo)) return [];
+027982:     return crudo.map((o) => Object.assign({}, o, { _origen: 'legado-cuarentena', _soloLectura: true, _autoritativo: false }));
+027983:   }
+027984:   // Nombre historico conservado para los llamadores existentes.
+027985:   function legadoSoloLectura() { return legadoEnCuarentena(); }
+027986: 
+027987:   // Clave determinista para comparar una observacion legada contra el remoto.
+027988:   // Se usa OC + texto normalizado: son los dos campos que existen en las dos
+027989:   // formas —la legada y la de Supabase— y no dependen de ningun id local.
+027990:   //
+027991:   // Los alias son EXACTAMENTE los de v65NormalizarObservacion(), en su mismo
+027992:   // orden, mas la columna cruda nro_oc de Supabase al final. Antes faltaban
+027993:   // 'numeroOC' y 'descripcion': una fila legada con esa forma daba la clave
+027994:   // vacia «|» y quedaba en cuarentena para siempre aunque ya estuviera en el
+027995:   // remoto. Se extraen sin llamar a la funcion canonica porque esa genera ids
+027996:   // y fechas: aca hace falta una lectura pura.
+027997:   const obsOC = (o) => o.ocNro || o.OC_NRO || o.oc || o.numeroOC || o.nro_oc;
+027998:   const obsTexto = (o) => o.texto || o.observacion || o.descripcion || o.detalle;
+027999:   const claveObs = (o) => (o ? norm(obsOC(o)) + '|' + norm(obsTexto(o)) : '|');
+028000: 
+028001:   // Filas legadas que NO tienen contrapartida en el remoto confirmado.
+028002:   //
+028003:   // La comparacion es de MULTISET, no de conjunto. Con un Set, dos filas
+028004:   // legadas identicas —misma OC, mismo texto— quedaban las dos «conciliadas»
+028005:   // por una unica fila remota equivalente: el marcador se ponia, la segunda
+028006:   // salia de la cuarentena y desaparecia de la recuperacion sin haber llegado
+028007:   // nunca a Supabase.
+028008:   //
+028009:   // Se cuenta cuantas filas remotas hay por clave y se consume exactamente una
+028010:   // por cada fila local equivalente, recorriendolas en orden. Cuando el
+028011:   // contador llega a cero, las locales que sobran quedan pendientes.
+028012:   function faltanEnElRemoto(locales) {
+028013:     const disponibles = new Map();
+028014:     (runtime.confirmado || []).forEach((o) => {
+028015:       const k = claveObs(o);
+028016:       disponibles.set(k, (disponibles.get(k) || 0) + 1);
+028017:     });
+028018:     const faltan = [];
+028019:     locales.forEach((o) => {
+028020:       const k = claveObs(o);
+028021:       const quedan = disponibles.get(k) || 0;
+028022:       if (quedan > 0) disponibles.set(k, quedan - 1);
+028023:       else faltan.push(o);
+028024:     });
+028025:     return faltan;
+028026:   }
+028027: 
+028028:   // Cuantas observaciones legadas siguen SIN estar en Supabase.
+028029:   //
+028030:   // Reglas:
+028031:   //   - con el marcador de corte puesto la conciliacion ya se resolvio
+028032:   //     explicitamente (KI-007) y no hay nada pendiente;
+028033:   //   - sin lectura remota confirmada NO se puede afirmar que algo ya migro:
+028034:   //     todo el legado cuenta como pendiente (fail-closed);
+028035:   //   - con lectura confirmada se compara por multiset. Que Supabase tenga
+028036:   //     observaciones ajenas no dice nada sobre las locales.
+028037:   //
+028038:   // Solo cuando TODAS las filas locales tienen contrapartida propia en el
+028039:   // remoto se da el corte por cumplido: eso es conciliacion, no suposicion.
+028040:   function registrarCuarentena() {
+028041:     if (marcadorPuesto()) { runtime.legadoEnCuarentena = 0; return 0; }
+028042:     const locales = legadoEnCuarentena();
+028043:     // Sin lectura remota confirmada NO se puede afirmar que algo ya migro:
+028044:     // todo el legado local cuenta como pendiente.
+028045:     if (!runtime.sincronizado || !Array.isArray(runtime.confirmado)) {
+028046:       runtime.legadoEnCuarentena = locales.length;
+028047:       return runtime.legadoEnCuarentena;
+028048:     }
+028049:     const pendientes = faltanEnElRemoto(locales);
+028050:     runtime.legadoEnCuarentena = pendientes.length;
+028051:     // El corte se da por cumplido cuando no queda nada pendiente: sea porque
+028052:     // el puesto nunca tuvo legado, sea porque todas sus filas ya estan en
+028053:     // Supabase. Nunca por el mero hecho de que el remoto tenga filas.
+028054:     if (!pendientes.length) ponerMarcador();
+028055:     return runtime.legadoEnCuarentena;
+028056:   }
+028057: 
+028058:   // Filas locales que todavia no aparecen en el remoto confirmado. Mismo
+028059:   // recorrido que registrarCuarentena(): no puede haber dos criterios.
+028060:   function pendientesDeConciliar() {
+028061:     const locales = legadoEnCuarentena();
+028062:     if (!locales.length) return [];
+028063:     if (!runtime.sincronizado || !Array.isArray(runtime.confirmado)) return locales;
+028064:     return faltanEnElRemoto(locales);
+028065:   }
+028066: 
+028067:   window.__COI_OBS_H07_CUARENTENA__ = {
+028068:     clave: LEGACY_KEY,
+028069:     cantidad: () => registrarCuarentena(),
+028070:     filas: legadoEnCuarentena,
+028071:     pendientes: pendientesDeConciliar,
+028072:     autoritativo: false,
+028073:     // Salida 1 · CONCILIAR. Relee Supabase y comprueba fila por fila si el
+028074:     // legado ya esta alla. Si todas aparecen, el corte queda cumplido y las
+028075:     // mutaciones se desbloquean. Si falta alguna, no se libera nada y se
+028076:     // devuelve exactamente cuales faltan.
+028077:     conciliar: async function () {
+028078:       await cargar();
+028079:       if (runtime.sincronizado !== true) {
+028080:         throw new Error('No se pudo confirmar el estado remoto de las observaciones' +
+028081:           (runtime.ultimoError ? ' (' + runtime.ultimoError + ')' : '') +
+028082:           '. No se resolvió la cuarentena.');
+028083:       }
+028084:       const faltan = pendientesDeConciliar();
+028085:       registrarCuarentena();
+028086:       return { resuelta: faltan.length === 0, pendientes: faltan.length, detalle: faltan };
+028087:     },
+028088:     // Salida 2 · DESCARTAR de forma explicita. Exige confirmacion y haber
+028089:     // exportado antes. NO borra la clave: el material queda intacto en
+028090:     // sessionStorage; lo unico que se registra es que el operador decidio que no
+028091:     // debe seguir bloqueando la operacion.
+028092:     descartar: function (opciones) {
+028093:       if (!(opciones && opciones.confirmado === true)) {
+028094:         throw new Error('Descartar la cuarentena de observaciones requiere { confirmado: true }.');
+028095:       }
+028096:       const exportado = this.exportarJSON();
+028097:       ponerMarcador();
+028098:       registrarCuarentena();
+028099:       return { descartadas: legadoEnCuarentena().length, claveConservada: true, exportado: exportado.length };
+028100:     },
+028101:     exportarJSON: () => {
+028102:       const filas = legadoEnCuarentena();
+028103:       const salida = JSON.stringify({
+028104:         formato: 'COI_H07_OBSERVACIONES_LEGACY',
+028105:         exportadoEl: new Date().toISOString(),
+028106:         clave: LEGACY_KEY,
+028107:         autoritativo: false,
+028108:         nota: 'Observaciones historicas pendientes de importar a Supabase. NO son dato operativo.',
+028109:         filas: filas
+028110:       }, null, 2);
+028111:       try {
+028112:         if (typeof window.descargarArchivo === 'function') {
+028113:           window.descargarArchivo('observaciones_legacy_' + Date.now() + '.json', salida, 'application/json;charset=utf-8');
+028114:         }
+028115:       } catch (e) {}
+028116:       return salida;
+028117:     }
+028118:   };
+028119: 
+028120:   // H07 · El inicializador historico publica en window.observacionesOC lo que
+028121:   // encuentra en la clave legada, y eso ocurre mucho antes de que esta capa
+028122:   // empiece a leer Supabase. Con una red lenta —o colgada— quedaba una ventana
+028123:   // en la que paneles y KPIs seguian mostrando observaciones locales, que
+028124:   // pueden ser incluso de otro operador del mismo navegador, como si fueran
+028125:   // dato operativo.
+028126:   //
+028127:   // Por eso el modelo se retira SINCRONICAMENTE, antes del primer await, cada
+028128:   // vez que la sesion todavia no tiene un snapshot remoto confirmado.
+028129:   //
+028130:   //   - NO se toca sessionStorage: la materia prima sigue intacta y la cuarentena
+028131:   //     la lee con su getter nativo;
+028132:   //   - NO se presenta el vacio como lectura remota: sincronizado sigue en
+028133:   //     false y el origen no pasa a 'supabase';
+028134:   //   - una recarga de la MISMA sesion con snapshot confirmado no destruye
+028135:   //     nada: se sale antes de tocar el modelo.
+028136:   function retirarLegadoPublicado() {
+028137:     if (runtime.sincronizado === true && Array.isArray(runtime.confirmado)) return false;
+028138:     const publicado = Array.isArray(window.observacionesOC) ? window.observacionesOC : [];
+028139:     const conservado = Array.isArray(runtime.confirmado) ? runtime.confirmado : [];
+028140:     // Si lo publicado ES el snapshot conservado, no hay legado que retirar.
+028141:     if (publicado === conservado || !publicado.length) return false;
+028142:     runtime.sincronizado = false;
+028143:     runtime.legadoRetirado++;
+028144:     aplicarEnMemoria(conservado, runtime.origen === 'supabase' ? 'error-sin-sincronizar' : runtime.origen);
+028145:     registrarCuarentena();
+028146:     refrescarUI();
+028147:     return true;
+028148:   }
+028149: 
+028150:   // ------------------------------------------------- salida de la cuarentena
+028151:   // Sin esto las operaciones existian pero solo eran alcanzables desde consola:
+028152:   // un operador con cuarentena pendiente veia las mutaciones bloqueadas y no
+028153:   // tenia ninguna salida visible. Se monta sobre el sector de Observaciones de
+028154:   // la Ficha OC, que es exactamente donde se topa con el bloqueo, y desaparece
+028155:   // solo cuando la cuarentena queda resuelta.
+028156:   function avisoCuarentenaHTML() {
+028157:     const n = registrarCuarentena();
+028158:     if (!n) return '';
+028159:     return '<section class="doc-contract-note" data-h07-obs-cuarentena="' + n + '">' +
+028160:       '<b>Observaciones históricas pendientes de conciliar: ' + n + '</b>' +
+028161:       '<p class="muted">Este navegador conserva observaciones que nunca llegaron a Supabase. ' +
+028162:       'No se muestran como observaciones operativas y, mientras sigan pendientes, ' +
+028163:       'la edición de observaciones está bloqueada.</p>' +
+028164:       '<div class="admin-actions">' +
+028165:       '<button type="button" class="primary" data-h07-obs-conciliar>Conciliar con Supabase</button>' +
+028166:       '<button type="button" data-h07-obs-exportar>Exportar legado</button>' +
+028167:       '<button type="button" data-h07-obs-descartar>Descartar bloqueo</button>' +
+028168:       '</div>' +
+028169:       '<p class="muted">«Descartar bloqueo» exporta el material y libera la edición. ' +
+028170:       'No borra el archivo legado ni lo importa a Supabase.</p>' +
+028171:       '</section>';
+028172:   }
+028173: 
+028174:   // Ventana de gesto: cubre el click sintetizado que el navegador emite
+028175:   // despues del real en dispositivos tactiles.
+028176:   const GESTO_MS = 600;
+028177:   let cuarentenaEnCurso = false;
+028178:   function botonesCuarentena(deshabilitar) {
+028179:     try {
+028180:       document.querySelectorAll('[data-h07-obs-conciliar],[data-h07-obs-exportar],[data-h07-obs-descartar]')
+028181:         .forEach((b) => { b.disabled = deshabilitar === true; });
+028182:     } catch (e) {}
+028183:   }
+028184:   function accionCuarentena(cual) {
+028185:     if (cuarentenaEnCurso) return Promise.resolve(false);
+028186:     cuarentenaEnCurso = true;
+028187:     botonesCuarentena(true);
+028188:     const api = window.__COI_OBS_H07_CUARENTENA__;
+028189:     return Promise.resolve().then(() => {
+028190:       if (cual === 'exportar') {
+028191:         const salida = api.exportarJSON();
+028192:         avisar('Legado exportado (' + api.filas().length + ' observación/es). El material local no se borró.', 'ok');
+028193:         return salida;
+028194:       }
+028195:       if (cual === 'descartar') {
+028196:         // Confirmacion explicita del operador. La exportacion la hace descartar().
+028197:         const ok = window.confirm(
+028198:           'Se van a descartar ' + registrarCuarentena() + ' observación(es) históricas como bloqueo.\n\n' +
+028199:           'Primero se descarga una exportación. El archivo legado NO se borra y NO se importa ' +
+028200:           'a Supabase: solo deja de bloquear la edición de observaciones.\n\n¿Confirma?');
+028201:         if (!ok) {
+028202:           avisar('No se descartó nada: el bloqueo sigue vigente.', 'warn');
+028203:           return false;
+028204:         }
+028205:         const r = api.descartar({ confirmado: true });
+028206:         avisar('Bloqueo descartado. Se exportó el legado y la clave local quedó intacta.', 'ok');
+028207:         return r;
+028208:       }
+028209:       return api.conciliar().then((r) => {
+028210:         if (r.resuelta) avisar('Conciliación completa: el legado ya está en Supabase.', 'ok');
+028211:         else avisar('Quedan ' + r.pendientes + ' observación(es) sin llegar a Supabase. El bloqueo se mantiene.', 'warn');
+028212:         return r;
+028213:       });
+028214:     }).catch((e) => {
+028215:       avisar('No se pudo resolver la cuarentena: ' + ((e && e.message) || String(e)), 'error');
+028216:       return false;
+028217:     }).then((r) => {
+028218:       refrescarUI();
+028219:       botonesCuarentena(false);
+028220:       // El guard se libera recien pasada la ventana de gesto: una accion que le
+028221:       // pregunta al operador no puede preguntarle dos veces por un solo toque.
+028222:       setTimeout(() => { cuarentenaEnCurso = false; }, GESTO_MS);
+028223:       return r;
+028224:     });
+028225:   }
+028226: 
+028227:   // ---------------------------------------------------------- lectura paginada
+028228:   async function leerPaginado(c) {
+028229:     const filas = [];
+028230:     // Se avanza por la cantidad de filas REALMENTE devueltas, no por PAGE_SIZE:
+028231:     // PostgREST aplica su propio tope (max-rows) y puede entregar menos de lo
+028232:     // pedido, en cuyo caso cortar por «pagina.length < PAGE_SIZE» perderia el
+028233:     // resto del conjunto. Solo una pagina vacia termina el recorrido.
+028234:     for (let desde = 0, vueltas = 0; vueltas < 1000; vueltas++) {
+028235:       const { data, error } = await c
+028236:         .from(TABLA)
+028237:         .select(CAMPOS)
+028238:         .order('fecha_creacion', { ascending: false })
+028239:         .order('id', { ascending: true })
+028240:         .range(desde, desde + PAGE_SIZE - 1);
+028241:       if (error) throw error;
+028242:       const pagina = Array.isArray(data) ? data : [];
+028243:       if (!pagina.length) break;
+028244:       filas.push.apply(filas, pagina);
+028245:       desde += pagina.length;
+028246:     }
+028247:     // Union sin duplicados: el paginado puede solaparse si alguien inserta mientras se lee.
+028248:     const vistos = new Set();
+028249:     return filas.filter((r) => (vistos.has(r.id) ? false : (vistos.add(r.id), true)));
+028250:   }
+028251: 
+028252:   async function cargar() {
+028253:     const generacion = ++runtime.generacion;
+028254:     const vigente = () => generacion === runtime.generacion;
+028255: 
+028256:     // ANTES del primer await: mientras esta sesion no tenga lectura remota
+028257:     // confirmada, nada de lo que dejo publicado el inicializador legado puede
+028258:     // seguir figurando como observaciones operativas.
+028259:     retirarLegadoPublicado();
+028260: 
+028261:     const promesa = (async () => {
+028262:       const c = cliente();
+028263:       // La identidad vigente se toma al inicio de la lectura: es el origen que
+028264:       // despues valida la respuesta de profiles.
+028265:       const uidLectura = await uidDeSesion();
+028266:       if (vigente()) runtime.authUserId = uidLectura;
+028267:       if (!c) {
+028268:         if (!vigente()) return window.observacionesOC;
+028269:         runtime.ultimoError = 'Supabase no disponible';
+028270:         runtime.sincronizado = false;
+028271:         // Nunca se representa un error como "cero observaciones": se conserva
+028272:         // lo ultimo que Supabase confirmo. El legado NO entra al modelo.
+028273:         registrarCuarentena();
+028274:         return aplicarEnMemoria(runtime.confirmado || [], 'error-sin-sincronizar');
+028275:       }
+028276:       try {
+028277:         const crudas = await leerPaginado(c);
+028278:         await cargarPerfiles(
+028279:           c,
+028280:           crudas.flatMap((r) => [r.creado_por, r.resuelto_por]).filter(Boolean),
+028281:           { generacion: generacion, uid: uidLectura }
+028282:         );
+028283:         if (!vigente()) return window.observacionesOC;
+028284:         const filas = crudas.map(desdeSupabase);
+028285:         runtime.ultimoError = null;
+028286:         runtime.sincronizado = true;
+028287:         runtime.confirmado = filas;
+028288:         // Se guardan las filas crudas para poder remapear sin otra consulta si el
+028289:         // catalogo de OC termina de cargar despues que las observaciones.
+028290:         runtime.crudas = crudas;
+028291:         programarRemapeo();
+028292:         // El marcador de corte NO se pone por el solo hecho de que Supabase
+028293:         // tenga filas: eso daba por migrado el legado local sin haberlo
+028294:         // conciliado. Lo decide registrarCuarentena(), comparando fila por fila.
+028295:         //
+028296:         // Remoto vacio es un estado valido. Si ademas hay material legado sin
+028297:         // conciliar, queda en cuarentena: visible como pendiente, fuera del
+028298:         // modelo y con la escritura bloqueada hasta resolverlo.
+028299:         registrarCuarentena();
+028300:         return aplicarEnMemoria(filas, 'supabase');
+028301:       } catch (error) {
+028302:         if (!vigente()) return window.observacionesOC;
+028303:         runtime.ultimoError = (error && error.message) || String(error);
+028304:         runtime.sincronizado = false;
+028305:         console.warn('COI observaciones: no se pudo leer Supabase.', error);
+028306:         // Se conserva el ultimo modelo remoto confirmado y se avisa. Un fallo
+028307:         // remoto nunca se rellena con la clave legada.
+028308:         registrarCuarentena();
+028309:         if (runtime.confirmado && runtime.confirmado.length) {
+028310:           avisar('No se pudieron actualizar las observaciones: se muestran las ultimas conocidas.', 'warn');
+028311:         }
+028312:         return aplicarEnMemoria(runtime.confirmado || [], 'error-sin-sincronizar');
+028313:       }
+028314:     })();
+028315: 
+028316:     runtime.cargando = promesa;
+028317:     promesa.catch(() => {}).then(() => {
+028318:       // El finally solo limpia el puntero si sigue siendo el de ESTA peticion.
+028319:       if (runtime.cargando === promesa) runtime.cargando = null;
+028320:     });
+028321:     return promesa;
+028322:   }
+028323: 
+028324:   // El catalogo de OC puede terminar de cargar despues que las observaciones: en
+028325:   // ese caso el mapper no pudo derivar el nro_oc canonico desde orden_id. No
+028326:   // existe en la aplicacion ningun evento de fin de carga reutilizable (solo
+028327:   // coi:supabase-auth), asi que se usa una secuencia acotada de reintentos que se
+028328:   // detiene apenas hay catalogo o se agotan los intentos. No hay timer infinito.
+028329:   const REINTENTOS_REMAPEO = [400, 1200, 3000, 6000, 10000];
+028330:   let remapeoArmado = false;
+028331:   function hayPendientesDeMapear() {
+028332:     const crudas = runtime.crudas || [];
+028333:     if (!crudas.length) return false;
+028334:     return crudas.some((r) => esUuid(r.orden_id) && !ocPorOrdenId(r.orden_id));
+028335:   }
+028336:   function programarRemapeo() {
+028337:     if (remapeoArmado || !hayPendientesDeMapear()) return;
+028338:     remapeoArmado = true;
+028339:     // Las filas crudas pertenecen a una sesion concreta: si la sesion cambia
+028340:     // (por ejemplo un SIGNED_OUT) el callback diferido no debe reinstalar datos
+028341:     // autenticados sobre la UI ya limpiada.
+028342:     const gen = runtime.generacion;
+028343:     REINTENTOS_REMAPEO.forEach((ms) => setTimeout(() => {
+028344:       if (gen !== runtime.generacion) return;
+028345:       if (!runtime.crudas || !runtime.crudas.length) return;
+028346:       if (hayPendientesDeMapear()) return; // el catalogo sigue sin la OC
+028347:       remapeoArmado = false;
+028348:       const filas = runtime.crudas.map(desdeSupabase);
+028349:       runtime.confirmado = filas;
+028350:       aplicarEnMemoria(filas, runtime.origen === 'supabase' ? 'supabase' : runtime.origen);

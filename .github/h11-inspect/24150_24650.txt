@@ -1,0 +1,501 @@
+024150: function finV56MontoOC(oc){ return typeof obtenerMontoOCV52==='function'?obtenerMontoOCV52(oc):parseMontoARS(oc?.montoOC||oc?.monto||0); }
+024151: function finV56Money(v){ return formatMontoARS(v); }
+024152: function finV56Badge(pair){ return '<span class="finance-dot '+String(pair[0]||'gris')+'">'+esc(String(pair[1]||''))+'</span>'; }
+024153: function finV56SemOC(pos,certs){
+024154:   var s=finV56SaldoPosicion(pos,certs);
+024155:   if(s.saldoMonto<-0.01||s.saldoCantidad<-0.0001) return ['rojo','Excedida'];
+024156:   if(s.saldoMonto===0 && s.saldoCantidad===0 && (s.montoOriginal>0||s.cantidadOriginal>0)) return ['verde','Completa'];
+024157:   if(s.montoConsumido>0||s.cantidadConsumida>0) return ['amarillo','Parcial'];
+024158:   return ['azul','Libre'];
+024159: }
+024160: function finV56SemCert(p){
+024161:   if(Number(p.precioTotal||0)<0||Number(p.cantidad||0)<0) return ['rojo','Inválida'];
+024162:   if(p.actaNro&&p.fechaActa) return ['verde','Completa'];
+024163:   if(p.actaNro||p.fechaActa) return ['amarillo','Incompleta'];
+024164:   return ['gris','Pendiente'];
+024165: }
+024166: function finV56SemLibre(p){
+024167:   if(Number(p.saldoMonto||0)<-0.01||Number(p.saldoCantidad||0)<-0.0001) return ['rojo','Negativo'];
+024168:   if(Number(p.saldoMonto||0)===0 && Number(p.saldoCantidad||0)===0 && Number(p.montoConsumido||0)>0) return ['verde','Completa'];
+024169:   if(Number(p.montoConsumido||0)>0||Number(p.cantidadConsumida||0)>0) return ['amarillo','Parcial'];
+024170:   return ['azul','Libre'];
+024171: }
+024172: function finR31FmtCant(v){var n=Number(v||0); if(!Number.isFinite(n)) n=0; return n.toLocaleString('es-AR',{maximumFractionDigits:4});}
+024173: function finV56Input(name,val,type){return '<input class="finance-edit-input" data-cert-field="'+esc(name)+'" value="'+esc(val??'')+'" type="'+esc(type||'text')+'">';}
+024174: function finV56Textarea(name,val){return '<textarea class="finance-edit-input finance-edit-textarea" data-cert-field="'+esc(name)+'">'+esc(val??'')+'</textarea>';}
+024175: function finV56TablaOC(r,safeId){
+024176:   var rows=r.posOC.map(function(p){var sem=finV56SemOC(p,r.cert),s=finV56SaldoPosicion(p,r.cert);return '<tr><td class="col-sel"><input type="checkbox" class="finance-check chk-fin-pos-oc" data-oc-safe="'+esc(safeId)+'" data-pos-id="'+esc(p.idPosicionFinanciera)+'"></td><td class="col-sem">'+finV56Badge(sem)+'</td><td class="col-oc">'+esc(p.ocNro)+'</td><td class="col-remito">'+esc(p.remito||'')+'</td><td class="col-pos">'+esc(finR31MostrarPOS(p.posicion))+'</td><td class="col-desc">'+esc(p.descripcion||'')+'</td><td class="col-cant">'+esc(finR31FmtCant(s.cantidadOriginal))+'</td><td class="col-money">'+finV56Money(p.precioUnitario)+'</td><td class="col-money">'+finV56Money(s.montoOriginal)+'</td><td class="col-periodo">'+esc(p.periodo||'')+'</td><td class="col-sem">'+finV56Badge(sem)+'</td><td class="col-obs">'+esc(p.observaciones||'')+'</td><td class="col-actions"><span class="muted">Maestro OC</span></td></tr>';}).join('');
+024177:   return '<div class="finance-note-r31">Posiciones OC es el maestro contractual. Al consumir, no se elimina: se genera una fila trazable en Posiciones Certificadas y se recalcula Posiciones Libres.</div><div class="finance-consume-bar"><span class="finance-consume-count" id="finSelCount_'+esc(safeId)+'">0 seleccionadas</span><label>Cantidad a consumir<input id="finCantidadConsumir_'+esc(safeId)+'" type="text" placeholder="Opcional"></label><label>Monto a consumir<input id="finMontoConsumir_'+esc(safeId)+'" type="text" placeholder="Opcional"></label><button type="button" class="primary" data-fin-consumir="'+esc(safeId)+'" data-oc-nro="'+esc(r.ocNro)+'">Consumir seleccionadas</button></div><div class="finance-table-wrap"><table class="finance-table v31"><thead><tr><th class="col-sel">Sel.</th><th class="col-sem">Semáforo</th><th class="col-oc">OC</th><th class="col-remito">Remito</th><th class="col-pos">POS</th><th class="col-desc">Descripción</th><th class="col-cant">Cantidad OC</th><th class="col-money">Precio unitario</th><th class="col-money">Precio total OC</th><th class="col-periodo">Periodo</th><th class="col-sem">Saldo / Estado</th><th class="col-obs">Observaciones</th><th class="col-actions">Acciones</th></tr></thead><tbody>'+(rows||'<tr><td colspan="13">Sin posiciones OC cargadas.</td></tr>')+'</tbody></table></div>';
+024178: }
+024179: function finV56TablaCert(r){
+024180:   var rows=r.cert.map(function(p){var editing=typeof finV56EditandoCertificacion!=='undefined'&&finV56EditandoCertificacion===p.idPosicionFinanciera,sem=finV56SemCert(p);var c=function(field,val){return editing?finV56Input(field,val):esc(val||'');};return '<tr data-cert-id="'+esc(p.idPosicionFinanciera)+'"><td class="col-sel"><input type="checkbox" class="finance-check chk-fin-cert" data-cert-id="'+esc(p.idPosicionFinanciera)+'"></td><td class="col-sem">'+finV56Badge(sem)+'</td><td class="col-oc">'+esc(p.ocNro)+'</td><td class="col-remito">'+(editing?finV56Input('remito',p.remito):esc(p.remito||''))+'</td><td class="col-pos">'+esc(finR31MostrarPOS(p.posicion))+'</td><td class="col-desc">'+(editing?finV56Textarea('descripcion',p.descripcion):esc(p.descripcion||''))+'</td><td class="col-cant">'+c('cantidad',finR31FmtCant(p.cantidad))+'</td><td class="col-money">'+(editing?finV56Input('precioUnitario',p.precioUnitario):finV56Money(p.precioUnitario))+'</td><td class="col-money">'+(editing?finV56Input('precioTotal',p.precioTotal):finV56Money(p.precioTotal))+'</td><td class="col-periodo">'+c('mes',p.mes)+'</td><td class="col-periodo">'+c('periodo',p.periodo)+'</td><td class="col-acta">'+c('actaNro',p.actaNro)+'</td><td class="col-fecha">'+c('fechaActa',p.fechaActa)+'</td><td class="col-obs">'+(editing?finV56Textarea('observaciones',p.observaciones):esc(p.observaciones||''))+'</td><td class="col-actions finance-row-actions">'+(editing?'<button type="button" class="primary" data-fin-cert-save="'+esc(p.idPosicionFinanciera)+'">Guardar</button><button type="button" data-fin-cert-cancel="'+esc(p.idPosicionFinanciera)+'">Cancelar</button>':'<button type="button" data-fin-cert-edit="'+esc(p.idPosicionFinanciera)+'">Editar</button><button type="button" class="btn-danger-soft" data-fin-cert-delete="'+esc(p.idPosicionFinanciera)+'">Eliminar certificación</button>')+'</td></tr>';}).join('');
+024181:   return '<div class="finance-table-wrap"><table class="finance-table v31"><thead><tr><th class="col-sel">Sel.</th><th class="col-sem">Semáforo</th><th class="col-oc">OC</th><th class="col-remito">Remito</th><th class="col-pos">POS</th><th class="col-desc">Descripción</th><th class="col-cant">Cantidad certificada</th><th class="col-money">Precio unitario</th><th class="col-money">Monto certificado</th><th class="col-periodo">Mes</th><th class="col-periodo">Periodo</th><th class="col-acta">Acta N°</th><th class="col-fecha">Fecha acta</th><th class="col-obs">Observaciones</th><th class="col-actions">Acciones</th></tr></thead><tbody>'+(rows||'<tr><td colspan="15">Sin posiciones certificadas.</td></tr>')+'</tbody></table></div>';
+024182: }
+024183: function finV56TablaLibre(r){
+024184:   var rows=r.libres.map(function(p){var sem=finV56SemLibre(p);return '<tr><td class="col-sel"><input type="checkbox" class="finance-check" disabled></td><td class="col-sem">'+finV56Badge(sem)+'</td><td class="col-oc">'+esc(p.ocNro)+'</td><td class="col-remito">'+esc(p.remito||'')+'</td><td class="col-pos">'+esc(finR31MostrarPOS(p.posicion))+'</td><td class="col-desc">'+esc(p.descripcion||'')+'</td><td class="col-cant">'+esc(finR31FmtCant(p.cantidadOriginal))+'</td><td class="col-cant">'+esc(finR31FmtCant(p.cantidadConsumida))+'</td><td class="col-cant">'+esc(finR31FmtCant(p.saldoCantidad))+'</td><td class="col-money">'+finV56Money(p.precioUnitario)+'</td><td class="col-money">'+finV56Money(p.montoOriginal)+'</td><td class="col-money">'+finV56Money(p.montoConsumido)+'</td><td class="col-money">'+finV56Money(p.saldoMonto)+'</td><td class="col-periodo">'+esc(p.periodo||'')+'</td><td class="col-obs">'+esc(p.observaciones||'')+'</td><td class="col-actions"><span class="muted">Calculado</span></td></tr>';}).join('');
+024185:   return '<div class="finance-table-wrap"><table class="finance-table v31"><thead><tr><th class="col-sel">Sel.</th><th class="col-sem">Semáforo</th><th class="col-oc">OC</th><th class="col-remito">Remito</th><th class="col-pos">POS</th><th class="col-desc">Descripción</th><th class="col-cant">Cantidad OC</th><th class="col-cant">Cantidad certificada</th><th class="col-cant">Cantidad libre</th><th class="col-money">Precio unitario</th><th class="col-money">Monto OC</th><th class="col-money">Monto certificado</th><th class="col-money">Saldo libre</th><th class="col-periodo">Periodo</th><th class="col-obs">Observaciones</th><th class="col-actions">Acciones</th></tr></thead><tbody>'+(rows||'<tr><td colspan="16">Sin posiciones OC para calcular saldos libres.</td></tr>')+'</tbody></table></div>';
+024186: }
+024187: function renderEstadoFinancieroOC(oc){
+024188:   if(!oc) return '';
+024189:   var ocNro=(typeof finV54OCNro==='function'?finV54OCNro(oc):(oc.numeroOC||oc.oc||oc.ocNro||''));
+024190:   ocNro=normalizarOCFinanciera(ocNro);
+024191:   var r=calcularResumenFinancieroOC(ocNro), safeId=(typeof slugOC==='function'?slugOC(ocNro||'OC'):ocNro||'OC'), montoOc=finV56MontoOC(oc), diff=montoOc-r.totalPosiciones;
+024192:   r.ocNro=ocNro;
+024193:   var kpis=[['Monto total OC',finV56Money(montoOc)],['Monto total posiciones OC',finV56Money(r.totalPosiciones)],['Monto certificado acumulado',finV56Money(r.totalCertificado)],['Saldo libre',finV56Money(r.totalLibre)],['Cantidad posiciones OC',r.cantidadPosicionesOC],['Cantidad posiciones certificadas',r.cantidadCertificadas],['Cantidad posiciones libres',r.cantidadLibres],['Porcentaje consumido',Number(r.porcentajeConsumido||0).toFixed(1)+'%'],['Diferencia OC vs posiciones',finV56Money(diff)]].map(function(x){return '<div class="finance-kpi"><b>'+esc(String(x[1]))+'</b><span>'+esc(String(x[0]))+'</span></div>';}).join('');
+024194:   return '<section class="expediente-card full" data-fin-oc="'+esc(safeId)+'" data-fin-oc-nro="'+esc(ocNro)+'"><div class="finance-advanced-head"><div><h3>4. Estado Financiero</h3><p class="muted">Consumo financiero por posiciones: Posiciones OC queda como maestro; Posiciones Libres se calcula automáticamente por OC + POS.</p></div></div><div class="finance-summary">'+kpis+'</div><div class="finance-tabs" role="tablist"><button type="button" class="active" data-fin-tab="pos-'+esc(safeId)+'">Posiciones OC</button><button type="button" data-fin-tab="cert-'+esc(safeId)+'">Posiciones Certificadas</button><button type="button" data-fin-tab="lib-'+esc(safeId)+'">Posiciones Libres</button></div><div id="pos-'+esc(safeId)+'" class="finance-tab-panel active">'+finV56TablaOC(r,safeId)+'</div><div id="cert-'+esc(safeId)+'" class="finance-tab-panel">'+finV56TablaCert(r)+'</div><div id="lib-'+esc(safeId)+'" class="finance-tab-panel">'+finV56TablaLibre(r)+'</div></section>';
+024195: }
+024196: var __finR31Consumiendo=false;
+024197: function consumirPosicionesOC(ocNro){
+024198:   if(__finR31Consumiendo) return;
+024199:   __finR31Consumiendo=true;
+024200:   try{
+024201:     finV56MigrarMemoria();
+024202:     var safeId=(typeof slugOC==='function'?slugOC(ocNro||'OC'):ocNro||'OC');
+024203:     var section=document.querySelector('[data-fin-oc="'+CSS.escape(safeId)+'"]');
+024204:     var seleccion=[].slice.call(section?.querySelectorAll('.chk-fin-pos-oc:checked')||[]).map(function(x){return x.dataset.posId;});
+024205:     if(!seleccion.length){alert('Seleccione al menos una posición.');return;}
+024206:     var cantidadInput=parseMontoARS(document.getElementById('finCantidadConsumir_'+safeId)?.value||'');
+024207:     var montoInput=parseMontoARS(document.getElementById('finMontoConsumir_'+safeId)?.value||'');
+024208:     if(cantidadInput<0||montoInput<0){alert('La cantidad o monto a consumir no puede ser negativo.');return;}
+024209:     if(seleccion.length>1 && (cantidadInput>0||montoInput>0)){alert('Para consumos parciales seleccione una sola posición o deje los campos vacíos para consumir saldos completos.');return;}
+024210:     var certs=obtenerPosicionesFinancierasPorOC(ocNro).filter(function(p){return p.tipoBloqueFinanciero==='CERTIFICADA';});
+024211:     var candidatas=[], errores=[];
+024212:     seleccion.forEach(function(id){
+024213:       var origen=posicionesFinancieras.find(function(p){return p.idPosicionFinanciera===id&&p.tipoBloqueFinanciero==='POSICION_OC';});
+024214:       if(!origen){errores.push('No se encontró posición origen '+id+'.');return;}
+024215:       if(!origen.ocNro){errores.push('POS '+origen.posicion+': OC vacía.');return;}
+024216:       if(!normalizarPOS(origen.posicion)){errores.push('POS inexistente o inválida en posición '+(origen.posicion||id)+'.');return;}
+024217:       var saldo=finV56SaldoPosicion(origen,certs);
+024218:       if(saldo.saldoMonto<=0.01 && saldo.saldoCantidad<=0.0001){errores.push('No hay saldo libre para la POS '+origen.posicion+'.');return;}
+024219:       var cantidad=0, precioTotal=0;
+024220:       if(cantidadInput>0){
+024221:         cantidad=cantidadInput;
+024222:         precioTotal=Number(origen.precioUnitario||0)>0 ? cantidad*Number(origen.precioUnitario||0) : (saldo.saldoCantidad>0 ? saldo.saldoMonto*(cantidad/saldo.saldoCantidad) : 0);
+024223:       }else if(montoInput>0){
+024224:         precioTotal=montoInput;
+024225:         cantidad=Number(origen.precioUnitario||0)>0 ? precioTotal/Number(origen.precioUnitario||0) : (saldo.saldoMonto>0 ? saldo.saldoCantidad*(precioTotal/saldo.saldoMonto) : 0);
+024226:       }else{
+024227:         cantidad=saldo.saldoCantidad;
+024228:         precioTotal=saldo.saldoMonto;
+024229:       }
+024230:       if(cantidad>saldo.saldoCantidad+0.0001 && saldo.cantidadOriginal>0){errores.push('La cantidad a consumir supera la cantidad libre para POS '+origen.posicion+'.');return;}
+024231:       if(precioTotal>saldo.saldoMonto+0.01){errores.push('El monto a consumir supera el saldo libre para POS '+origen.posicion+'.');return;}
+024232:       candidatas.push({origen:origen,saldo:saldo,cantidad:cantidad,precioTotal:precioTotal});
+024233:     });
+024234:     if(errores.length){alert(errores.join('\n'));return;}
+024235:     if(!candidatas.length){alert('No hay posiciones con saldo libre para consumir.');return;}
+024236:     var total=candidatas.reduce(function(a,x){return a+x.precioTotal;},0);
+024237:     if(!confirm('Se consumirán '+candidatas.length+' posición(es) por '+formatMontoARS(total)+'. Las posiciones OC quedarán como maestro. ¿Confirmar?')) return;
+024238:     var creadas=0;
+024239:     candidatas.forEach(function(x){
+024240:       var origen=x.origen;
+024241:       var nueva=Object.assign({},origen,{idPosicionFinanciera:'FIN-CERT-'+Date.now()+'-'+Math.random().toString(16).slice(2,8),idPosicionOrigen:origen.idPosicionFinanciera,tipoBloqueFinanciero:'CERTIFICADA',cantidad:x.cantidad,precioTotal:x.precioTotal,montoPosicion:x.precioTotal,montoCertificado:x.precioTotal,saldo:0,saldoMonto:0,mes:'',actaNro:'',actaMedicionNro:'',fechaActa:'',periodoDesde:'',periodoHasta:'',certificado:'SI',fechaCarga:new Date().toISOString(),fechaUltimaModificacion:new Date().toISOString(),usuario:(typeof finV56Usuario==='function'?finV56Usuario():''),rol:(typeof finV56Rol==='function'?finV56Rol():''),origen:'Consumo desde Posiciones OC',estadoPosicion:'Certificada pendiente de completar'});
+024242:       posicionesFinancieras.push(nueva);
+024243:       certs.push(nueva);
+024244:       creadas++;
+024245:       if(typeof registrarLogSistema==='function') registrarLogSistema('CONSUMO_POSICION_FINANCIERA','Posición OC consumida hacia certificación',JSON.stringify({ocNro:ocNro,posicion:origen.posicion,idPosicionOrigen:origen.idPosicionFinanciera,idCertificada:nueva.idPosicionFinanciera,cantidad:x.cantidad,precioTotal:x.precioTotal}));
+024246:     });
+024247:     if(creadas) guardarPosicionesFinancieras();
+024248:     alert('Consumo creado correctamente. Se generaron '+creadas+' certificación(es).');
+024249:     var m=(typeof finBuscarOC==='function'?finBuscarOC(ocNro):null);
+024250:     renderFichaOC((m?.item&&typeof fichaV54Key==='function')?fichaV54Key(m.item):ocNro);
+024251:   }finally{__finR31Consumiendo=false;}
+024252: }
+024253: function finV56GuardarCertificacion(id){
+024254:   var tr=document.querySelector('[data-cert-id="'+CSS.escape(id)+'"]'), reg=posicionesFinancieras.find(function(p){return p.idPosicionFinanciera===id;});
+024255:   if(!tr||!reg) return;
+024256:   tr.querySelectorAll('[data-cert-field]').forEach(function(el){reg[el.dataset.certField]=el.value.trim();});
+024257:   var normalized=normalizarRegistroFinanciero(reg,'CERTIFICADA');
+024258:   Object.assign(reg,normalized,{idPosicionFinanciera:id,idPosicionOrigen:reg.idPosicionOrigen||normalized.idPosicionOrigen,fechaCarga:reg.fechaCarga,fechaUltimaModificacion:new Date().toISOString()});
+024259:   finV56EditandoCertificacion=''; guardarPosicionesFinancieras();
+024260:   var m=(typeof finBuscarOC==='function'?finBuscarOC(reg.ocNro):null);
+024261:   renderFichaOC((m?.item&&typeof fichaV54Key==='function')?fichaV54Key(m.item):reg.ocNro);
+024262: }
+024263: function finV56EliminarCertificacion(id){
+024264:   var reg=posicionesFinancieras.find(function(p){return p.idPosicionFinanciera===id;}); if(!reg) return;
+024265:   if(!confirm('¿Eliminar esta certificación? La posición OC original no se borra.')) return;
+024266:   posicionesFinancieras=posicionesFinancieras.filter(function(p){return p.idPosicionFinanciera!==id;}); guardarPosicionesFinancieras();
+024267:   if(typeof registrarLogSistema==='function') registrarLogSistema('ELIMINACION_CERTIFICACION_FINANCIERA','Certificación financiera eliminada',JSON.stringify({id:id,ocNro:reg.ocNro,idPosicionOrigen:reg.idPosicionOrigen}));
+024268:   var m=(typeof finBuscarOC==='function'?finBuscarOC(reg.ocNro):null);
+024269:   renderFichaOC((m?.item&&typeof fichaV54Key==='function')?fichaV54Key(m.item):reg.ocNro);
+024270: }
+024271: function exportarPosicionesFinancierasCSV(){
+024272:   finV56MigrarMemoria();
+024273:   var ocs={}; posicionesFinancieras.forEach(function(p){var n=normalizarOCFinanciera(p.ocNro); if(n)ocs[n]=true;});
+024274:   var rows=[];
+024275:   Object.keys(ocs).forEach(function(oc){
+024276:     var r=calcularResumenFinancieroOC(oc);
+024277:     r.posOC.forEach(function(p){rows.push({TIPO:'POSICION_OC',OC:p.ocNro,REMITO:p.remito,POS:finR31MostrarPOS(p.posicion),DESCRIPCION:p.descripcion,CANTIDAD_OC:p.cantidad,CANTIDAD_CERTIFICADA:'',CANTIDAD_LIBRE:'',PRECIO_UNITARIO:p.precioUnitario,MONTO_OC:p.precioTotal,MONTO_CERTIFICADO:'',SALDO_LIBRE:'',PERIODO:p.periodo,ACTA_NRO:'',FECHA_ACTA:'',OBSERVACIONES:p.observaciones||''});});
+024278:     r.cert.forEach(function(p){rows.push({TIPO:'CERTIFICADA',OC:p.ocNro,REMITO:p.remito,POS:finR31MostrarPOS(p.posicion),DESCRIPCION:p.descripcion,CANTIDAD_OC:'',CANTIDAD_CERTIFICADA:p.cantidad,CANTIDAD_LIBRE:'',PRECIO_UNITARIO:p.precioUnitario,MONTO_OC:'',MONTO_CERTIFICADO:p.precioTotal,SALDO_LIBRE:'',PERIODO:p.periodo,ACTA_NRO:p.actaNro,FECHA_ACTA:p.fechaActa,OBSERVACIONES:p.observaciones||''});});
+024279:     r.libres.forEach(function(p){rows.push({TIPO:'LIBRE_CALCULADA',OC:p.ocNro,REMITO:p.remito,POS:finR31MostrarPOS(p.posicion),DESCRIPCION:p.descripcion,CANTIDAD_OC:p.cantidadOriginal,CANTIDAD_CERTIFICADA:p.cantidadConsumida,CANTIDAD_LIBRE:p.saldoCantidad,PRECIO_UNITARIO:p.precioUnitario,MONTO_OC:p.montoOriginal,MONTO_CERTIFICADO:p.montoConsumido,SALDO_LIBRE:p.saldoMonto,PERIODO:p.periodo,ACTA_NRO:'',FECHA_ACTA:'',OBSERVACIONES:p.observaciones||''});});
+024280:   });
+024281:   var h=['TIPO','OC','REMITO','POS','DESCRIPCION','CANTIDAD_OC','CANTIDAD_CERTIFICADA','CANTIDAD_LIBRE','PRECIO_UNITARIO','MONTO_OC','MONTO_CERTIFICADO','SALDO_LIBRE','PERIODO','ACTA_NRO','FECHA_ACTA','OBSERVACIONES'];
+024282:   var csv=[h.join(';')].concat(rows.map(function(r){return h.map(function(k){var v=r[k]??''; if(['PRECIO_UNITARIO','MONTO_OC','MONTO_CERTIFICADO','SALDO_LIBRE'].includes(k)&&v!=='') v=String(Number(v||0)).replace('.',','); return coiCSVCell(v);}).join(';');})).join('\n');
+024283:   descargarArchivo('posiciones_financieras_normalizadas_'+(typeof adminNowStamp==='function'?adminNowStamp():Date.now())+'.csv',csv,'text/csv;charset=utf-8');
+024284: }
+024285: function coiR31UpdateVersion(){
+024286:   ['appVersionHeader','headerVersionOperativa'].forEach(function(id){var el=document.getElementById(id); if(el) el.textContent=COI_FIN_R31_VERSION;});
+024287:   var cfg=document.getElementById('adminCfgVersion'); if(cfg && (!cfg.value || /^V58/.test(cfg.value))) cfg.value=COI_FIN_R31_VERSION;
+024288: }
+024289: (function initR31(){
+024290:   coiR31UpdateVersion();
+024291:   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',coiR31UpdateVersion,{once:true});
+024292:   window.addEventListener('load',function(){coiR31UpdateVersion(); setTimeout(coiR31UpdateVersion,150); setTimeout(coiR31UpdateVersion,600);},{once:true});
+024293:   try{finV56MigrarMemoria();}catch(e){console.warn('COI R31 migración financiera diferida',e);}
+024294: })();
+024295: </script>
+024296: 
+024297: 
+024298: <style id="coi-fase11-security-styles">
+024299: /* =========================================================
+024300:    FASE 11 — Seguridad, gobierno, auditoría y continuidad
+024301:    Capa incremental compatible con HTML/CSS/JS puro.
+024302:    ========================================================= */
+024303: .f11-panel{border:1px solid #d8e6f0;border-radius:14px;background:#fff;padding:14px;margin:12px 0;box-shadow:0 6px 18px rgba(17,45,70,.04)}
+024304: .f11-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+024305: .f11-head h3,.f11-head h4{margin:0;color:#12324a}.f11-head p{margin:4px 0 0;color:#667085;font-size:12px;line-height:1.45}
+024306: .f11-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:10px 0}.f11-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}.f11-grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+024307: .f11-card{border:1px solid #dce8f1;border-radius:12px;background:linear-gradient(180deg,#fff,#f8fbfd);padding:12px;min-width:0}.f11-card b{display:block;color:#0f6093;font-size:22px;line-height:1.1;word-break:break-word}.f11-card span{display:block;margin-top:5px;color:#52677a;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.25px}.f11-card small{display:block;color:#667085;margin-top:5px;line-height:1.35}
+024308: .f11-badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 9px;border:1px solid #d4e4ef;background:#f6fbff;color:#214b63;font-size:11px;font-weight:900;white-space:nowrap}.f11-badge.ok{background:#e9f7ef;color:#237a3b;border-color:#cdebd8}.f11-badge.warn{background:#fff7de;color:#8a6400;border-color:#ffe09a}.f11-badge.bad{background:#fff0f0;color:#a52828;border-color:#ffcaca}.f11-badge.muted{background:#f2f4f7;color:#667085;border-color:#e4e7ec}
+024309: .f11-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.f11-actions button,.f11-btn{border:1px solid #d2e1ec;background:#fff;color:#17384f;border-radius:10px;padding:8px 11px;font-weight:900;cursor:pointer}.f11-actions .primary,.f11-btn.primary{background:#1f6fa9;color:#fff;border-color:#1f6fa9}.f11-actions .danger,.f11-btn.danger{background:#fff5f5;color:#b42318;border-color:#ffd2d2}
+024310: .f11-table-wrap{overflow:auto;border:1px solid #dce8f1;border-radius:12px;background:#fff;margin-top:10px}.f11-table{width:100%;min-width:860px;border-collapse:collapse;font-size:12px}.f11-table th,.f11-table td{border-bottom:1px solid #edf2f7;padding:8px 9px;text-align:left;vertical-align:top}.f11-table th{background:#f6f9fc;color:#243b53;font-size:10px;text-transform:uppercase;letter-spacing:.35px}.f11-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+024311: .f11-note{border:1px solid #cfe2ff;background:#eef6ff;color:#174a8b;border-radius:12px;padding:10px 12px;margin:10px 0;font-weight:800;font-size:12px;line-height:1.45}.f11-note.warn{border-color:#ffe09a;background:#fff7de;color:#8a6400}.f11-note.bad{border-color:#ffcaca;background:#fff0f0;color:#9b1c1c}
+024312: .f11-form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.f11-form-grid label{font-size:10px;font-weight:900;color:#344054;text-transform:uppercase}.f11-form-grid input,.f11-form-grid select,.f11-form-grid textarea{width:100%;border:1px solid #d0dce8;border-radius:9px;padding:9px;background:#fff}.f11-form-grid textarea{min-height:90px}.f11-form-grid .full{grid-column:1/-1}
+024313: .f11-log{font-family:Consolas,Menlo,monospace;background:#0b1220;color:#d4e2ff;border-radius:12px;padding:12px;white-space:pre-wrap;max-height:280px;overflow:auto;font-size:12px}.f11-subtle{color:#667085;font-size:12px}.f11-hidden{display:none!important}
+024314: .f11-historial-panel{border-left:4px solid #1f6fa9}.f11-timeline{display:grid;gap:10px}.f11-timeline-item{border:1px solid #dce8f1;border-radius:12px;background:#fff;padding:10px}.f11-timeline-item b{color:#12324a}.f11-timeline-item .meta{color:#667085;font-size:11px;margin-top:3px}.f11-filterbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}.f11-filterbar input,.f11-filterbar select{border:1px solid #d0dce8;border-radius:9px;padding:8px}
+024315: @media(max-width:1100px){.f11-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.f11-form-grid,.f11-filterbar{grid-template-columns:1fr 1fr}}@media(max-width:700px){.f11-grid,.f11-form-grid,.f11-filterbar{grid-template-columns:1fr}}
+024316: </style>
+024317: 
+024318: 
+024319: <script id="coi-fase11-security-script">
+024320: (function(){
+024321:   'use strict';
+024322:   const VERSION_FASE11 = 'V58.1R39-FINANZAS-SUPABASE-2A';
+024323:   const SCHEMA_VERSION = 'fase11_v1';
+024324:   const AUDIT_LOCAL_KEY = 'coi_fase11_auditoria_cache_v1';
+024325:   const SESSION_LOCAL_KEY = 'coi_fase11_sesion_actual_v1';
+024326:   const BACKUP_META_KEY = 'coi_fase11_backup_meta_v1';
+024327:   const PROFILE_CACHE_TTL_MS = 60000;
+024328:   const MFA_REQUIRED_ROLES = ['administrador','jefatura'];
+024329:   const PROFILE_TABLE = 'profiles';
+024330:   const AUDIT_TABLE = 'coi_auditoria_global';
+024331:   const SESSIONS_TABLE = 'coi_sesiones';
+024332:   const DOC_VERSIONS_TABLE = 'coi_documentos_versiones';
+024333:   const SECURITY_HEALTH_TABLE = 'coi_security_health_checks';
+024334:   const REMOTE_TABLES_READY_KEY = 'coi_fase11_remote_tables_ready_v1';
+024335: 
+024336:   const PERMISSION_MATRIX = Object.freeze({
+024337:     administrador: ['*'],
+024338:     jefatura: ['dashboard.ver','red.ver','ordenes.ver','ordenes.crear','ordenes.editar','ordenes.cerrar','ordenes.archivar','financiero.ver','financiero.editar','financiero.consumir','certificaciones.ver','certificaciones.crear','certificaciones.editar','documentos.ver','documentos.subir','documentos.versionar','documentos.aprobar','calendario.ver','alertas.ver','alertas.gestionar','um.ver','um.crear','um.editar','administracion.ver','auditoria.ver','backups.exportar','seguridad.ver'],
+024339:     editor: ['dashboard.ver','red.ver','ordenes.ver','ordenes.crear','ordenes.editar','financiero.ver','financiero.editar','certificaciones.ver','certificaciones.crear','certificaciones.editar','documentos.ver','documentos.subir','documentos.versionar','calendario.ver','alertas.ver','um.ver','um.editar','backups.exportar'],
+024340:     planificacion: ['dashboard.ver','red.ver','ordenes.ver','ordenes.editar','calendario.ver','alertas.ver','documentos.ver','certificaciones.ver','um.ver','backups.exportar'],
+024341:     control: ['dashboard.ver','red.ver','ordenes.ver','ordenes.editar','certificaciones.ver','certificaciones.crear','certificaciones.editar','documentos.ver','documentos.subir','calendario.ver','alertas.ver','um.ver'],
+024342:     supervisor: ['dashboard.ver','red.ver','ordenes.ver','ordenes.editar','documentos.ver','certificaciones.ver','calendario.ver','alertas.ver','um.ver'],
+024343:     inspector: ['dashboard.ver','red.ver','ordenes.ver','documentos.ver','documentos.subir','certificaciones.ver','calendario.ver','alertas.ver','um.ver'],
+024344:     consulta: ['dashboard.ver','red.ver','ordenes.ver','financiero.ver','certificaciones.ver','documentos.ver','calendario.ver','alertas.ver','um.ver','backups.exportar'],
+024345:     invitado: ['dashboard.ver','red.ver','ordenes.ver','calendario.ver'],
+024346:     contratista: ['ordenes.ver','documentos.ver','documentos.subir','certificaciones.ver','calendario.ver']
+024347:   });
+024348: 
+024349:   const ALL_PERMISSIONS = Object.freeze([
+024350:     'dashboard.ver','red.ver','ordenes.ver','ordenes.crear','ordenes.editar','ordenes.eliminar','ordenes.cerrar','ordenes.archivar','financiero.ver','financiero.editar','financiero.consumir','certificaciones.ver','certificaciones.crear','certificaciones.editar','certificaciones.eliminar','documentos.ver','documentos.subir','documentos.versionar','documentos.aprobar','documentos.eliminar','calendario.ver','alertas.ver','alertas.gestionar','um.ver','um.crear','um.editar','um.eliminar','administracion.ver','usuarios.gestionar','permisos.gestionar','auditoria.ver','backups.exportar','backups.importar','seguridad.ver'
+024351:   ]);
+024352: 
+024353:   const state = {
+024354:     profile: null,
+024355:     profileFetchedAt: 0,
+024356:     profileStatus: 'pendiente',
+024357:     profileError: '',
+024358:     auditRows: [],
+024359:     lastHealth: null,
+024360:     sessionId: null,
+024361:     installed: false,
+024362:     backupPreview: null,
+024363:     adminTab: 'seguridad'
+024364:   };
+024365: 
+024366:   function $(id){return document.getElementById(id);}
+024367:   function qsa(sel, root=document){return Array.from(root.querySelectorAll(sel));}
+024368:   function text(value){return String(value ?? '').trim();}
+024369:   function nowISO(){return new Date().toISOString();}
+024370:   function escapeHTML(value){return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+024371:   function normalizarTexto(value){return text(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[\u200B-\u200D\uFEFF]/g,'').replace(/\s+/g,' ');}
+024372:   function normalizarOC(value){return String(value ?? '').trim().replace(/^OC\s*[-:]?\s*/i,'').replace(/\s+/g,'').replace(/[^0-9A-Za-z\-]/g,'');}
+024373:   function normalizarRol(value){const rol=normalizarTexto(value).toLowerCase().replace(/[^a-z0-9_]+/g,'_').replace(/^_+|_+$/g,'');return rol || 'consulta';}
+024374:   function validarEmail(value){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text(value));}
+024375:   function validarFechaISO(value){return !value || /^\d{4}-\d{2}-\d{2}$/.test(text(value));}
+024376:   function validarMonto(value){if(value===''||value===null||value===undefined)return true;const n=parseFloat(String(value).replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''));return Number.isFinite(n);}
+024377:   function validarExpediente(value){const v=text(value);return !v || /^EX-[0-9]{4}-[0-9]+-[A-Z0-9#\-]+$/i.test(v) || v.length<=140;}
+024378:   function validarURLSegura(url){try{const u=new URL(url, window.location.href);return ['http:','https:'].includes(u.protocol);}catch(e){return false;}}
+024379:   function crearElementoSeguro(tag, attrs={}, content=''){const el=document.createElement(tag);Object.entries(attrs||{}).forEach(([k,v])=>{if(k==='class')el.className=text(v);else if(k.startsWith('data-'))el.setAttribute(k,text(v));else if(k==='href'){if(validarURLSegura(v))el.setAttribute(k,text(v));}else if(k==='type'||k==='id'||k==='aria-label'||k==='title')el.setAttribute(k,text(v));});if(content!==undefined&&content!==null)el.textContent=String(content);return el;}
+024380:   function validarArchivo(file, opts={}){if(!file)return {ok:false,error:'Archivo no informado'};const max=opts.maxBytes || 25*1024*1024;const allowed=opts.allowed || ['application/pdf'];const ext=(file.name.split('.').pop()||'').toLowerCase();if(file.size>max)return {ok:false,error:'Archivo supera el tamaño permitido'};if(ext==='pdf' || allowed.includes(file.type))return {ok:true};return {ok:false,error:'Tipo de archivo no permitido'};}
+024381:   function safeJSON(raw, fallback){try{return raw?JSON.parse(raw):fallback;}catch(e){return fallback;}}
+024382:   function readLS(key, fallback){try{return safeJSON(sessionStorage.getItem(key), fallback);}catch(e){return fallback;}}
+024383:   function writeLS(key, value){try{sessionStorage.setItem(key, JSON.stringify(value));return true;}catch(e){return false;}}
+024384:   function downloadFile(name, mime, content){const blob=new Blob([content],{type:mime});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}
+024385:   function getClient(){try{return typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;}catch(e){return null;}}
+024386:   async function getAuthUser(){try{if(typeof window.getUsuarioActual==='function'){const u=await window.getUsuarioActual();if(u)return u;}const c=getClient();if(c?.auth?.getUser){const {data}=await c.auth.getUser();return data?.user||null;}}catch(e){}return null;}
+024387:   function rolePermissions(role){const rol=normalizarRol(role);const list=PERMISSION_MATRIX[rol] || PERMISSION_MATRIX.consulta;return list.includes('*') ? ALL_PERMISSIONS.slice() : list.slice();}
+024388:   function hasPermission(role, code){if(!code)return true;const rol=normalizarRol(role);const list=PERMISSION_MATRIX[rol] || PERMISSION_MATRIX.consulta;return list.includes('*') || list.includes(code);}
+024389:   function classify(ok, warn){return ok?'ok':(warn?'warn':'bad');}
+024390:   function badge(label, type='muted'){return `<span class="f11-badge ${escapeHTML(type)}">${escapeHTML(label)}</span>`;}
+024391:   function card(label, value, small=''){return `<div class="f11-card"><b>${escapeHTML(value)}</b><span>${escapeHTML(label)}</span>${small?`<small>${escapeHTML(small)}</small>`:''}</div>`;}
+024392:   function table(headers, rows){return `<div class="f11-table-wrap"><table class="f11-table"><thead><tr>${headers.map(h=>`<th>${escapeHTML(h)}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(r=>`<tr>${r.map(c=>`<td>${typeof c==='number'?escapeHTML(String(c)):c}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${headers.length}">Sin registros.</td></tr>`}</tbody></table></div>`;}
+024393:   function toast(message, type='info'){try{if(typeof window.coiToast==='function')return window.coiToast(message,type);if(typeof window.mostrarToast==='function')return window.mostrarToast(message,type);}catch(e){}const box=$('adminMsg')||$('f11FloatingMsg');if(box){box.textContent=message;box.className='admin-msg '+(type==='error'?'err':'ok');}else console[type==='error'?'warn':'log'](message);}
+024394: 
+024395:   async function obtenerPerfilUsuarioActual(force=false){
+024396:     if(!force && state.profile && Date.now()-state.profileFetchedAt < PROFILE_CACHE_TTL_MS) return state.profile;
+024397:     const user = await getAuthUser();
+024398:     const baseProfile = {id:user?.id||null,email:user?.email||'',rol:'consulta',activo:false,permisos:rolePermissions('consulta'),origen:'sin_sesion',profile_ok:false,server_authority:false,warning:''};
+024399:     if(!user){state.profile=baseProfile;state.profileStatus='sin_sesion';state.profileFetchedAt=Date.now();return state.profile;}
+024400:     const client=getClient();
+024401:     if(!client){state.profile={...baseProfile,origen:'sin_cliente',warning:'Supabase no inicializado'};state.profileStatus='sin_cliente';state.profileFetchedAt=Date.now();return state.profile;}
+024402:     try{
+024403:       const {data,error}=await client.from(PROFILE_TABLE).select('id,email,nombre,apellido,rol,activo,fecha_alta,ultimo_login,observaciones').eq('id',user.id).maybeSingle();
+024404:       if(error) throw error;
+024405:       if(!data){
+024406:         state.profile={...baseProfile,origen:'profiles_sin_fila',warning:'Usuario autenticado sin perfil activo. Modo consulta restringida.'};
+024407:         state.profileStatus='sin_perfil';state.profileError='Perfil no encontrado';state.profileFetchedAt=Date.now();return state.profile;
+024408:       }
+024409:       const rol=normalizarRol(data.rol||'consulta');
+024410:       const activo=data.activo !== false;
+024411:       state.profile={...data,id:user.id,email:data.email||user.email||'',rol,activo,permisos:activo?rolePermissions(rol):[],origen:'profiles',profile_ok:true,server_authority:true,warning:activo?'':'Perfil inactivo'};
+024412:       state.profileStatus=activo?'ok':'inactivo';state.profileError='';state.profileFetchedAt=Date.now();return state.profile;
+024413:     }catch(error){
+024414:       const code=String(error?.code||'');
+024415:       state.profile={...baseProfile,id:user.id,email:user.email||'',origen:'profiles_error',warning: code==='42P01' ? 'Tabla profiles no existe: ejecutar FASE_11_SUPABASE.sql.' : (error?.message||'No se pudo leer profiles')};
+024416:       state.profileStatus='requiere_sql';state.profileError=error?.message||String(error);state.profileFetchedAt=Date.now();return state.profile;
+024417:     }
+024418:   }
+024419: 
+024420:   async function usuarioTienePermiso(codigoPermiso){const p=await obtenerPerfilUsuarioActual();return !!(p?.activo && hasPermission(p.rol,codigoPermiso));}
+024421:   async function exigirPermiso(codigoPermiso){const ok=await usuarioTienePermiso(codigoPermiso);if(!ok){await registrarAuditoriaGlobal({accion:'PERMISO_DENEGADO',modulo:'seguridad',descripcion:`Permiso requerido: ${codigoPermiso}`,resultado:'denegado'});throw new Error(`Permiso requerido: ${codigoPermiso}`);}return true;}
+024422:   async function aplicarPermisosInterfaz(){const p=await obtenerPerfilUsuarioActual();qsa('[data-permission]').forEach(el=>{const perm=el.getAttribute('data-permission');const ok=!!(p?.activo && hasPermission(p.rol,perm));el.disabled=!ok;el.classList.toggle('is-disabled-permission',!ok);el.title=ok?'':`Requiere permiso ${perm}`;});updateAdminSecurityBadge(p);return p;}
+024423: 
+024424:   function localAuditRows(){return readLS(AUDIT_LOCAL_KEY, []) || [];}
+024425:   function saveLocalAudit(row){const rows=localAuditRows();rows.unshift(row);writeLS(AUDIT_LOCAL_KEY, rows.slice(0,1000));state.auditRows=rows.slice(0,1000);}
+024426:   async function registrarAuditoriaGlobal(entry={}){
+024427:     const user=await getAuthUser();
+024428:     const p=state.profile || await obtenerPerfilUsuarioActual();
+024429:     const row={
+024430:       id:(crypto.randomUUID?crypto.randomUUID():`audit-${Date.now()}-${Math.random().toString(16).slice(2)}`),
+024431:       fecha_hora:nowISO(),usuario_id:user?.id||null,usuario_email:user?.email||p?.email||'',rol:p?.rol||'consulta',accion:text(entry.accion||'EVENTO'),modulo:text(entry.modulo||'general'),entidad:text(entry.entidad||''),registro_id:text(entry.registro_id||''),nro_oc:normalizarOC(entry.nro_oc||''),descripcion:text(entry.descripcion||''),datos_anteriores:entry.datos_anteriores||null,datos_nuevos:entry.datos_nuevos||null,resultado:text(entry.resultado||'registrado'),error:text(entry.error||''),origen:'frontend',version_app:VERSION_FASE11,user_agent:navigator.userAgent,contexto:entry.contexto||{},created_at:nowISO()
+024432:     };
+024433:     saveLocalAudit(row);
+024434:     const client=getClient();
+024435:     const remoteReady = !!readLS(REMOTE_TABLES_READY_KEY, false);
+024436:     if(client && remoteReady){try{const {error}=await client.from(AUDIT_TABLE).insert(row);if(error)throw error;row.remote_ok=true;}catch(error){row.remote_ok=false;row.error_remoto=error?.message||String(error);writeLS(REMOTE_TABLES_READY_KEY,false);}}
+024437:     return row;
+024438:   }
+024439: 
+024440:   async function iniciarSesionFase11(){
+024441:     const user=await getAuthUser(); if(!user) return null;
+024442:     let current=readLS(SESSION_LOCAL_KEY,null);
+024443:     if(current?.usuario_id===user.id && current?.estado==='abierta'){state.sessionId=current.id;return current;}
+024444:     const p=await obtenerPerfilUsuarioActual(true);
+024445:     const row={id:(crypto.randomUUID?crypto.randomUUID():`ses-${Date.now()}`),usuario_id:user.id,email:user.email||'',inicio:nowISO(),fin:null,duracion_segundos:null,estado:'abierta',user_agent:navigator.userAgent,version_app:VERSION_FASE11,ultima_actividad:nowISO(),created_at:nowISO()};
+024446:     writeLS(SESSION_LOCAL_KEY,row); state.sessionId=row.id;
+024447:     const client=getClient(); if(client && readLS(REMOTE_TABLES_READY_KEY,false)){try{await client.from(SESSIONS_TABLE).insert(row);}catch(e){writeLS(REMOTE_TABLES_READY_KEY,false);}}
+024448:     await registrarAuditoriaGlobal({accion:'LOGIN_EXITOSO',modulo:'auth',descripcion:'Sesión Fase 11 registrada',resultado:'ok',contexto:{profile_status:state.profileStatus,rol:p?.rol}});
+024449:     return row;
+024450:   }
+024451:   async function cerrarSesionFase11(explicit=true){
+024452:     const row=readLS(SESSION_LOCAL_KEY,null); if(!row) return;
+024453:     const fin=nowISO(); const dur=row.inicio?Math.max(0,Math.round((new Date(fin)-new Date(row.inicio))/1000)):null;
+024454:     const closed={...row,fin,duracion_segundos:dur,estado:explicit?'cerrada':'pagehide',ultima_actividad:fin};
+024455:     writeLS(SESSION_LOCAL_KEY,closed);
+024456:     const client=getClient(); if(client&&row.id&&readLS(REMOTE_TABLES_READY_KEY,false)){try{await client.from(SESSIONS_TABLE).update({fin:closed.fin,duracion_segundos:dur,estado:closed.estado,ultima_actividad:closed.ultima_actividad}).eq('id',row.id);}catch(e){writeLS(REMOTE_TABLES_READY_KEY,false);}}
+024457:     if(explicit) await registrarAuditoriaGlobal({accion:'LOGOUT',modulo:'auth',descripcion:'Cierre de sesión explícito',resultado:'ok'});
+024458:   }
+024459:   function heartbeatSesion(){const row=readLS(SESSION_LOCAL_KEY,null);if(row?.estado==='abierta'){row.ultima_actividad=nowISO();writeLS(SESSION_LOCAL_KEY,row);}}
+024460: 
+024461:   async function calcularSHA256Archivo(file){
+024462:     if(!file) throw new Error('Archivo no informado');
+024463:     const buffer=await file.arrayBuffer();
+024464:     const hashBuffer=await crypto.subtle.digest('SHA-256', buffer);
+024465:     return Array.from(new Uint8Array(hashBuffer)).map(b=>b.toString(16).padStart(2,'0')).join('');
+024466:   }
+024467:   async function verificarIntegridadDocumento(documento, archivo){const actual=await calcularSHA256Archivo(archivo);const esperado=text(documento?.sha256||documento?.hash_sha256||'').toLowerCase();return {ok:!!esperado && actual===esperado,sha256_actual:actual,sha256_esperado:esperado||null};}
+024468:   async function prepararMetadataVersionDocumento(file, meta={}){const valid=validarArchivo(file,{allowed:['application/pdf']});if(!valid.ok)throw new Error(valid.error);const sha=await calcularSHA256Archivo(file);return {documento_id:meta.documento_id||null,version_id:(crypto.randomUUID?crypto.randomUUID():`ver-${Date.now()}`),nro_oc:normalizarOC(meta.nro_oc||meta.oc||''),tipo_documento:text(meta.tipo_documento||'otro'),nombre_original:file.name,version_numero:Number(meta.version_numero||1),es_version_actual:true,estado:text(meta.estado||'cargado'),comentario_version:text(meta.comentario_version||''),mime_type:file.type||'application/octet-stream',size_bytes:file.size,sha256:sha,fecha_carga:nowISO()};}
+024469: 
+024470:   function collectStorageSafe(){const data={};for(let i=0;i<sessionStorage.length;i++){const key=sessionStorage.key(i);if(!key)continue;if(/token|jwt|password|secret|supabase\.auth/i.test(key))continue;try{data[key]=safeJSON(sessionStorage.getItem(key),sessionStorage.getItem(key));}catch(e){data[key]='[no serializable]';}}return data;}
+024471:   async function checksumText(texto){const enc=new TextEncoder().encode(texto);const buf=await crypto.subtle.digest('SHA-256',enc);return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');}
+024472:   async function exportarBackupFase11(){
+024473:     await registrarAuditoriaGlobal({accion:'BACKUP_EXPORTADO',modulo:'backups',descripcion:'Exportación JSON desde frontend',resultado:'iniciado'});
+024474:     const p=await obtenerPerfilUsuarioActual();
+024475:     const payload={schema_version:SCHEMA_VERSION,app_version:VERSION_FASE11,exportado_en:nowISO(),exportado_por:p?.email||'',advertencia:'Backup frontend: no reemplaza backups administrados de Supabase. No incluye secretos ni URLs firmadas vencibles.',tablas_incluidas:['sessionStorage_cache','auditoria_local'],datos:{sessionStorage:collectStorageSafe(),auditoria_local:localAuditRows()}};
+024476:     payload.cantidad_registros={sessionStorage:Object.keys(payload.datos.sessionStorage).length,auditoria_local:payload.datos.auditoria_local.length};
+024477:     const raw=JSON.stringify(payload,null,2);payload.checksum_general=await checksumText(raw);
+024478:     writeLS(BACKUP_META_KEY,{fecha:payload.exportado_en,app_version:payload.app_version,checksum:payload.checksum_general,registros:payload.cantidad_registros});
+024479:     downloadFile(`backup_COI_FASE11_${new Date().toISOString().slice(0,10)}.json`,'application/json',JSON.stringify(payload,null,2));
+024480:     await registrarAuditoriaGlobal({accion:'BACKUP_EXPORTADO',modulo:'backups',descripcion:'Backup JSON exportado',resultado:'ok',contexto:{cantidad_registros:payload.cantidad_registros}});
+024481:     return payload;
+024482:   }
+024483:   function validarBackupFase11(data){const errors=[];if(!data||typeof data!=='object')errors.push('JSON inválido');if(!data.schema_version)errors.push('Falta schema_version');if(!data.app_version)errors.push('Falta app_version');if(!data.datos)errors.push('Falta datos');return {ok:errors.length===0,errors,summary:{schema_version:data?.schema_version,app_version:data?.app_version,exportado_en:data?.exportado_en,cantidad_registros:data?.cantidad_registros||{}}};}
+024484: 
+024485:   async function runHealthCheck(){
+024486:     const started=performance.now();
+024487:     const checks=[];
+024488:     const add=(nombre,estado,detalle='',ms=null)=>checks.push({nombre,estado,detalle,ms});
+024489:     const client=getClient(); add('Cliente Supabase',client?'ok':'warn',client?'Inicializado':'No disponible');
+024490:     const user=await getAuthUser(); add('Sesión Supabase',user?'ok':'warn',user?`Usuario ${user.email||user.id}`:'Sin sesión');
+024491:     const prof=await obtenerPerfilUsuarioActual(true); add('Perfil profiles',prof.profile_ok?'ok':(prof.origen==='profiles_error'||prof.origen==='profiles_sin_fila'?'warn':'warn'),prof.warning||prof.rol||'');
+024492:     try{if(client){const t0=performance.now();const {error}=await client.from('coi_ordenes').select('nro_oc').limit(1);add('Lectura controlada coi_ordenes',error?'bad':'ok',error?.message||'SELECT limitado OK',Math.round(performance.now()-t0));}}catch(e){add('Lectura controlada coi_ordenes','bad',e.message);}
+024493:     try{if(client){const t0=performance.now();const {error}=await client.storage.from('coi-documentos').list('',{limit:1});add('Acceso Storage coi-documentos',error?'warn':'ok',error?.message||'List limitado OK',Math.round(performance.now()-t0));}}catch(e){add('Acceso Storage coi-documentos','warn',e.message);}
+024494:     let f11RemoteOK=false;
+024495:     try{if(client){const t0=performance.now();const a=await client.from(AUDIT_TABLE).select('id').limit(1);const s=await client.from(SESSIONS_TABLE).select('id').limit(1);f11RemoteOK=!a.error&&!s.error;add('Tablas Fase 11 auditoría/sesiones',f11RemoteOK?'ok':'warn',f11RemoteOK?'Disponibles para auditoría remota':'Requiere ejecutar FASE_11_SUPABASE_R32.sql',Math.round(performance.now()-t0));}}catch(e){add('Tablas Fase 11 auditoría/sesiones','warn','Requiere verificación en Supabase');}
+024496:     writeLS(REMOTE_TABLES_READY_KEY, f11RemoteOK);
+024497:     const lsCount=sessionStorage.length; add('Caché local',lsCount>0?'ok':'warn',`${lsCount} claves sessionStorage`);
+024498:     const dupIds=qsa('[id]').map(e=>e.id).reduce((acc,id)=>{acc[id]=(acc[id]||0)+1;return acc;},{});const dupN=Object.values(dupIds).filter(n=>n>1).length;add('IDs duplicados DOM actual',dupN?'warn':'ok',dupN?`${dupN} IDs duplicados visibles`:'Sin duplicados visibles');
+024499:     add('Versión HTML', 'ok', VERSION_FASE11);
+024500:     const elapsed=Math.round(performance.now()-started); add('Tiempo diagnóstico','ok',`${elapsed} ms`);
+024501:     state.lastHealth={fecha:nowISO(),checks,elapsed};
+024502:     await registrarAuditoriaGlobal({accion:'HEALTH_CHECK',modulo:'seguridad',descripcion:'Diagnóstico seguro ejecutado',resultado:'ok',contexto:{elapsed,checks:checks.map(c=>({nombre:c.nombre,estado:c.estado}))}});
+024503:     renderHealthCenter(); renderSecurityCenter(); return state.lastHealth;
+024504:   }
+024505: 
+024506:   function updateVersionBadges(){['appVersionHeader','headerVersionOperativa','footerVersion','appVersionFooter','adminCfgVersion'].forEach(id=>{const el=$(id);if(el){ if(el.tagName==='INPUT') el.value=VERSION_FASE11; else el.textContent=VERSION_FASE11; }});qsa('.app-version-badge').forEach(el=>{if(/V58\.|FASE11/i.test(el.textContent||''))el.textContent=VERSION_FASE11;});qsa('.mini-kpi,.admin-status-card,.f11-card').forEach(card=>{const label=(card.querySelector('span')?.textContent||'').toUpperCase(); if(label.includes('VERSIÓN')||label.includes('VERSION')){const b=card.querySelector('b'); if(b) b.textContent=VERSION_FASE11;}});}
+024507:   function updateAdminSecurityBadge(profile){const el=$('f11SecurityMiniStatus');if(!el)return;const p=profile||state.profile;el.innerHTML=p?.profile_ok?badge(`Perfil ${p.rol}`,'ok'):badge('Seguridad pendiente Supabase','warn');}
+024508: 
+024509:   function ensureAdminPanels(){
+024510:     const view=$('vistaAdministracionSistema'); if(!view) return;
+024511:     const tabs=view.querySelector('.admin-tabs'); if(!tabs) return;
+024512:     const specs=[['seguridad','Centro de Seguridad'],['auditoriaF11','Auditoría Global'],['backupsF11','Centro de Backups'],['healthF11','Health Check']];
+024513:     specs.forEach(([key,label])=>{if(!tabs.querySelector(`[data-admin-tab="${key}"]`)){const b=document.createElement('button');b.type='button';b.dataset.adminTab=key;b.textContent=label;b.className='admin-subtab';tabs.appendChild(b);}});
+024514:     const container=view.querySelector('.view-body')||view;
+024515:     specs.forEach(([key])=>{const id='adminTab'+key.charAt(0).toUpperCase()+key.slice(1);if(!$(id)){const s=document.createElement('section');s.id=id;s.className='admin-tab-panel f11-admin-panel';container.insertBefore(s,$('adminMsg')||null);}});
+024516:     if(!$('f11SecurityMiniStatus')){const top=view.querySelector('.admin-topbar');if(top){const span=document.createElement('span');span.id='f11SecurityMiniStatus';span.className='f11-subtle';top.appendChild(span);}}
+024517:   }
+024518:   function activateAdminTabF11(key){ensureAdminPanels();qsa('#vistaAdministracionSistema .admin-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.adminTab===key));qsa('#vistaAdministracionSistema .admin-tab-panel').forEach(p=>p.classList.remove('active'));const panel=$('adminTab'+key.charAt(0).toUpperCase()+key.slice(1));if(panel)panel.classList.add('active');state.adminTab=key;if(key==='seguridad')renderSecurityCenter();if(key==='auditoriaF11')renderAuditCenter();if(key==='backupsF11')renderBackupCenter();if(key==='healthF11')renderHealthCenter();}
+024519: 
+024520:   async function renderSecurityCenter(){
+024521:     const panel=$('adminTabSeguridad'); if(!panel) return;
+024522:     const p=await obtenerPerfilUsuarioActual();
+024523:     const aal=await getAAL();
+024524:     const mfaNeeded=MFA_REQUIRED_ROLES.includes(normalizarRol(p.rol));
+024525:     const auditCount=localAuditRows().length;
+024526:     const backupMeta=readLS(BACKUP_META_KEY,null);
+024527:     const health=state.lastHealth;
+024528:     panel.innerHTML=`<div class="f11-panel"><div class="f11-head"><div><h3>Centro de Seguridad</h3><p>Indicadores verificables desde frontend. Las garantías finales dependen de RLS, RPC y políticas ejecutadas en Supabase.</p></div><div>${p.profile_ok?badge('Perfil verificado','ok'):badge('Requiere SQL / perfil','warn')} ${aal?.currentLevel?badge('AAL '+aal.currentLevel,(mfaNeeded&&aal.currentLevel!=='aal2')?'warn':'ok'):badge('MFA no verificable','muted')}</div></div><div class="f11-grid">${card('Usuario',p.email||'Sin sesión',p.origen||'')}${card('Rol',p.rol||'consulta',p.profile_ok?'Supabase profiles':'Fallback restringido')}${card('Permisos efectivos',String((p.permisos||[]).length),p.server_authority?'perfil activo':'no autoritativo')}${card('Auditoría local',String(auditCount),'fallback frontend')}</div><div class="f11-grid">${card('Último backup',backupMeta?.fecha||'Sin registro',backupMeta?.checksum?`SHA ${String(backupMeta.checksum).slice(0,12)}...`:'')}${card('Health Check',health?.fecha||'No ejecutado',health?`${health.checks.length} controles`:'')}${card('Conexión Supabase',getClient()?'Inicializada':'No disponible',getClient()?'cliente frontend':'')}${card('Versión HTML',VERSION_FASE11,'GitHub Pages compatible')}</div><div class="f11-note ${p.profile_ok?'':'warn'}">${escapeHTML(p.warning||'Perfil activo obtenido desde Supabase. Recordá: ocultar botones no es autorización real; las políticas RLS y RPC deben estar aplicadas.')}</div><div class="f11-actions"><button type="button" class="primary" id="f11BtnRefreshProfile">Actualizar perfil</button><button type="button" id="f11BtnRunHealth">Ejecutar health check</button><button type="button" id="f11BtnExportAudit">Exportar auditoría local CSV</button></div><h4>Matriz efectiva del rol</h4>${table(['Permiso','Estado'],ALL_PERMISSIONS.map(code=>[escapeHTML(code),hasPermission(p.rol,code)?badge('Permitido','ok'):badge('No permitido','muted')]))}</div>`;
+024529:   }
+024530:   async function getAAL(){try{const client=getClient();if(client?.auth?.mfa?.getAuthenticatorAssuranceLevel){const {data,error}=await client.auth.mfa.getAuthenticatorAssuranceLevel();if(error)throw error;return data;}}catch(e){return {error:e.message};}return null;}
+024531: 
+024532:   function renderAuditCenter(){
+024533:     const panel=$('adminTabAuditoriaF11'); if(!panel) return;
+024534:     const rows=localAuditRows().slice(0,100);
+024535:     panel.innerHTML=`<div class="f11-panel"><div class="f11-head"><div><h3>Auditoría Global</h3><p>Registro frontend complementario. Los cambios críticos deben auditarse con triggers/RPC en PostgreSQL.</p></div>${badge(`${rows.length} eventos locales`,'ok')}</div><div class="f11-actions"><button type="button" id="f11BtnRefreshAudit">Actualizar</button><button type="button" id="f11BtnExportAudit2" class="primary">Exportar CSV</button><button type="button" id="f11BtnClearLocalAudit" class="danger">Limpiar solo caché local</button></div>${table(['Fecha','Acción','Módulo','OC','Usuario','Resultado'], rows.map(r=>[escapeHTML(r.fecha_hora||''),escapeHTML(r.accion||''),escapeHTML(r.modulo||''),escapeHTML(r.nro_oc||''),escapeHTML(r.usuario_email||''),escapeHTML(r.resultado||'')]))}</div>`;
+024536:   }
+024537:   function auditCsv(){const rows=localAuditRows();const headers=['fecha_hora','usuario_email','rol','accion','modulo','entidad','registro_id','nro_oc','descripcion','resultado','error','version_app'];const lines=[headers.join(';')];rows.forEach(r=>lines.push(headers.map(h=>coiCSVCell(r[h])).join(';')));return lines.join('\n');}
+024538:   function renderBackupCenter(){
+024539:     const panel=$('adminTabBackupsF11'); if(!panel) return;
+024540:     const meta=readLS(BACKUP_META_KEY,null); const preview=state.backupPreview;
+024541:     panel.innerHTML=`<div class="f11-panel"><div class="f11-head"><div><h3>Centro de Backups</h3><p>Exporta respaldo JSON no sensible. La restauración total queda restringida y requiere validación previa.</p></div>${badge('Sin secretos','ok')}</div><div class="f11-grid">${card('Último backup',meta?.fecha||'Sin registro')}${card('Versión backup',meta?.app_version||'—')}${card('Checksum',meta?.checksum?String(meta.checksum).slice(0,16)+'…':'—')}${card('Claves exportables',String(Object.keys(collectStorageSafe()).length))}</div><div class="f11-note warn">No incluye contraseñas, JWT, tokens, claves de servicio ni URLs firmadas. No reemplaza backups administrados desde Supabase.</div><div class="f11-actions"><button type="button" class="primary" id="f11BtnExportBackup">Exportar backup Fase 11</button><label class="f11-btn" for="f11BackupFile">Previsualizar importación</label><input id="f11BackupFile" class="f11-hidden" type="file" accept="application/json,.json"></div>${preview?`<h4>Vista previa importación</h4>${preview.ok?badge('Backup válido','ok'):badge('Backup observado','bad')}<pre class="f11-log">${escapeHTML(JSON.stringify(preview.summary||preview.errors,null,2))}</pre><div class="f11-note">La importación destructiva no se ejecuta automáticamente desde el frontend. Requiere confirmación, respaldo previo y permisos de administrador.</div>`:''}</div>`;
+024542:   }
+024543:   function renderHealthCenter(){
+024544:     const panel=$('adminTabHealthF11'); if(!panel) return;
+024545:     const h=state.lastHealth;
+024546:     panel.innerHTML=`<div class="f11-panel"><div class="f11-head"><div><h3>Health Check</h3><p>Diagnóstico técnico seguro, sin escrituras destructivas.</p></div>${h?badge('Ejecutado','ok'):badge('Pendiente','warn')}</div><div class="f11-actions"><button type="button" class="primary" id="f11BtnRunHealth2">Ejecutar diagnóstico</button></div>${h?table(['Control','Estado','Detalle','ms'],h.checks.map(c=>[escapeHTML(c.nombre),badge(c.estado,c.estado),escapeHTML(c.detalle||''),escapeHTML(c.ms??'')])):'<div class="f11-note warn">Ejecutá el diagnóstico para ver conectividad, perfil, Storage, cache y versión.</div>'}</div>`;
+024547:   }
+024548: 
+024549:   async function injectHistorialOC(){
+024550:     const body=$('fichaOCBody'); if(!body) return;
+024551:     const nav=body.querySelector('[data-ficha-oc-subnav]') || body.querySelector('.ficha-oc-subnav');
+024552:     if(nav && !nav.querySelector('[data-f11-historial]')){const b=document.createElement('button');b.type='button';b.dataset.f11Historial='1';b.textContent='8. Historial';nav.appendChild(b);}
+024553:     if(!body.querySelector('#f11HistorialOC')){const s=document.createElement('section');s.id='f11HistorialOC';s.className='ficha-oc-panel f11-panel f11-historial-panel';s.style.display='none';s.innerHTML='<div class="f11-head"><div><h3>8. Historial y Trazabilidad</h3><p>Línea de tiempo consolidada de auditoría, documentos, eventos y cambios de OC.</p></div></div><div id="f11HistorialOCBody" class="f11-timeline"></div>';body.appendChild(s);}  }
+024554:   function currentOCFromFicha(){const body=$('fichaOCBody');if(!body)return'';const nav=body.querySelector('[data-ficha-oc-subnav]');const fromNav=nav?.dataset?.oc;if(fromNav)return normalizarOC(fromNav);const txt=body.textContent||'';const m=txt.match(/(?:Expediente\s+digital\s+OC|OC)\s*[—-]?\s*(\d{6,})/i);return m?normalizarOC(m[1]):'';}
+024555:   async function cargarHistorialConsolidadoOC(oc){
+024556:     const n=normalizarOC(oc); const rows=[];
+024557:     localAuditRows().filter(r=>normalizarOC(r.nro_oc)===n).forEach(r=>rows.push({fecha:r.fecha_hora,tipo:r.accion,detalle:r.descripcion,usuario:r.usuario_email,origen:'Auditoría local'}));
+024558:     const client=getClient();
+024559:     if(client && n){
+024560:       try{const {data}=await client.from(AUDIT_TABLE).select('fecha_hora,accion,descripcion,usuario_email,resultado').eq('nro_oc',n).order('fecha_hora',{ascending:false}).limit(100);(data||[]).forEach(r=>rows.push({fecha:r.fecha_hora,tipo:r.accion,detalle:r.descripcion,usuario:r.usuario_email,origen:'Auditoría Supabase'}));}catch(e){}
+024561:       try{const {data}=await client.from('coi_historial_oc').select('*').eq('nro_oc',n).order('fecha_evento',{ascending:false}).limit(100);(data||[]).forEach(r=>rows.push({fecha:r.fecha_evento||r.created_at,tipo:r.tipo_evento||r.accion||'Historial OC',detalle:r.descripcion||r.detalle||r.campo_modificado||'',usuario:r.usuario_email||'',origen:'Historial OC'}));}catch(e){}
+024562:     }
+024563:     return rows.sort((a,b)=>String(b.fecha||'').localeCompare(String(a.fecha||''))).slice(0,150);
+024564:   }
+024565:   async function renderHistorialOCF11(){await injectHistorialOC();const panel=$('f11HistorialOC'), box=$('f11HistorialOCBody');if(!panel||!box)return;const oc=currentOCFromFicha();panel.style.display='block';box.innerHTML='<div class="f11-note">Cargando historial...</div>';const rows=await cargarHistorialConsolidadoOC(oc);box.innerHTML=rows.length?rows.map(r=>`<div class="f11-timeline-item"><b>${escapeHTML(r.tipo||'Evento')}</b><div class="meta">${escapeHTML(r.fecha||'—')} · ${escapeHTML(r.usuario||'Sin usuario')} · ${escapeHTML(r.origen||'')}</div><p>${escapeHTML(r.detalle||'Sin detalle')}</p></div>`).join(''):`<div class="f11-note warn">Sin eventos de trazabilidad para la OC ${escapeHTML(oc||'actual')}.</div>`;}
+024566: 
+024567:   function wrapFunction(name, wrapper){const base=window[name];if(typeof base!=='function'||base.__fase11Wrapped)return;const fn=function(...args){return wrapper.call(this,base,...args);};fn.__fase11Wrapped=true;fn.__fase11Base=base;window[name]=fn;}
+024568:   function wrapCriticalFunctions(){
+024569:     wrapFunction('loginSupabase',async function(base,...args){try{const res=await base.apply(this,args);await obtenerPerfilUsuarioActual(true);await iniciarSesionFase11();return res;}catch(error){await registrarAuditoriaGlobal({accion:'LOGIN_FALLIDO',modulo:'auth',descripcion:error?.message||'Error login',resultado:'error',error:error?.message||String(error)});throw error;}});
+024570:     wrapFunction('logoutSupabase',async function(base,...args){await cerrarSesionFase11(true);return base.apply(this,args);});
+024571:     [['guardarOrdenEnSupabase','OC_CREADA'],['actualizarOrdenEnSupabase','OC_EDITADA'],['upsertOrdenSupabase','OC_UPSERT'],['eliminarOrdenEnSupabase','OC_ELIMINACION_SOLICITADA']].forEach(([name,action])=>wrapFunction(name,async function(base,...args){const before=args[0];try{const res=await base.apply(this,args);await registrarAuditoriaGlobal({accion:action,modulo:'ordenes',nro_oc:before?.nro_oc||before?.numeroOC||before?.oc||args[0],descripcion:`Función ${name} ejecutada`,resultado:'ok',datos_nuevos:res||null});return res;}catch(error){await registrarAuditoriaGlobal({accion:action,modulo:'ordenes',nro_oc:before?.nro_oc||before?.numeroOC||before?.oc||args[0],descripcion:`Error en ${name}`,resultado:'error',error:error?.message||String(error)});throw error;}}));
+024572:     wrapFunction('abrirDocumentoStorageOCR27',async function(base,...args){const doc=args[0]||{};const res=await base.apply(this,args);await registrarAuditoriaGlobal({accion:'DOCUMENTO_DESCARGADO',modulo:'documentos',nro_oc:doc.nro_oc||doc.ocNro||'',descripcion:doc.nombre_documento||doc.nombreArchivo||'Documento Storage',resultado:'ok'});return res;});
+024573:     wrapFunction('renderFichaOC',function(base,...args){const res=base.apply(this,args);setTimeout(injectHistorialOC,160);return res;});
+024574:   }
+024575: 
+024576:   function exportAuditCSV(){downloadFile(`auditoria_local_FASE11_${new Date().toISOString().slice(0,10)}.csv`,'text/csv;charset=utf-8',auditCsv());}
+024577: 
+024578:   function bindEvents(){
+024579:     if(document.__coiFase11Events) return; document.__coiFase11Events=true;
+024580:     document.addEventListener('click',async function(event){
+024581:       const adminBtn=event.target.closest('#vistaAdministracionSistema [data-admin-tab]');
+024582:       if(adminBtn && ['seguridad','auditoriaF11','backupsF11','healthF11'].includes(adminBtn.dataset.adminTab)){event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();activateAdminTabF11(adminBtn.dataset.adminTab);return;}
+024583:       if(event.target.closest('#f11BtnRefreshProfile')){await obtenerPerfilUsuarioActual(true);await aplicarPermisosInterfaz();renderSecurityCenter();toast('Perfil actualizado','ok');return;}
+024584:       if(event.target.closest('#f11BtnRunHealth,#f11BtnRunHealth2')){toast('Ejecutando diagnóstico Fase 11...','info');await runHealthCheck();toast('Health check completado','ok');return;}
+024585:       if(event.target.closest('#f11BtnExportAudit,#f11BtnExportAudit2')){exportAuditCSV();await registrarAuditoriaGlobal({accion:'AUDITORIA_EXPORTADA',modulo:'auditoria',descripcion:'CSV auditoría local',resultado:'ok'});return;}
+024586:       if(event.target.closest('#f11BtnClearLocalAudit')){if(confirm('Esto limpia solo la caché local de auditoría Fase 11. No borra auditoría en Supabase.')){sessionStorage.removeItem(AUDIT_LOCAL_KEY);renderAuditCenter();toast('Caché local de auditoría limpiada','ok');}return;}
+024587:       if(event.target.closest('#f11BtnExportBackup')){await exportarBackupFase11();renderBackupCenter();return;}
+024588:       if(event.target.closest('[data-f11-historial]')){event.preventDefault();qsa('#fichaOCBody .ficha-oc-panel').forEach(p=>p.classList.remove('active'));await renderHistorialOCF11();return;}
+024589:     },true);
+024590:     document.addEventListener('change',function(event){if(event.target&&event.target.id==='f11BackupFile'){const file=event.target.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{const data=safeJSON(reader.result,null);state.backupPreview=validarBackupFase11(data);renderBackupCenter();};reader.readAsText(file);}});
+024591:     window.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')heartbeatSesion();});
+024592:     window.addEventListener('pagehide',()=>cerrarSesionFase11(false));
+024593:   }
+024594: 
+024595:   function withTimeout(promise, ms, fallback=null){
+024596:     return Promise.race([
+024597:       Promise.resolve(promise).catch(()=>fallback),
+024598:       new Promise(resolve=>setTimeout(()=>resolve(fallback),ms))
+024599:     ]);
+024600:   }
+024601:   async function init(){
+024602:     updateVersionBadges(); ensureAdminPanels(); bindEvents(); wrapCriticalFunctions();
+024603:     await withTimeout(obtenerPerfilUsuarioActual(true),7000,null);
+024604:     await withTimeout(aplicarPermisosInterfaz(),3000,null);
+024605:     await withTimeout(iniciarSesionFase11(),4000,null);
+024606:     setTimeout(()=>{ensureAdminPanels();updateVersionBadges();if($('vistaAdministracionSistema')?.classList.contains('active')) renderSecurityCenter();},500);
+024607:     setTimeout(injectHistorialOC,800);
+024608:     withTimeout(registrarAuditoriaGlobal({accion:'FASE11_INICIALIZADA',modulo:'seguridad',descripcion:'Capa Fase 11 cargada',resultado:'ok'}),3000,null);
+024609:   }
+024610: 
+024611:   window.COI = Object.assign(window.COI || {}, {
+024612:     version: VERSION_FASE11,
+024613:     auth: { obtenerPerfilUsuarioActual, usuarioTienePermiso, exigirPermiso, aplicarPermisosInterfaz, MFA_REQUIRED_ROLES },
+024614:     permisos: { matrix: PERMISSION_MATRIX, all: ALL_PERMISSIONS, hasPermission },
+024615:     auditoria: { registrarAuditoriaGlobal, localAuditRows, exportAuditCSV },
+024616:     documentos: { calcularSHA256Archivo, verificarIntegridadDocumento, prepararMetadataVersionDocumento, validarArchivo },
+024617:     backups: { exportarBackupFase11, validarBackupFase11 },
+024618:     seguridad: { runHealthCheck, renderSecurityCenter, renderHealthCenter, validarURLSegura, crearElementoSeguro },
+024619:     sesiones: { iniciarSesionFase11, cerrarSesionFase11 },
+024620:     utils: { normalizarOC, normalizarTexto, validarEmail, validarFechaISO, validarMonto, validarExpediente, escapeHTML }
+024621:   });
+024622:   window.obtenerPerfilUsuarioActual = obtenerPerfilUsuarioActual;
+024623:   window.usuarioTienePermisoAsync = usuarioTienePermiso;
+024624:   window.exigirPermiso = exigirPermiso;
+024625:   window.aplicarPermisosInterfaz = aplicarPermisosInterfaz;
+024626:   window.registrarAuditoriaGlobal = registrarAuditoriaGlobal;
+024627:   window.calcularSHA256Archivo = calcularSHA256Archivo;
+024628:   window.verificarIntegridadDocumento = verificarIntegridadDocumento;
+024629:   window.normalizarOC = window.normalizarOC || normalizarOC;
+024630:   window.escaparHTML = window.escaparHTML || escapeHTML;
+024631: 
+024632:   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+024633: })();
+024634: </script>
+024635: 
+024636: 
+024637: 
+024638: <script id="coi-r321-hotfix-version-console">
+024639: (function(){
+024640:   'use strict';
+024641:   const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
+024642:   function setTextSafe(el,value){
+024643:     if(!el) return false;
+024644:     if(el.tagName==='INPUT'){
+024645:       if(el.value===value) return false;
+024646:       el.value=value;
+024647:       return true;
+024648:     }
+024649:     if(el.textContent===value) return false;
+024650:     el.textContent=value;
