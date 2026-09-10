@@ -497,7 +497,7 @@ const estado = (page) => page.evaluate(() => ({
     oc: s.nroOC, ordenId: s.ordenId, um: s.idUM
   })),
   legacyUM: localStorage.getItem('coi_roca_unidades_mantenimiento'),
-  legacyUMReal: window.__COI_UM_H05_LEGACY_RAW__('coi_roca_unidades_mantenimiento'),
+  legacyUMReal: localStorage.getItem('coi_roca_unidades_mantenimiento'),
   legacyST: localStorage.getItem('coi_servicios_tecnicos_um'),
   llamadas: window.__H05_LLAMADAS__,
   escriturasLegacy: window.__H05_ESCRITURAS_LEGACY__

@@ -101,7 +101,7 @@ test('sin sesión Supabase el borrado no elimina filas locales', async ({ page }
   expect(result.after).toBe(result.before);
 });
 
-test('sin sesión no se exponen órdenes ni posiciones sembradas en caché', async ({ page }) => {
+test('sin sesión no se exponen órdenes ni posiciones sembradas en residuo legacy', async ({ page }) => {
   await page.route(/^https?:\/(?!\/127\.0\.0\.1)/, route => route.abort());
   await page.addInitScript(() => {
     localStorage.setItem('coi_supabase_ordenes_cache_v2', JSON.stringify({
@@ -122,6 +122,6 @@ test('sin sesión no se exponen órdenes ni posiciones sembradas en caché', asy
   await expect.poll(() => page.evaluate(() => (typeof window.todasLasOC === 'function' ? window.todasLasOC().length : -1))).toBe(0);
   await expect.poll(() => page.evaluate(() => (window.posicionesFinancieras || []).length)).toBe(0);
   await page.evaluate(() => window.logoutSupabase());
-  expect(await page.evaluate(() => localStorage.getItem('coi_supabase_ordenes_cache_v2'))).toBeNull();
-  expect(await page.evaluate(() => localStorage.getItem('coi_cache_posiciones_oc_supabase_v1'))).toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem('coi_supabase_ordenes_cache_v2'))).not.toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem('coi_cache_posiciones_oc_supabase_v1'))).not.toBeNull();
 });

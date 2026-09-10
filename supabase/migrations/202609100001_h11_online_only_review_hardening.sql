@@ -29,6 +29,9 @@ begin
   if v_role is null then
     raise exception using errcode = '42501', message = 'COI_ROLE_REQUIRED';
   end if;
+  if v_role is distinct from 'administrador' then
+    raise exception using errcode = '42501', message = 'COI_ADMIN_REQUIRED';
+  end if;
   if nullif(btrim(coalesce(p_accion, '')), '') is null then
     raise exception using errcode = '22023', message = 'COI_AUDIT_ACTION_REQUIRED';
   end if;
@@ -50,9 +53,10 @@ revoke all on function public.coi_registrar_auditoria_frontend(text,text,text,te
 grant execute on function public.coi_registrar_auditoria_frontend(text,text,text,text,jsonb,jsonb,jsonb) to authenticated;
 
 create table if not exists public.coi_alertas_revisadas (
-  alerta_id text primary key,
+  alerta_id text not null,
   revisada_por uuid not null references auth.users(id) on delete cascade,
-  fecha_revision timestamptz not null default clock_timestamp()
+  fecha_revision timestamptz not null default clock_timestamp(),
+  primary key (revisada_por, alerta_id)
 );
 alter table public.coi_alertas_revisadas enable row level security;
 revoke all on table public.coi_alertas_revisadas from public, anon, authenticated;
@@ -75,7 +79,7 @@ begin
   if v_alerta is null then raise exception using errcode = '22023', message = 'COI_ALERT_ID_REQUIRED'; end if;
   insert into public.coi_alertas_revisadas (alerta_id, revisada_por, fecha_revision)
   values (v_alerta, auth.uid(), clock_timestamp())
-  on conflict (alerta_id) do update set revisada_por = excluded.revisada_por, fecha_revision = excluded.fecha_revision;
+  on conflict (revisada_por, alerta_id) do update set fecha_revision = excluded.fecha_revision;
   insert into public.coi_operaciones_auditoria (
     usuario_id, usuario_email, rol, accion, entidad, registro_id, contexto
   ) values (
@@ -101,7 +105,11 @@ begin
   if auth.uid() is null then raise exception using errcode = '42501', message = 'COI_AUTH_REQUIRED'; end if;
   v_role := public.coi_current_role();
   if v_role is null then raise exception using errcode = '42501', message = 'COI_ROLE_REQUIRED'; end if;
-  return query select r.alerta_id, r.fecha_revision, r.revisada_por from public.coi_alertas_revisadas r order by r.fecha_revision desc;
+  return query
+    select r.alerta_id, r.fecha_revision, r.revisada_por
+    from public.coi_alertas_revisadas r
+    where r.revisada_por = auth.uid()
+    order by r.fecha_revision desc;
 end;
 $$;
 revoke all on function public.coi_listar_alertas_revisadas() from public, anon;

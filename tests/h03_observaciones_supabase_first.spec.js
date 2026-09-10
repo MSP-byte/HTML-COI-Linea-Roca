@@ -501,7 +501,7 @@ test('F4 · un fallo de lectura tras el marker no se convierte en cero observaci
   await abrir(page);
   let e = await estado(page);
   expect(e.observaciones).toHaveLength(1);
-  expect(corteVigente(e.marker)).toBe(true);
+  expect(e.marker).toBeNull();
 
   await page.evaluate(async () => {
     window.__H03_CFG__.fallaSelect = true;
@@ -1006,7 +1006,7 @@ test('N10 · un TOKEN_REFRESHED del mismo usuario no convierte un fallo de lectu
   await abrir(page);
   let e = await estado(page);
   expect(e.observaciones).toHaveLength(1);
-  expect(corteVigente(e.marker)).toBe(true);
+  expect(e.marker).toBeNull();
 
   await page.evaluate(async () => {
     // Mismo usuario: solo se renovo el token. La relectura posterior falla.
@@ -1108,36 +1108,36 @@ test('N12 · editar no pisa en silencio una edicion concurrente de otro puesto',
   expect(aviso).toContain('cambió en otro puesto');
 });
 
-test('N13 · con legado pendiente de migrar ninguna mutacion llega a Supabase', async ({ page }) => {
+test('N13 · el residuo legacy H11 es opaco y no bloquea mutaciones Supabase válidas', async ({ page }) => {
   test.slow();
-  // Supabase vacio y sin marcador: el legado historico queda en cuarentena y,
-  // mientras exista, ninguna mutacion puede correr (proteccion de KI-007).
+  // H11 no lee localStorage: un residuo historico puede seguir fisicamente en el
+  // navegador, pero no participa del modelo ni de las compuertas operativas.
   await prepararEntorno(page, { filas: [], legado: LEGACY });
   await abrir(page);
   await sembrarOC(page);
   await fijarAdmin(page, true);
   let e = await estado(page);
   expect(e.origen).toBe('supabase');
-  expect(e.cuarentena).toBe(2);
+  expect(e.cuarentena).toBe(0);
   expect(e.observaciones).toHaveLength(0);
+  expect(e.legacyKey).not.toBeNull();
 
   await page.evaluate(async (id) => {
     window.prompt = () => 'NO DEBERIA LLEGAR';
-    // 1) alta comun desde la ficha de OC
+    // Las dos altas validas siguen la ruta remota aun con residuo legacy inerte.
     const ta = document.createElement('textarea');
     ta.id = 'v65NuevaObservacion';
-    ta.value = 'ALTA DURANTE EL CUTOVER';
+    ta.value = 'ALTA ONLINE-ONLY';
     document.body.appendChild(ta);
     window.guardarObservacionOC('4530008964');
-    // 2) accion del Centro de Alertas
     const b = document.createElement('button');
     b.type = 'button';
-    b.id = 'btnAlertaCutover';
+    b.id = 'btnAlertaOnlineOnly';
     b.setAttribute('data-r15-alert-to-obs', '4530008964');
-    b.setAttribute('data-r15-alert-text', 'ALERTA DURANTE EL CUTOVER');
+    b.setAttribute('data-r15-alert-text', 'ALERTA ONLINE-ONLY');
     document.body.appendChild(b);
     b.click();
-    // 3) editar y resolver sobre la fila legada
+    // Un UUID legacy inexistente en Supabase nunca habilita UPDATE/DELETE.
     window.editarObservacionR13(id);
     window.resolverObservacionOC(id);
     window.reabrirObservacionOC(id);
@@ -1145,13 +1145,12 @@ test('N13 · con legado pendiente de migrar ninguna mutacion llega a Supabase', 
   }, LEGACY[0].idObservacion);
   e = await estado(page);
 
-  expect(soloOp(e, 'insert')).toHaveLength(0);
+  expect(soloOp(e, 'insert')).toHaveLength(2);
   expect(soloOp(e, 'update')).toHaveLength(0);
   expect(soloOp(e, 'delete')).toHaveLength(0);
-  // El legado sigue intacto en cuarentena, fuera del modelo, y nada se escribio.
-  expect(e.cuarentena).toBe(2);
+  expect(e.cuarentena).toBe(0);
   expect(e.legacyKey).not.toBeNull();
-  expect(e.observaciones).toHaveLength(0);
+  expect(e.observaciones.map((o) => o.texto)).not.toContain('LEGADO UNO');
   expect(e.marker).toBeNull();
   expect(e.escriturasLegacy).toEqual([]);
 });

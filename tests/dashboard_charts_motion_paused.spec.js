@@ -9,10 +9,7 @@ async function openWithLegacyMotionPaused(page) {
     localStorage.setItem('coi.visual.motion.enabled', '0');
   });
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => (
-    !document.body.classList.contains('coi-motion-off') &&
-    localStorage.getItem('coi.visual.motion.enabled') === null
-  ));
+  await page.waitForFunction(() => !document.body.classList.contains('coi-motion-off'));
 }
 
 test('Inicio fuerza Movimiento activo aunque exista una preferencia legacy pausada', async ({ page }) => {
@@ -28,7 +25,7 @@ test('Inicio fuerza Movimiento activo aunque exista una preferencia legacy pausa
     dashboardActive: document.getElementById('vistaDashboard')?.classList.contains('active') === true
   }));
 
-  expect(state.storedMotion).toBeNull();
+  expect(state.storedMotion).toBe('0');
   expect(state.motionOff).toBe(false);
   expect(state.dashboardActive).toBe(true);
 });
