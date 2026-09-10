@@ -31,30 +31,10 @@ jobs:
           s=s.replace("expect(estadoLegacy.persistentes).toBe(2);", "expect(estadoLegacy.persistentes).toBe(0);", 1)
           s=s.replace("F10b · sin marker el residuo localStorage queda intacto pero invisible para H11", "F10b · sin marker el residuo localStorage queda invisible para H11", 1)
           p.write_text(s,encoding='utf-8')
-
           p=Path('tests/h06_localstorage_non_authoritative.spec.js')
           s=p.read_text(encoding='utf-8')
-          old="""  const r = await radiografia(page);
-  expect(r.ordenes).toContain('4530001111');
-  expect(r.origenOrdenes).toBe('supabase');
-
-  const almacenamiento = await page.evaluate(() => {
-    sessionStorage.setItem('coi_v2_theme', 'light');
-    return sessionStorage.getItem('coi_v2_theme');
-  });
-  expect(almacenamiento).toBe('light');
-"""
-          new="""  const r = await radiografia(page);
-  expect(r.ocProveedores).toContain('PROVEEDOR REMOTO');
-  expect(r.confirmadasOrdenes).toBe(1);
-  sinRastroLocal(r);
-
-  const almacenamiento = await page.evaluate(() => {
-    sessionStorage.setItem('coi_v2_theme', 'light');
-    return sessionStorage.getItem('coi_v2_theme');
-  });
-  expect(almacenamiento).toBe('light');
-"""
+          old="  expect(r.ordenes).toContain('4530001111');\n  expect(r.origenOrdenes).toBe('supabase');"
+          new="  expect(r.ocProveedores).toContain('PROVEEDOR REMOTO');\n  expect(r.confirmadasOrdenes).toBe(1);\n  sinRastroLocal(r);"
           if old not in s:
               raise SystemExit('H06 final assertion anchor missing')
           p.write_text(s.replace(old,new,1),encoding='utf-8')
