@@ -1,0 +1,39 @@
+name: H11 inspect once
+on:
+  push:
+    branches: [fix/h11-online-only-no-localstorage]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    if: github.event.head_commit.message == 'RUN_H11_INSPECT'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Print targeted current/main snippets
+        shell: bash
+        run: |
+          git fetch origin main
+          python - <<'PY'
+          import subprocess
+          from pathlib import Path
+          cur=Path('index.html').read_text(encoding='utf-8').splitlines()
+          main=subprocess.check_output(['git','show','origin/main:index.html'], text=True).splitlines()
+          terms=[
+            'REMOTE_TABLES_READY_KEY','coiRemoteMarkAlertReview','coiPurgarPersistenciaLegacyV11',
+            'coiRegistrarAuditoriaOperacionV10','__COI_OBS_H07_CUARENTENA__','__COI_DOC_H07_LEGACY__',
+            'coi_alertas_revisadas','idempot','coi_ejecutar_comando_financiero','timeline',
+            'coi_finanzas','LS_FOTOS_ESTACION','guardarFotoEstacion'
+          ]
+          for term in terms:
+            print('\n'+'='*100+'\nTERM',term)
+            for label,lines in [('CURRENT',cur),('MAIN',main)]:
+              hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
+              print(f'--- {label} hits={hits[:12]}')
+              for i in hits[:4]:
+                a=max(0,i-18); b=min(len(lines),i+35)
+                print(f'[{label} {a+1}-{b}]')
+                for n in range(a,b): print(f'{n+1:06d}: {lines[n]}')
+          PY
