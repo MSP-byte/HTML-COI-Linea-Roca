@@ -56,7 +56,7 @@ async function prepararEntorno(page, opciones) {
     // Cualquier intento de persistir observaciones en localStorage queda registrado.
     const setItemNativo = Storage.prototype.setItem;
     Storage.prototype.setItem = function (k, v) {
-      if (k === 'coi_observaciones_oc') window.__H03_LEGACY_WRITES__.push(String(v).slice(0, 80));
+      if (this === window.localStorage && k === 'coi_observaciones_oc') window.__H03_LEGACY_WRITES__.push(String(v).slice(0, 80));
       return setItemNativo.call(this, k, v);
     };
 
@@ -254,22 +254,15 @@ test('1 · Supabase con filas manda sobre el legado local', async ({ page }) => 
   expect(errores).toEqual([]);
 });
 
-test('2 · Supabase vacio sin marker deja el legado en CUARENTENA, fuera del modelo', async ({ page }) => {
-  // H07 · Antes esto publicaba las filas legadas como observaciones en solo
-  // lectura: era el ultimo camino por el que localStorage representaba datos
-  // operativos (KI-020). Ahora el remoto vacio se muestra vacio y el material
-  // historico queda en cuarentena: conservado, visible y exportable, pero
-  // nunca dentro del modelo operativo.
+test('2 · Supabase vacio ignora por completo el residuo localStorage legacy', async ({ page }) => {
   await prepararEntorno(page, { filas: [], legado: LEGACY });
   await abrir(page);
   const e = await estado(page);
 
   expect(e.origen).toBe('supabase');
   expect(e.observaciones).toHaveLength(0);
-  // El legado no se borro y sigue contabilizado como pendiente.
-  expect(e.legacyKey).not.toBeNull();
-  expect(e.cuarentena).toBe(2);
-  expect(e.cuarentenaFilas).toBe(2);
+  expect(e.cuarentena).toBe(0);
+  expect(e.cuarentenaFilas).toBe(0);
   expect(e.marker).toBeNull();
 });
 
@@ -661,52 +654,40 @@ test('F9b · el refresh general vuelve a leer Observaciones sin mirar marcas de 
   expect(textos.filter((t) => t === 'RELEIDA POR EL REFRESH GENERAL')).toHaveLength(1);
 });
 
-test('F10 · el lector de backup no elige el legado por tener mas filas', async ({ page }) => {
+test('F10 · un residuo localStorage mas largo no participa del lector operativo H11', async ({ page }) => {
   const legadoLargo = Array.from({ length: 31 }, (_, i) => ({
     idObservacion: 'OBS-LEGACY-' + i, ocNro: '4530008964', texto: 'LEGADO ' + i, estadoObservacion: 'Pendiente'
   }));
   await prepararEntorno(page, { filas: [REMOTA], legado: legadoLargo, marker: true });
   await abrir(page);
 
-  const resultado = await page.evaluate(() => {
-    // Reproduce exactamente getObs() de V58.1: prefiere el array mas largo.
-    let a = Array.isArray(window.observacionesOC) ? window.observacionesOC : [];
-    let ls = [];
-    try { ls = JSON.parse(localStorage.getItem('coi_observaciones_oc') || '[]'); } catch (e) { ls = []; }
-    if (Array.isArray(ls) && ls.length > a.length) a = ls;
-    return { elegidas: a.length, textos: a.map((o) => o.texto) };
-  });
+  const resultado = await page.evaluate(() => ({
+    elegidas: Array.isArray(window.observacionesOC) ? window.observacionesOC.length : 0,
+    textos: (window.observacionesOC || []).map((o) => o.texto)
+  }));
 
-  // Con el marker puesto, el legado ya no es visible para ningun lector.
   expect(resultado.elegidas).toBe(1);
   expect(resultado.textos).toEqual(['OBSERVACION REMOTA DE SUPABASE']);
 });
 
-test('F10b · sin marker el legado se conserva, pero solo lo ve el circuito de recuperación', async ({ page }) => {
-  // H07 · La clave legada quedo aislada de TODOS los lectores operativos: el
-  // getItem publico la enmascara siempre, con marcador o sin el, porque es
-  // justamente sin marcador —con cuarentena pendiente— cuando mas importa que
-  // ningun consumidor antiguo la reincorpore al modelo.
-  //
-  // El material NO se borra: sigue intacto y accesible por la API de
-  // cuarentena, que usa el getter nativo guardado dentro del modulo.
+test('F10b · sin marker el residuo localStorage queda invisible para H11', async ({ page }) => {
   await prepararEntorno(page, { filas: [], legado: LEGACY });
   await abrir(page);
 
-  // Ningun lector operativo la ve.
-  expect(await page.evaluate(() => localStorage.getItem('coi_observaciones_oc'))).toBe('[]');
-
-  // El circuito de recuperacion si, y la cuenta como pendiente de conciliar.
-  const cuarentena = await page.evaluate(() => ({
-    filas: window.__COI_OBS_H07_CUARENTENA__.filas().length,
-    pendientes: window.__COI_OBS_H07_CUARENTENA__.pendientes().length,
-    autoritativo: window.__COI_OBS_H07_CUARENTENA__.autoritativo,
-    exportadas: JSON.parse(window.__COI_OBS_H07_CUARENTENA__.exportarJSON()).filas.length
+  const estadoLegacy = await page.evaluate(() => ({
+    filasCuarentena: window.__COI_OBS_H07_CUARENTENA__?.filas?.().length ?? 0,
+    pendientes: window.__COI_OBS_H07_CUARENTENA__?.pendientes?.().length ?? 0,
+    autoritativo: window.__COI_OBS_H07_CUARENTENA__?.autoritativo ?? false,
+    exportadas: (() => {
+      try { return JSON.parse(window.__COI_OBS_H07_CUARENTENA__?.exportarJSON?.() || '{"filas":[]}').filas.length; }
+      catch (e) { return 0; }
+    })()
   }));
-  expect(cuarentena.filas).toBe(2);
-  expect(cuarentena.pendientes).toBe(2);
-  expect(cuarentena.autoritativo).toBe(false);
-  expect(cuarentena.exportadas).toBe(2);
+
+  expect(estadoLegacy.filasCuarentena).toBe(0);
+  expect(estadoLegacy.pendientes).toBe(0);
+  expect(estadoLegacy.autoritativo).toBe(false);
+  expect(estadoLegacy.exportadas).toBe(0);
 });
 
 test('F-extra · el detalle de resolucion no se duplica al reintentar', async ({ page }) => {

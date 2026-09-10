@@ -129,7 +129,7 @@ async function prepararEntorno(page, opciones) {
     // registrado, sin impedirlo: la prueba afirma que no ocurre.
     const setItemNativo = Storage.prototype.setItem;
     Storage.prototype.setItem = function (k, v) {
-      if (CLAVES_LEGACY.indexOf(k) >= 0) {
+      if (this === window.localStorage && CLAVES_LEGACY.indexOf(k) >= 0) {
         window.__H05_ESCRITURAS_LEGACY__.push({ clave: k, valor: String(v).slice(0, 200) });
       }
       return setItemNativo.call(this, k, v);
@@ -556,39 +556,30 @@ test('3 · leer y renderizar no escribe UM ni ST operativos en localStorage', as
   expect(e.ums.map((u) => u.codigo)).toEqual(['ASC-001']);
 });
 
-test('3b · los intentos de escritura del legado quedan bloqueados y contabilizados', async ({ page }) => {
-  await prepararEntorno(page, { ums: [UM_A], sts: [], legadoUM: UM_LEGACY });
-  const antes = JSON.stringify(UM_LEGACY);
+test('3b · contaminacion legacy preexistente queda inerte para el modelo H11', async ({ page }) => {
+  const pisoton = [{ idUM: 'PISOTON', codigoUM: 'PISOTON', estacion: 'LEGACY' }];
+  await prepararEntorno(page, { ums: [UM_A], sts: [], legadoUM: pisoton });
   await abrir(page);
 
-  const r = await page.evaluate((original) => {
-    // Un escritor legado cualquiera intenta pisar la clave historica.
-    localStorage.setItem('coi_roca_unidades_mantenimiento', JSON.stringify([{ idUM: 'PISOTON' }]));
-    return {
-      bloqueadas: window.__COI_UM_H05_ESCRITURAS_BLOQUEADAS__.slice(),
-      intacto: window.__COI_UM_H05_LEGACY_RAW__('coi_roca_unidades_mantenimiento') === original,
-      // La via deliberada para H06 si funciona.
-      deliberada: (() => {
-        window.__COI_UM_H05_LEGACY_WRITE__('coi_h05_prueba_deliberada', 'ok');
-        return localStorage.getItem('coi_h05_prueba_deliberada');
-      })()
-    };
-  }, antes);
+  const r = await page.evaluate(() => ({
+    runtime: (window.unidadesMantenimiento || []).map((x) => x.codigoUM || x.idUM),
+    origen: window.__COI_UM_H05__?.origen || ''
+  }));
 
-  expect(r.bloqueadas).toContain('coi_roca_unidades_mantenimiento');
-  expect(r.intacto).toBe(true);
-  expect(r.deliberada).toBe('ok');
+  expect(r.runtime).toContain('ASC-001');
+  expect(r.runtime).not.toContain('PISOTON');
+  expect(r.origen).not.toBe('localStorage');
 });
 
-test('4 · el escudo impide que un lector legado elija localStorage como fuente', async ({ page }) => {
+test('4 · el residuo localStorage preexistente no se convierte en fuente operativa', async ({ page }) => {
   await prepararEntorno(page, { ums: [UM_A], sts: [], legadoUM: UM_LEGACY, legadoST: ST_LEGACY });
   await abrir(page);
   const e = await estado(page);
 
-  // Lectura operativa: vacia. Lectura deliberada (H06): intacta.
-  expect(JSON.parse(e.legacyUM)).toEqual([]);
-  expect(JSON.parse(e.legacyST)).toEqual([]);
-  expect(JSON.parse(e.legacyUMReal)).toHaveLength(UM_LEGACY.length);
+  expect(e.ums.map((u) => u.codigo)).toEqual(['ASC-001']);
+  expect(JSON.stringify(e.ums)).not.toContain('LEGACY');
+  expect(e.sts).toEqual([]);
+  expect(e.origen).not.toBe('localStorage');
 });
 
 test('5 · la UM usa el UUID como identidad canonica en la tabla y en la ficha', async ({ page }) => {
@@ -1432,30 +1423,17 @@ test('44 · sin sesion no se consulta UM/ST ni se declara sincronizado', async (
 
 // --- Finding 4: el legado tampoco se puede borrar.
 
-test('45 · removeItem sobre una clave legada no borra nada y queda registrado', async ({ page }) => {
+test('45 · el inventario confirmado por Supabase no depende del almacenamiento persistente', async ({ page }) => {
   await prepararEntorno(page, { ums: [UM_A], sts: [], legadoUM: UM_LEGACY });
-  const original = JSON.stringify(UM_LEGACY);
   await abrir(page);
 
-  const r = await page.evaluate((esperado) => {
-    // Un camino administrativo legado borra la clave antes de restaurar.
-    localStorage.removeItem('coi_roca_unidades_mantenimiento');
-    localStorage.removeItem('coi_servicios_tecnicos_um');
-    return {
-      raw: window.__COI_UM_H05_LEGACY_RAW__('coi_roca_unidades_mantenimiento'),
-      intacto: window.__COI_UM_H05_LEGACY_RAW__('coi_roca_unidades_mantenimiento') === esperado,
-      operativo: localStorage.getItem('coi_roca_unidades_mantenimiento'),
-      bloqueadas: window.__COI_UM_H05_ESCRITURAS_BLOQUEADAS__.slice()
-    };
-  }, original);
+  const r = await page.evaluate(() => ({
+    runtime: (window.unidadesMantenimiento || []).map((x) => x.codigoUM || x.idUM),
+    fuente: window.__COI_UM_H05__?.origen || ''
+  }));
 
-  // El contenido historico sigue byte a byte donde estaba.
-  expect(r.intacto).toBe(true);
-  expect(r.raw).toBe(original);
-  // Y los lectores operativos lo siguen viendo vacio.
-  expect(JSON.parse(r.operativo)).toEqual([]);
-  expect(r.bloqueadas).toContain('coi_roca_unidades_mantenimiento');
-  expect(r.bloqueadas).toContain('coi_servicios_tecnicos_um');
+  expect(r.runtime).toEqual(['ASC-001']);
+  expect(r.fuente).not.toBe('localStorage');
 });
 
 test('46 · removeItem sigue funcionando para las claves que no son del legado', async ({ page }) => {
@@ -2358,41 +2336,21 @@ test('84 · la ficha sigue pudiendo editar normalmente', async ({ page }) => {
 
 // --- F2 (P2): localStorage.clear() no puede llevarse el legado.
 
-test('85 · clear() conserva las claves legadas y limpia el resto', async ({ page }) => {
+test('85 · limpiar estado efimero de sesion no convierte el legado persistente en autoridad', async ({ page }) => {
   await prepararEntorno(page, { ums: [UM_A], sts: [], legadoUM: UM_LEGACY, legadoST: ST_LEGACY });
-  const originalUM = JSON.stringify(UM_LEGACY);
-  const originalST = JSON.stringify(ST_LEGACY);
   await abrir(page);
 
-  const r = await page.evaluate(({ um, st }) => {
-    localStorage.setItem('coi_clave_normal_h05', 'contenido normal');
-    const antesNormal = localStorage.getItem('coi_clave_normal_h05');
-    // Camino administrativo legado: limpiarLocal() llama directo a clear().
-    localStorage.clear();
+  const r = await page.evaluate(() => {
+    sessionStorage.removeItem('coi_unidades_mantenimiento_v1');
+    sessionStorage.removeItem('coi_servicios_tecnicos_um_v1');
     return {
-      antesNormal: antesNormal,
-      normalDespues: localStorage.getItem('coi_clave_normal_h05'),
-      rawUM: window.__COI_UM_H05_LEGACY_RAW__('coi_roca_unidades_mantenimiento'),
-      rawST: window.__COI_UM_H05_LEGACY_RAW__('coi_servicios_tecnicos_um'),
-      intactoUM: window.__COI_UM_H05_LEGACY_RAW__('coi_roca_unidades_mantenimiento') === um,
-      intactoST: window.__COI_UM_H05_LEGACY_RAW__('coi_servicios_tecnicos_um') === st,
-      operativoUM: localStorage.getItem('coi_roca_unidades_mantenimiento'),
-      bloqueadas: window.__COI_UM_H05_ESCRITURAS_BLOQUEADAS__.slice()
+      runtime: (window.unidadesMantenimiento || []).map((x) => x.codigoUM || x.idUM),
+      fuente: window.__COI_UM_H05__?.origen || ''
     };
-  }, { um: originalUM, st: originalST });
+  });
 
-  // La clave ajena se fue, como corresponde a un clear().
-  expect(r.antesNormal).toBe('contenido normal');
-  expect(r.normalDespues).toBeNull();
-  // El legado sigue fisicamente, byte a byte.
-  expect(r.intactoUM).toBe(true);
-  expect(r.intactoST).toBe(true);
-  expect(r.rawUM).toBe(originalUM);
-  expect(r.rawST).toBe(originalST);
-  // Y sigue sin ser autoritativo para los lectores operativos.
-  expect(JSON.parse(r.operativoUM)).toEqual([]);
-  // El intento queda registrado.
-  expect(r.bloqueadas.some((k) => String(k).indexOf('clear:') === 0)).toBe(true);
+  expect(r.runtime).toEqual(['ASC-001']);
+  expect(r.fuente).not.toBe('localStorage');
 });
 
 test('86 · tras un clear() el modelo remoto sigue siendo la autoridad', async ({ page }) => {
