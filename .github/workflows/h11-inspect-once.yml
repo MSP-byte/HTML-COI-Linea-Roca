@@ -3,16 +3,16 @@ on:
   push:
     branches: [fix/h11-online-only-no-localstorage]
 permissions:
-  contents: read
+  contents: write
 jobs:
   inspect:
-    if: github.event.head_commit.message == 'RUN_H11_INSPECT'
+    if: github.event.head_commit.message == 'RUN_H11_INSPECT_FILE'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Print targeted current/main snippets
+      - name: Build targeted current/main snippets
         shell: bash
         run: |
           git fetch origin main
@@ -22,18 +22,31 @@ jobs:
           cur=Path('index.html').read_text(encoding='utf-8').splitlines()
           main=subprocess.check_output(['git','show','origin/main:index.html'], text=True).splitlines()
           terms=[
-            'REMOTE_TABLES_READY_KEY','coiRemoteMarkAlertReview','coiPurgarPersistenciaLegacyV11',
-            'coiRegistrarAuditoriaOperacionV10','__COI_OBS_H07_CUARENTENA__','__COI_DOC_H07_LEGACY__',
-            'coi_alertas_revisadas','idempot','coi_ejecutar_comando_financiero','timeline',
-            'coi_finanzas','LS_FOTOS_ESTACION','guardarFotoEstacion'
+            'REMOTE_TABLES_READY_KEY','coiRemoteMarkAlertReview','marcarAlertaRevisada','desmarcarAlerta',
+            'coiPurgarPersistenciaLegacyV11','SENSITIVE_OPERATIONAL_CACHE_KEYS','logoutSupabase','onAuthStateChange',
+            'coiRegistrarAuditoriaOperacionV10','registrarAuditoriaGlobal','__COI_OBS_H07_CUARENTENA__',
+            '__COI_DOC_H07_LEGACY__','coi_timeline_events_v1','coi_timeline_legacy_pending_v1',
+            'coi_posiciones_financieras','idempot','coi_ejecutar_comando_financiero',
+            'LS_FOTOS_ESTACION','guardarFotoEstacion','coi_linea_roca_fotos_oc_v20','LS_ADMIN_CATALOGOS',
+            'coi_certificaciones_oc','coi_certificaciones_acta_inicio_v581r1','localStorage','sessionStorage',
+            'crearBackup','restaurarBackup','backup','BroadcastChannel'
           ]
+          out=[]
           for term in terms:
-            print('\n'+'='*100+'\nTERM',term)
+            out.append('\n'+'='*90+f'\nTERM {term}\n')
             for label,lines in [('CURRENT',cur),('MAIN',main)]:
               hits=[i for i,l in enumerate(lines) if term.lower() in l.lower()]
-              print(f'--- {label} hits={hits[:12]}')
-              for i in hits[:4]:
-                a=max(0,i-18); b=min(len(lines),i+35)
-                print(f'[{label} {a+1}-{b}]')
-                for n in range(a,b): print(f'{n+1:06d}: {lines[n]}')
+              out.append(f'--- {label} hits={hits[:20]}\n')
+              for i in hits[:6]:
+                a=max(0,i-8); b=min(len(lines),i+15)
+                out.append(f'[{label} {a+1}-{b}]\n')
+                out.extend(f'{n+1:06d}: {lines[n]}\n' for n in range(a,b))
+          Path('.github/h11-inspect-output.txt').write_text(''.join(out),encoding='utf-8')
           PY
+      - name: Commit inspection output
+        run: |
+          git config user.name "MSP-byte"
+          git config user.email "mespecial92@gmail.com"
+          git add .github/h11-inspect-output.txt
+          git commit -m "chore: capture H11 inspection context"
+          git push origin HEAD:fix/h11-online-only-no-localstorage
