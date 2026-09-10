@@ -1456,8 +1456,24 @@ body.dashboard-focus-mode{padding-bottom:0!important;background:#edf5fa}
 body.dashboard-focus-mode header.main-header,body.dashboard-focus-mode .module-nav,body.dashboard-focus-mode .operative-footer{display:none!important}
 body.dashboard-focus-mode #vistaDashboard{min-height:100vh;padding:18px}
 body.dashboard-focus-mode #vistaDashboard>.view-card{margin:0;max-width:1880px;margin-inline:auto}
-body.dashboard-focus-mode #coiFocusMode::before{content:"↙"}
-body:not(.dashboard-focus-mode) #coiFocusMode::before{content:"↗"}
+/* Foco permanente de Inicio sobre el shell V2: maximiza el tablero sin perder navegación. */
+/* El foco conserva la topbar V2: buscador global y menú móvil siguen disponibles. */
+body.dashboard-focus-mode.coi-v2-ready #vistaDashboard{padding-top:84px!important}
+@media (min-width:761px){
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar{width:var(--v2-side-collapsed)!important}
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Topbar{left:var(--v2-side-collapsed)!important}
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Menu{display:none!important}
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-brand-copy,
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-section,
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-count,
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-copy,
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile-action{display:none!important}
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .v2-label{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-sidebar-brand,
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-nav-btn,
+  body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar .coi-v2-profile{justify-content:center!important}
+  body.dashboard-focus-mode.coi-v2-ready #vistaDashboard{margin-left:var(--v2-side-collapsed)!important;padding:84px 22px 36px!important}
+}
 body.coi-motion-off *,body.coi-motion-off *::before,body.coi-motion-off *::after{animation-play-state:paused!important;scroll-behavior:auto!important}
 body.coi-motion-off .d33-kpi,body.coi-motion-off .d33-card,body.coi-motion-off .d33-chip{transition-duration:.01ms!important}
 body.coi-motion-off .d33-segment,
@@ -24979,10 +24995,10 @@ function coiR31UpdateVersion(){
     [[18,20],[59,7],[102,7],[160,20]].forEach(([cx,cy])=>{const c=document.createElementNS(ns,'circle');c.setAttribute('cx',cx);c.setAttribute('cy',cy);c.setAttribute('r','4.5');c.setAttribute('class','coi-rail-node');svg.appendChild(c);});
     const label=document.createElement('span');label.textContent='Red, contratos y decisiones en una sola vista';wrap.append(svg,label);return wrap;
   }
-  function button(id,label,title){const b=document.createElement('button');b.type='button';b.id=id;b.className='coi-visual-btn';b.textContent=label;b.title=title;return b;}
-  function motionEnabled(){if(reduced())return false;try{return localStorage.getItem(MOTION_KEY)!=='0';}catch(_e){return true;}}
-  function applyMotion(enabled){document.body.classList.toggle('coi-motion-off',!enabled);const b=$('coiToggleMotion');if(b){b.setAttribute('aria-pressed',String(enabled));b.textContent=enabled?'Movimiento activo':'Movimiento pausado';b.title=enabled?'Pausar animaciones decorativas':'Activar animaciones decorativas';}try{localStorage.setItem(MOTION_KEY,enabled?'1':'0');}catch(_e){}}
-  function toggleFocus(){const active=document.body.classList.toggle('dashboard-focus-mode');const b=$('coiFocusMode');if(b){b.setAttribute('aria-pressed',String(active));b.textContent=active?'Salir de modo foco':'Modo foco';}if(active)window.scrollTo({top:0,behavior:motionEnabled()?'smooth':'auto'});}
+  function motionEnabled(){return true;}
+  function applyMotion(){document.body.classList.remove('coi-motion-off');try{localStorage.removeItem(MOTION_KEY);}catch(_e){}}
+  function syncDashboardFocus(){const view=$('vistaDashboard'),active=!!view?.classList.contains('active');document.body.classList.toggle('dashboard-focus-mode',active);document.querySelectorAll('#coiV2Sidebar .coi-v2-nav-btn').forEach(btn=>{const label=btn.querySelector('.v2-label')?.textContent?.trim();if(label){btn.setAttribute('aria-label',label);btn.setAttribute('title',label);}});}
+  function toggleFocus(){syncDashboardFocus();}
   function safeName(value){return String(value||'grafico-coi').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase();}
   function exportSvg(svg,name){
     if(!svg){if(typeof window.mostrarToastCOI==='function')window.mostrarToastCOI('El gráfico todavía no está disponible.','warning');return;}
@@ -25001,17 +25017,17 @@ function coiR31UpdateVersion(){
   function decorate(){
     updateVersion();const mount=$('dashboardInteractivoMount'),head=mount?.querySelector('.d33-head');if(!mount||!head)return false;
     if(!head.querySelector('.coi-rail-signature'))head.querySelector('div')?.appendChild(createRailSignature());
-    if(!head.querySelector('.coi-visual-controls')){const controls=document.createElement('div');controls.className='coi-visual-controls';const motion=button('coiToggleMotion','Movimiento activo','Pausar animaciones decorativas');motion.setAttribute('aria-pressed','true');motion.addEventListener('click',()=>applyMotion(document.body.classList.contains('coi-motion-off')));const focus=button('coiFocusMode','Modo foco','Maximizar el Dashboard para presentación');focus.setAttribute('aria-pressed','false');focus.addEventListener('click',toggleFocus);controls.append(motion,focus);head.appendChild(controls);}
     const cards=[...mount.querySelectorAll('.d33-card')];cards.forEach(card=>{const title=card.querySelector('h4')?.textContent||'';if(title.includes('Estado contractual'))addExportButton(card,'estado-contractual-oc','d33Donut');if(title.includes('Agenda COI'))addExportButton(card,'agenda-coi-seis-meses','d33Agenda');});
-    applyMotion(motionEnabled());return true;
+    syncDashboardFocus();applyMotion(true);return true;
   }
   function springPress(el){if(!el||document.body.classList.contains('coi-motion-off')||reduced()||typeof el.animate!=='function')return;el.animate([{transform:getComputedStyle(el).transform},{transform:'scale(.975)'},{transform:getComputedStyle(el).transform}],{duration:360,easing:'cubic-bezier(.2,1.35,.3,1)'});}
   function bind(){
     if(document.__coiVisualR34)return;document.__coiVisualR34=true;
     const mount=$('dashboardInteractivoMount');
+    const dashboardView=$('vistaDashboard');
+    if(dashboardView){const focusObserver=new MutationObserver(syncDashboardFocus);focusObserver.observe(dashboardView,{attributes:true,attributeFilter:['class']});syncDashboardFocus();}
     mount?.addEventListener('pointermove',event=>{const r=mount.getBoundingClientRect();mount.style.setProperty('--coi-pointer-x',`${event.clientX-r.left}px`);mount.style.setProperty('--coi-pointer-y',`${event.clientY-r.top}px`);const card=event.target.closest('.d33-card,.d33-kpi');if(card){const c=card.getBoundingClientRect();card.style.setProperty('--spot-x',`${event.clientX-c.left}px`);card.style.setProperty('--spot-y',`${event.clientY-c.top}px`);}} ,{passive:true});
-    document.addEventListener('click',event=>{const interactive=event.target.closest('.d33-kpi,.d33-chip,.d33-priority,.d33-activity,.d33-legend-item,.coi-visual-btn');if(interactive)springPress(interactive);if(event.target.closest('#moduleNav button')&&!event.target.closest('#btnDashboard'))document.body.classList.remove('dashboard-focus-mode');},true);
-    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&document.body.classList.contains('dashboard-focus-mode'))toggleFocus();});
+    document.addEventListener('click',event=>{const interactive=event.target.closest('.d33-kpi,.d33-chip,.d33-priority,.d33-activity,.d33-legend-item,.coi-visual-btn');if(interactive)springPress(interactive);},true);
   }
   function enhanceRenderer(){const base=window.renderDashboardInteractivo;if(typeof base!=='function'||base.__coiVisualR34)return;const wrapped=function(...args){const result=base.apply(this,args);setTimeout(decorate,0);return result;};wrapped.__coiVisualR34=true;window.renderDashboardInteractivo=wrapped;if(window.COI?.dashboard)window.COI.dashboard.render=wrapped;}
   function init(){updateVersion();let attempts=0;const run=()=>{attempts++;const ok=decorate();enhanceRenderer();if(!ok&&attempts<10)setTimeout(run,250);};run();bind();}
@@ -25896,7 +25912,7 @@ body.coi-v2-light input,body.coi-v2-light select,body.coi-v2-light textarea{back
   function buildShell(){
     if($('coiV2Sidebar'))return;
     const sidebar=document.createElement('aside');sidebar.id='coiV2Sidebar';sidebar.className='coi-v2-sidebar';sidebar.setAttribute('aria-label','Navegación COI V2');
-    let navHtml='';NAV.forEach(item=>{if(item.section)navHtml+=`<div class="coi-v2-nav-section">${esc(item.section)}</div>`;navHtml+=`<button type="button" class="coi-v2-nav-btn" data-v2-nav="${esc(item.id)}" data-v2-view="${esc(item.view)}" ${item.dynamic?'data-v2-dynamic="1"':''}>${icon(item.icon)}<span class="v2-label">${esc(item.label)}</span>${item.count?`<span class="v2-count" data-v2-count="${item.count}">0</span>`:''}</button>`});
+    let navHtml='';NAV.forEach(item=>{if(item.section)navHtml+=`<div class="coi-v2-nav-section">${esc(item.section)}</div>`;navHtml+=`<button type="button" class="coi-v2-nav-btn" data-v2-nav="${esc(item.id)}" data-v2-view="${esc(item.view)}" aria-label="${esc(item.label)}" title="${esc(item.label)}" ${item.dynamic?'data-v2-dynamic="1"':''}>${icon(item.icon)}<span class="v2-label">${esc(item.label)}</span>${item.count?`<span class="v2-count" data-v2-count="${item.count}">0</span>`:''}</button>`});
     const user=currentUser();sidebar.innerHTML=`<div class="coi-v2-sidebar-brand"><div class="coi-v2-mark">LR<br>COI</div><div class="coi-v2-brand-copy"><strong>COI Línea Roca</strong><span>Centro operativo integrado</span></div></div><nav class="coi-v2-nav">${navHtml}</nav><div class="coi-v2-sidebar-footer"><button type="button" id="coiV2AuthButton" class="coi-v2-profile coi-v2-profile-button" data-authenticated="0" title="Iniciar sesión con usuario y contraseña de Supabase"><div id="coiV2AuthAvatar" class="coi-v2-avatar">${esc(initials(user).toUpperCase())}</div><div class="coi-v2-profile-copy"><b id="coiV2AuthName">${esc(user)}</b><span id="coiV2AuthStatus">Iniciar sesión con Supabase</span></div><span id="coiV2AuthAction" class="coi-v2-profile-action">Ingresar</span></button></div>`;
     const top=document.createElement('header');top.id='coiV2Topbar';top.className='coi-v2-topbar';top.innerHTML=`<div class="coi-v2-top-left"><button type="button" id="coiV2Menu" class="coi-v2-icon-btn" title="Contraer menú">${icon('menu')}</button><div class="coi-v2-view-title"><b id="coiV2ViewTitle">Inicio operativo</b><span id="coiV2ViewSubtitle">COI Línea Roca</span></div></div><div class="coi-v2-search-wrap"><svg class="coi-v2-search-icon" viewBox="0 0 24 24">${icon('search').replace(/^<svg[^>]*>|<\/svg>$/g,'')}</svg><input id="coiV2GlobalSearch" class="coi-v2-search" autocomplete="off" placeholder="Buscar OC, proveedor, estación o trabajo…"><span class="coi-v2-search-kbd">/</span><div id="coiV2SearchPanel" class="coi-v2-search-panel"></div></div><div class="coi-v2-top-actions"><span id="coiV2Online" class="coi-v2-status"><i></i><span>En línea</span></span><button type="button" id="coiV2Refresh" class="coi-v2-icon-btn" title="Actualizar vista">${icon('refresh')}</button><button type="button" id="coiV2Theme" class="coi-v2-icon-btn" title="Cambiar tema">${icon('sun')}</button></div>`;
     document.body.prepend(top);document.body.prepend(sidebar);
@@ -25926,7 +25942,7 @@ body.coi-v2-light input,body.coi-v2-light select,body.coi-v2-light textarea{back
     });
     document.addEventListener('keydown',event=>{const target=event.target.closest?.('[data-v2-open-oc],[data-v2-open-module]');if(target&&(event.key==='Enter'||event.key===' ')){event.preventDefault();const module=target.closest?.('[data-v2-open-module]');if(module){const id=module.dataset.v2OpenModule;const vista={btnDashboard:'vistaDashboard',btnOrdenes:'vistaOrdenes',btnCalendarioCOI:'vistaCalendarioCOI',btnCentroAlertas:'vistaCentroAlertas',btnRed:'vistaRed',btnUnidadesMantenimiento:'vistaUnidadesMantenimiento',btnCarga:'vistaCarga',btnTimelineCOI:'vistaTimelineCOI',btnAdministracionSistema:'vistaAdministracionSistema',btnAcercaSistema:'vistaAcercaSistema'}[id]||NAV.find(item=>item.id===id)?.view||'';const rutaTemprana={vistaDashboard:'inicio',vistaOrdenes:'ordenes/activas',vistaCalendarioCOI:'calendario',vistaCentroAlertas:'alertas',vistaRed:'red',vistaUnidadesMantenimiento:'um',vistaCarga:'carga',vistaTimelineCOI:'timeline',vistaAdministracionSistema:'administracion',vistaAcercaSistema:'acerca'}[vista]||'';if(rutaTemprana&&location.hash!=='#'+rutaTemprana){try{history.pushState(history.state,'','#'+rutaTemprana)}catch(e){location.hash='#'+rutaTemprana}}const router=window.COI_ROUTING_H10;if(vista&&router&&typeof router.navegarVistaUsuario==='function'&&router.navegarVistaUsuario(vista)!==false){setTimeout(syncNav,80);return}openModule(id);setTimeout(syncNav,80);return}const oc=target.closest?.('[data-v2-open-oc]');if(oc){openOC(oc.dataset.v2OpenOc);$('coiV2SearchPanel')?.classList.remove('open');setTimeout(syncNav,80);return}}if(event.key==='/'&&!/input|textarea|select/i.test(document.activeElement?.tagName||'')){event.preventDefault();$('coiV2GlobalSearch')?.focus()}if(event.key==='Escape'){$('coiV2SearchPanel')?.classList.remove('open');document.body.classList.remove('coi-v2-mobile-open')}});
     $('coiV2GlobalSearch')?.addEventListener('input',event=>renderSearch(event.target.value));
-    $('coiV2Menu')?.addEventListener('click',()=>{if(matchMedia('(max-width: 760px)').matches){document.body.classList.toggle('coi-v2-mobile-open')}else{const collapsed=document.body.classList.toggle('coi-v2-sidebar-collapsed');localStorage.setItem('coi_v2_sidebar_collapsed',collapsed?'1':'0')}});
+    $('coiV2Menu')?.addEventListener('click',()=>{if(matchMedia('(max-width: 760px)').matches){document.body.classList.toggle('coi-v2-mobile-open')}else{if(document.body.classList.contains('dashboard-focus-mode'))return;const collapsed=document.body.classList.toggle('coi-v2-sidebar-collapsed');localStorage.setItem('coi_v2_sidebar_collapsed',collapsed?'1':'0')}});
     $('coiV2Theme')?.addEventListener('click',()=>{const light=document.body.classList.toggle('coi-v2-light');localStorage.setItem('coi_v2_theme',light?'light':'dark')});
     $('coiV2AuthButton')?.addEventListener('click',handleV2Auth);
     $('coiV2Refresh')?.addEventListener('click',async()=>{const btn=$('coiV2Refresh');btn.disabled=true;try{if(typeof window.recargarDatosDesdeSupabase==='function')await window.recargarDatosDesdeSupabase();if(typeof window.renderOrdenes==='function')window.renderOrdenes();if(typeof window.renderCalendarioCOIUnificado==='function')window.renderCalendarioCOIUnificado();renderHome();syncNav()}catch(error){console.warn('[COI V2] actualización',error)}finally{btn.disabled=false}});
