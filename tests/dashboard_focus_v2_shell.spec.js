@@ -62,13 +62,13 @@ test('Inicio aplica foco real al shell V2 sin perder navegacion ni buscador', as
   // En foco forzado, el control desktop no debe mutar silenciosamente la preferencia normal del sidebar.
   const focusMenuState = await page.evaluate(() => {
     const beforeClass = document.body.classList.contains('coi-v2-sidebar-collapsed');
-    const beforeSaved = localStorage.getItem('coi_v2_sidebar_collapsed');
+    const beforeSaved = sessionStorage.getItem('coi_v2_sidebar_collapsed');
     document.getElementById('coiV2Menu')?.click();
     return {
       beforeClass,
       afterClass: document.body.classList.contains('coi-v2-sidebar-collapsed'),
       beforeSaved,
-      afterSaved: localStorage.getItem('coi_v2_sidebar_collapsed')
+      afterSaved: sessionStorage.getItem('coi_v2_sidebar_collapsed')
     };
   });
   expect(focusMenuState.afterClass).toBe(focusMenuState.beforeClass);
@@ -98,13 +98,13 @@ test('Inicio aplica foco real al shell V2 sin perder navegacion ni buscador', as
   await expect(page.locator('#coiV2GlobalSearch')).toBeVisible();
 });
 
-test('Shell V2 nace con nombres accesibles aun con sidebar colapsado persistido', async ({ page }, testInfo) => {
+test('Shell V2 nace con nombres accesibles aun con sidebar colapsado en la sesion', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name.includes('mobile'), 'Cobertura del shell V2 de escritorio');
   await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
   await page.addInitScript(() => {
     localStorage.clear();
     sessionStorage.clear();
-    localStorage.setItem('coi_v2_sidebar_collapsed', '1');
+    sessionStorage.setItem('coi_v2_sidebar_collapsed', '1');
   });
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => Boolean(document.body.classList.contains('coi-v2-ready') && document.getElementById('coiV2Sidebar')));
