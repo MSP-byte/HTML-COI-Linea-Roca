@@ -7,7 +7,7 @@ const NEW_DATE = '2026-09-15';
 
 async function openIsolated(page) {
   await page.route(/^https?:\/(?!\/127\.0\.0\.1)/, route => route.abort());
-  await page.addInitScript(() => localStorage.clear());
+  await page.addInitScript(() => { localStorage.clear(); sessionStorage.clear(); });
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('body')).toBeVisible();
   await page.waitForFunction(() =>
@@ -167,7 +167,7 @@ async function installSupabaseMock(page, { rejectNextDate = false, withCertifica
   await page.waitForTimeout(25);
 }
 
-test('la próxima certificación se confirma por RPC y la recarga conserva Supabase sobre localStorage', async ({ page }) => {
+test('la próxima certificación se confirma por RPC y Supabase gana ante un residuo localStorage legacy', async ({ page }) => {
   await openIsolated(page);
   await installSupabaseMock(page);
 
@@ -179,9 +179,8 @@ test('la próxima certificación se confirma por RPC y la recarga conserva Supab
     }));
     await window.recargarDatosDesdeSupabase({ silencioso: true });
     const row = window.todasLasOC().find(item => String(item.oc) === orderNumber);
-    // H07 · La cache de ordenes se retiro. Lo que se comprueba ahora es mas
-    // fuerte que antes: la entrada forjada no sobrevive a la recarga.
-    const cacheCruda = localStorage.getItem('coi_supabase_ordenes_cache_v2');
+    const cacheLegacy = localStorage.getItem('coi_supabase_ordenes_cache_v2');
+    const cacheSesion = sessionStorage.getItem('coi_supabase_ordenes_cache_v2');
     const dateOnly = value => value instanceof Date
       ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
       : String(value || '').slice(0, 10);
@@ -189,8 +188,8 @@ test('la próxima certificación se confirma por RPC y la recarga conserva Supab
       updated,
       remoteDate: window.__nextCertMock.order.proxima_certificacion,
       renderedDate: dateOnly(row?.proximaCertificacion),
-      cacheRetirada: cacheCruda === null,
-      cacheCruda: cacheCruda,
+      cacheLegacy,
+      cacheSesion,
       rpcCalls: window.__nextCertMock.rpcCalls.filter((c) => c.name !== 'coi_current_role')
     };
   }, { orderNumber: ORDER_NUMBER, oldDate: OLD_DATE });
@@ -199,11 +198,10 @@ test('la próxima certificación se confirma por RPC y la recarga conserva Supab
   expect(result.updated.proxima_certificacion).toBe(NEW_DATE);
   expect(result.remoteDate).toBe(NEW_DATE);
   expect(result.renderedDate).toBe(NEW_DATE);
-  // Supabase gana sobre localStorage: la fila forjada localmente no solo no se
-  // muestra, sino que la cache retirada por H07 no vuelve a escribirse.
-  // La clave quedo retirada: la fila forjada localmente no sobrevivio.
-  expect(result.cacheRetirada).toBe(true);
-  expect(result.cacheCruda).toBeNull();
+  // H11 no toca el residuo persistente: permanece fisicamente, pero es inerte.
+  expect(result.cacheLegacy).toContain('LOCAL-FORJADO');
+  // H07 mantiene retirada la cache operativa de la sesion activa.
+  expect(result.cacheSesion).toBeNull();
   expect(result.rpcCalls).toHaveLength(1);
   expect(result.rpcCalls[0]).toEqual({
     name: 'coi_actualizar_orden_integral',
