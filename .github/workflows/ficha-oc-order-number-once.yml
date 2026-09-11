@@ -1,0 +1,37 @@
+name: Ficha OC order-number one-shot
+
+on:
+  push:
+    branches:
+      - fix/ficha-oc-supabase-hydration
+    paths:
+      - .github/workflows/ficha-oc-order-number-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/ficha-oc-supabase-hydration
+          fetch-depth: 0
+      - name: Apply normalization fix
+        run: python3 .github/scripts/fix_ficha_oc_order_number.py
+      - name: Validate diff
+        run: |
+          git diff --check
+          grep -q "normaliza ID obra prefijado" tests/ficha_oc_supabase_hydration.spec.js
+      - name: Commit and push
+        run: |
+          git config user.name "MSP-byte"
+          git config user.email "mespecial92@gmail.com"
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "fix: normalize prefixed OC ids during hydration"
+          git push origin HEAD:fix/ficha-oc-supabase-hydration
