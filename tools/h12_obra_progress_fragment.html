@@ -1,0 +1,210 @@
+<style id="coiObraProgressManualH12Style">
+#fichaOCBody .oc-kpi[data-coi-obra-latest-acta] .doc-actions{margin-top:6px}
+#fichaOCBody .oc-kpi[data-coi-obra-latest-acta] button,
+#fichaOCBody .oc-kpi[data-coi-obra-progress-manual] button{padding:5px 8px;border-radius:8px;font-size:11px}
+#fichaOCBody .coi-progress-manual-editor{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:6px}
+#fichaOCBody .coi-progress-manual-editor input{width:84px;padding:6px 8px;border-radius:8px}
+#fichaOCBody .coi-progress-manual-feedback{display:block;margin-top:5px;font-size:10px;font-weight:700;color:#667085}
+#fichaOCBody .coi-progress-manual-feedback.error{color:#b42318}
+#fichaOCBody .coi-progress-manual-feedback.ok{color:#067647}
+</style>
+<script>
+/* COI_OBRA_PROGRESS_MANUAL_H12
+ * Separa la última Acta de Medición (automática desde Supabase) del
+ * porcentaje manual de avance físico de la OC tipo Obra.
+ */
+(function(){
+  'use strict';
+  if(window.COI_OBRA_PROGRESS_MANUAL?.version==='H12')return;
+
+  const text=v=>String(v??'').trim();
+  const fold=v=>text(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  const uuid=v=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text(v));
+  const nroFrom=v=>(text(v).match(/\d{9,12}/)||[])[0]||'';
+  const fmtDate=v=>{
+    const raw=text(v).slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(raw))return '';
+    const [y,m,d]=raw.split('-'); return `${d}/${m}/${y}`;
+  };
+  function parsePercent(value){
+    const raw=text(value).replace(',','.');
+    if(raw==='')return null;
+    const n=Number(raw);
+    return Number.isFinite(n)&&n>=0&&n<=100?n:NaN;
+  }
+  function formatPercent(value){
+    if(value===null||value===undefined||text(value)==='')return '—';
+    const n=Number(value); if(!Number.isFinite(n))return '—';
+    return `${new Intl.NumberFormat('es-AR',{minimumFractionDigits:0,maximumFractionDigits:2}).format(n)}%`;
+  }
+  function client(){return typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;}
+  function currentReference(){
+    const hash=decodeURIComponent(location.hash||'');
+    const match=hash.match(/#ficha-oc\/([^/]+)/i);
+    return match?.[1]||'';
+  }
+  function resolvedItem(reference){
+    try{return window.COI_EXPEDIENTE_HYDRATION?.resolveItem?.(reference)||null;}catch(_){return null;}
+  }
+  function itemNro(item,reference){return nroFrom(item?.numeroOC||item?.nro_oc||item?.oc||item?.idObra||reference);}
+  function looksObra(item,row){return fold(row?.tipo||item?.tipo)==='OBRA';}
+  function canEditOC(body){return [...body.querySelectorAll('button')].some(btn=>fold(btn.textContent)==='EDITAR OC');}
+
+  async function resolveOrder(reference,item){
+    const c=client(); if(!c)throw new Error('Cliente Supabase no disponible.');
+    const candidate=item?.supabaseId||item?._supabaseRaw?.id||'';
+    let result;
+    if(uuid(candidate)) result=await c.from('coi_ordenes').select('id,nro_oc,tipo,avance_obra_pct').eq('id',candidate).limit(1);
+    else{
+      const nro=itemNro(item,reference); if(!nro)throw new Error('No se pudo identificar la OC.');
+      result=await c.from('coi_ordenes').select('id,nro_oc,tipo,avance_obra_pct').eq('nro_oc',nro).limit(2);
+    }
+    if(result.error)throw result.error;
+    if(result.data?.length!==1)throw new Error('No se pudo resolver una OC única en Supabase.');
+    return result.data[0];
+  }
+
+  async function latestCertification(c,order){
+    const fields='id,orden_id,nro_oc,acta_medicion_nro,fecha_inicio,fecha_fin,documento_id,fecha_actualizacion';
+    let q=await c.from('coi_certificaciones').select(fields).eq('orden_id',order.id).order('fecha_fin',{ascending:false,nullsFirst:false}).order('fecha_actualizacion',{ascending:false,nullsFirst:false}).limit(100);
+    if(q.error)throw q.error;
+    let rows=q.data||[];
+    if(!rows.length){
+      q=await c.from('coi_certificaciones').select(fields).eq('nro_oc',order.nro_oc).order('fecha_fin',{ascending:false,nullsFirst:false}).order('fecha_actualizacion',{ascending:false,nullsFirst:false}).limit(100);
+      if(q.error)throw q.error; rows=q.data||[];
+    }
+    return rows.find(r=>text(r.acta_medicion_nro))||rows[0]||null;
+  }
+  function isActaDocument(row){
+    const hay=fold(`${row?.tipo_documento||''} ${row?.nombre_documento||''}`);
+    return hay.includes('ACTA')&&(hay.includes('MED')||hay.includes('MEDICION'));
+  }
+  async function resolveActaDocument(c,order,cert){
+    const fields='id,orden_id,nro_oc,tipo_documento,nombre_documento,fecha_documento,storage_bucket,storage_path,url_externa,fecha_actualizacion';
+    if(uuid(cert?.documento_id)){
+      const byId=await c.from('coi_documentos_oc').select(fields).eq('id',cert.documento_id).limit(1);
+      if(!byId.error&&byId.data?.[0])return byId.data[0];
+    }
+    let q=await c.from('coi_documentos_oc').select(fields).eq('orden_id',order.id).order('fecha_documento',{ascending:false,nullsFirst:false}).order('fecha_actualizacion',{ascending:false,nullsFirst:false}).limit(200);
+    if(q.error)throw q.error;
+    let rows=(q.data||[]).filter(isActaDocument);
+    if(!rows.length){
+      q=await c.from('coi_documentos_oc').select(fields).eq('nro_oc',order.nro_oc).order('fecha_documento',{ascending:false,nullsFirst:false}).order('fecha_actualizacion',{ascending:false,nullsFirst:false}).limit(200);
+      if(q.error)throw q.error; rows=(q.data||[]).filter(isActaDocument);
+    }
+    return rows[0]||null;
+  }
+  async function loadLatestActa(order){
+    const c=client(); if(!c)return {cert:null,doc:null};
+    const cert=await latestCertification(c,order);
+    const doc=await resolveActaDocument(c,order,cert);
+    return {cert,doc};
+  }
+  async function openDocument(doc){
+    if(!doc)throw new Error('No hay documento vinculado.');
+    if(text(doc.url_externa)){window.open(doc.url_externa,'_blank','noopener,noreferrer');return;}
+    const bucket=text(doc.storage_bucket)||'coi-documentos';
+    const path=text(doc.storage_path); if(!path)throw new Error('El Acta no tiene ruta de Storage.');
+    const c=client(); if(!c)throw new Error('Cliente Supabase no disponible.');
+    const signed=await c.storage.from(bucket).createSignedUrl(path,300);
+    if(signed.error)throw signed.error;
+    if(!signed.data?.signedUrl)throw new Error('No se pudo generar el acceso al documento.');
+    window.open(signed.data.signedUrl,'_blank','noopener,noreferrer');
+  }
+  function actaNumber(cert,doc){
+    if(text(cert?.acta_medicion_nro))return text(cert.acta_medicion_nro);
+    const m=text(doc?.nombre_documento).match(/acta\D{0,20}(\d+)/i); return m?.[1]||'';
+  }
+  function buildActaCard(original){
+    const card=document.createElement('div'); card.className=original?.className||'oc-kpi'; card.dataset.coiObraLatestActa='1';
+    card.innerHTML='<b data-coi-obra-acta-value>…</b><span>Avance de obra</span><small data-coi-obra-acta-note>Cargando última Acta de Medición…</small><div class="doc-actions" data-coi-obra-acta-actions hidden><button type="button" class="primary">Abrir PDF</button></div>';
+    return card;
+  }
+  function buildManualCard(order,editable){
+    const card=document.createElement('div'); card.className='oc-kpi'; card.dataset.coiObraProgressManual='1';
+    card.innerHTML=`<b data-coi-manual-progress-value>${formatPercent(order.avance_obra_pct)}</b><span>% de avance</span><small>Avance físico manual de la obra</small>${editable?'<div class="doc-actions"><button type="button" data-coi-manual-progress-edit>Actualizar %</button></div>':''}<small class="coi-progress-manual-feedback" data-coi-manual-progress-feedback></small>`;
+    if(editable)card.querySelector('[data-coi-manual-progress-edit]')?.addEventListener('click',()=>startEditor(card,order));
+    return card;
+  }
+  function startEditor(card,order){
+    if(card.querySelector('.coi-progress-manual-editor'))return;
+    const actions=card.querySelector('.doc-actions'); if(actions)actions.hidden=true;
+    const editor=document.createElement('div'); editor.className='coi-progress-manual-editor';
+    const current=order.avance_obra_pct===null||order.avance_obra_pct===undefined?'':String(order.avance_obra_pct).replace('.',',');
+    editor.innerHTML=`<input type="text" inputmode="decimal" aria-label="Porcentaje de avance de obra" placeholder="0 a 100" value="${current}"><button type="button" class="primary" data-save>Guardar</button><button type="button" data-cancel>Cancelar</button>`;
+    card.appendChild(editor); editor.querySelector('input')?.focus();
+    editor.querySelector('[data-cancel]')?.addEventListener('click',()=>{editor.remove();if(actions)actions.hidden=false;});
+    editor.querySelector('[data-save]')?.addEventListener('click',()=>savePercent(card,editor,order,actions));
+  }
+  async function savePercent(card,editor,order,actions){
+    const feedback=card.querySelector('[data-coi-manual-progress-feedback]');
+    const input=editor.querySelector('input'); const value=parsePercent(input?.value);
+    if(Number.isNaN(value)){
+      if(feedback){feedback.textContent='Ingresá un valor entre 0 y 100.';feedback.className='coi-progress-manual-feedback error';} return;
+    }
+    const save=editor.querySelector('[data-save]'); if(save)save.disabled=true;
+    try{
+      const c=client(); if(!c)throw new Error('Cliente Supabase no disponible.');
+      const result=await c.rpc('coi_actualizar_avance_obra',{p_orden_id:order.id,p_porcentaje:value});
+      if(result.error)throw result.error;
+      order.avance_obra_pct=value;
+      const display=card.querySelector('[data-coi-manual-progress-value]'); if(display)display.textContent=formatPercent(value);
+      if(feedback){feedback.textContent='Guardado en Supabase.';feedback.className='coi-progress-manual-feedback ok';}
+      editor.remove(); if(actions)actions.hidden=false;
+      try{if(typeof window.recargarDatosDesdeSupabase==='function')await window.recargarDatosDesdeSupabase({silencioso:true});}catch(_){/* persistencia confirmada por RPC */}
+    }catch(error){
+      if(feedback){feedback.textContent=error?.message||'No se pudo guardar.';feedback.className='coi-progress-manual-feedback error';}
+      if(save)save.disabled=false;
+    }
+  }
+
+  async function enhance(reference){
+    const body=document.getElementById('fichaOCBody'); if(!body||!body.isConnected)return;
+    reference=reference||currentReference(); if(!reference)return;
+    if(body.querySelector('[data-coi-obra-progress-manual]')&&body.querySelector('[data-coi-obra-latest-acta]'))return;
+    const item=resolvedItem(reference);
+    let order; try{order=await resolveOrder(reference,item);}catch(_){return;}
+    if(!looksObra(item,order))return;
+    if(body.querySelector('[data-coi-obra-progress-manual]'))return;
+    const strip=body.querySelector('.oc-kpis'); if(!strip)return;
+    const original=[...strip.querySelectorAll('.oc-kpi')].find(card=>[...card.querySelectorAll('span')].some(span=>fold(span.textContent)==='AVANCE DE OBRA'));
+    if(!original)return;
+    const actaCard=buildActaCard(original); original.replaceWith(actaCard);
+    const manualCard=buildManualCard(order,canEditOC(body)); actaCard.insertAdjacentElement('afterend',manualCard);
+    try{
+      const {cert,doc}=await loadLatestActa(order); if(!actaCard.isConnected)return;
+      const value=actaCard.querySelector('[data-coi-obra-acta-value]');
+      const note=actaCard.querySelector('[data-coi-obra-acta-note]');
+      const actions=actaCard.querySelector('[data-coi-obra-acta-actions]');
+      if(!cert&&!doc){if(value)value.textContent='—';if(note)note.textContent='Sin Acta de Medición registrada';return;}
+      const nro=actaNumber(cert,doc); if(value)value.textContent=nro?`Acta N° ${nro}`:'Acta de Medición';
+      const fecha=cert?.fecha_fin||doc?.fecha_documento||cert?.fecha_inicio||'';
+      if(note)note.textContent=fecha?`Última Acta · ${fmtDate(fecha)}`:'Última Acta de Medición';
+      if(doc&&(text(doc.url_externa)||text(doc.storage_path))&&actions){
+        actions.hidden=false;
+        actions.querySelector('button')?.addEventListener('click',()=>openDocument(doc).catch(error=>alert(error?.message||'No se pudo abrir el Acta.')));
+      }else if(note)note.textContent+=' · Documento no vinculado';
+    }catch(error){
+      const value=actaCard.querySelector('[data-coi-obra-acta-value]');
+      const note=actaCard.querySelector('[data-coi-obra-acta-note]');
+      if(value)value.textContent='—'; if(note)note.textContent='No se pudo consultar la última Acta';
+      console.warn('COI H12: Acta de Medición no disponible.',error);
+    }
+  }
+
+  let timer=0;
+  function schedule(reference){clearTimeout(timer);timer=setTimeout(()=>enhance(reference),80);}
+  const base=window.renderFichaOC;
+  if(typeof base==='function'&&!base._coiObraProgressManualH12){
+    const wrapped=function(reference){const result=base.apply(this,arguments);schedule(reference);setTimeout(()=>enhance(reference),900);return result;};
+    Object.defineProperty(wrapped,'_coiObraProgressManualH12',{value:true});
+    window.renderFichaOC=wrapped;
+  }
+  const body=document.getElementById('fichaOCBody');
+  if(body&&window.MutationObserver)new MutationObserver(()=>schedule(currentReference())).observe(body,{childList:true,subtree:true});
+  window.addEventListener('hashchange',()=>schedule(currentReference()));
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>schedule(currentReference()),{once:true}); else schedule(currentReference());
+
+  window.COI_OBRA_PROGRESS_MANUAL=Object.freeze({version:'H12',parsePercent,formatPercent,enhance,loadLatestActa});
+})();
+</script>
