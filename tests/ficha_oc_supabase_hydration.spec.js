@@ -61,6 +61,13 @@ test.describe('Expediente Digital OC · hidratacion Supabase', () => {
     });
   });
 
+  test('normaliza ID obra prefijado al nro_oc contractual', async ({ page }) => {
+    await page.goto('/index.html');
+    await page.waitForFunction(() => typeof window.COI_EXPEDIENTE_HYDRATION?.orderNumber === 'function');
+    const nro = await page.evaluate(() => window.COI_EXPEDIENTE_HYDRATION.orderNumber({ idObra: 'OC-4530008964' }, 'OC-4530008964'));
+    expect(nro).toBe('4530008964');
+  });
+
   test('no borra un dato derivado existente cuando Supabase no trae valor util', async ({ page }) => {
     await page.goto('/index.html');
     await page.waitForFunction(() => typeof window.COI_EXPEDIENTE_HYDRATION?.hydrateItem === 'function');

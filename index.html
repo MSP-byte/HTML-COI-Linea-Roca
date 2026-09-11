@@ -33752,10 +33752,13 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   }
 
   function orderNumber(item,id){
-    const candidates=[item?._supabaseRaw?.nro_oc,item?.numeroOC,item?.oc,item?.ocNro,id];
+    const candidates=[item?._supabaseRaw?.nro_oc,item?.numeroOC,item?.oc,item?.ocNro,item?.idObra,item?.idOC,id];
     for(const value of candidates){
       const normalized=String(value??'').trim().replace(/\s+/g,'');
-      if(normalized)return normalized;
+      if(!normalized)continue;
+      const prefixed=normalized.match(/^OC[-_ ]*(\d{6,})$/i);
+      if(prefixed)return prefixed[1];
+      if(/^\d{6,}$/.test(normalized))return normalized;
     }
     return '';
   }
