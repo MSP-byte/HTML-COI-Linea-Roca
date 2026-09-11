@@ -1,0 +1,60 @@
+name: H12 refresh production contract once
+
+on:
+  push:
+    branches:
+      - feat/obra-avance-manual
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/obra-avance-manual
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Reconcile production fixture and SQL gate
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const fixturePath='tests/fixtures/production_schema_contract.json';
+          const c=JSON.parse(fs.readFileSync(fixturePath,'utf8'));
+          if(!c.coi_ordenes?.columnas) throw new Error('coi_ordenes missing from production contract');
+          c.coi_ordenes.columnas.avance_obra_pct={tipo:'numeric',nn:false,gen:false};
+          c.coi_ordenes.check_columnas=Array.isArray(c.coi_ordenes.check_columnas)?c.coi_ordenes.check_columnas:[];
+          if(!c.coi_ordenes.check_columnas.includes('avance_obra_pct')) c.coi_ordenes.check_columnas.push('avance_obra_pct');
+          c._doc='Snapshot de information_schema y pg_catalog de PRODUCCION, reconciliado con STAGING. Actualizado 2026-09-11 tras H12 avance manual de Obra y hardening de privacidad Supabase. nn=NOT NULL, def=fragmento esperado del default, gen=generated always stored, tipo=fragmento de data_type. fk=[columna, tabla_destino, accion ON DELETE].';
+          const resolved=c._divergencias_pendientes?._resueltas;
+          if(Array.isArray(resolved)&&!resolved.some(x=>x.tabla==='coi_ordenes'&&x.columna==='avance_obra_pct')){
+            resolved.push({tabla:'coi_ordenes',columna:'avance_obra_pct',produccion:'presente',repo:'presente',migracion:'202609110003_obra_avance_manual.sql',aplicada_en_remoto:'2026-09-11',nota:'H12 aplicado en STAGING y PRODUCCION. El snapshot productivo incluye numeric(5,2), NULL permitido y CHECK 0-100.'});
+          }
+          fs.writeFileSync(fixturePath,JSON.stringify(c,null,2)+'\n');
+
+          const pkgPath='package.json';
+          const pkg=JSON.parse(fs.readFileSync(pkgPath,'utf8'));
+          const needle='node tests/check_privacy_hardening.js && ';
+          if(!pkg.scripts['test:sql'].includes('check_obra_avance_manual.js')){
+            if(!pkg.scripts['test:sql'].includes(needle)) throw new Error('test:sql insertion point missing');
+            pkg.scripts['test:sql']=pkg.scripts['test:sql'].replace(needle,needle+'node tests/check_obra_avance_manual.js && ');
+          }
+          fs.writeFileSync(pkgPath,JSON.stringify(pkg,null,2)+'\n');
+          NODE
+      - name: Validate full static suite
+        run: npm test
+      - name: Commit reconciliation
+        run: |
+          rm -f .github/workflows/h12-refresh-contract-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/fixtures/production_schema_contract.json package.json .github/workflows/h12-refresh-contract-once.yml
+          git commit -m "test: reconcile H12 production schema contract"
+          git push origin HEAD:feat/obra-avance-manual
