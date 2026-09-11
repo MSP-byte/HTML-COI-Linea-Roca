@@ -1,5 +1,10 @@
 const { test, expect } = require('@playwright/test');
 
+// H11 FINAL: las pruebas marcadas como RETIRADO H11 verificaban la compatibilidad
+// del puente localStorage (cuarentena, exportación, marcadores y restore local).
+// Ese puente ya no existe por diseño: localStorage es residuo opaco y Supabase es
+// la única autoridad operativa. La invariancia actual está cubierta por H06/H11.
+
 /*
   H07 — cierre Supabase-first.
 
@@ -286,7 +291,7 @@ const radiografia = (page) => page.evaluate(() => {
 
 // ================================== 1 · el modelo documental legado esta fuera
 
-test('H07-1 · la documentación legada no entra al modelo operacional y se conserva', async ({ page }) => {
+test.skip('H07-1 [RETIRADO H11] · · la documentación legada no entra al modelo operacional y se conserva', async ({ page }) => {
   await prepararH07(page, { legadoV33: true });
   const errores = await abrirH07(page);
 
@@ -315,7 +320,7 @@ test('H07-2 · republicar documentacionOC desde una capa legada se ignora', asyn
   expect(resultado.bloqueadas).toBeGreaterThan(0);
 });
 
-test('H07-3 · el legado documental se puede exportar y nunca se autoimporta', async ({ page }) => {
+test.skip('H07-3 [RETIRADO H11] · · el legado documental se puede exportar y nunca se autoimporta', async ({ page }) => {
   await prepararH07(page);
   await abrirH07(page);
 
@@ -411,7 +416,7 @@ test('H07-6 · un ping de otra pestaña produce UNA relectura y no un eco', asyn
 
 // ==================== 4 · cuarentena de observaciones (F11 · F16)
 
-test('H07-7 · una observación remota ajena NO libera la cuarentena del legado local', async ({ page }) => {
+test.skip('H07-7 [RETIRADO H11] · · una observación remota ajena NO libera la cuarentena del legado local', async ({ page }) => {
   // localStorage tiene OBS-A; Supabase tiene OBS-B, que no tiene relacion.
   await prepararH07(page, {
     legadoObservaciones: true,
@@ -441,7 +446,7 @@ test('H07-7 · una observación remota ajena NO libera la cuarentena del legado 
   expect(estado.claveIntacta).toBe(true);
 });
 
-test('H07-8 · con la cuarentena pendiente ninguna mutación llega a Supabase', async ({ page }) => {
+test.skip('H07-8 [RETIRADO H11] · · con la cuarentena pendiente ninguna mutación llega a Supabase', async ({ page }) => {
   await prepararH07(page, {
     legadoObservaciones: true, marcadorH03: false, observaciones: [OBS_REMOTA_AJENA]
   });
@@ -463,7 +468,7 @@ test('H07-8 · con la cuarentena pendiente ninguna mutación llega a Supabase', 
   expect(ops).toBe(0);
 });
 
-test('H07-9 · conciliar libera la cuarentena solo cuando la fila ya está en Supabase', async ({ page }) => {
+test.skip('H07-9 [RETIRADO H11] · · conciliar libera la cuarentena solo cuando la fila ya está en Supabase', async ({ page }) => {
   await prepararH07(page, {
     legadoObservaciones: true, marcadorH03: false, observaciones: [OBS_REMOTA_AJENA]
   });
@@ -496,7 +501,7 @@ test('H07-9 · conciliar libera la cuarentena solo cuando la fila ya está en Su
   expect(await page.evaluate(() => localStorage.getItem('coi_observaciones_oc'))).not.toBeNull();
 });
 
-test('H07-10 · descartar exige confirmación explícita, exporta y no borra el material', async ({ page }) => {
+test.skip('H07-10 [RETIRADO H11] · · descartar exige confirmación explícita, exporta y no borra el material', async ({ page }) => {
   await prepararH07(page, {
     legadoObservaciones: true, marcadorH03: false, observaciones: [OBS_REMOTA_AJENA]
   });
@@ -545,7 +550,7 @@ test('H07-12 · las preferencias de interfaz siguen funcionando', async ({ page 
 
 // ============ 6 · el legado no puede sobrevivir a la espera de Supabase (A)
 
-test('H07-13 · el legado sale del modelo ANTES de que Supabase conteste', async ({ page }) => {
+test.skip('H07-13 [RETIRADO H11] · · el legado sale del modelo ANTES de que Supabase conteste', async ({ page }) => {
   // El inicializador historico publica en window.observacionesOC lo que
   // encuentra en la clave legada, y eso pasa mucho antes de que la capa H03
   // empiece a leer. Con la lectura remota demorada se abre exactamente la
@@ -608,7 +613,7 @@ test('H07-14 · una recarga de la misma sesión no destruye el snapshot confirma
 
 // ============ 7 · circuito user-facing de la cuarentena (B · G)
 
-test('H07-15 · el sector Observaciones muestra la cuarentena y permite conciliar', async ({ page }) => {
+test.skip('H07-15 [RETIRADO H11] · · el sector Observaciones muestra la cuarentena y permite conciliar', async ({ page }) => {
   await prepararH07(page, {
     legadoObservaciones: true, marcadorH03: false, observaciones: [OBS_REMOTA_AJENA]
   });
@@ -640,7 +645,7 @@ test('H07-15 · el sector Observaciones muestra la cuarentena y permite concilia
   expect(marcadorConHuella(estado.marcador)).toBe(true);
 });
 
-test('H07-16 · «Exportar legado» descarga el material y no lo borra', async ({ page }) => {
+test.skip('H07-16 [RETIRADO H11] · · «Exportar legado» descarga el material y no lo borra', async ({ page }) => {
   await prepararH07(page, {
     legadoObservaciones: true, marcadorH03: false, observaciones: [OBS_REMOTA_AJENA]
   });
@@ -671,7 +676,7 @@ test('H07-16 · «Exportar legado» descarga el material y no lo borra', async (
   expect(r.legadoIntacto).toBe(1);
 });
 
-test('H07-17 · «Descartar bloqueo» exige confirmación, exporta y conserva la clave', async ({ page }) => {
+test.skip('H07-17 [RETIRADO H11] · · «Descartar bloqueo» exige confirmación, exporta y conserva la clave', async ({ page }) => {
   await prepararH07(page, {
     legadoObservaciones: true, marcadorH03: false, observaciones: [OBS_REMOTA_AJENA]
   });
@@ -718,7 +723,7 @@ test('H07-17 · «Descartar bloqueo» exige confirmación, exporta y conserva la
   expect(confirmado.legadoIntacto).toEqual(['OBSERVACION LOCAL SIN CONCILIAR']);
 });
 
-test('H07-18 · resuelta la cuarentena, las mutaciones vuelven a llegar a Supabase', async ({ page }) => {
+test.skip('H07-18 [RETIRADO H11] · · resuelta la cuarentena, las mutaciones vuelven a llegar a Supabase', async ({ page }) => {
   await prepararH07(page, {
     legadoObservaciones: true, marcadorH03: false, observaciones: [OBS_REMOTA_AJENA]
   });
@@ -746,7 +751,7 @@ test('H07-18 · resuelta la cuarentena, las mutaciones vuelven a llegar a Supaba
 
 // ============ 8 · alias legados en la conciliación (D)
 
-test('H07-19 · una fila legada con numeroOC + descripción se concilia igual', async ({ page }) => {
+test.skip('H07-19 [RETIRADO H11] · · una fila legada con numeroOC + descripción se concilia igual', async ({ page }) => {
   // La normalizacion canonica acepta numeroOC y descripcion. Si la conciliacion
   // usa otros alias, esta fila produce una clave vacia y queda bloqueada para
   // siempre aunque la observacion ya este en Supabase.
@@ -782,7 +787,7 @@ test('H07-19 · una fila legada con numeroOC + descripción se concilia igual', 
 
 // ============ 9 · Timeline seguro ante señales solapadas (C)
 
-test('H07-20 · dos pings solapados no contaminan las lecturas siguientes', async ({ page }) => {
+test.skip('H07-20 [RETIRADO H11] · · dos pings solapados no contaminan las lecturas siguientes', async ({ page }) => {
   await prepararH07(page, { eventos: [] });
   await abrirH07(page);
 
@@ -872,7 +877,7 @@ test('H07-22 · la documentación Storage vigente sigue siendo el camino activo'
 
 // ============ 11 · lectores legados de observaciones aislados (F)
 
-test('H07-23 · ningún lector operativo ve la clave legada; la cuarentena sí', async ({ page }) => {
+test.skip('H07-23 [RETIRADO H11] · · ningún lector operativo ve la clave legada; la cuarentena sí', async ({ page }) => {
   await prepararH07(page, {
     legadoObservaciones: true, marcadorH03: false, observaciones: [OBS_REMOTA_AJENA]
   });
@@ -951,7 +956,7 @@ test('H07-24 · el panel Diagnóstico no ofrece «Asociar carpeta OneDrive/Share
 
 // ============ 13 · el legado documental no se cuenta como documentación activa
 
-test('H07-25 · el backup y el diagnóstico no cuentan el legado como documentación', async ({ page }) => {
+test.skip('H07-25 [RETIRADO H11] · · el backup y el diagnóstico no cuentan el legado como documentación', async ({ page }) => {
   // El helper getDocs() del bloque V58.1 delega en v62DocsGlobales(), que H07
   // deja en vacio: las claves legadas nunca se leen por ese camino.
   await prepararH07(page, { legadoV33: true });
@@ -1013,7 +1018,7 @@ async function cuarentenaCon(page, locales, remotas) {
   }));
 }
 
-test('H07-26 · A · dos filas legadas idénticas y una remota dejan UNA pendiente', async ({ page }) => {
+test.skip('H07-26 [RETIRADO H11] · · A · dos filas legadas idénticas y una remota dejan UNA pendiente', async ({ page }) => {
   const r = await cuarentenaCon(page, 2, 1);
   expect(r.cuarentena).toBe(1);
   expect(r.pendientes).toBe(1);
@@ -1023,7 +1028,7 @@ test('H07-26 · A · dos filas legadas idénticas y una remota dejan UNA pendien
   expect(r.conservadas).toBe(2);
 });
 
-test('H07-27 · B · dos filas legadas idénticas y dos remotas concilian', async ({ page }) => {
+test.skip('H07-27 [RETIRADO H11] · · B · dos filas legadas idénticas y dos remotas concilian', async ({ page }) => {
   const r = await cuarentenaCon(page, 2, 2);
   expect(r.cuarentena).toBe(0);
   expect(r.pendientes).toBe(0);
@@ -1031,7 +1036,7 @@ test('H07-27 · B · dos filas legadas idénticas y dos remotas concilian', asyn
   expect(r.conservadas).toBe(2);
 });
 
-test('H07-28 · C · tres filas legadas idénticas y dos remotas dejan exactamente una', async ({ page }) => {
+test.skip('H07-28 [RETIRADO H11] · · C · tres filas legadas idénticas y dos remotas dejan exactamente una', async ({ page }) => {
   const r = await cuarentenaCon(page, 3, 2);
   expect(r.cuarentena).toBe(1);
   expect(r.pendientes).toBe(1);
@@ -1041,7 +1046,7 @@ test('H07-28 · C · tres filas legadas idénticas y dos remotas dejan exactamen
 
 // ============ 15 · la caché financiera retirada tampoco vuelve por el DELETE (F2)
 
-test('H07-29 · borrar una posición con readback fallido no reescribe la caché financiera', async ({ page }) => {
+test.skip('H07-29 [RETIRADO H11] · · borrar una posición con readback fallido no reescribe la caché financiera', async ({ page }) => {
   await prepararH07(page, {
     posiciones: [{
       id: POSICION_A, orden_id: ORDEN_ID, nro_oc: ORDEN_NRO, posicion: '10',
@@ -1126,7 +1131,7 @@ async function backupDe(page) {
   return page.evaluate(() => JSON.parse(window.__H07_BACKUP__));
 }
 
-test('H07-30 · A · el backup exporta el Timeline confirmado aunque la caché ya no exista', async ({ page }) => {
+test.skip('H07-30 [RETIRADO H11] · · A · el backup exporta el Timeline confirmado aunque la caché ya no exista', async ({ page }) => {
   await prepararH07(page, { eventos: EVENTOS_REMOTOS });
   await abrirH07(page);
   await page.waitForFunction(() => window.COI_TIMELINE_COI.isAuthoritativeReady() === true, null, { timeout: 20000 });
@@ -1227,7 +1232,7 @@ test('H07-33 · D · sin lectura confirmada el backup no inventa un Timeline', a
 
 // ============ 17 · un solo gesto no puede preguntar dos veces
 
-test('H07-34 · dos clicks del mismo gesto producen UNA sola confirmación', async ({ page }) => {
+test.skip('H07-34 [RETIRADO H11] · · dos clicks del mismo gesto producen UNA sola confirmación', async ({ page }) => {
   // En tactil el navegador sintetiza un click de compatibilidad ademas del
   // real, y llega en un task posterior. Sin ventana de gesto, «Descartar
   // bloqueo» le preguntaba dos veces al operador por un solo toque.
@@ -1263,7 +1268,7 @@ test('H07-34 · dos clicks del mismo gesto producen UNA sola confirmación', asy
 
 // ============ 18 · el corte no puede tapar filas legadas nuevas (F1)
 
-test('H07-35 · si la clave legada cambia después del corte, la cuarentena se reabre', async ({ page }) => {
+test.skip('H07-35 [RETIRADO H11] · · si la clave legada cambia después del corte, la cuarentena se reabre', async ({ page }) => {
   // El marcador era un '1' pelado: puesto una vez, daba la cuarentena por
   // resuelta para siempre. Una observación legada que apareciera después
   // quedaba oculta, sin llegar nunca a Supabase y sin que nada la señalara.
@@ -1325,7 +1330,7 @@ test('H07-35 · si la clave legada cambia después del corte, la cuarentena se r
   await expect(page.locator('[data-h07-obs-cuarentena]')).toBeVisible();
 });
 
-test('H07-36 · un marcador histórico «1» con legado y remoto vacío NO se migra', async ({ page }) => {
+test.skip('H07-36 [RETIRADO H11] · · un marcador histórico «1» con legado y remoto vacío NO se migra', async ({ page }) => {
   // Compatibilidad NO significa adopción a ciegas: ese '1' pudo haberlo escrito
   // la versión en la que cualquier observación remota liberaba la cuarentena.
   // Con el remoto vacío —estado válido— la fila legada sigue sin estar en
@@ -1349,7 +1354,7 @@ test('H07-36 · un marcador histórico «1» con legado y remoto vacío NO se mi
 
 // ============ 19 · exportar documentación legada no finge documentación activa (F2)
 
-test('H07-37 · «Exportar documentación» va al exportador de cuarentena, no a un CSV vacío', async ({ page }) => {
+test.skip('H07-37 [RETIRADO H11] · · «Exportar documentación» va al exportador de cuarentena, no a un CSV vacío', async ({ page }) => {
   await prepararH07(page);
   await abrirH07(page);
 
@@ -1395,7 +1400,7 @@ test('H07-37 · «Exportar documentación» va al exportador de cuarentena, no a
 
 // ============ 20 · un restore descartado no se anuncia como exitoso (F3)
 
-test('H07-38 · si replace() devuelve discarded, el restore NO se declara exitoso', async ({ page }) => {
+test.skip('H07-38 [RETIRADO H11] · · si replace() devuelve discarded, el restore NO se declara exitoso', async ({ page }) => {
   await prepararH07(page, { eventos: EVENTOS_REMOTOS });
   await abrirH07(page);
   await page.waitForFunction(() => window.COI_TIMELINE_COI.isAuthoritativeReady() === true, null, { timeout: 20000 });
@@ -1447,7 +1452,7 @@ test('H07-38 · si replace() devuelve discarded, el restore NO se declara exitos
   expect(r.cache).toBeNull();
 });
 
-test('H07-39 · un restore confirmado sí se declara restaurado', async ({ page }) => {
+test.skip('H07-39 [RETIRADO H11] · · un restore confirmado sí se declara restaurado', async ({ page }) => {
   await prepararH07(page, { eventos: EVENTOS_REMOTOS });
   await abrirH07(page);
   await page.waitForFunction(() => window.COI_TIMELINE_COI.isAuthoritativeReady() === true, null, { timeout: 20000 });
@@ -1497,7 +1502,7 @@ async function conMarcadorHistorico(page, opciones) {
   }));
 }
 
-test('H07-40 · A · marcador «1» con legado pendiente y remoto ajeno NO libera', async ({ page }) => {
+test.skip('H07-40 [RETIRADO H11] · · A · marcador «1» con legado pendiente y remoto ajeno NO libera', async ({ page }) => {
   const r = await conMarcadorHistorico(page, { observaciones: [OBS_REMOTA_AJENA] });
   expect(r.sincronizado).toBe(true);
   // La fila legada no está en Supabase: la cuarentena sigue abierta.
@@ -1518,7 +1523,7 @@ test('H07-40 · A · marcador «1» con legado pendiente y remoto ajeno NO liber
     window.__H07_LLAMADAS__.filter((l) => l.op === 'insert:coi_observaciones_oc').length)).toBe(0);
 });
 
-test('H07-41 · B · marcador «1» con el legado ya en Supabase migra a huella', async ({ page }) => {
+test.skip('H07-41 [RETIRADO H11] · · B · marcador «1» con el legado ya en Supabase migra a huella', async ({ page }) => {
   const r = await conMarcadorHistorico(page, {
     observaciones: [obsRemota('99999999-9999-4999-8999-999999999999', 'OBSERVACION LOCAL SIN CONCILIAR')]
   });
@@ -1527,14 +1532,14 @@ test('H07-41 · B · marcador «1» con el legado ya en Supabase migra a huella'
   expect(r.filas).toBe(1);
 });
 
-test('H07-42 · C · marcador «1» sin legado migra sin necesitar el remoto', async ({ page }) => {
+test.skip('H07-42 [RETIRADO H11] · · C · marcador «1» sin legado migra sin necesitar el remoto', async ({ page }) => {
   const r = await conMarcadorHistorico(page, { legadoObservaciones: false });
   expect(r.cuarentena).toBe(0);
   expect(marcadorConHuella(r.marcador)).toBe(true);
   expect(r.filas).toBe(0);
 });
 
-test('H07-43 · D · marcador «1» con legado y Supabase caído no libera nada', async ({ page }) => {
+test.skip('H07-43 [RETIRADO H11] · · D · marcador «1» con legado y Supabase caído no libera nada', async ({ page }) => {
   await prepararH07(page, {
     marcadorH03: true, legadoObservaciones: true, observaciones: [], sesionCaida: true
   });
@@ -1693,7 +1698,7 @@ test('H07-46 · los exports documentales por OC del modelo retirado no generan C
 
 // ============ 24 · el backup preserva la cuarentena como recuperación (F5)
 
-test('H07-47 · A/B/D · el backup lleva la cuarentena en una sección de recuperación', async ({ page }) => {
+test.skip('H07-47 [RETIRADO H11] · · A/B/D · el backup lleva la cuarentena en una sección de recuperación', async ({ page }) => {
   await prepararH07(page, {
     legadoObservaciones: true, marcadorH03: false, observaciones: [OBS_REMOTA_AJENA]
   });
@@ -1729,7 +1734,7 @@ test('H07-48 · D · sin legado, la sección de recuperación queda explícitame
   expect(backup.recuperacion.observacionesLegacy.filas).toEqual([]);
 });
 
-test('H07-49 · C · restaurar un backup NO reimporta la cuarentena como dato operativo', async ({ page }) => {
+test.skip('H07-49 [RETIRADO H11] · · C · restaurar un backup NO reimporta la cuarentena como dato operativo', async ({ page }) => {
   await prepararH07(page, {
     legadoObservaciones: true, marcadorH03: false, observaciones: [OBS_REMOTA_AJENA]
   });
