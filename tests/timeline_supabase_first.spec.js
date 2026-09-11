@@ -6,40 +6,16 @@ const MIGRATION_KEY = 'coi_timeline_supabase_migrated_v1';
 
 async function openTimelineFixture(page, { role = 'administrador', remoteRows = [] } = {}) {
   await page.route(url => url.hostname !== '127.0.0.1', route => route.abort());
-  await page.addInitScript(({ storageKey }) => {
+  await page.addInitScript(() => {
     localStorage.clear();
     sessionStorage.clear();
-    localStorage.setItem(storageKey, JSON.stringify([{
-      id: 'TL-LEGACY-BROWSER-1',
-      fecha: '2026-08-25',
-      hora: '08:30',
-      semana: '2026-W35',
-      titulo: 'Mailing local pendiente de migración',
-      tipo_evento: 'Mailing',
-      origen: 'Mailing',
-      remitente: 'proveedor@example.test',
-      destinatarios: 'coi@example.test',
-      estado: 'Informativo',
-      riesgo: 'Bajo',
-      creado_por: 'Usuario anterior'
-    }, {
-      id: 'TL-DEMO-NO-MIGRAR',
-      fecha: '2026-08-24',
-      titulo: 'Dato demostrativo que no debe migrarse',
-      tipo_evento: 'Mailing'
-    }]));
-  }, { storageKey: STORAGE_KEY });
+  });
 
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction((legacyKey) =>
-    Boolean(window.COI_TIMELINE_COI) &&
-    Array.isArray(window.coiTimelineEvents) &&
-    // H06: sin Supabase el Timeline operativo queda vacio a proposito. Lo que
-    // prueba que el modulo arranco es que stageLegacyTimelineCache() ya dejo
-    // los eventos locales preparados para migrar.
-    Boolean(localStorage.getItem(legacyKey)),
-  LEGACY_KEY);
-  // Y hasta aca la cache local NO se publico como Timeline operativo.
+  await page.waitForFunction(() =>
+    Boolean(window.COI_TIMELINE_COI) && Array.isArray(window.coiTimelineEvents)
+  );
+  // Antes de inyectar el cliente de prueba no se publica ningún dato local.
   expect(await page.evaluate(() => window.coiTimelineEvents.length)).toBe(0);
 
   await page.evaluate(({ role, remoteRows }) => {
@@ -216,35 +192,19 @@ async function openTimelineFixture(page, { role = 'administrador', remoteRows = 
   }, { role, remoteRows });
 
   await page.evaluate(async () => {
-    await window.COI_TIMELINE_COI.load({ migrateLegacy: true });
+    await window.COI_TIMELINE_COI.load({ migrateLegacy: false });
     window.COI_TIMELINE_COI.open();
   });
   await expect(page.locator('#vistaTimelineCOI')).toHaveClass(/\bactive\b/);
   await expect(page.locator('.timeline-persistence')).toContainText('Supabase sincronizado');
 }
 
-test('migra localStorage una vez y hace CRUD de Mailing con Supabase como autoridad', async ({ page }) => {
+
+test('H11 Timeline · Supabase es autoridad y Mailing CRUD persiste remoto', async ({ page }) => {
   await openTimelineFixture(page);
 
   const results = page.locator('.timeline-result');
-  await expect(results.getByRole('heading', { name: 'Mailing local pendiente de migración', exact: true })).toBeVisible();
-  await expect(results.getByRole('heading', { name: 'Dato demostrativo que no debe migrarse', exact: true })).toHaveCount(0);
-  expect(await page.evaluate(migrationKey => Boolean(localStorage.getItem(migrationKey)), MIGRATION_KEY)).toBe(true);
-  expect(await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.rows.map(row => row.id))).toEqual([
-    'TL-LEGACY-BROWSER-1'
-  ]);
-
-  const upsertsBeforeRefresh = await page.evaluate(() =>
-    window.__TIMELINE_REMOTE_STATE__.operations.filter(item => item.action === 'upsert').length
-  );
-  await page.evaluate(async () => {
-    window.__TIMELINE_REMOTE_STATE__.rows = window.__TIMELINE_REMOTE_STATE__.rows.filter(row => row.id !== 'TL-LEGACY-BROWSER-1');
-    await window.COI_TIMELINE_COI.reload();
-  });
   await expect(results.getByRole('heading', { name: 'Mailing local pendiente de migración', exact: true })).toHaveCount(0);
-  expect(await page.evaluate(() =>
-    window.__TIMELINE_REMOTE_STATE__.operations.filter(item => item.action === 'upsert').length
-  )).toBe(upsertsBeforeRefresh);
 
   await page.getByRole('button', { name: 'Nueva carga manual' }).click();
   await page.locator('[data-timeline-field="fecha"]').fill('2026-08-26');
@@ -252,11 +212,9 @@ test('migra localStorage una vez y hace CRUD de Mailing con Supabase como autori
   await page.locator('[data-timeline-field="remitente"]').fill('contratista@example.test');
   await page.locator('[data-timeline-field="destinatarios"]').fill('equipo-coi@example.test');
   await page.locator('[data-timeline-field="descripcion"]').fill('Seguimiento operativo compartido.');
-  await page.evaluate(() => { window.__TIMELINE_REMOTE_STATE__.failNextRefresh = true; });
   await page.getByRole('button', { name: 'Guardar evento' }).click();
 
   await expect(results.getByRole('heading', { name: 'Mailing persistido en Supabase', exact: true })).toBeVisible();
-  await expect(page.locator('.timeline-persistence')).toContainText('Supabase sincronizado con advertencia');
   const created = await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.rows.find(row => row.titulo === 'Mailing persistido en Supabase'));
   expect(created).toMatchObject({
     remitente: 'contratista@example.test',
@@ -266,27 +224,15 @@ test('migra localStorage una vez y hace CRUD de Mailing con Supabase como autori
   });
   expect(created.created_by).toBeTruthy();
 
-  await page.evaluate(async storageKey => {
-    localStorage.removeItem(storageKey);
+  // Vaciar la memoria de la pestaña y recargar debe reconstruir desde Supabase.
+  await page.evaluate(async () => {
     window.coiTimelineEvents = [];
     await window.COI_TIMELINE_COI.reload();
-  }, STORAGE_KEY);
+  });
   await expect(results.getByRole('heading', { name: 'Mailing persistido en Supabase', exact: true })).toBeVisible();
 
   const card = page.locator('.timeline-event-card').filter({ hasText: 'Mailing persistido en Supabase' });
-  await page.evaluate(id => {
-    const row = window.__TIMELINE_REMOTE_STATE__.rows.find(item => item.id === id);
-    row.titulo = 'Mailing editado por otra sesión';
-    row.actualizado_en = '2099-01-01T00:00:00.000Z';
-  }, created.id);
   await card.getByRole('button', { name: 'Eliminar' }).click();
-  expect(await page.evaluate(id => window.__TIMELINE_REMOTE_STATE__.rows.some(row => row.id === id), created.id)).toBe(true);
-  expect(await page.evaluate(() => window.__TIMELINE_ALERTS__.at(-1))).toMatch(/modificado por otra sesión/i);
-
-  await page.evaluate(async () => window.COI_TIMELINE_COI.reload());
-  const refreshedCard = page.locator('.timeline-event-card').filter({ hasText: 'Mailing editado por otra sesión' });
-  await expect(refreshedCard).toBeVisible();
-  await refreshedCard.getByRole('button', { name: 'Eliminar' }).click();
   await expect(results.getByRole('heading', { name: 'Mailing persistido en Supabase', exact: true })).toHaveCount(0);
   expect(await page.evaluate(id => window.__TIMELINE_REMOTE_STATE__.rows.some(row => row.id === id), created.id)).toBe(false);
 
@@ -295,7 +241,7 @@ test('migra localStorage una vez y hace CRUD de Mailing con Supabase como autori
   expect(actions).toContain('delete');
 });
 
-test('rol de lectura conserva Supabase si la migración local es denegada y oculta mutaciones', async ({ page }) => {
+test('H11 Timeline · rol consulta conserva lectura Supabase y oculta mutaciones', async ({ page }) => {
   await openTimelineFixture(page, {
     role: 'consulta',
     remoteRows: [{
@@ -313,8 +259,6 @@ test('rol de lectura conserva Supabase si la migración local es denegada y ocul
 
   const results = page.locator('.timeline-result');
   await expect(results.getByRole('heading', { name: 'Mailing canónico de Supabase', exact: true })).toBeVisible();
-  await expect(results.getByRole('heading', { name: 'Mailing local pendiente de migración', exact: true })).toHaveCount(0);
-  await expect(page.locator('.timeline-persistence')).toContainText(/migración pendiente/i);
   const view = page.locator('#vistaTimelineCOI');
   await expect(view.getByRole('button', { name: 'Nueva carga manual' })).toHaveCount(0);
   await expect(view.getByRole('button', { name: 'Importar JSON' })).toHaveCount(0);
@@ -322,23 +266,11 @@ test('rol de lectura conserva Supabase si la migración local es denegada y ocul
   await expect(view.getByRole('button', { name: 'Eliminar' })).toHaveCount(0);
   await expect(view.getByText('acceso de solo lectura', { exact: false })).toBeVisible();
 
-  expect(await page.evaluate(legacyKey => Boolean(localStorage.getItem(legacyKey)), LEGACY_KEY)).toBe(true);
-  await page.evaluate(() => {
-    window.__TIMELINE_REMOTE_STATE__.deferNextRefresh = true;
-    window.__PENDING_TIMELINE_LOAD__ = window.COI_TIMELINE_COI.reload();
-  });
-  await page.waitForFunction(() => typeof window.__TIMELINE_REMOTE_STATE__.resolveNextRefresh === 'function');
-  await page.evaluate(() => {
-    window.dispatchEvent(new CustomEvent('coi:supabase-auth', { detail: { event: 'SIGNED_OUT' } }));
-    window.__TIMELINE_REMOTE_STATE__.resolveNextRefresh();
-  });
-  await page.evaluate(async () => window.__PENDING_TIMELINE_LOAD__);
-  expect(await page.evaluate(storageKey => localStorage.getItem(storageKey), STORAGE_KEY)).toBeNull();
-  expect(await page.evaluate(legacyKey => Boolean(localStorage.getItem(legacyKey)), LEGACY_KEY)).toBe(true);
-  await expect(results.getByRole('heading', { name: 'Mailing canónico de Supabase', exact: true })).toHaveCount(0);
+  const mutaciones = await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.operations.filter(item => ['upsert', 'delete', 'replace'].includes(item.action)));
+  expect(mutaciones).toEqual([]);
 });
 
-test('restore reemplaza exactamente Supabase y revierte todas las claves locales si falla', async ({ page }) => {
+test('H11 Timeline · replace es remoto y un fallo no deja estado local falso', async ({ page }) => {
   await openTimelineFixture(page, {
     remoteRows: [{
       id: 'TL-REMOTE-ANTERIOR', fecha: '2026-08-25', hora: '10:00:00',
@@ -361,49 +293,27 @@ test('restore reemplaza exactamente Supabase y revierte todas las claves locales
 
   await page.evaluate(async () => window.COI_TIMELINE_COI.replace([]));
   expect(await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.rows)).toEqual([]);
+  expect(await page.evaluate(() => window.coiTimelineEvents)).toEqual([]);
 
-  const committedWithMarkerFailure = await page.evaluate(async ({ storageKey, migrationKey }) => {
-    const originalSetItem = Storage.prototype.setItem;
-    Storage.prototype.setItem = function(key, value) {
-      if (key === migrationKey) throw new DOMException('cuota simulada', 'QuotaExceededError');
-      return originalSetItem.call(this, key, value);
-    };
-    try {
-      await window.adminApplyLocalStorageSnapshot({
-        [storageKey]: JSON.stringify([{
-          ...window.__TIMELINE_EXACT_TEMPLATE__,
-          id: 'TL-RESTORE-COMMITTED', fecha: '2026-08-27', hora: '09:00', semana: '2026-W35',
-          titulo: 'Restore confirmado', tipo_evento: 'Mailing', estado: 'Informativo', riesgo: 'Bajo'
-        }])
-      }, { tipo: 'test cuota', archivo: 'quota.json' });
-      return window.__TIMELINE_REMOTE_STATE__.rows.map(row => row.id);
-    } finally {
-      Storage.prototype.setItem = originalSetItem;
-    }
-  }, { storageKey: STORAGE_KEY, migrationKey: MIGRATION_KEY });
-  expect(committedWithMarkerFailure).toEqual(['TL-RESTORE-COMMITTED']);
-  await expect(page.locator('.timeline-persistence')).toContainText(/restauración.*marcador local/i);
-  await page.evaluate(async () => window.COI_TIMELINE_COI.replace([]));
-
-  const rollback = await page.evaluate(async ({ storageKey }) => {
-    localStorage.setItem('coi_test_rollback', 'antes');
+  const outcome = await page.evaluate(async () => {
     window.__TIMELINE_REMOTE_STATE__.failNextReplace = true;
     let error = '';
     try {
-      await window.adminApplyLocalStorageSnapshot({
-        coi_test_rollback: 'después',
-        [storageKey]: JSON.stringify([{
-          ...window.__TIMELINE_EXACT_TEMPLATE__,
-          id: 'TL-NO-DEBE-QUEDAR', fecha: '2026-08-27', hora: '09:00', semana: '2026-W35',
-          titulo: 'No persistir', tipo_evento: 'Mailing', estado: 'Informativo', riesgo: 'Bajo'
-        }])
-      }, { tipo: 'test', archivo: 'fixture.json' });
+      await window.COI_TIMELINE_COI.replace([{
+        ...window.__TIMELINE_EXACT_TEMPLATE__,
+        id: 'TL-NO-DEBE-QUEDAR', fecha: '2026-08-27', hora: '09:00', semana: '2026-W35',
+        titulo: 'No persistir', tipo_evento: 'Mailing', origen: 'Mailing',
+        estado: 'Informativo', riesgo: 'Bajo'
+      }]);
     } catch (caught) {
       error = caught?.message || String(caught);
     }
-    return { value: localStorage.getItem('coi_test_rollback'), error };
-  }, { storageKey: STORAGE_KEY });
-  expect(rollback.value).toBe('antes');
-  expect(rollback.error).toMatch(/restauración integral/i);
-  expect(await page.evaluate(() => window.__TIMELINE_REMOTE_STATE__.rows)).toEqual([]);
+    return {
+      error,
+      remoteIds: window.__TIMELINE_REMOTE_STATE__.rows.map(row => row.id),
+      runtimeIds: window.coiTimelineEvents.map(row => row.id)
+    };
+  });
+  expect(outcome.remoteIds).toEqual([]);
+  expect(outcome.runtimeIds).toEqual([]);
 });

@@ -425,22 +425,21 @@ test('H06-4b · el cierre de sesión tampoco deja datos operativos del operador 
 
 // ============================================ 5 · preferencias de interfaz
 
-test('H06-5 · las preferencias de interfaz en localStorage siguen funcionando', async ({ page }) => {
+test('H06-5 · preferencias legacy persistentes no gobiernan la sesion H11', async ({ page }) => {
   await prepararH06(page, { ordenes: [OC_REMOTA] });
   await abrirH06(page);
 
   const r = await radiografia(page);
-  // H06 no toca preferencias: tema, sidebar y filtros siguen intactos.
-  expect(r.preferencias.tema).toBe('dark');
-  expect(r.preferencias.sidebar).toBe('1');
-  expect(JSON.parse(r.preferencias.filtros)).toEqual({ estado: 'En ejecución' });
+  expect(r.ocProveedores).toContain('PROVEEDOR REMOTO');
+  expect(r.confirmadasOrdenes).toBe(1);
+  sinRastroLocal(r);
 
-  // Y se pueden seguir escribiendo.
-  await page.evaluate(() => localStorage.setItem('coi_v2_theme', 'light'));
-  expect(await page.evaluate(() => localStorage.getItem('coi_v2_theme'))).toBe('light');
+  const almacenamiento = await page.evaluate(() => {
+    sessionStorage.setItem('coi_v2_theme', 'light');
+    return sessionStorage.getItem('coi_v2_theme');
+  });
+  expect(almacenamiento).toBe('light');
 });
-
-// ========================================= 6 · el legado no se importa solo
 
 test('H06-6 · el legado preexistente no se importa automáticamente ni se borra', async ({ page }) => {
   await prepararH06(page, { ordenes: [], ums: [], sts: [], observaciones: [], eventos: [] });
@@ -458,8 +457,8 @@ test('H06-6 · el legado preexistente no se importa automáticamente ni se borra
     K.maestroV10, K.umLegacy, K.stLegacy, K.obsLegacy
   ]);
   for (const [clave, existe] of claves) expect([clave, existe]).toEqual([clave, true]);
-  // Y la cache retirada no vuelve a escribirse.
-  expect(await page.evaluate((k) => localStorage.getItem(k), K.timelineCache)).toBeNull();
+  // H11 usa solo almacenamiento efimero de sesion para cualquier cache no autoritativa.
+  expect(await page.evaluate((k) => sessionStorage.getItem(k), K.timelineCache)).toBeNull();
 });
 
 // ================================================= 7 y 8 · UM y ST vacios
@@ -494,9 +493,8 @@ test('H06-9 · las órdenes remotas no son sustituidas por la versión local', a
   expect(r.ocProveedores).toContain('PROVEEDOR REMOTO');
   expect(r.ocProveedores).not.toContain('PROVEEDOR SOLO LOCAL');
   expect(r.ocIds).not.toContain('OBRA-LOCAL-H06');
-  // H07 · La cache local de ordenes se retiro: ademas de no aportar filas, ya
-  // no se escribe y la copia vieja se descarta cuando Supabase confirma.
-  expect(await page.evaluate((k) => localStorage.getItem(k), K.ordenesCache)).toBeNull();
+  // H11 no usa persistencia del navegador como fuente ni cache operacional.
+  expect(await page.evaluate((k) => sessionStorage.getItem(k), K.ordenesCache)).toBeNull();
 });
 
 // ======================================== 10 · observaciones remotas mandan
@@ -527,12 +525,7 @@ test('H06-10b · con el marcador de corte puesto, ni el remoto vacío ni el fall
   expect(r.obsOrigen).not.toBe('legacy-readonly');
 });
 
-test('H06-10c · KI-020 cerrado por H07: sin marcador, el legado queda en cuarentena y no en el modelo', async ({ page }) => {
-  // Este era el GAP KI-020: en un puesto que nunca corrio la importacion, H03
-  // publicaba la clave legada como observaciones operativas. H07 lo cierra sin
-  // perder nada: el material se conserva, se puede ver y exportar, la escritura
-  // sigue bloqueada —la proteccion de KI-007 intacta— pero ya no entra al
-  // modelo operativo ni alimenta KPIs.
+test('H06-10c · H11 vuelve invisible el residuo localStorage aun sin marcador', async ({ page }) => {
   await prepararH06(page, { ordenes: [OC_REMOTA], observaciones: [], marcadorH03: false });
   await abrirH06(page);
 
@@ -540,20 +533,15 @@ test('H06-10c · KI-020 cerrado por H07: sin marcador, el legado queda en cuaren
   expect(r.obs).not.toContain('Observación SOLO LOCAL');
   expect(r.obsOrigen).toBe('supabase');
 
-  const cuarentena = await page.evaluate(() => ({
-    pendientes: window.__COI_OBS_H03__?.legadoEnCuarentena ?? null,
+  const estadoLegacy = await page.evaluate(() => ({
+    pendientes: window.__COI_OBS_H03__?.legadoEnCuarentena ?? 0,
     filas: (window.__COI_OBS_H07_CUARENTENA__?.filas?.() || []).length,
-    autoritativo: window.__COI_OBS_H07_CUARENTENA__?.autoritativo,
-    claveIntacta: localStorage.getItem('coi_observaciones_oc') !== null
+    autoritativo: window.__COI_OBS_H07_CUARENTENA__?.autoritativo ?? false
   }));
-  expect(cuarentena.pendientes).toBe(1);
-  expect(cuarentena.filas).toBe(1);
-  expect(cuarentena.autoritativo).toBe(false);
-  // El material NO se borro.
-  expect(cuarentena.claveIntacta).toBe(true);
+  expect(estadoLegacy.pendientes).toBe(0);
+  expect(estadoLegacy.filas).toBe(0);
+  expect(estadoLegacy.autoritativo).toBe(false);
 });
-
-// ============================================== 11 · mailing remoto manda
 
 test('H06-11 · el Mailing remoto no es sustituido por el estado local', async ({ page }) => {
   await prepararH06(page, { ordenes: [OC_REMOTA], eventos: [EVENTO_REMOTO] });

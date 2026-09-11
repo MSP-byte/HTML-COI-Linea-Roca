@@ -216,7 +216,42 @@
     ],
     "_doc_policies": "Policies que el repositorio crea y produccion todavia no tiene. El bloque «policies» de cada tabla mas abajo sigue siendo el snapshot productivo. check_schema_reproducibility.js verifica que estas existan realmente al reproducir el repo (nombre, cmd, roles, permissive, using y with check) y las admite como el UNICO excedente permitido: cualquier otra policy no declarada sigue siendo un fallo.",
     "_doc_grants": "Grants que el repositorio endurece y produccion todavia no. En produccion anon conserva privilegios amplios sobre ambas tablas y authenticated tiene mas de lo necesario. check_schema_reproducibility.js verifica que tras reproducir el repo los grants sean exactamente los declarados en «repo».",
-    "_doc_grants_funciones": "Grants sobre FUNCIONES que el repositorio concede y produccion todavia no. Mismo criterio que los grants de tabla: check_schema_reproducibility.js verifica que tras reproducir el repo el permiso exista realmente, y que anon siga sin el."
+    "_doc_grants_funciones": "Grants sobre FUNCIONES que el repositorio concede y produccion todavia no. Mismo criterio que los grants de tabla: check_schema_reproducibility.js verifica que tras reproducir el repo el permiso exista realmente, y que anon siga sin el.",
+    "_doc_objetos_h11": "Objetos H11 presentes en el repositorio y todavía ausentes en producción. Su forma, permisos y aislamiento por usuario se verifican en check_h11_review_hardening_schema.js.",
+    "objetos_h11": [
+      {
+        "tipo": "table",
+        "objeto": "coi_alertas_revisadas",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202609100001_h11_online_only_review_hardening.sql",
+        "contrato": "PK compuesta (revisada_por, alerta_id); FK auth.users(id) ON DELETE CASCADE; RLS activa; sin acceso directo public/anon/authenticated"
+      },
+      {
+        "tipo": "function",
+        "objeto": "coi_registrar_auditoria_frontend(text,text,text,text,jsonb,jsonb,jsonb)",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202609100001_h11_online_only_review_hardening.sql",
+        "contrato": "SECURITY DEFINER; exige rol administrador; EXECUTE solo authenticated entre roles de aplicación"
+      },
+      {
+        "tipo": "function",
+        "objeto": "coi_marcar_alerta_revisada(text)",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202609100001_h11_online_only_review_hardening.sql",
+        "contrato": "SECURITY DEFINER; upsert por (revisada_por, alerta_id); identidad de usuario derivada de auth.uid()"
+      },
+      {
+        "tipo": "function",
+        "objeto": "coi_listar_alertas_revisadas()",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202609100001_h11_online_only_review_hardening.sql",
+        "contrato": "SECURITY DEFINER; devuelve únicamente filas con revisada_por = auth.uid()"
+      }
+    ]
   },
   "coi_ordenes": {
     "columnas": {

@@ -150,7 +150,7 @@ test('Centro de Alertas queda simple, conserva acciones y ordena las columnas cr
 
   await page.evaluate(() => document.querySelector('[data-v581-alert-revisada]')?.click());
   await expect.poll(() => page.evaluate(() =>
-    JSON.parse(localStorage.getItem('coi_alertas_revisadas_v581') || '[]').includes('ALERTA-UX-1')
+    JSON.parse(sessionStorage.getItem('coi_alertas_revisadas_v581') || '[]').includes('ALERTA-UX-1')
   )).toBe(true);
   await expect(view.locator('table.coi-alertas-table tbody tr')).toHaveCount(1);
   await expect(view.locator('table.coi-alertas-table tbody')).toContainText('Sin alertas visibles');

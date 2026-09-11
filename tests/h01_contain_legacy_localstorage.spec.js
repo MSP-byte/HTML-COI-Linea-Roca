@@ -3,13 +3,15 @@ const { test, expect } = require('@playwright/test');
 /*
   PR-H01 · COI-AUD-002
   El override V45 de loadImportedData() sustituye por completo a la funcion base y por eso
-  nunca evaluaba su guard Supabase-first: leia roca_coi_intervenciones_v10 y hacia
-  estaciones.push() sobre el catalogo ferroviario, contaminando el catalogo maestro, los
-  filtros y la Red Linea Roca.
+  nunca evaluaba su guard Supabase-first: una version legacy podia leer
+  roca_coi_intervenciones_v10 y hacer estaciones.push() sobre el catalogo ferroviario,
+  contaminando el catalogo maestro, los filtros y la Red Linea Roca.
 
-  Estos tests inyectan dos estaciones ficticias en esa clave ANTES del arranque y verifican
-  que, con Supabase como fuente de verdad, no llegan a ninguna estructura operativa.
-  La clave no se borra ni se migra: solo deja de consumirse.
+  H11 elimina todo acceso runtime a localStorage. Estos tests conservan un escenario hostil:
+  inyectan dos estaciones ficticias en una clave localStorage legacy ANTES del arranque y
+  verifican que la aplicacion online-only no las consume ni las incorpora al estado operativo.
+  Una vez arrancada la app, la prueba tampoco vuelve a leer localStorage: el limite H11 exige
+  que ese almacenamiento sea completamente opaco para el runtime.
 */
 
 const LS_IMPORTACION = 'roca_coi_intervenciones_v10';
@@ -49,15 +51,6 @@ const SONDA = () => {
     hotspotsConFicticia: hotspots
       .map((h) => fold(h.dataset.nombre))
       .filter((n) => n.includes('FICTICIA')),
-    // La clave legacy debe seguir intacta: se contiene, no se borra.
-    claveLegacy: (() => {
-      try {
-        const crudo = localStorage.getItem('roca_coi_intervenciones_v10');
-        if (crudo === null) return 'AUSENTE';
-        const raw = JSON.parse(crudo);
-        return Array.isArray(raw) ? `ENTRADAS:${raw.length}` : 'NO_ARRAY';
-      } catch (e) { return 'ILEGIBLE'; }
-    })(),
     sourceOfTruth: window.__COI_SUPABASE_SOURCE_OF_TRUTH__
   };
 };
@@ -67,6 +60,8 @@ async function arrancar(page, { contaminar }) {
   page.on('pageerror', (e) => errores.push(`pageerror: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errores.push(`console: ${m.text()}`); });
 
+  // La contaminacion se coloca antes de cargar index.html. H11 debe ser inmune a ella,
+  // pero el test no inspecciona localStorage despues del arranque.
   if (contaminar) {
     await page.addInitScript(
       ([clave, datos]) => localStorage.setItem(clave, JSON.stringify(datos)),
@@ -90,33 +85,21 @@ async function arrancar(page, { contaminar }) {
   return { sonda: await page.evaluate(SONDA), errores };
 }
 
-test('la ruta legacy no inyecta estaciones cuando Supabase es la fuente de verdad', async ({ page }) => {
+test('la clave localStorage legacy no inyecta estaciones en modo online-only', async ({ page }) => {
   const { sonda, errores } = await arrancar(page, { contaminar: true });
 
   expect(sonda.sourceOfTruth).toBe(true);
-
-  // No llegan al array ferroviario base, que es el objetivo directo del estaciones.push().
   expect(sonda.baseNombres).not.toContain(FICTICIA_A);
   expect(sonda.baseNombres).not.toContain(FICTICIA_B);
-
-  // No llegan al catalogo maestro.
   expect(sonda.maestroNombres).not.toContain(FICTICIA_A);
   expect(sonda.maestroNombres).not.toContain(FICTICIA_B);
-
-  // No llegan a ningun selector de la interfaz.
   expect(sonda.opcionesConFicticia).toEqual([]);
-
-  // No llegan al plano de la Red.
   expect(sonda.hotspotsConFicticia).toEqual([]);
-
-  // La clave legacy sigue existiendo con sus dos entradas: se contiene, no se borra.
-  expect(sonda.claveLegacy).toBe('ENTRADAS:2');
-
   expect(errores).toEqual([]);
 });
 
-test('el total canonico de estaciones no cambia ante la contaminacion', async ({ browser }) => {
-  test.slow(); // compara dos arranques completos de la aplicacion
+test('el total canonico de estaciones no cambia ante contaminacion localStorage legacy', async ({ browser }) => {
+  test.slow();
 
   const limpioPage = await browser.newPage();
   const { sonda: limpio, errores: erroresLimpio } = await arrancar(limpioPage, { contaminar: false });
@@ -126,25 +109,17 @@ test('el total canonico de estaciones no cambia ante la contaminacion', async ({
   const { sonda: sucio, errores: erroresSucio } = await arrancar(sucioPage, { contaminar: true });
   await sucioPage.close();
 
-  // Referencia: el arranque limpio tiene que haber leido un catalogo real.
   expect(limpio.canonicas).toBeGreaterThan(80);
-
-  // Ninguna estructura de estaciones se mueve.
   expect(sucio.canonicas).toBe(limpio.canonicas);
   expect(sucio.maestroTotal).toBe(limpio.maestroTotal);
   expect(sucio.baseEntradas).toBe(limpio.baseEntradas);
   expect(sucio.snapshotUnicas).toBe(limpio.snapshotUnicas);
   expect(sucio.hotspotsTotal).toBe(limpio.hotspotsTotal);
-
-  // El escenario limpio no trae residuos, y el contaminado conserva la clave intacta.
-  expect(limpio.claveLegacy).toBe('AUSENTE');
-  expect(sucio.claveLegacy).toBe('ENTRADAS:2');
-
   expect(erroresLimpio).toEqual([]);
   expect(erroresSucio).toEqual([]);
 });
 
-test('el guard replica la regla de la funcion base y no borra ni migra la clave', () => {
+test('el override H11 solo consulta sessionStorage y mantiene el guard Supabase-first', () => {
   const fs = require('fs');
   const path = require('path');
   const SOURCE = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
@@ -153,18 +128,18 @@ test('el guard replica la regla de la funcion base y no borra ni migra la clave'
   expect(inicio).toBeGreaterThan(-1);
   const override = SOURCE.slice(inicio, SOURCE.indexOf('const _filasOrdenesBaseV45', inicio));
 
-  // El guard existe y usa exactamente el mismo flag y la misma excepcion de demo que la base.
   expect(override).toContain('window.__COI_SUPABASE_SOURCE_OF_TRUTH__===true&&!demoExplicita');
   expect(override).toContain("sessionStorage.getItem('coi.demo.explicit.once')==='1'");
 
-  // El guard corta ANTES de leer la clave y antes de cualquier estaciones.push().
   const posGuard = override.indexOf('__COI_SUPABASE_SOURCE_OF_TRUTH__');
-  const posLectura = override.indexOf('localStorage.getItem(STORAGE_KEY)');
+  const posLecturaSesion = override.indexOf('sessionStorage.getItem(STORAGE_KEY)');
   const posPush = override.indexOf('estaciones.push');
-  expect(posGuard).toBeLessThan(posLectura);
+  expect(posLecturaSesion).toBeGreaterThan(-1);
+  expect(posGuard).toBeLessThan(posLecturaSesion);
   expect(posGuard).toBeLessThan(posPush);
 
-  // No se introduce borrado ni migracion de la clave legacy.
+  // El runtime completo queda libre de localStorage; la contaminacion hostil solo existe en la prueba.
+  expect(SOURCE).not.toContain('localStorage');
   expect(override).not.toContain('removeItem');
   expect(override).not.toContain('setItem');
 });
