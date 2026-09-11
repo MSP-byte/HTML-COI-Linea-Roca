@@ -1,5 +1,5 @@
 {
-  "_doc": "Snapshot de information_schema y pg_catalog de PRODUCCION, reconciliado con STAGING. Actualizado 2026-09-11 tras hardening de privacidad Supabase. nn=NOT NULL, def=fragmento esperado del default, gen=generated always stored, tipo=fragmento de data_type. fk=[columna, tabla_destino, accion ON DELETE].",
+  "_doc": "Snapshot de information_schema y pg_catalog de PRODUCCION, reconciliado con STAGING. Actualizado 2026-09-11 tras H12 avance manual de Obra y hardening de privacidad Supabase. nn=NOT NULL, def=fragmento esperado del default, gen=generated always stored, tipo=fragmento de data_type. fk=[columna, tabla_destino, accion ON DELETE].",
   "_divergencias_pendientes": {
     "_doc": "Desvios DELIBERADOS entre el repositorio y el snapshot productivo, introducidos por una migracion todavia NO aplicada a produccion ni a staging. check_schema_reproducibility.js espera el valor «repo» y deja constancia del valor «produccion» hasta que la migracion se aplique; entonces se actualiza el snapshot y la entrada pasa de «fk»/«unique» a «_resueltas».",
     "_doc_columnas": "Columnas que el repositorio agrega y produccion todavia no tiene. El bloque «columnas» de cada tabla mas abajo sigue siendo el snapshot productivo: aca se declara lo que el repositorio DEBE producir de mas. check_schema_reproducibility.js verifica que la columna exista realmente tras aplicar las migraciones, con el tipo y la nullability declarados, para que la divergencia quede probada y no solo escrita.",
@@ -212,6 +212,15 @@
         "migracion": "202608300002_h03_observaciones_delete_guard.sql",
         "aplicada_en_remoto": "2026-08-30",
         "nota": "H03 aplicado en STAGING y PRODUCCION. El snapshot productivo ya declara RESTRICT y la divergencia dejo de existir; la entrada se conserva como historia de la reconciliacion."
+      },
+      {
+        "tabla": "coi_ordenes",
+        "columna": "avance_obra_pct",
+        "produccion": "presente",
+        "repo": "presente",
+        "migracion": "202609110003_obra_avance_manual.sql",
+        "aplicada_en_remoto": "2026-09-11",
+        "nota": "H12 aplicado en STAGING y PRODUCCION. El snapshot productivo incluye numeric(5,2), NULL permitido y CHECK 0-100."
       }
     ],
     "_doc_policies": "Policies que el repositorio crea y produccion todavia no tiene. El bloque «policies» de cada tabla mas abajo sigue siendo el snapshot productivo. check_schema_reproducibility.js verifica que estas existan realmente al reproducir el repo (nombre, cmd, roles, permissive, using y with check) y las admite como el UNICO excedente permitido: cualquier otra policy no declarada sigue siendo un fallo.",
@@ -453,6 +462,11 @@
       "saldo_remanente": {
         "nn": false,
         "tipo": "numeric"
+      },
+      "avance_obra_pct": {
+        "tipo": "numeric",
+        "nn": false,
+        "gen": false
       }
     },
     "pk": [
@@ -476,7 +490,8 @@
       ]
     ],
     "check_columnas": [
-      "tipo"
+      "tipo",
+      "avance_obra_pct"
     ],
     "rls": true
   },
