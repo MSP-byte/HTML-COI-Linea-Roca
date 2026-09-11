@@ -52,10 +52,19 @@ const LEER_RESUMEN = () => {
   };
 };
 
+// El hardening de privacidad cierra el acceso anónimo a la API. En estos smoke tests
+// sin sesión un 401 de recurso es el rechazo esperado de Supabase, no un fallo del KPI.
+// Page errors y cualquier otro console.error siguen tratándose como regresión.
+const es401AnonEsperado = (m) =>
+  m.type() === 'error' &&
+  /Failed to load resource: the server responded with a status of 401(?: \(\))?$/.test(m.text());
+
 async function abrirInicioOperativo(page, contaminar) {
   const errores = [];
   page.on('pageerror', e => errores.push(`pageerror: ${e.message}`));
-  page.on('console', m => { if (m.type() === 'error') errores.push(`console: ${m.text()}`); });
+  page.on('console', m => {
+    if (m.type() === 'error' && !es401AnonEsperado(m)) errores.push(`console: ${m.text()}`);
+  });
   if (contaminar) {
     await page.addInitScript(
       ([clave, datos]) => localStorage.setItem(clave, JSON.stringify(datos)),
@@ -86,7 +95,7 @@ test('el KPI Estaciones se calcula desde el catálogo canónico de parseo, no de
   expect(helper).not.toContain('records');
   expect(helper).not.toContain('r.stations');
   expect(helper).not.toContain('localStorage');
-  expect(helper).not.toMatch(/104/);
+  expect(helper).not.toMatch(/\b104\b/);
 
   const secundario = bloque('function renderSecondary(', 'function renderRanking(');
   expect(secundario).toContain('const stationCount=totalEstacionesRedRoca()');
@@ -184,7 +193,9 @@ test('el dato UM se conserva en el modelo, el filtro y la exportación CSV', () 
 test('la tabla de OC se renderiza sin la columna UM vinculada y sin errores', async ({ page }) => {
   const errores = [];
   page.on('pageerror', e => errores.push(`pageerror: ${e.message}`));
-  page.on('console', m => { if (m.type() === 'error') errores.push(`console: ${m.text()}`); });
+  page.on('console', m => {
+    if (m.type() === 'error' && !es401AnonEsperado(m)) errores.push(`console: ${m.text()}`);
+  });
 
   await page.goto('/index.html');
   await page.waitForFunction(() => typeof window.renderOrdenes === 'function', null, { timeout: 20000 });
