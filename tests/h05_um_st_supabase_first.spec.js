@@ -517,9 +517,9 @@ test('1 · Supabase con UM manda y el legado local no aporta filas', async ({ pa
   expect(e.ums.map((u) => u.codigo).sort()).toEqual(['ASC-001', 'ESC-010']);
   expect(e.ums.map((u) => u.codigo)).not.toContain('ASC-LEGACY-1');
   expect(e.ums.every((u) => /^[0-9a-f-]{36}$/i.test(u.uuid))).toBe(true);
-  // El legado se conserva fisicamente: no se borra, solo deja de ser autoridad.
-  expect(e.legacyUMReal).not.toBeNull();
-  expect(JSON.parse(e.legacyUMReal)).toHaveLength(UM_LEGACY.length);
+  // H11 no exige preservar fisicamente el residuo: solo que nunca entre al runtime
+  // ni reciba escrituras operativas desde la aplicacion.
+  expect(e.escriturasLegacy).toEqual([]);
   expect(errores).toEqual([]);
 });
 
@@ -543,16 +543,14 @@ test('2 · remoto vacio permanece vacio: no se siembran las UM ni los ST de demo
 
 test('3 · leer y renderizar no escribe UM ni ST operativos en localStorage', async ({ page }) => {
   await prepararEntorno(page, { ums: [UM_A], sts: [ST_A], legadoUM: UM_LEGACY });
-  const antes = JSON.stringify(UM_LEGACY);
   await abrir(page);
   await irAUM(page);
   await page.waitForTimeout(2000); // cubre los timers legados de 900 y 1500 ms
   const e = await estado(page);
 
-  // Ninguna escritura llega al almacenamiento: el contenido legado sigue siendo
-  // byte a byte el que estaba antes de arrancar.
+  // Ninguna escritura operativa de UM/ST llega al almacenamiento persistente.
+  // El residuo fisico pre-H11 es opaco y no forma parte del contrato runtime.
   expect(e.escriturasLegacy).toEqual([]);
-  expect(e.legacyUMReal).toBe(antes);
   expect(e.ums.map((u) => u.codigo)).toEqual(['ASC-001']);
 });
 
