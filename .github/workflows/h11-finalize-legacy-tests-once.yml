@@ -1,0 +1,43 @@
+name: H11 finalize legacy tests once
+
+on:
+  push:
+    branches:
+      - fix/h11-online-only-no-localstorage
+    paths:
+      - .github/workflows/h11-finalize-legacy-tests-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/h11-online-only-no-localstorage
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Align retired H07/Timeline contracts with H11
+        run: python .github/scripts/h11_finalize_legacy_tests.py
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install chromium
+      - name: Run focused H11 closure regressions
+        run: npx playwright test tests/h07_cierre_localstorage.spec.js tests/timeline_supabase_first.spec.js --project=chromium-desktop --workers=1
+      - name: Commit final test alignment and remove one-shot helpers
+        if: success()
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/h07_cierre_localstorage.spec.js tests/timeline_supabase_first.spec.js
+          git rm .github/scripts/h11_finalize_legacy_tests.py .github/workflows/h11-finalize-legacy-tests-once.yml
+          git commit -m "test: retire browser persistence contracts superseded by H11"
+          git push origin HEAD:fix/h11-online-only-no-localstorage
