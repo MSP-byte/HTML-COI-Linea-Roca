@@ -47,12 +47,12 @@ must(/v_role\s+is\s+distinct\s+from\s+'administrador'/i,
 must(/where\s+r\.revisada_por\s*=\s*auth\.uid\(\)/i,
   'el listado debe estar aislado por el usuario actual', list);
 
-const pendingObjects = fixture?._divergencias_pendientes?.objetos_h11;
-if (!Array.isArray(pendingObjects)) {
-  console.error('❌ H11 schema contract: falta objetos_h11 en production_schema_contract.json');
+const h11Objects = fixture?._divergencias_pendientes?.objetos_h11;
+if (!Array.isArray(h11Objects)) {
+  console.error('❌ H11 schema contract: falta el registro objetos_h11 en production_schema_contract.json');
   process.exit(1);
 }
-const names = new Set(pendingObjects.map((x) => x.objeto));
+const names = new Set(h11Objects.map((x) => x.objeto));
 for (const expected of [
   'coi_alertas_revisadas',
   'coi_registrar_auditoria_frontend(text,text,text,text,jsonb,jsonb,jsonb)',
@@ -60,13 +60,13 @@ for (const expected of [
   'coi_listar_alertas_revisadas()'
 ]) {
   if (!names.has(expected)) {
-    console.error(`❌ H11 schema contract: falta divergencia pendiente ${expected}`);
+    console.error(`❌ H11 schema contract: falta registro reconciliado ${expected}`);
     process.exit(1);
   }
 }
-if (pendingObjects.some((x) => x.migracion !== migrationName || x.repo !== 'presente' || x.produccion !== 'ausente')) {
-  console.error('❌ H11 schema contract: metadatos de divergencia pendientes inconsistentes');
+if (h11Objects.some((x) => x.migracion !== migrationName || x.repo !== 'presente' || x.produccion !== 'presente' || x.aplicada_en_remoto !== '2026-09-11')) {
+  console.error('❌ H11 schema contract: metadatos de reconciliación remota inconsistentes');
   process.exit(1);
 }
 
-console.log('✅ H11 review hardening schema contract OK');
+console.log('✅ H11 review hardening schema contract OK · STAGING/PROD reconciliados');
