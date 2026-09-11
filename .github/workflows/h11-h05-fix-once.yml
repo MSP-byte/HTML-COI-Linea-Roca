@@ -27,14 +27,19 @@ jobs:
           s = p.read_text(encoding='utf-8')
           old1 = """  // El legado se conserva fisicamente: no se borra, solo deja de ser autoridad.\n  expect(e.legacyUMReal).not.toBeNull();\n  expect(JSON.parse(e.legacyUMReal)).toHaveLength(UM_LEGACY.length);"""
           new1 = """  // H11 no exige preservar fisicamente el residuo: solo que nunca entre al runtime\n  // ni reciba escrituras operativas desde la aplicacion.\n  expect(e.escriturasLegacy).toEqual([]);"""
-          old2 = """  const antes = JSON.stringify(UM_LEGACY);\n  await page.waitForFunction(() => window.__COI_UM_H05__?.isReady?.());"""
-          new2 = """  await page.waitForFunction(() => window.__COI_UM_H05__?.isReady?.());"""
-          old3 = """  // Ninguna escritura llega al almacenamiento: el contenido legado sigue siendo\n  // byte a byte el que estaba antes de arrancar.\n  expect(e.escriturasLegacy).toEqual([]);\n  expect(e.legacyUMReal).toBe(antes);"""
-          new3 = """  // Ninguna escritura operativa de UM/ST llega al almacenamiento persistente.\n  // El residuo fisico pre-H11 es opaco y no forma parte del contrato runtime.\n  expect(e.escriturasLegacy).toEqual([]);"""
-          for label, old, new in [('assertion 1', old1, new1), ('unused baseline', old2, new2), ('assertion 3', old3, new3)]:
-              if old not in s:
-                  raise SystemExit(f'No se encontro bloque esperado: {label}')
-              s = s.replace(old, new, 1)
+          if old1 not in s:
+              raise SystemExit('No se encontro la asercion H05 #1 esperada')
+          s = s.replace(old1, new1, 1)
+          s = s.replace("  const antes = JSON.stringify(UM_LEGACY);\n", "", 1)
+          old_expect = "  expect(e.legacyUMReal).toBe(antes);\n"
+          if old_expect not in s:
+              raise SystemExit('No se encontro la asercion H05 #3 esperada')
+          s = s.replace(old_expect, "", 1)
+          s = s.replace(
+              "  // Ninguna escritura llega al almacenamiento: el contenido legado sigue siendo\n  // byte a byte el que estaba antes de arrancar.\n",
+              "  // Ninguna escritura operativa de UM/ST llega al almacenamiento persistente.\n  // El residuo fisico pre-H11 es opaco y no forma parte del contrato runtime.\n",
+              1,
+          )
           p.write_text(s, encoding='utf-8')
           PY
           git config user.name "github-actions[bot]"
