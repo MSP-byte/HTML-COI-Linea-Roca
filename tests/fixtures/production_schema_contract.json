@@ -1,5 +1,5 @@
 {
-  "_doc": "Snapshot de information_schema y pg_catalog tomado en lectura sobre produccion (ooepgbzqlpjrtpaoqawc), verificado identico en staging (brmrroikctfbtzwfewan). Contrato autoritativo de las 10 tablas que el baseline 202608090000_core_schema_baseline.sql debe reproducir. nn=NOT NULL, def=fragmento esperado del default, gen=generated always stored, tipo=fragmento de data_type. fk=[columna, tabla_destino, accion ON DELETE]. policies solo se declaran para las cuatro tablas que ninguna migracion posterior gobierna; las demas las administra coi_apply_optional_role_rls.",
+  "_doc": "Snapshot de information_schema y pg_catalog de PRODUCCION, reconciliado con STAGING. Actualizado 2026-09-11 tras hardening de privacidad Supabase. nn=NOT NULL, def=fragmento esperado del default, gen=generated always stored, tipo=fragmento de data_type. fk=[columna, tabla_destino, accion ON DELETE].",
   "_divergencias_pendientes": {
     "_doc": "Desvios DELIBERADOS entre el repositorio y el snapshot productivo, introducidos por una migracion todavia NO aplicada a produccion ni a staging. check_schema_reproducibility.js espera el valor «repo» y deja constancia del valor «produccion» hasta que la migracion se aplique; entonces se actualiza el snapshot y la entrada pasa de «fk»/«unique» a «_resueltas».",
     "_doc_columnas": "Columnas que el repositorio agrega y produccion todavia no tiene. El bloque «columnas» de cada tabla mas abajo sigue siendo el snapshot productivo: aca se declara lo que el repositorio DEBE producir de mas. check_schema_reproducibility.js verifica que la columna exista realmente tras aplicar las migraciones, con el tipo y la nullability declarados, para que la divergencia quede probada y no solo escrita.",
@@ -217,39 +217,43 @@
     "_doc_policies": "Policies que el repositorio crea y produccion todavia no tiene. El bloque «policies» de cada tabla mas abajo sigue siendo el snapshot productivo. check_schema_reproducibility.js verifica que estas existan realmente al reproducir el repo (nombre, cmd, roles, permissive, using y with check) y las admite como el UNICO excedente permitido: cualquier otra policy no declarada sigue siendo un fallo.",
     "_doc_grants": "Grants que el repositorio endurece y produccion todavia no. En produccion anon conserva privilegios amplios sobre ambas tablas y authenticated tiene mas de lo necesario. check_schema_reproducibility.js verifica que tras reproducir el repo los grants sean exactamente los declarados en «repo».",
     "_doc_grants_funciones": "Grants sobre FUNCIONES que el repositorio concede y produccion todavia no. Mismo criterio que los grants de tabla: check_schema_reproducibility.js verifica que tras reproducir el repo el permiso exista realmente, y que anon siga sin el.",
-    "_doc_objetos_h11": "Objetos H11 presentes en el repositorio y todavía ausentes en producción. Su forma, permisos y aislamiento por usuario se verifican en check_h11_review_hardening_schema.js.",
+    "_doc_objetos_h11": "Objetos H11 ya aplicados en STAGING y PRODUCCION el 2026-09-11. Se conserva el registro bajo objetos_h11 por compatibilidad del contrato, pero produccion y repo deben figurar ambos como presente.",
     "objetos_h11": [
       {
         "tipo": "table",
         "objeto": "coi_alertas_revisadas",
-        "produccion": "ausente",
+        "produccion": "presente",
         "repo": "presente",
         "migracion": "202609100001_h11_online_only_review_hardening.sql",
-        "contrato": "PK compuesta (revisada_por, alerta_id); FK auth.users(id) ON DELETE CASCADE; RLS activa; sin acceso directo public/anon/authenticated"
+        "contrato": "PK compuesta (revisada_por, alerta_id); FK auth.users(id) ON DELETE CASCADE; RLS activa; sin acceso directo public/anon/authenticated",
+        "aplicada_en_remoto": "2026-09-11"
       },
       {
         "tipo": "function",
         "objeto": "coi_registrar_auditoria_frontend(text,text,text,text,jsonb,jsonb,jsonb)",
-        "produccion": "ausente",
+        "produccion": "presente",
         "repo": "presente",
         "migracion": "202609100001_h11_online_only_review_hardening.sql",
-        "contrato": "SECURITY DEFINER; exige rol administrador; EXECUTE solo authenticated entre roles de aplicación"
+        "contrato": "SECURITY DEFINER; exige rol administrador; EXECUTE solo authenticated entre roles de aplicación",
+        "aplicada_en_remoto": "2026-09-11"
       },
       {
         "tipo": "function",
         "objeto": "coi_marcar_alerta_revisada(text)",
-        "produccion": "ausente",
+        "produccion": "presente",
         "repo": "presente",
         "migracion": "202609100001_h11_online_only_review_hardening.sql",
-        "contrato": "SECURITY DEFINER; upsert por (revisada_por, alerta_id); identidad de usuario derivada de auth.uid()"
+        "contrato": "SECURITY DEFINER; upsert por (revisada_por, alerta_id); identidad de usuario derivada de auth.uid()",
+        "aplicada_en_remoto": "2026-09-11"
       },
       {
         "tipo": "function",
         "objeto": "coi_listar_alertas_revisadas()",
-        "produccion": "ausente",
+        "produccion": "presente",
         "repo": "presente",
         "migracion": "202609100001_h11_online_only_review_hardening.sql",
-        "contrato": "SECURITY DEFINER; devuelve únicamente filas con revisada_por = auth.uid()"
+        "contrato": "SECURITY DEFINER; devuelve únicamente filas con revisada_por = auth.uid()",
+        "aplicada_en_remoto": "2026-09-11"
       }
     ]
   },
@@ -1046,6 +1050,36 @@
         "permissive": true,
         "using": "true",
         "with_check": "auth.uid() IS NOT NULL"
+      },
+      {
+        "nombre": "coi_alertas_select_guard_privacy",
+        "cmd": "SELECT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": "(coi_current_role() IS NOT NULL)",
+        "with_check": null
+      },
+      {
+        "nombre": "coi_alertas_insert_guard_privacy",
+        "cmd": "INSERT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": null,
+        "with_check": "(coi_current_role() = ANY (ARRAY['administrador'::text, 'jefatura'::text, 'editor'::text, 'planificacion'::text, 'control'::text, 'supervisor'::text]))"
+      },
+      {
+        "nombre": "coi_alertas_update_guard_privacy",
+        "cmd": "UPDATE",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": "(coi_current_role() = ANY (ARRAY['administrador'::text, 'jefatura'::text, 'editor'::text, 'planificacion'::text, 'control'::text, 'supervisor'::text]))",
+        "with_check": "(coi_current_role() = ANY (ARRAY['administrador'::text, 'jefatura'::text, 'editor'::text, 'planificacion'::text, 'control'::text, 'supervisor'::text]))"
       }
     ]
   },
@@ -1147,6 +1181,36 @@
         "permissive": true,
         "using": "true",
         "with_check": "auth.uid() IS NOT NULL"
+      },
+      {
+        "nombre": "coi_observaciones_select_guard_privacy",
+        "cmd": "SELECT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": "(coi_current_role() IS NOT NULL)",
+        "with_check": null
+      },
+      {
+        "nombre": "coi_observaciones_insert_guard_privacy",
+        "cmd": "INSERT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": null,
+        "with_check": "(coi_current_role() = ANY (ARRAY['administrador'::text, 'jefatura'::text, 'editor'::text, 'planificacion'::text, 'control'::text, 'supervisor'::text, 'inspector'::text]))"
+      },
+      {
+        "nombre": "coi_observaciones_update_guard_privacy",
+        "cmd": "UPDATE",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": "(coi_current_role() = ANY (ARRAY['administrador'::text, 'jefatura'::text, 'editor'::text, 'planificacion'::text, 'control'::text, 'supervisor'::text, 'inspector'::text]))",
+        "with_check": "(coi_current_role() = ANY (ARRAY['administrador'::text, 'jefatura'::text, 'editor'::text, 'planificacion'::text, 'control'::text, 'supervisor'::text, 'inspector'::text]))"
       }
     ]
   },
