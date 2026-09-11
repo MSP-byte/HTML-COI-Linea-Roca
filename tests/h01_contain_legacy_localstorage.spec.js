@@ -55,10 +55,19 @@ const SONDA = () => {
   };
 };
 
+// Con el hardening de privacidad, una pagina sin sesion puede recibir 401 de la API
+// protegida de Supabase durante el arranque. Ese rechazo es esperado y no es un error
+// JavaScript de la funcionalidad que estos tests validan. Cualquier otro error sigue fallando.
+const es401AnonEsperado = (m) =>
+  m.type() === 'error' &&
+  /Failed to load resource: the server responded with a status of 401(?: \(\))?$/.test(m.text());
+
 async function arrancar(page, { contaminar }) {
   const errores = [];
   page.on('pageerror', (e) => errores.push(`pageerror: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error') errores.push(`console: ${m.text()}`); });
+  page.on('console', (m) => {
+    if (m.type() === 'error' && !es401AnonEsperado(m)) errores.push(`console: ${m.text()}`);
+  });
 
   // La contaminacion se coloca antes de cargar index.html. H11 debe ser inmune a ella,
   // pero el test no inspecciona localStorage despues del arranque.
