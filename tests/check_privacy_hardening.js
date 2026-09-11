@@ -4,10 +4,12 @@ const fs = require('fs');
 const path = require('path');
 
 const privacyMigration = path.join(__dirname, '..', 'supabase', 'migrations', '202609110001_coi_privacy_defense_in_depth.sql');
-const helperMigration = path.join(__dirname, '..', 'supabase', 'migrations', '202609110002_coi_privacy_restore_assert_role_execute.sql');
+const roleHelperMigration = path.join(__dirname, '..', 'supabase', 'migrations', '202609110002_coi_privacy_restore_assert_role_execute.sql');
+const triggerHelperMigration = path.join(__dirname, '..', 'supabase', 'migrations', '202609110003_coi_privacy_restore_trigger_helper_execute.sql');
 const fixturePath = path.join(__dirname, 'fixtures', 'production_schema_contract.json');
 const sql = fs.readFileSync(privacyMigration, 'utf8');
-const helperSql = fs.readFileSync(helperMigration, 'utf8');
+const roleHelperSql = fs.readFileSync(roleHelperMigration, 'utf8');
+const triggerHelperSql = fs.readFileSync(triggerHelperMigration, 'utf8');
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 
 function check(ok, label) {
@@ -52,14 +54,12 @@ must(/coi_marcar_alerta_revisada[\s\S]*?COI_ADMIN_REQUIRED/i,
 must(/coi_listar_alertas_revisadas[\s\S]*?COI_ADMIN_REQUIRED/i,
   'listar alertas revisadas debe mantener guard de administrador');
 
-// coi_assert_role es helper server-side requerido por RPC operativas. Debe ser
-// ejecutable por authenticated, pero nunca por anon/public.
+// Helpers internos necesarios por RPC/triggers: authenticated necesita EXECUTE
+// para completar la lógica server-side; anon/public permanecen revocados.
 must(/to_regprocedure\('public\.coi_assert_role\(text\[\]\)'\)[\s\S]*?revoke\s+all\s+on\s+function\s+public\.coi_assert_role\(text\[\]\)\s+from\s+public\s*,\s*anon[\s\S]*?grant\s+execute\s+on\s+function\s+public\.coi_assert_role\(text\[\]\)\s+to\s+authenticated/i,
-  'coi_assert_role debe conservar EXECUTE para authenticated y seguir cerrado a anon/public', helperSql);
-
-// Este helper de auditoría de trigger no forma parte de la API cliente.
-must(/to_regprocedure\('public\.coi_record_direct_order_update\(jsonb,jsonb\)'\)[\s\S]*?revoke\s+all\s+on\s+function\s+public\.coi_record_direct_order_update\(jsonb,jsonb\)\s+from\s+public\s*,\s*anon\s*,\s*authenticated/i,
-  'coi_record_direct_order_update debe quedar fuera de la superficie RPC directa');
+  'coi_assert_role debe conservar EXECUTE para authenticated y seguir cerrado a anon/public', roleHelperSql);
+must(/to_regprocedure\('public\.coi_record_direct_order_update\(jsonb,jsonb\)'\)[\s\S]*?revoke\s+all\s+on\s+function\s+public\.coi_record_direct_order_update\(jsonb,jsonb\)\s+from\s+public\s*,\s*anon[\s\S]*?grant\s+execute\s+on\s+function\s+public\.coi_record_direct_order_update\(jsonb,jsonb\)\s+to\s+authenticated/i,
+  'coi_record_direct_order_update debe conservar EXECUTE para el trigger y seguir cerrado a anon/public', triggerHelperSql);
 
 const expectedPolicies = {
   coi_alertas: [
@@ -82,4 +82,4 @@ const h11 = fixture?._divergencias_pendientes?.objetos_h11 || [];
 check(h11.length >= 4 && h11.every((x) => x.produccion === 'presente' && x.repo === 'presente'),
   'el contrato debe reflejar H11 ya aplicado en STAGING/PROD');
 
-console.log('✅ Privacy hardening contract OK · anon cerrado, RLS restrictiva y helper runtime reconciliado');
+console.log('✅ Privacy hardening contract OK · anon cerrado, RLS restrictiva y helpers runtime reconciliados');
