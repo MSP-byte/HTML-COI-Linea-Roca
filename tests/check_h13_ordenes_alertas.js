@@ -18,6 +18,9 @@ assert(html.includes('acta_medicion_nro'), 'falta campo de número de Acta MED')
 assert(html.includes("q('#btnCentroAlertas')"), 'falta binding directo del Centro de alertas');
 assert(html.includes("window.mostrarVista('vistaCentroAlertas')"), 'falta navegación al Centro de alertas');
 assert(html.includes("['SECTOR','ESTADO COI'].includes(fold(h.textContent))"), 'observer H13 debe reaccionar sólo al rerender legacy y no a sus propias celdas');
+assert(!html.includes('x.onclick='), 'H13 no debe introducir manejadores onclick por propiedad');
+assert(html.includes("x.addEventListener('click',x._h13RetryClick)"), 'retry de Acta debe usar addEventListener');
+assert(html.includes("x.removeEventListener('click',x._h13RetryClick)"), 'retry de Acta debe limpiar el listener al resolver');
 
-// Cierre H13: protege hidratación autoritativa, asociación estable y lectura paginada de Actas.
+// Cierre H13: protege hidratación autoritativa, asociación estable, lectura paginada y retry sin onclick.
 console.log('H13 ordenes/alertas static regression: OK');
