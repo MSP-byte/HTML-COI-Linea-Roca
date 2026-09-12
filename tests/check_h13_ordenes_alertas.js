@@ -19,4 +19,5 @@ assert(html.includes("q('#btnCentroAlertas')"), 'falta binding directo del Centr
 assert(html.includes("window.mostrarVista('vistaCentroAlertas')"), 'falta navegación al Centro de alertas');
 assert(html.includes("['SECTOR','ESTADO COI'].includes(fold(h.textContent))"), 'observer H13 debe reaccionar sólo al rerender legacy y no a sus propias celdas');
 
+// Cierre H13: protege hidratación autoritativa, asociación estable y lectura paginada de Actas.
 console.log('H13 ordenes/alertas static regression: OK');
