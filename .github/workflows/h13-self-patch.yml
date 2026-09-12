@@ -1,0 +1,141 @@
+name: H13 surgical patch
+on:
+  push:
+    branches:
+      - fix/h13-ordenes-avance-acta-alertas
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/h13-ordenes-avance-acta-alertas
+          fetch-depth: 0
+      - name: Patch index.html
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          marker='coi-h13-ordenes-avance-acta-alertas'
+          if marker in s:
+              raise SystemExit('H13 already present')
+          patch=r'''
+<script id="coi-h13-ordenes-avance-acta-alertas">
+(function(){
+  'use strict';
+  const H13='H13-ORDENES-AVANCE-ACTA-ALERTAS';
+  const q=(s,c=document)=>c.querySelector(s);
+  const qa=(s,c=document)=>Array.from(c.querySelectorAll(s));
+  const text=v=>String(v??'').trim();
+  const fold=v=>text(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  const esc=v=>text(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const client=()=>{try{return typeof window.getSupabaseClient==='function'?window.getSupabaseClient():(window.__COI_SUPABASE_CLIENT__||null);}catch(e){return null;}};
+  const isAdmin=()=>{try{return typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60();}catch(e){return false;}};
+  const itemOf=row=>row?.item||row||{};
+  const ocOf=row=>text(row?.oc||row?.nro_oc||itemOf(row).numeroOC||itemOf(row).oc||itemOf(row).nro_oc||itemOf(row)._supabaseRaw?.nro_oc);
+  const typeOf=row=>text(row?.tipo||itemOf(row).tipo);
+  const progressOf=row=>{
+    if(fold(typeOf(row))!=='OBRA')return '—';
+    const i=itemOf(row), raw=i?._supabaseRaw||row?._supabaseRaw||{};
+    const value=raw.avance_obra_pct ?? i.avance_obra_pct ?? row?.avance_obra_pct;
+    if(value===null||value===undefined||text(value)==='')return '—';
+    const n=Number(value); if(!Number.isFinite(n))return '—';
+    return new Intl.NumberFormat('es-AR',{minimumFractionDigits:0,maximumFractionDigits:2}).format(n)+'%';
+  };
+  let seq=0;
+  async function fillLastActs(){
+    const my=++seq;
+    const cells=qa('#vistaOrdenes #ordenesTbody [data-h13-acta-oc]');
+    const ocs=[...new Set(cells.map(c=>text(c.dataset.h13ActaOc)).filter(Boolean))];
+    if(!ocs.length)return;
+    try{if(window.__coiSupabaseReady)await window.__coiSupabaseReady;}catch(e){}
+    const c=client();
+    if(!c){cells.forEach(el=>el.textContent='—');return;}
+    try{
+      const res=await c.from('coi_certificaciones').select('nro_oc,acta_medicion_nro,fecha_inicio,fecha_fin,fecha_actualizacion').in('nro_oc',ocs).limit(5000);
+      if(res.error)throw res.error;
+      if(my!==seq)return;
+      const best=new Map();
+      const stamp=r=>text(r.fecha_fin||r.fecha_inicio||r.fecha_actualizacion);
+      (res.data||[]).filter(r=>text(r.acta_medicion_nro)).forEach(r=>{
+        const oc=text(r.nro_oc), prev=best.get(oc);
+        if(!prev||stamp(r)>stamp(prev)||(stamp(r)===stamp(prev)&&Number(r.acta_medicion_nro||0)>Number(prev.acta_medicion_nro||0)))best.set(oc,r);
+      });
+      cells.forEach(el=>{const r=best.get(text(el.dataset.h13ActaOc));el.textContent=r?text(r.acta_medicion_nro):'—';el.title=r?'Última Acta de Medición registrada en Supabase':'Sin Acta de Medición registrada';});
+    }catch(err){
+      console.warn('COI H13: no se pudo resolver la última Acta de Medición.',err);
+      if(my===seq)cells.forEach(el=>{el.textContent='—';el.title='No se pudo consultar la última Acta de Medición';});
+    }
+  }
+  function enhanceOrders(){
+    const table=q('#vistaOrdenes table.ordenes-table');
+    const tbody=q('#vistaOrdenes #ordenesTbody');
+    if(!table||!tbody)return;
+    const heads=qa('thead th',table);
+    const sectorIndex=heads.findIndex(th=>fold(th.textContent)==='SECTOR');
+    const estadoIndex=heads.findIndex(th=>fold(th.textContent)==='ESTADO COI');
+    if(sectorIndex>=0){heads[sectorIndex].textContent='% AVANCE';heads[sectorIndex].classList.remove('col-sector');heads[sectorIndex].classList.add('col-avance');}
+    if(estadoIndex>=0){heads[estadoIndex].textContent='ULT. ACTA MED Nº';heads[estadoIndex].classList.remove('col-estado');heads[estadoIndex].classList.add('col-acta-med');}
+    const rows=[];
+    try{if(typeof window.obtenerOrdenesFiltradas==='function')rows.push(...(window.obtenerOrdenesFiltradas()||[]));else if(typeof window.todasLasOC==='function')rows.push(...(window.todasLasOC()||[]));}catch(e){}
+    const byKey=new Map();
+    rows.forEach(r=>{const i=itemOf(r);[r?.idObra,r?.idServicio,r?.idSeleccion,i?.idObra,i?.idServicio,i?.idOC,ocOf(r)].filter(Boolean).forEach(k=>byKey.set(text(k),r));});
+    qa('tr[data-open-oc]',tbody).forEach(tr=>{
+      const cells=Array.from(tr.cells); const key=text(tr.dataset.openOc);
+      const r=byKey.get(key)||rows.find(x=>ocOf(x)===key)||null;
+      if(sectorIndex>=0&&cells[sectorIndex]){cells[sectorIndex].className='col-avance';cells[sectorIndex].textContent=progressOf(r);cells[sectorIndex].title=fold(typeOf(r))==='OBRA'?'Avance manual de obra':'No aplica a Servicios';}
+      if(estadoIndex>=0&&cells[estadoIndex]){const oc=ocOf(r);cells[estadoIndex].className='col-acta-med';cells[estadoIndex].dataset.h13ActaOc=oc;cells[estadoIndex].textContent=oc?'…':'—';}
+    });
+    fillLastActs();
+  }
+  let ordersTimer=0;
+  const scheduleOrders=()=>{clearTimeout(ordersTimer);ordersTimer=setTimeout(enhanceOrders,40);};
+  function openAlerts(ev){
+    const btn=ev.currentTarget;
+    if(!isAdmin())return;
+    ev.preventDefault();ev.stopImmediatePropagation();
+    try{
+      if(typeof window.mostrarVista==='function')window.mostrarVista('vistaCentroAlertas');
+      else{
+        qa('.view').forEach(v=>v.classList.remove('active'));
+        q('#vistaCentroAlertas')?.classList.add('active');
+      }
+      qa('#moduleNav button,.module-nav button').forEach(b=>b.classList.toggle('active',b.id==='btnCentroAlertas'));
+      if(typeof window.renderCentroAlertas==='function')window.renderCentroAlertas();
+      else if(typeof window.renderCentroAlertasFix==='function')window.renderCentroAlertasFix();
+    }catch(err){console.error('COI H13 Centro de Alertas',err);}
+  }
+  function bindAlerts(){
+    const btn=q('#btnCentroAlertas');
+    if(!btn||btn.dataset.h13AlertsBound==='1')return;
+    btn.dataset.h13AlertsBound='1';
+    btn.addEventListener('click',openAlerts,true);
+  }
+  function init(){
+    bindAlerts();scheduleOrders();
+    const root=q('#vistaOrdenes');
+    if(root)new MutationObserver(scheduleOrders).observe(root,{subtree:true,childList:true});
+    new MutationObserver(bindAlerts).observe(document.body,{subtree:true,childList:true});
+    document.addEventListener('click',ev=>{if(ev.target instanceof Element&&ev.target.closest('#btnOrdenes,[data-v2-nav="btnOrdenes"]'))setTimeout(scheduleOrders,80);},true);
+    window.COI_H13={version:H13,enhanceOrders,fillLastActs,bindAlerts};
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();
+</script>
+'''
+          if '</body>' not in s:
+              raise SystemExit('Missing </body>')
+          s=s.replace('</body>',patch+'\n</body>',1)
+          p.write_text(s,encoding='utf-8')
+      - name: Remove temporary workflow and commit patch
+        run: |
+          rm .github/workflows/h13-self-patch.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html .github/workflows/h13-self-patch.yml
+          git commit -m "fix: show obra progress, latest acta and restore alerts navigation"
+          git push origin HEAD:fix/h13-ordenes-avance-acta-alertas
