@@ -1,0 +1,46 @@
+from pathlib import Path
+
+p = Path('index.html')
+s = p.read_text(encoding='utf-8')
+
+def once(old, new, label):
+    global s
+    if old not in s:
+        raise SystemExit(f'missing anchor: {label}')
+    s = s.replace(old, new, 1)
+
+once("'control_terceros_hasta','control_terceros_estado'];", "'control_terceros_hasta','control_terceros_estado','avance_obra_pct'];", 'META_FIELDS')
+once("controlTercerosEstado:r.control_terceros_estado||''}}", "controlTercerosEstado:r.control_terceros_estado||'',avance_obra_pct:r.avance_obra_pct??null}}", 'mapRowToItem')
+once("const itemOf=r=>r?.item||r||{},ocOf=r=>text(r?.oc||r?.nro_oc||itemOf(r).numeroOC||itemOf(r).oc||itemOf(r).nro_oc||itemOf(r)._supabaseRaw?.nro_oc),typeOf=r=>text(r?.tipo||itemOf(r).tipo);", "const itemOf=r=>r?.item||r||{},ocOf=r=>text(r?.oc||r?.nro_oc||itemOf(r).numeroOC||itemOf(r).oc||itemOf(r).nro_oc||itemOf(r)._supabaseRaw?.nro_oc),idOf=r=>text(r?.supabaseId||r?.id||itemOf(r).supabaseId||itemOf(r)._supabaseRaw?.id),typeOf=r=>text(r?.tipo||itemOf(r).tipo);", 'H13 helpers')
+start = s.index('  async function fillLastActs()')
+end = s.index('  function enhanceOrders()', start)
+repl = '''  async function fillLastActs(){
+    const my=++seq,cells=qa('#vistaOrdenes #ordenesTbody [data-h13-acta-oc]');if(!cells.length)return;
+    try{if(window.__coiSupabaseReady)await window.__coiSupabaseReady;}catch(e){}const c=client();
+    const fail=msg=>{if(my!==seq)return;cells.forEach(x=>{x.textContent='⚠';x.title=msg+' · Click para reintentar';x.tabIndex=0;x.setAttribute('role','button');x.onclick=()=>fillLastActs();x.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fillLastActs();}};});};
+    if(!c){fail('Consulta de Actas no disponible');return;}try{
+      const ids=[...new Set(cells.map(x=>text(x.dataset.h13ActaId)).filter(Boolean))],legacy=[...new Set(cells.filter(x=>!text(x.dataset.h13ActaId)).map(x=>text(x.dataset.h13ActaOc)).filter(Boolean))],rows=[],pageSize=1000;
+      async function pageBy(field,values){for(let k=0;k<values.length;k+=100){const batch=values.slice(k,k+100);for(let from=0;;from+=pageSize){const res=await c.from('coi_certificaciones').select('orden_id,nro_oc,acta_medicion_nro,fecha_inicio,fecha_fin,fecha_actualizacion').in(field,batch).order('fecha_fin',{ascending:false,nullsFirst:false}).order('fecha_actualizacion',{ascending:false,nullsFirst:false}).range(from,from+pageSize-1);if(res.error)throw res.error;rows.push(...(res.data||[]));if((res.data||[]).length<pageSize)break;}}}
+      if(ids.length)await pageBy('orden_id',ids);if(legacy.length)await pageBy('nro_oc',legacy);if(my!==seq)return;
+      const bestId=new Map(),bestOc=new Map(),stamp=r=>text(r.fecha_fin||r.fecha_inicio||r.fecha_actualizacion),better=(m,k,r)=>{if(!k||!text(r.acta_medicion_nro))return;const p=m.get(k);if(!p||stamp(r)>stamp(p)||(stamp(r)===stamp(p)&&Number(r.acta_medicion_nro||0)>Number(p.acta_medicion_nro||0)))m.set(k,r);};
+      rows.forEach(r=>{better(bestId,text(r.orden_id),r);better(bestOc,text(r.nro_oc),r);});cells.forEach(x=>{const id=text(x.dataset.h13ActaId),oc=text(x.dataset.h13ActaOc),r=(id&&bestId.get(id))||bestOc.get(oc);x.onclick=null;x.onkeydown=null;x.removeAttribute('role');x.removeAttribute('tabindex');x.textContent=r?text(r.acta_medicion_nro):'—';x.title=r?'Última Acta de Medición registrada en Supabase':'Sin Acta de Medición registrada';});
+    }catch(err){console.warn('COI H13 Actas',err);fail('No se pudo consultar la última Acta de Medición');}}
+'''
+s = s[:start] + repl + s[end:]
+once("if(ei>=0&&cs[ei]){const oc=ocOf(r);cs[ei].className='col-acta-med';cs[ei].dataset.h13ActaOc=oc;cs[ei].textContent=oc?'…':'—';}", "if(ei>=0&&cs[ei]){const oc=ocOf(r),id=idOf(r);cs[ei].className='col-acta-med';cs[ei].dataset.h13ActaOc=oc;cs[ei].dataset.h13ActaId=id;cs[ei].textContent=(id||oc)?'…':'—';}", 'H13 Acta cell')
+p.write_text(s, encoding='utf-8')
+
+t = Path('tests/check_h13_ordenes_alertas.js')
+x = t.read_text(encoding='utf-8')
+marker = "assert(html.includes('avance_obra_pct'), 'falta lectura de avance_obra_pct');"
+add = '''
+assert(html.includes("'control_terceros_estado','avance_obra_pct'"), 'hydration canónica debe incluir avance_obra_pct');
+assert(html.includes('avance_obra_pct:r.avance_obra_pct??null'), 'mapRowToItem debe preservar avance_obra_pct');
+assert(html.includes('dataset.h13ActaId=id'), 'Actas deben asociarse por UUID estable');
+assert(html.includes('.range(from,from+pageSize-1)'), 'Actas deben paginarse');
+assert(html.includes('Click para reintentar'), 'fallos de Acta deben distinguirse y permitir reintento');'''
+if marker not in x:
+    raise SystemExit('missing H13 test anchor')
+t.write_text(x.replace(marker, marker + add, 1), encoding='utf-8')
+Path('.github/workflows/h13-one-shot-fix.yml').unlink()
+Path('tools/h13_patch.py').unlink()
