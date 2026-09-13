@@ -38,15 +38,16 @@ jobs:
           s = p.read_text()
           s, n1 = re.subn(r"parts\s*=\s*sorted\(\(ROOT\s*/\s*'tools'\)\.glob\('h14_bg\.part\*'\)\)", "parts = [ROOT / 'tools' / 'h14_bg_small.b64']", s, count=1)
           s, n2 = re.subn(r"if\s+len\(BG\)\s*<\s*50000\s*:", "if len(BG) < 1000:", s, count=1)
-          marker = "TEST_STATIC = r'''"
+          marker = "test_path = ROOT / 'tests' / 'check_h14_auth_gate.js'"
           if marker not in s:
-              raise SystemExit('No se encontró el bloque TEST_STATIC del patch H14.')
+              raise SystemExit('No se encontró el bloque de tests del patch H14.')
           pre, post = s.split(marker, 1)
-          fixed = pre.replace('\\"', '"')
-          print(f'h14 patch rewrites: image_source={n1}, threshold={n2}, escaped_quotes_fixed={pre.count(chr(92)+chr(34))}')
+          escaped_count = pre.count(chr(92) + chr(34))
+          pre = pre.replace('\\"', '"')
+          print(f'h14 patch rewrites: image_source={n1}, threshold={n2}, escaped_quotes_fixed={escaped_count}')
           if n1 != 1 or n2 != 1:
               raise SystemExit('No se pudo adaptar el patch H14 para la imagen embebida.')
-          p.write_text(fixed + marker + post)
+          p.write_text(pre + marker + post)
           bg = (Path('tools') / 'h14_bg_small.b64').read_text(encoding='ascii').strip()
           print(f'h14 embedded image base64 chars: {len(bg)}')
           PY
