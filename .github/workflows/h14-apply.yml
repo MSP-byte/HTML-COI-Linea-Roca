@@ -22,7 +22,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install dependencies
         run: npm ci
@@ -33,11 +33,17 @@ jobs:
           cat tools/h14_patch.part* > /tmp/h14_patch.py
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path('/tmp/h14_patch.py')
           s = p.read_text()
-          s = s.replace("parts = sorted((ROOT / 'tools').glob('h14_bg.part*'))", "parts = [ROOT / 'tools' / 'h14_bg_small.b64']")
-          s = s.replace("if len(BG) < 50000:", "if len(BG) < 10000:")
+          s, n1 = re.subn(r"parts\s*=\s*sorted\(\(ROOT\s*/\s*'tools'\)\.glob\('h14_bg\.part\*'\)\)", "parts = [ROOT / 'tools' / 'h14_bg_small.b64']", s, count=1)
+          s, n2 = re.subn(r"if\s+len\(BG\)\s*<\s*50000\s*:", "if len(BG) < 1000:", s, count=1)
+          print(f'h14 patch rewrites: image_source={n1}, threshold={n2}')
+          if n1 != 1 or n2 != 1:
+              raise SystemExit('No se pudo adaptar el patch H14 para la imagen embebida.')
           p.write_text(s)
+          bg = (Path('tools') / 'h14_bg_small.b64').read_text(encoding='ascii').strip()
+          print(f'h14 embedded image base64 chars: {len(bg)}')
           PY
           python3 /tmp/h14_patch.py
 
