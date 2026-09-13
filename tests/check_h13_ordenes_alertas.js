@@ -11,7 +11,9 @@ assert(html.includes("'control_terceros_estado','avance_obra_pct'"), 'hydration 
 assert(html.includes('avance_obra_pct:r.avance_obra_pct??null'), 'mapRowToItem debe preservar avance_obra_pct');
 assert(html.includes('dataset.h13ActaId=id'), 'Actas deben asociarse por UUID estable');
 assert(html.includes('.range(from,from+pageSize-1)'), 'Actas deben paginarse');
-assert(html.includes('Click para reintentar'), 'fallos de Acta deben distinguirse y permitir reintento');
+assert(html.includes("b.textContent='⚠ Reintentar'"), 'fallos de Acta deben distinguirse y permitir reintento');
+assert(html.includes("fail('No se pudo consultar la última Acta de Medición')"), 'fallos de consulta deben conservar un estado de error explícito');
+assert(html.includes("x.title=r?'Última Acta de Medición registrada en Supabase':'Sin Acta de Medición registrada'"), 'consulta exitosa sin Acta debe distinguirse del error');
 assert(html.includes("fold(typeOf(r))!=='OBRA'"), 'Servicios no deben mostrar porcentaje de avance de obra');
 assert(html.includes("from('coi_certificaciones')"), 'la última Acta MED debe provenir de certificaciones Supabase');
 assert(html.includes('acta_medicion_nro'), 'falta campo de número de Acta MED');
