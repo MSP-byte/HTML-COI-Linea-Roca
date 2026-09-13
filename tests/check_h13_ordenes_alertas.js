@@ -19,8 +19,11 @@ assert(html.includes("q('#btnCentroAlertas')"), 'falta binding directo del Centr
 assert(html.includes("window.mostrarVista('vistaCentroAlertas')"), 'falta navegación al Centro de alertas');
 assert(html.includes("['SECTOR','ESTADO COI'].includes(fold(h.textContent))"), 'observer H13 debe reaccionar sólo al rerender legacy y no a sus propias celdas');
 assert(!html.includes('x.onclick='), 'H13 no debe introducir manejadores onclick por propiedad');
-assert(html.includes("x.addEventListener('click',x._h13RetryClick)"), 'retry de Acta debe usar addEventListener');
-assert(html.includes("x.removeEventListener('click',x._h13RetryClick)"), 'retry de Acta debe limpiar el listener al resolver');
+assert(html.includes("document.createElement('button')"), 'retry de Acta debe renderizar un botón real');
+assert(html.includes("b.type='button'"), 'retry de Acta debe usar type=button');
+assert(html.includes("b.addEventListener('click',b._h13RetryClick)"), 'retry de Acta debe usar addEventListener en el botón');
+assert(html.includes("await pageBy('nro_oc',ocs)"), 'fallback legacy debe consultar nro_oc también para órdenes con UUID');
+assert(html.includes("else better(bestLegacyOc,text(r.nro_oc),r)"), 'fallback legacy sólo debe aceptar Actas sin orden_id');
 
 // Cierre H13: protege hidratación autoritativa, asociación estable, lectura paginada y retry sin onclick.
 console.log('H13 ordenes/alertas static regression: OK');
