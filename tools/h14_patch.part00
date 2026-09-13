@@ -1,0 +1,61 @@
+from pathlib import Path
+import json
+import re
+
+ROOT = Path('.')
+INDEX = ROOT / 'index.html'
+TEXT = INDEX.read_text(encoding='utf-8')
+
+if 'id="coi-auth-h14-style"' in TEXT:
+    raise SystemExit('H14 ya aplicado; no se modifica nuevamente.')
+
+parts = sorted((ROOT / 'tools').glob('h14_bg.part*'))
+if not parts:
+    raise SystemExit('No se encontraron partes de la imagen H14.')
+BG = ''.join(p.read_text(encoding='ascii').strip() for p in parts)
+if len(BG) < 50000:
+    raise SystemExit('Imagen H14 incompleta.')
+
+STYLE = r'''<style id="coi-auth-h14-style">
+:root{--coi-h14-navy:#09263a;--coi-h14-blue:#0f5f91;--coi-h14-cyan:#28a9d6;--coi-h14-border:rgba(219,235,244,.78)}
+html.coi-h14-locked,html.coi-h14-locked body{overflow:hidden!important}
+html.coi-h14-locked body> :not(#coiAuthGateH14):not(script):not(style){visibility:hidden!important}
+#coiAuthGateH14{position:fixed;inset:0;z-index:250000;display:flex;align-items:center;justify-content:flex-end;min-height:100dvh;padding:clamp(18px,5vw,72px);box-sizing:border-box;background-image:linear-gradient(90deg,rgba(3,18,29,.20) 0%,rgba(3,18,29,.36) 44%,rgba(3,18,29,.78) 100%),linear-gradient(0deg,rgba(4,24,37,.30),rgba(4,24,37,.06)),url("data:image/jpeg;base64,__H14_BG__");background-size:cover;background-position:center center;color:#163246;font-family:Inter,Segoe UI,Arial,sans-serif;visibility:visible!important}
+#coiAuthGateH14[hidden]{display:none!important}
+.coi-h14-shell{width:min(450px,100%);display:grid;gap:15px}
+.coi-h14-brand{display:flex;align-items:center;gap:12px;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.28)}
+.coi-h14-roundel{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;border:2px solid rgba(255,255,255,.84);background:rgba(5,45,70,.64);box-shadow:0 8px 28px rgba(0,0,0,.22);font-size:12px;font-weight:950;letter-spacing:.9px}
+.coi-h14-brand-copy b{display:block;font-size:20px;letter-spacing:.3px}.coi-h14-brand-copy span{display:block;margin-top:3px;font-size:12px;font-weight:700;opacity:.88}
+.coi-h14-card{border:1px solid rgba(255,255,255,.56);border-radius:22px;background:rgba(250,253,255,.94);box-shadow:0 30px 80px rgba(0,0,0,.34);backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px);overflow:hidden}
+.coi-h14-card-head{padding:25px 27px 18px;border-bottom:1px solid #dce7ee;background:linear-gradient(180deg,#fff,#f7fbfd)}
+.coi-h14-eyebrow{display:flex;align-items:center;gap:7px;color:#0d6b9c;font-size:10px;font-weight:950;letter-spacing:1.1px;text-transform:uppercase}.coi-h14-eyebrow::before{content:"";width:8px;height:8px;border-radius:50%;background:#2aa7d5;box-shadow:0 0 0 4px rgba(42,167,213,.13)}
+.coi-h14-card h1{margin:10px 0 5px;color:#0c2d43;font-size:26px;line-height:1.08;letter-spacing:-.4px}.coi-h14-card-head p{margin:0;color:#637584;font-size:13px;line-height:1.5}
+#coiAuthFormH14{display:grid;gap:13px;padding:20px 27px 12px}
+.coi-h14-field{display:grid;gap:6px}.coi-h14-field label{color:#334f62;font-size:11px;font-weight:900;letter-spacing:.45px;text-transform:uppercase}.coi-h14-field input{width:100%;box-sizing:border-box;border:1px solid #bfd1dd;border-radius:11px;background:#fff;color:#163246;padding:12px 13px;font:inherit;outline:none;transition:border-color .15s,box-shadow .15s}.coi-h14-field input:focus{border-color:#2b91c0;box-shadow:0 0 0 4px rgba(43,145,192,.12)}
+.coi-h14-password-wrap{position:relative}.coi-h14-password-wrap input{padding-right:76px}.coi-h14-password-toggle{position:absolute;right:7px;top:50%;transform:translateY(-50%);border:0;background:#edf5f9;color:#315a74;border-radius:8px;padding:7px 9px;font-size:10px;font-weight:900;cursor:pointer}
+#coiAuthSubmitH14{width:100%;border:1px solid #0d6597;border-radius:11px;background:linear-gradient(135deg,#0f6e9f,#1989b8);color:#fff;padding:12px 15px;font-size:13px;font-weight:950;letter-spacing:.25px;cursor:pointer;box-shadow:0 8px 20px rgba(15,110,159,.22);transition:transform .15s,filter .15s}
+#coiAuthSubmitH14:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.03)}#coiAuthSubmitH14:disabled{opacity:.62;cursor:wait}
+#coiAuthMessageH14{min-height:21px;border-radius:9px;color:#536b7b;font-size:12px;font-weight:750;line-height:1.4}#coiAuthMessageH14.error{padding:8px 10px;border:1px solid #f1c2c2;background:#fff3f3;color:#9a2828}#coiAuthMessageH14.ok{padding:8px 10px;border:1px solid #bfe1cd;background:#f0faf4;color:#227347}#coiAuthMessageH14.loading{padding:8px 10px;border:1px solid #c8ddeb;background:#f1f8fc;color:#245f82}
+.coi-h14-card-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 27px 20px;color:#677b89;font-size:10px}.coi-h14-secure{display:inline-flex;align-items:center;gap:6px;font-weight:850}.coi-h14-secure::before{content:"";width:7px;height:7px;border-radius:50%;background:#29965a}.coi-h14-location{font-weight:700;text-align:right}
+.coi-h14-test-mode{display:none}
+body.coi-h14-role-administrador #btnAdministracionSistema{display:inline-flex}
+body.coi-h14-role-coi #btnAdministracionSistema,body.coi-h14-role-consulta #btnAdministracionSistema{display:none!important}
+body.coi-h14-role-consulta #btnCarga{display:none!important}
+@media(max-width:760px){#coiAuthGateH14{justify-content:center;padding:18px;background-position:46% center;background-image:linear-gradient(0deg,rgba(3,18,29,.66),rgba(3,18,29,.42)),url("data:image/jpeg;base64,__H14_BG__")}.coi-h14-shell{width:min(430px,100%)}.coi-h14-brand{padding:0 4px}.coi-h14-card-head{padding:21px 20px 16px}#coiAuthFormH14{padding:18px 20px 10px}.coi-h14-card-foot{padding:12px 20px 18px}}
+@media(max-height:650px){#coiAuthGateH14{align-items:flex-start;overflow:auto}.coi-h14-brand{display:none}.coi-h14-shell{margin:auto 0}}
+</style>
+<script id="coi-auth-h14-prelock">document.documentElement.classList.add('coi-h14-locked');</script>'''.replace('__H14_BG__', BG)
+
+MARKUP = r'''<section id="coiAuthGateH14" aria-labelledby="coiAuthTitleH14">
+  <div class="coi-h14-shell">
+    <div class="coi-h14-brand" aria-hidden="true">
+      <div class="coi-h14-roundel">ROCA</div>
+      <div class="coi-h14-brand-copy"><b>Línea General Roca</b><span>Gestión COI · Operación ferroviaria</span></div>
+    </div>
+    <div class="coi-h14-card">
+      <header class="coi-h14-card-head">
+        <div class="coi-h14-eyebrow">Acceso institucional</div>
+        <h1 id="coiAuthTitleH14">COI Línea Roca</h1>
+        <p>Sistema Integrado de Gestión de Obras, Servicios y Seguimiento Documental.</p>
+      </header>
+      <form id="coiAuthFormH14"
