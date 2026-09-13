@@ -1,0 +1,116 @@
+14" autocomplete="on" novalidate>
+        <div class="coi-h14-field">
+          <label for="coiAuthEmailH14">Correo institucional</label>
+          <input id="coiAuthEmailH14" name="email" type="email" autocomplete="username" inputmode="email" required placeholder="usuario@dominio.com">
+        </div>
+        <div class="coi-h14-field">
+          <label for="coiAuthPasswordH14">Contraseña</label>
+          <div class="coi-h14-password-wrap">
+            <input id="coiAuthPasswordH14" name="password" type="password" autocomplete="current-password" required>
+            <button type="button" id="coiAuthPasswordToggleH14" class="coi-h14-password-toggle" aria-pressed="false">Mostrar</button>
+          </div>
+        </div>
+        <div id="coiAuthMessageH14" aria-live="polite"></div>
+        <button id="coiAuthSubmitH14" type="submit">Ingresar al sistema</button>
+      </form>
+      <footer class="coi-h14-card-foot"><span class="coi-h14-secure">Sesión segura con Supabase Auth</span><span class="coi-h14-location">Plaza Constitución · Buenos Aires</span></footer>
+    </div>
+  </div>
+</section>'''
+
+SCRIPT = r'''<script id="coi-auth-h14-script">
+(function(){
+'use strict';
+const H14='H14-LOGIN-AUTH-1';
+const $=id=>document.getElementById(id);
+const clean=v=>String(v??'').trim();
+const fold=v=>clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const ROLE_DEFAULTS={
+  administrador:new Set(['dashboard','ordenes','alerts','h13','calendario','carga','red','buscador','administracion']),
+  coi:new Set(['dashboard','ordenes','h13','calendario','carga','red','buscador']),
+  consulta:new Set(['dashboard','ordenes','h13','calendario','red','buscador'])
+};
+let profile=null;
+let applying=false;
+let authListenerInstalled=false;
+let bootDone=false;
+
+function isE2EBypass(){
+  return location.hostname==='127.0.0.1'&&location.port==='4173'&&navigator.webdriver===true&&!new URLSearchParams(location.search).has('h14_force_auth');
+}
+function normalizarRol(value){
+  const r=fold(value);
+  if(r==='administrador'||r==='admin')return'administrador';
+  if(r==='coi'||r.includes('operador'))return'coi';
+  return'consulta';
+}
+function etiquetaRol(role){return role==='administrador'?'Administrador':role==='coi'?'COI':'Consulta';}
+function nombrePerfil(p,user){return clean([p?.nombre,p?.apellido].filter(Boolean).join(' '))||clean(p?.email)||clean(user?.email)||'Usuario COI';}
+function setMessage(message,type=''){
+  const el=$('coiAuthMessageH14');if(!el)return;
+  el.textContent=message||'';el.className=type||'';
+}
+function lockGate(message=''){
+  document.documentElement.classList.add('coi-h14-locked');
+  const gate=$('coiAuthGateH14');if(gate){gate.hidden=false;gate.setAttribute('aria-hidden','false');}
+  if(message)setMessage(message,'error');
+  setTimeout(()=>$('coiAuthEmailH14')?.focus(),40);
+}
+function unlockGate(){
+  document.documentElement.classList.remove('coi-h14-locked');
+  const gate=$('coiAuthGateH14');if(gate){gate.hidden=true;gate.setAttribute('aria-hidden','true');}
+  setMessage('','');
+}
+function getClient(){return typeof window.getSupabaseClient==='function'?window.getSupabaseClient():window.__COI_SUPABASE_CLIENT__||null;}
+async function ensureClient(){
+  if(typeof window.initSupabase==='function'){
+    try{await window.initSupabase();}catch(error){console.warn('[COI][H14] initSupabase',error);}
+  }
+  const client=getClient();
+  if(!client)throw new Error('No se pudo conectar con Supabase. Verificá la conexión a Internet.');
+  return client;
+}
+async function cargarPerfil(user){
+  if(!user?.id)throw new Error('La sesión no contiene un usuario válido.');
+  const client=await ensureClient();
+  const {data,error}=await client.from('profiles').select('id,email,nombre,apellido,rol,activo').eq('id',user.id).maybeSingle();
+  if(error)throw new Error(error.message||'No se pudo validar el perfil COI.');
+  if(!data)throw new Error('El usuario no posee un perfil habilitado en COI Línea Roca.');
+  if(data.activo===false)throw new Error('El usuario está deshabilitado. Contactá al administrador del sistema.');
+  return {...data,rolNormalizado:normalizarRol(data.rol)};
+}
+function aplicarNavegacion(p){
+  const role=p?.rolNormalizado||'consulta',allowed=ROLE_DEFAULTS[role]||ROLE_DEFAULTS.consulta;
+  const rules={
+    btnDashboard:'dashboard',btnOrdenes:'ordenes',btnCentroAlertas:'alerts',btnCalendarioCOI:'calendario',btnCarga:'carga',btnRed:'red',btnBuscador:'buscador',btnAdministracionSistema:'administracion'
+  };
+  Object.entries(rules).forEach(([id,permission])=>{const el=$(id);if(!el)return;const ok=allowed.has(permission);el.hidden=!ok;el.style.display=ok?'':'none';el.setAttribute('aria-hidden',ok?'false':'true');});
+}
+function aplicarPerfil(p,user){
+  profile=p;
+  const role=p.rolNormalizado||normalizarRol(p.rol);
+  window.__COI_H14_PROFILE__={...p,rolNormalizado:role};
+  window.__COI_H14_AUTH_READY__=true;
+  window.APP_STATE=window.APP_STATE||{};
+  window.APP_STATE.user=user||window.APP_STATE.user||null;
+  window.APP_STATE.role=role;
+  window.APP_STATE.profile=window.__COI_H14_PROFILE__;
+  window.APP_STATE.sessionChecked=true;
+  document.body.classList.remove('modo-admin','modo-consulta','modo-jefatura','modo-visualizador','coi-h14-role-administrador','coi-h14-role-coi','coi-h14-role-consulta');
+  document.body.classList.add(`coi-h14-role-${role}`);
+  document.body.classList.add(role==='administrador'?'modo-admin':'modo-consulta');
+  window.esUsuarioSupabaseAdministradorR12=function(candidate){
+    const active=window.__COI_H14_PROFILE__;
+    return Boolean(active?.activo!==false&&active?.rolNormalizado==='administrador'&&(!candidate?.id||!active.id||candidate.id===active.id));
+  };
+  window.usuarioTienePermisoEdicion=function(){
+    const active=window.__COI_H14_PROFILE__,r=active?.rolNormalizado;
+    return Boolean(active?.activo!==false&&(r==='administrador'||r==='coi')&&window.APP_STATE?.user);
+  };
+  aplicarNavegacion(window.__COI_H14_PROFILE__);
+  const userLabel=$('supabaseUserLabel');if(userLabel)userLabel.textContent=`${nombrePerfil(p,user)} · ${etiquetaRol(role)}`;
+  const mode=$('headerModoSistema');if(mode)mode.textContent=`Modo ${etiquetaRol(role)}`;
+  try{window.actualizarPermisosEdicion?.();}catch(error){console.warn('[COI][H14] permisos UI',error);}
+  try{window.actualizarUIModoAcceso?.();}catch(error){console.warn('[COI][H14] modo acceso',error);}
+  try{window.actualizarVisibilidadCentroAlertas?.();}catch(error){console.warn('[COI][H14] alertas UI',error);}
+  window.dispa
