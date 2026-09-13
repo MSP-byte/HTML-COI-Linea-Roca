@@ -190,7 +190,7 @@ test('el dato UM se conserva en el modelo, el filtro y la exportación CSV', () 
   expect(SOURCE).toContain('(!um||fold(umv)===um)');
 });
 
-test('la tabla de OC se renderiza sin la columna UM vinculada y sin errores', async ({ page }) => {
+test('la tabla de OC se renderiza con % AVANCE y última Acta MED, sin columna UM y sin errores', async ({ page }) => {
   const errores = [];
   page.on('pageerror', e => errores.push(`pageerror: ${e.message}`));
   page.on('console', m => {
@@ -232,8 +232,11 @@ test('la tabla de OC se renderiza sin la columna UM vinculada y sin errores', as
   // se verifica de forma estable en el test estático; acá no se fija porque los
   // enriquecedores pueden sumar columnas analíticas propias.
   expect(tabla.headers).not.toContain('UM vinculada');
+  expect(tabla.headers).not.toContain('Sector');
+  expect(tabla.headers).not.toContain('Estado COI');
   expect(tabla.headers).toContain('Tipo de trabajo');
-  expect(tabla.headers).toContain('Sector');
+  expect(tabla.headers).toContain('% AVANCE');
+  expect(tabla.headers).toContain('ULT. ACTA MED Nº');
   expect(tabla.hayColUm).toBe(false);
   expect(tabla.headers.length).toBeGreaterThanOrEqual(14);
   // El filtro por UM sigue disponible: se quitó la columna, no la funcionalidad.
