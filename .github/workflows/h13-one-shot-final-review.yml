@@ -1,0 +1,67 @@
+name: H13 one-shot final review fixes
+on:
+  push:
+    branches: [fix/h13-ordenes-avance-acta-alertas]
+    paths: [.github/workflows/h13-one-shot-final-review.yml]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/h13-ordenes-avance-acta-alertas
+          fetch-depth: 0
+      - name: Apply final H13 review fixes
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old="""    const clearRetry=x=>{if(x._h13RetryClick)x.removeEventListener('click',x._h13RetryClick);if(x._h13RetryKey)x.removeEventListener('keydown',x._h13RetryKey);delete x._h13RetryClick;delete x._h13RetryKey;x.removeAttribute('role');x.removeAttribute('tabindex');};
+              const armRetry=(x,msg)=>{clearRetry(x);x.textContent='⚠';x.title=msg+' · Click para reintentar';x.tabIndex=0;x.setAttribute('role','button');x._h13RetryClick=()=>fillLastActs();x._h13RetryKey=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fillLastActs();}};x.addEventListener('click',x._h13RetryClick);x.addEventListener('keydown',x._h13RetryKey);};"""
+          old=old.replace('              const armRetry','    const armRetry')
+          new="""    const clearRetry=x=>{const b=q('button[data-h13-acta-retry]',x);if(b&&b._h13RetryClick)b.removeEventListener('click',b._h13RetryClick);x.replaceChildren();};
+              const armRetry=(x,msg)=>{clearRetry(x);const b=document.createElement('button');b.type='button';b.dataset.h13ActaRetry='1';b.className='h13-acta-retry';b.textContent='⚠ Reintentar';b.title=msg;b.setAttribute('aria-label',msg+'; reintentar');b._h13RetryClick=e=>{e.preventDefault();e.stopPropagation();fillLastActs();};b.addEventListener('click',b._h13RetryClick);x.appendChild(b);x.title=msg;};"""
+          new=new.replace('              const armRetry','    const armRetry')
+          assert old in s, 'retry anchors missing'
+          s=s.replace(old,new,1)
+          old="      const ids=[...new Set(cells.map(x=>text(x.dataset.h13ActaId)).filter(Boolean))],legacy=[...new Set(cells.filter(x=>!text(x.dataset.h13ActaId)).map(x=>text(x.dataset.h13ActaOc)).filter(Boolean))],rows=[],pageSize=1000;"
+          new="      const ids=[...new Set(cells.map(x=>text(x.dataset.h13ActaId)).filter(Boolean))],ocs=[...new Set(cells.map(x=>text(x.dataset.h13ActaOc)).filter(Boolean))],rows=[],pageSize=1000;"
+          assert old in s, 'legacy OC query anchor missing'
+          s=s.replace(old,new,1)
+          old="""      if(ids.length)await pageBy('orden_id',ids);if(legacy.length)await pageBy('nro_oc',legacy);if(my!==seq)return;
+              const bestId=new Map(),bestOc=new Map(),stamp=r=>text(r.fecha_fin||r.fecha_inicio||r.fecha_actualizacion),better=(m,k,r)=>{if(!k||!text(r.acta_medicion_nro))return;const p=m.get(k);if(!p||stamp(r)>stamp(p)||(stamp(r)===stamp(p)&&Number(r.acta_medicion_nro||0)>Number(p.acta_medicion_nro||0)))m.set(k,r);};
+              rows.forEach(r=>{better(bestId,text(r.orden_id),r);better(bestOc,text(r.nro_oc),r);});cells.forEach(x=>{const id=text(x.dataset.h13ActaId),oc=text(x.dataset.h13ActaOc),r=(id&&bestId.get(id))||bestOc.get(oc);clearRetry(x);x.textContent=r?text(r.acta_medicion_nro):'—';x.title=r?'Última Acta de Medición registrada en Supabase':'Sin Acta de Medición registrada';});"""
+          old=old.replace('              const bestId','      const bestId').replace('              rows.forEach','      rows.forEach')
+          new="""      if(ids.length)await pageBy('orden_id',ids);if(ocs.length)await pageBy('nro_oc',ocs);if(my!==seq)return;
+              const bestId=new Map(),bestLegacyOc=new Map(),stamp=r=>text(r.fecha_fin||r.fecha_inicio||r.fecha_actualizacion),better=(m,k,r)=>{if(!k||!text(r.acta_medicion_nro))return;const p=m.get(k);if(!p||stamp(r)>stamp(p)||(stamp(r)===stamp(p)&&Number(r.acta_medicion_nro||0)>Number(p.acta_medicion_nro||0)))m.set(k,r);},newer=(a,b)=>{if(!a)return b;if(!b)return a;const sa=stamp(a),sb=stamp(b);return sb>sa||(sb===sa&&Number(b.acta_medicion_nro||0)>Number(a.acta_medicion_nro||0))?b:a;};
+              rows.forEach(r=>{const rid=text(r.orden_id);if(rid)better(bestId,rid,r);else better(bestLegacyOc,text(r.nro_oc),r);});cells.forEach(x=>{const id=text(x.dataset.h13ActaId),oc=text(x.dataset.h13ActaOc),r=newer(id&&bestId.get(id),bestLegacyOc.get(oc));clearRetry(x);x.textContent=r?text(r.acta_medicion_nro):'—';x.title=r?'Última Acta de Medición registrada en Supabase':'Sin Acta de Medición registrada';});"""
+          new=new.replace('              const bestId','      const bestId').replace('              rows.forEach','      rows.forEach')
+          assert old in s, 'Acta association anchors missing'
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+
+          t=Path('tests/check_h13_ordenes_alertas.js')
+          x=t.read_text(encoding='utf-8')
+          old="""assert(html.includes("x.addEventListener('click',x._h13RetryClick)"), 'retry de Acta debe usar addEventListener');
+          assert(html.includes("x.removeEventListener('click',x._h13RetryClick)"), 'retry de Acta debe limpiar el listener al resolver');"""
+          new="""assert(html.includes("document.createElement('button')"), 'retry de Acta debe renderizar un botón real');
+          assert(html.includes("b.type='button'"), 'retry de Acta debe usar type=button');
+          assert(html.includes("b.addEventListener('click',b._h13RetryClick)"), 'retry de Acta debe usar addEventListener en el botón');
+          assert(html.includes("await pageBy('nro_oc',ocs)"), 'fallback legacy debe consultar nro_oc también para órdenes con UUID');
+          assert(html.includes("else better(bestLegacyOc,text(r.nro_oc),r)"), 'fallback legacy sólo debe aceptar Actas sin orden_id');"""
+          assert old in x, 'H13 static retry test anchors missing'
+          x=x.replace(old,new,1)
+          t.write_text(x,encoding='utf-8')
+          Path('.github/workflows/h13-one-shot-final-review.yml').unlink()
+      - name: Validate static H13 contract
+        run: node tests/check_h13_ordenes_alertas.js
+      - name: Commit final fixes and remove one-shot workflow
+        run: |
+          git config user.name "MSP-byte"
+          git config user.email "mespecial92@gmail.com"
+          git add index.html tests/check_h13_ordenes_alertas.js .github/workflows/h13-one-shot-final-review.yml
+          git commit -m "fix: close final H13 review findings"
+          git push origin HEAD:fix/h13-ordenes-avance-acta-alertas
