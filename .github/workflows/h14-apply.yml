@@ -38,9 +38,13 @@ jobs:
           s = p.read_text()
           s, n1 = re.subn(r"parts\s*=\s*sorted\(\(ROOT\s*/\s*'tools'\)\.glob\('h14_bg\.part\*'\)\)", "parts = [ROOT / 'tools' / 'h14_bg_small.b64']", s, count=1)
           s, n2 = re.subn(r"if\s+len\(BG\)\s*<\s*50000\s*:", "if len(BG) < 1000:", s, count=1)
-          print(f'h14 patch rewrites: image_source={n1}, threshold={n2}')
-          if n1 != 1 or n2 != 1:
-              raise SystemExit('No se pudo adaptar el patch H14 para la imagen embebida.')
+          broken = '<form id="coiAuthFormH14"14" autocomplete="on" novalidate>'
+          fixed = '<form id="coiAuthFormH14" autocomplete="on" novalidate>'
+          n3 = s.count(broken)
+          s = s.replace(broken, fixed)
+          print(f'h14 patch rewrites: image_source={n1}, threshold={n2}, split_overlap={n3}')
+          if n1 != 1 or n2 != 1 or n3 != 1:
+              raise SystemExit('No se pudo normalizar el patch H14 exactamente una vez.')
           p.write_text(s)
           PY
           python3 /tmp/h14_patch.py
