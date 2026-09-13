@@ -1,0 +1,42 @@
+, 'El rol/activo deben validarse contra public.profiles');
+assert(html.includes("data.activo===false"), 'Los perfiles inactivos deben bloquearse');
+assert(html.includes("window.loginSupabase(email,password)"), 'H14 debe reutilizar Supabase Auth real');
+assert(html.includes("window.usuarioTienePermisoEdicion=usuarioTienePermisoEdicion"), 'El permiso operativo debe quedar exportado');
+assert(html.includes("role==='coi'"), 'El rol COI debe contemplarse como rol operativo');
+assert(!/password\s*[:=]\s*['\"][^'\"]+['\"]/i.test(html.match(/<script id="coi-auth-h14-script">[\s\S]*?<\/script>/i)?.[0]||''), 'H14 no debe contener contraseñas hardcodeadas');
+console.log('H14 auth gate: OK');
+''', encoding='utf-8')
+
+# Add H14 static contract to the existing unit suite once.
+package_path = ROOT / 'package.json'
+pkg = json.loads(package_path.read_text(encoding='utf-8'))
+unit = pkg['scripts']['test:unit']
+needle = 'node tests/check_h14_auth_gate.js'
+if needle not in unit:
+    anchor = 'node tests/check_h13_ordenes_alertas.js'
+    if anchor not in unit:
+        raise SystemExit('No se encontró el ancla H13 en package.json.')
+    unit = unit.replace(anchor, anchor + ' && ' + needle)
+    pkg['scripts']['test:unit'] = unit
+package_path.write_text(json.dumps(pkg, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+# Playwright regression: force the real gate despite the localhost webdriver bypass.
+playwright_test = ROOT / 'tests' / 'h14_auth_gate.spec.js'
+playwright_test.write_text(r'''const { test, expect } = require('@playwright/test');
+
+test('H14 bloquea el sistema sin sesión y muestra el acceso institucional', async ({ page }) => {
+  await page.route(/^https?:\/(?!\/127\.0\.0\.1)/, route => route.abort());
+  await page.addInitScript(() => { localStorage.clear(); sessionStorage.clear(); });
+  await page.goto('/index.html?h14_force_auth=1', { waitUntil: 'domcontentloaded' });
+  const gate = page.locator('#coiAuthGateH14');
+  await expect(gate).toBeVisible();
+  await expect(page.locator('#coiAuthTitleH14')).toHaveText('COI Línea Roca');
+  await expect(page.locator('#coiAuthEmailH14')).toBeVisible();
+  await expect(page.locator('#coiAuthPasswordH14')).toHaveAttribute('type','password');
+  await expect(page.locator('html')).toHaveClass(/coi-h14-locked/);
+  const background = await gate.evaluate(el => getComputedStyle(el).backgroundImage);
+  expect(background).toContain('data:image/jpeg;base64');
+});
+''', encoding='utf-8')
+
+print('H14 aplicado:', len(TEXT), 'bytes HTML;', len(BG), 'chars imagen base64')
