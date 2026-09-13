@@ -42,46 +42,10 @@ jobs:
           if n1 != 1 or n2 != 1:
               raise SystemExit('No se pudo adaptar el patch H14 para la imagen embebida.')
           p.write_text(s)
-          bg = (Path('tools') / 'h14_bg_small.b64').read_text(encoding='ascii').strip()
-          print(f'h14 embedded image base64 chars: {len(bg)}')
           PY
           python3 /tmp/h14_patch.py
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('index.html')
-          s = p.read_text(encoding='utf-8')
-          def normalize_segment(text, anchor, start_token, end_token):
-              a = text.find(anchor)
-              if a < 0:
-                  raise SystemExit(f'No se encontró anchor H14: {anchor}')
-              start = text.rfind(start_token, 0, a)
-              end = text.find(end_token, a)
-              if start < 0 or end < 0:
-                  raise SystemExit(f'No se pudo delimitar segmento H14: {anchor}')
-              end += len(end_token)
-              seg = text[start:end]
-              seg2 = seg.replace(chr(92) + chr(34), chr(34))
-              return text[:start] + seg2 + text[end:], seg.count(chr(92) + chr(34))
-          s, n_head = normalize_segment(s, 'coi-auth-h14-style', '<style', '</script>')
-          s, n_gate = normalize_segment(s, 'coiAuthGateH14', '<section', '</section>')
-          last_anchor = s.rfind('coi-auth-h14-script')
-          if last_anchor < 0:
-              raise SystemExit('No se encontró controller H14.')
-          start = s.rfind('<script', 0, last_anchor)
-          end = s.find('</script>', last_anchor)
-          if start < 0 or end < 0:
-              raise SystemExit('No se pudo delimitar controller H14.')
-          end += len('</script>')
-          seg = s[start:end]
-          n_script = seg.count(chr(92) + chr(34))
-          seg = seg.replace(chr(92) + chr(34), chr(34))
-          s = s[:start] + seg + s[end:]
-          p.write_text(s, encoding='utf-8', newline='\n')
-          print(f'h14 normalized escaped quotes: head={n_head}, gate={n_gate}, script={n_script}')
-          lines = s.splitlines()
-          for i in range(1604, min(1611, len(lines)+1)):
-              print(f'{i}: {lines[i-1]}')
-          PY
+          echo '--- H14 generated context ---'
+          nl -ba index.html | sed -n '1602,1612p'
 
       - name: Run unit and static quality gate
         run: npm run test:unit
