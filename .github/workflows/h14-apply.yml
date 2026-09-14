@@ -48,7 +48,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add index.html package.json tests/check_h14_auth_gate.js tests/h14_auth_gate.spec.js
-          git rm -f tools/h14_patch.part00 tools/h14_patch.part01 tools/h14_patch.part02 tools/h14_patch.part03 tools/h14_bg.part00 tools/h14_bg.part01 tools/h14_bg.part02 .github/workflows/h14-apply.yml
           if git diff --cached --quiet; then
             echo 'No changes to commit.'
             exit 0
