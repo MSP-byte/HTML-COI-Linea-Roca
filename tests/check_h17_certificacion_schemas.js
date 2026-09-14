@@ -26,22 +26,30 @@ const servicioHeaders = [
   'ACTORES FIRMANTES','EJECUTADO 100%','ANEXO FOTOGRAFIA ACTAS','AÑO'
 ];
 
-function compactArray(values) {
-  return values.map(v => `'${v.replace(/'/g, "\\'")}'`).join(',');
+function quotedList(source) {
+  return [...source.matchAll(/'([^']*)'/g)].map(match => match[1]);
+}
+function readSchema(name) {
+  const rx = new RegExp(`${name}:Object\\.freeze\\(\\{\\s*fields:\\[([^\\]]+)\\],\\s*headers:\\[([^\\]]+)\\]`, 's');
+  const match = html.match(rx);
+  assert(match, `No se pudo leer el esquema ${name}`);
+  return { fields: quotedList(match[1]), headers: quotedList(match[2]) };
 }
 
 assert(html.includes('const CERTIFICACION_SCHEMAS='), 'Falta CERTIFICACION_SCHEMAS');
-assert(html.replace(/\s+/g, '').includes(`fields:[${compactArray(obraFields)}]`), 'Orden de campos OBRA incorrecto');
-assert(html.replace(/\s+/g, '').includes(`headers:[${compactArray(obraHeaders)}]`), 'Encabezados OBRA incorrectos');
-assert(html.replace(/\s+/g, '').includes(`fields:[${compactArray(servicioFields)}]`), 'Orden de campos SERVICIO incorrecto');
-assert(html.replace(/\s+/g, '').includes(`headers:[${compactArray(servicioHeaders)}]`), 'Encabezados SERVICIO incorrectos');
+const obra = readSchema('Obra');
+const servicio = readSchema('Servicio');
+assert.deepStrictEqual(obra.fields, obraFields, 'Orden de campos OBRA incorrecto');
+assert.deepStrictEqual(obra.headers, obraHeaders, 'Encabezados OBRA incorrectos');
+assert.deepStrictEqual(servicio.fields, servicioFields, 'Orden de campos SERVICIO incorrecto');
+assert.deepStrictEqual(servicio.headers, servicioHeaders, 'Encabezados SERVICIO incorrectos');
 
 for (const field of ['id_obra','proveedor','nro_hes','nro_if']) {
   assert(html.includes(`${field}:`), `Falta normalización/persistencia de ${field}`);
   assert(new RegExp(`add column if not exists\\s+${field}\\s+text`, 'i').test(migration), `Migración no agrega ${field}`);
 }
 assert(html.includes('sincronizarEsquemaCertificacion'), 'Falta sincronización Obra/Servicio');
-assert(html.includes("tipoCargaActivo()"), 'La grilla no usa el tipo activo de Carga Operativa');
+assert(html.includes('tipoCargaActivo()'), 'La grilla no usa el tipo activo de Carga Operativa');
 assert(html.includes('POS SAP'), 'Falta cabecera POS SAP');
 assert(html.includes('N° HES') && html.includes('N° IF'), 'Faltan HES/IF');
 assert(html.includes("GENERATED_FIELDS=new Set(['servicio_ejecutado_acumulado','aux_porcentaje'])"), 'Los calculados deben seguir siendo generados');
