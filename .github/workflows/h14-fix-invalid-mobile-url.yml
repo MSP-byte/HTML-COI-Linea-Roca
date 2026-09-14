@@ -24,21 +24,35 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-          import re
 
           path = Path('index.html')
           source = path.read_text(encoding='utf-8')
-          pattern = re.compile(
-              r'\.auth-gate::before\{background-image:linear-gradient\(140deg,.*?\),url\("data:image/jpeg;base64,[A-Za-z0-9+/=]+"\);background-position:center\}',
-              re.S,
-          )
-          updated, count = pattern.subn('.auth-gate::before{background-position:center}', source, count=1)
-          if count != 1:
-              raise SystemExit(f'Expected exactly one H14 mobile background override, found {count}')
-          if 'background-image:linear-gradient(140deg' in updated:
-              raise SystemExit('H14 mobile background override still present after replacement')
+          marker = '@media(max-width:760px){#coiAuthGateH14{'
+          start = source.find(marker)
+          if start < 0:
+              raise SystemExit('H14 mobile auth media query was not found')
+          block_end = source.find('}', start)
+          if block_end < 0:
+              raise SystemExit('H14 mobile auth media query is malformed')
+          prop_start = source.find('background-image:', start, block_end)
+          if prop_start < 0:
+              raise SystemExit('H14 mobile duplicate background-image was not found')
+          prop_end = source.find('");', prop_start, block_end)
+          if prop_end < 0:
+              raise SystemExit('H14 mobile background data URL has no closing delimiter')
+          prop_end += 3
+          removed = source[prop_start:prop_end]
+          if 'data:image/jpeg;base64,' not in removed:
+              raise SystemExit('Refusing to remove a mobile background that is not the duplicate JPEG data URL')
+          updated = source[:prop_start] + source[prop_end:]
+          mobile_end = updated.find('}', start)
+          mobile_block = updated[start:mobile_end]
+          if 'data:image/jpeg;base64,' in mobile_block or 'background-image:' in mobile_block:
+              raise SystemExit('Duplicate H14 mobile data URL still present after edit')
+          if updated.count('data:image/jpeg;base64,') != 1:
+              raise SystemExit(f'Expected one canonical embedded login JPEG after edit, found {updated.count("data:image/jpeg;base64,")}')
           path.write_text(updated, encoding='utf-8', newline='')
-          print('Replaced the invalid duplicate mobile H14 data URL exactly once.')
+          print(f'Removed duplicate invalid mobile H14 data URL ({len(removed)} chars); desktop canonical image remains.')
 
       - name: Commit fix to H14 branch
         run: |
