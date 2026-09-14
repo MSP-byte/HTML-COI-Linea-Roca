@@ -11,5 +11,5 @@ test('H14 bloquea el sistema sin sesión y muestra el acceso institucional', asy
   await expect(page.locator('#coiAuthPasswordH14')).toHaveAttribute('type','password');
   await expect(page.locator('html')).toHaveClass(/coi-h14-locked/);
   const background = await gate.evaluate(el => getComputedStyle(el).backgroundImage);
-  expect(background).toContain('data:image/jpeg;base64');
+  expect(background).toContain('plaza-constitucion-login-2024.jpg');
 });
