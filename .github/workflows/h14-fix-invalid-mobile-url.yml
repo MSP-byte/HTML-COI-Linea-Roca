@@ -1,0 +1,50 @@
+name: H14 one-shot mobile auth fix
+
+on:
+  push:
+    branches:
+      - feat/h14-login-auth-seguridad
+    paths:
+      - .github/workflows/h14-fix-invalid-mobile-url.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix-mobile-auth-background:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout H14 branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/h14-login-auth-seguridad
+          fetch-depth: 1
+
+      - name: Remove invalid duplicate mobile data URL
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path('index.html')
+          source = path.read_text(encoding='utf-8')
+          pattern = re.compile(
+              r'\.auth-gate::before\{background-image:linear-gradient\(140deg,.*?\),url\("data:image/jpeg;base64,[A-Za-z0-9+/=]+"\);background-position:center\}',
+              re.S,
+          )
+          updated, count = pattern.subn('.auth-gate::before{background-position:center}', source, count=1)
+          if count != 1:
+              raise SystemExit(f'Expected exactly one H14 mobile background override, found {count}')
+          if 'background-image:linear-gradient(140deg' in updated:
+              raise SystemExit('H14 mobile background override still present after replacement')
+          path.write_text(updated, encoding='utf-8', newline='')
+          print('Replaced the invalid duplicate mobile H14 data URL exactly once.')
+
+      - name: Commit fix to H14 branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --check
+          git commit -m "fix: remove invalid mobile auth background data URL"
+          git push origin HEAD:feat/h14-login-auth-seguridad
