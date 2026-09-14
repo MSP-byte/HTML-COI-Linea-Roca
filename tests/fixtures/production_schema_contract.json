@@ -1,5 +1,5 @@
 {
-  "_doc": "Snapshot de information_schema y pg_catalog de PRODUCCION, reconciliado con STAGING. Actualizado 2026-09-11 tras H12 avance manual de Obra y hardening de privacidad Supabase. nn=NOT NULL, def=fragmento esperado del default, gen=generated always stored, tipo=fragmento de data_type. fk=[columna, tabla_destino, accion ON DELETE].",
+  "_doc": "Snapshot de information_schema y pg_catalog de PRODUCCION, reconciliado con STAGING. Actualizado 2026-09-14 tras H17 Carga Certificación diferenciada para Obra y Servicio. nn=NOT NULL, def=fragmento esperado del default, gen=generated always stored, tipo=fragmento de data_type. fk=[columna, tabla_destino, accion ON DELETE].",
   "_divergencias_pendientes": {
     "_doc": "Desvios DELIBERADOS entre el repositorio y el snapshot productivo, introducidos por una migracion todavia NO aplicada a produccion ni a staging. check_schema_reproducibility.js espera el valor «repo» y deja constancia del valor «produccion» hasta que la migracion se aplique; entonces se actualiza el snapshot y la entrada pasa de «fk»/«unique» a «_resueltas».",
     "_doc_columnas": "Columnas que el repositorio agrega y produccion todavia no tiene. El bloque «columnas» de cada tabla mas abajo sigue siendo el snapshot productivo: aca se declara lo que el repositorio DEBE producir de mas. check_schema_reproducibility.js verifica que la columna exista realmente tras aplicar las migraciones, con el tipo y la nullability declarados, para que la divergencia quede probada y no solo escrita.",
@@ -221,6 +221,20 @@
         "migracion": "202609110003_obra_avance_manual.sql",
         "aplicada_en_remoto": "2026-09-11",
         "nota": "H12 aplicado en STAGING y PRODUCCION. El snapshot productivo incluye numeric(5,2), NULL permitido y CHECK 0-100."
+      },
+      {
+        "tabla": "coi_certificaciones",
+        "columnas": [
+          "id_obra",
+          "proveedor",
+          "nro_hes",
+          "nro_if"
+        ],
+        "produccion": "presente",
+        "repo": "presente",
+        "migracion": "20260914150000_certificaciones_obra_servicio_fields.sql",
+        "aplicada_en_remoto": "2026-09-14",
+        "nota": "H17 aplicado en PRODUCCION. El snapshot productivo incluye los cuatro campos de Carga Certificación diferenciada para Obra y Servicio."
       }
     ],
     "_doc_policies": "Policies que el repositorio crea y produccion todavia no tiene. El bloque «policies» de cada tabla mas abajo sigue siendo el snapshot productivo. check_schema_reproducibility.js verifica que estas existan realmente al reproducir el repo (nombre, cmd, roles, permissive, using y with check) y las admite como el UNICO excedente permitido: cualquier otra policy no declarada sigue siendo un fallo.",
@@ -934,6 +948,22 @@
         "tipo": "numeric"
       },
       "remito": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "id_obra": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "proveedor": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "nro_hes": {
+        "nn": false,
+        "tipo": "text"
+      },
+      "nro_if": {
         "nn": false,
         "tipo": "text"
       }
