@@ -1,0 +1,292 @@
+from pathlib import Path
+import re
+
+path = Path('index.html')
+text = path.read_text(encoding='utf-8')
+marker = 'const CERTIFICACION_CONFIGS={'
+if marker in text:
+    print('H17 certification structure already applied')
+    raise SystemExit(0)
+
+script_start = text.find('<script id="coi-certificaciones-r20-script">')
+if script_start < 0:
+    raise SystemExit('H17: no se encontró coi-certificaciones-r20-script')
+script_end = text.find('</script>', script_start)
+if script_end < 0:
+    raise SystemExit('H17: cierre de script R20 no encontrado')
+script_end += len('</script>')
+block = text[script_start:script_end]
+
+def sub_once(pattern, replacement, label, source=None, flags=re.S):
+    target = block if source is None else source
+    updated, count = re.subn(pattern, replacement, target, count=1, flags=flags)
+    if count != 1:
+        raise SystemExit(f'H17: reemplazo {label} esperado 1 vez, obtenido {count}')
+    return updated
+
+config = r'''  const CERTIFICACION_CONFIGS={
+    Servicio:{
+      fields:[
+        'tipo_servicio','acta_medicion_nro','proxima_acta_medicion_fecha','nro_oc','fecha_inicio','fecha_fin',
+        'item_nro','descripcion','posicion','nro_hes','nro_if','cantidad','unidad_medida','servicio_ejecutado_anterior',
+        'servicio_ejecutado_periodo','servicio_ejecutado_acumulado','aux_porcentaje','proveedor','tipo_um',
+        'actores_firmantes','ejecutado_100','anexo_fotografia_actas','anio'
+      ],
+      headers:[
+        'TIPO DE SERVICIO','ACTA MEDICION N°','PROX ACTA MED. FECHA','OC','FECHA INICIO','FECHA FIN',
+        'ITEM_NRO','Descripcion','POS SAP','N° HES','N° IF','CANT','UM','SERVC EJEC. ANT','SERV.EJEC.PTE',
+        'SERV EJEC. ACUM','AUX %','PROVEEDOR','TIPO_UM','ACTORES FIRMANTES','EJECUTADO 100%',
+        'ANEXO FOTOGRAFIA ACTAS','AÑO'
+      ]
+    },
+    Obra:{
+      fields:[
+        'id_obra','tipo_servicio','acta_medicion_nro','proxima_acta_medicion_fecha','nro_oc','fecha_inicio','fecha_fin',
+        'item_nro','descripcion','cantidad','unidad_medida','servicio_ejecutado_anterior','servicio_ejecutado_periodo',
+        'servicio_ejecutado_acumulado','aux_porcentaje','actores_firmantes','ejecutado_100','posicion','nro_hes','nro_if','anio'
+      ],
+      headers:[
+        'ID OBRA','TIPO DE SERVICIO','ACTA MEDICION N°','PROX ACTA MED FECHA','OC','FECHA INICIO','FECHA FIN',
+        'ITEM_NRO','Descripcion','CANT','UM','SERVC EJEC. ANT','SERV.EJEC.PTE','SERV EJEC. ACUM','AUX %',
+        'ACTORES FIRMANTES','EJECUTADO 100%','POS SAP','N° HES','N° IF','AÑO'
+      ]
+    }
+  };
+  let tipoGridCertificacion='Servicio';
+  let CERTIFICACION_FIELDS=[...CERTIFICACION_CONFIGS.Servicio.fields];
+  let CERTIFICACION_HEADERS=[...CERTIFICACION_CONFIGS.Servicio.headers];
+  const certificacionBorradores={Servicio:[],Obra:[]};'''
+
+block = sub_once(
+    r"  const CERTIFICACION_FIELDS=\[.*?\n  \];\n  const CERTIFICACION_HEADERS=\[.*?\n  \];",
+    lambda m: config,
+    'configuración de columnas',
+    source=block
+)
+
+old = "      orden_id:row.orden_id??null,\n      tipo_servicio:clean(campoHistorico(row,['tipo_servicio','tipoServicio','tipo','TIPO_DE_SERVICIO'])),"
+new = "      orden_id:row.orden_id??null,\n      id_obra:clean(campoHistorico(row,['id_obra','idObra','ID_OBRA'])),\n      tipo_servicio:clean(campoHistorico(row,['tipo_servicio','tipoServicio','tipo','TIPO_DE_SERVICIO'])),"
+if block.count(old) != 1:
+    raise SystemExit('H17: no se pudo insertar id_obra en normalizador')
+block = block.replace(old, new, 1)
+
+old = "      posicion:clean(campoHistorico(row,['posicion','POSICION'])),\n      cantidad,"
+new = "      posicion:clean(campoHistorico(row,['posicion','pos_sap','POSICION','POS_SAP','POS SAP'])),\n      nro_hes:clean(campoHistorico(row,['nro_hes','nroHes','NRO_HES','N° HES'])),\n      nro_if:clean(campoHistorico(row,['nro_if','nroIf','NRO_IF','N° IF'])),\n      cantidad,"
+if block.count(old) != 1:
+    raise SystemExit('H17: no se pudieron insertar HES/IF en normalizador')
+block = block.replace(old, new, 1)
+
+old = "      _aux_porcentaje_persistido:auxPorcentajePersistido,\n      tipo_um:clean(campoHistorico(row,['tipo_um','TIPO_UM','tipoUM'])),"
+new = "      _aux_porcentaje_persistido:auxPorcentajePersistido,\n      proveedor:clean(campoHistorico(row,['proveedor','PROVEEDOR','proveed'])),\n      tipo_um:clean(campoHistorico(row,['tipo_um','TIPO_UM','tipoUM'])),"
+if block.count(old) != 1:
+    raise SystemExit('H17: no se pudo insertar proveedor en normalizador')
+block = block.replace(old, new, 1)
+
+old = "      nro_oc:normalizarNroOCCertificacion(normalized.nro_oc),\n      tipo_servicio:normalized.tipo_servicio||null,"
+new = "      nro_oc:normalizarNroOCCertificacion(normalized.nro_oc),\n      id_obra:normalized.id_obra||clean(order?.id_obra)||null,\n      tipo_servicio:normalized.tipo_servicio||null,"
+if block.count(old) != 1:
+    raise SystemExit('H17: no se pudo insertar id_obra en payload')
+block = block.replace(old, new, 1)
+
+old = "      posicion:normalized.posicion||null,\n      cantidad:normalized.cantidad,"
+new = "      posicion:normalized.posicion||null,\n      nro_hes:normalized.nro_hes||null,\n      nro_if:normalized.nro_if||null,\n      cantidad:normalized.cantidad,"
+if block.count(old) != 1:
+    raise SystemExit('H17: no se pudieron insertar HES/IF en payload')
+block = block.replace(old, new, 1)
+
+old = "      servicio_ejecutado_periodo:normalized.servicio_ejecutado_periodo,\n      tipo_um:normalized.tipo_um||null,"
+new = "      servicio_ejecutado_periodo:normalized.servicio_ejecutado_periodo,\n      proveedor:normalized.proveedor||clean(order?.proveedor)||null,\n      tipo_um:normalized.tipo_um||null,"
+if block.count(old) != 1:
+    raise SystemExit('H17: no se pudo insertar proveedor en payload')
+block = block.replace(old, new, 1)
+
+block = sub_once(
+    r"  function filaCertificacionVacia\(data\)\{.*?\n  \}",
+    r'''  function filaCertificacionVacia(data){
+    const zeroDefaults=new Set(['cantidad','servicio_ejecutado_anterior','servicio_ejecutado_periodo']);
+    return CERTIFICACION_FIELDS.filter(field=>!GENERATED_FIELDS.has(field)&&field!=='anio').every(field=>{
+      if(zeroDefaults.has(field))return normalizarNumeroCertificacion(data[field])===0;
+      if(field==='ejecutado_100')return !normalizarBooleanoCertificacion(data[field]);
+      return !clean(data[field]);
+    });
+  }''',
+    'detección de fila vacía',
+    source=block
+)
+
+block = sub_once(
+    r"  function validarFilasCargaCertificacion\(\)\{.*?\n  \}\n\n  function actualizarEstadoCargaCertificacion",
+    r'''  function validarFilasCargaCertificacion(){
+    const body=byId('cargaCertificacionBodyR18');
+    if(!body)return [];
+    const entries=[...body.querySelectorAll('tr')].map((row,index)=>({row,index,data:leerFilaCertificacion(row)}));
+    const used=entries.filter(entry=>!filaCertificacionVacia(entry.data));
+    const groupCounts=new Map();
+    used.forEach(entry=>{
+      const n=normalizarCertificacionDesdeSupabase(entry.data);
+      const key=[n.nro_oc,n.acta_medicion_nro,n.fecha_inicio,n.fecha_fin].map(fold).join('|');
+      groupCounts.set(key,(groupCounts.get(key)||0)+1);
+    });
+    const seen=new Set();
+    entries.forEach(entry=>{
+      entry.row.classList.remove('certificacion-error','certificacion-guardada','certificacion-omitida');
+      if(filaCertificacionVacia(entry.data)){estadoFila(entry.row,'Pendiente','pendiente');entry.row.title='';return;}
+      const normalized=normalizarCertificacionDesdeSupabase(entry.data);
+      const groupKey=[normalized.nro_oc,normalized.acta_medicion_nro,normalized.fecha_inicio,normalized.fecha_fin].map(fold).join('|');
+      const validation=validarFilaCertificacion(entry.data,{verificarOC:true,requiereItem:(groupCounts.get(groupKey)||0)>1});
+      const logicalKey=construirClaveCertificacion(entry.data);
+      if(!validation.valida){
+        entry.row.classList.add('certificacion-error');
+        entry.row.title=validation.errores.join(' · ');
+        const main=validation.errores.find(error=>error.includes('OC no encontrada'))?'OC no encontrada':validation.errores[0]||'Con error';
+        estadoFila(entry.row,main,'error');
+      }else if(seen.has(logicalKey)){
+        entry.row.classList.add('certificacion-omitida');
+        entry.row.title='Duplicado dentro del bloque pegado.';
+        estadoFila(entry.row,'Duplicado','duplicado');
+      }else{
+        entry.row.title='Fila válida y lista para guardar.';
+        estadoFila(entry.row,'Válida','valida');
+        seen.add(logicalKey);
+      }
+    });
+    return entries;
+  }
+
+  function actualizarEstadoCargaCertificacion''',
+    'validación por fila',
+    source=block
+)
+
+helper_anchor = '''  function tipoCargaActivo(){
+    const active=document.querySelector('[data-carga-tipo].active,.quick-type-card.active');
+    const value=fold(active?.dataset?.cargaTipo||active?.textContent||byId('cargaRapidaTipoActivo')?.textContent||'');
+    if(value.includes('OBRA'))return'Obra';
+    if(value.includes('SERVICIO'))return'Servicio';
+    if(value.includes('FINANCIERA'))return'Financiera';
+    return'Servicio';
+  }
+'''
+helpers = helper_anchor + r'''
+  function aplicarConfigColumnasCertificacion(tipo=tipoCargaActivo()){
+    const target=tipo==='Obra'?'Obra':'Servicio';
+    const cfg=CERTIFICACION_CONFIGS[target];
+    CERTIFICACION_FIELDS.splice(0,CERTIFICACION_FIELDS.length,...cfg.fields);
+    CERTIFICACION_HEADERS.splice(0,CERTIFICACION_HEADERS.length,...cfg.headers);
+    tipoGridCertificacion=target;
+    return cfg;
+  }
+
+  function guardarBorradorCertificacion(tipo=tipoGridCertificacion){
+    const body=byId('cargaCertificacionBodyR18');
+    if(!body||!CERTIFICACION_CONFIGS[tipo])return;
+    certificacionBorradores[tipo]=[...body.querySelectorAll('tr')]
+      .map(leerFilaCertificacion)
+      .filter(row=>!filaCertificacionVacia(row));
+  }
+
+  function reconstruirPanelCargaCertificacion(){
+    const panel=byId('panelCargaCertificacionR18');
+    if(!panel)return;
+    panel.innerHTML=contenidoPanelCargaCertificacion();
+    const draft=certificacionBorradores[tipoGridCertificacion]||[];
+    agregarFilasCertificacion(draft.length||1,draft);
+    actualizarEstadoCargaCertificacion();
+  }
+'''
+if block.count(helper_anchor) != 1:
+    raise SystemExit('H17: no se encontró tipoCargaActivo para insertar helpers')
+block = block.replace(helper_anchor, helpers, 1)
+
+if block.count('<h3>Carga Certificación</h3>') != 1:
+    raise SystemExit('H17: título de Carga Certificación no encontrado')
+block = block.replace('<h3>Carga Certificación</h3>', '<h3>Carga Certificación — ${escapeHTML(tipoGridCertificacion)}</h3>', 1)
+if block.count('<table class="carga-certificacion-table"><thead>') != 1:
+    raise SystemExit('H17: tabla de Carga Certificación no encontrada')
+block = block.replace('<table class="carga-certificacion-table"><thead>', '<table class="carga-certificacion-table" data-cert-tipo="${escapeHTML(tipoGridCertificacion)}"><thead>', 1)
+
+old = "    const type=tipoCargaActivo();\n    const available=type==='Obra'||type==='Servicio';"
+new = "    const type=tipoCargaActivo();\n    const available=type==='Obra'||type==='Servicio';\n    if(available&&type!==tipoGridCertificacion){\n      guardarBorradorCertificacion(tipoGridCertificacion);\n      aplicarConfigColumnasCertificacion(type);\n      reconstruirPanelCargaCertificacion();\n    }"
+if block.count(old) != 1:
+    raise SystemExit('H17: no se pudo sincronizar config por tipo')
+block = block.replace(old, new, 1)
+
+old = "      if(event.target.closest('[data-carga-tipo],.quick-type-card')){submodoCargaCertificacion='principal';asegurarCargaCertificacion();}"
+new = "      if(event.target.closest('[data-carga-tipo],.quick-type-card')){guardarBorradorCertificacion(tipoGridCertificacion);submodoCargaCertificacion='principal';setTimeout(()=>{asegurarCargaCertificacion();actualizarVisibilidadCargaCertificacion();},0);}"
+if block.count(old) != 1:
+    raise SystemExit('H17: no se pudo ajustar cambio Servicio/Obra')
+block = block.replace(old, new, 1)
+
+old = '''        const logicalKey=construirClaveCertificacion(entry.data);
+        if(seen.has(logicalKey)){
+          summary.omitidas+=1;
+          const message='Duplicado dentro del bloque pegado.';
+          marcarResultadoFila(entry.row,message,'warning');
+          continue;
+        }
+        seen.add(logicalKey);
+        const validation=validarFilaCertificacion(entry.data,{verificarOC:false,requiereItem:(groupCounts.get(groupKey)||0)>1});
+        if(!validation.valida){
+          summary.errores+=1;
+          const message=validation.errores.join(' · ');
+          errors.push(`Fila ${entry.index+1}: ${message}`);
+          marcarResultadoFila(entry.row,message,'error');
+          continue;
+        }
+        try{'''
+new = '''        const logicalKey=construirClaveCertificacion(entry.data);
+        const validation=validarFilaCertificacion(entry.data,{verificarOC:false,requiereItem:(groupCounts.get(groupKey)||0)>1});
+        if(!validation.valida){
+          summary.errores+=1;
+          const message=validation.errores.join(' · ');
+          errors.push(`Fila ${entry.index+1}: ${message}`);
+          marcarResultadoFila(entry.row,message,'error');
+          continue;
+        }
+        if(seen.has(logicalKey)){
+          summary.omitidas+=1;
+          const message='Duplicado dentro del bloque pegado.';
+          marcarResultadoFila(entry.row,message,'warning');
+          continue;
+        }
+        seen.add(logicalKey);
+        try{'''
+if block.count(old) != 1:
+    raise SystemExit('H17: no se pudo corregir orden validación/duplicados al guardar')
+block = block.replace(old, new, 1)
+
+old = "    body.innerHTML='';\n    agregarFilasCertificacion(1);"
+new = "    body.innerHTML='';\n    certificacionBorradores[tipoGridCertificacion]=[];\n    agregarFilasCertificacion(1);"
+if block.count(old) != 1:
+    raise SystemExit('H17: no se pudo sincronizar limpiar borrador')
+block = block.replace(old, new, 1)
+
+old = "descargarArchivoCertificacion(`certificaciones_coi_${new Date().toISOString().slice(0,10)}.csv`,lines.join('\\r\\n'),'text/csv;charset=utf-8');"
+if old in block:
+    block = block.replace(old, "descargarArchivoCertificacion(`certificaciones_${tipoGridCertificacion.toLowerCase()}_coi_${new Date().toISOString().slice(0,10)}.csv`,lines.join('\\r\\n'),'text/csv;charset=utf-8');", 1)
+
+text = text[:script_start] + block + text[script_end:]
+
+style_start = text.find('<style id="coi-certificaciones-r20-styles">')
+if style_start < 0:
+    raise SystemExit('H17: style R20 no encontrado')
+style_end = text.find('</style>', style_start)
+if style_end < 0:
+    raise SystemExit('H17: cierre style R20 no encontrado')
+css = r'''
+/* H17 — columnas dinámicas Carga Certificación */
+#panelCargaCertificacionR18 .carga-certificacion-table{min-width:4400px}
+#panelCargaCertificacionR18 .carga-certificacion-table[data-cert-tipo="Obra"]{min-width:4000px}
+#panelCargaCertificacionR18 .carga-certificacion-table th:nth-child(20),
+#panelCargaCertificacionR18 .carga-certificacion-table td:nth-child(20),
+#panelCargaCertificacionR18 .carga-certificacion-table th:nth-child(21),
+#panelCargaCertificacionR18 .carga-certificacion-table td:nth-child(21){position:static!important;right:auto!important;z-index:auto!important;width:auto!important;min-width:130px!important;background:inherit!important}
+#panelCargaCertificacionR18 .carga-certificacion-table th:last-child,
+#panelCargaCertificacionR18 .carga-certificacion-table td.certificacion-validacion{width:155px;min-width:155px;position:sticky!important;right:0;z-index:2;background:#f8fbfd!important}
+#panelCargaCertificacionR18 .carga-certificacion-table th:last-child{z-index:4;background:#dfeef7!important}
+#panelCargaCertificacionR18 .carga-certificacion-table textarea{min-width:190px;min-height:42px}
+'''
+text = text[:style_end] + css + '\n' + text[style_end:]
+
+path.write_text(text, encoding='utf-8')
+print('H17 certification structure applied')
