@@ -1,0 +1,176 @@
+name: H17 Apply Certification Schemas
+
+on:
+  push:
+    branches: [feat/h17-certificaciones-obra-servicio]
+    paths: [.github/workflows/h17-apply-cert-schema.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/h17-certificaciones-obra-servicio
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Aplicar H17 quirúrgicamente
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          path=Path('index.html')
+          text=path.read_text(encoding='utf-8')
+
+          def once(old,new,label):
+              global text
+              count=text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: se esperaba 1 coincidencia y hubo {count}')
+              text=text.replace(old,new,1)
+
+          old="""  const CERTIFICACION_FIELDS=[
+            'tipo_servicio','acta_medicion_nro','proxima_acta_medicion_fecha','nro_oc','fecha_inicio','fecha_fin',
+            'item_nro','descripcion','posicion','cantidad','unidad_medida','servicio_ejecutado_anterior',
+            'servicio_ejecutado_periodo','servicio_ejecutado_acumulado','aux_porcentaje','tipo_um',
+            'actores_firmantes','ejecutado_100','anexo_fotografia_actas','anio'
+          ];
+          const CERTIFICACION_HEADERS=[
+            'TIPO DE SERVICIO','ACTA MEDICIÓN N°','PRÓX. ACTA MED. FECHA','OC','FECHA INICIO','FECHA FIN',
+            'ITEM_NRO','DESCRIPCIÓN','POSICIÓN','CANT','UM','SERV. EJEC. ANT.','SERV. EJEC. PTE.',
+            'SERV. EJEC. ACUM.','AUX %','TIPO_UM','ACTORES FIRMANTES','EJECUTADO 100%',
+            'ANEXO FOTOGRAFÍA ACTAS','AÑO'
+          ];"""
+          new="""  const CERTIFICACION_SCHEMAS=Object.freeze({
+            Obra:Object.freeze({
+              fields:['id_obra','tipo_servicio','acta_medicion_nro','proxima_acta_medicion_fecha','nro_oc','fecha_inicio','fecha_fin','item_nro','descripcion','cantidad','unidad_medida','servicio_ejecutado_anterior','servicio_ejecutado_periodo','servicio_ejecutado_acumulado','aux_porcentaje','actores_firmantes','ejecutado_100','posicion','nro_hes','nro_if','anio'],
+              headers:['ID OBRA','TIPO DE SERVICIO','ACTA MEDICION N°','PROX ACTA MED FECHA','OC','FECHA INICIO','FECHA FIN','ITEM_NRO','Descripcion','CANT','UM','SERVC EJEC. ANT','SERV.EJEC.PTE','SERV EJEC. ACUM','AUX %','ACTORES FIRMANTES','EJECUTADO 100%','POS SAP','N° HES','N° IF','AÑO']
+            }),
+            Servicio:Object.freeze({
+              fields:['acta_medicion_nro','proxima_acta_medicion_fecha','nro_oc','fecha_inicio','fecha_fin','item_nro','descripcion','posicion','nro_hes','nro_if','cantidad','unidad_medida','servicio_ejecutado_anterior','servicio_ejecutado_periodo','servicio_ejecutado_acumulado','aux_porcentaje','proveedor','tipo_um','actores_firmantes','ejecutado_100','anexo_fotografia_actas','anio'],
+              headers:['ACTA MEDICION N°','PROX ACTA MED. FECHA','OC','FECHA INICIO','FECHA FIN','ITEM_NRO','Descripcion','POS SAP','N° HES','N° IF','CANT','UM','SERVC EJEC. ANT','SERV.EJEC.PTE','SERV EJEC. ACUM','AUX %','PROVEEDOR','TIPO_UM','ACTORES FIRMANTES','EJECUTADO 100%','ANEXO FOTOGRAFIA ACTAS','AÑO']
+            })
+          });
+          let certificacionTipoEsquemaActivo='Servicio';
+          let CERTIFICACION_FIELDS=[...CERTIFICACION_SCHEMAS.Servicio.fields];
+          let CERTIFICACION_HEADERS=[...CERTIFICACION_SCHEMAS.Servicio.headers];
+          const certificacionBorradoresPorTipo={Obra:[],Servicio:[]};"""
+          once(old,new,'schemas')
+
+          marker="""  const GENERATED_FIELDS=new Set(['servicio_ejecutado_acumulado','aux_porcentaje']);
+          const certificacionesCacheOC=new Map();"""
+          replacement="""  const GENERATED_FIELDS=new Set(['servicio_ejecutado_acumulado','aux_porcentaje']);
+
+          function renderEncabezadoCertificacion(){
+            const row=document.querySelector('#panelCargaCertificacionR18 .carga-certificacion-table thead tr');
+            if(row)row.innerHTML=`${CERTIFICACION_HEADERS.map(header=>`<th>${escapeHTML(header)}</th>`).join('')}<th>VALIDACIÓN</th>`;
+            const badge=byId('cargaCertificacionTipoR18');
+            if(badge)badge.textContent=`Estructura activa: ${certificacionTipoEsquemaActivo.toUpperCase()}`;
+          }
+
+          function sincronizarEsquemaCertificacion(tipo=tipoCargaActivo(),{preservar=true}={}){
+            const next=tipo==='Obra'?'Obra':'Servicio';
+            const body=byId('cargaCertificacionBodyR18');
+            if(next===certificacionTipoEsquemaActivo){renderEncabezadoCertificacion();return;}
+            if(body&&preservar){
+              certificacionBorradoresPorTipo[certificacionTipoEsquemaActivo]=[...body.querySelectorAll('tr')].map(row=>leerFilaCertificacion(row));
+            }
+            certificacionTipoEsquemaActivo=next;
+            CERTIFICACION_FIELDS=[...CERTIFICACION_SCHEMAS[next].fields];
+            CERTIFICACION_HEADERS=[...CERTIFICACION_SCHEMAS[next].headers];
+            renderEncabezadoCertificacion();
+            if(body){
+              const drafts=certificacionBorradoresPorTipo[next]||[];
+              body.innerHTML=(drafts.length?drafts:[{}]).map(filaCertificacionHTML).join('');
+              body.querySelectorAll('tr').forEach(row=>recalcularFilaCertificacion(row,{actualizarAnio:true}));
+              validarFilasCargaCertificacion();
+              actualizarEstadoCargaCertificacion();
+            }
+          }
+
+          const certificacionesCacheOC=new Map();"""
+          once(marker,replacement,'schema sync helpers')
+
+          once("""      orden_id:row.orden_id??null,
+                tipo_servicio:clean(campoHistorico(row,['tipo_servicio','tipoServicio','tipo','TIPO_DE_SERVICIO'])),""",
+               """      orden_id:row.orden_id??null,
+                id_obra:clean(campoHistorico(row,['id_obra','idObra','ID_OBRA'])),
+                proveedor:clean(campoHistorico(row,['proveedor','PROVEEDOR'])),
+                tipo_servicio:clean(campoHistorico(row,['tipo_servicio','tipoServicio','tipo','TIPO_DE_SERVICIO'])),""",
+               'normalizer id/proveedor')
+
+          once("""      descripcion:clean(campoHistorico(row,['descripcion','DESCRIPCION'])),
+                posicion:clean(campoHistorico(row,['posicion','POSICION'])),
+                cantidad,""",
+               """      descripcion:clean(campoHistorico(row,['descripcion','DESCRIPCION'])),
+                posicion:clean(campoHistorico(row,['posicion','POSICION','pos_sap','POS_SAP'])),
+                nro_hes:clean(campoHistorico(row,['nro_hes','nroHes','NRO_HES','N° HES'])),
+                nro_if:clean(campoHistorico(row,['nro_if','nroIf','NRO_IF','N° IF'])),
+                cantidad,""",
+               'normalizer hes/if')
+
+          once("""      orden_id:order?.orden_id||data.orden_id||null,
+                nro_oc:normalizarNroOCCertificacion(normalized.nro_oc),
+                tipo_servicio:normalized.tipo_servicio||null,""",
+               """      orden_id:order?.orden_id||data.orden_id||null,
+                id_obra:normalized.id_obra||order?.id_obra||null,
+                proveedor:normalized.proveedor||order?.proveedor||null,
+                nro_oc:normalizarNroOCCertificacion(normalized.nro_oc),
+                tipo_servicio:normalized.tipo_servicio||null,""",
+               'payload id/proveedor')
+
+          once("""      descripcion:normalized.descripcion||null,
+                posicion:normalized.posicion||null,
+                cantidad:normalized.cantidad,""",
+               """      descripcion:normalized.descripcion||null,
+                posicion:normalized.posicion||null,
+                nro_hes:normalized.nro_hes||null,
+                nro_if:normalized.nro_if||null,
+                cantidad:normalized.cantidad,""",
+               'payload hes/if')
+
+          old_panel="""      <div class=\"carga-certificacion-toolbar\"><div><h3>Carga Certificación</h3><p>Copie y pegue directamente desde Excel. La OC se valida contra public.coi_ordenes y la certificación se vincula mediante nro_oc + orden_id.</p></div><div class=\"carga-certificacion-actions\">"""
+          new_panel="""      <div class=\"carga-certificacion-toolbar\"><div><h3>Carga Certificación</h3><p>Copie y pegue directamente desde Excel. La estructura cambia automáticamente según Carga activa: Obra o Servicio.</p><span id=\"cargaCertificacionTipoR18\" class=\"quick-load-badge\">Estructura activa: ${certificacionTipoEsquemaActivo.toUpperCase()}</span></div><div class=\"carga-certificacion-actions\">"""
+          once(old_panel,new_panel,'panel badge')
+
+          once("""    const type=tipoCargaActivo();
+              const available=type==='Obra'||type==='Servicio';
+              tabs.hidden=!available;""",
+               """    const type=tipoCargaActivo();
+              const available=type==='Obra'||type==='Servicio';
+              if(available)sincronizarEsquemaCertificacion(type);
+              tabs.hidden=!available;""",
+               'visibility schema sync')
+
+          path.write_text(text,encoding='utf-8')
+          PY
+
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Validar H17 y regresión unitaria
+        run: |
+          node tests/check_h17_certificacion_schemas.js
+          npm run test:unit
+          node tests/regression_improvements.js
+          node tests/test_new_features.js
+          node tests/check_expected_fail_contract.js
+      - name: Commit de index H17
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo 'No hubo cambios en index.html'
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'feat(h17): split certification fields by obra and servicio'
+          git push origin HEAD:feat/h17-certificaciones-obra-servicio
