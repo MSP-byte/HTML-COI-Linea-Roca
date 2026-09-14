@@ -1,0 +1,57 @@
+name: H14 Apply Auth Gate
+
+on:
+  push:
+    branches:
+      - feat/h14-login-auth-seguridad
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-h14:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/h14-login-auth-seguridad
+          fetch-depth: 0
+
+      - name: Apply H14 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -q 'id="coi-auth-h14-style"' index.html; then
+            echo 'H14 already applied; nothing to do.'
+            exit 0
+          fi
+          cat tools/h14_patch.part00 tools/h14_patch.part01 tools/h14_patch.part02 tools/h14_patch.part03 > /tmp/apply_h14.py
+          python /tmp/apply_h14.py
+
+      - name: Install test dependencies
+        run: npm ci
+
+      - name: Run H14 and unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/check_h14_auth_gate.js
+          npm run test:unit
+
+      - name: Commit completed H14
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html package.json tests/check_h14_auth_gate.js tests/h14_auth_gate.spec.js
+          git rm -f tools/h14_patch.part00 tools/h14_patch.part01 tools/h14_patch.part02 tools/h14_patch.part03 tools/h14_bg.part00 tools/h14_bg.part01 tools/h14_bg.part02 .github/workflows/h14-apply.yml
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git commit -m 'feat(h14): add Supabase Auth login gate and role-aware access'
+          git push origin HEAD:feat/h14-login-auth-seguridad
