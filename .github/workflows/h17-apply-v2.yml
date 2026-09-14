@@ -1,0 +1,43 @@
+name: H17 Apply v2
+
+on:
+  push:
+    branches: [feat/h17-certificaciones-obra-servicio]
+    paths: [.github/workflows/h17-apply-v2.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/h17-certificaciones-obra-servicio
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Aplicar parche H17
+        run: python3 tools/h17_patch_certificaciones.py
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Validar H17 y regresión unitaria
+        run: |
+          node tests/check_h17_certificacion_schemas.js
+          npm run test:unit
+          node tests/regression_improvements.js
+          node tests/test_new_features.js
+          node tests/check_expected_fail_contract.js
+      - name: Commit de index H17
+        shell: bash
+        run: |
+          test -n "$(git status --porcelain index.html)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'feat(h17): split certification fields by obra and servicio'
+          git push origin HEAD:feat/h17-certificaciones-obra-servicio
