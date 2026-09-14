@@ -7,13 +7,19 @@ on:
     paths:
       - .github/workflows/h14-optimize-login-image.yml
       - index.html
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/h14-optimize-login-image.yml
+      - index.html
 
 permissions:
   contents: write
 
 jobs:
   optimize:
-    if: ${{ !contains(github.event.head_commit.message, 'chore(h14): optimize embedded login image') }}
+    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -98,5 +104,3 @@ jobs:
           git add index.html
           git commit -m 'chore(h14): optimize embedded login image'
           git push origin HEAD:feat/h14-login-auth-seguridad
-
-# one-shot trigger refresh
