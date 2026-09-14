@@ -1,0 +1,36 @@
+name: H15 Fix Gradient
+
+on:
+  push:
+    branches: [feat/h15-login-ejecutivo-avance-visual]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/h15-login-ejecutivo-avance-visual
+      - name: Corregir separador CSS
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('index.html')
+          s=p.read_text(encoding='utf-8')
+          old='linear-gradient(135deg,#061925 0%,#0a2d43 48%,#0f5f91 100%)color:#163246'
+          new='linear-gradient(135deg,#061925 0%,#0a2d43 48%,#0f5f91 100%);color:#163246'
+          assert s.count(old)==1, f'matches={s.count(old)}'
+          s=s.replace(old,new,1)
+          p.write_text(s,encoding='utf-8')
+          PY
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "fix(h15): repair executive background declaration"
+          git push origin HEAD:feat/h15-login-ejecutivo-avance-visual
