@@ -98,3 +98,5 @@ jobs:
           git add index.html
           git commit -m 'chore(h14): optimize embedded login image'
           git push origin HEAD:feat/h14-login-auth-seguridad
+
+# one-shot trigger refresh
