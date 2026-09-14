@@ -1,0 +1,123 @@
+name: H15 One Shot Apply V2
+
+on:
+  push:
+    branches: [feat/h15-login-ejecutivo-avance-visual]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/h15-login-ejecutivo-avance-visual
+      - name: Aplicar H15
+        shell: bash
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+
+          pat = re.compile(r'(#coiAuthGateH14\{.*?box-sizing:border-box;)background-image:.*?;background-size:cover;background-position:center center;(;?color:#163246;.*?visibility:visible!important\})', re.S)
+          repl = r'''\1background:radial-gradient(circle at 16% 18%,rgba(40,169,214,.18),transparent 30%),radial-gradient(circle at 78% 82%,rgba(64,145,194,.16),transparent 34%),linear-gradient(135deg,#061925 0%,#0a2d43 48%,#0f5f91 100%)\2'''
+          s, n = pat.subn(repl, s, count=1)
+          assert n == 1, f'login background replacements={n}'
+
+          h15_css = r'''
+          <style id="coi-h15-executive-auth-style">
+          #coiAuthGateH14{justify-content:center;padding:clamp(24px,5vw,72px);isolation:isolate;overflow:hidden}
+          #coiAuthGateH14::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.7;background:linear-gradient(115deg,transparent 0 43%,rgba(255,255,255,.055) 43.2% 43.5%,transparent 43.8% 100%),linear-gradient(115deg,transparent 0 55%,rgba(255,255,255,.035) 55.2% 55.45%,transparent 55.7% 100%),repeating-linear-gradient(90deg,transparent 0 72px,rgba(255,255,255,.018) 72px 73px)}
+          #coiAuthGateH14::after{content:"";position:absolute;left:-8vw;bottom:-30vh;width:70vw;height:52vh;border:1px solid rgba(80,190,226,.16);border-radius:50%;transform:rotate(-8deg);z-index:-1;pointer-events:none;box-shadow:0 0 0 42px rgba(80,190,226,.025),0 0 0 84px rgba(80,190,226,.018)}
+          #coiAuthGateH14 .coi-h14-shell{width:min(1040px,100%);grid-template-columns:minmax(0,1fr) minmax(390px,440px);gap:clamp(38px,6vw,82px);align-items:center}
+          #coiAuthGateH14 .coi-h14-brand{align-items:flex-start;flex-direction:column;gap:18px;text-shadow:none;max-width:520px}
+          #coiAuthGateH14 .coi-h14-roundel{width:78px;height:78px;background:#0e668f;border-color:rgba(255,255,255,.92);box-shadow:0 16px 38px rgba(0,0,0,.22);font-size:14px;letter-spacing:1.3px}
+          #coiAuthGateH14 .coi-h14-brand-copy b{font-size:clamp(32px,4vw,46px);line-height:1.02;letter-spacing:-.7px}
+          #coiAuthGateH14 .coi-h14-brand-copy span{margin-top:12px;font-size:14px;line-height:1.55;color:#d4e7f2;font-weight:750}
+          #coiAuthGateH14 .coi-h14-brand-copy::before{content:"SISTEMA INSTITUCIONAL";display:block;margin-bottom:11px;color:#72c6e8;font-size:11px;font-weight:900;letter-spacing:1.7px}
+          #coiAuthGateH14 .coi-h14-card{background:#f8fbfd;border:1px solid rgba(225,239,247,.9);box-shadow:0 26px 70px rgba(0,0,0,.28);backdrop-filter:none;-webkit-backdrop-filter:none}
+          #coiAuthGateH14 .coi-h14-card-head{background:#fff}
+          #vistaOrdenes .coi-progress-inline{display:grid;grid-template-columns:minmax(72px,1fr) auto;gap:8px;align-items:center;min-width:132px}
+          #vistaOrdenes .coi-progress-inline-track{display:block;height:10px;border-radius:999px;background:#e4edf3;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(17,67,96,.08)}
+          #vistaOrdenes .coi-progress-inline-fill{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#28a9d6,#0f5f91);transition:width .25s ease}
+          #vistaOrdenes .coi-progress-inline[data-complete="1"] .coi-progress-inline-fill{background:linear-gradient(90deg,#35a86f,#1f7a50)}
+          #vistaOrdenes .coi-progress-inline strong{min-width:44px;text-align:right;font-size:12px;color:#17384d;font-weight:850}
+          #vistaOrdenes .coi-progress-na,#vistaOrdenes .coi-progress-empty{color:#7a8791;font-size:12px;font-weight:750;white-space:nowrap}
+          #fichaOCBody .coi-progress-detail{height:12px;border-radius:999px;background:#e4edf3;overflow:hidden;margin:8px 0 7px;box-shadow:inset 0 0 0 1px rgba(17,67,96,.08)}
+          #fichaOCBody .coi-progress-detail-fill{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#28a9d6,#0f5f91);transition:width .25s ease}
+          #fichaOCBody .coi-progress-detail[data-complete="1"] .coi-progress-detail-fill{background:linear-gradient(90deg,#35a86f,#1f7a50)}
+          @media(max-width:760px){#coiAuthGateH14{padding:20px;overflow:auto}#coiAuthGateH14 .coi-h14-shell{grid-template-columns:1fr;gap:20px;width:min(430px,100%)}#coiAuthGateH14 .coi-h14-brand{flex-direction:row;align-items:center;gap:12px;max-width:none}#coiAuthGateH14 .coi-h14-roundel{width:52px;height:52px;font-size:11px;flex:0 0 auto}#coiAuthGateH14 .coi-h14-brand-copy::before{display:none}#coiAuthGateH14 .coi-h14-brand-copy b{font-size:21px;letter-spacing:0}#coiAuthGateH14 .coi-h14-brand-copy span{margin-top:3px;font-size:11px}}
+          </style>
+          '''.replace('\n          ','\n').lstrip()
+          marker = '<script id="coi-auth-h14-prelock">'
+          assert marker in s and 'id="coi-h15-executive-auth-style"' not in s
+          s = s.replace(marker, h15_css + marker, 1)
+
+          pat = re.compile(r"  function progressOf\(r\)\{.*?\}\n  let seq=0;", re.S)
+          progress_js = r'''  function progressValue(r){
+            if(fold(typeOf(r))!=='OBRA')return null;
+            const i=itemOf(r),raw=i?._supabaseRaw||r?._supabaseRaw||{},v=raw.avance_obra_pct??i.avance_obra_pct??r?.avance_obra_pct;
+            if(v===null||v===undefined||text(v)==='')return null;
+            const n=Number(v);return Number.isFinite(n)?Math.max(0,Math.min(100,n)):null;
+          }
+          function progressOf(r){
+            if(fold(typeOf(r))!=='OBRA')return '—';
+            const n=progressValue(r);return n===null?'—':new Intl.NumberFormat('es-AR',{maximumFractionDigits:2}).format(n)+'%';
+          }
+          function progressMarkup(r){
+            if(fold(typeOf(r))!=='OBRA')return '<span class="coi-progress-na">—</span>';
+            const n=progressValue(r);if(n===null)return '<span class="coi-progress-empty">Sin cargar</span>';
+            const label=new Intl.NumberFormat('es-AR',{maximumFractionDigits:2}).format(n);
+            return `<div class="coi-progress-inline" role="progressbar" aria-label="Avance de obra ${label}%" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${n}" data-complete="${n>=100?'1':'0'}"><span class="coi-progress-inline-track"><span class="coi-progress-inline-fill" style="width:${n}%"></span></span><strong>${label}%</strong></div>`;
+          }
+          let seq=0;'''.replace('\n          ','\n')
+          s, n = pat.subn(progress_js, s, count=1)
+          assert n == 1, f'progress function replacements={n}'
+          old = "cs[si].textContent=progressOf(r);cs[si].title=fold(typeOf(r))==='OBRA'?'Avance manual de obra':'No aplica a Servicios';"
+          new = "cs[si].innerHTML=progressMarkup(r);cs[si].title=fold(typeOf(r))==='OBRA'?'Avance manual de obra':'No aplica a Servicios';"
+          assert s.count(old) == 1, f'orders progress cell matches={s.count(old)}'
+          s = s.replace(old, new, 1)
+
+          pat = re.compile(r"  function buildManualCard\(order,editable\)\{.*?\n  \}\n  function startEditor", re.S)
+          manual_js = r'''  function buildManualCard(order,editable){
+            const card=document.createElement('div'); card.className='oc-kpi'; card.dataset.coiObraProgressManual='1';
+            const raw=order.avance_obra_pct,parsed=raw===null||raw===undefined||String(raw).trim()===''?NaN:Number(raw),pct=Number.isFinite(parsed)?Math.max(0,Math.min(100,parsed)):0;
+            card.innerHTML=`<b data-coi-manual-progress-value>${formatPercent(order.avance_obra_pct)}</b><span>% de avance</span><div class="coi-progress-detail" data-coi-manual-progress-bar role="progressbar" aria-label="Avance de obra ${formatPercent(order.avance_obra_pct)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" data-complete="${pct>=100?'1':'0'}"><span class="coi-progress-detail-fill" data-coi-manual-progress-fill style="width:${pct}%"></span></div><small>Avance físico manual de la obra</small>${editable?'<div class="doc-actions"><button type="button" data-coi-manual-progress-edit>Actualizar %</button></div>':''}<small class="coi-progress-manual-feedback" data-coi-manual-progress-feedback></small>`;
+            if(editable)card.querySelector('[data-coi-manual-progress-edit]')?.addEventListener('click',()=>startEditor(card,order));
+            return card;
+          }
+          function startEditor'''.replace('\n          ','\n')
+          s, n = pat.subn(manual_js, s, count=1)
+          assert n == 1, f'manual card replacements={n}'
+
+          old = "const display=card.querySelector('[data-coi-manual-progress-value]'); if(display)display.textContent=formatPercent(value);\n      if(feedback){feedback.textContent='Guardado en Supabase.';feedback.className='coi-progress-manual-feedback ok';}"
+          new = "const display=card.querySelector('[data-coi-manual-progress-value]'); if(display)display.textContent=formatPercent(value);\n      const bar=card.querySelector('[data-coi-manual-progress-bar]'),fill=card.querySelector('[data-coi-manual-progress-fill]'),pct=Math.max(0,Math.min(100,Number(value)||0));\n      if(bar){bar.setAttribute('aria-valuenow',String(pct));bar.setAttribute('aria-label',`Avance de obra ${formatPercent(value)}`);bar.dataset.complete=pct>=100?'1':'0';}\n      if(fill)fill.style.width=`${pct}%`;\n      if(feedback){feedback.textContent='Guardado en Supabase.';feedback.className='coi-progress-manual-feedback ok';}"
+          assert s.count(old) == 1, f'save progress matches={s.count(old)}'
+          s = s.replace(old, new, 1)
+
+          auth_block = re.search(r'<style id="coi-auth-h14-style">([\s\S]*?)</style>', s)
+          assert auth_block and 'data:image/jpeg;base64,' not in auth_block.group(1), 'H14 todavía contiene foto base64'
+          assert 'id="coi-h15-executive-auth-style"' in s
+          assert 'innerHTML=progressMarkup(r)' in s
+          assert 'data-coi-manual-progress-bar' in s and 'data-coi-manual-progress-fill' in s
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Validar diff
+        run: git diff --check
+      - name: Commit H15
+        run: |
+          if git diff --quiet; then
+            echo "Sin cambios"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "feat(h15): executive login and progress bars"
+          git push origin HEAD:feat/h15-login-ejecutivo-avance-visual
