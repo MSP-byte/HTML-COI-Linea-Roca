@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   apply-hotfix:
-    if: ${{ !contains(github.event.head_commit.message, 'fix(h14): apply HD login background') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -21,7 +20,7 @@ jobs:
           fetch-depth: 0
 
       - name: Patch H14 login
-        shell: python
+        shell: python {0}
         run: |
           from pathlib import Path
           import re
@@ -32,7 +31,6 @@ jobs:
           if marker in html:
               print('H14 hotfix already applied')
           else:
-              # Replace only the H14 login background data URL; do not touch other embedded assets.
               style_start = html.index('<style id="coi-auth-h14-style">')
               style_end = html.index('</style>', style_start)
               style = html[style_start:style_end]
@@ -72,10 +70,8 @@ jobs:
               if old_error not in html:
                   raise SystemExit('H14 login error anchor not found')
               html = html.replace(old_error, new_error, 1)
-
               p.write_text(html, encoding='utf-8')
 
-          # Update H14 static contract.
           p = Path('tests/check_h14_auth_gate.js')
           t = p.read_text(encoding='utf-8')
           t = t.replace(
@@ -84,7 +80,6 @@ jobs:
           )
           p.write_text(t, encoding='utf-8')
 
-          # Update the focused Playwright expectation for the external HD asset.
           p = Path('tests/h14_auth_gate.spec.js')
           t = p.read_text(encoding='utf-8')
           t = t.replace("expect(background).toContain('data:image/jpeg;base64');", "expect(background).toContain('plaza-constitucion-login-2024.jpg');")
