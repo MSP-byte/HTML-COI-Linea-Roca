@@ -37,10 +37,10 @@ jobs:
           prop_start = source.find('background-image:', start, block_end)
           if prop_start < 0:
               raise SystemExit('H14 mobile duplicate background-image was not found')
-          prop_end = source.find('");', prop_start, block_end)
+          prop_end = source.find('")', prop_start, block_end)
           if prop_end < 0:
               raise SystemExit('H14 mobile background data URL has no closing delimiter')
-          prop_end += 3
+          prop_end += 2
           removed = source[prop_start:prop_end]
           if 'data:image/jpeg;base64,' not in removed:
               raise SystemExit('Refusing to remove a mobile background that is not the duplicate JPEG data URL')
