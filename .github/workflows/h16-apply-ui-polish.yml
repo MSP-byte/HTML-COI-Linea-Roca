@@ -1,0 +1,112 @@
+name: H16 Apply UI Polish
+
+on:
+  push:
+    branches:
+      - feat/h16-ui-polish-density
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply H16 visual polish
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          marker = 'id="coi-h16-ui-polish-style"'
+          if marker in text:
+              print('H16 style already applied')
+              raise SystemExit(0)
+          css = r'''
+          <style id="coi-h16-ui-polish-style">
+          /* H16 — ajuste visual final: login ejecutivo + escala consistente en todos los módulos */
+          :root{--coi-ui-radius:16px;--coi-ui-radius-lg:20px;--coi-ui-border:#dce4ea;--coi-ui-shadow:0 8px 24px rgba(26,50,68,.07);--coi-ui-text:#233744;--coi-ui-muted:#687a87;--coi-ui-surface:#fff;--coi-ui-soft:#f6f9fb}
+          body{font-size:14px;line-height:1.45;color:var(--coi-ui-text)}
+          header{min-height:76px;height:auto;padding:12px 24px}
+          .brand{font-size:17px;line-height:1.2}.brand small{font-size:12.5px;line-height:1.35;margin-top:3px}
+          .app-title-line{font-size:20px;line-height:1.25;gap:9px}.app-subtitle{font-size:12.5px}.app-tagline{font-size:11.5px}
+          input,select,button,textarea{font-size:14px;line-height:1.3;border-radius:11px}
+          input,select,textarea{min-height:42px;padding:10px 12px}
+          button{min-height:40px;padding:9px 13px}
+          .module-nav{gap:9px;padding:13px 20px}.module-nav .nav-title{font-size:14px}.module-nav button{font-size:13px;padding:9px 14px}
+          .toolbar{gap:11px;padding:15px 20px}
+          .kpis{gap:12px;padding:16px 20px}.kpi{border-radius:var(--coi-ui-radius);padding:15px 16px;box-shadow:var(--coi-ui-shadow)}.kpi b{font-size:25px;line-height:1.15}.kpi span{font-size:11.5px;line-height:1.35}
+          .view-card,.calendar-module,.panel,.map-card{border-color:var(--coi-ui-border);border-radius:var(--coi-ui-radius-lg);box-shadow:var(--coi-ui-shadow)}
+          .view-card .view-head,.calendar-head,.panel-head{padding:18px 20px;background:linear-gradient(180deg,#f8fafc,#f2f6f8)}
+          .view-card .view-head h2,.calendar-head h2,.panel-head h2{font-size:23px;line-height:1.2;letter-spacing:-.2px}
+          .view-card .view-body,.calendar-body,.panel-body{padding:20px}
+          .section-title{font-size:14px;line-height:1.35;margin:22px 0 12px;padding-bottom:9px}
+          .item,.technical-card,.asset-card,.doc-box,.placeholder-box,.oc-card,.manual-card{border-color:var(--coi-ui-border);border-radius:var(--coi-ui-radius);box-shadow:0 3px 12px rgba(26,50,68,.035)}
+          .item{padding:14px}.item h3,.technical-card h3{font-size:16px;line-height:1.3}
+          .quick-stats{gap:11px}.quick-stat{border-radius:14px;padding:13px}.quick-stat b{font-size:22px}.quick-stat span{font-size:11.5px}
+          .calendar-kpis{gap:11px}.calendar-kpi{border-radius:14px;padding:14px}.calendar-kpi b{font-size:23px}.calendar-kpi span{font-size:11.5px}
+          .oc-title h2{font-size:26px;line-height:1.2}.oc-subtitle{font-size:13.5px}.oc-kpis{gap:11px}.oc-kpi{border-radius:14px;padding:14px}.oc-kpi b{font-size:22px}.oc-kpi span{font-size:11.5px}.oc-card{padding:16px}.oc-card h3{font-size:16px;line-height:1.3;margin-bottom:12px}
+          .table-wrap{border-color:var(--coi-ui-border);border-radius:14px}.coi-table{font-size:13.5px;line-height:1.35}.coi-table th{font-size:11.5px;padding:11px 12px;letter-spacing:.28px}.coi-table td{padding:10px 12px}
+          .status-pill,.badge{font-size:12px;line-height:1.25;padding:6px 9px}
+          .card-actions,.oc-actions{gap:9px}.card-actions button,.oc-actions button,.btn-open-oc{font-size:12.5px;padding:8px 11px;min-height:36px}
+          .manual-form{gap:12px}.manual-form label{font-size:11.5px;letter-spacing:.2px}
+          .legend,.muted,.calendar-note{font-size:12.5px}
+          #vistaOrdenes .coi-progress-inline{grid-template-columns:minmax(92px,1fr) auto;gap:9px;min-width:155px}
+          #vistaOrdenes .coi-progress-inline-track{height:12px}
+          #vistaOrdenes .coi-progress-inline strong{font-size:12.5px;min-width:46px}
+          #fichaOCBody .coi-progress-detail{height:14px;margin:9px 0 8px}
+
+          /* Login: mayor jerarquía, legibilidad y proporción ejecutiva */
+          #coiAuthGateH14{padding:clamp(24px,5vw,76px)}
+          #coiAuthGateH14 .coi-h14-shell{width:min(1120px,100%);grid-template-columns:minmax(0,1fr) minmax(430px,480px);gap:clamp(44px,7vw,92px)}
+          #coiAuthGateH14 .coi-h14-brand{max-width:560px;gap:20px}
+          #coiAuthGateH14 .coi-h14-roundel{width:82px;height:82px;font-size:14px}
+          #coiAuthGateH14 .coi-h14-brand-copy b{font-size:clamp(36px,4.2vw,50px);line-height:1.03}
+          #coiAuthGateH14 .coi-h14-brand-copy span{font-size:14.5px;line-height:1.55}
+          #coiAuthGateH14 .coi-h14-card{border-radius:24px;box-shadow:0 30px 80px rgba(0,0,0,.29)}
+          #coiAuthGateH14 .coi-h14-card-head{padding:28px 30px 21px}
+          #coiAuthGateH14 .coi-h14-eyebrow{font-size:10.5px;letter-spacing:1.2px}
+          #coiAuthGateH14 .coi-h14-card h1{font-size:30px;line-height:1.06;margin:11px 0 7px}
+          #coiAuthGateH14 .coi-h14-card-head p{font-size:13.5px;line-height:1.55;max-width:390px}
+          #coiAuthFormH14{gap:15px;padding:22px 30px 14px}
+          #coiAuthGateH14 .coi-h14-field{gap:7px}
+          #coiAuthGateH14 .coi-h14-field label{font-size:11.5px}
+          #coiAuthGateH14 .coi-h14-field input{min-height:48px;padding:13px 14px;font-size:14.5px;border-radius:12px}
+          #coiAuthGateH14 .coi-h14-password-toggle{right:8px;padding:8px 10px;font-size:10.5px;border-radius:9px}
+          #coiAuthSubmitH14{min-height:48px;padding:13px 16px;font-size:13.5px;border-radius:12px}
+          #coiAuthGateH14 .coi-h14-card-foot{padding:14px 30px 21px;font-size:10.5px}
+
+          @media(max-width:1100px){
+            header{padding:12px 18px}.toolbar{padding:13px 16px}.kpis{padding:14px 16px}.view-card,.calendar-module{margin-left:16px;margin-right:16px}.view-card .view-body,.calendar-body,.panel-body{padding:17px}
+            #coiAuthGateH14 .coi-h14-shell{grid-template-columns:minmax(0,1fr) minmax(390px,450px);gap:36px}
+            #coiAuthGateH14 .coi-h14-brand-copy b{font-size:38px}
+          }
+          @media(max-width:760px){
+            body{font-size:13.5px}.module-nav{padding:10px 12px}.module-nav button{font-size:12px;padding:8px 11px;min-height:36px}.kpis{gap:9px}.kpi{padding:12px 13px}.kpi b{font-size:22px}.view-card .view-head,.calendar-head,.panel-head{padding:15px 16px}.view-card .view-head h2,.calendar-head h2,.panel-head h2{font-size:20px}.view-card .view-body,.calendar-body,.panel-body{padding:15px}.coi-table{font-size:12.5px}.coi-table th{font-size:10.5px;padding:9px 10px}.coi-table td{padding:9px 10px}
+            #coiAuthGateH14{padding:18px;overflow:auto}#coiAuthGateH14 .coi-h14-shell{grid-template-columns:1fr;width:min(460px,100%);gap:18px}#coiAuthGateH14 .coi-h14-brand{flex-direction:row;align-items:center;gap:13px}#coiAuthGateH14 .coi-h14-roundel{width:56px;height:56px;font-size:11px}#coiAuthGateH14 .coi-h14-brand-copy b{font-size:22px}#coiAuthGateH14 .coi-h14-brand-copy span{font-size:11.5px;margin-top:3px}#coiAuthGateH14 .coi-h14-card-head{padding:22px 21px 17px}#coiAuthGateH14 .coi-h14-card h1{font-size:25px}#coiAuthFormH14{padding:18px 21px 12px}#coiAuthGateH14 .coi-h14-card-foot{padding:12px 21px 18px}
+          }
+          </style>
+          '''
+          needle = '</head>'
+          if needle not in text:
+              raise SystemExit('No </head> found')
+          text = text.replace(needle, css + '\n' + needle, 1)
+          path.write_text(text, encoding='utf-8')
+          print('Applied H16 visual polish')
+          PY
+      - name: Commit generated change
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "No index change required"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "feat(h16): polish login and module sizing"
+          git push origin HEAD:feat/h16-ui-polish-density
