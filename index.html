@@ -13663,6 +13663,19 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
 .certificacion-row-status.error{background:#fff2f2;color:#962b2b;border-color:#e8b5b5}
 .certificacion-row-status.duplicado{background:#fff8df;color:#715500;border-color:#e4cf8a}
 .carga-certificacion-table input[data-cert-field="nro_oc"]{font-weight:900;color:#174a72;font-variant-numeric:tabular-nums}
+
+/* H17 — columnas dinámicas Carga Certificación */
+#panelCargaCertificacionR18 .carga-certificacion-table{min-width:4400px}
+#panelCargaCertificacionR18 .carga-certificacion-table[data-cert-tipo="Obra"]{min-width:4000px}
+#panelCargaCertificacionR18 .carga-certificacion-table th:nth-child(20),
+#panelCargaCertificacionR18 .carga-certificacion-table td:nth-child(20),
+#panelCargaCertificacionR18 .carga-certificacion-table th:nth-child(21),
+#panelCargaCertificacionR18 .carga-certificacion-table td:nth-child(21){position:static!important;right:auto!important;z-index:auto!important;width:auto!important;min-width:130px!important;background:inherit!important}
+#panelCargaCertificacionR18 .carga-certificacion-table th:last-child,
+#panelCargaCertificacionR18 .carga-certificacion-table td.certificacion-validacion{width:155px;min-width:155px;position:sticky!important;right:0;z-index:2;background:#f8fbfd!important}
+#panelCargaCertificacionR18 .carga-certificacion-table th:last-child{z-index:4;background:#dfeef7!important}
+#panelCargaCertificacionR18 .carga-certificacion-table textarea{min-width:190px;min-height:42px}
+
 </style>
 
 <script id="coi-certificaciones-r20-script">
@@ -13673,18 +13686,38 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
   const ORDENES_TABLE='coi_ordenes';
   const CERTIFICACION_LEGACY_KEYS=['coi_certificaciones_oc','coi_certificaciones_acta_inicio_v581r1'];
   const CERTIFICACION_CONFLICT_FIELDS='nro_oc,acta_medicion_nro,item_nro,posicion,fecha_inicio,fecha_fin';
-  const CERTIFICACION_FIELDS=[
-    'tipo_servicio','acta_medicion_nro','proxima_acta_medicion_fecha','nro_oc','fecha_inicio','fecha_fin',
-    'item_nro','descripcion','posicion','cantidad','unidad_medida','servicio_ejecutado_anterior',
-    'servicio_ejecutado_periodo','servicio_ejecutado_acumulado','aux_porcentaje','tipo_um',
-    'actores_firmantes','ejecutado_100','anexo_fotografia_actas','anio'
-  ];
-  const CERTIFICACION_HEADERS=[
-    'TIPO DE SERVICIO','ACTA MEDICIÓN N°','PRÓX. ACTA MED. FECHA','OC','FECHA INICIO','FECHA FIN',
-    'ITEM_NRO','DESCRIPCIÓN','POSICIÓN','CANT','UM','SERV. EJEC. ANT.','SERV. EJEC. PTE.',
-    'SERV. EJEC. ACUM.','AUX %','TIPO_UM','ACTORES FIRMANTES','EJECUTADO 100%',
-    'ANEXO FOTOGRAFÍA ACTAS','AÑO'
-  ];
+  const CERTIFICACION_CONFIGS={
+    Servicio:{
+      fields:[
+        'tipo_servicio','acta_medicion_nro','proxima_acta_medicion_fecha','nro_oc','fecha_inicio','fecha_fin',
+        'item_nro','descripcion','posicion','nro_hes','nro_if','cantidad','unidad_medida','servicio_ejecutado_anterior',
+        'servicio_ejecutado_periodo','servicio_ejecutado_acumulado','aux_porcentaje','proveedor','tipo_um',
+        'actores_firmantes','ejecutado_100','anexo_fotografia_actas','anio'
+      ],
+      headers:[
+        'TIPO DE SERVICIO','ACTA MEDICION N°','PROX ACTA MED. FECHA','OC','FECHA INICIO','FECHA FIN',
+        'ITEM_NRO','Descripcion','POS SAP','N° HES','N° IF','CANT','UM','SERVC EJEC. ANT','SERV.EJEC.PTE',
+        'SERV EJEC. ACUM','AUX %','PROVEEDOR','TIPO_UM','ACTORES FIRMANTES','EJECUTADO 100%',
+        'ANEXO FOTOGRAFIA ACTAS','AÑO'
+      ]
+    },
+    Obra:{
+      fields:[
+        'id_obra','tipo_servicio','acta_medicion_nro','proxima_acta_medicion_fecha','nro_oc','fecha_inicio','fecha_fin',
+        'item_nro','descripcion','cantidad','unidad_medida','servicio_ejecutado_anterior','servicio_ejecutado_periodo',
+        'servicio_ejecutado_acumulado','aux_porcentaje','actores_firmantes','ejecutado_100','posicion','nro_hes','nro_if','anio'
+      ],
+      headers:[
+        'ID OBRA','TIPO DE SERVICIO','ACTA MEDICION N°','PROX ACTA MED FECHA','OC','FECHA INICIO','FECHA FIN',
+        'ITEM_NRO','Descripcion','CANT','UM','SERVC EJEC. ANT','SERV.EJEC.PTE','SERV EJEC. ACUM','AUX %',
+        'ACTORES FIRMANTES','EJECUTADO 100%','POS SAP','N° HES','N° IF','AÑO'
+      ]
+    }
+  };
+  let tipoGridCertificacion='Servicio';
+  let CERTIFICACION_FIELDS=[...CERTIFICACION_CONFIGS.Servicio.fields];
+  let CERTIFICACION_HEADERS=[...CERTIFICACION_CONFIGS.Servicio.headers];
+  const certificacionBorradores={Servicio:[],Obra:[]};
   const DATE_FIELDS=new Set(['proxima_acta_medicion_fecha','fecha_inicio','fecha_fin']);
   const NUMERIC_FIELDS=new Set([
     'acta_medicion_nro','item_nro','cantidad','servicio_ejecutado_anterior',
@@ -13783,6 +13816,7 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
       id:row.id??null,
       _legacy:!!row._legacy,
       orden_id:row.orden_id??null,
+      id_obra:clean(campoHistorico(row,['id_obra','idObra','ID_OBRA'])),
       tipo_servicio:clean(campoHistorico(row,['tipo_servicio','tipoServicio','tipo','TIPO_DE_SERVICIO'])),
       acta_medicion_nro:clean(campoHistorico(row,['acta_medicion_nro','acta_medicion','actaMedicion','ACTA_MEDICION_NRO','ACTA_MEDICION'],row._legacy?'Histórico':'')),
       proxima_acta_medicion_fecha:normalizarFechaCertificacion(campoHistorico(row,['proxima_acta_medicion_fecha','prox_acta_med','proximaActaMedicionFecha'])),
@@ -13791,7 +13825,9 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
       fecha_fin:normalizarFechaCertificacion(campoHistorico(row,['fecha_fin','fechaFin','fechaVto','FECHA_VTO'])),
       item_nro:clean(campoHistorico(row,['item_nro','itemNro','ITEM_NRO'])),
       descripcion:clean(campoHistorico(row,['descripcion','DESCRIPCION'])),
-      posicion:clean(campoHistorico(row,['posicion','POSICION'])),
+      posicion:clean(campoHistorico(row,['posicion','pos_sap','POSICION','POS_SAP','POS SAP'])),
+      nro_hes:clean(campoHistorico(row,['nro_hes','nroHes','NRO_HES','N° HES'])),
+      nro_if:clean(campoHistorico(row,['nro_if','nroIf','NRO_IF','N° IF'])),
       cantidad,
       unidad_medida:clean(campoHistorico(row,['unidad_medida','UM','um','unidadMantenimiento','UNIDAD_MANTENIMIENTO'])),
       servicio_ejecutado_anterior:anterior,
@@ -13799,6 +13835,7 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
       servicio_ejecutado_acumulado:acumulado,
       aux_porcentaje:porcentaje,
       _aux_porcentaje_persistido:auxPorcentajePersistido,
+      proveedor:clean(campoHistorico(row,['proveedor','PROVEEDOR','proveed'])),
       tipo_um:clean(campoHistorico(row,['tipo_um','TIPO_UM','tipoUM'])),
       actores_firmantes:clean(campoHistorico(row,['actores_firmantes','actoresFirmantes','ACTORES_FIRMANTES'])),
       ejecutado_100:normalizarBooleanoCertificacion(campoHistorico(row,['ejecutado_100','ejecutado100','EJECUTADO_100'])),
@@ -13928,6 +13965,7 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
     return {
       orden_id:order?.orden_id||data.orden_id||null,
       nro_oc:normalizarNroOCCertificacion(normalized.nro_oc),
+      id_obra:normalized.id_obra||clean(order?.id_obra)||null,
       tipo_servicio:normalized.tipo_servicio||null,
       acta_medicion_nro:normalizarIdentificadorNumerico(normalized.acta_medicion_nro),
       proxima_acta_medicion_fecha:normalized.proxima_acta_medicion_fecha||null,
@@ -13936,10 +13974,13 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
       item_nro:normalized.item_nro===''?null:normalizarIdentificadorNumerico(normalized.item_nro),
       descripcion:normalized.descripcion||null,
       posicion:normalized.posicion||null,
+      nro_hes:normalized.nro_hes||null,
+      nro_if:normalized.nro_if||null,
       cantidad:normalized.cantidad,
       unidad_medida:normalized.unidad_medida||null,
       servicio_ejecutado_anterior:normalized.servicio_ejecutado_anterior,
       servicio_ejecutado_periodo:normalized.servicio_ejecutado_periodo,
+      proveedor:normalized.proveedor||clean(order?.proveedor)||null,
       tipo_um:normalized.tipo_um||null,
       actores_firmantes:normalized.actores_firmantes||null,
       ejecutado_100:Boolean(normalized.ejecutado_100),
@@ -14019,7 +14060,12 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
   }
 
   function filaCertificacionVacia(data){
-    return CERTIFICACION_FIELDS.filter(field=>!GENERATED_FIELDS.has(field)&&field!=='anio').every(field=>!clean(data[field]));
+    const zeroDefaults=new Set(['cantidad','servicio_ejecutado_anterior','servicio_ejecutado_periodo']);
+    return CERTIFICACION_FIELDS.filter(field=>!GENERATED_FIELDS.has(field)&&field!=='anio').every(field=>{
+      if(zeroDefaults.has(field))return normalizarNumeroCertificacion(data[field])===0;
+      if(field==='ejecutado_100')return !normalizarBooleanoCertificacion(data[field]);
+      return !clean(data[field]);
+    });
   }
 
   function establecerCampoFila(row,field,value){
@@ -14079,25 +14125,25 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
     const seen=new Set();
     entries.forEach(entry=>{
       entry.row.classList.remove('certificacion-error','certificacion-guardada','certificacion-omitida');
-      if(filaCertificacionVacia(entry.data)){estadoFila(entry.row,'Pendiente','pendiente');return;}
+      if(filaCertificacionVacia(entry.data)){estadoFila(entry.row,'Pendiente','pendiente');entry.row.title='';return;}
       const normalized=normalizarCertificacionDesdeSupabase(entry.data);
       const groupKey=[normalized.nro_oc,normalized.acta_medicion_nro,normalized.fecha_inicio,normalized.fecha_fin].map(fold).join('|');
       const validation=validarFilaCertificacion(entry.data,{verificarOC:true,requiereItem:(groupCounts.get(groupKey)||0)>1});
       const logicalKey=construirClaveCertificacion(entry.data);
-      if(seen.has(logicalKey)){
-        entry.row.classList.add('certificacion-omitida');
-        entry.row.title='Duplicado dentro del bloque pegado.';
-        estadoFila(entry.row,'Duplicado','duplicado');
-      }else if(!validation.valida){
+      if(!validation.valida){
         entry.row.classList.add('certificacion-error');
         entry.row.title=validation.errores.join(' · ');
         const main=validation.errores.find(error=>error.includes('OC no encontrada'))?'OC no encontrada':validation.errores[0]||'Con error';
         estadoFila(entry.row,main,'error');
+      }else if(seen.has(logicalKey)){
+        entry.row.classList.add('certificacion-omitida');
+        entry.row.title='Duplicado dentro del bloque pegado.';
+        estadoFila(entry.row,'Duplicado','duplicado');
       }else{
         entry.row.title='Fila válida y lista para guardar.';
         estadoFila(entry.row,'Válida','valida');
+        seen.add(logicalKey);
       }
-      seen.add(logicalKey);
     });
     return entries;
   }
@@ -14118,6 +14164,7 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
     const hasData=[...body.querySelectorAll('tr')].some(row=>!filaCertificacionVacia(leerFilaCertificacion(row)));
     if(hasData&&!confirm('¿Limpiar todas las filas no guardadas de Carga Certificación?'))return;
     body.innerHTML='';
+    certificacionBorradores[tipoGridCertificacion]=[];
     agregarFilasCertificacion(1);
     actualizarEstadoCargaCertificacion('Grilla de Carga Certificación limpia.');
   }
@@ -14185,9 +14232,9 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
 
   function contenidoPanelCargaCertificacion(){
     return `<div class="carga-certificacion-shell">
-      <div class="carga-certificacion-toolbar"><div><h3>Carga Certificación</h3><p>Copie y pegue directamente desde Excel. La OC se valida contra public.coi_ordenes y la certificación se vincula mediante nro_oc + orden_id.</p></div><div class="carga-certificacion-actions"><button type="button" id="btnCertificacionNuevaFila">Nueva fila</button><button type="button" id="btnCertificacionAgregarCinco">Agregar 5 filas</button><button type="button" id="btnCertificacionLimpiar">Limpiar filas</button><button type="button" id="btnCertificacionGuardar" class="primary">Guardar registros</button><button type="button" id="btnCertificacionExportarCSV">Exportar CSV</button></div></div>
+      <div class="carga-certificacion-toolbar"><div><h3>Carga Certificación — ${escapeHTML(tipoGridCertificacion)}</h3><p>Copie y pegue directamente desde Excel. La OC se valida contra public.coi_ordenes y la certificación se vincula mediante nro_oc + orden_id.</p></div><div class="carga-certificacion-actions"><button type="button" id="btnCertificacionNuevaFila">Nueva fila</button><button type="button" id="btnCertificacionAgregarCinco">Agregar 5 filas</button><button type="button" id="btnCertificacionLimpiar">Limpiar filas</button><button type="button" id="btnCertificacionGuardar" class="primary">Guardar registros</button><button type="button" id="btnCertificacionExportarCSV">Exportar CSV</button></div></div>
       <div id="cargaCertificacionStatusR18" class="carga-certificacion-status">Preparando grilla…</div>
-      <div class="carga-certificacion-table-wrap"><table class="carga-certificacion-table"><thead><tr>${CERTIFICACION_HEADERS.map(header=>`<th>${escapeHTML(header)}</th>`).join('')}<th>VALIDACIÓN</th></tr></thead><tbody id="cargaCertificacionBodyR18"></tbody></table></div>
+      <div class="carga-certificacion-table-wrap"><table class="carga-certificacion-table" data-cert-tipo="${escapeHTML(tipoGridCertificacion)}"><thead><tr>${CERTIFICACION_HEADERS.map(header=>`<th>${escapeHTML(header)}</th>`).join('')}<th>VALIDACIÓN</th></tr></thead><tbody id="cargaCertificacionBodyR18"></tbody></table></div>
       <div class="muted">Persistencia confirmada: public.${CERTIFICACIONES_TABLE}. Los campos acumulado y AUX % se recalculan en la grilla y no se envían porque PostgreSQL los genera automáticamente.</div>
     </div>`;
   }
@@ -14201,6 +14248,32 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
     if(value.includes('SERVICIO'))return'Servicio';
     if(value.includes('FINANCIERA'))return'Financiera';
     return'Servicio';
+  }
+
+  function aplicarConfigColumnasCertificacion(tipo=tipoCargaActivo()){
+    const target=tipo==='Obra'?'Obra':'Servicio';
+    const cfg=CERTIFICACION_CONFIGS[target];
+    CERTIFICACION_FIELDS.splice(0,CERTIFICACION_FIELDS.length,...cfg.fields);
+    CERTIFICACION_HEADERS.splice(0,CERTIFICACION_HEADERS.length,...cfg.headers);
+    tipoGridCertificacion=target;
+    return cfg;
+  }
+
+  function guardarBorradorCertificacion(tipo=tipoGridCertificacion){
+    const body=byId('cargaCertificacionBodyR18');
+    if(!body||!CERTIFICACION_CONFIGS[tipo])return;
+    certificacionBorradores[tipo]=[...body.querySelectorAll('tr')]
+      .map(leerFilaCertificacion)
+      .filter(row=>!filaCertificacionVacia(row));
+  }
+
+  function reconstruirPanelCargaCertificacion(){
+    const panel=byId('panelCargaCertificacionR18');
+    if(!panel)return;
+    panel.innerHTML=contenidoPanelCargaCertificacion();
+    const draft=certificacionBorradores[tipoGridCertificacion]||[];
+    agregarFilasCertificacion(draft.length||1,draft);
+    actualizarEstadoCargaCertificacion();
   }
 
   function asegurarCargaCertificacion(){
@@ -14229,6 +14302,11 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
     if(!tabs||!panel)return;
     const type=tipoCargaActivo();
     const available=type==='Obra'||type==='Servicio';
+    if(available&&type!==tipoGridCertificacion){
+      guardarBorradorCertificacion(tipoGridCertificacion);
+      aplicarConfigColumnasCertificacion(type);
+      reconstruirPanelCargaCertificacion();
+    }
     tabs.hidden=!available;
     if(!available)submodoCargaCertificacion='principal';
     tabs.querySelectorAll('[data-carga-cert-tab]').forEach(button=>button.classList.toggle('active',button.dataset.cargaCertTab===submodoCargaCertificacion));
@@ -14411,13 +14489,6 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
         const normalized=normalizarCertificacionDesdeSupabase(entry.data);
         const groupKey=[normalized.nro_oc,normalized.acta_medicion_nro,normalized.fecha_inicio,normalized.fecha_fin].map(fold).join('|');
         const logicalKey=construirClaveCertificacion(entry.data);
-        if(seen.has(logicalKey)){
-          summary.omitidas+=1;
-          const message='Duplicado dentro del bloque pegado.';
-          marcarResultadoFila(entry.row,message,'warning');
-          continue;
-        }
-        seen.add(logicalKey);
         const validation=validarFilaCertificacion(entry.data,{verificarOC:false,requiereItem:(groupCounts.get(groupKey)||0)>1});
         if(!validation.valida){
           summary.errores+=1;
@@ -14426,6 +14497,13 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
           marcarResultadoFila(entry.row,message,'error');
           continue;
         }
+        if(seen.has(logicalKey)){
+          summary.omitidas+=1;
+          const message='Duplicado dentro del bloque pegado.';
+          marcarResultadoFila(entry.row,message,'warning');
+          continue;
+        }
+        seen.add(logicalKey);
         try{
           const result=await upsertCertificacionSupabase(validation.data);
           summary.procesadas+=1;
@@ -14479,7 +14557,7 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
     if(!rows.length){actualizarEstadoCargaCertificacion('No hay registros en la grilla para exportar.','warning');return;}
     const lines=[CERTIFICACION_HEADERS.map(csvValue).join(';')];
     rows.forEach(row=>lines.push(CERTIFICACION_FIELDS.map(field=>csvValue(row[field])).join(';')));
-    descargarArchivoCertificacion(`certificaciones_coi_${new Date().toISOString().slice(0,10)}.csv`,lines.join('\r\n'),'text/csv;charset=utf-8');
+    descargarArchivoCertificacion(`certificaciones_${tipoGridCertificacion.toLowerCase()}_coi_${new Date().toISOString().slice(0,10)}.csv`,lines.join('\r\n'),'text/csv;charset=utf-8');
     actualizarEstadoCargaCertificacion(`${rows.length} registro(s) exportados a CSV.`,'ok');
   }
 
@@ -14531,7 +14609,7 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
       if(event.target.closest('#btnCertificacionLimpiar')){limpiarFilasCertificacion();return;}
       if(event.target.closest('#btnCertificacionGuardar')){guardarCargaCertificaciones().catch(error=>actualizarEstadoCargaCertificacion(escapeHTML(detalleErrorEsquema(error)),'error'));return;}
       if(event.target.closest('#btnCertificacionExportarCSV')){exportarCargaCertificacionesCSV();return;}
-      if(event.target.closest('[data-carga-tipo],.quick-type-card')){submodoCargaCertificacion='principal';asegurarCargaCertificacion();}
+      if(event.target.closest('[data-carga-tipo],.quick-type-card')){guardarBorradorCertificacion(tipoGridCertificacion);submodoCargaCertificacion='principal';setTimeout(()=>{asegurarCargaCertificacion();actualizarVisibilidadCargaCertificacion();},0);}
     });
     document.addEventListener('input',event=>{
       const control=event.target.closest('#panelCargaCertificacionR18 [data-cert-field]');
