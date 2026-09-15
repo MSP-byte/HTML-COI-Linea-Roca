@@ -167,6 +167,33 @@ async function main() {
   check(!rE2.rows[0].resultado.acta_inicio,
     'solo el hito 8 concilia el acta: ninguna otra etapa puede tocarla');
 
+  // F2 · el helper interno NO puede quedar ejecutable por los roles de cliente.
+  //      Es SECURITY DEFINER y escribe fecha_acta_inicio: con EXECUTE para
+  //      authenticated seria una segunda puerta que saltea el coi_assert_role()
+  //      de la RPC publica.
+  const { rows: aclHelper } = await db.query(`
+    select coalesce(has_function_privilege('authenticated', p.oid, 'EXECUTE'), false) auth_exec,
+           coalesce(has_function_privilege('anon', p.oid, 'EXECUTE'), false) anon_exec,
+           p.prosecdef
+      from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+     where ns.nspname = 'public' and p.proname = 'coi_conciliar_acta_inicio_etapa'`);
+  check(aclHelper.length === 1, 'no se encontro el helper de conciliacion');
+  check(aclHelper[0].prosecdef === true, 'el helper es SECURITY DEFINER');
+  check(aclHelper[0].auth_exec === false,
+    'el helper NO puede estar otorgado a authenticated: saltearia el control de rol');
+  check(aclHelper[0].anon_exec === false, 'el helper NO puede estar otorgado a anon');
+  check(!/grant\s+execute\s+on\s+function\s+public\.coi_conciliar_acta_inicio_etapa/i
+    .test(leer(MIGRACION)), 'la migracion no puede otorgar EXECUTE del helper');
+  // Y la RPC publica sigue siendo invocable por el rol autorizado.
+  const { rows: aclRpc } = await db.query(`
+    select coalesce(has_function_privilege('authenticated', p.oid, 'EXECUTE'), false) auth_exec
+      from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
+     where ns.nspname = 'public' and p.proname = 'coi_confirmar_etapa_circuito_v2'`);
+  check(aclRpc[0].auth_exec === true,
+    'coi_confirmar_etapa_circuito_v2 tiene que seguir siendo ejecutable por authenticated');
+  // El camino autorizado sigue funcionando pese al revoke: la RPC es SECURITY
+  // DEFINER y el dueño conserva EXECUTE. Ya se ejercito arriba en los casos A-E.
+
   // Idempotencia y no destructividad de la migracion.
   const reaplicar = await fallo(() => db.exec(leer(MIGRACION)));
   check(!reaplicar, `reaplicar la migracion fallo: ${reaplicar}`);
@@ -222,11 +249,64 @@ async function main() {
   check((cuerpoVisual.match(/'actual'/g) || []).length === 1,
     'visualDe no puede tener dos retornos actual para la misma condicion');
 
-  // Dias en etapa: nunca se fabrica duracion sobre un hueco.
-  check(/if \(x\.etapa\.codigo === CODIGO_ACTA && !siguiente\) return null;/.test(codigo),
+  // Dias en etapa: orden CONTRACTUAL, y nunca se fabrica duracion sobre un hueco.
+  const cuerpoDias = codigo.slice(codigo.indexOf('function diasDeHito'), codigo.indexOf('function filaHito'));
+  check(/const siguienteEtapa = indice >= 0 \? estado\.hitos\[indice \+ 1\] : null;/.test(cuerpoDias),
+    'la duracion se mide contra el hito contractual N+1, no contra el proximo evento cronologico');
+  check(/if \(!siguienteEv\)/.test(cuerpoDias),
+    'si falta el hito inmediato siguiente no hay duracion que mostrar');
+  check(/if \(hasta\.getTime\(\) < desde\.getTime\(\)\) return null;/.test(cuerpoDias),
+    'un backfill con fecha anterior no puede producir una duracion');
+  check(/if \(x\.etapa\.codigo === CODIGO_ACTA\) return null;/.test(cuerpoDias),
     'cerrada la etapa 1, el hito 8 no puede seguir acumulando dias contra NOW');
   check(/return dias < 0 \? null : dias;/.test(codigo),
     'una diferencia invalida devuelve null, no un numero inventado');
+
+  // F1 · el gate legacy se resuelve canonicamente, no por subcadena.
+  check(/function resolverEtapaCanonica\(valor\)/.test(codigo),
+    'el estado documental tiene que resolverse contra la configuracion canonica');
+  check(/candidatos\.some\(\(c\) => fold\(c\) === v\)/.test(codigo),
+    'la coincidencia tiene que ser exacta y normalizada, no por inclusion');
+  check(/\[e\.codigo, e\.nombre\]\.concat\(e\.persistedNames \|\| \[\]\)/.test(codigo),
+    'se comparan codigo, nombre y persistedNames');
+  check(!/'EJECUCION', 'FINALIZADA', 'CERRADA', 'ARCHIVADA', 'ACTA'/.test(codigo),
+    'la heuristica por subcadena habilitaba la etapa 2 con el hito 7: no puede volver');
+  check(/const CODIGOS_POST_ACTA = \[CODIGO_ACTA\]\.concat\(CODIGOS_ETAPA2\);/.test(codigo),
+    'solo los codigos posteriores al acta son evidencia legacy');
+  check(/CODIGOS_POST_ACTA\.indexOf\(etapaVigente\.codigo\) >= 0/.test(codigo),
+    'la evidencia legacy tiene que evaluarse sobre el codigo resuelto');
+
+  // F3 · hito actual por indice contractual; ultima actualizacion por fecha.
+  check(/registrados\.sort\(\(a, b\) => a\.indice - b\.indice\);/.test(codigo),
+    'el hito actual sale del orden CONTRACTUAL, no del cronologico');
+  check(/const ultimaActualizacion = registrados\.slice\(\)/.test(codigo) &&
+        /new Date\(a\.ev\.fecha_evento \|\| 0\) - new Date\(b\.ev\.fecha_evento \|\| 0\)/.test(codigo),
+    'la ultima actualizacion si es por fecha de evento');
+  const cuerpoResumen = codigo.slice(codigo.indexOf('function resumen(estado)'), codigo.indexOf('function bloqueTransversal'));
+  check(/const ult = estado\.hitoActual;/.test(cuerpoResumen),
+    'el estado actual del resumen es el hito mas avanzado');
+  check(/ultimaAct \? fechaHora\(ultimaAct\.ev\.fecha_evento\)/.test(cuerpoResumen),
+    'la fecha de ultima actualizacion sale del evento mas reciente');
+  check(/dias = ult && !estado\.etapa1Finalizada \? diasEntre\(ult\.ev\.fecha_evento, null\)/.test(cuerpoResumen),
+    'los dias en estado se cuentan contra el hito actual, no contra el backfill');
+
+  // F4 · el banner transversal solo si es el estado VIGENTE.
+  check(/const transversalVigente = Boolean\(etapaVigente && etapaVigente\.codigo === CODIGO_TRANSVERSAL\);/.test(codigo),
+    'el banner de cancelacion depende del estado vigente, no del historial');
+  check(/if \(transversalVigente\) \{/.test(codigo),
+    'una cancelacion superada no puede seguir mostrandose como condicion actual');
+  check(/const transversal = porCodigo\.get\(CODIGO_TRANSVERSAL\) \|\| null;/.test(codigo),
+    'el evento historico de cancelacion se conserva');
+
+  // F5 · el repaint usa la fila confirmada por el servidor.
+  check(/function reconciliarOrden\(orden, confirmada\)/.test(codigo),
+    'hace falta reconciliar con la fila que devolvio Supabase');
+  check(/const orden = reconciliarOrden\(/.test(codigo),
+    'la confirmacion tiene que reconciliar antes de repintar');
+  check(/resultado && resultado\.orden/.test(codigo),
+    'se usa la orden confirmada por la RPC, no el objeto local stale');
+  check(/'fecha_acta_inicio', 'estado_documental', 'estado_coi'/.test(codigo),
+    'la reconciliacion tiene que traer la fecha de acta confirmada');
 
   // El resumen distingue los casos acordados.
   check(codigo.indexOf("'Sin iniciar'") >= 0, 'sin hitos, el estado actual es Sin iniciar');

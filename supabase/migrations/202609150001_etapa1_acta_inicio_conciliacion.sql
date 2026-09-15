@@ -258,6 +258,18 @@ $$;
 comment on function public.coi_conciliar_acta_inicio_etapa(uuid, text, jsonb, boolean) is
   'Concilia coi_ordenes.fecha_acta_inicio al confirmar el hito 8 del circuito. Registra la fecha solo en una confirmacion NUEVA cuya fecha estaba en NULL; si ya existe otro valor lo conserva y devuelve conflicto; si el hito ya estaba confirmado y no hay fecha devuelve legacy_sin_fecha sin escribir nada. Nunca sobrescribe ni infiere fechas historicas.';
 
+-- PERMISOS DEL HELPER
+--   Es un helper INTERNO y es SECURITY DEFINER: corre con los privilegios del
+--   dueño de la función. Otorgarle EXECUTE a `authenticated` habría dejado a
+--   cualquier usuario logueado escribir fecha_acta_inicio sobre cualquier OC
+--   salteándose por completo el coi_assert_role() de la RPC pública. El chequeo
+--   de rol vive en coi_confirmar_etapa_circuito_v2, así que el helper no puede
+--   ser una segunda puerta sin control.
+--
+--   La RPC principal lo sigue invocando sin problema: también es SECURITY
+--   DEFINER y, al ejecutarse, current_user pasa a ser el dueño, que conserva
+--   EXECUTE por ser propietario. Revocar a los roles de cliente no le quita
+--   nada al camino autorizado.
 revoke all on function public.coi_conciliar_acta_inicio_etapa(uuid, text, jsonb, boolean) from public;
 revoke all on function public.coi_conciliar_acta_inicio_etapa(uuid, text, jsonb, boolean) from anon;
-grant execute on function public.coi_conciliar_acta_inicio_etapa(uuid, text, jsonb, boolean) to authenticated;
+revoke all on function public.coi_conciliar_acta_inicio_etapa(uuid, text, jsonb, boolean) from authenticated;

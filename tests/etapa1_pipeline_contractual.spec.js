@@ -370,3 +370,159 @@ test('E1-14 · E · cancelada/suspendida se puede registrar con la 2° Etapa blo
   expect(rpc[0].args.p_codigo).toBe('cancelada_suspendida');
   expect((await estado(page)).avance).toBe('0 / 8');
 });
+
+// ================================================== hardening final
+
+test('E1-15 · F1 · el hito 7 «SIN ACTA DE INICIO» no habilita la 2° Etapa', async ({ page }) => {
+  // El estado contiene la palabra ACTA, pero es justamente el hito que todavía
+  // NO la tiene. Una subcadena no es evidencia.
+  await preparar(page, {
+    estado_coi: 'PLIEGO CON OC CON CONTROL DE 3º SIN ACTA DE INICIO',
+    historial: [EVENTO('control_terceros_sin_acta', '2026-09-02T10:00:00.000Z')],
+    fecha_acta_inicio: null
+  });
+  await abrir(page);
+  await pintar(page);
+
+  const e = await estado(page);
+  expect(e.etapa2).toBe('no');
+  expect(await page.locator('#etapa1Etapa2Bloqueada').count()).toBe(1);
+  expect(e.avance).toBe('1 / 8');
+});
+
+test('E1-16 · F1 · el mismo estado SÍ habilita la 2° Etapa si hay fecha de acta', async ({ page }) => {
+  await preparar(page, {
+    estado_coi: 'PLIEGO CON OC CON CONTROL DE 3º SIN ACTA DE INICIO',
+    historial: [EVENTO('control_terceros_sin_acta', '2026-09-02T10:00:00.000Z')],
+    fecha_acta_inicio: '2026-09-03'
+  });
+  await abrir(page);
+  await pintar(page);
+
+  expect((await estado(page)).etapa2).toBe('si');
+});
+
+test('E1-17 · F3 · un backfill retrospectivo no retrocede el estado actual', async ({ page }) => {
+  // Hito 5 confirmado el 10; hito 3 cargado retrospectivamente el 15.
+  await preparar(page, {
+    historial: [
+      EVENTO('pliego_con_expediente', '2026-09-10T12:00:00.000Z'),
+      EVENTO('solped_sin_expediente', '2026-09-15T09:00:00.000Z')
+    ]
+  });
+  await abrir(page);
+  await pintar(page);
+
+  const detalle = await page.evaluate(() => ({
+    estadoActual: document.getElementById('etapa1EstadoActual').textContent,
+    ultimaAct: document.getElementById('etapa1UltimaAct').textContent,
+    visuales: Array.from(document.querySelectorAll('#etapa1Pipeline [data-etapa1-hito]'))
+      .map((b) => ({ codigo: b.getAttribute('data-etapa1-hito'), clase: b.className }))
+  }));
+
+  // Estado actual = el hito MÁS AVANZADO, no el último cargado.
+  expect(detalle.estadoActual).toContain('EXPTE');
+  const porCodigo = Object.fromEntries(detalle.visuales.map((v) => [v.codigo, v.clase]));
+  expect(porCodigo.pliego_con_expediente).toContain('etapa1-actual');
+  expect(porCodigo.solped_sin_expediente).toContain('etapa1-completado');
+  // Última actualización = el evento más reciente, que es el backfill.
+  expect(detalle.ultimaAct).toContain('15/09/2026');
+});
+
+test('E1-18 · F3 · un hueco en la secuencia no produce una duración inventada', async ({ page }) => {
+  // Hitos 3 y 5 registrados, el 4 ausente.
+  await preparar(page, {
+    historial: [
+      EVENTO('solped_sin_expediente', '2026-09-01T10:00:00.000Z'),
+      EVENTO('pliego_con_expediente', '2026-09-11T10:00:00.000Z')
+    ]
+  });
+  await abrir(page);
+  await pintar(page);
+
+  const dias = await page.evaluate(() => {
+    const b = document.querySelector('[data-etapa1-hito="solped_sin_expediente"] .etapa1-dias');
+    return b ? b.textContent : '';
+  });
+  // El inmediato siguiente (hito 4) no está: no se atraviesa el hueco.
+  expect(dias).toContain('—');
+});
+
+test('E1-19 · F3 · un siguiente con fecha anterior tampoco produce duración', async ({ page }) => {
+  await preparar(page, {
+    historial: [
+      EVENTO('solped_sin_expediente', '2026-09-10T10:00:00.000Z'),
+      // Backfill incoherente: el hito 4 quedó con fecha ANTERIOR al 3.
+      EVENTO('pliego_con_oc', '2026-09-01T10:00:00.000Z')
+    ]
+  });
+  await abrir(page);
+  await pintar(page);
+
+  const dias = await page.evaluate(() => {
+    const b = document.querySelector('[data-etapa1-hito="solped_sin_expediente"] .etapa1-dias');
+    return b ? b.textContent : '';
+  });
+  expect(dias).toContain('—');
+});
+
+test('E1-20 · F4 · una suspensión superada conserva historial pero no muestra banner', async ({ page }) => {
+  // Se suspendió y después se reingresó a otra etapa: el estado vigente ya no
+  // es cancelada_suspendida.
+  await preparar(page, {
+    estado_coi: 'PLIEGO CON EXPTE',
+    historial: [
+      EVENTO('cancelada_suspendida', '2026-09-02T10:00:00.000Z', 'Suspendida por presupuesto'),
+      EVENTO('pliego_con_expediente', '2026-09-20T10:00:00.000Z')
+    ]
+  });
+  await abrir(page);
+  await pintar(page);
+
+  const e = await estado(page);
+  expect(e.transversal).toBe('');
+  // El evento histórico no se borra: sigue visible en el bloque transversal.
+  const transversal = await page.evaluate(() =>
+    document.querySelector('#etapa1Transversal [data-etapa1-hito]').className);
+  expect(transversal).toContain('etapa1-completado');
+});
+
+test('E1-21 · F4 · con la suspensión vigente el banner sí aparece', async ({ page }) => {
+  await preparar(page, {
+    estado_coi: 'OBRA/SERVICIO CANCELADA O SUSPENDIDA',
+    historial: [EVENTO('cancelada_suspendida', '2026-09-02T10:00:00.000Z')]
+  });
+  await abrir(page);
+  await pintar(page);
+
+  expect((await estado(page)).transversal).toContain('antes del inicio');
+});
+
+test('E1-22 · F5 · tras confirmar el hito 8 no aparece el aviso de conciliación', async ({ page }) => {
+  await preparar(page, { fecha_acta_inicio: null });
+  await abrir(page);
+
+  // La RPC devuelve la orden YA con la fecha registrada.
+  await page.evaluate(() => {
+    const base = window.__COI_SUPABASE_CLIENT__.rpc;
+    window.__COI_SUPABASE_CLIENT__.rpc = async (nombre, args) => {
+      const r = await base(nombre, args);
+      if (nombre === 'coi_confirmar_etapa_circuito_v2' && r.data) {
+        r.data.orden = Object.assign({}, r.data.orden, { fecha_acta_inicio: '2026-09-15' });
+        r.data.acta_inicio = { estado: 'registrada', valor: '2026-09-15', valor_confirmacion: '2026-09-15' };
+      }
+      return r;
+    };
+  });
+  await pintar(page);
+
+  await page.click('[data-etapa1-hito="control_terceros_con_acta"]');
+  await page.click('#etapa1ModalConfirmarBtn');
+  await page.waitForTimeout(2500);
+
+  const e = await estado(page);
+  expect(e.etapa2).toBe('si');
+  expect(e.estadoActual).toBe('1° Etapa finalizada');
+  // La fila confirmada por el servidor trae la fecha: no puede decir pendiente.
+  expect(e.avisoActa).toBe(false);
+});

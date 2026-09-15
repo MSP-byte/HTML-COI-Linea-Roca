@@ -34639,6 +34639,30 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   }
   const etapaTransversal = () => etapas().find((e) => e.codigo === CODIGO_TRANSVERSAL) || null;
 
+  /* Resolucion CANONICA del estado documental vigente contra la configuracion
+     de etapas: coincidencia normalizada y EXACTA sobre codigo, nombre y
+     persistedNames.
+
+     La version anterior buscaba subcadenas ('ACTA', 'EJECUCION', ...) y eso
+     estaba mal: «PLIEGO CON OC CON CONTROL DE 3º SIN ACTA DE INICIO» —que es el
+     hito 7, justamente el que todavia NO tiene acta— contiene la palabra ACTA y
+     habilitaba la 2° Etapa antes del gate. Una subcadena no es evidencia de
+     nada. */
+  function resolverEtapaCanonica(valor) {
+    const v = fold(valor);
+    if (!v) return null;
+    const todas = etapas().concat(
+      window.ESTADO_FINALIZADA_SALDO_REMANENTE ? [window.ESTADO_FINALIZADA_SALDO_REMANENTE] : []);
+    return todas.find((e) => {
+      const candidatos = [e.codigo, e.nombre].concat(e.persistedNames || []);
+      return candidatos.some((c) => fold(c) === v);
+    }) || null;
+  }
+
+  // Codigos que, resueltos canonicamente, prueban que la contratacion ya paso
+  // el acta. El hito 7 NO esta en esta lista, que es el punto.
+  const CODIGOS_POST_ACTA = [CODIGO_ACTA].concat(CODIGOS_ETAPA2);
+
   const fechaHora = (v) => {
     try { return typeof window.formatearFechaHoraCOI === 'function' ? window.formatearFechaHoraCOI(v) : texto(v) || '—'; }
     catch (e) { return texto(v) || '—'; }
@@ -34691,12 +34715,26 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     const porCodigo = confirmacionPorCodigo(historial);
     const hitos = hitosEtapa1();
 
-    // Confirmados de la etapa 1, en orden cronologico real.
+    /* Dos cosas distintas que antes se confundian en una sola:
+
+         HITO ACTUAL         el de mayor INDICE CONTRACTUAL confirmado
+         ULTIMA ACTUALIZACION el evento mas reciente por fecha
+
+       Un expediente historico se carga desordenado: si el hito 5 se confirmo el
+       10 y el hito 3 se carga retrospectivamente el 15, el estado sigue siendo
+       el 5. Ordenar por fecha hacia retroceder el pipeline al hito 3. */
     const registrados = hitos
       .map((h, i) => ({ etapa: h, indice: i, ev: porCodigo.get(h.codigo) || null }))
       .filter((x) => x.ev);
-    registrados.sort((a, b) => new Date(a.ev.fecha_evento || 0) - new Date(b.ev.fecha_evento || 0));
-    const ultimo = registrados.length ? registrados[registrados.length - 1] : null;
+    // Orden CONTRACTUAL, no cronologico.
+    registrados.sort((a, b) => a.indice - b.indice);
+    const hitoActual = registrados.length ? registrados[registrados.length - 1] : null;
+    // La ultima actualizacion si es por fecha: refleja quien toco algo por
+    // ultima vez, aunque haya sido un backfill.
+    const ultimaActualizacion = registrados.slice()
+      .sort((a, b) => new Date(a.ev.fecha_evento || 0) - new Date(b.ev.fecha_evento || 0))
+      .pop() || null;
+    const ultimo = hitoActual;
 
     const actaEvento = porCodigo.get(CODIGO_ACTA) || null;
     const actaFecha = texto(orden && (orden.fecha_acta_inicio || orden.fechaActaInicio ||
@@ -34704,10 +34742,11 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
     // Evidencia legacy de ejecucion: una OC historica ya iniciada no puede
     // quedar con la etapa 2 bloqueada solo porque nadie registro el hito.
-    const estadoActual = fold(orden && (orden.estado_documental || orden.estadoDocumental ||
-      orden.estado_coi || orden.estadoCOI || orden.estado));
-    const legacyEjecucion = ['EJECUCION', 'FINALIZADA', 'CERRADA', 'ARCHIVADA', 'ACTA']
-      .some((t) => estadoActual.indexOf(t) >= 0) ||
+    const estadoCrudo = orden && (orden.estado_documental || orden.estadoDocumental ||
+      orden.estado_coi || orden.estadoCOI || orden.estado);
+    const etapaVigente = resolverEtapaCanonica(estadoCrudo);
+    const legacyEjecucion =
+      Boolean(etapaVigente && CODIGOS_POST_ACTA.indexOf(etapaVigente.codigo) >= 0) ||
       CODIGOS_ETAPA2.some((c) => porCodigo.has(c));
 
     const etapa2Habilitada = Boolean(actaEvento) || Boolean(actaFecha) || legacyEjecucion;
@@ -34715,12 +34754,18 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     // pendiente. No se infiere de ninguna columna de auditoria.
     const actaPendienteConciliacion = Boolean(actaEvento) && !actaFecha;
 
+    /* El historial CONSERVA la cancelacion: es un hecho que ocurrio y no se
+       borra. Pero que este en el historial no significa que la OC siga hoy
+       suspendida; si despues se reingreso a otra etapa, la condicion ya no
+       esta vigente. El banner se muestra solo cuando el estado contractual
+       VIGENTE, resuelto canonicamente, es cancelada_suspendida. */
     const transversal = porCodigo.get(CODIGO_TRANSVERSAL) || null;
+    const transversalVigente = Boolean(etapaVigente && etapaVigente.codigo === CODIGO_TRANSVERSAL);
     let transversalTexto = '';
-    if (transversal) {
+    if (transversalVigente) {
       // Antes o despues del inicio: lo decide si habia acta al momento.
-      const antes = !actaEvento ||
-        new Date(transversal.fecha_evento || 0) < new Date(actaEvento.fecha_evento || 0);
+      const antes = !actaEvento || (transversal &&
+        new Date(transversal.fecha_evento || 0) < new Date(actaEvento.fecha_evento || 0));
       transversalTexto = antes && !actaFecha
         ? 'Contratación cancelada/suspendida antes del inicio'
         : 'Ejecución cancelada/suspendida';
@@ -34732,6 +34777,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       porCodigo: porCodigo,
       registrados: registrados,
       ultimo: ultimo,
+      hitoActual: hitoActual,
+      ultimaActualizacion: ultimaActualizacion,
+      etapaVigente: etapaVigente,
       // X/8 cuenta hitos CONTRACTUALES registrados. La transversal no entra.
       registradosCount: registrados.length,
       total: hitos.length,
@@ -34740,6 +34788,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       actaFecha: actaFecha,
       actaPendienteConciliacion: actaPendienteConciliacion,
       transversal: transversal,
+      transversalVigente: transversalVigente,
       transversalTexto: transversalTexto
     };
   }
@@ -34755,15 +34804,32 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     return esUltimo && !estado.etapa1Finalizada ? 'actual' : 'completado';
   }
 
+  /* Duracion en ORDEN CONTRACTUAL 1->8, no «el proximo evento cronologico».
+     Para el hito N se mide contra el hito N+1 y solo si ese existe y su
+     timestamp es posterior. Si el inmediato siguiente falta —hueco— o llego con
+     una fecha anterior por un backfill incoherente, se devuelve null y la UI
+     muestra «—»: atravesar el hueco fabricaria una duracion que nadie midio. */
   function diasDeHito(estado, x) {
     if (!x.ev) return null;
-    const pos = estado.registrados.findIndex((r) => r.etapa.codigo === x.etapa.codigo);
-    const siguiente = pos >= 0 ? estado.registrados[pos + 1] : null;
-    // El hito 8 cierra la etapa 1. Sin un evento posterior no hay contra que
-    // medir su duracion, y contarla contra NOW seria decir que la gestion
-    // contractual sigue corriendo cuando ya termino.
-    if (x.etapa.codigo === CODIGO_ACTA && !siguiente) return null;
-    return diasEntre(x.ev.fecha_evento, siguiente ? siguiente.ev.fecha_evento : null);
+    const indice = estado.hitos.findIndex((h) => h.codigo === x.etapa.codigo);
+    const siguienteEtapa = indice >= 0 ? estado.hitos[indice + 1] : null;
+    const siguienteEv = siguienteEtapa ? estado.porCodigo.get(siguienteEtapa.codigo) : null;
+
+    if (!siguienteEv) {
+      // El hito 8 cierra la etapa 1: no sigue acumulando dias contra NOW.
+      if (x.etapa.codigo === CODIGO_ACTA) return null;
+      // Ultimo hito contractual confirmado y etapa abierta: corre contra ahora.
+      const esActual = estado.hitoActual && estado.hitoActual.etapa.codigo === x.etapa.codigo;
+      if (esActual && !estado.etapa1Finalizada) return diasEntre(x.ev.fecha_evento, null);
+      // Hueco: el inmediato siguiente no esta registrado.
+      return null;
+    }
+    const desde = new Date(x.ev.fecha_evento);
+    const hasta = new Date(siguienteEv.fecha_evento);
+    if (isNaN(desde.getTime()) || isNaN(hasta.getTime())) return null;
+    // Backfill incoherente: el siguiente quedo con fecha anterior.
+    if (hasta.getTime() < desde.getTime()) return null;
+    return diasEntre(x.ev.fecha_evento, siguienteEv.fecha_evento);
   }
 
   // ------------------------------------------------------------ render
@@ -34790,9 +34856,10 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   }
 
   function resumen(estado) {
-    const ult = estado.ultimo;
-    // Dias en estado: solo mientras la etapa 1 siga abierta. Cerrada, el
-    // contador no tiene sentido.
+    const ult = estado.hitoActual;
+    const ultimaAct = estado.ultimaActualizacion;
+    // Dias en estado: contra el HITO ACTUAL, no contra la ultima carga
+    // retrospectiva, y solo mientras la etapa 1 siga abierta.
     const dias = ult && !estado.etapa1Finalizada ? diasEntre(ult.ev.fecha_evento, null) : null;
     // A) sin hitos  B) ultimo 1-7: su nombre  C/D) hito 8: etapa finalizada
     const estadoActual = !ult ? 'Sin iniciar'
@@ -34811,8 +34878,10 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       '<div class="etapa1-resumen-grid">' +
         '<div><span>Estado actual</span><b id="etapa1EstadoActual">' +
           esc(estadoActual) + '</b></div>' +
-        '<div><span>Última actualización</span><b>' + esc(ult ? fechaHora(ult.ev.fecha_evento) : '—') + '</b></div>' +
-        '<div><span>Usuario</span><b>' + esc(ult ? (texto(ult.ev.usuario_email) || '—') : '—') + '</b></div>' +
+        '<div><span>Última actualización</span><b id="etapa1UltimaAct">' +
+          esc(ultimaAct ? fechaHora(ultimaAct.ev.fecha_evento) : '—') + '</b></div>' +
+        '<div><span>Usuario</span><b id="etapa1UltimoUsuario">' +
+          esc(ultimaAct ? (texto(ultimaAct.ev.usuario_email) || '—') : '—') + '</b></div>' +
         '<div><span>Días en estado</span><b>' + (dias == null ? '—' : dias) + '</b></div>' +
         '<div><span>Hitos registrados</span><b id="etapa1Avance">' +
           estado.registradosCount + ' / ' + estado.total + '</b></div>' +
@@ -34905,6 +34974,33 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       if (nro && Array.isArray(filas)) historialLocal.set(nro, filas);
     } catch (e) { /* se conserva lo ya confirmado */ }
     repintar(orden);
+  }
+
+  /* Reconciliacion con la fila que devolvio Supabase. No es actualizacion
+     optimista: es justamente lo contrario, se usa el dato YA confirmado por el
+     servidor en vez del objeto local, que puede estar stale.
+
+     Sin esto, tras confirmar el hito 8 la UI repintaba con una OC cuyo
+     fecha_acta_inicio todavia era null y mostraba «pendiente de conciliacion»
+     un segundo despues de que el servidor la hubiera registrado. */
+  function reconciliarOrden(orden, confirmada) {
+    if (!confirmada || typeof confirmada !== 'object') return orden;
+    const destino = orden && typeof orden === 'object' ? orden : {};
+    ['fecha_acta_inicio', 'estado_documental', 'estado_coi'].forEach((campo) => {
+      if (Object.prototype.hasOwnProperty.call(confirmada, campo)) {
+        destino[campo] = confirmada[campo];
+        if (destino._supabaseRaw && typeof destino._supabaseRaw === 'object') {
+          destino._supabaseRaw[campo] = confirmada[campo];
+        }
+      }
+    });
+    if (Object.prototype.hasOwnProperty.call(confirmada, 'fecha_acta_inicio')) {
+      destino.fechaActaInicio = confirmada.fecha_acta_inicio;
+    }
+    if (Object.prototype.hasOwnProperty.call(confirmada, 'estado_documental')) {
+      destino.estadoDocumental = confirmada.estado_documental;
+    }
+    return destino;
   }
 
   function repintar(orden) {
@@ -35044,7 +35140,11 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         { observacion: texto(obs && obs.value) }
       );
       avisarActaInicio(resultado);
-      const orden = ordenDe(modalActual.nro) || modalActual.orden;
+      // Se parte de la fila CONFIRMADA por la RPC, no del objeto local.
+      const orden = reconciliarOrden(
+        ordenDe(modalActual.nro) || modalActual.orden,
+        resultado && resultado.orden
+      );
       cerrarModal();
       await sincronizarHistorial(orden);
     } catch (error) {
@@ -35098,6 +35198,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   window.__COI_ETAPA1_RENDER__ = render;
   window.__COI_ETAPA1_HITOS__ = hitosEtapa1;
   window.__COI_ETAPA1_REPINTAR__ = repintar;
+  window.__COI_ETAPA1_RECONCILIAR__ = reconciliarOrden;
+  window.__COI_ETAPA1_RESOLVER_ETAPA__ = resolverEtapaCanonica;
   window.__COI_ETAPA1_SINCRONIZAR__ = sincronizarHistorial;
 })();
 </script>
