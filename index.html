@@ -34518,6 +34518,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 .etapa1-aviso,.etapa1-transversal-aviso{margin:8px 0 0;padding:8px 10px;border-radius:8px;font-size:.78rem}
 .etapa1-aviso{background:#fff7e6;border:1px solid #f0d9a8;color:#7a5410}
 .etapa1-transversal-aviso{background:#fff1f1;border:1px solid #e7bcbc;color:#8a3535}
+.etapa1-conflicto{background:#fdeeee;border:1px solid #e2b3b3;color:#8a3535}
 /* Grilla fluida: sin ancho fijo no hay scroll horizontal en notebook. */
 .etapa1-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
 .etapa1-hito{display:flex;gap:10px;align-items:flex-start;text-align:left;width:100%;
@@ -34639,6 +34640,20 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   }
   const etapaTransversal = () => etapas().find((e) => e.codigo === CODIGO_TRANSVERSAL) || null;
 
+  /* Resolver UNICO por codigo. `finalizada_saldo_remanente` vive fuera del
+     array principal en la arquitectura actual, asi que etapasEtapa2() lo
+     agregaba para pintarlo pero abrirModal() lo buscaba solo en
+     CIRCUITO_ADMINISTRATIVO_ETAPAS: la tarjeta se veia y al hacer click no
+     resolvia nada. Todo lookup por codigo pasa ahora por aca. No se crea un
+     hito 13 ni se cambia su persistencia: solo se lo encuentra. */
+  function etapaPorCodigo(codigo) {
+    const c = texto(codigo);
+    if (!c) return null;
+    const extra = window.ESTADO_FINALIZADA_SALDO_REMANENTE || null;
+    return etapas().find((e) => e.codigo === c) ||
+      (extra && extra.codigo === c ? Object.assign({}, extra) : null);
+  }
+
   /* Resolucion CANONICA del estado documental vigente contra la configuracion
      de etapas: coincidencia normalizada y EXACTA sobre codigo, nombre y
      persistedNames.
@@ -34651,8 +34666,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   function resolverEtapaCanonica(valor) {
     const v = fold(valor);
     if (!v) return null;
-    const todas = etapas().concat(
-      window.ESTADO_FINALIZADA_SALDO_REMANENTE ? [window.ESTADO_FINALIZADA_SALDO_REMANENTE] : []);
+    const extra = window.ESTADO_FINALIZADA_SALDO_REMANENTE;
+    const todas = etapas().concat(extra ? [extra] : []);
     return todas.find((e) => {
       const candidatos = [e.codigo, e.nombre].concat(e.persistedNames || []);
       return candidatos.some((c) => fold(c) === v);
@@ -34749,10 +34764,25 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       Boolean(etapaVigente && CODIGOS_POST_ACTA.indexOf(etapaVigente.codigo) >= 0) ||
       CODIGOS_ETAPA2.some((c) => porCodigo.has(c));
 
-    const etapa2Habilitada = Boolean(actaEvento) || Boolean(actaFecha) || legacyEjecucion;
+    /* Dos cosas distintas, otra vez:
+
+         hito8Registrado    existe un EVENTO real del hito 8 en el historial
+         etapa1Finalizada   la gestion contractual termino, por el evento O por
+                            evidencia historica (fecha de acta, o un estado
+                            legacy posterior al acta)
+
+       Un expediente viejo puede tener su acta firmada y cargada sin que nadie
+       haya registrado el hito en el pipeline. La etapa 1 esta finalizada —eso
+       es un hecho— pero el hito 8 NO se marca como confirmado: no se inventa un
+       evento que nadie genero. */
+    const hito8Registrado = Boolean(actaEvento);
+    const etapa1Finalizada = hito8Registrado || Boolean(actaFecha) || legacyEjecucion;
+    // Finalizada por evidencia historica, sin evento propio.
+    const etapa1FinalizadaLegacy = etapa1Finalizada && !hito8Registrado;
+    const etapa2Habilitada = etapa1Finalizada;
     // Hito 8 confirmado pero sin fecha canonica: el gate vale, la fecha queda
     // pendiente. No se infiere de ninguna columna de auditoria.
-    const actaPendienteConciliacion = Boolean(actaEvento) && !actaFecha;
+    const actaPendienteConciliacion = hito8Registrado && !actaFecha;
 
     /* El historial CONSERVA la cancelacion: es un hecho que ocurrio y no se
        borra. Pero que este en el historial no significa que la OC siga hoy
@@ -34783,7 +34813,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       // X/8 cuenta hitos CONTRACTUALES registrados. La transversal no entra.
       registradosCount: registrados.length,
       total: hitos.length,
-      etapa1Finalizada: Boolean(actaEvento),
+      etapa1Finalizada: etapa1Finalizada,
+      hito8Registrado: hito8Registrado,
+      etapa1FinalizadaLegacy: etapa1FinalizadaLegacy,
       etapa2Habilitada: etapa2Habilitada,
       actaFecha: actaFecha,
       actaPendienteConciliacion: actaPendienteConciliacion,
@@ -34855,17 +34887,39 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       '</span></button>';
   }
 
+  // Conflictos de fecha de acta detectados en esta sesion, por OC. No es una
+  // fuente de datos: es la constancia de algo que informo el servidor y que la
+  // interfaz no puede dejar caer.
+  const conflictoActa = new Map();
+
   function resumen(estado) {
     const ult = estado.hitoActual;
     const ultimaAct = estado.ultimaActualizacion;
     // Dias en estado: contra el HITO ACTUAL, no contra la ultima carga
     // retrospectiva, y solo mientras la etapa 1 siga abierta.
     const dias = ult && !estado.etapa1Finalizada ? diasEntre(ult.ev.fecha_evento, null) : null;
-    // A) sin hitos  B) ultimo 1-7: su nombre  C/D) hito 8: etapa finalizada
-    const estadoActual = !ult ? 'Sin iniciar'
-      : (estado.etapa1Finalizada ? '1° Etapa finalizada' : ult.etapa.nombre);
+    /* A) sin hitos y sin evidencia  -> Sin iniciar
+       B) ultimo 1-7                  -> su nombre
+       C/D) hito 8 registrado         -> 1° Etapa finalizada
+       E) evidencia historica          -> 1° Etapa finalizada — evidencia histórica
+          (fecha de acta cargada, o estado legacy posterior al acta, sin que
+          nadie haya registrado el hito en el pipeline) */
+    const estadoActual = estado.etapa1Finalizada
+      ? (estado.etapa1FinalizadaLegacy ? '1° Etapa finalizada — evidencia histórica' : '1° Etapa finalizada')
+      : (ult ? ult.etapa.nombre : 'Sin iniciar');
     const aviso = estado.actaPendienteConciliacion
       ? '<p class="etapa1-aviso" id="etapa1AvisoActa">Fecha de Acta de Inicio pendiente de conciliación.</p>'
+      : '';
+    /* Conflicto de fecha de acta: advertencia PERSISTENTE, no un toast. El
+       toast se va solo a los pocos segundos y esto es un dato contractual que
+       alguien tiene que resolver; si solo viviera ahi, se perderia con el
+       primer repintado o si la aplicacion no tiene toast instalado. */
+    const conflicto = conflictoActa.get(estado.nro);
+    const avisoConflicto = conflicto
+      ? '<p class="etapa1-aviso etapa1-conflicto" id="etapa1AvisoConflictoActa">' +
+        'Existe una Fecha de Acta de Inicio diferente a la fecha de confirmación del Hito 8. ' +
+        'Se preservó el dato contractual existente' +
+        (conflicto.valor ? ' (' + esc(conflicto.valor) + ')' : '') + '.</p>'
       : '';
     // E/F) la situacion transversal se muestra en el encabezado, sin alterar
     // el estado derivado del pipeline.
@@ -34889,7 +34943,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       // X/8 son hitos con registro, no avance de obra. Conviene decirlo donde
       // se lee, no solo en la documentacion.
       '<p class="muted etapa1-nota">Hitos con registro administrativo. No representa avance de obra.</p>' +
-      aviso + transversal + '</div>';
+      aviso + avisoConflicto + transversal + '</div>';
   }
 
   function bloqueTransversal(estado) {
@@ -35062,7 +35116,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
   async function abrirModal(codigo, nro) {
     const orden = ordenDe(nro);
-    const etapa = etapas().find((e) => e.codigo === codigo);
+    const etapa = etapaPorCodigo(codigo);
     if (!etapa) return;
     const estado = estadoPipeline(orden || {});
     // Advertencia por salto: hitos contractuales anteriores sin registro. La
@@ -35113,12 +35167,18 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     const acta = resultado && resultado.acta_inicio;
     if (!acta) return;
     const aviso = (m, t) => { try { if (typeof window.toast === 'function') window.toast(m, t); } catch (e) {} };
+    const nro = modalActual ? modalActual.nro : '';
     if (acta.estado === 'conflicto') {
-      // No se oculta: la fecha existente se conservo y alguien tiene que decidir.
+      // No se oculta. Queda registrado para que el resumen lo muestre de forma
+      // persistente; el toast es adicional y puede no existir.
+      if (nro) conflictoActa.set(nro, { valor: texto(acta.valor), confirmacion: texto(acta.valor_confirmacion) });
       aviso('La OC ya tenía una Fecha de Acta de Inicio distinta (' + texto(acta.valor) +
         '). Se conservó la existente; revise la diferencia.', 'warn');
     } else if (acta.estado === 'legacy_sin_fecha') {
       aviso('Etapa 1 finalizada. Fecha de Acta de Inicio pendiente de conciliación.', 'warn');
+    } else if (nro && (acta.estado === 'registrada' || acta.estado === 'coincide')) {
+      // Ya no hay divergencia que advertir.
+      conflictoActa.delete(nro);
     }
   }
 
@@ -35200,6 +35260,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   window.__COI_ETAPA1_REPINTAR__ = repintar;
   window.__COI_ETAPA1_RECONCILIAR__ = reconciliarOrden;
   window.__COI_ETAPA1_RESOLVER_ETAPA__ = resolverEtapaCanonica;
+  window.__COI_ETAPA1_ETAPA_POR_CODIGO__ = etapaPorCodigo;
+  window.__COI_ETAPA1_CONFLICTO_ACTA__ = conflictoActa;
   window.__COI_ETAPA1_SINCRONIZAR__ = sincronizarHistorial;
 })();
 </script>

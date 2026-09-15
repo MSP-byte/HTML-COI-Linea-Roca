@@ -526,3 +526,132 @@ test('E1-22 · F5 · tras confirmar el hito 8 no aparece el aviso de conciliaci�
   // La fila confirmada por el servidor trae la fecha: no puede decir pendiente.
   expect(e.avisoActa).toBe(false);
 });
+
+// ================================================== cierre: 3 findings finales
+
+test('E1-23 · F1 · la tarjeta de saldo remanente resuelve y abre el modal', async ({ page }) => {
+  // Vive fuera del array principal: el resolver único tiene que encontrarla.
+  await preparar(page, { fecha_acta_inicio: '2026-09-01' });
+  await abrir(page);
+  await pintar(page);
+
+  // La 2° Etapa está habilitada, así que la tarjeta no está deshabilitada.
+  const existe = await page.locator('#etapa1Panel2 [data-etapa1-hito="finalizada_saldo_remanente"]').count();
+  expect(existe).toBe(1);
+
+  await page.evaluate(() => {
+    document.getElementById('etapa1Panel1').classList.remove('active');
+    document.getElementById('etapa1Panel2').classList.add('active');
+  });
+  await page.click('#etapa1Panel2 [data-etapa1-hito="finalizada_saldo_remanente"]');
+
+  await expect(page.locator('#etapa1ModalConfirmar')).toBeVisible({ timeout: 8000 });
+  const hito = await page.locator('#etapa1ModalHito').textContent();
+  expect(hito.length).toBeGreaterThan(0);
+  expect(hito).toContain('SALDO');
+});
+
+test('E1-24 · F2a · fecha de acta sin evento: 1° Etapa finalizada por evidencia histórica', async ({ page }) => {
+  await preparar(page, { historial: [], fecha_acta_inicio: '2025-06-30' });
+  await abrir(page);
+  await pintar(page);
+
+  const e = await estado(page);
+  expect(e.estadoActual).toContain('evidencia histórica');
+  expect(e.etapa2).toBe('si');
+  expect(e.avance).toBe('0 / 8');
+  // El hito 8 NO puede figurar como registrado: no existe evento.
+  expect(e.visuales.find((v) => v.codigo === ACTA).clase).toContain('etapa1-pendiente');
+  // Y no se pide conciliar una fecha que ya está.
+  expect(e.avisoActa).toBe(false);
+});
+
+test('E1-25 · F2b · estado legacy de ejecución sin evento: mismo criterio', async ({ page }) => {
+  await preparar(page, {
+    estado_coi: 'OBRA/SERVICIO EN EJECUCIÓN', historial: [], fecha_acta_inicio: null
+  });
+  await abrir(page);
+  await pintar(page);
+
+  const e = await estado(page);
+  expect(e.estadoActual).toContain('evidencia histórica');
+  expect(e.etapa2).toBe('si');
+  expect(e.visuales.find((v) => v.codigo === ACTA).clase).toContain('etapa1-pendiente');
+  expect(e.avisoActa).toBe(false);
+});
+
+test('E1-26 · F2 · con evento real el hito 8 sí figura COMPLETADO y sin etiqueta legacy', async ({ page }) => {
+  await preparar(page, { historial: [EVENTO(ACTA, '2026-09-05T10:00:00.000Z')], fecha_acta_inicio: '2026-09-05' });
+  await abrir(page);
+  await pintar(page);
+
+  const e = await estado(page);
+  expect(e.estadoActual).toBe('1° Etapa finalizada');
+  expect(e.estadoActual).not.toContain('evidencia histórica');
+  expect(e.visuales.find((v) => v.codigo === ACTA).clase).toContain('etapa1-completado');
+});
+
+test('E1-27 · F3 · el conflicto de fecha de acta queda visible sin window.toast', async ({ page }) => {
+  await preparar(page, { fecha_acta_inicio: '2026-03-10' });
+  await abrir(page);
+
+  // Se elimina el toast a propósito: la advertencia no puede depender de él.
+  await page.evaluate(() => {
+    try { delete window.toast; } catch (e) { window.toast = undefined; }
+    const base = window.__COI_SUPABASE_CLIENT__.rpc;
+    window.__COI_SUPABASE_CLIENT__.rpc = async (nombre, args) => {
+      const r = await base(nombre, args);
+      if (nombre === 'coi_confirmar_etapa_circuito_v2' && r.data) {
+        r.data.acta_inicio = {
+          estado: 'conflicto', valor: '2026-03-10', valor_confirmacion: '2026-09-15'
+        };
+      }
+      return r;
+    };
+  });
+  await pintar(page);
+
+  await page.click('[data-etapa1-hito="control_terceros_con_acta"]');
+  await page.click('#etapa1ModalConfirmarBtn');
+  await page.waitForTimeout(2500);
+
+  // Advertencia persistente en el resumen.
+  await expect(page.locator('#etapa1AvisoConflictoActa')).toBeVisible();
+  const texto = await page.locator('#etapa1AvisoConflictoActa').textContent();
+  expect(texto).toContain('Existe una Fecha de Acta de Inicio diferente');
+  expect(texto).toContain('Se preservó el dato contractual existente');
+  expect(texto).toContain('2026-03-10');
+
+  // Sobrevive a un repintado: no es un toast que se desvanece.
+  await pintar(page);
+  await expect(page.locator('#etapa1AvisoConflictoActa').first()).toBeVisible();
+});
+
+test('E1-28 · F3 · una conciliación exitosa posterior limpia la advertencia', async ({ page }) => {
+  await preparar(page, { fecha_acta_inicio: '2026-03-10' });
+  await abrir(page);
+  await page.evaluate(() => {
+    window.__E1_ESTADO_ACTA__ = 'conflicto';
+    const base = window.__COI_SUPABASE_CLIENT__.rpc;
+    window.__COI_SUPABASE_CLIENT__.rpc = async (nombre, args) => {
+      const r = await base(nombre, args);
+      if (nombre === 'coi_confirmar_etapa_circuito_v2' && r.data) {
+        r.data.acta_inicio = { estado: window.__E1_ESTADO_ACTA__, valor: '2026-03-10', valor_confirmacion: '2026-09-15' };
+      }
+      return r;
+    };
+  });
+  await pintar(page);
+
+  await page.click('[data-etapa1-hito="control_terceros_con_acta"]');
+  await page.click('#etapa1ModalConfirmarBtn');
+  await page.waitForTimeout(2500);
+  await expect(page.locator('#etapa1AvisoConflictoActa')).toBeVisible();
+
+  await page.evaluate(() => { window.__E1_ESTADO_ACTA__ = 'coincide'; });
+  await page.click('[data-etapa1-hito="control_terceros_con_acta"]');
+  await page.click('#etapa1ModalConfirmarBtn');
+  await page.waitForTimeout(2500);
+
+  expect(await page.locator('#etapa1AvisoConflictoActa').count()).toBe(0);
+});

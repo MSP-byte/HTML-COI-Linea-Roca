@@ -316,7 +316,9 @@ async function main() {
     'la falta de fecha canonica se muestra como pendiente, no se inventa');
 
   // Gate: habilitado por evento, por fecha canonica o por evidencia legacy.
-  check(/etapa2Habilitada = Boolean\(actaEvento\) \|\| Boolean\(actaFecha\) \|\| legacyEjecucion/.test(codigo),
+  // El gate sigue exactamente a la finalizacion de la etapa 1, que ya
+  // contempla el evento, la fecha canonica y la evidencia legacy post-acta.
+  check(/const etapa2Habilitada = etapa1Finalizada;/.test(codigo),
     'una OC historica ya iniciada no puede quedar con la etapa 2 bloqueada');
   check(codigo.indexOf('Se habilitará al registrar el Acta de Inicio.') >= 0,
     'la etapa 2 bloqueada tiene que decir por que');
@@ -372,6 +374,51 @@ async function main() {
     'renderCircuitoAdministrativoOC no puede eliminarse: otras partes la usan');
   check(codigo.indexOf('return render(resuelto);') >= 0,
     'la ficha tiene que devolver el pipeline nuevo, no los dos');
+
+  // Resolver unico por codigo: la tarjeta de saldo remanente tiene que poder
+  // resolverse al hacer click, no solo pintarse.
+  check(/function etapaPorCodigo\(codigo\)/.test(codigo),
+    'hace falta un resolver unico por codigo');
+  check(/extra && extra\.codigo === c \? Object\.assign\(\{\}, extra\) : null/.test(codigo),
+    'el resolver tiene que contemplar ESTADO_FINALIZADA_SALDO_REMANENTE');
+  check(/const etapa = etapaPorCodigo\(codigo\);/.test(codigo),
+    'abrirModal tiene que usar el resolver unico');
+  check(!/etapas\(\)\.find\(\(e\) => e\.codigo === codigo\)/.test(codigo),
+    'no puede quedar un lookup que ignore las etapas fuera del array principal');
+
+  // hito8Registrado != etapa1Finalizada.
+  check(/const hito8Registrado = Boolean\(actaEvento\);/.test(codigo),
+    'el hito 8 registrado depende de un evento REAL');
+  check(/const etapa1Finalizada = hito8Registrado \|\| Boolean\(actaFecha\) \|\| legacyEjecucion;/.test(codigo),
+    'la etapa 1 puede estar finalizada por evidencia historica');
+  check(/const etapa1FinalizadaLegacy = etapa1Finalizada && !hito8Registrado;/.test(codigo),
+    'hay que distinguir la finalizacion por evidencia historica');
+  check(codigo.indexOf("'1° Etapa finalizada — evidencia histórica'") >= 0,
+    'la finalizacion sin evento tiene que decirse como evidencia historica');
+  check(/const actaPendienteConciliacion = hito8Registrado && !actaFecha;/.test(codigo),
+    'el aviso de conciliacion solo aplica si el hito 8 tiene evento real');
+  // El hito 8 no puede pintarse COMPLETADO sin evento: visualDe exige x.ev.
+  const cuerpoVisual2 = codigo.slice(codigo.indexOf('function visualDe'), codigo.indexOf('function diasDeHito'));
+  check(/if \(!x\.ev\) return 'pendiente';/.test(cuerpoVisual2),
+    'sin evento real ningun hito puede figurar como registrado');
+
+  // Conflicto de fecha de acta: advertencia persistente, no solo toast.
+  check(/const conflictoActa = new Map\(\);/.test(codigo),
+    'el conflicto de fecha tiene que quedar registrado, no perderse con el toast');
+  check(/const conflicto = conflictoActa\.get\(estado\.nro\);/.test(codigo),
+    'el resumen tiene que leer el conflicto vigente');
+  check(codigo.indexOf('Existe una Fecha de Acta de Inicio diferente a la fecha de confirmación del Hito 8.') >= 0,
+    'el texto del conflicto tiene que ser explicito');
+  check(codigo.indexOf('Se preservó el dato contractual existente') >= 0,
+    'el conflicto tiene que decir que no se sobrescribio nada');
+  check(/if \(nro\) conflictoActa\.set\(nro,/.test(codigo),
+    'el conflicto se registra al recibirlo de la RPC');
+  check(/conflictoActa\.delete\(nro\);/.test(codigo),
+    'una conciliacion posterior tiene que limpiar la advertencia');
+  // El aviso no puede depender de que exista window.toast.
+  const cuerpoAvisar = codigo.slice(codigo.indexOf('function avisarActaInicio'), codigo.indexOf('async function confirmar()'));
+  check(cuerpoAvisar.indexOf('conflictoActa.set') < cuerpoAvisar.indexOf("aviso('La OC ya tenía"),
+    'el conflicto se registra ANTES de intentar el toast');
 
   // Sin onclick inline.
   check(!/onclick=/.test(capa), 'la capa no puede usar onclick inline');
