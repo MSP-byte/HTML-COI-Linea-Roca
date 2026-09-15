@@ -12,7 +12,7 @@ const { test, expect } = require('@playwright/test');
 */
 
 const UID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
-const EMAIL = 'operador@coiroca.test';
+const EMAIL = 'admin@coiroca.com';
 const OC = '4530900100';
 const ORDEN_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const ACTA = 'control_terceros_con_acta';
@@ -32,7 +32,7 @@ async function preparar(page, opciones = {}) {
   await page.route((url) => url.hostname !== '127.0.0.1', (route) => route.abort());
 
   await page.addInitScript(({ c, uid, email, oc, ordenId }) => {
-    window.__E1__ = { rpc: [], historial: c.historial.slice() };
+    window.__E1__ = { rpc: [], historial: c.historial.slice(), orden: null };
 
     const orden = {
       id: ordenId, nro_oc: oc, id_obra: 'OBRA-' + oc, tipo: 'Servicio',
@@ -41,6 +41,7 @@ async function preparar(page, opciones = {}) {
       estado_documental: c.estado_coi, fecha_acta_inicio: c.fecha_acta_inicio,
       monto_total: 1000, moneda: 'ARS'
     };
+    window.__E1__.orden = orden;
 
     function consulta(tabla) {
       const st = { tabla, filtros: [] };
@@ -106,17 +107,29 @@ async function abrir(page) {
 // Pinta el pipeline sobre un contenedor propio, usando el render canonico de la
 // capa: es el mismo HTML que monta la Ficha OC.
 async function pintar(page) {
-  await page.evaluate(({ oc }) => {
-    const orden = (typeof window.resolverOrdenActual === 'function' && window.resolverOrdenActual(oc)) || {
-      numeroOC: oc, oc: oc, id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', nro_oc: oc
-    };
+  await page.evaluate(async ({ oc }) => {
+    // El test monta el renderer de Etapa 1 de forma aislada, fuera de
+    // renderChecksDocumentales(). Por eso sincroniza explícitamente el historial
+    // canónico antes de pintar: en la Ficha real esa sincronización la dispara
+    // el wrapper de renderChecksDocumentales.
+    if (typeof window.__COI_ETAPA1_SYNC__ === 'function') {
+      await window.__COI_ETAPA1_SYNC__(oc, { repintar: false });
+    }
+
+    const orden = window.__E1__?.orden
+      || (typeof window.resolverOrdenActual === 'function' && window.resolverOrdenActual(oc))
+      || { numeroOC: oc, oc: oc, id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', nro_oc: oc };
+
     window.__E1_ORDEN__ = orden;
-    const host = document.createElement('div');
-    host.id = 'e1Host';
-    document.body.appendChild(host);
+    let host = document.getElementById('e1Host');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'e1Host';
+      document.body.appendChild(host);
+    }
     host.innerHTML = window.__COI_ETAPA1_RENDER__(orden);
   }, { oc: OC });
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(100);
 }
 
 const estado = (page) => page.evaluate(() => ({
@@ -148,7 +161,10 @@ test('E1-1 · F · la 1° Etapa renderiza exactamente 8 hitos', async ({ page })
 });
 
 test('E1-2 · G · cancelada/suspendida no cuenta en X/8 y se muestra aparte', async ({ page }) => {
-  await preparar(page, { historial: [EVENTO('cancelada_suspendida', '2026-09-01T10:00:00.000Z')] });
+  await preparar(page, {
+    estado_coi: 'OBRA/SERVICIO CANCELADA O SUSPENDIDA',
+    historial: [EVENTO('cancelada_suspendida', '2026-09-01T10:00:00.000Z')]
+  });
   await abrir(page);
   await pintar(page);
 
@@ -281,8 +297,14 @@ test('E1-10 · M · el doble click no duplica el registro', async ({ page }) => 
   await pintar(page);
 
   await page.click('[data-etapa1-hito="pliegos_preparacion"]');
-  await page.click('#etapa1ModalConfirmarBtn');
-  await page.click('#etapa1ModalConfirmarBtn', { force: true }).catch(() => {});
+  // Dos eventos en el mismo tick: el segundo debe caer con guardando=true.
+  // Se evita un segundo page.click() sobre un botón ya disabled, que hace que
+  // Playwright espere actionability hasta agotar el timeout del test.
+  await page.evaluate(() => {
+    const btn = document.getElementById('etapa1ModalConfirmarBtn');
+    btn.click();
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+  });
   await page.waitForTimeout(3000);
 
   expect(await rpcConfirmaciones(page)).toHaveLength(1);
