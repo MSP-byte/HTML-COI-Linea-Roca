@@ -1,0 +1,164 @@
+name: E1 scoped fix once
+
+on:
+  push:
+    branches:
+      - feat/etapa1-pipeline-contractual
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/etapa1-pipeline-contractual
+          fetch-depth: 0
+
+      - name: Apply exact scoped fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # 1) Production: normalize both ordinal symbols even when the shared
+          # normalizer is present. This closes the real 3° / 3º legacy gap.
+          index = Path('index.html')
+          s = index.read_text(encoding='utf-8')
+          old = """  const fold = (v) => {
+            try { if (typeof window.normalizarTextoEstado === 'function') return window.normalizarTextoEstado(v); } catch (e) {}
+            return texto(v).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase().replace(/[º°]/g, '').replace(/\\s+/g, ' ').trim();
+          };"""
+          new = """  const fold = (v) => {
+            let base = texto(v);
+            try { if (typeof window.normalizarTextoEstado === 'function') base = window.normalizarTextoEstado(v); } catch (e) {}
+            return texto(base).normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toUpperCase().replace(/[º°]/g, '').replace(/\\s+/g, ' ').trim();
+          };"""
+          assert s.count(old) == 1, f'fold target count={s.count(old)}'
+          s = s.replace(old, new, 1)
+          index.write_text(s, encoding='utf-8')
+
+          # 2) E1-32: UI canonically formats es-AR with zero-padded month.
+          e1 = Path('tests/etapa1_pipeline_contractual.spec.js')
+          s = e1.read_text(encoding='utf-8')
+          old = "expect(meta).toContain('12/9/2026')"
+          new = "expect(meta).toContain('12/09/2026')"
+          assert s.count(old) == 1, f'E1-32 target count={s.count(old)}'
+          e1.write_text(s.replace(old, new, 1), encoding='utf-8')
+
+          # 3) Legacy CT suite: keep Control de Terceros coverage, but stop
+          # requiring the pipeline that E1 intentionally removed from Ficha OC.
+          ct = Path('tests/contractual_ct_hotfix.spec.js')
+          s = ct.read_text(encoding='utf-8')
+
+          start = s.index('const EXPECTED_STAGES = [')
+          end = s.index('];\n\nasync function openFixture', start) + 3
+          s = s[:start] + s[end:]
+
+          old = "  await expect(page.locator('[data-coi-contractual-circuit-hotfix]')).toHaveCount(1);\n}"
+          new = """  // E1 reemplazó la grilla contractual legacy dentro de la Ficha.
+            // Control de Terceros sigue montándose como bloque independiente.
+            await expect(page.locator('[data-r28-ct-card]')).toHaveCount(1);
+            await expect(page.locator('[data-r28-ct-contractual]')).toHaveCount(1);
+            await expect(page.locator('[data-coi-contractual-circuit-hotfix],[data-v64-circuito-contractual],[data-circuito-etapa]')).toHaveCount(0);
+          }"""
+          assert s.count(old) == 1, f'fixture target count={s.count(old)}'
+          s = s.replace(old, new, 1)
+
+          start = s.index("test('Ficha contractual monta exactamente 12 etapas")
+          end = s.index("test('Control de Terceros lee _supabaseRaw", start)
+          replacement = """test('Ficha contractual conserva Control de Terceros sin reintroducir el pipeline legacy', async ({ page }) => {
+            await openFixture(page);
+            await expect(page.locator('[data-r28-ct-card] [data-r28-ct-edit]')).toHaveCount(1);
+            await expect(page.locator('[data-r28-ct-contractual] [data-r28-ct-edit]')).toHaveCount(1);
+
+            await page.evaluate(orderNumber => {
+              window.coiRestoreContractualCT(orderNumber);
+              window.coiRestoreContractualCT(orderNumber);
+            }, ORDER_NUMBER);
+
+            await expect(page.locator('[data-coi-contractual-circuit-hotfix],[data-v64-circuito-contractual],[data-circuito-etapa]')).toHaveCount(0);
+            await expect(page.locator('#circuitoAdministrativoOCR18')).toHaveCount(0);
+            await expect(page.locator('[data-r28-ct-card]')).toHaveCount(1);
+            await expect(page.locator('[data-r28-ct-contractual]')).toHaveCount(1);
+            const text = await page.locator('#fichaOCBody').innerText();
+            expect(text).not.toMatch(/OneDrive|Agregar link documental|Marcar enviada a PyC/i);
+            await expect(page.getByRole('button', { name: /Marcar enviada a PyC/i })).toHaveCount(0);
+            await expect(page.getByRole('button', { name: /Agregar link documental/i })).toHaveCount(0);
+            await expect(page.getByRole('button', { name: /Abrir.*OneDrive/i })).toHaveCount(0);
+          });
+
+          test('la representación E1 reemplaza las 12 etapas legacy por 8 hitos contractuales', async ({ page }) => {
+            await openFixture(page);
+            await page.evaluate(() => {
+              const state = window.__HOTFIX_STATE__;
+              const host = document.createElement('div');
+              host.id = 'etapa1HotfixFixture';
+              host.innerHTML = window.__COI_ETAPA1_RENDER__(state.order);
+              document.body.appendChild(host);
+            });
+            await expect(page.locator('#etapa1HotfixFixture #etapa1Pipeline [data-etapa1-hito]')).toHaveCount(8);
+            await expect(page.locator('#etapa1HotfixFixture [data-circuito-etapa]')).toHaveCount(0);
+            await expect(page.locator('#etapa1HotfixFixture #etapa1Avance')).toHaveText('0 / 8');
+          });
+
+          """
+          s = s[:start] + replacement + s[end:]
+
+          start = s.index("test('usuario autorizado puede reingresar")
+          end = s.index("test('sin sesión ni permiso", start)
+          replacement = """test('usuario autorizado puede reingresar a una etapa por el camino canónico y vuelve a auditar en Supabase', async ({ page }) => {
+            await openFixture(page);
+            await page.evaluate(async orderNumber => {
+              await window.actualizarEstadoDocumentalDesdePasoContractual(orderNumber, 'ejecucion', { allowLocalFallback: false });
+              await window.actualizarEstadoDocumentalDesdePasoContractual(orderNumber, 'ejecucion', { allowLocalFallback: false });
+            }, ORDER_NUMBER);
+            const state = await stateSnapshot(page);
+            const confirmaciones = state.writes.filter(write => write.name === 'coi_confirmar_etapa_circuito_v2');
+            expect(confirmaciones).toHaveLength(2);
+            expect(confirmaciones.every(write => write.args.p_codigo === 'ejecucion')).toBe(true);
+            expect(state.persistedDocumentState).toBe('OBRA/SERVICIO EN EJECUCIÓN');
+          });
+
+          """
+          s = s[:start] + replacement + s[end:]
+
+          old = """test('sin sesión ni permiso, circuito y Control de Terceros quedan en lectura', async ({ page }) => {
+            await openFixture(page, { editable: false, session: false });
+            await expect(page.locator('[data-circuito-etapa]')).toHaveCount(12);
+            await expect(page.locator('.circuito-lectura-aviso')).toContainText('Modo lectura');
+            await expect(page.locator('[data-r28-ct-edit],[data-r28-ct-save],[data-r28-ct-cancel]')).toHaveCount(0);
+            const state = await stateSnapshot(page);
+            expect(state.writes).toHaveLength(0);
+            expect(state.localWrites).toBe(0);
+          });
+          """
+          new = """test('sin sesión ni permiso, Control de Terceros queda en lectura y el pipeline legacy no reaparece', async ({ page }) => {
+            await openFixture(page, { editable: false, session: false });
+            await expect(page.locator('[data-circuito-etapa],[data-coi-contractual-circuit-hotfix],[data-v64-circuito-contractual]')).toHaveCount(0);
+            await expect(page.locator('[data-r28-ct-edit],[data-r28-ct-save],[data-r28-ct-cancel]')).toHaveCount(0);
+            const state = await stateSnapshot(page);
+            expect(state.writes).toHaveLength(0);
+            expect(state.localWrites).toBe(0);
+          });
+          """
+          assert s.count(old) == 1, f'readonly target count={s.count(old)}'
+          ct.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          node --check tests/contractual_ct_hotfix.spec.js
+          node --check tests/etapa1_pipeline_contractual.spec.js
+          git diff --check
+
+      - name: Commit scoped fixes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html tests/contractual_ct_hotfix.spec.js tests/etapa1_pipeline_contractual.spec.js
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: align E1 compatibility and contractual tests"
+          git push origin HEAD:feat/etapa1-pipeline-contractual
