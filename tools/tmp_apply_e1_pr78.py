@@ -49,7 +49,9 @@ repls = [
 ("check(/const conflicto = conflictoActa\\.get\\(estado\\.nro\\);/.test(codigo),\n    'el resumen tiene que leer el conflicto vigente');",
  "check(/const conflicto = estado\\.actaConflicto \\|\\| conflictoActa\\.get\\(estado\\.nro\\);/.test(codigo),\n    'el resumen prioriza el conflicto reconstruido desde historial y usa el Map solo como fallback de sesión');"),
 ("check(/const orden = reconciliarOrden\\(/.test(codigo),\n    'la confirmacion tiene que reconciliar antes de repintar');",
- "check(/const orden\\s*=\\s*reconciliarOrden\\(/.test(codigo) &&\n        /const resultId\\s*=\\s*identidadOrden\\(resultado && resultado\\.orden\\)/.test(codigo) &&\n        /contexto\\.identidad && resultId && contexto\\.identidad!==resultId/.test(codigo),\n    'la confirmacion valida UUID del servidor y reconcilia la fila confirmada antes de repintar');")
+ "check(/const orden\\s*=\\s*reconciliarOrden\\(/.test(codigo) &&\n        /const resultId\\s*=\\s*identidadOrden\\(resultado && resultado\\.orden\\)/.test(codigo) &&\n        /contexto\\.identidad && resultId && contexto\\.identidad!==resultId/.test(codigo),\n    'la confirmacion valida UUID del servidor y reconcilia la fila confirmada antes de repintar');"),
+("check(/if \\(btn\\) btn\\.disabled = true;/.test(codigo) && /if \\(btn\\) btn\\.disabled = false;/.test(codigo),\n    'el boton se bloquea durante la escritura y se restaura ante error');",
+ "check(/if \\(btn\\) btn\\.disabled = true;/.test(codigo) &&\n        /finally \\{[\\s\\S]*guardando = false;[\\s\\S]*if \\(btn && btn\\.isConnected\\) btn\\.disabled = false;/.test(cuerpoConfirmar),\n    'el boton se bloquea durante la escritura y se restaura siempre desde finally');")
 ]
 for old,new in repls:
     if old not in s:
