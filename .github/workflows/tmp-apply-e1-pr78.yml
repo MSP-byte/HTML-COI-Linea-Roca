@@ -36,6 +36,11 @@ jobs:
           git diff --check
           node --check tests/etapa1_pipeline_contractual.spec.js
           node --check tests/check_etapa1_hardening.js
+      - name: Remove temporary transfer helpers
+        run: |
+          rm -rf tools/e1_chunks
+          rm -f tools/tmp_apply_e1_pr78.py
+          rm -f .github/workflows/tmp-apply-e1-pr78.yml
       - name: Commit to the existing PR branch
         run: |
           git config user.name "github-actions[bot]"
