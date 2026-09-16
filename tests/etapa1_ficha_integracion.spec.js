@@ -169,6 +169,7 @@ const diagnostico = page => page.evaluate(() => {
     hitosEtapa2: q('#etapa1Panel2 [data-etapa1-hito]'),
     etapa2Habilitada: panel2 ? panel2.getAttribute('data-etapa1-habilitada') : '',
     avance: panel && panel.querySelector('#etapa1Avance') ? panel.querySelector('#etapa1Avance').textContent : '',
+    estadoActual: panel && panel.querySelector('#etapa1EstadoActual') ? panel.querySelector('#etapa1EstadoActual').textContent : '',
     transversal: q('#etapa1Transversal [data-etapa1-hito]'),
     bloqueoTexto: panel && panel.querySelector('#etapa1Etapa2Bloqueada')
       ? panel.querySelector('#etapa1Etapa2Bloqueada').textContent : '',
@@ -366,4 +367,151 @@ test('E1F-15 · tras recargar, el deep-link reconstruye el estado desde el histo
   const d = await diagnostico(page);
   expect(d.pipelines).toBe(1);
   expect(d.avance).toBe('2 / 8');
+});
+
+/* ------------------------------------------- casos de verificación pedidos */
+
+const H1 = 'pliegos_preparacion';
+const H2 = 'pliegos_terminado_sin_solped';
+const H3 = 'solped_sin_expediente';
+const H4 = 'pliego_con_oc';
+const H5 = 'pliego_con_expediente';
+const H6 = 'oc_sin_control_terceros';
+const H7 = 'control_terceros_sin_acta';
+const ETAPA2 = ['ejecucion', 'finalizada', 'finalizada_actas', 'finalizada_saldo_remanente'];
+
+const clases = page => page.evaluate(() => {
+  const panel = document.querySelector('#fichaOCBody #panelFichaContractual');
+  const map = {};
+  (panel ? panel.querySelectorAll('[data-etapa1-hito]') : []).forEach(b => {
+    map[b.getAttribute('data-etapa1-hito')] = b.className + (b.disabled ? ' [disabled]' : '');
+  });
+  return map;
+});
+
+/* CASO 1 — OC histórica con datos de Etapa 1: el pipeline reconstruye el
+   historial existente y NO lo reinicia visualmente. */
+test('E1F-16 · caso 1 · OC histórica reconstruye su historial de Etapa 1 sin reiniciarlo', async ({ page }) => {
+  await abrirPorNavegacion(page, {
+    estado_coi: 'PLIEGO CON EXPTE',
+    historial: [
+      EVENTO(H1, '2025-03-03T10:00:00Z'), EVENTO(H2, '2025-03-20T10:00:00Z'),
+      EVENTO(H3, '2025-04-11T10:00:00Z'), EVENTO(H4, '2025-05-02T10:00:00Z'),
+      EVENTO(H5, '2025-05-28T10:00:00Z')
+    ]
+  });
+  const d = await diagnostico(page);
+  expect(d.pipelines).toBe(1);
+  expect(d.avance).toBe('5 / 8');                 // no se reinicia a 0 / 8
+  expect(d.estadoActual).not.toBe('Sin iniciar');
+
+  const c = await clases(page);
+  [H1, H2, H3, H4].forEach(h => expect(c[h]).toContain('etapa1-completado'));
+  expect(c[H5]).toContain('etapa1-actual');
+  [H6, H7, ACTA].forEach(h => expect(c[h]).toContain('etapa1-pendiente'));
+
+  // El historial trae fecha y usuario reales, no placeholders.
+  await expect(page.locator(PANEL + ' #etapa1UltimaAct')).not.toHaveText('—');
+  await expect(page.locator(PANEL + ' #etapa1UltimoUsuario')).toHaveText(EMAIL);
+  await expect(page.locator(PANEL + ' [data-etapa1-hito="' + H1 + '"] .etapa1-meta')).toContainText('03/03/2025');
+
+  // Reabrir por deep-link tampoco reinicia el avance acumulado.
+  await page.goto('/index.html#ficha-oc/' + OC + '/contractual', { waitUntil: 'domcontentloaded' });
+  await page.locator(PIPELINE).waitFor({ state: 'attached', timeout: 20000 });
+  expect((await diagnostico(page)).avance).toBe('5 / 8');
+});
+
+/* CASO 2 — sin hito 8 real: la 2° Etapa se ve, pero bloqueada. */
+test('E1F-17 · caso 2 · sin hito 8 real la 2° Etapa está visible y bloqueada', async ({ page }) => {
+  await abrirPorNavegacion(page, {
+    estado_coi: 'PLIEGO CON OC CON CONTROL DE 3º SIN ACTA DE INICIO',
+    fecha_acta_inicio: null,
+    historial: [
+      EVENTO(H1, '2026-01-05T10:00:00Z'), EVENTO(H2, '2026-01-20T10:00:00Z'),
+      EVENTO(H3, '2026-02-02T10:00:00Z'), EVENTO(H4, '2026-02-18T10:00:00Z'),
+      EVENTO(H5, '2026-03-01T10:00:00Z'), EVENTO(H6, '2026-03-15T10:00:00Z'),
+      EVENTO(H7, '2026-04-02T10:00:00Z')
+    ]
+  });
+  const d = await diagnostico(page);
+  expect(d.avance).toBe('7 / 8');
+  expect((await clases(page))[ACTA]).toContain('etapa1-pendiente');
+
+  // Visible: el selector existe y se puede abrir el panel.
+  await expect(page.locator(PANEL + ' #etapa1Tab2')).toBeVisible();
+  await expect(page.locator(PANEL + ' #etapa1Tab2')).toHaveAttribute('data-etapa1-bloqueada', 'si');
+  // Bloqueada: motivo a la vista y ningún estado de ejecución accionable.
+  expect(d.etapa2Habilitada).toBe('no');
+  expect(d.bloqueoTexto).toContain('se habilita al registrar el Acta de Inicio');
+  await page.click(PANEL + ' #etapa1Tab2');
+  await expect(page.locator(PANEL + ' #etapa1Panel2')).toHaveClass(/active/);
+  await expect(page.locator(PANEL + ' #etapa1Etapa2Bloqueada')).toBeVisible();
+  const total = await page.locator(PANEL + ' #etapa1Panel2 [data-etapa1-hito]').count();
+  const off = await page.locator(PANEL + ' #etapa1Panel2 [data-etapa1-hito][disabled]').count();
+  expect(total).toBeGreaterThan(0);
+  expect(off).toBe(total);
+});
+
+/* CASO 3 — OC que ya está en un estado de la 2° Etapa: abre reflejando ese
+   estado y con la 2° Etapa accesible. */
+for (const codigo of ETAPA2) {
+  test('E1F-18 · caso 3 · estado de 2° Etapa «' + codigo + '» se refleja y habilita la etapa', async ({ page }) => {
+    await abrirPorNavegacion(page, {
+      estado_coi: 'OBRA/SERVICIO EN EJECUCIÓN',
+      fecha_acta_inicio: '2026-02-10',
+      historial: [
+        EVENTO(H1, '2026-01-05T10:00:00Z'),
+        EVENTO(ACTA, '2026-02-10T10:00:00Z'),
+        EVENTO(codigo, '2026-06-01T10:00:00Z')
+      ]
+    });
+    const d = await diagnostico(page);
+    expect(d.pipelines).toBe(1);
+    expect(d.etapa2Habilitada).toBe('si');
+    expect(d.bloqueoTexto).toBe('');
+
+    const c = await clases(page);
+    expect(c[codigo]).toContain('etapa1-completado');   // refleja el estado real
+    expect(c[codigo]).not.toContain('[disabled]');
+
+    await page.click(PANEL + ' #etapa1Tab2');
+    await expect(page.locator(PANEL + ' #etapa1Panel2')).toHaveClass(/active/);
+    await expect(page.locator(PANEL + ' #etapa1Panel2 [data-etapa1-hito="' + codigo + '"]')).toBeVisible();
+    // Accesible: el hito de la 2° Etapa abre su modal por el camino canónico.
+    await page.click(PANEL + ' #etapa1Panel2 [data-etapa1-hito="' + codigo + '"]');
+    await expect(page.locator('#etapa1ModalConfirmar')).toBeVisible();
+    await page.click('#etapa1ModalCancelar');
+  });
+}
+
+/* CASO 4 — cancelada_suspendida es transversal y no integra el X/8. */
+test('E1F-19 · caso 4 · cancelada_suspendida queda transversal y fuera del X/8', async ({ page }) => {
+  await abrirPorNavegacion(page, {
+    estado_coi: 'OBRA/SERVICIO CANCELADA O SUSPENDIDA',
+    historial: [
+      EVENTO(H1, '2026-01-05T10:00:00Z'), EVENTO(H2, '2026-01-20T10:00:00Z'),
+      EVENTO(H3, '2026-02-02T10:00:00Z'),
+      EVENTO('cancelada_suspendida', '2026-03-10T10:00:00Z')
+    ]
+  });
+  const d = await diagnostico(page);
+  // Tres hitos secuenciales registrados; la transversal NO suma.
+  expect(d.avance).toBe('3 / 8');
+  expect(d.hitos).toBe(8);
+
+  const secuencia = await page.evaluate(() => Array.from(
+    document.querySelectorAll('#fichaOCBody #panelFichaContractual #etapa1Pipeline [data-etapa1-hito]')
+  ).map(b => b.getAttribute('data-etapa1-hito')));
+  expect(secuencia).toHaveLength(8);
+  expect(secuencia).not.toContain('cancelada_suspendida');
+
+  // Vive en su propio bloque, no en la secuencia ni en la 2° Etapa.
+  expect(d.transversal).toBe(1);
+  await expect(page.locator(PANEL + ' #etapa1Transversal [data-etapa1-hito="cancelada_suspendida"]')).toHaveCount(1);
+  await expect(page.locator(PANEL + ' #etapa1Panel2 [data-etapa1-hito="cancelada_suspendida"]')).toHaveCount(0);
+  await expect(page.locator(PANEL + ' #etapa1AvisoTransversal')).toBeVisible();
+
+  // Sigue siendo registrable aunque la 2° Etapa esté bloqueada.
+  expect(d.etapa2Habilitada).toBe('no');
+  await expect(page.locator(PANEL + ' #etapa1Transversal [data-etapa1-hito]')).not.toBeDisabled();
 });
