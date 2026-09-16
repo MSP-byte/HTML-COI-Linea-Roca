@@ -10,20 +10,6 @@ const RPC_DE_LECTURA = ['coi_current_role'];
 
 const OLD_DATE = '2026-08-31';
 const NEW_DATE = '2027-10-15';
-const EXPECTED_STAGES = [
-  'PLIEGOS EN PREPARACION',
-  'PLIEGOS TERMINADO SIN SOLPED',
-  'PLIEGO CON SOLPED SIN EXPTE',
-  'PLIEGO CON OC',
-  'PLIEGO CON EXPTE',
-  'PLIEGO CON EXPTE Y CON OC EMITIDA, PERO SIN CONTROL DE 3',
-  'PLIEGO CON OC CON CONTROL DE 3º SIN ACTA DE INICIO',
-  'PLIEGO CON OC Y CONTROL DE 3º CON ACTA DE INICIO',
-  'OBRA/SERVICIO EN EJECUCION',
-  'OBRA/SERVICIO CANCELADA O SUSPENDIDA',
-  'OBRA/SERVICIO FINALIZADA',
-  'OBRA/SERV. FINALIZADA CON ACTA PROVISORIA Y DEFINITIVA'
-];
 
 async function openFixture(page, {
   editable = true,
@@ -190,7 +176,11 @@ async function openFixture(page, {
       <section id="panelFichaContractual" class="expediente-card ficha-oc-panel active"><h3>2. CONTRACTUAL</h3></section>`;
     window.coiRestoreContractualCT(orderNumber);
   }, { orderId: ORDER_ID, orderNumber: ORDER_NUMBER, editable, session, remoteDate, remoteStatus, localDate, localStatus, rpcDeLectura: RPC_DE_LECTURA });
-  await expect(page.locator('[data-coi-contractual-circuit-hotfix]')).toHaveCount(1);
+  // E1 reemplazó la grilla contractual legacy dentro de la Ficha.
+  // Control de Terceros sigue montándose como bloque independiente.
+  await expect(page.locator('[data-r28-ct-card]')).toHaveCount(1);
+  await expect(page.locator('[data-r28-ct-contractual]')).toHaveCount(1);
+  await expect(page.locator('[data-coi-contractual-circuit-hotfix],[data-v64-circuito-contractual],[data-circuito-etapa]')).toHaveCount(0);
 }
 
 async function stateSnapshot(page) {
@@ -216,10 +206,8 @@ async function stateSnapshot(page) {
   });
 }
 
-test('Ficha contractual monta exactamente 12 etapas y no duplica módulos al rerender', async ({ page }) => {
+test('Ficha contractual conserva Control de Terceros sin reintroducir el pipeline legacy', async ({ page }) => {
   await openFixture(page);
-  await expect(page.locator('[data-circuito-etapa]')).toHaveCount(12);
-  expect(await page.locator('.circuito-etapa-titulo').allTextContents()).toEqual(EXPECTED_STAGES);
   await expect(page.locator('[data-r28-ct-card] [data-r28-ct-edit]')).toHaveCount(1);
   await expect(page.locator('[data-r28-ct-contractual] [data-r28-ct-edit]')).toHaveCount(1);
 
@@ -228,8 +216,8 @@ test('Ficha contractual monta exactamente 12 etapas y no duplica módulos al rer
     window.coiRestoreContractualCT(orderNumber);
   }, ORDER_NUMBER);
 
-  await expect(page.locator('[data-coi-contractual-circuit-hotfix]')).toHaveCount(1);
-  await expect(page.locator('#circuitoAdministrativoOCR18')).toHaveCount(1);
+  await expect(page.locator('[data-coi-contractual-circuit-hotfix],[data-v64-circuito-contractual],[data-circuito-etapa]')).toHaveCount(0);
+  await expect(page.locator('#circuitoAdministrativoOCR18')).toHaveCount(0);
   await expect(page.locator('[data-r28-ct-card]')).toHaveCount(1);
   await expect(page.locator('[data-r28-ct-contractual]')).toHaveCount(1);
   const text = await page.locator('#fichaOCBody').innerText();
@@ -237,20 +225,20 @@ test('Ficha contractual monta exactamente 12 etapas y no duplica módulos al rer
   await expect(page.getByRole('button', { name: /Marcar enviada a PyC/i })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Agregar link documental/i })).toHaveCount(0);
   await expect(page.getByRole('button', { name: /Abrir.*OneDrive/i })).toHaveCount(0);
-  await expect(page.locator('[data-circuito-etapa="enviada_pyc"]')).toHaveCount(0);
 });
 
-test('etapas 1–12 conservan su render actual sin historial', async ({ page }) => {
+test('la representación E1 reemplaza las 12 etapas legacy por 8 hitos contractuales', async ({ page }) => {
   await openFixture(page);
-  const stages = page.locator('[data-circuito-etapa]');
-  await expect(stages.nth(0)).toHaveClass(/\bactual\b/);
-  await expect(stages.nth(0).locator('.circuito-etapa-estado')).toHaveText('Etapa actual');
-  await expect(stages.nth(0).locator('.circuito-etapa-meta')).toHaveText('Pendiente de confirmación');
-  for (let index = 1; index < 12; index += 1) {
-    await expect(stages.nth(index)).toHaveClass(/\bpendiente\b/);
-    await expect(stages.nth(index).locator('.circuito-etapa-estado')).toHaveText('Pendiente');
-    await expect(stages.nth(index).locator('.circuito-etapa-meta')).toHaveText('Pendiente de confirmación');
-  }
+  await page.evaluate(() => {
+    const state = window.__HOTFIX_STATE__;
+    const host = document.createElement('div');
+    host.id = 'etapa1HotfixFixture';
+    host.innerHTML = window.__COI_ETAPA1_RENDER__(state.order);
+    document.body.appendChild(host);
+  });
+  await expect(page.locator('#etapa1HotfixFixture #etapa1Pipeline [data-etapa1-hito]')).toHaveCount(8);
+  await expect(page.locator('#etapa1HotfixFixture [data-circuito-etapa]')).toHaveCount(0);
+  await expect(page.locator('#etapa1HotfixFixture #etapa1Avance')).toHaveText('0 / 8');
 });
 
 test('Control de Terceros lee _supabaseRaw y deriva estado si Supabase devuelve estado null', async ({ browser }) => {
@@ -455,25 +443,24 @@ test('Editar OC deriva y persiste fecha y estado de Control de Terceros', async 
   await expect(page.locator('[data-r28-ct-card] .ct-date')).toHaveText(NEW_DATE);
 });
 
-test('usuario autorizado puede reingresar a una etapa confirmada y vuelve a auditar en Supabase', async ({ page }) => {
+test('usuario autorizado puede reingresar a una etapa por el camino canónico y vuelve a auditar en Supabase', async ({ page }) => {
   await openFixture(page);
-  const stage = page.locator('[data-circuito-etapa="ejecucion"]');
-  await stage.evaluate(node => { node.dataset.circuitoConfirmada = 'true'; });
-  await stage.click();
-  await expect.poll(() => page.evaluate(() => window.__HOTFIX_STATE__.writes.length)).toBe(1);
+  await page.evaluate(async orderNumber => {
+    const etapa = (window.CIRCUITO_ADMINISTRATIVO_ETAPAS || []).find(item => item.codigo === 'ejecucion');
+    if (!etapa) throw new Error('Fixture sin etapa ejecución');
+    await window.actualizarEstadoDocumentalDesdePasoContractual(orderNumber, etapa, { allowLocalFallback: false });
+    await window.actualizarEstadoDocumentalDesdePasoContractual(orderNumber, etapa, { allowLocalFallback: false });
+  }, ORDER_NUMBER);
   const state = await stateSnapshot(page);
-  expect(state.confirmations).toBe(1);
-  expect(state.writes[0]).toMatchObject({
-    name: 'coi_confirmar_etapa_circuito_v2',
-    args: { p_codigo: 'ejecucion' }
-  });
+  const confirmaciones = state.writes.filter(write => write.name === 'coi_confirmar_etapa_circuito_v2');
+  expect(confirmaciones).toHaveLength(2);
+  expect(confirmaciones.every(write => write.args.p_codigo === 'ejecucion')).toBe(true);
   expect(state.persistedDocumentState).toBe('OBRA/SERVICIO EN EJECUCIÓN');
 });
 
-test('sin sesión ni permiso, circuito y Control de Terceros quedan en lectura', async ({ page }) => {
+test('sin sesión ni permiso, Control de Terceros queda en lectura y el pipeline legacy no reaparece', async ({ page }) => {
   await openFixture(page, { editable: false, session: false });
-  await expect(page.locator('[data-circuito-etapa]')).toHaveCount(12);
-  await expect(page.locator('.circuito-lectura-aviso')).toContainText('Modo lectura');
+  await expect(page.locator('[data-circuito-etapa],[data-coi-contractual-circuit-hotfix],[data-v64-circuito-contractual]')).toHaveCount(0);
   await expect(page.locator('[data-r28-ct-edit],[data-r28-ct-save],[data-r28-ct-cancel]')).toHaveCount(0);
   const state = await stateSnapshot(page);
   expect(state.writes).toHaveLength(0);
