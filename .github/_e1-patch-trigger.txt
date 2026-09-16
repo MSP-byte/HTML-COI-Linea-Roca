@@ -1,0 +1,1 @@
+temporary trigger for scoped E1 patch; remove after successful application
