@@ -50,4 +50,4 @@ jobs:
           git commit -m "fix: harden Etapa 1 contractual gate"
           git push origin HEAD:feat/etapa1-pipeline-contractual
 
-# verified aggregate payload retry 3
+# verified aggregate payload retry 4
