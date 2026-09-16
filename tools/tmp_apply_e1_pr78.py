@@ -45,7 +45,18 @@ old = "check(cuerpoConfirmar.indexOf('await window.confirmarEtapaCircuitoOC') >=
 new = "check(cuerpoConfirmar.indexOf('await window.actualizarEstadoDocumentalDesdePasoContractual') >= 0,\n    'la escritura tiene que ir por el helper canonico RPC-returning');"
 if old not in s:
     die('assert canónica no encontrada')
-check_path.write_text(s.replace(old, new, 1), encoding='utf-8')
+s = s.replace(old, new, 1)
+old = "check(/const transversal = porCodigo\\.get\\(CODIGO_TRANSVERSAL\\) \\|\\| null;/.test(codigo),\n    'el evento historico de cancelacion se conserva');"
+new = "check(/const transversal = ultimaConfirmacion\\(historial, CODIGO_TRANSVERSAL\\) \\|\\| null;/.test(codigo),\n    'el evento historico de cancelacion conserva la confirmacion transversal mas reciente');"
+if old not in s:
+    die('assert transversal histórica no encontrada')
+s = s.replace(old, new, 1)
+old = "check(/const conflicto = conflictoActa\\.get\\(estado\\.nro\\);/.test(codigo),\n    'el resumen tiene que leer el conflicto vigente');"
+new = "check(/const conflicto = estado\\.actaConflicto \\|\\| conflictoActa\\.get\\(estado\\.nro\\);/.test(codigo),\n    'el resumen prioriza el conflicto reconstruido desde historial y usa el Map solo como fallback de sesión');"
+if old not in s:
+    die('assert conflicto histórico no encontrada')
+s = s.replace(old, new, 1)
+check_path.write_text(s, encoding='utf-8')
 
 package_path = R / 'package.json'
 s = package_path.read_text(encoding='utf-8')
