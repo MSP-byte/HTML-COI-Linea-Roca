@@ -19,5 +19,22 @@ assert(sql.includes('not v_seen'),'reingreso histórico no se trata como confirm
 assert(sql.includes("'REGISTRAR_FECHA_ACTA_INICIO_ETAPA1'"),'fecha Acta automática audita before/after');
 assert(sql.includes("'Conciliación Acta de Inicio'"),'conflicto queda persistido en historial');
 assert(sql.includes("when 'cancelada_suspendida'"),'transversal permanece permitido por RPC');
+
+/* Integración en la Ficha. El renderer puede estar perfecto y la pestaña
+   Contractual quedar vacía: la regresión que motivó estos controles retiraba
+   el circuito legacy por la sola existencia de window.__COI_ETAPA1_RENDER__,
+   sin montar nada en su lugar. */
+assert(!/if\(typeof window\.__COI_ETAPA1_RENDER__==='function'\)\{candidates\.forEach\(node=>node\.remove\(\)\);return null;\}/.test(html),
+  'la existencia del renderer no puede por si sola retirar la representación legacy');
+assert(/function mountEtapa1Pipeline\(/.test(html),'la Ficha monta el pipeline E1 explícitamente');
+assert(/const mounted=host\.querySelector\('#etapa1PipelineContractual'\)/.test(html)&&/body\.contains\(mounted\)/.test(html),
+  'el montaje se verifica contra el DOM real de la Ficha');
+assert(/const etapa1=mountEtapa1Pipeline\(oc,contractual\);[\s\S]{0,120}if\(etapa1\)\{candidates\.forEach\(node=>node\.remove\(\)\);return etapa1;\}/.test(html),
+  'el legacy se retira sólo después de montar el pipeline nuevo');
+assert(/if\(etapa1\)\{[\s\S]{0,120}\}\s*if\(typeof window\.renderCircuitoAdministrativoOC!=='function'\)return null;/.test(html),
+  'si el renderer nuevo falla, Contractual conserva el circuito legacy');
+assert(/function ensureContractualMounted\(/.test(html)&&/function wrapSubmodulo\(/.test(html),
+  'la navegación a Contractual reinyecta el circuito si falta');
+
 if(process.exitCode) process.exit(process.exitCode);
 console.log('Etapa 1 hardening: todos los controles OK');

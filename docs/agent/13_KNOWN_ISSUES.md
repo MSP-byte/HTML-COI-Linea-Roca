@@ -715,3 +715,22 @@ submódulo propio.
 
 Una ruta desconocida en esa posición cae en `resumen` en vez de fallar, que es
 el comportamiento deseado para un enlace viejo o mal tipeado.
+
+## KI-033 — `renderChecksDocumentales` ya no es un punto de montaje de la Ficha
+Estado: abierto (deuda estructural acotada).
+
+`index.html` declara cuatro veces `function renderFichaOC(...)` y dos veces
+`function renderChecksDocumentales(...)`. En un script clásico gana la última
+declaración, y después se encadenan envoltorios (`V54`, `V57`…`V63`). La
+`renderFichaOC` vigente arma las tarjetas 1 a 8 por su cuenta y **no** llama a
+`renderChecksDocumentales`: esa función quedó viva como API, pero fuera del
+camino de render de la Ficha.
+
+E1 se apoyó en ella para montarse y por eso la pestaña Contractual quedó sin
+circuito (ver TD-073). El arreglo no revive ese punto de montaje: inyecta el
+bloque en el panel Contractual desde `injectCT`.
+
+Queda abierto: consolidar las declaraciones duplicadas de `renderFichaOC` y
+`renderChecksDocumentales`. No se hizo acá para no ampliar el alcance de un fix
+de integración, pero mientras convivan, envolver una función homónima **no** es
+evidencia de que la Ficha la ejecute. Verificar el DOM, no el símbolo.
