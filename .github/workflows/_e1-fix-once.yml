@@ -25,60 +25,68 @@ jobs:
           from pathlib import Path
 
           # 1) Producción: normalizar 3° y 3º aun cuando exista el normalizador
-          # compartido. El bloque se localiza dentro del script E1 para no tocar
-          # ningún otro fold() del HTML monolítico.
+          # compartido. Se toca únicamente fold() dentro del script E1.
           index = Path('index.html')
           s = index.read_text(encoding='utf-8')
           script_start = s.index('<script id="coi-etapa1-pipeline-contractual">')
-          start = s.index('  const fold = (v) => {', script_start)
+          start = s.index('const fold = (v) => {', script_start)
           end = s.index('  };', start) + len('  };')
           block = s[start:end]
-          old_line = "    try { if (typeof window.normalizarTextoEstado === 'function') return window.normalizarTextoEstado(v); } catch (e) {}"
-          assert block.count(old_line) == 1, 'E1 fold: shared-normalizer line not found exactly once'
-          assert block.count('return texto(v).normalize(') == 1, 'E1 fold: fallback return not found exactly once'
-          block = block.replace(
-              old_line,
-              "    let base = texto(v);\n    try { if (typeof window.normalizarTextoEstado === 'function') base = window.normalizarTextoEstado(v); } catch (e) {}",
-              1,
-          )
-          block = block.replace('return texto(v).normalize(', 'return texto(base).normalize(', 1)
-          s = s[:start] + block + s[end:]
-          index.write_text(s, encoding='utf-8')
+          if 'let base = texto(v);' not in block:
+              assert block.count('return window.normalizarTextoEstado(v)') == 1, 'E1 fold: return del normalizador compartido no encontrado exactamente una vez'
+              assert block.count('return texto(v).normalize(') == 1, 'E1 fold: retorno fallback no encontrado exactamente una vez'
+              block = block.replace('const fold = (v) => {', 'const fold = (v) => {\n    let base = texto(v);', 1)
+              block = block.replace('return window.normalizarTextoEstado(v)', 'base = window.normalizarTextoEstado(v)', 1)
+              block = block.replace('return texto(v).normalize(', 'return texto(base).normalize(', 1)
+              s = s[:start] + block + s[end:]
+              index.write_text(s, encoding='utf-8')
+          else:
+              assert 'base = window.normalizarTextoEstado(v)' in block
+              assert 'return texto(base).normalize(' in block
 
           # 2) E1-32: el formateador canónico es-AR devuelve mes con cero.
           e1 = Path('tests/etapa1_pipeline_contractual.spec.js')
           s = e1.read_text(encoding='utf-8')
           old = "expect(meta).toContain('12/9/2026')"
           new = "expect(meta).toContain('12/09/2026')"
-          assert s.count(old) == 1, f'E1-32 target count={s.count(old)}'
-          e1.write_text(s.replace(old, new, 1), encoding='utf-8')
+          if old in s:
+              assert s.count(old) == 1, f'E1-32 target count={s.count(old)}'
+              s = s.replace(old, new, 1)
+              e1.write_text(s, encoding='utf-8')
+          else:
+              assert new in s, 'E1-32 no está ni en formato viejo ni corregido'
 
-          # 3) Suite CT legacy: conservar toda la cobertura útil de Control de
-          # Terceros, pero retirar las precondiciones que exigen la grilla de 12
-          # etapas que E1 reemplaza deliberadamente dentro de la Ficha OC.
+          # 3) Suite CT legacy: conservar la cobertura útil de Control de
+          # Terceros sin exigir la grilla de 12 etapas retirada por E1.
           ct = Path('tests/contractual_ct_hotfix.spec.js')
           s = ct.read_text(encoding='utf-8')
 
-          start = s.index('const EXPECTED_STAGES = [')
-          end = s.index('];\n\nasync function openFixture', start) + 3
-          s = s[:start] + s[end:]
+          if 'const EXPECTED_STAGES = [' in s:
+              start = s.index('const EXPECTED_STAGES = [')
+              end = s.index('];\n\nasync function openFixture', start) + 3
+              s = s[:start] + s[end:]
 
           marker = s.index('async function stateSnapshot')
           prefix, suffix = s[:marker], s[marker:]
           old = "  await expect(page.locator('[data-coi-contractual-circuit-hotfix]')).toHaveCount(1);\n}"
-          assert old in prefix, 'openFixture legacy circuit assertion not found'
-          new = """  // E1 reemplazó la grilla contractual legacy dentro de la Ficha.
+          if old in prefix:
+              new = """  // E1 reemplazó la grilla contractual legacy dentro de la Ficha.
             // Control de Terceros sigue montándose como bloque independiente.
             await expect(page.locator('[data-r28-ct-card]')).toHaveCount(1);
             await expect(page.locator('[data-r28-ct-contractual]')).toHaveCount(1);
             await expect(page.locator('[data-coi-contractual-circuit-hotfix],[data-v64-circuito-contractual],[data-circuito-etapa]')).toHaveCount(0);
           }"""
-          prefix = prefix.replace(old, new, 1)
-          s = prefix + suffix
+              prefix = prefix.replace(old, new, 1)
+              s = prefix + suffix
+          else:
+              assert '[data-r28-ct-card]' in prefix and '[data-r28-ct-contractual]' in prefix
 
-          start = s.index("test('Ficha contractual monta exactamente 12 etapas")
-          end = s.index("test('Control de Terceros lee _supabaseRaw", start)
-          replacement = """test('Ficha contractual conserva Control de Terceros sin reintroducir el pipeline legacy', async ({ page }) => {
+          first_old = "test('Ficha contractual monta exactamente 12 etapas"
+          first_new = "test('Ficha contractual conserva Control de Terceros sin reintroducir el pipeline legacy'"
+          if first_old in s:
+              start = s.index(first_old)
+              end = s.index("test('Control de Terceros lee _supabaseRaw", start)
+              replacement = """test('Ficha contractual conserva Control de Terceros sin reintroducir el pipeline legacy', async ({ page }) => {
             await openFixture(page);
             await expect(page.locator('[data-r28-ct-card] [data-r28-ct-edit]')).toHaveCount(1);
             await expect(page.locator('[data-r28-ct-contractual] [data-r28-ct-edit]')).toHaveCount(1);
@@ -114,11 +122,16 @@ jobs:
           });
 
           """
-          s = s[:start] + replacement + s[end:]
+              s = s[:start] + replacement + s[end:]
+          else:
+              assert first_new in s
 
-          start = s.index("test('usuario autorizado puede reingresar")
-          end = s.index("test('sin sesión ni permiso", start)
-          replacement = """test('usuario autorizado puede reingresar a una etapa por el camino canónico y vuelve a auditar en Supabase', async ({ page }) => {
+          reentry_old = "test('usuario autorizado puede reingresar"
+          reentry_new = "test('usuario autorizado puede reingresar a una etapa por el camino canónico"
+          if reentry_old in s and reentry_new not in s:
+              start = s.index(reentry_old)
+              end = s.index("test('sin sesión ni permiso", start)
+              replacement = """test('usuario autorizado puede reingresar a una etapa por el camino canónico y vuelve a auditar en Supabase', async ({ page }) => {
             await openFixture(page);
             await page.evaluate(async orderNumber => {
               const etapa = (window.CIRCUITO_ADMINISTRATIVO_ETAPAS || []).find(item => item.codigo === 'ejecucion');
@@ -134,10 +147,15 @@ jobs:
           });
 
           """
-          s = s[:start] + replacement + s[end:]
+              s = s[:start] + replacement + s[end:]
+          else:
+              assert reentry_new in s
 
-          start = s.index("test('sin sesión ni permiso, circuito y Control de Terceros quedan en lectura'")
-          replacement = """test('sin sesión ni permiso, Control de Terceros queda en lectura y el pipeline legacy no reaparece', async ({ page }) => {
+          readonly_old = "test('sin sesión ni permiso, circuito y Control de Terceros quedan en lectura'"
+          readonly_new = "test('sin sesión ni permiso, Control de Terceros queda en lectura y el pipeline legacy no reaparece'"
+          if readonly_old in s:
+              start = s.index(readonly_old)
+              replacement = """test('sin sesión ni permiso, Control de Terceros queda en lectura y el pipeline legacy no reaparece', async ({ page }) => {
             await openFixture(page, { editable: false, session: false });
             await expect(page.locator('[data-circuito-etapa],[data-coi-contractual-circuit-hotfix],[data-v64-circuito-contractual]')).toHaveCount(0);
             await expect(page.locator('[data-r28-ct-edit],[data-r28-ct-save],[data-r28-ct-cancel]')).toHaveCount(0);
@@ -146,7 +164,10 @@ jobs:
             expect(state.localWrites).toBe(0);
           });
           """
-          s = s[:start] + replacement
+              s = s[:start] + replacement
+          else:
+              assert readonly_new in s
+
           ct.write_text(s, encoding='utf-8')
           PY
 
@@ -154,12 +175,13 @@ jobs:
           node --check tests/etapa1_pipeline_contractual.spec.js
           git diff --check
 
-      - name: Commit scoped fixes
+      - name: Commit scoped fixes and remove temporary runner
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add index.html tests/contractual_ct_hotfix.spec.js tests/etapa1_pipeline_contractual.spec.js
+          git rm -f .github/workflows/_e1-fix-once.yml .github/_e1-patch-trigger.txt
           git diff --cached --quiet && exit 0
           git commit -m "fix: align E1 compatibility and contractual tests"
           git push origin HEAD:feat/etapa1-pipeline-contractual
