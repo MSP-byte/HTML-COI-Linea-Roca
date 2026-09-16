@@ -34629,8 +34629,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   }[c]));
   const $ = (id) => document.getElementById(id);
   const fold = (v) => {
-    try { if (typeof window.normalizarTextoEstado === 'function') return window.normalizarTextoEstado(v); } catch (e) {}
-    return texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[º°]/g, '').replace(/\s+/g, ' ').trim();
+    let base = texto(v);
+    try { if (typeof window.normalizarTextoEstado === 'function') base = window.normalizarTextoEstado(v); } catch (e) {}
+    return texto(base).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[º°]/g, '').replace(/\s+/g, ' ').trim();
   };
   function etapaExtraSaldo() {
     try {
