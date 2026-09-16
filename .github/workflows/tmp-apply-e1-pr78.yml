@@ -38,7 +38,7 @@ jobs:
           node --check tests/check_etapa1_hardening.js
       - name: Remove temporary transfer helpers
         run: |
-          rm -rf tools/e1_chunks
+          rm -rf tools/e1_payloads tools/e1_chunks
           rm -f tools/tmp_apply_e1_pr78.py
           rm -f .github/workflows/tmp-apply-e1-pr78.yml
       - name: Commit to the existing PR branch
@@ -49,3 +49,5 @@ jobs:
           git diff --cached --check
           git commit -m "fix: harden Etapa 1 contractual gate"
           git push origin HEAD:feat/etapa1-pipeline-contractual
+
+# verified aggregate payload retry 3
