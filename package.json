@@ -1,6 +1,6 @@
 {
   "name": "coi-linea-roca",
-  "version": "60.0.2",
+  "version": "60.0.3",
   "private": true,
   "description": "Controles reproducibles del Sistema Integrado COI Línea Roca",
   "engines": {

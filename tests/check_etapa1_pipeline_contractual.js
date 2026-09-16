@@ -322,8 +322,13 @@ async function main() {
   // contempla el evento, la fecha canonica y la evidencia legacy post-acta.
   check(/const etapa2Habilitada = etapa1Finalizada;/.test(codigo),
     'una OC historica ya iniciada no puede quedar con la etapa 2 bloqueada');
-  check(codigo.indexOf('Se habilitará al registrar el Acta de Inicio.') >= 0,
+  check(codigo.indexOf('La 2° Etapa se habilita al registrar el Acta de Inicio.') >= 0,
     'la etapa 2 bloqueada tiene que decir por que');
+  // La 2° Etapa SIEMPRE se ve: bloqueada lleva candado en el selector, no se oculta.
+  check(/data-etapa1-bloqueada="si"/.test(codigo) && /etapa1-candado/.test(codigo),
+    'la etapa 2 bloqueada tiene que seguir visible y marcada con candado');
+  check(codigo.indexOf('SEGUIMIENTO CONTRACTUAL Y EJECUCIÓN') >= 0,
+    'el bloque contractual tiene que anunciarse con su titulo');
 
   // L/M/N · el click abre modal, no escribe; doble submit bloqueado; aviso de salto.
   check(/abrirModal\(hito\.getAttribute\('data-etapa1-hito'\)/.test(codigo),

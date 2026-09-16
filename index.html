@@ -23913,14 +23913,40 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       ${normText(pick(oc,ESTADO_DOC_FIELDS,''))==='PLIEGO CON EXPTE Y CON OC EMITIDA, PERO SIN CONTROL DE 3'?'<div class="doc-warning">La etapa actual indica falta de Control de Terceros.</div>':''}
     </div>`;
   }
+  /* Monta el pipeline E1 DENTRO de la Ficha y devuelve su host sólo si quedó
+     realmente en el DOM. `renderFichaOC` no llama a renderChecksDocumentales,
+     así que envolver esa función no alcanzaba para montar nada: la Ficha
+     necesita que alguien inyecte el bloque en el panel Contractual. */
+  function mountEtapa1Pipeline(oc,contractual){
+    if(!oc||!contractual||typeof window.__COI_ETAPA1_RENDER__!=='function')return null;
+    let html='';
+    try{html=window.__COI_ETAPA1_RENDER__(oc);}
+    catch(error){console.warn('COI E1: el pipeline contractual no pudo renderizarse.',error);return null;}
+    if(!clean(html))return null;
+    let host=contractual.querySelector('[data-coi-etapa1-host]');
+    if(!host){host=document.createElement('div');host.dataset.coiEtapa1Host='true';contractual.appendChild(host);}
+    host.innerHTML=html;
+    /* Verificación real de montaje: el componente tiene que existir dentro de
+       la Ficha. Que el renderer devuelva un string no prueba que se haya
+       montado, y un host vacío dejaría Contractual sin circuito. */
+    const mounted=host.querySelector('#etapa1PipelineContractual');
+    const body=document.getElementById('fichaOCBody');
+    if(!mounted||!body||!body.contains(mounted)){host.remove();return null;}
+    // El historial canónico se lee aparte y repinta el bloque ya montado.
+    try{if(typeof window.__COI_ETAPA1_SINCRONIZAR__==='function')setTimeout(()=>{try{window.__COI_ETAPA1_SINCRONIZAR__(oc);}catch(e){}},0);}catch(e){}
+    return host;
+  }
   function mountContractualCircuit(oc,contractual){
-    if(!oc||!contractual||typeof window.renderCircuitoAdministrativoOC!=='function')return null;
+    if(!oc||!contractual)return null;
     const candidates=[...contractual.querySelectorAll('[data-coi-contractual-circuit-hotfix],[data-v64-circuito-contractual]')];
-    /* Desde E1 la Ficha tiene una única representación contractual. El circuito
-       legacy sigue existiendo como API para otros módulos/historiales, pero no
-       se vuelve a montar dentro de la Ficha. Control de Terceros se inyecta
-       aparte y se conserva. */
-    if(typeof window.__COI_ETAPA1_RENDER__==='function'){candidates.forEach(node=>node.remove());return null;}
+    /* Desde E1 la Ficha tiene una única representación contractual: primero se
+       intenta el pipeline nuevo y sólo cuando quedó verificado se retira la
+       representación legacy. Si el renderer nuevo falla, la Ficha conserva el
+       circuito legacy en vez de quedarse sin circuito. Control de Terceros se
+       inyecta aparte y se conserva en ambos casos. */
+    const etapa1=mountEtapa1Pipeline(oc,contractual);
+    if(etapa1){candidates.forEach(node=>node.remove());return etapa1;}
+    if(typeof window.renderCircuitoAdministrativoOC!=='function')return null;
     let circuit=candidates.shift()||null;
     candidates.forEach(node=>node.remove());
     if(!circuit){circuit=document.createElement('div');contractual.appendChild(circuit);}
@@ -23962,6 +23988,8 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     const contractual=document.getElementById('panelFichaContractual')||[...body.querySelectorAll('.expediente-card,.oc-card')].find(c=>normText(c.querySelector('h3')?.textContent||'').startsWith('2.'));
     const circuit=mountContractualCircuit(oc,contractual);
     body.querySelectorAll('#circuitoAdministrativoOCR18').forEach(host=>{if(!circuit?.contains(host))host.remove();});
+    // Una sola representación E1 por Ficha: ids duplicados romperían tabs y repintado.
+    body.querySelectorAll('#etapa1PipelineContractual').forEach(node=>{if(!circuit?.contains(node))node.remove();});
     if(contractual){
       contractual.querySelector('[data-r28-ct-contractual]')?.remove();
       if(circuit)circuit.insertAdjacentHTML('beforebegin',renderCTContractualBox(oc));
@@ -24066,9 +24094,33 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
     wrapped.__v581r28Base=base;
     window.renderFichaOC=wrapped;
   }
+  /* Red de seguridad de navegación. Tanto el deep-link /ficha-oc/{OC}/contractual
+     como el click interno terminan en activarSubmoduloFichaOC. Si el panel
+     Contractual se muestra sin circuito —porque se reorganizó después de
+     injectCT o porque la Ficha se armó por otro camino— se reinyecta. */
+  function ensureContractualMounted(){
+    const body=document.getElementById('fichaOCBody');
+    const contractual=document.getElementById('panelFichaContractual');
+    if(!body||!contractual||!contractual.classList.contains('active'))return;
+    if(contractual.querySelector('#etapa1PipelineContractual,[data-coi-contractual-circuit-hotfix],[data-v64-circuito-contractual]'))return;
+    injectCT(currentKey());
+  }
+  function wrapSubmodulo(){
+    const base=window.activarSubmoduloFichaOC;
+    if(typeof base!=='function'||base.__v581r28ContractualCT)return;
+    const wrapped=function(){
+      const result=base.apply(this,arguments);
+      setTimeout(ensureContractualMounted,0);
+      return result;
+    };
+    wrapped.__v581r28ContractualCT=true;
+    wrapped.__v581r28Base=base;
+    window.activarSubmoduloFichaOC=wrapped;
+  }
   function init(){
     updateVersion();
     wrapRender();
+    wrapSubmodulo();
     if(document.getElementById('vistaFichaOC')?.classList.contains('active'))injectCT(currentKey());
   }
 
@@ -34513,6 +34565,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 <style id="coi-etapa1-styles">
 /* 1° Etapa — estilos propios del bloque. No se tocan estilos globales. */
 #etapa1PipelineContractual{display:flex;flex-direction:column;gap:14px}
+.etapa1-titulo{margin:0;font-size:.9rem;letter-spacing:.05em;color:#1f4e79;text-transform:uppercase}
+.etapa1-candado{font-size:.8em}
 .etapa1-tabs{display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid #dbe4ec;padding-bottom:6px}
 .etapa1-tabs button{border:1px solid #d3dde6;background:#f6f9fb;color:#2f4f63;border-radius:8px 8px 0 0;
   padding:8px 14px;font-size:.82rem;font-weight:600;letter-spacing:.02em;cursor:pointer}
@@ -34570,6 +34624,63 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 .etapa1-modal-acciones button.primary{background:#207eae;border-color:#207eae;color:#fff}
 .etapa1-modal-acciones button:disabled{opacity:.6;cursor:not-allowed}
 @media (max-width:640px){.etapa1-grid{grid-template-columns:1fr}}
+
+/* Adaptación al shell oscuro, igual que el resto de los módulos.
+   El bloque nació sin montarse en la Ficha, así que nunca se vio sobre el
+   tema real: sus colores claros quedaban tapados por la regla genérica de
+   `button` del shell y el texto terminaba oscuro sobre oscuro. Se prefija con
+   el id para ganarle a esa regla y se usan los tokens --v2-*, de modo que el
+   tema claro opcional sigue funcionando sin reglas propias. */
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-titulo,
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-resumen h4,
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-transversal h4,
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-panel>h4{color:var(--v2-text)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-tabs{border-bottom-color:var(--v2-border)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-tabs button{background:var(--v2-surface);
+  border-color:var(--v2-border);color:var(--v2-muted)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-tabs button.active{background:var(--v2-surface-2);
+  border-bottom-color:var(--v2-surface-2);color:var(--v2-text);box-shadow:0 -2px 0 var(--v2-accent) inset}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-resumen{background:var(--v2-surface);
+  border-color:var(--v2-border)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-resumen-grid span,
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-estado,
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-meta,
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-dias,
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-nota{color:var(--v2-muted)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-resumen-grid b,
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-nombre{color:var(--v2-text)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-obs{color:var(--v2-accent-2)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-hito{background:var(--v2-surface);
+  border-color:var(--v2-border);color:var(--v2-text)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-hito:hover,
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-hito:focus-visible{border-color:var(--v2-accent);
+  box-shadow:0 2px 10px rgba(0,0,0,.28)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-num{border-color:var(--v2-border);color:var(--v2-muted)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-completado{border-color:rgba(67,201,135,.55);
+  background:rgba(67,201,135,.12)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-completado .etapa1-num{border-color:var(--v2-success);
+  color:var(--v2-success)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-actual{border-color:var(--v2-accent-2);
+  background:rgba(55,183,233,.14);box-shadow:0 3px 12px rgba(55,183,233,.18)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-actual .etapa1-num{border-color:var(--v2-accent-2);
+  background:var(--v2-accent-2);color:#0d0c22}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-transversal{border-top-color:var(--v2-border)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-bloqueada{background:var(--v2-surface-2);
+  border-color:var(--v2-border);color:var(--v2-muted)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-aviso{background:rgba(245,189,79,.13);
+  border-color:rgba(245,189,79,.42);color:var(--v2-warn)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-transversal-aviso,
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-conflicto{background:rgba(242,102,119,.13);
+  border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
+body.coi-v2-ready .etapa1-modal{background:var(--v2-surface);box-shadow:var(--v2-shadow)}
+body.coi-v2-ready .etapa1-modal h3{color:var(--v2-text)}
+body.coi-v2-ready .etapa1-modal-datos dt,
+body.coi-v2-ready .etapa1-modal label{color:var(--v2-muted)}
+body.coi-v2-ready .etapa1-modal-datos dd{color:var(--v2-text)}
+body.coi-v2-ready .etapa1-modal-aviso{background:rgba(245,189,79,.13);
+  border-color:rgba(245,189,79,.42);color:var(--v2-warn)}
+body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
+  border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
 </style>
 <script id="coi-etapa1-pipeline-contractual">
 /* =====================================================================
@@ -35026,7 +35137,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     }).join('');
     return '<div class="etapa1-panel" id="etapa1Panel2" data-etapa1-habilitada="' + (bloqueada ? 'no' : 'si') + '">' +
       '<h4>2° ETAPA — EJECUCIÓN Y CIERRE</h4>' +
-      (bloqueada ? '<p class="etapa1-bloqueada" id="etapa1Etapa2Bloqueada">Se habilitará al registrar el Acta de Inicio.</p>' : '') +
+      (bloqueada ? '<p class="etapa1-bloqueada" id="etapa1Etapa2Bloqueada">La 2° Etapa se habilita al registrar el Acta de Inicio.</p>' : '') +
       '<div class="etapa1-grid">' + items + '</div></div>';
   }
 
@@ -35037,10 +35148,16 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   function render(orden) {
     const estado = estadoPipeline(orden);
     const identidad=identidadOrden(orden);
+    // La 2° Etapa SIEMPRE es visible: bloqueada muestra el candado y el motivo,
+    // nunca se oculta el selector.
+    const bloqueada = !estado.etapa2Habilitada;
     return '<div id="etapa1PipelineContractual" data-etapa1-oc="' + esc(estado.nro) + '" data-etapa1-orden-id="' + esc(identidad) + '">' +
+      '<h4 class="etapa1-titulo" id="etapa1Titulo">SEGUIMIENTO CONTRACTUAL Y EJECUCIÓN</h4>' +
       '<nav class="etapa1-tabs" role="tablist">' +
-        '<button type="button" id="etapa1Tab1" data-etapa1-tab="etapa1Panel1" class="active">1° ETAPA</button>' +
-        '<button type="button" id="etapa1Tab2" data-etapa1-tab="etapa1Panel2">2° ETAPA — EJECUCIÓN Y CIERRE</button>' +
+        '<button type="button" id="etapa1Tab1" data-etapa1-tab="etapa1Panel1" class="active">1° ETAPA · CONTRACTUAL</button>' +
+        '<button type="button" id="etapa1Tab2" data-etapa1-tab="etapa1Panel2"' +
+          (bloqueada ? ' data-etapa1-bloqueada="si"' : '') + '>2° ETAPA · EJECUCIÓN Y CIERRE' +
+          (bloqueada ? ' <span class="etapa1-candado" aria-label="bloqueada">🔒</span>' : '') + '</button>' +
       '</nav>' +
       '<div class="etapa1-panel active" id="etapa1Panel1">' +
         resumen(estado) +

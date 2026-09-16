@@ -1514,3 +1514,42 @@ Consecuencias. Fijado por `H10-13`…`H10-25`. No-vacuidad verificada retirando 
 restauración de ruta (caen `H10-14`, `H10-15`, `H10-16`, `H10-18` y `H10-19`) y
 retirando la publicación del hash de la ficha (caen `H10-13`, `H10-14` y
 `H10-23`).
+
+## TD-073 — Una UI nueva se retira de la vieja recién cuando se verificó montada
+
+Contexto. E1 (PR #78) introdujo el pipeline contractual y, para que la Ficha no
+mostrara dos representaciones del circuito, la integración retiraba la grilla
+legacy del panel Contractual. El criterio para retirarla era la existencia de
+`window.__COI_ETAPA1_RENDER__`.
+
+Ese criterio es falso. Que la función exista sólo prueba que el script se
+parseó, no que la Ficha haya montado el componente. La representación nueva se
+montaba envolviendo `renderChecksDocumentales`, y la `renderFichaOC` vigente
+—la cuarta declaración homónima, que es la que gana— no la llama. Resultado en
+producción: Contractual quedaba con Datos contractuales y Control de Terceros y
+sin ninguna representación del circuito, ni nueva ni vieja.
+
+Decisión. El orden es montar, verificar y recién entonces retirar:
+
+1. se intenta montar la UI nueva en el contenedor real de la Ficha;
+2. se verifica que `#etapa1PipelineContractual` esté efectivamente en el DOM,
+   dentro de `#fichaOCBody`;
+3. sólo con esa verificación se retira la representación legacy;
+4. si el renderer nuevo falla o devuelve vacío, la Ficha conserva el circuito
+   legacy. Contractual nunca queda sin representación del circuito.
+
+La existencia de un símbolo global no se usa nunca como prueba de montaje. Lo
+que se verifica es el DOM, que es el único lugar donde «está montado» significa
+algo.
+
+Consecuencias. El montaje vive en `mountEtapa1Pipeline()` / `mountContractualCircuit()`,
+dentro del mismo `injectCT` que ya inyectaba Control de Terceros, de modo que
+hay un solo punto de entrada por Ficha y sigue siendo idempotente. La navegación
+—deep-link y click interno— pasa además por `ensureContractualMounted()`, que
+reinyecta si el panel Contractual se muestra sin circuito.
+
+Fijado por `E1F-1`…`E1F-15` (`tests/etapa1_ficha_integracion.spec.js`), que
+abren la Ficha por el camino real en vez de pintar el renderer en un host
+aislado. No-vacuidad verificada: los quince caen con el `index.html` previo al
+arreglo, y los controles estructurales de `check_etapa1_hardening.js` caen con
+el guard viejo.
