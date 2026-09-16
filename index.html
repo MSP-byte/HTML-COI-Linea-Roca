@@ -20471,6 +20471,9 @@ const CIRCUITO_ADMINISTRATIVO_ETAPAS=[
   {codigo:'finalizada_actas',nombre:'OBRA/SERV. FINALIZADA CON ACTA PROVISORIA Y DEFINITIVA'}
 ];
 const ESTADO_FINALIZADA_SALDO_REMANENTE={codigo:'finalizada_saldo_remanente',nombre:'OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE'};
+/* Export explícito: es un binding lexical global; los módulos posteriores que
+   integran la Ficha lo consumen también desde window sin duplicar la definición. */
+window.ESTADO_FINALIZADA_SALDO_REMANENTE=ESTADO_FINALIZADA_SALDO_REMANENTE;
 const CIRCUITO_CACHE_KEY='coi_circuito_historial_cache_v1';
 const historialCircuitoCache=new Map();
 window.__COI_INVALIDAR_HISTORIAL_CIRCUITO__=()=>{historialCircuitoCache.clear();};
@@ -23657,7 +23660,9 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
   function stageByCodeOrName(value){
     const raw=clean(value);
     const folded=normText(raw);
-    return etapas().find(e=>e.codigo===raw||[e.nombre,...(e.persistedNames||[])].some(nombre=>normText(nombre)===folded)||(Array.isArray(e.legacyCodigos)&&e.legacyCodigos.includes(raw)))||null;
+    const extra=(typeof ESTADO_FINALIZADA_SALDO_REMANENTE!=='undefined'&&ESTADO_FINALIZADA_SALDO_REMANENTE)||window.ESTADO_FINALIZADA_SALDO_REMANENTE||null;
+    const lista=etapas().concat(extra?[extra]:[]);
+    return lista.find(e=>e.codigo===raw||[e.nombre,...(e.persistedNames||[])].some(nombre=>normText(nombre)===folded)||(Array.isArray(e.legacyCodigos)&&e.legacyCodigos.includes(raw)))||null;
   }
   function toast(msg,type='info'){
     try{ if(typeof window.toast==='function') return window.toast(msg,type); }catch(e){}
@@ -23911,6 +23916,11 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
   function mountContractualCircuit(oc,contractual){
     if(!oc||!contractual||typeof window.renderCircuitoAdministrativoOC!=='function')return null;
     const candidates=[...contractual.querySelectorAll('[data-coi-contractual-circuit-hotfix],[data-v64-circuito-contractual]')];
+    /* Desde E1 la Ficha tiene una única representación contractual. El circuito
+       legacy sigue existiendo como API para otros módulos/historiales, pero no
+       se vuelve a montar dentro de la Ficha. Control de Terceros se inyecta
+       aparte y se conserva. */
+    if(typeof window.__COI_ETAPA1_RENDER__==='function'){candidates.forEach(node=>node.remove());return null;}
     let circuit=candidates.shift()||null;
     candidates.forEach(node=>node.remove());
     if(!circuit){circuit=document.createElement('div');contractual.appendChild(circuit);}
@@ -34618,7 +34628,18 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
   const $ = (id) => document.getElementById(id);
-  const fold = (v) => texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  const fold = (v) => {
+    try { if (typeof window.normalizarTextoEstado === 'function') return window.normalizarTextoEstado(v); } catch (e) {}
+    return texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[º°]/g, '').replace(/\s+/g, ' ').trim();
+  };
+  function etapaExtraSaldo() {
+    try {
+      if (typeof ESTADO_FINALIZADA_SALDO_REMANENTE !== 'undefined' && ESTADO_FINALIZADA_SALDO_REMANENTE)
+        return Object.assign({}, ESTADO_FINALIZADA_SALDO_REMANENTE);
+    } catch (e) {}
+    const extra = window.ESTADO_FINALIZADA_SALDO_REMANENTE || null;
+    return extra ? Object.assign({}, extra) : null;
+  }
 
   function etapas() {
     try { return (window.CIRCUITO_ADMINISTRATIVO_ETAPAS || []).map((e) => Object.assign({}, e)); }
@@ -34633,7 +34654,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   }
   function etapasEtapa2() {
     const todas = etapas();
-    const extra = window.ESTADO_FINALIZADA_SALDO_REMANENTE || null;
+    const extra = etapaExtraSaldo();
     const lista = todas.filter((e) => CODIGOS_ETAPA2.indexOf(e.codigo) >= 0);
     if (extra && !lista.some((e) => e.codigo === extra.codigo)) lista.push(Object.assign({}, extra));
     return lista;
@@ -34666,7 +34687,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   function resolverEtapaCanonica(valor) {
     const v = fold(valor);
     if (!v) return null;
-    const extra = window.ESTADO_FINALIZADA_SALDO_REMANENTE;
+    const extra = etapaExtraSaldo();
     const todas = etapas().concat(extra ? [extra] : []);
     return todas.find((e) => {
       const candidatos = [e.codigo, e.nombre].concat(e.persistedNames || []);
@@ -34706,6 +34727,26 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     return mapa;
   }
 
+  function eventosPorCodigo(historial, tipo) {
+    const mapa = new Map();
+    (historial || []).filter((ev) => fold(ev && ev.tipo_evento) === fold(tipo))
+      .slice().sort((a,b)=>new Date(a.fecha_evento||0)-new Date(b.fecha_evento||0))
+      .forEach((ev)=>{const cod=texto(ev.campo_modificado);if(!cod)return;if(!mapa.has(cod))mapa.set(cod,[]);mapa.get(cod).push(ev);});
+    return mapa;
+  }
+  function ultimaConfirmacion(historial, codigo) {
+    const filas=(historial||[]).filter((ev)=>fold(ev&&ev.tipo_evento)===fold('Circuito administrativo')&&texto(ev.campo_modificado)===codigo)
+      .slice().sort((a,b)=>new Date(a.fecha_evento||0)-new Date(b.fecha_evento||0));
+    return filas.length?filas[filas.length-1]:null;
+  }
+  function conflictoActaDesdeHistorial(historial) {
+    const filas=(historial||[]).filter((ev)=>fold(ev&&ev.tipo_evento)===fold('Conciliación Acta de Inicio')&&texto(ev.campo_modificado)==='fecha_acta_inicio')
+      .slice().sort((a,b)=>new Date(a.fecha_evento||0)-new Date(b.fecha_evento||0));
+    const ultimo=filas.length?filas[filas.length-1]:null;
+    if(!ultimo||fold(ultimo.motivo)!==fold('conflicto'))return null;
+    return {valor:texto(ultimo.valor_anterior),confirmacion:texto(ultimo.valor_nuevo),persistido:true};
+  }
+
   // Dias corridos. Para un hito con otro posterior registrado, la diferencia
   // entre ambos; para el ultimo, contra ahora. Si no hay timestamp valido de
   // un lado, se devuelve null y la UI muestra «—»: no se inventa duracion
@@ -34728,6 +34769,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     })();
     const historial = confirmaciones(nro);
     const porCodigo = confirmacionPorCodigo(historial);
+    const observacionesPorCodigo = eventosPorCodigo(historial, 'Observación circuito administrativo');
     const hitos = hitosEtapa1();
 
     /* Dos cosas distintas que antes se confundian en una sola:
@@ -34752,8 +34794,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     const ultimo = hitoActual;
 
     const actaEvento = porCodigo.get(CODIGO_ACTA) || null;
-    const actaFecha = texto(orden && (orden.fecha_acta_inicio || orden.fechaActaInicio ||
-      (orden._supabaseRaw && orden._supabaseRaw.fecha_acta_inicio)));
+    const actaFecha = texto(orden && (orden.fecha_acta_inicio || orden.fechaActaInicio || orden.actaInicio || orden.fechaInicio ||
+      (orden._supabaseRaw && (orden._supabaseRaw.fecha_acta_inicio || orden._supabaseRaw.fechaActaInicio || orden._supabaseRaw.actaInicio || orden._supabaseRaw.fechaInicio))));
 
     // Evidencia legacy de ejecucion: una OC historica ya iniciada no puede
     // quedar con la etapa 2 bloqueada solo porque nadie registro el hito.
@@ -34789,7 +34831,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
        suspendida; si despues se reingreso a otra etapa, la condicion ya no
        esta vigente. El banner se muestra solo cuando el estado contractual
        VIGENTE, resuelto canonicamente, es cancelada_suspendida. */
-    const transversal = porCodigo.get(CODIGO_TRANSVERSAL) || null;
+    const transversal = ultimaConfirmacion(historial, CODIGO_TRANSVERSAL) || null;
     const transversalVigente = Boolean(etapaVigente && etapaVigente.codigo === CODIGO_TRANSVERSAL);
     let transversalTexto = '';
     if (transversalVigente) {
@@ -34805,6 +34847,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       nro: nro,
       hitos: hitos,
       porCodigo: porCodigo,
+      observacionesPorCodigo: observacionesPorCodigo,
+      historial: historial,
+      actaConflicto: conflictoActaDesdeHistorial(historial),
       registrados: registrados,
       ultimo: ultimo,
       hitoActual: hitoActual,
@@ -34870,7 +34915,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     const x = { etapa: etapa, ev: ev };
     const visual = visualDe(estado, x);
     const dias = diasDeHito(estado, x);
-    const obs = texto(ev && ev.motivo);
+    const seguimientos = estado.observacionesPorCodigo.get(etapa.codigo) || [];
+    const obsInicial = texto(ev && ev.motivo);
+    const obsCount = seguimientos.length + (obsInicial ? 1 : 0);
     const etiqueta = { pendiente: 'PENDIENTE', actual: 'EN CURSO', completado: 'COMPLETADO' }[visual];
     return '<button type="button" class="etapa1-hito etapa1-' + visual + '"' +
       ' data-etapa1-hito="' + esc(etapa.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '">' +
@@ -34883,7 +34930,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
               : 'Sin confirmación registrada') +
         '</span>' +
         '<span class="etapa1-dias">Días en etapa: ' + (dias == null ? '—' : dias) + '</span>' +
-        (obs ? '<span class="etapa1-obs" title="' + esc(obs) + '">Observación</span>' : '') +
+        (obsCount ? '<span class="etapa1-obs" data-etapa1-historial="' + esc(etapa.codigo) + '" role="button" tabindex="0" title="Abrir historial y observaciones">Observaciones: ' + obsCount + '</span>' : '') +
       '</span></button>';
   }
 
@@ -34914,7 +34961,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
        toast se va solo a los pocos segundos y esto es un dato contractual que
        alguien tiene que resolver; si solo viviera ahi, se perderia con el
        primer repintado o si la aplicacion no tiene toast instalado. */
-    const conflicto = conflictoActa.get(estado.nro);
+    const conflicto = estado.actaConflicto || conflictoActa.get(estado.nro);
     const avisoConflicto = conflicto
       ? '<p class="etapa1-aviso etapa1-conflicto" id="etapa1AvisoConflictoActa">' +
         'Existe una Fecha de Acta de Inicio diferente a la fecha de confirmación del Hito 8. ' +
@@ -34982,9 +35029,14 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
       '<div class="etapa1-grid">' + items + '</div></div>';
   }
 
+  function identidadOrden(orden) {
+    const raw=orden&&((orden._supabaseRaw&&orden._supabaseRaw.id)||orden.supabaseId||orden.orden_id||orden.id);
+    return texto(raw)||texto(orden&&(orden.nro_oc||orden.numeroOC||orden.oc));
+  }
   function render(orden) {
     const estado = estadoPipeline(orden);
-    return '<div id="etapa1PipelineContractual" data-etapa1-oc="' + esc(estado.nro) + '">' +
+    const identidad=identidadOrden(orden);
+    return '<div id="etapa1PipelineContractual" data-etapa1-oc="' + esc(estado.nro) + '" data-etapa1-orden-id="' + esc(identidad) + '">' +
       '<nav class="etapa1-tabs" role="tablist">' +
         '<button type="button" id="etapa1Tab1" data-etapa1-tab="etapa1Panel1" class="active">1° ETAPA</button>' +
         '<button type="button" id="etapa1Tab2" data-etapa1-tab="etapa1Panel2">2° ETAPA — EJECUCIÓN Y CIERRE</button>' +
@@ -35021,13 +35073,14 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   // Trae el historial por el camino canonico y repinta. Supabase manda: si la
   // lectura falla, no se inventa contenido, se conserva lo ultimo confirmado.
   async function sincronizarHistorial(orden) {
+    const identidad=identidadOrden(orden);
     try {
       if (typeof window.cargarHistorialCircuitoOC !== 'function') return;
       const filas = await window.cargarHistorialCircuitoOC(orden);
       const nro = texto(window.nroOCCircuito ? window.nroOCCircuito(orden) : '');
       if (nro && Array.isArray(filas)) historialLocal.set(nro, filas);
     } catch (e) { /* se conserva lo ya confirmado */ }
-    repintar(orden);
+    repintar(orden, identidad);
   }
 
   /* Reconciliacion con la fila que devolvio Supabase. No es actualizacion
@@ -35057,12 +35110,16 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     return destino;
   }
 
-  function repintar(orden) {
+  function repintar(orden, identidadEsperada) {
     const host = $('etapa1PipelineContractual');
-    if (!host || !host.parentNode) return;
+    if (!host || !host.parentNode) return false;
+    const esperada=texto(identidadEsperada||identidadOrden(orden));
+    const montada=texto(host.getAttribute('data-etapa1-orden-id'));
+    if (esperada && montada && esperada!==montada) return false;
     const cont = document.createElement('div');
     cont.innerHTML = render(orden);
     host.parentNode.replaceChild(cont.firstElementChild, host);
+    return true;
   }
 
   /* ------------------------------------------------------------ montaje
@@ -35152,7 +35209,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
           '<button type="button" id="etapa1ModalConfirmarBtn" class="primary">CONFIRMAR HITO</button>' +
         '</div></div>';
     document.body.appendChild(overlay);
-    modalActual = { codigo: codigo, nro: estado.nro || nro, orden: orden, etapa: etapa };
+    modalActual = { token: String(Date.now()) + ':' + Math.random().toString(36).slice(2), codigo: codigo, nro: estado.nro || nro, orden: orden, etapa: etapa, identidad: identidadOrden(orden) };
   }
 
   function mostrarErrorModal(mensaje) {
@@ -35163,11 +35220,11 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
   }
 
   // Resultado de la conciliacion de fecha_acta_inicio que devuelve la RPC.
-  function avisarActaInicio(resultado) {
+  function avisarActaInicio(resultado, contexto) {
     const acta = resultado && resultado.acta_inicio;
     if (!acta) return;
     const aviso = (m, t) => { try { if (typeof window.toast === 'function') window.toast(m, t); } catch (e) {} };
-    const nro = modalActual ? modalActual.nro : '';
+    const nro = contexto ? contexto.nro : '';
     if (acta.estado === 'conflicto') {
       // No se oculta. Queda registrado para que el resumen lo muestre de forma
       // persistente; el toast es adicional y puede no existir.
@@ -35184,34 +35241,39 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
   async function confirmar() {
     if (guardando || !modalActual) return;
+    const contexto = Object.freeze({
+      token: modalActual.token, codigo: modalActual.codigo, nro: modalActual.nro,
+      orden: modalActual.orden, etapa: modalActual.etapa, identidad: modalActual.identidad
+    });
     const btn = $('etapa1ModalConfirmarBtn');
     const obs = $('etapa1ModalObs');
+    const observacion = texto(obs && obs.value);
     guardando = true;
     if (btn) btn.disabled = true;
     try {
-      if (typeof window.confirmarEtapaCircuitoOC !== 'function') {
+      if (typeof window.actualizarEstadoDocumentalDesdePasoContractual !== 'function')
         throw new Error('El circuito contractual no está disponible.');
-      }
-      // Camino canonico: RPC atomica. La UI no se toca hasta que Supabase
-      // confirma; un fallo NO puede dejar el hito pintado como guardado.
-      const resultado = await window.confirmarEtapaCircuitoOC(
-        modalActual.orden || modalActual.nro,
-        modalActual.etapa,
-        { observacion: texto(obs && obs.value) }
+      // Camino canónico que devuelve el payload real de coi_confirmar_etapa_circuito_v2.
+      // No usa confirm/prompt legacy y propaga cualquier error de Supabase.
+      const resultado = await window.actualizarEstadoDocumentalDesdePasoContractual(
+        contexto.nro, contexto.etapa, { observacion: observacion, allowLocalFallback: false }
       );
-      avisarActaInicio(resultado);
-      // Se parte de la fila CONFIRMADA por la RPC, no del objeto local.
-      const orden = reconciliarOrden(
-        ordenDe(modalActual.nro) || modalActual.orden,
-        resultado && resultado.orden
-      );
-      cerrarModal();
+      const resultId=identidadOrden(resultado && resultado.orden);
+      if (contexto.identidad && resultId && contexto.identidad!==resultId)
+        throw new Error('Supabase confirmó una OC distinta de la operación iniciada.');
+      avisarActaInicio(resultado, contexto);
+      const baseOrden=ordenDe(contexto.nro)||contexto.orden;
+      const orden=reconciliarOrden(baseOrden, resultado&&resultado.orden);
+      // Cerrar solo si sigue siendo EL MISMO modal. Cancel/Escape u otra OC no
+      // pueden hacer que una respuesta tardía opere sobre el modal nuevo.
+      if (modalActual && modalActual.token===contexto.token) cerrarModal();
       await sincronizarHistorial(orden);
     } catch (error) {
-      mostrarErrorModal((error && error.message) || String(error));
+      if (modalActual && modalActual.token===contexto.token) mostrarErrorModal((error && error.message) || String(error));
+      else { try { if (typeof window.toast==='function') window.toast((error&&error.message)||String(error),'error'); } catch (e) {} }
     } finally {
       guardando = false;
-      if (btn) btn.disabled = false;
+      if (btn && btn.isConnected) btn.disabled = false;
     }
   }
 
@@ -35229,6 +35291,18 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         const panel = $(id);
         if (panel) panel.classList.toggle('active', id === destino);
       });
+      return;
+    }
+
+    const obsHist = t.closest('[data-etapa1-historial]');
+    if (obsHist) {
+      ev.preventDefault(); ev.stopPropagation();
+      const card=obsHist.closest('[data-etapa1-hito]');
+      const codigo=obsHist.getAttribute('data-etapa1-historial');
+      const orden=ordenDe(card&&card.getAttribute('data-etapa1-oc'));
+      const etapa=etapaPorCodigo(codigo);
+      if (orden&&etapa&&typeof window.abrirHistorialEtapaCircuitoOC==='function')
+        Promise.resolve(window.abrirHistorialEtapaCircuitoOC(orden,etapa)).catch(()=>{});
       return;
     }
 

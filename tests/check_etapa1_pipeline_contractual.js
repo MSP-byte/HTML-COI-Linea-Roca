@@ -295,14 +295,16 @@ async function main() {
     'el banner de cancelacion depende del estado vigente, no del historial');
   check(/if \(transversalVigente\) \{/.test(codigo),
     'una cancelacion superada no puede seguir mostrandose como condicion actual');
-  check(/const transversal = porCodigo\.get\(CODIGO_TRANSVERSAL\) \|\| null;/.test(codigo),
-    'el evento historico de cancelacion se conserva');
+  check(/const transversal = ultimaConfirmacion\(historial, CODIGO_TRANSVERSAL\) \|\| null;/.test(codigo),
+    'el evento historico de cancelacion conserva la confirmacion transversal mas reciente');
 
   // F5 · el repaint usa la fila confirmada por el servidor.
   check(/function reconciliarOrden\(orden, confirmada\)/.test(codigo),
     'hace falta reconciliar con la fila que devolvio Supabase');
-  check(/const orden = reconciliarOrden\(/.test(codigo),
-    'la confirmacion tiene que reconciliar antes de repintar');
+  check(/const orden\s*=\s*reconciliarOrden\(/.test(codigo) &&
+        /const resultId\s*=\s*identidadOrden\(resultado && resultado\.orden\)/.test(codigo) &&
+        /contexto\.identidad && resultId && contexto\.identidad!==resultId/.test(codigo),
+    'la confirmacion valida UUID del servidor y reconcilia la fila confirmada antes de repintar');
   check(/resultado && resultado\.orden/.test(codigo),
     'se usa la orden confirmada por la RPC, no el objeto local stale');
   check(/'fecha_acta_inicio', 'estado_documental', 'estado_coi'/.test(codigo),
@@ -328,8 +330,9 @@ async function main() {
     'el click sobre un hito tiene que abrir el modal, no confirmar');
   check(/if \(guardando \|\| !modalActual\) return;/.test(codigo) && /guardando = true;/.test(codigo),
     'el doble submit tiene que quedar bloqueado');
-  check(/if \(btn\) btn\.disabled = true;/.test(codigo) && /if \(btn\) btn\.disabled = false;/.test(codigo),
-    'el boton se bloquea durante la escritura y se restaura ante error');
+  check(/if \(btn\) btn\.disabled = true;/.test(codigo) &&
+        /finally \{[\s\S]*guardando = false;[\s\S]*if \(btn && btn\.isConnected\) btn\.disabled = false;/.test(codigo),
+    'el boton se bloquea durante la escritura y se restaura siempre desde finally');
   check(codigo.indexOf('Existen hitos anteriores sin registrar') >= 0,
     'saltar un hito tiene que avisar');
   const cuerpoModal = codigo.slice(codigo.indexOf('async function abrirModal'), codigo.indexOf('function mostrarErrorModal'));
@@ -338,8 +341,8 @@ async function main() {
 
   // I · ante error de Supabase la UI no simula exito.
   const cuerpoConfirmar = codigo.slice(codigo.indexOf('async function confirmar()'), codigo.indexOf('document.addEventListener'));
-  check(cuerpoConfirmar.indexOf('await window.confirmarEtapaCircuitoOC') >= 0,
-    'la escritura tiene que ir por el flujo canonico');
+  check(cuerpoConfirmar.indexOf('await window.actualizarEstadoDocumentalDesdePasoContractual') >= 0,
+    'la escritura tiene que ir por el helper canonico RPC-returning');
   const posError = cuerpoConfirmar.indexOf('catch (error)');
   const posCerrar = cuerpoConfirmar.indexOf('cerrarModal();');
   check(posCerrar >= 0 && posCerrar < posError,
@@ -405,8 +408,8 @@ async function main() {
   // Conflicto de fecha de acta: advertencia persistente, no solo toast.
   check(/const conflictoActa = new Map\(\);/.test(codigo),
     'el conflicto de fecha tiene que quedar registrado, no perderse con el toast');
-  check(/const conflicto = conflictoActa\.get\(estado\.nro\);/.test(codigo),
-    'el resumen tiene que leer el conflicto vigente');
+  check(/const conflicto = estado\.actaConflicto \|\| conflictoActa\.get\(estado\.nro\);/.test(codigo),
+    'el resumen prioriza el conflicto reconstruido desde historial y usa el Map solo como fallback de sesión');
   check(codigo.indexOf('Existe una Fecha de Acta de Inicio diferente a la fecha de confirmación del Hito 8.') >= 0,
     'el texto del conflicto tiene que ser explicito');
   check(codigo.indexOf('Se preservó el dato contractual existente') >= 0,
