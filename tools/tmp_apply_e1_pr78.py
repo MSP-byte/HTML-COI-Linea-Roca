@@ -41,21 +41,20 @@ put('tests/check_etapa1_hardening.js', unpack('hardening'))
 
 check_path = R / 'tests' / 'check_etapa1_pipeline_contractual.js'
 s = check_path.read_text(encoding='utf-8')
-old = "check(cuerpoConfirmar.indexOf('await window.confirmarEtapaCircuitoOC') >= 0,\n    'la escritura tiene que ir por el flujo canonico');"
-new = "check(cuerpoConfirmar.indexOf('await window.actualizarEstadoDocumentalDesdePasoContractual') >= 0,\n    'la escritura tiene que ir por el helper canonico RPC-returning');"
-if old not in s:
-    die('assert canónica no encontrada')
-s = s.replace(old, new, 1)
-old = "check(/const transversal = porCodigo\\.get\\(CODIGO_TRANSVERSAL\\) \\|\\| null;/.test(codigo),\n    'el evento historico de cancelacion se conserva');"
-new = "check(/const transversal = ultimaConfirmacion\\(historial, CODIGO_TRANSVERSAL\\) \\|\\| null;/.test(codigo),\n    'el evento historico de cancelacion conserva la confirmacion transversal mas reciente');"
-if old not in s:
-    die('assert transversal histórica no encontrada')
-s = s.replace(old, new, 1)
-old = "check(/const conflicto = conflictoActa\\.get\\(estado\\.nro\\);/.test(codigo),\n    'el resumen tiene que leer el conflicto vigente');"
-new = "check(/const conflicto = estado\\.actaConflicto \\|\\| conflictoActa\\.get\\(estado\\.nro\\);/.test(codigo),\n    'el resumen prioriza el conflicto reconstruido desde historial y usa el Map solo como fallback de sesión');"
-if old not in s:
-    die('assert conflicto histórico no encontrada')
-s = s.replace(old, new, 1)
+repls = [
+("check(cuerpoConfirmar.indexOf('await window.confirmarEtapaCircuitoOC') >= 0,\n    'la escritura tiene que ir por el flujo canonico');",
+ "check(cuerpoConfirmar.indexOf('await window.actualizarEstadoDocumentalDesdePasoContractual') >= 0,\n    'la escritura tiene que ir por el helper canonico RPC-returning');"),
+("check(/const transversal = porCodigo\\.get\\(CODIGO_TRANSVERSAL\\) \\|\\| null;/.test(codigo),\n    'el evento historico de cancelacion se conserva');",
+ "check(/const transversal = ultimaConfirmacion\\(historial, CODIGO_TRANSVERSAL\\) \\|\\| null;/.test(codigo),\n    'el evento historico de cancelacion conserva la confirmacion transversal mas reciente');"),
+("check(/const conflicto = conflictoActa\\.get\\(estado\\.nro\\);/.test(codigo),\n    'el resumen tiene que leer el conflicto vigente');",
+ "check(/const conflicto = estado\\.actaConflicto \\|\\| conflictoActa\\.get\\(estado\\.nro\\);/.test(codigo),\n    'el resumen prioriza el conflicto reconstruido desde historial y usa el Map solo como fallback de sesión');"),
+("check(/const orden = reconciliarOrden\\(/.test(codigo),\n    'la confirmacion tiene que reconciliar antes de repintar');",
+ "check(/const orden\\s*=\\s*reconciliarOrden\\(/.test(codigo) &&\n        /const resultId\\s*=\\s*identidadOrden\\(resultado && resultado\\.orden\\)/.test(codigo) &&\n        /contexto\\.identidad && resultId && contexto\\.identidad!==resultId/.test(codigo),\n    'la confirmacion valida UUID del servidor y reconcilia la fila confirmada antes de repintar');")
+]
+for old,new in repls:
+    if old not in s:
+        die('assert legacy no encontrada: '+old.splitlines()[0][:90])
+    s = s.replace(old,new,1)
 check_path.write_text(s, encoding='utf-8')
 
 package_path = R / 'package.json'
