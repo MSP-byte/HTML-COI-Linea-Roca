@@ -29,6 +29,7 @@ declare
   v_seen boolean;
   v_gate_seen boolean;
   v_gate_legacy boolean;
+  v_hoy date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
   v_fecha date := coalesce(p_fecha_efectiva,(now() at time zone 'America/Argentina/Buenos_Aires')::date);
   v_result jsonb;
   v_history jsonb := '[]'::jsonb;
@@ -43,6 +44,9 @@ begin
   end if;
   if length(coalesce(p_observacion,'')) > 3000 then
     raise exception using errcode='22001',message='COI_CIRCUIT_OBSERVATION_TOO_LONG';
+  end if;
+  if v_fecha > v_hoy then
+    raise exception using errcode='22007',message='COI_EFFECTIVE_DATE_FUTURE',detail=v_fecha::text;
   end if;
 
   v_nombre := case v_codigo
