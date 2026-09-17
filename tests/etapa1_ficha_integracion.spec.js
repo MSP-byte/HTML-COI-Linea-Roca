@@ -70,17 +70,17 @@ async function preparar(page, opciones = {}) {
       rpc: async (nombre, args) => {
         window.__FIX__.rpc.push({ nombre, args: JSON.parse(JSON.stringify(args || {})) });
         if (nombre === 'coi_current_role') return { data: 'administrador', error: null };
-        if (nombre !== 'coi_confirmar_etapa_circuito_v2') return { data: null, error: null };
+        if (nombre !== 'coi_confirmar_etapa_circuito_v3') return { data: null, error: null };
         const ev = {
           id: 'ev-' + args.p_codigo + '-' + Date.now(), orden_id: ordenId, nro_oc: oc,
           tipo_evento: 'Circuito administrativo', campo_modificado: args.p_codigo,
-          fecha_evento: new Date().toISOString(), usuario_email: email,
+          fecha_evento: new Date().toISOString(), fecha_efectiva: args.p_fecha_efectiva || null, usuario_email: email,
           motivo: args.p_observacion || null
         };
         window.__FIX__.historial.push(ev);
         if (args.p_codigo === 'control_terceros_con_acta') {
-          orden.fecha_acta_inicio = '2026-09-15';
-          orden._supabaseRaw.fecha_acta_inicio = '2026-09-15';
+          orden.fecha_acta_inicio = args.p_fecha_efectiva || '2026-09-15';
+          orden._supabaseRaw.fecha_acta_inicio = args.p_fecha_efectiva || '2026-09-15';
         }
         return { data: { orden, historial: [ev], codigo: args.p_codigo, nombre: args.p_codigo, ya_confirmada: false }, error: null };
       },
@@ -347,7 +347,7 @@ test('E1F-14 · confirmar un hito persiste por la RPC canónica y repinta en la 
   await page.click('#etapa1ModalConfirmarBtn');
   await expect(page.locator('#etapa1ModalConfirmar')).toHaveCount(0);
   await expect(page.locator(PANEL + ' #etapa1Avance')).toHaveText('1 / 8');
-  const rpc = await page.evaluate(() => window.__FIX__.rpc.filter(r => r.nombre === 'coi_confirmar_etapa_circuito_v2'));
+  const rpc = await page.evaluate(() => window.__FIX__.rpc.filter(r => r.nombre === 'coi_confirmar_etapa_circuito_v3'));
   expect(rpc).toHaveLength(1);
   expect(rpc[0].args.p_codigo).toBe('pliegos_preparacion');
   expect(rpc[0].args.p_observacion).toBe('Pliego enviado a revisión');
@@ -457,6 +457,7 @@ test('E1F-17 · caso 2 · sin hito 8 real la 2° Etapa está visible y bloqueada
 for (const codigo of ETAPA2) {
   test('E1F-18 · caso 3 · estado de 2° Etapa «' + codigo + '» se refleja y habilita la etapa', async ({ page }) => {
     await abrirPorNavegacion(page, {
+      tipo: codigo === 'finalizada_saldo_remanente' ? 'Servicio' : 'Obra',
       estado_coi: 'OBRA/SERVICIO EN EJECUCIÓN',
       fecha_acta_inicio: '2026-02-10',
       historial: [
@@ -514,4 +515,38 @@ test('E1F-19 · caso 4 · cancelada_suspendida queda transversal y fuera del X/8
   // Sigue siendo registrable aunque la 2° Etapa esté bloqueada.
   expect(d.etapa2Habilitada).toBe('no');
   await expect(page.locator(PANEL + ' #etapa1Transversal [data-etapa1-hito]')).not.toBeDisabled();
+});
+
+
+test('E1F-20 · OBRA muestra nombres propios y no ofrece saldo remanente', async ({ page }) => {
+  await abrirPorNavegacion(page, { tipo: 'Obra', fecha_acta_inicio: '2026-02-10', historial: [EVENTO(ACTA, '2026-02-10T10:00:00Z')] });
+  await page.click(PANEL + ' #etapa1Tab2');
+  const nombres = await page.locator(PANEL + ' #etapa1Panel2 .etapa1-nombre').allTextContents();
+  expect(nombres).toEqual(['OBRA EN EJECUCIÓN','OBRA FINALIZADA','OBRA FINALIZADA CON ACTA PROVISORIA Y DEFINITIVA']);
+  expect(nombres.join(' ')).not.toContain('OBRA/SERVICIO');
+  await expect(page.locator(PANEL + ' [data-etapa1-hito="finalizada_saldo_remanente"]')).toHaveCount(0);
+});
+
+test('E1F-21 · SERVICIO muestra nombres propios y conserva saldo remanente', async ({ page }) => {
+  await abrirPorNavegacion(page, { tipo: 'Servicio', fecha_acta_inicio: '2026-02-10', historial: [EVENTO(ACTA, '2026-02-10T10:00:00Z')] });
+  await page.click(PANEL + ' #etapa1Tab2');
+  const nombres = await page.locator(PANEL + ' #etapa1Panel2 .etapa1-nombre').allTextContents();
+  expect(nombres).toEqual(['SERVICIO EN EJECUCIÓN','SERVICIO FINALIZADO','SERVICIO FINALIZADO CON ACTA PROVISORIA Y DEFINITIVA','SERVICIO FINALIZADO PERO CON SALDO REMANENTE']);
+  expect(nombres.join(' ')).not.toContain('OBRA/SERVICIO');
+});
+
+test('E1F-22 · fecha efectiva es editable, viaja por RPC v3 y se conserva separada de fecha_evento', async ({ page }) => {
+  await abrirPorNavegacion(page, { tipo: 'Obra' });
+  await page.click(PANEL + ' [data-etapa1-hito="pliegos_preparacion"]');
+  await expect(page.locator('#etapa1ModalFecha')).toBeVisible();
+  await page.fill('#etapa1ModalFecha', '2026-09-10');
+  await page.click('#etapa1ModalConfirmarBtn');
+  await expect(page.locator('#etapa1ModalConfirmar')).toHaveCount(0);
+  const rpc = await page.evaluate(() => window.__FIX__.rpc.filter(r => r.nombre === 'coi_confirmar_etapa_circuito_v3'));
+  expect(rpc).toHaveLength(1);
+  expect(rpc[0].args.p_fecha_efectiva).toBe('2026-09-10');
+  const ev = await page.evaluate(() => window.__FIX__.historial.find(e => e.campo_modificado === 'pliegos_preparacion'));
+  expect(ev.fecha_efectiva).toBe('2026-09-10');
+  expect(ev.fecha_evento).toBeTruthy();
+  await expect(page.locator(PANEL + ' [data-etapa1-hito="pliegos_preparacion"] .etapa1-meta')).toContainText('10/09/2026');
 });
