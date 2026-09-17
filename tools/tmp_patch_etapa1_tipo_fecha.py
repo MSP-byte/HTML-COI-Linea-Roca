@@ -102,12 +102,13 @@ if '      orden: orden,\n      hitos: hitos,' not in mod:
       hitos: hitos,""",'estado orden')
 
 mod=mod.replace('    const lista = etapasEtapa2();','    const lista = etapasEtapa2(estado.orden);')
-# Dentro de E1, los hitos de la primera etapa conservan el mismo nombre;
-# por eso es seguro hacer dinámica toda referencia de card a et.nombre.
 mod=mod.replace('esc(et.nombre)', 'esc(nombreEtapaPorTipo(et,estado.orden))')
 
 mod=mod.replace('fechaHora(ev.fecha_evento)','fechaEventoUI(ev)')
 mod=mod.replace('fechaHora(ultimaAct.ev.fecha_evento)','fechaEventoUI(ultimaAct.ev)')
+# Separación deliberada: la fecha del hito es administrativa; "Última actualización"
+# es el timestamp real de registración/auditoría.
+mod=mod.replace('ultimaAct ? fechaEventoUI(ultimaAct.ev)', 'ultimaAct ? fechaHora(ultimaAct.ev.fecha_evento)')
 mod=mod.replace('new Date(transversal.fecha_evento || 0) < new Date(actaEvento.fecha_evento || 0)',
                 'new Date(fechaCalculoEvento(transversal) || 0) < new Date(fechaCalculoEvento(actaEvento) || 0)')
 
@@ -151,7 +152,8 @@ required=[
     'function etapasEtapa2(orden)',
     "e.codigo === 'finalizada_saldo_remanente'",
     'const fechaDefault = fechaInputEvento(eventoExistente) || hoyBuenosAires();',
-    'fechaEventoUI(ev)'
+    'fechaEventoUI(ev)',
+    'ultimaAct ? fechaHora(ultimaAct.ev.fecha_evento)'
 ]
 missing=[x for x in required if x not in mod]
 if missing:
