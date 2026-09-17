@@ -1,0 +1,37 @@
+name: TMP patch Etapa1 tipo fecha v2
+on:
+  push:
+    branches:
+      - feat/etapa1-tipo-fecha-efectiva
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/etapa1-tipo-fecha-efectiva
+          fetch-depth: 0
+      - name: Aplicar patch idempotente
+        run: python3 tools/tmp_patch_etapa1_tipo_fecha.py
+      - name: Controles estáticos del cambio
+        run: |
+          node tests/check_etapa1_tipo_fecha_efectiva.js
+          git diff --check
+      - name: Commit si hay cambios
+        shell: bash
+        run: |
+          if git diff --quiet && git status --porcelain | grep -qv '^??'; then
+            echo "Sin cambios para commitear"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html package.json tests/etapa1_ficha_integracion.spec.js tests/check_etapa1_tipo_fecha_efectiva.js
+          if git diff --cached --quiet; then
+            echo "Sin cambios trackeados"
+            exit 0
+          fi
+          git commit -m "feat: adaptar circuito por tipo y fecha efectiva [patcher-done]"
+          git push origin HEAD:feat/etapa1-tipo-fecha-efectiva
