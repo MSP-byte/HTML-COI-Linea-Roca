@@ -20,7 +20,9 @@ jobs:
           node-version: '24'
           cache: npm
       - name: Aplicar patch
-        run: python3 scripts/tmp_hotfix_etapa1.py
+        run: |
+          python3 scripts/tmp_hotfix_etapa1.py
+          python3 scripts/tmp_fix_etapa1_acl_test.py
       - name: Instalar
         run: npm ci
       - name: Validar
@@ -32,6 +34,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html package.json tests/etapa1_ficha_integracion.spec.js
+          git add index.html package.json tests/etapa1_ficha_integracion.spec.js tests/check_etapa1_pipeline_contractual.js
           git commit -m "fix: cerrar bordes de fecha efectiva en Ficha OC"
           git push origin HEAD:hotfix/etapa1-fecha-rpc-v3
