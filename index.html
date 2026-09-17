@@ -35377,7 +35377,19 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
       (etapaCanonica && etapaCanonica.codigo===codigo) ||
       (!etapaCanonica && estado.hitoActual && estado.hitoActual.etapa.codigo===codigo && !estado.etapa1Finalizada)
     ));
-    const fechaDefault = confirmacionVigente ? (fechaInputEvento(eventoExistente) || hoyBuenosAires()) : hoyBuenosAires();
+    // porCodigo conserva la PRIMERA confirmación para la cronología del hito.
+    // Si la etapa fue recorrida, dejada y luego reingresada, la edición vigente
+    // debe cargar la ÚLTIMA confirmación, que es la misma fila que v3 actualiza.
+    const eventoVigente=confirmacionVigente
+      ? (estado.historial||[]).filter((ev)=>
+          fold(ev&&ev.tipo_evento)===fold('Circuito administrativo') &&
+          texto(ev&&ev.campo_modificado)===codigo
+        ).slice().sort((a,b)=>{
+          const d=new Date(b.fecha_evento||0)-new Date(a.fecha_evento||0);
+          return d||texto(b&&b.id).localeCompare(texto(a&&a.id));
+        })[0] || eventoExistente
+      : eventoExistente;
+    const fechaDefault = confirmacionVigente ? (fechaInputEvento(eventoVigente) || hoyBuenosAires()) : hoyBuenosAires();
     // Advertencia por salto: hitos contractuales anteriores sin registro. La
     // transversal no participa de la secuencia, asi que no dispara aviso.
     const indice = estado.hitos.findIndex((h) => h.codigo === codigo);

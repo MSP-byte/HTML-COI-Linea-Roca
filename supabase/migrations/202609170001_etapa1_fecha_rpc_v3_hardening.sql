@@ -110,7 +110,9 @@ begin
 
   -- Edición idempotente de la confirmación vigente: cambia fecha_efectiva,
   -- pero fecha_evento permanece como evidencia inmutable de registración.
-  if upper(trim(coalesce(v_current,'')))=upper(trim(v_nombre)) and v_seen then
+  if translate(upper(trim(coalesce(v_current,''))),'ÁÉÍÓÚÜÑº°','AEIOUUNOO')
+     = translate(upper(trim(v_nombre)),'ÁÉÍÓÚÜÑº°','AEIOUUNOO')
+     and v_seen then
     select * into v_event
       from public.coi_historial_oc h
      where h.orden_id=p_orden_id

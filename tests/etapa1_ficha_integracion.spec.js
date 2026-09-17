@@ -585,3 +585,13 @@ test('E1F-26 · cancelada vigente no convierte el último hito histórico en edi
   await page.click(PANEL+' [data-etapa1-hito="pliegos_preparacion"]');
   await expect(page.locator('#etapa1ModalFecha')).toHaveValue(hoy);
 });
+
+
+test('E1F-27 · edición de reingreso vigente carga la última fecha efectiva', async ({ page }) => {
+  const h1=EVENTO('pliegos_preparacion','2026-09-10T10:00:00-03:00'); h1.fecha_efectiva='2026-09-10';
+  const h2=EVENTO('pliegos_terminado_sin_solped','2026-09-12T10:00:00-03:00'); h2.fecha_efectiva='2026-09-12';
+  const h1r=EVENTO('pliegos_preparacion','2026-09-14T10:00:00-03:00'); h1r.fecha_efectiva='2026-09-14'; h1r.id='ev-reingreso-h1';
+  await abrirPorNavegacion(page,{tipo:'Obra',estado_coi:'PLIEGOS EN PREPARACIÓN',historial:[h1,h2,h1r]});
+  await page.click(PANEL+' [data-etapa1-hito="pliegos_preparacion"]');
+  await expect(page.locator('#etapa1ModalFecha')).toHaveValue('2026-09-14');
+});

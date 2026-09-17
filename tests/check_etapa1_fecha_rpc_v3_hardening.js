@@ -17,4 +17,7 @@ assert(sql.includes("v_conflicto.motivo,'')))='conflicto'"),'resolución de conf
 assert(html.includes('!etapaCanonica && estado.hitoActual'),'hitoActual sólo es fallback sin estado canónico');
 assert(html.includes('const desdeDia=ordinalDiaBuenosAires'),'orden entre hitos debe comparar días administrativos');
 assert((html.match(/const returnedIds=new Set/g)||[]).length>=2,'ambos wrappers deben reemplazar filas cacheadas por id');
+assert(sql.includes("translate(upper(trim(coalesce(v_current,'')))"),'estado vigente legacy debe normalizarse antes de decidir edición/reingreso');
+assert(html.includes('const eventoVigente=confirmacionVigente'),'edición vigente debe resolver la última confirmación del código');
+assert(html.includes('fechaInputEvento(eventoVigente)'),'modal vigente debe precargar la fila que v3 realmente edita');
 console.log('Etapa1 fecha/RPC v3 hardening: OK');
