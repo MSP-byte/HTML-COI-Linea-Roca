@@ -52,7 +52,7 @@ jobs:
           assert(html.includes('coi_confirmar_etapa_circuito_v3'),'frontend debe usar RPC v3');
           assert(html.includes('p_fecha_efectiva'),'writer debe enviar fecha efectiva');
           assert(html.includes('etapa1ModalFecha')&&html.includes('type="date"'),'modal debe ofrecer fecha efectiva editable');
-          assert(html.includes('finalizada_saldo_remanente')&&html.includes('esObra(orden)'),'UI debe filtrar saldo remanente por tipo');
+          assert(html.includes('finalizada_saldo_remanente')&&html.includes('function esObra')&&html.includes('etapasEtapa2(orden)'),'UI debe filtrar saldo remanente por tipo');
           assert(html.includes('OBRA EN EJECUCIÓN')&&html.includes('SERVICIO EN EJECUCIÓN'),'UI debe rotular por tipo');
           assert(html.includes('SERVICIO FINALIZADO PERO CON SALDO REMANENTE'),'Servicio conserva saldo remanente');
           assert(sql.includes('add column if not exists fecha_efectiva date'),'schema debe separar fecha efectiva');
