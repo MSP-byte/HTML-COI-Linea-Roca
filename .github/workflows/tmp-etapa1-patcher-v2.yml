@@ -41,20 +41,26 @@ jobs:
           python3 -m py_compile tools/tmp_patch_etapa1_tipo_fecha.py
       - name: Aplicar patch idempotente
         run: python3 tools/tmp_patch_etapa1_tipo_fecha.py
-      - name: Normalizar control estático generado
+      - name: Escribir control estático robusto
         shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p=Path('tests/check_etapa1_tipo_fecha_efectiva.js')
-          s=p.read_text(encoding='utf-8')
-          lines=[]
-          for line in s.splitlines():
-            if 'modal debe ofrecer fecha efectiva editable' in line:
-              line="assert(html.includes('etapa1ModalFecha')&&html.includes('type=\"date\"'),'modal debe ofrecer fecha efectiva editable');"
-            lines.append(line)
-          p.write_text('\n'.join(lines)+'\n',encoding='utf-8')
-          PY
+          cat > tests/check_etapa1_tipo_fecha_efectiva.js <<'JS'
+          const fs=require('fs');
+          const assert=require('assert');
+          const html=fs.readFileSync('index.html','utf8');
+          const sql=fs.readFileSync('supabase/migrations/202609160001_etapa1_tipo_fecha_efectiva.sql','utf8');
+          assert(html.includes('coi_confirmar_etapa_circuito_v3'),'frontend debe usar RPC v3');
+          assert(html.includes('p_fecha_efectiva'),'writer debe enviar fecha efectiva');
+          assert(html.includes('etapa1ModalFecha')&&html.includes('type="date"'),'modal debe ofrecer fecha efectiva editable');
+          assert(html.includes('finalizada_saldo_remanente')&&html.includes('esObra(orden)'),'UI debe filtrar saldo remanente por tipo');
+          assert(html.includes('OBRA EN EJECUCIÓN')&&html.includes('SERVICIO EN EJECUCIÓN'),'UI debe rotular por tipo');
+          assert(html.includes('SERVICIO FINALIZADO PERO CON SALDO REMANENTE'),'Servicio conserva saldo remanente');
+          assert(sql.includes('add column if not exists fecha_efectiva date'),'schema debe separar fecha efectiva');
+          assert(sql.includes("message='COI_STAGE_NOT_APPLICABLE_TO_TYPE'"),'servidor debe rechazar saldo remanente para Obra');
+          assert(sql.includes("message='COI_EFFECTIVE_DATE_FUTURE'"),'servidor debe rechazar fecha efectiva futura');
+          assert(sql.includes("'CONFIRMAR_ETAPA_CIRCUITO_V3'"),'fecha efectiva debe quedar auditada');
+          console.log('Etapa 1/2 tipo + fecha efectiva: controles OK');
+          JS
       - name: Controles estáticos del cambio
         run: |
           node tests/check_etapa1_tipo_fecha_efectiva.js
