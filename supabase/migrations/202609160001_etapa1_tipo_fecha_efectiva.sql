@@ -182,4 +182,11 @@ comment on function public.coi_confirmar_etapa_circuito_v3(uuid,text,text,date) 
 revoke all on function public.coi_confirmar_etapa_circuito_v3(uuid,text,text,date) from public;
 revoke all on function public.coi_confirmar_etapa_circuito_v3(uuid,text,text,date) from anon;
 grant execute on function public.coi_confirmar_etapa_circuito_v3(uuid,text,text,date) to authenticated;
-grant execute on function public.coi_confirmar_etapa_circuito_v3(uuid,text,text,date) to service_role;
+
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname='service_role') then
+    execute 'grant execute on function public.coi_confirmar_etapa_circuito_v3(uuid,text,text,date) to service_role';
+  end if;
+end;
+$$;
