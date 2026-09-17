@@ -34844,15 +34844,33 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
       return get('year')+'-'+get('month')+'-'+get('day');
     }catch(e){return new Date().toISOString().slice(0,10);}
   }
+  function diaBuenosAires(valor){
+    const raw=texto(valor);
+    if(!raw)return '';
+    if(/^\d{4}-\d{2}-\d{2}$/.test(raw))return raw;
+    try{
+      const d=new Date(raw); if(isNaN(d.getTime()))return '';
+      const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(d);
+      const get=(k)=>parts.find((part)=>part.type===k)?.value||'';
+      return get('year')+'-'+get('month')+'-'+get('day');
+    }catch(e){return '';}
+  }
   function fechaInputEvento(ev){
     const efectiva=texto(ev&&ev.fecha_efectiva);
     if(/^\d{4}-\d{2}-\d{2}$/.test(efectiva))return efectiva;
-    const registrada=texto(ev&&ev.fecha_evento);
-    return /^\d{4}-\d{2}-\d{2}/.test(registrada)?registrada.slice(0,10):'';
+    return diaBuenosAires(ev&&ev.fecha_evento);
   }
   function fechaCalculoEvento(ev){
-    const f=fechaInputEvento(ev);
-    return f ? f+'T12:00:00-03:00' : texto(ev&&ev.fecha_evento);
+    const efectiva=texto(ev&&ev.fecha_efectiva);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(efectiva))return efectiva;
+    return texto(ev&&ev.fecha_evento);
+  }
+  function ordinalDiaBuenosAires(valor){
+    const raw=texto(valor);
+    const dia=/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw:diaBuenosAires(raw);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(dia))return null;
+    const a=dia.split('-').map(Number);
+    return Math.floor(Date.UTC(a[0],a[1]-1,a[2])/MS_DIA);
   }
   function fechaEventoUI(ev){
     const efectiva=texto(ev&&ev.fecha_efectiva);
@@ -34910,11 +34928,11 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
   // un lado, se devuelve null y la UI muestra «—»: no se inventa duracion
   // para tapar un hueco de informacion.
   function diasEntre(desde, hasta) {
-    const a = desde ? new Date(desde) : null;
-    const b = hasta ? new Date(hasta) : new Date();
-    if (!a || isNaN(a.getTime()) || !b || isNaN(b.getTime())) return null;
-    const dias = Math.floor((b.getTime() - a.getTime()) / MS_DIA);
-    return dias < 0 ? null : dias;
+    const a=ordinalDiaBuenosAires(desde);
+    const b=ordinalDiaBuenosAires(hasta||hoyBuenosAires());
+    if(a==null||b==null)return null;
+    const dias=b-a;
+    return dias<0?null:dias;
   }
 
   /* Estado del pipeline. Todo se deriva del historial remoto y de
@@ -35103,7 +35121,7 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
     const ultimaAct = estado.ultimaActualizacion;
     // Dias en estado: contra el HITO ACTUAL, no contra la ultima carga
     // retrospectiva, y solo mientras la etapa 1 siga abierta.
-    const dias = ult && !estado.etapa1Finalizada ? diasEntre(ult.ev.fecha_evento, null) : null;
+    const dias = ult && !estado.etapa1Finalizada ? diasDeHito(estado, ult) : null;
     /* A) sin hitos y sin evidencia  -> Sin iniciar
        B) ultimo 1-7                  -> su nombre
        C/D) hito 8 registrado         -> 1° Etapa finalizada
@@ -35342,7 +35360,11 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
     if (!etapa) return;
     const estado = estadoPipeline(orden || {});
     const eventoExistente = estado.porCodigo.get(codigo) || null;
-    const fechaDefault = fechaInputEvento(eventoExistente) || hoyBuenosAires();
+    const confirmacionVigente = Boolean(eventoExistente && (
+      (estado.etapaVigente && estado.etapaVigente.codigo===codigo) ||
+      (estado.hitoActual && estado.hitoActual.etapa.codigo===codigo && !estado.etapa1Finalizada)
+    ));
+    const fechaDefault = confirmacionVigente ? (fechaInputEvento(eventoExistente) || hoyBuenosAires()) : hoyBuenosAires();
     // Advertencia por salto: hitos contractuales anteriores sin registro. La
     // transversal no participa de la secuencia, asi que no dispara aviso.
     const indice = estado.hitos.findIndex((h) => h.codigo === codigo);

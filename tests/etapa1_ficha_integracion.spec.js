@@ -550,3 +550,21 @@ test('E1F-22 · fecha efectiva es editable, viaja por RPC v3 y se conserva separ
   expect(ev.fecha_evento).toBeTruthy();
   await expect(page.locator(PANEL + ' [data-etapa1-hito="pliegos_preparacion"] .etapa1-meta')).toContainText('10/09/2026');
 });
+
+
+test('E1F-23 · legacy UTC usa día administrativo Buenos Aires', async ({ page }) => {
+  await abrirPorNavegacion(page,{tipo:'Obra',historial:[EVENTO('pliegos_preparacion','2026-09-17T01:00:00Z')]});
+  await expect(page.locator(PANEL+' [data-etapa1-hito="pliegos_preparacion"] .etapa1-meta')).toContainText('16/09/2026');
+});
+
+test('E1F-24 · reingreso histórico propone hoy y edición vigente conserva fecha efectiva', async ({ page }) => {
+  const h1=EVENTO('pliegos_preparacion','2026-09-10T10:00:00-03:00'); h1.fecha_efectiva='2026-09-10';
+  const h2=EVENTO('pliegos_terminado_sin_solped','2026-09-12T10:00:00-03:00'); h2.fecha_efectiva='2026-09-12';
+  await abrirPorNavegacion(page,{tipo:'Obra',estado_documental:'PLIEGOS TERMINADO SIN SOLPED',historial:[h1,h2]});
+  const hoy=await page.evaluate(()=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const g=k=>p.find(x=>x.type===k).value;return g('year')+'-'+g('month')+'-'+g('day')});
+  await page.click(PANEL+' [data-etapa1-hito="pliegos_preparacion"]');
+  await expect(page.locator('#etapa1ModalFecha')).toHaveValue(hoy);
+  await page.click('#etapa1ModalCancelar');
+  await page.click(PANEL+' [data-etapa1-hito="pliegos_terminado_sin_solped"]');
+  await expect(page.locator('#etapa1ModalFecha')).toHaveValue('2026-09-12');
+});
