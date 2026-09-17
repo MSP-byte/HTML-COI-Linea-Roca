@@ -1,0 +1,14 @@
+const fs=require('fs');
+const assert=require('assert');
+const html=fs.readFileSync('index.html','utf8');
+const sql=fs.readFileSync('supabase/migrations/202609170001_etapa1_fecha_rpc_v3_hardening.sql','utf8');
+assert(html.includes("timeZone:'America/Argentina/Buenos_Aires'"),'fallback legacy debe usar Buenos Aires');
+assert(html.includes('ordinalDiaBuenosAires'),'días deben calcularse por día calendario');
+assert(html.includes('diasDeHito(estado, ult)'),'resumen debe compartir lógica de tarjeta');
+assert(html.includes('confirmacionVigente'),'reingreso debe distinguir edición vigente');
+assert(!sql.includes('coi_confirmar_etapa_circuito_v2(p_orden_id'),'v3 no debe delegar en v2');
+assert(sql.includes('EDITAR_FECHA_EFECTIVA_CIRCUITO'),'edición idempotente debe auditarse');
+assert(sql.includes('set fecha_efectiva=v_fecha'),'edición idempotente debe persistir');
+assert(sql.includes("revoke all on function public.coi_confirmar_etapa_circuito_v2(uuid,text,text) from authenticated"),'v2 no debe ser writer cliente');
+assert(sql.includes("message='COI_STAGE_NOT_APPLICABLE_TO_TYPE'"),'Obra no admite saldo remanente');
+console.log('Etapa1 fecha/RPC v3 hardening: OK');
