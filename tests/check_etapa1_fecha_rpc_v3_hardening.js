@@ -1,5 +1,6 @@
 const fs=require('fs');
 const assert=require('assert');
+// PR81: contrato final de fecha efectiva, reingresos y compatibilidad histórica.
 const html=fs.readFileSync('index.html','utf8');
 const sql=fs.readFileSync('supabase/migrations/202609170001_etapa1_fecha_rpc_v3_hardening.sql','utf8');
 assert(html.includes("timeZone:'America/Argentina/Buenos_Aires'"),'fallback legacy debe usar Buenos Aires');
