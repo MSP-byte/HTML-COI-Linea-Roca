@@ -1923,11 +1923,22 @@ button{min-height:40px;padding:9px 13px}
         </div>
       </section>
       <section id="coiTabCertificaciones" class="coi-tab-panel">
-        <h3 class="section-title">Tabla de próximas certificaciones</h3>
+        <h3 class="section-title">Historial de certificaciones</h3>
+        <p class="muted">Certificaciones reales registradas desde Carga Operativa → Carga Certificación.
+          Fuente única: <code>public.coi_certificaciones</code> + <code>public.coi_ordenes</code>.
+          Las próximas certificaciones son proyecciones tentativas y se ven como eventos del calendario.</p>
+        <div class="cert-hist-filtros">
+          <input type="search" id="certHistOC" placeholder="Buscar por N° OC" aria-label="Buscar por N° OC">
+          <select id="certHistProveedor" aria-label="Contratista o proveedor"><option value="">Contratista / proveedor</option></select>
+          <select id="certHistAnio" aria-label="Año certificado"><option value="">Todos los años</option></select>
+          <button type="button" id="certHistLimpiar">Limpiar</button>
+          <button type="button" id="certHistActualizar">Actualizar</button>
+        </div>
+        <div id="certHistEstado" class="muted" aria-live="polite"></div>
         <div class="table-wrap">
           <table class="coi-table">
-            <thead><tr><th>Semáforo</th><th>N° OC</th><th>Tipo</th><th>Estación</th><th>Proveedor</th><th>Inicio</th><th>Última certificación</th><th>Última acta</th><th>Próxima certificación</th><th>Próx. acta</th><th>Avance / Estado doc.</th><th>Vencimiento</th><th>Estado cert.</th></tr></thead>
-            <tbody id="coiCertTbody"></tbody>
+            <thead><tr><th>N° OC</th><th>Tipo</th><th>Contratista</th><th>N° certificación / Acta</th><th>Período certificado</th><th>Avance %</th><th>POS / posiciones</th><th>N° HES</th><th>N° IF</th><th>Expediente</th></tr></thead>
+            <tbody id="certHistTbody"></tbody>
           </table>
         </div>
       </section>
@@ -35647,6 +35658,287 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
   window.__COI_ETAPA1_ETAPA_POR_CODIGO__ = etapaPorCodigo;
   window.__COI_ETAPA1_CONFLICTO_ACTA__ = conflictoActa;
   window.__COI_ETAPA1_SINCRONIZAR__ = sincronizarHistorial;
+})();
+</script>
+
+<style id="coi-cert-historial-styles">
+.cert-hist-filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+.cert-hist-filtros input,.cert-hist-filtros select{padding:7px 10px;border:1px solid #d3dde6;border-radius:8px;font:inherit;min-width:200px}
+.cert-hist-filtros button{padding:7px 12px;border:1px solid #d3dde6;border-radius:8px;background:#f6f9fb;color:#2f4f63;font:inherit;cursor:pointer}
+#certHistEstado{margin:6px 0 10px;font-size:.8rem}
+.cert-hist-pos{font-size:.76rem;color:#4a6a80}
+.cert-hist-items{font-size:.7rem;color:#6b8295;display:block}
+body.coi-v2-ready .cert-hist-filtros input,body.coi-v2-ready .cert-hist-filtros select{background:var(--v2-surface);border-color:var(--v2-border);color:var(--v2-text)}
+body.coi-v2-ready .cert-hist-pos{color:var(--v2-text)}
+body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
+</style>
+<script id="coi-certificaciones-historial">
+/* =====================================================================
+   CAMBIO 2 — Tabla Certificaciones como historial central
+   =====================================================================
+   Vista histórica de TODAS las certificaciones reales registradas desde
+   Carga Operativa → Carga Certificación.
+
+   FUENTE ÚNICA: public.coi_certificaciones + public.coi_ordenes.
+   No hay caché propia ni localStorage: si Supabase falla se informa el
+   error y no se inventa contenido.
+
+   CONSOLIDACIÓN: coi_certificaciones guarda UNA FILA POR ÍTEM/POSICIÓN, de
+   modo que una misma Acta de Medición aparece repetida. Acá se agrupa por
+   (orden_id | nro_oc) + acta_medicion_nro y se emite UNA fila visual por
+   certificación, con sus posiciones agrupadas. Una fila sin acta no se
+   pierde: cae en su propio grupo.
+
+   Las PRÓXIMAS certificaciones son proyecciones tentativas y NO viven acá:
+   se muestran como eventos del Calendario (ver CAMBIO 3).
+   ===================================================================== */
+(function () {
+  'use strict';
+
+  const texto = (v) => String(v == null ? '' : v).trim();
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+  const $ = (id) => document.getElementById(id);
+  const fold = (v) => texto(v).normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+  const cliente = () => (typeof window.getSupabaseClient === 'function' ? window.getSupabaseClient() : null);
+
+  const CAMPOS = 'id,orden_id,nro_oc,acta_medicion_nro,fecha_inicio,fecha_fin,item_nro,' +
+    'descripcion,posicion,nro_hes,nro_if,proveedor,aux_porcentaje,anio,fecha_actualizacion';
+
+  let consolidadas = [];
+  let cargando = false;
+  let cargado = false;
+  let error = '';
+
+  const iso = (v) => texto(v).slice(0, 10);
+  function fechaAR(v) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso(v));
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+  }
+
+  /* Índice por N° OC para tipo, contratista y la identidad con la que la
+     aplicación abre la Ficha. Se lee del catálogo ya confirmado, no de una
+     segunda consulta. */
+  function indiceOC() {
+    const idx = new Map();
+    try {
+      const filas = typeof window.todasLasOC === 'function' ? window.todasLasOC() : [];
+      (Array.isArray(filas) ? filas : []).forEach((r) => {
+        const item = r && (r.item || r);
+        if (!item) return;
+        const crudo = item._supabaseRaw || {};
+        // Tipo y proveedor viven tanto en la fila como en el item, según el
+        // normalizador que la haya producido. Se toman de donde estén.
+        const meta = {
+          tipo: texto(item.tipo || crudo.tipo || r.tipo),
+          proveedor: texto(item.proveedor || crudo.proveedor || r.proveedor),
+          ocId: texto(item.idObra || item.idOC || item.idServicio || item.id || crudo.id || r.idObra)
+        };
+        [item.numeroOC, item.oc, item.nro_oc, crudo.nro_oc, item.idObra, crudo.id, item.id]
+          .map(texto).filter(Boolean).forEach((k) => { if (!idx.has(fold(k))) idx.set(fold(k), meta); });
+      });
+    } catch (e) {}
+    return idx;
+  }
+
+  async function traer() {
+    const c = cliente();
+    if (!c) throw new Error('Cliente Supabase no disponible.');
+    const salida = [];
+    const pagina = 500;
+    for (let desde = 0; ; desde += pagina) {
+      const res = await c.from('coi_certificaciones').select(CAMPOS)
+        .order('fecha_fin', { ascending: false, nullsFirst: false })
+        .order('fecha_inicio', { ascending: false, nullsFirst: false })
+        .order('fecha_actualizacion', { ascending: false, nullsFirst: false })
+        .range(desde, desde + pagina - 1);
+      if (res.error) throw res.error;
+      const datos = res.data || [];
+      salida.push(...datos);
+      if (datos.length < pagina) break;
+    }
+    return salida;
+  }
+
+  // UNA fila visual por certificación / Acta de Medición.
+  function consolidar(rows) {
+    const idx = indiceOC();
+    const grupos = new Map();
+    (rows || []).forEach((row, i) => {
+      const nro = texto(row.nro_oc);
+      const acta = texto(row.acta_medicion_nro);
+      const ocKey = texto(row.orden_id) || fold(nro);
+      const clave = acta ? ocKey + '|' + fold(acta) : ocKey + '|#' + (texto(row.id) || i);
+      let g = grupos.get(clave);
+      if (!g) {
+        const meta = idx.get(fold(nro)) || idx.get(fold(row.orden_id)) || {};
+        g = {
+          clave, nroOC: nro, acta,
+          ocId: texto(meta.ocId) || texto(row.orden_id) || nro,
+          tipo: texto(meta.tipo), proveedor: texto(row.proveedor) || texto(meta.proveedor),
+          inicio: '', fin: '', avance: null, anio: texto(row.anio),
+          pos: new Set(), hes: new Set(), nif: new Set(), items: 0
+        };
+        grupos.set(clave, g);
+      }
+      g.items += 1;
+      const ini = iso(row.fecha_inicio);
+      const fin = iso(row.fecha_fin);
+      if (ini && (!g.inicio || ini < g.inicio)) g.inicio = ini;
+      if (fin && (!g.fin || fin > g.fin)) g.fin = fin;
+      const pct = Number(row.aux_porcentaje);
+      if (Number.isFinite(pct) && (g.avance === null || pct > g.avance)) g.avance = pct;
+      [row.posicion, row.item_nro].map(texto).filter(Boolean).forEach((v) => g.pos.add(v));
+      if (texto(row.nro_hes)) g.hes.add(texto(row.nro_hes));
+      if (texto(row.nro_if)) g.nif.add(texto(row.nro_if));
+      if (!g.proveedor && texto(row.proveedor)) g.proveedor = texto(row.proveedor);
+      if (!g.anio && texto(row.anio)) g.anio = texto(row.anio);
+    });
+    // Más reciente primero; desempate determinista por OC y acta.
+    return [...grupos.values()].sort((a, b) => {
+      const fa = a.fin || a.inicio || '';
+      const fb = b.fin || b.inicio || '';
+      if (fa !== fb) return fb.localeCompare(fa);
+      return (a.nroOC + '|' + a.acta).localeCompare(b.nroOC + '|' + b.acta, 'es');
+    });
+  }
+
+  /* Filtros propios + el Tipo global del Calendario, que es un filtro real y
+     arranca vacío. Año y Mes globales NO se integran: el Calendario los usa
+     para navegar el mes en curso, y un historial central filtrado al mes
+     actual escondería casi todo. El recorte temporal tiene control propio. */
+  function filtrar(lista) {
+    const oc = fold($('certHistOC') && $('certHistOC').value);
+    const prov = texto($('certHistProveedor') && $('certHistProveedor').value);
+    const anio = texto($('certHistAnio') && $('certHistAnio').value);
+    const tipo = texto($('coiTipo') && $('coiTipo').value);
+    return lista.filter((g) => {
+      if (oc && fold(g.nroOC).indexOf(oc) < 0) return false;
+      if (prov && texto(g.proveedor) !== prov) return false;
+      if (tipo && fold(g.tipo) !== fold(tipo)) return false;
+      if (anio && anioDe(g) !== anio) return false;
+      return true;
+    });
+  }
+  const anioDe = (g) => texto((g.fin || g.inicio || '').slice(0, 4)) || texto(g.anio);
+
+  function poblar(id, etiqueta, valores) {
+    const sel = $(id);
+    if (!sel) return;
+    const actual = sel.value;
+    sel.innerHTML = `<option value="">${esc(etiqueta)}</option>` +
+      valores.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    if (valores.indexOf(actual) >= 0) sel.value = actual;
+  }
+  function opcionesFiltros(lista) {
+    poblar('certHistProveedor', 'Contratista / proveedor',
+      [...new Set(lista.map((g) => texto(g.proveedor)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es')));
+    poblar('certHistAnio', 'Todos los años',
+      [...new Set(lista.map(anioDe).filter(Boolean))].sort((a, b) => b.localeCompare(a)));
+  }
+
+  function periodo(g) {
+    if (g.inicio && g.fin) return `${fechaAR(g.inicio)} – ${fechaAR(g.fin)}`;
+    return fechaAR(g.fin) || fechaAR(g.inicio) || (texto(g.anio) ? texto(g.anio) : '—');
+  }
+  const lista = (s) => (s && s.size ? [...s].sort((a, b) => a.localeCompare(b, 'es')).join(', ') : '—');
+
+  function pintar() {
+    const tbody = $('certHistTbody');
+    const estado = $('certHistEstado');
+    if (!tbody) return;
+    if (cargando) {
+      if (estado) estado.textContent = 'Cargando certificaciones desde Supabase…';
+      tbody.innerHTML = '<tr><td colspan="10">Cargando…</td></tr>';
+      return;
+    }
+    if (error) {
+      if (estado) estado.textContent = '';
+      tbody.innerHTML = `<tr><td colspan="10">No se pudo leer el historial de certificaciones: ${esc(error)}</td></tr>`;
+      return;
+    }
+    const filas = filtrar(consolidadas);
+    opcionesFiltros(consolidadas);
+    if (estado) {
+      estado.textContent = `${filas.length} certificación(es) de ${consolidadas.length} registradas` +
+        ` · ${consolidadas.reduce((n, g) => n + g.items, 0)} fila(s) de posición consolidadas.`;
+    }
+    tbody.innerHTML = filas.map((g) => `<tr>
+      <td><button type="button" class="btn-open-oc" data-open-oc="${esc(g.ocId)}">${esc(g.nroOC || '—')}</button></td>
+      <td>${esc(g.tipo || '—')}</td>
+      <td>${esc(g.proveedor || '—')}</td>
+      <td>${esc(g.acta || 'Sin acta')}</td>
+      <td>${esc(periodo(g))}</td>
+      <td>${fold(g.tipo) === 'OBRA' && g.avance !== null ? esc(Math.round(g.avance * 100) / 100) + '%' : '—'}</td>
+      <td><span class="cert-hist-pos">${esc(lista(g.pos))}</span><span class="cert-hist-items">${g.items} ítem(s)</span></td>
+      <td>${esc(lista(g.hes))}</td>
+      <td>${esc(lista(g.nif))}</td>
+      <td><button type="button" class="btn-open-oc" data-open-oc="${esc(g.ocId)}">ABRIR EXPEDIENTE</button></td>
+    </tr>`).join('') || '<tr><td colspan="10">Sin certificaciones para los filtros seleccionados.</td></tr>';
+  }
+
+  async function cargar(forzar) {
+    if (cargando) return;
+    if (cargado && !forzar) { pintar(); return; }
+    cargando = true; error = '';
+    pintar();
+    try {
+      consolidadas = consolidar(await traer());
+      cargado = true;
+    } catch (e) {
+      error = texto(e && (e.message || e.details)) || 'error desconocido';
+      consolidadas = [];
+    } finally {
+      cargando = false;
+      pintar();
+    }
+  }
+
+  function esPanelActivo() {
+    const panel = $('coiTabCertificaciones');
+    return Boolean(panel && panel.classList.contains('active'));
+  }
+
+  document.addEventListener('click', (ev) => {
+    if (ev.target.closest && ev.target.closest('#certHistActualizar')) { ev.preventDefault(); cargar(true); return; }
+    if (ev.target.closest && ev.target.closest('#certHistLimpiar')) {
+      ev.preventDefault();
+      if ($('certHistOC')) $('certHistOC').value = '';
+      if ($('certHistProveedor')) $('certHistProveedor').value = '';
+      if ($('certHistAnio')) $('certHistAnio').value = '';
+      pintar();
+      return;
+    }
+  });
+  /* La subpestaña la activa el módulo del Calendario, que corta la burbuja y
+     repinta por varios caminos. En vez de adivinar cuándo terminó, se observa
+     el propio panel: cuando queda activo se lee el historial. */
+  function vigilarPanel() {
+    const panel = $('coiTabCertificaciones');
+    if (!panel || panel.__coiCertObservado) return;
+    panel.__coiCertObservado = true;
+    new MutationObserver(() => { if (esPanelActivo()) cargar(false); })
+      .observe(panel, { attributes: true, attributeFilter: ['class'] });
+    if (esPanelActivo()) cargar(false);
+  }
+  vigilarPanel();
+  document.addEventListener('DOMContentLoaded', vigilarPanel);
+  window.addEventListener('load', vigilarPanel);
+  document.addEventListener('input', (ev) => {
+    if (ev.target && ev.target.id === 'certHistOC') pintar();
+  });
+  document.addEventListener('change', (ev) => {
+    if (!ev.target) return;
+    if (ev.target.id === 'certHistProveedor' || ev.target.id === 'certHistAnio') pintar();
+    if (['coiTipo', 'coiYear', 'coiMonth'].indexOf(ev.target.id) >= 0 && esPanelActivo()) setTimeout(pintar, 0);
+  });
+
+  window.__COI_CERT_HISTORIAL__ = {
+    cargar, pintar, consolidar,
+    filas: () => consolidadas.slice(),
+    estado: () => ({ cargando, cargado, error })
+  };
 })();
 </script>
 </body></html>

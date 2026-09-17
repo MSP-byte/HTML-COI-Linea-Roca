@@ -73,6 +73,16 @@ async function abrirCalendario(page, opciones = {}) {
   await page.locator('#btnCalendarioVistaCOI1').waitFor({ state: 'visible', timeout: 25000 });
 }
 
+/* Abre la tarjeta desde un evento asegurando que esté a la vista: en viewport
+   móvil las celdas del calendario pueden quedar fuera de pantalla. */
+async function clickEvento(page, selector) {
+  const evento = page.locator(selector).first();
+  await expect(evento).toBeVisible();
+  await evento.scrollIntoViewIfNeeded();
+  await evento.click();
+  return evento;
+}
+
 // Se usa el botón real de la subpestaña: es el camino que el módulo maneja.
 async function activarTab(page, tab) {
   const boton = { inteligente: '#btnCalendarioVistaCOI1', calendario: '#btnCalendarioVistaCOI2' }[tab];
@@ -84,9 +94,7 @@ async function activarTab(page, tab) {
 test('CAL-1 · Vista COI I: el click sobre un evento abre la tarjeta resumen y no navega', async ({ page }) => {
   await abrirCalendario(page);
   await activarTab(page, 'inteligente');
-  const evento = page.locator('#calendarioInteligenteCOI [data-coi-evento]').first();
-  await expect(evento).toBeVisible();
-  await evento.click();
+  await clickEvento(page, '#calendarioInteligenteCOI [data-coi-evento]');
 
   await expect(page.locator(RESUMEN)).toBeVisible();
   // No navegó: la vista del Calendario sigue activa y la Ficha no se abrió.
@@ -97,9 +105,7 @@ test('CAL-1 · Vista COI I: el click sobre un evento abre la tarjeta resumen y n
 test('CAL-2 · Vista COI II: el click sobre un evento abre la tarjeta resumen y no navega', async ({ page }) => {
   await abrirCalendario(page);
   await activarTab(page, 'calendario');
-  const evento = page.locator('#opCoiCalendario .op-event[data-coi-evento]').first();
-  await expect(evento).toBeVisible();
-  await evento.click();
+  await clickEvento(page, '#opCoiCalendario .op-event[data-coi-evento]');
 
   await expect(page.locator(RESUMEN)).toBeVisible();
   await expect(page.locator('#vistaCalendarioCOI')).toHaveClass(/active/);
@@ -109,7 +115,7 @@ test('CAL-2 · Vista COI II: el click sobre un evento abre la tarjeta resumen y 
 test('CAL-3 · la tarjeta muestra el resumen mínimo de la OC', async ({ page }) => {
   await abrirCalendario(page);
   await activarTab(page, 'inteligente');
-  await page.locator('#calendarioInteligenteCOI [data-coi-evento]').first().click();
+  await clickEvento(page, '#calendarioInteligenteCOI [data-coi-evento]');
   await expect(page.locator(RESUMEN)).toBeVisible();
 
   const texto = await page.locator(RESUMEN).innerText();
@@ -129,7 +135,7 @@ test('CAL-3 · la tarjeta muestra el resumen mínimo de la OC', async ({ page })
 test('CAL-4 · un evento de Servicio no muestra avance de obra', async ({ page }) => {
   await abrirCalendario(page, { tipo: 'Servicio' });
   await activarTab(page, 'inteligente');
-  await page.locator('#calendarioInteligenteCOI [data-coi-evento]').first().click();
+  await clickEvento(page, '#calendarioInteligenteCOI [data-coi-evento]');
   await expect(page.locator(RESUMEN)).toBeVisible();
   const texto = await page.locator(RESUMEN).innerText();
   expect(texto.toUpperCase()).not.toContain('AVANCE DE OBRA');
@@ -138,7 +144,7 @@ test('CAL-4 · un evento de Servicio no muestra avance de obra', async ({ page }
 test('CAL-5 · ABRIR EXPEDIENTE navega a la Ficha de esa OC por el camino canónico', async ({ page }) => {
   await abrirCalendario(page);
   await activarTab(page, 'inteligente');
-  await page.locator('#calendarioInteligenteCOI [data-coi-evento]').first().click();
+  await clickEvento(page, '#calendarioInteligenteCOI [data-coi-evento]');
   const boton = page.locator(RESUMEN + ' [data-open-oc]');
   await expect(boton).toHaveText('ABRIR EXPEDIENTE');
   // La identidad que viaja es la que el propio calendario resolvió para el
@@ -161,18 +167,23 @@ test('CAL-6 · la tarjeta se cierra con el botón, con Escape y con click fuera'
   await abrirCalendario(page);
   await activarTab(page, 'inteligente');
   const evento = page.locator('#calendarioInteligenteCOI [data-coi-evento]').first();
+  // En viewport móvil la tarjeta puede quedar fuera de vista: se abre siempre
+  // desde el mismo punto conocido en vez de depender del scroll del momento.
+  const abrirTarjeta = async () => {
+    await evento.scrollIntoViewIfNeeded();
+    await evento.click();
+    await expect(page.locator(RESUMEN)).toBeVisible();
+  };
 
-  await evento.click();
+  await abrirTarjeta();
   await page.click(RESUMEN + ' [data-coi-resumen-cerrar]');
   await expect(page.locator(RESUMEN)).toHaveCount(0);
 
-  await evento.click();
-  await expect(page.locator(RESUMEN)).toBeVisible();
+  await abrirTarjeta();
   await page.keyboard.press('Escape');
   await expect(page.locator(RESUMEN)).toHaveCount(0);
 
-  await evento.click();
-  await expect(page.locator(RESUMEN)).toBeVisible();
+  await abrirTarjeta();
   // Click sobre el overlay, fuera de la tarjeta.
   await page.evaluate(() => document.getElementById('coiResumenEvento')
     .dispatchEvent(new MouseEvent('click', { bubbles: true })));
