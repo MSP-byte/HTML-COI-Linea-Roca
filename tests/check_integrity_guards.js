@@ -22,7 +22,7 @@ assert.match(html, /client\.rpc\('coi_actualizar_orden_integral'/);
 assert.match(html, /client\.rpc\('coi_guardar_orden_integral'/);
 assert.match(html, /client\.rpc\('coi_guardar_estacion_asociada'/);
 assert.match(html, /client\.rpc\('coi_eliminar_orden_integral'/);
-assert.match(html, /\.rpc\('coi_confirmar_etapa_circuito_v2'/);
+assert.match(html, /\.rpc\('coi_confirmar_etapa_circuito_v3'/);
 assert.doesNotMatch(html, /\.rpc\('coi_guardar_link_documental'/);
 assert.doesNotMatch(html, /\.rpc\('coi_eliminar_link_documental'/);
 assert.doesNotMatch(html, /@supabase\/supabase-js@2(?:['"/])/,'supabase-js debe quedar fijado a una versión exacta');
