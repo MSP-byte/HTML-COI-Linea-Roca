@@ -285,6 +285,16 @@ button.ghost{background:#f7f8fa;color:#333}
 .op-modal-head{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}
 .op-modal-body{padding:16px 18px}
 .op-detail{border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0;background:#f8fafc}
+/* Tarjeta de resumen del evento de calendario (Vista COI I y II). */
+.coi-resumen-card{max-width:620px;width:min(620px,100%)}
+.coi-resumen-grid{display:grid;gap:10px 18px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.coi-resumen-dato span{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:#6b8295}
+.coi-resumen-dato b{font-size:.88rem;color:#23394a}
+.coi-resumen-acciones{display:flex;justify-content:flex-end;gap:10px;padding:0 18px 16px}
+body.coi-v2-ready .coi-resumen-card{background:var(--v2-surface)}
+body.coi-v2-ready .coi-resumen-dato span{color:var(--v2-muted)}
+body.coi-v2-ready .coi-resumen-dato b{color:var(--v2-text)}
+body.coi-v2-ready #coiResumenEvento .op-modal-head h3{color:var(--v2-text)}
 .op-detail-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}.op-detail-actions{margin-top:10px}
 .coi-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.coi-tabs button{border-radius:999px}.coi-tabs button.active{background:#2f6fa3;color:#fff;border-color:#2f6fa3}
 .coi-tab-panel{display:none}.coi-tab-panel.active{display:block}
@@ -10582,7 +10592,10 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     return eventosCalendarioFix().filter(e=>{const d=parseDateFix(e.fecha); return d && d.getFullYear()===f.y && d.getMonth()===f.m && (!f.est||e.estacion===f.est) && (!f.prov||e.proveedor===f.prov) && (!f.tipo||e.tipo===f.tipo) && (!f.evento||e.tipoEvento===f.evento) && (!f.estado||e.estado===f.estado);});
   }
   function renderPeriodoCalendarioFix(ev){ const f=filtrosCalendarioFix(); const cont=$fix('coiPeriodoResumen'); if(cont) cont.innerHTML=`<span>Mostrando eventos de <b>${mesesFix[f.m]} ${f.y}</b></span><span><b>${ev.length}</b> eventos encontrados</span>`; }
-  function eventoCardFix(e){ const dias=diffFix(e.fecha); return `<div class="calendar-intel-event"><b>${html(e.tipoEvento)}</b>${html(e.oc)} · ${html(e.estacion)}<br>${html(e.proveedor)}<br>${fmtFix(e.fecha)} · ${dias===null?'—':dias} días · ${html(e.estado)}<br><button type="button" class="btn-open-oc" data-open-oc="${html(e.ocId)}">Ver ficha OC</button></div>`; }
+  /* Un evento de calendario NO navega: abre primero la tarjeta de resumen.
+     Por eso lleva data-coi-evento y no data-open-oc; ABRIR EXPEDIENTE vive
+     dentro de la tarjeta y sí usa la navegación canónica. */
+  function eventoCardFix(e){ const dias=diffFix(e.fecha); return `<div class="calendar-intel-event"><b>${html(e.tipoEvento)}</b>${html(e.oc)} · ${html(e.estacion)}<br>${html(e.proveedor)}<br>${fmtFix(e.fecha)} · ${dias===null?'—':dias} días · ${html(e.estado)}<br><button type="button" class="btn-open-oc" data-coi-evento="${html(e.id)}">Ver resumen</button></div>`; }
   function renderVistaInteligenteFix(ev){
     const cont=$fix('calendarioInteligenteCOI'); if(!cont)return;
     const grupos=[['Hoy / otros del mes',[]],['Próximos 7 días',[]],['Próximos 15 días',[]],['Próximos 30 días',[]],['Vencidas',[]]];
@@ -10594,7 +10607,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     const cont=$fix('opCoiCalendario'); if(!cont)return; const f=filtrosCalendarioFix();
     const first=new Date(f.y,f.m,1), start=new Date(first), offset=(first.getDay()+6)%7; start.setDate(first.getDate()-offset);
     const by={}; ev.forEach(e=>(by[e.fecha]=by[e.fecha]||[]).push(e));
-    let cells=''; for(let i=0;i<42;i++){const d=new Date(start); d.setDate(start.getDate()+i); const iso=isoFix(d), list=by[iso]||[]; cells+=`<div class="op-day ${d.getMonth()!==f.m?'out':''} ${iso===isoFix(todayFix)?'today':''}" data-op-day="coi" data-fecha="${iso}"><div class="op-day-num">${d.getDate()}</div>${list.slice(0,4).map(e=>`<button type="button" class="op-event ${claseEventoFix(e)}" data-open-oc="${html(e.ocId)}"><b>${html(e.tipoEvento)}</b><br>${html(e.oc)} · ${html(e.proveedor)}</button>`).join('')}${list.length>4?`<div class="op-more">+ ${list.length-4} más</div>`:''}</div>`;}
+    let cells=''; for(let i=0;i<42;i++){const d=new Date(start); d.setDate(start.getDate()+i); const iso=isoFix(d), list=by[iso]||[]; cells+=`<div class="op-day ${d.getMonth()!==f.m?'out':''} ${iso===isoFix(todayFix)?'today':''}" data-op-day="coi" data-fecha="${iso}"><div class="op-day-num">${d.getDate()}</div>${list.slice(0,4).map(e=>`<button type="button" class="op-event ${claseEventoFix(e)}" data-coi-evento="${html(e.id)}"><b>${html(e.tipoEvento)}</b><br>${html(e.oc)} · ${html(e.proveedor)}</button>`).join('')}${list.length>4?`<div class="op-more">+ ${list.length-4} más</div>`:''}</div>`;}
     cont.innerHTML=`<div class="op-month-kpis"><div class="op-month-kpi"><b>${ev.length}</b><span>Total eventos del mes</span></div><div class="op-month-kpi"><b>${ev.filter(e=>normFix(e.tipoEvento).includes('VENC')).length}</b><span>Vencimientos OC</span></div><div class="op-month-kpi"><b>${ev.filter(e=>normFix(e.tipoEvento).includes('CERT')).length}</b><span>Certificaciones</span></div><div class="op-month-kpi"><b>${ev.filter(e=>normFix(e.tipoEvento).includes('ACTA')).length}</b><span>Actas de inicio</span></div><div class="op-month-kpi"><b>${ev.filter(e=>normFix(e.tipoEvento).includes('DOCUMENT')).length}</b><span>Alertas documentales</span></div><div class="op-month-kpi"><b>0</b><span>Eventos cerrados</span></div></div><div class="op-calendar-legend"><span class="op-legend-item"><i class="op-dot" style="background:#2563eb"></i>Acta inicio</span><span class="op-legend-item"><i class="op-dot" style="background:#dc2626"></i>Vencimiento OC</span><span class="op-legend-item"><i class="op-dot" style="background:#16a34a"></i>Certificación servicio</span><span class="op-legend-item"><i class="op-dot" style="background:#7c3aed"></i>Certificación obra</span><span class="op-legend-item"><i class="op-dot" style="background:#f59e0b"></i>Alerta documental</span></div><div class="op-grid"><div class="op-weekday">Lunes</div><div class="op-weekday">Martes</div><div class="op-weekday">Miércoles</div><div class="op-weekday">Jueves</div><div class="op-weekday">Viernes</div><div class="op-weekday">Sábado</div><div class="op-weekday">Domingo</div>${cells}</div>`;
   }
   function renderTablasCalendarioFix(ev){
@@ -10604,7 +10617,77 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     if($fix('coiCertTbody')) $fix('coiCertTbody').innerHTML=cert.map(e=>`<tr><td>${diffFix(e.fecha)<0?'Vencida':diffFix(e.fecha)<=30?'Certificar':'Programada'}</td><td>${html(e.oc)}</td><td>${html(e.tipo)}</td><td>${html(e.estacion)}</td><td>${html(e.proveedor)}</td><td>${fmtFix(inicioFix(e.item,{}))}</td><td>—</td><td>—</td><td>${fmtFix(e.fecha)}</td><td>—</td><td>${html(e.estado)}</td><td>${fmtFix(finFix(e.item,{}))}</td><td>${diffFix(e.fecha)<0?'Vencida':'Programada'}</td></tr>`).join('')||'<tr><td colspan="13">Sin certificaciones para los filtros seleccionados.</td></tr>';
   }
   function activarTabCalendarioFix(tab){ calendarioTabFix=tab||'inteligente'; document.querySelectorAll('#vistaCalendarioCOI [data-coi-tab]').forEach(b=>b.classList.toggle('active',b.dataset.coiTab===calendarioTabFix)); document.querySelectorAll('#vistaCalendarioCOI .coi-tab-panel').forEach(p=>p.classList.remove('active')); const id={inteligente:'coiTabInteligente',calendario:'coiTabCalendario',vencimientos:'coiTabVencimientos',certificaciones:'coiTabCertificaciones'}[calendarioTabFix]; if($fix(id))$fix(id).classList.add('active'); }
-  function renderCalendarioFix(){ prepararFiltrosCalendarioFix(); const ev=eventosFiltradosCalendarioFix(); renderPeriodoCalendarioFix(ev); renderVistaInteligenteFix(ev); renderVistaCalendarioFix(ev); renderTablasCalendarioFix(ev); activarTabCalendarioFix(calendarioTabFix); }
+  /* ---------------------------------------------- tarjeta resumen de evento
+     Vista COI I y Vista COI II comparten el mismo modelo de evento, así que
+     comparten la tarjeta: un solo renderer, una sola navegación canónica. */
+  let eventosVigentesFix=[];
+  function eventoPorIdFix(id){
+    const clave=String(id||'');
+    return eventosVigentesFix.find(e=>String(e.id)===clave)||eventosCalendarioFix().find(e=>String(e.id)===clave)||null;
+  }
+  function cerrarResumenEventoFix(){ document.getElementById('coiResumenEvento')?.remove(); }
+  function filaResumenFix(rotulo,valor){
+    return `<div class="coi-resumen-dato"><span>${html(rotulo)}</span><b>${html(valor==null||valor===''?'—':valor)}</b></div>`;
+  }
+  function abrirResumenEventoFix(id){
+    const e=eventoPorIdFix(id);
+    if(!e)return false;
+    const item=e.item||{};
+    const esObraEvento=!normFix(e.tipo).includes('SERV');
+    const avance=item.avanceObraPct??item.avance_obra_pct??item.avanceFisico??item.avancePorc;
+    const ultima=item.ultimaCertificacion||item.ultimaActa||item.fechaUltimaCertificacion||'';
+    cerrarResumenEventoFix();
+    const modal=document.createElement('div');
+    modal.id='coiResumenEvento';
+    modal.className='op-modal coi-resumen-modal';
+    modal.setAttribute('role','dialog');
+    modal.setAttribute('aria-modal','true');
+    modal.setAttribute('aria-labelledby','coiResumenEventoTitulo');
+    modal.innerHTML=`<div class="op-modal-card coi-resumen-card">
+      <div class="op-modal-head">
+        <div><h3 id="coiResumenEventoTitulo">Resumen de la OC</h3>
+        <div class="muted">${html(e.tipoEvento)} · ${html(fmtFix(e.fecha))}</div></div>
+        <button type="button" data-coi-resumen-cerrar aria-label="Cerrar resumen">Cerrar</button>
+      </div>
+      <div class="op-modal-body coi-resumen-grid">
+        ${filaResumenFix('N° OC',e.oc)}
+        ${filaResumenFix('Tipo',e.tipo)}
+        ${filaResumenFix('Proveedor',e.proveedor)}
+        ${filaResumenFix('Tipo de trabajo',item.tipoTrabajo||item.descripcion||item.especialidad)}
+        ${filaResumenFix('Estación / sector',[e.estacion,item.sector||item.ubicacion].filter(Boolean).join(' · '))}
+        ${filaResumenFix('Estado actual',e.estado)}
+        ${filaResumenFix('Fecha Acta de Inicio',fmtFix(inicioFix(item,{})))}
+        ${filaResumenFix('Última certificación',ultima)}
+        ${esObraEvento?filaResumenFix('Avance de obra',avance==null||avance===''?'—':`${avance}%`):''}
+        ${filaResumenFix('Próxima certificación',fmtFix(proxCertFix(item,{})))}
+        ${filaResumenFix('Vencimiento contractual',fmtFix(finFix(item,{})))}
+        ${filaResumenFix('Estado documental',item.estadoDocumental||item.estado_documental)}
+      </div>
+      <div class="op-detail-actions coi-resumen-acciones">
+        <button type="button" class="primary" data-open-oc="${html(e.ocId)}">ABRIR EXPEDIENTE</button>
+      </div>
+    </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('[data-coi-resumen-cerrar]')?.focus();
+    return true;
+  }
+  document.addEventListener('click',(ev)=>{
+    const disparador=ev.target.closest?.('[data-coi-evento]');
+    if(disparador){ ev.preventDefault(); ev.stopPropagation(); abrirResumenEventoFix(disparador.getAttribute('data-coi-evento')); return; }
+    const modal=document.getElementById('coiResumenEvento');
+    if(!modal)return;
+    if(ev.target.closest?.('[data-coi-resumen-cerrar]')||ev.target===modal){ ev.preventDefault(); cerrarResumenEventoFix(); }
+  });
+  /* ABRIR EXPEDIENTE usa la navegación canónica (data-open-oc). La tarjeta se
+     retira en captura para no depender del orden en que quedaron registrados
+     los demás delegados de document, alguno de los cuales corta la burbuja. */
+  document.addEventListener('click',(ev)=>{
+    const modal=document.getElementById('coiResumenEvento');
+    if(modal&&ev.target.closest?.('[data-open-oc]')&&modal.contains(ev.target))cerrarResumenEventoFix();
+  },true);
+  document.addEventListener('keydown',(ev)=>{ if(ev.key==='Escape'&&document.getElementById('coiResumenEvento'))cerrarResumenEventoFix(); });
+
+  function renderCalendarioFix(){ prepararFiltrosCalendarioFix(); const ev=eventosFiltradosCalendarioFix(); eventosVigentesFix=ev; renderPeriodoCalendarioFix(ev); renderVistaInteligenteFix(ev); renderVistaCalendarioFix(ev); renderTablasCalendarioFix(ev); activarTabCalendarioFix(calendarioTabFix); }
   function exportCalendarioFix(fmt){
     const ev=eventosFiltradosCalendarioFix(); const f=filtrosCalendarioFix();
     if(fmt==='ics'){
