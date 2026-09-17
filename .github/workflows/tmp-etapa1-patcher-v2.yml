@@ -13,6 +13,35 @@ jobs:
         with:
           ref: feat/etapa1-tipo-fecha-efectiva
           fetch-depth: 0
+      - name: Reparar quoting del patcher temporal
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('tools/tmp_patch_etapa1_tipo_fecha.py')
+          s=p.read_text(encoding='utf-8')
+          old_js = r'''<span class=\"etapa1-cuerpo\"><span class=\"etapa1-nombre\">'''
+          # Reescribir el bloque old_name/new_name con repr() para que el script sea Python válido.
+          pattern=r"old_name = .*?\nif mod\.count\(old_name\) != 2:\n    raise SystemExit\(f'nombres etapa2/transversal: se esperaban 2 y hubo \{mod\.count\(old_name\)\}'\)\nmod = mod\.replace\(old_name, .*?, 2\)"
+          old_name = "'<span class=\\\"etapa1-cuerpo\\\"><span class=\\\"etapa1-nombre\\\">' + esc(et.nombre) + '</span>' +"
+          new_name = "'<span class=\\\"etapa1-cuerpo\\\"><span class=\\\"etapa1-nombre\\\">' + esc(nombreEtapaPorTipo(et,estado.orden)) + '</span>' +"
+          repl=("old_name = "+repr(old_name)+"\n"
+                "if mod.count(old_name) != 2:\n"
+                "    raise SystemExit(f'nombres etapa2/transversal: se esperaban 2 y hubo {mod.count(old_name)}')\n"
+                "mod = mod.replace(old_name, "+repr(new_name)+", 2)")
+          s,n=re.subn(pattern,repl,s,flags=re.S)
+          if n!=1: raise SystemExit(f'reparación old_name: {n} coincidencias')
+          # Reescribir también la llamada del nombre del modal, evitando strings frágiles.
+          pattern2=r"mod = once\(mod, .*?etapa1ModalHito.*?'modal nombre'\)"
+          old_modal = "'<dt>Hito</dt><dd id=\\\"etapa1ModalHito\\\">' + esc(etapa.nombre) + '</dd>' +"
+          new_modal = "'<dt>Hito</dt><dd id=\\\"etapa1ModalHito\\\">' + esc(nombreEtapaPorTipo(etapa,orden)) + '</dd>' +"
+          repl2="mod = once(mod, "+repr(old_modal)+", "+repr(new_modal)+", 'modal nombre')"
+          s,n2=re.subn(pattern2,repl2,s,flags=re.S)
+          if n2!=1: raise SystemExit(f'reparación modal nombre: {n2} coincidencias')
+          p.write_text(s,encoding='utf-8')
+          PY
+          python3 -m py_compile tools/tmp_patch_etapa1_tipo_fecha.py
       - name: Aplicar patch idempotente
         run: python3 tools/tmp_patch_etapa1_tipo_fecha.py
       - name: Controles estáticos del cambio
@@ -22,13 +51,9 @@ jobs:
       - name: Commit si hay cambios
         shell: bash
         run: |
-          if git diff --quiet && git status --porcelain | grep -qv '^??'; then
-            echo "Sin cambios para commitear"
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html package.json tests/etapa1_ficha_integracion.spec.js tests/check_etapa1_tipo_fecha_efectiva.js
+          git add index.html package.json tests/etapa1_ficha_integracion.spec.js tests/check_etapa1_tipo_fecha_efectiva.js tools/tmp_patch_etapa1_tipo_fecha.py
           if git diff --cached --quiet; then
             echo "Sin cambios trackeados"
             exit 0
