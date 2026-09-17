@@ -1,73 +1,27 @@
-name: TMP patch Etapa1 tipo fecha v2
+name: TMP validate Etapa1 tipo fecha
 on:
   push:
     branches:
       - feat/etapa1-tipo-fecha-efectiva
 permissions:
-  contents: write
+  contents: read
 jobs:
-  patch:
+  validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feat/etapa1-tipo-fecha-efectiva
-          fetch-depth: 0
-      - name: Reparar quoting del patcher temporal
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          p=Path('tools/tmp_patch_etapa1_tipo_fecha.py')
-          s=p.read_text(encoding='utf-8')
-          pattern=r"old_name = .*?\nif mod\.count\(old_name\) != 2:\n    raise SystemExit\(f'nombres etapa2/transversal: se esperaban 2 y hubo \{mod\.count\(old_name\)\}'\)\nmod = mod\.replace\(old_name, .*?, 2\)"
-          old_name = "'<span class=\\\"etapa1-cuerpo\\\"><span class=\\\"etapa1-nombre\\\">' + esc(et.nombre) + '</span>' +"
-          new_name = "'<span class=\\\"etapa1-cuerpo\\\"><span class=\\\"etapa1-nombre\\\">' + esc(nombreEtapaPorTipo(et,estado.orden)) + '</span>' +"
-          repl=("old_name = "+repr(old_name)+"\n"
-                "if mod.count(old_name) != 2:\n"
-                "    raise SystemExit(f'nombres etapa2/transversal: se esperaban 2 y hubo {mod.count(old_name)}')\n"
-                "mod = mod.replace(old_name, "+repr(new_name)+", 2)")
-          s,n=re.subn(pattern,repl,s,flags=re.S)
-          if n==1:
-            pattern2=r"mod = once\(mod, .*?etapa1ModalHito.*?'modal nombre'\)"
-            old_modal = "'<dt>Hito</dt><dd id=\\\"etapa1ModalHito\\\">' + esc(etapa.nombre) + '</dd>' +"
-            new_modal = "'<dt>Hito</dt><dd id=\\\"etapa1ModalHito\\\">' + esc(nombreEtapaPorTipo(etapa,orden)) + '</dd>' +"
-            repl2="mod = once(mod, "+repr(old_modal)+", "+repr(new_modal)+", 'modal nombre')"
-            s,n2=re.subn(pattern2,repl2,s,flags=re.S)
-            if n2!=1: raise SystemExit(f'reparación modal nombre: {n2} coincidencias')
-            p.write_text(s,encoding='utf-8')
-          PY
-          python3 -m py_compile tools/tmp_patch_etapa1_tipo_fecha.py
-      - name: Aplicar patch idempotente
-        run: python3 tools/tmp_patch_etapa1_tipo_fecha.py
-      - name: Escribir control estático base
-        shell: bash
-        run: |
-          cat > tests/check_etapa1_tipo_fecha_efectiva.js <<'JS'
-          const fs=require('fs');
-          const assert=require('assert');
-          const html=fs.readFileSync('index.html','utf8');
-          const sql=fs.readFileSync('supabase/migrations/202609160001_etapa1_tipo_fecha_efectiva.sql','utf8');
-          assert(html.includes('coi_confirmar_etapa_circuito_v3'),'frontend debe usar RPC v3');
-          assert(html.includes('p_fecha_efectiva'),'writer debe enviar fecha efectiva');
-          assert(html.includes('etapa1ModalFecha'),'modal debe ofrecer fecha efectiva editable');
-          assert(sql.includes('add column if not exists fecha_efectiva date'),'schema debe separar fecha efectiva');
-          assert(sql.includes("message='COI_STAGE_NOT_APPLICABLE_TO_TYPE'"),'servidor debe rechazar saldo remanente para Obra');
-          assert(sql.includes("message='COI_EFFECTIVE_DATE_FUTURE'"),'servidor debe rechazar fecha efectiva futura');
-          console.log('Etapa 1/2 fecha efectiva: controles base OK');
-          JS
-      - name: Validar diff
-        run: git diff --check
-      - name: Commit si hay cambios
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add index.html package.json tests/etapa1_ficha_integracion.spec.js tests/check_etapa1_tipo_fecha_efectiva.js tools/tmp_patch_etapa1_tipo_fecha.py
-          if git diff --cached --quiet; then
-            echo "Sin cambios trackeados"
-            exit 0
-          fi
-          git commit -m "feat: adaptar circuito por tipo y fecha efectiva [patcher-done]"
-          git push origin HEAD:feat/etapa1-tipo-fecha-efectiva
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: npm test
+        run: npm test
+      - name: Instalar Chromium Playwright
+        run: npx playwright install --with-deps chromium
+      - name: Playwright integración contractual desktop + mobile
+        run: npx playwright test tests/etapa1_ficha_integracion.spec.js --project=chromium-desktop --project=chromium-mobile
