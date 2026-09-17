@@ -10196,7 +10196,76 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   function inicioFix(item,row){ return row?.inicio || item?.fechaActaInicio || item?.actaInicio || item?.fechaInicio || item?.FECHA_INICIO || item?.inicio || ''; }
   function plazoFix(item,row){ return Number(row?.plazo || item?.plazoDias || item?.PLAZO_DIAS || item?.plazo || item?.['PLAZO OC (DIAS)'] || 0); }
   function finFix(item,row){ return row?.fin || item?.fechaFin || item?.fechaVencimiento || item?.vencimiento || (inicioFix(item,row)&&plazoFix(item,row)?addDaysFix(inicioFix(item,row),plazoFix(item,row)):null); }
-  function proxCertFix(item,row){ return row?.proximaCertificacion || item?.proximaCertificacion || item?.proxCertificacion || item?.fechaProximaCertificacion || (inicioFix(item,row)?addMonthsFix(inicioFix(item,row),1):null); }
+  /* ------------------------------------------------ CAMBIO 3
+     PRÓXIMA CERTIFICACIÓN TENTATIVA.
+
+     Una proyección no es una certificación: las reales viven en
+     public.coi_certificaciones y se consultan en el historial. Acá se calcula
+     una fecha TENTATIVA, y sólo cuando el modelo alcanza para afirmarla.
+
+     Base: la última certificación REAL si existe —por su fecha administrativa,
+     no por fecha_creacion— y si no, el Acta de Inicio.
+     Paso: un mes CALENDARIO, no 30 días.
+     Techo: nunca después del vencimiento contractual.
+
+     Obra   proyecta con Acta de Inicio y plazo contractual de 30 a 120 días.
+     Servicio proyecta sólo con modalidad_certificacion = MENSUAL. A demanda o
+              sin definir no inventan una mensualidad que nadie pactó.
+     Finalizada / cancelada / suspendida no proyectan.
+
+     Una fecha ya cargada a mano es un dato, no una inferencia: se respeta. */
+  const MODALIDAD_MENSUAL='MENSUAL';
+  /* Un mes CALENDARIO con tope de fin de mes. Date.setMonth desborda: del 31
+     de enero salta al 3 de marzo, que no es «el mes siguiente» de nadie. El
+     día se recorta al último del mes destino. */
+  function sumarMesCalendarioFix(v,n){
+    const d=parseDateFix(v); if(!d) return null;
+    const dia=d.getDate();
+    const destino=new Date(d.getFullYear(),d.getMonth()+Number(n||0),1);
+    const ultimo=new Date(destino.getFullYear(),destino.getMonth()+1,0).getDate();
+    destino.setDate(Math.min(dia,ultimo));
+    return destino;
+  }
+  function modalidadCertFix(item){
+    const raw=item&&((item._supabaseRaw&&item._supabaseRaw.modalidad_certificacion)||item.modalidad_certificacion||item.modalidadCertificacion);
+    return normFix(raw).replace(/\s+/g,'_');
+  }
+  function cerradaFix(item,row){
+    const estado=normFix(estadoFix(item,row)+' '+(item?.estadoDocumental||''));
+    return estado.includes('FINALIZAD')||estado.includes('CANCELAD')||estado.includes('SUSPENDID');
+  }
+  // Última certificación REAL de la OC, por su fecha administrativa.
+  function ultimaCertRealFix(item,row){
+    try{
+      const buscar=window.__COI_CERT_ULTIMA__;
+      if(typeof buscar!=='function')return '';
+      return isoFix(buscar(ocNroFix(item,row)))||'';
+    }catch(e){ return ''; }
+  }
+  function proyeccionMensualFix(item,row){
+    if(cerradaFix(item,row))return null;
+    const inicio=inicioFix(item,row);
+    if(!inicio)return null;
+    const esServicio=normFix(tipoFix(item,row)).includes('SERV');
+    if(esServicio){
+      if(modalidadCertFix(item)!==MODALIDAD_MENSUAL)return null;
+    }else{
+      const plazo=Number(plazoFix(item,row))||0;
+      if(!(plazo>=30&&plazo<=120))return null;
+    }
+    const base=ultimaCertRealFix(item,row)||inicio;
+    const proxima=sumarMesCalendarioFix(base,1);
+    if(!proxima)return null;
+    const fin=finFix(item,row);
+    // Techo contractual: no se proyecta más allá del vencimiento.
+    if(fin&&isoFix(proxima)>isoFix(fin))return null;
+    return proxima;
+  }
+  function proxCertFix(item,row){
+    const cargada=row?.proximaCertificacion || item?.proximaCertificacion || item?.proxCertificacion || item?.fechaProximaCertificacion;
+    if(cargada)return cargada;
+    return proyeccionMensualFix(item,row);
+  }
   function saldoFix(item){
     try{ if(typeof obtenerSaldoRemanenteCertificable==='function') return Number(obtenerSaldoRemanenteCertificable(item)||0); }catch(e){}
     return moneyNumFix(item?.saldoRemanenteCertificable ?? item?.saldoRemanente ?? item?.saldo ?? item?.SALDO ?? 0);
@@ -10749,6 +10818,10 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   renderCentroAlertas = renderCentroAlertasFix;
   renderDashboardAlertSummary = renderDashboardAlertSummaryFix;
   renderCalendarioCOIUnificado = renderCalendarioFix;
+  /* Proyección tentativa de próxima certificación (CAMBIO 3), expuesta para
+     poder afirmarla sin depender del mes que el calendario esté mostrando. */
+  window.__COI_PROXIMA_CERT__ = (item, row) => isoFix(proxCertFix(item || {}, row || {})) || '';
+  window.__COI_PROYECCION_MENSUAL__ = (item, row) => isoFix(proyeccionMensualFix(item || {}, row || {})) || '';
   activarTabCalendarioCOI = function(tab){activarTabCalendarioFix(tab);};
   cambiarSubvistaCalendarioCOI = function(vista){ const mapa={coi1:'inteligente',coi2:'calendario',vencimientos:'vencimientos',certificaciones:'certificaciones'}; calendarioTabFix=mapa[vista]||vista||'inteligente'; renderCalendarioFix(); };
 
@@ -15122,6 +15195,11 @@ const APP_DATA_MODE = "supabase_first";
       plazo_dias: normalizeInteger(pick(source, ['plazo_dias', 'plazoDias', 'plazo', 'PLAZO_DIAS'], 0)),
       fecha_vencimiento: toISODate(pick(source, ['fecha_vencimiento', 'vencimiento', 'fechaFin', 'FECHA_FIN'])),
       proxima_certificacion: toISODate(pick(source, ['proxima_certificacion', 'proximaCertificacion', 'proxCertificacion', 'PROX_CERTIFICACION'])),
+      // Dominio cerrado por el check de la migración: fuera de él, SIN_DEFINIR.
+      modalidad_certificacion: (() => {
+        const v = clean(pick(source, ['modalidad_certificacion', 'modalidadCertificacion'])).toUpperCase().replace(/\s+/g, '_');
+        return ['MENSUAL', 'A_DEMANDA', 'SIN_DEFINIR'].includes(v) ? v : 'SIN_DEFINIR';
+      })(),
       fecha_recepcion_documentacion: toISODate(pick(source, ['fecha_recepcion_documentacion', 'fechaRecepcionDocumentacion'])),
       estado_coi: clean(pick(source, ['estado_coi', 'estadoCOI', 'estado', 'ESTADO'], 'Pendiente de completar')) || 'Pendiente de completar',
       estado_documental: clean(pick(source, ['estado_documental', 'estadoDocumental', 'ESTADO_DOCUMENTAL'])),
@@ -15154,6 +15232,8 @@ const APP_DATA_MODE = "supabase_first";
       plazo_dias: ['plazo_dias', 'plazoDias', 'plazo', 'PLAZO_DIAS'],
       fecha_vencimiento: ['fecha_vencimiento', 'vencimiento', 'fechaFin', 'FECHA_FIN'],
       proxima_certificacion: ['proxima_certificacion', 'proximaCertificacion', 'proxCertificacion', 'PROX_CERTIFICACION'],
+      // Modalidad de certificación del servicio: sólo MENSUAL proyecta.
+      modalidad_certificacion: ['modalidad_certificacion', 'modalidadCertificacion'],
       fecha_recepcion_documentacion: ['fecha_recepcion_documentacion', 'fechaRecepcionDocumentacion'],
       estado_coi: ['estado_coi', 'estadoCOI', 'estado', 'ESTADO'],
       estado_documental: ['estado_documental', 'estadoDocumental', 'ESTADO_DOCUMENTAL'],
@@ -20222,6 +20302,16 @@ function renderModoEdicionOC(orden){
     <section class="coi-edit-section" data-r12-section="certificaciones">
       <div class="coi-edit-grid">
         <label>Próxima certificación<input type="date" data-r12-field="proximaCertificacion" value="${esc(dateOnly(field(o,'proximaCertificacion','proxima_certificacion','proxCertFecha')))}"></label>
+        <label>Modalidad de certificación
+          <select data-r12-field="modalidadCertificacion">
+            ${['SIN_DEFINIR','MENSUAL','A_DEMANDA'].map(v=>{
+              const actual=String(field(o,'modalidadCertificacion','modalidad_certificacion')||'SIN_DEFINIR').toUpperCase().replace(/\s+/g,'_');
+              const etiqueta={SIN_DEFINIR:'Sin definir',MENSUAL:'Mantenimiento mensual',A_DEMANDA:'Servicio a demanda'}[v];
+              return `<option value="${v}"${actual===v?' selected':''}>${etiqueta}</option>`;
+            }).join('')}
+          </select>
+          <small class="muted">Sólo «Mantenimiento mensual» proyecta próxima certificación automática.</small>
+        </label>
         <label>Última acta N°<input data-r12-field="ultimaActa" value="${esc(field(o,'ultimaActa','fechaUltActaMedN','ultima_acta'))}"></label>
         <label>Fecha última acta<input type="date" data-r12-field="fechaUltimaActa" value="${esc(dateOnly(field(o,'fechaUltimaActa','fecha_ultima_acta')))}"></label>
         <label>Próxima acta N°<input data-r12-field="proximaActa" value="${esc(field(o,'proximaActa','proxActaMedN','proxima_acta'))}"></label>
@@ -35680,8 +35770,8 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
    Carga Operativa → Carga Certificación.
 
    FUENTE ÚNICA: public.coi_certificaciones + public.coi_ordenes.
-   No hay caché propia ni localStorage: si Supabase falla se informa el
-   error y no se inventa contenido.
+   No hay caché propia ni almacenamiento del navegador: si Supabase falla se
+   informa el error y no se inventa contenido.
 
    CONSOLIDACIÓN: coi_certificaciones guarda UNA FILA POR ÍTEM/POSICIÓN, de
    modo que una misma Acta de Medición aparece repetida. Acá se agrupa por
@@ -35934,8 +36024,25 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     if (['coiTipo', 'coiYear', 'coiMonth'].indexOf(ev.target.id) >= 0 && esPanelActivo()) setTimeout(pintar, 0);
   });
 
+  /* Última certificación REAL por OC, para que la proyección tentativa del
+     Calendario (CAMBIO 3) parta de un hecho registrado y no del Acta cuando
+     ya hubo certificaciones. Es la fecha ADMINISTRATIVA del período —fin, o
+     inicio si no hay fin—, nunca fecha_creacion. */
+  function ultimaPorOC(nroOC) {
+    const clave = fold(nroOC);
+    if (!clave) return '';
+    let mejor = '';
+    consolidadas.forEach((g) => {
+      if (fold(g.nroOC) !== clave) return;
+      const ref = g.fin || g.inicio || '';
+      if (ref && ref > mejor) mejor = ref;
+    });
+    return mejor;
+  }
+  window.__COI_CERT_ULTIMA__ = ultimaPorOC;
+
   window.__COI_CERT_HISTORIAL__ = {
-    cargar, pintar, consolidar,
+    cargar, pintar, consolidar, ultimaPorOC,
     filas: () => consolidadas.slice(),
     estado: () => ({ cargando, cargado, error })
   };
