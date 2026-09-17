@@ -184,15 +184,21 @@ async function main() {
   check(aclHelper[0].anon_exec === false, 'el helper NO puede estar otorgado a anon');
   check(!/grant\s+execute\s+on\s+function\s+public\.coi_conciliar_acta_inicio_etapa/i
     .test(leer(MIGRACION)), 'la migracion no puede otorgar EXECUTE del helper');
-  // Y la RPC publica sigue siendo invocable por el rol autorizado.
+  // Desde 202609170001 el único writer de cliente es v3. v2 queda como
+  // implementación interna SECURITY DEFINER y no puede ser invocada por authenticated.
   const { rows: aclRpc } = await db.query(`
-    select coalesce(has_function_privilege('authenticated', p.oid, 'EXECUTE'), false) auth_exec
+    select p.proname,
+           coalesce(has_function_privilege('authenticated', p.oid, 'EXECUTE'), false) auth_exec
       from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
-     where ns.nspname = 'public' and p.proname = 'coi_confirmar_etapa_circuito_v2'`);
-  check(aclRpc[0].auth_exec === true,
-    'coi_confirmar_etapa_circuito_v2 tiene que seguir siendo ejecutable por authenticated');
-  // El camino autorizado sigue funcionando pese al revoke: la RPC es SECURITY
-  // DEFINER y el dueño conserva EXECUTE. Ya se ejercito arriba en los casos A-E.
+     where ns.nspname = 'public'
+       and p.proname in ('coi_confirmar_etapa_circuito_v2','coi_confirmar_etapa_circuito_v3')`);
+  const aclPorNombre = Object.fromEntries(aclRpc.map((r) => [r.proname, r.auth_exec]));
+  check(aclPorNombre.coi_confirmar_etapa_circuito_v3 === true,
+    'coi_confirmar_etapa_circuito_v3 tiene que ser ejecutable por authenticated');
+  check(aclPorNombre.coi_confirmar_etapa_circuito_v2 === false,
+    'coi_confirmar_etapa_circuito_v2 NO puede seguir ejecutable por authenticated');
+  // El dueño conserva acceso interno a v2; los casos A-E la ejercitan como
+  // regresión de la conciliación legacy sin reabrirla al cliente.
 
   // Idempotencia y no destructividad de la migracion.
   const reaplicar = await fallo(() => db.exec(leer(MIGRACION)));
@@ -255,11 +261,11 @@ async function main() {
     'la duracion se mide contra el hito contractual N+1, no contra el proximo evento cronologico');
   check(/if \(!siguienteEv\)/.test(cuerpoDias),
     'si falta el hito inmediato siguiente no hay duracion que mostrar');
-  check(/if \(hasta\.getTime\(\) < desde\.getTime\(\)\) return null;/.test(cuerpoDias),
-    'un backfill con fecha anterior no puede producir una duracion');
+  check(/if\s*\(hastaDia\s*<\s*desdeDia\)\s*return null;/.test(cuerpoDias),
+    'un backfill con día administrativo anterior no puede producir una duración');
   check(/if \(x\.etapa\.codigo === CODIGO_ACTA\) return null;/.test(cuerpoDias),
     'cerrada la etapa 1, el hito 8 no puede seguir acumulando dias contra NOW');
-  check(/return dias < 0 \? null : dias;/.test(codigo),
+  check(/return\s+dias\s*<\s*0\s*\?\s*null\s*:\s*dias;/.test(codigo),
     'una diferencia invalida devuelve null, no un numero inventado');
 
   // F1 · el gate legacy se resuelve canonicamente, no por subcadena.
@@ -287,8 +293,8 @@ async function main() {
     'el estado actual del resumen es el hito mas avanzado');
   check(/ultimaAct \? fechaHora\(ultimaAct\.ev\.fecha_evento\)/.test(cuerpoResumen),
     'la fecha de ultima actualizacion sale del evento mas reciente');
-  check(/dias = ult && !estado\.etapa1Finalizada \? diasEntre\(ult\.ev\.fecha_evento, null\)/.test(cuerpoResumen),
-    'los dias en estado se cuentan contra el hito actual, no contra el backfill');
+  check(/dias = ult && !estado\.etapa1Finalizada \? diasDeHito\(estado, ult\)/.test(cuerpoResumen),
+    'los dias en estado reutilizan la fecha efectiva y lógica del hito actual');
 
   // F4 · el banner transversal solo si es el estado VIGENTE.
   check(/const transversalVigente = Boolean\(etapaVigente && etapaVigente\.codigo === CODIGO_TRANSVERSAL\);/.test(codigo),
