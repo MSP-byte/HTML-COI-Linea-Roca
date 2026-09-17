@@ -37,4 +37,11 @@ new_guard="""  check(/return\\s+dias\\s*<\\s*0\\s*\\?\\s*null\\s*:\\s*dias;/.tes
 if old_guard not in s:
     raise SystemExit('guard viejo de dias no encontrado')
 s=s.replace(old_guard,new_guard,1)
+old_resumen="""  check(/dias = ult && !estado\\.etapa1Finalizada \\? diasEntre\\(ult\\.ev\\.fecha_evento, null\\)/.test(cuerpoResumen),
+    'los dias en estado se cuentan contra el hito actual, no contra el backfill');"""
+new_resumen="""  check(/dias = ult && !estado\\.etapa1Finalizada \\? diasDeHito\\(estado, ult\\)/.test(cuerpoResumen),
+    'los dias en estado reutilizan la fecha efectiva y lógica del hito actual');"""
+if old_resumen not in s:
+    raise SystemExit('guard viejo de resumen no encontrado')
+s=s.replace(old_resumen,new_resumen,1)
 p.write_text(s,encoding='utf-8')
