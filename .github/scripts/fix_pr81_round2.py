@@ -1,3 +1,4 @@
+# Runner temporal reproducible para cerrar los findings finales del PR81.
 from pathlib import Path
 
 
@@ -7,8 +8,6 @@ def replace_once(text, old, new, label):
         raise SystemExit(f'{label}: esperado 1 match, encontrados {n}')
     return text.replace(old,new,1)
 
-# 1) Frontend: al editar la etapa vigente, usar la ULTIMA confirmación de ese
-# código. porCodigo conserva a propósito la primera para la cronología X/8.
 p=Path('index.html')
 html=p.read_text(encoding='utf-8')
 old="""    const eventoExistente = estado.porCodigo.get(codigo) || null;
@@ -40,8 +39,6 @@ new="""    const eventoExistente = estado.porCodigo.get(codigo) || null;
 html=replace_once(html,old,new,'modal última reentrada')
 p.write_text(html,encoding='utf-8')
 
-# 2) SQL: una grafía legacy reconocida por el frontend también debe clasificar
-# como edición idempotente. Normalizamos acentos y º/° en ambos lados.
 for name in [
     'supabase/migrations/202609170001_etapa1_fecha_rpc_v3_hardening.sql',
     'supabase/migrations/202609170002_etapa1_rpc_v3_review_fix.sql'
@@ -55,7 +52,6 @@ for name in [
     sql=replace_once(sql,old_sql,new_sql,'normalización estado vigente '+name)
     q.write_text(sql,encoding='utf-8')
 
-# 3) Guardas estáticas de ambos hallazgos.
 q=Path('tests/check_etapa1_fecha_rpc_v3_hardening.js')
 check=q.read_text(encoding='utf-8')
 marker="console.log('Etapa1 fecha/RPC v3 hardening: OK');"
@@ -67,8 +63,6 @@ if extra not in check:
     check=check.replace(marker,extra+marker)
 q.write_text(check,encoding='utf-8')
 
-# 4) Comportamiento navegador: una etapa reingresada y actualmente vigente
-# carga su fecha más reciente, no la primera llegada histórica.
 q=Path('tests/etapa1_ficha_integracion.spec.js')
 spec=q.read_text(encoding='utf-8')
 extra_spec=r'''
