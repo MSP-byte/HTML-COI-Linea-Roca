@@ -1553,3 +1553,64 @@ abren la Ficha por el camino real en vez de pintar el renderer en un host
 aislado. No-vacuidad verificada: los quince caen con el `index.html` previo al
 arreglo, y los controles estructurales de `check_etapa1_hardening.js` caen con
 el guard viejo.
+
+## TD-074 — Certificación real y próxima certificación son dos cosas distintas
+
+Contexto. «Certificación» se venía usando para dos objetos que no son el mismo:
+lo que efectivamente se certificó y lo que se estima que se va a certificar.
+Mezclarlos hace que una proyección se lea como un hecho.
+
+Decisión. Quedan separados por fuente y por lugar:
+
+- **Real**: `public.coi_certificaciones`, cargada desde Carga Operativa →
+  Carga Certificación. Se consulta en la subpestaña **Tabla Certificaciones**
+  del Calendario COI, que es su historial central.
+- **Tentativa**: una proyección calculada, que vive como evento del Calendario
+  en Vista COI I y Vista COI II. No se persiste.
+
+La proyección se emite sólo cuando el modelo alcanza para afirmarla:
+
+    base  = última certificación REAL (fecha administrativa del período),
+            y si no hay ninguna, el Acta de Inicio
+    paso  = un mes CALENDARIO
+    techo = nunca después del vencimiento contractual
+
+Obra proyecta con Acta de Inicio y plazo de 30 a 120 días. Finalizada,
+cancelada o suspendida no proyectan. Una próxima certificación cargada a mano
+es un dato, no una inferencia, y se respeta sin recalcular.
+
+`fecha_creacion` es un timestamp técnico y no se usa como fecha del período.
+
+Consecuencias. `Date.setMonth` desborda —del 31 de enero salta al 3 de marzo—,
+así que la suma de meses recorta el día al último del mes destino. El helper
+`addMonthsFix` existente no se modificó porque lo consumen otros módulos.
+
+Fijado por `PC-1`…`PC-14` (`tests/proxima_certificacion_tentativa.spec.js`) y
+`CH-1`…`CH-14` (`tests/certificaciones_historial.spec.js`).
+
+## TD-075 — La periodicidad de un servicio es un dato, no una inferencia de texto
+
+Contexto. Para proyectar la próxima certificación de un Servicio hay que saber
+si es mantenimiento mensual o un servicio a demanda. No existía ningún atributo
+canónico que lo dijera, y la única vía disponible era leer la descripción.
+
+Decisión. No se infiere periodicidad del texto. Se agrega
+`coi_ordenes.modalidad_certificacion`, con dominio cerrado:
+
+    MENSUAL | A_DEMANDA | SIN_DEFINIR
+
+Sólo `MENSUAL` habilita la proyección automática. `A_DEMANDA` y `SIN_DEFINIR`
+no generan ninguna fecha: una mensualidad que nadie pactó es peor que la
+ausencia de dato. Los registros históricos quedan en `SIN_DEFINIR`, de modo que
+ninguna fila existente cambia de significado.
+
+La modalidad se elige en Editar OC, en la sección de certificaciones.
+
+Consecuencias. Migración `202609170003_modalidad_certificacion.sql`:
+incremental, no destructiva, con backfill que sólo completa lo vacío y el check
+agregado **después** del backfill para que ninguna fila histórica quede afuera.
+Reaplicarla es NO-OP. No se aplicó en producción: queda como divergencia
+pendiente declarada en `tests/fixtures/production_schema_contract.json`.
+
+Fijado por `tests/check_modalidad_certificacion.js` sobre PGlite con todas las
+migraciones aplicadas.
