@@ -37,3 +37,4 @@ jobs:
           git add index.html package.json tests/etapa1_ficha_integracion.spec.js tests/check_etapa1_pipeline_contractual.js
           git commit -m "fix: cerrar bordes de fecha efectiva en Ficha OC"
           git push origin HEAD:hotfix/etapa1-fecha-rpc-v3
+# rerun guards calendario
