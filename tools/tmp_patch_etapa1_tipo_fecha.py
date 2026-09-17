@@ -1,26 +1,23 @@
 from pathlib import Path
-import json
+
+p=Path('index.html')
+html=p.read_text(encoding='utf-8')
+marker='<script id="coi-etapa1-pipeline-contractual">'
+start=html.index(marker)
+end=html.index('</script>',start)
+mod=html[start:end]
 
 
 def once(text, old, new, label):
-    n = text.count(old)
-    if n != 1:
-        raise SystemExit(f'{label}: se esperaba 1 coincidencia y hubo {n}')
-    return text.replace(old, new, 1)
+    n=text.count(old)
+    if n==0 and new in text:
+        return text
+    if n!=1:
+        raise SystemExit(f'{label}: se esperaba 1 coincidencia, hubo {n}')
+    return text.replace(old,new,1)
 
-p = Path('index.html')
-html = p.read_text(encoding='utf-8')
-if 'function nombreEtapaPorTipo(etapa,orden)' in html and "coi_confirmar_etapa_circuito_v3" in html:
-    print('Patcher ya aplicado; sin cambios.')
-    raise SystemExit(0)
-
-marker = '<script id="coi-etapa1-pipeline-contractual">'
-start = html.index(marker)
-end = html.index('</script>', start)
-mod = html[start:end]
-
-anchor = "  const MS_DIA = 86400000;\n\n  const texto = (v) => String(v == null ? '' : v).trim();"
-insert = """  const MS_DIA = 86400000;
+anchor="  const MS_DIA = 86400000;\n\n  const texto = (v) => String(v == null ? '' : v).trim();"
+helpers="""  const MS_DIA = 86400000;
 
   const texto = (v) => String(v == null ? '' : v).trim();
   function tipoOrden(orden) {
@@ -43,138 +40,123 @@ insert = """  const MS_DIA = 86400000;
     if(codigo==='cancelada_suspendida')return servicio?'SERVICIO CANCELADO O SUSPENDIDO':'OBRA CANCELADA O SUSPENDIDA';
     return texto(etapa&&etapa.nombre);
   }"""
-mod = once(mod, '\'<dt>Hito</dt><dd id=\"etapa1ModalHito\">\' + esc(etapa.nombre) + \'</dd>\' +', '\'<dt>Hito</dt><dd id=\"etapa1ModalHito\">\' + esc(nombreEtapaPorTipo(etapa,orden)) + \'</dd>\' +', 'modal nombre')
-mod = once(mod, """          '<dt>Fecha y hora</dt><dd>' + esc(fechaHora(new Date().toISOString())) +
-            ' <span class=\"muted\">(informativa)</span></dd>' +""", """          '<dt>Registrado</dt><dd>' + esc(fechaHora(new Date().toISOString())) +
-            ' <span class=\"muted\">(auditoría automática)</span></dd>' +""", 'modal registrado')
-mod = once(mod, """        '</dl>' +
-        (faltantes ?""", """        '</dl>' +
-        '<label for=\"etapa1ModalFecha\">Fecha efectiva del hito</label>' +
-        '<input id=\"etapa1ModalFecha\" type=\"date\" required value=\"' + esc(fechaDefault) + '\" max=\"' + esc(hoyBuenosAires()) + '\">' +
-        '<p class=\"etapa1-nota\">Puede informar la fecha real aunque el hito se cargue después. La fecha/hora de registración se conserva para auditoría.</p>' +
-        (faltantes ?""", 'modal input fecha')
-mod = once(mod, """    const obs = $('etapa1ModalObs');
-    const observacion = texto(obs && obs.value);
-    guardando = true;""", """    const obs = $('etapa1ModalObs');
-    const fecha = $('etapa1ModalFecha');
-    const observacion = texto(obs && obs.value);
-    const fechaEfectiva = texto(fecha && fecha.value);
-    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(fechaEfectiva)) {
-      const error=$('etapa1ModalError'); if(error){error.hidden=false;error.textContent='Seleccione una fecha efectiva válida.';}
-      return;
+if 'function nombreEtapaPorTipo(etapa,orden)' not in mod:
+    mod=once(mod,anchor,helpers,'helpers tipo')
+
+fecha_anchor="""  const fechaHora = (v) => {
+    try { return typeof window.formatearFechaHoraCOI === 'function' ? window.formatearFechaHoraCOI(v) : texto(v) || '—'; }
+    catch (e) { return texto(v) || '—'; }
+  };"""
+fecha_helpers=fecha_anchor+"""
+  function hoyBuenosAires(){
+    try{
+      const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+      const get=(k)=>parts.find((part)=>part.type===k)?.value||'';
+      return get('year')+'-'+get('month')+'-'+get('day');
+    }catch(e){return new Date().toISOString().slice(0,10);}
+  }
+  function fechaInputEvento(ev){
+    const efectiva=texto(ev&&ev.fecha_efectiva);
+    if(/^\\d{4}-\\d{2}-\\d{2}$/.test(efectiva))return efectiva;
+    const registrada=texto(ev&&ev.fecha_evento);
+    return /^\\d{4}-\\d{2}-\\d{2}/.test(registrada)?registrada.slice(0,10):'';
+  }
+  function fechaCalculoEvento(ev){
+    const f=fechaInputEvento(ev);
+    return f ? f+'T12:00:00-03:00' : texto(ev&&ev.fecha_evento);
+  }
+  function fechaEventoUI(ev){
+    const efectiva=texto(ev&&ev.fecha_efectiva);
+    if(/^\\d{4}-\\d{2}-\\d{2}$/.test(efectiva)){
+      const a=efectiva.split('-'); return a[2]+'/'+a[1]+'/'+a[0];
     }
-    if (fechaEfectiva > hoyBuenosAires()) {
-      const error=$('etapa1ModalError'); if(error){error.hidden=false;error.textContent='La fecha efectiva no puede ser futura.';}
-      return;
+    return fechaHora(ev&&ev.fecha_evento);
+  }"""
+if 'function hoyBuenosAires()' not in mod:
+    mod=once(mod,fecha_anchor,fecha_helpers,'helpers fecha')
+
+old_et2="""  function etapasEtapa2() {
+    const todas = etapas();
+    const extra = etapaExtraSaldo();
+    const lista = todas.filter((e) => CODIGOS_ETAPA2.indexOf(e.codigo) >= 0);
+    if (extra && !lista.some((e) => e.codigo === extra.codigo)) lista.push(Object.assign({}, extra));
+    return lista;
+  }"""
+new_et2="""  function etapasEtapa2(orden) {
+    const todas = etapas();
+    const extra = etapaExtraSaldo();
+    const lista = todas.filter((e) => CODIGOS_ETAPA2.indexOf(e.codigo) >= 0)
+      .filter((e) => !(esObra(orden) && e.codigo === 'finalizada_saldo_remanente'));
+    if (extra && !esObra(orden) && !lista.some((e) => e.codigo === extra.codigo)) lista.push(Object.assign({}, extra));
+    return lista;
+  }"""
+if 'function etapasEtapa2(orden)' not in mod:
+    mod=once(mod,old_et2,new_et2,'etapa2 tipo')
+
+if '      orden: orden,\n      hitos: hitos,' not in mod:
+    mod=once(mod,"""    return {
+      nro: nro,
+      hitos: hitos,""","""    return {
+      nro: nro,
+      orden: orden,
+      hitos: hitos,""",'estado orden')
+
+mod=mod.replace('    const lista = etapasEtapa2();','    const lista = etapasEtapa2(estado.orden);')
+old_name="'<span class=\\"etapa1-cuerpo\\"><span class=\\"etapa1-nombre\\">' + esc(et.nombre) + '</span>' +"
+new_name="'<span class=\\"etapa1-cuerpo\\"><span class=\\"etapa1-nombre\\">' + esc(nombreEtapaPorTipo(et,estado.orden)) + '</span>' +"
+mod=mod.replace(old_name,new_name)
+
+mod=mod.replace('fechaHora(ev.fecha_evento)','fechaEventoUI(ev)')
+mod=mod.replace('fechaHora(ultimaAct.ev.fecha_evento)','fechaEventoUI(ultimaAct.ev)')
+mod=mod.replace('new Date(transversal.fecha_evento || 0) < new Date(actaEvento.fecha_evento || 0)',
+                'new Date(fechaCalculoEvento(transversal) || 0) < new Date(fechaCalculoEvento(actaEvento) || 0)')
+
+old_dias="""      if (esActual && !estado.etapa1Finalizada) return diasEntre(x.ev.fecha_evento, null);
+      // Hueco: el inmediato siguiente no esta registrado.
+      return null;
     }
-    guardando = true;""", 'confirmar lee fecha')
-mod = once(mod, """        contexto.nro, contexto.etapa, { observacion: observacion, allowLocalFallback: false }
-      );""", """        contexto.nro, contexto.etapa, { observacion: observacion, fechaEfectiva: fechaEfectiva, allowLocalFallback: false }
-      );""", 'confirmar envia fecha')
+    const desde = new Date(x.ev.fecha_evento);
+    const hasta = new Date(siguienteEv.fecha_evento);
+    if (isNaN(desde.getTime()) || isNaN(hasta.getTime())) return null;
+    // Backfill incoherente: el siguiente quedo con fecha anterior.
+    if (hasta.getTime() < desde.getTime()) return null;
+    return diasEntre(x.ev.fecha_evento, siguienteEv.fecha_evento);"""
+new_dias="""      if (esActual && !estado.etapa1Finalizada) return diasEntre(fechaCalculoEvento(x.ev), null);
+      // Hueco: el inmediato siguiente no esta registrado.
+      return null;
+    }
+    const desde = new Date(fechaCalculoEvento(x.ev));
+    const hasta = new Date(fechaCalculoEvento(siguienteEv));
+    if (isNaN(desde.getTime()) || isNaN(hasta.getTime())) return null;
+    // Backfill incoherente: el siguiente quedo con fecha anterior.
+    if (hasta.getTime() < desde.getTime()) return null;
+    return diasEntre(fechaCalculoEvento(x.ev), fechaCalculoEvento(siguienteEv));"""
+if old_dias in mod:
+    mod=mod.replace(old_dias,new_dias,1)
 
-html = html[:start] + mod + html[end:]
+modal_old="""    const estado = estadoPipeline(orden || {});
+    // Advertencia por salto:"""
+modal_new="""    const estado = estadoPipeline(orden || {});
+    const eventoExistente = estado.porCodigo.get(codigo) || null;
+    const fechaDefault = fechaInputEvento(eventoExistente) || hoyBuenosAires();
+    // Advertencia por salto:"""
+if 'const fechaDefault = fechaInputEvento(eventoExistente) || hoyBuenosAires();' not in mod:
+    mod=once(mod,modal_old,modal_new,'modal fecha default')
 
-old = """const result=await client.rpc('coi_confirmar_etapa_circuito_v2',{
-    p_orden_id:ordenId,
-    p_codigo:stage.codigo,
-    p_observacion:clean(options.observacion)||null
-  });"""
-new = """const result=await client.rpc('coi_confirmar_etapa_circuito_v3',{
-    p_orden_id:ordenId,
-    p_codigo:stage.codigo,
-    p_observacion:clean(options.observacion)||null,
-    p_fecha_efectiva:clean(options.fechaEfectiva)||null
-  });"""
-html = once(html, old, new, 'writer principal v3')
-old = "const result=await c.rpc('coi_confirmar_etapa_circuito_v2',{p_orden_id:orderId,p_codigo:stage.codigo,p_observacion:clean(options.observacion)||null});"
-new = "const result=await c.rpc('coi_confirmar_etapa_circuito_v3',{p_orden_id:orderId,p_codigo:stage.codigo,p_observacion:clean(options.observacion)||null,p_fecha_efectiva:clean(options.fechaEfectiva)||null});"
-html = once(html, old, new, 'writer R28 v3')
-html = once(html,
-    '.etapa1-modal textarea{width:100%;border:1px solid #d3dde6;border-radius:8px;padding:8px;font:inherit;resize:vertical}',
-    '.etapa1-modal textarea,.etapa1-modal input[type="date"]{width:100%;border:1px solid #d3dde6;border-radius:8px;padding:8px;font:inherit}.etapa1-modal textarea{resize:vertical}',
-    'css fecha modal')
-p.write_text(html, encoding='utf-8')
+mod=mod.replace('payload real de coi_confirmar_etapa_circuito_v2','payload real de coi_confirmar_etapa_circuito_v3')
 
-# Test fixture y casos de comportamiento.
-tp = Path('tests/etapa1_ficha_integracion.spec.js')
-t = tp.read_text(encoding='utf-8')
-t = t.replace("if (nombre !== 'coi_confirmar_etapa_circuito_v2') return { data: null, error: null };",
-              "if (nombre !== 'coi_confirmar_etapa_circuito_v3') return { data: null, error: null };")
-t = t.replace("fecha_evento: new Date().toISOString(), usuario_email: email,",
-              "fecha_evento: new Date().toISOString(), fecha_efectiva: args.p_fecha_efectiva || null, usuario_email: email,")
-t = t.replace("orden.fecha_acta_inicio = '2026-09-15';\n          orden._supabaseRaw.fecha_acta_inicio = '2026-09-15';",
-              "orden.fecha_acta_inicio = args.p_fecha_efectiva || '2026-09-15';\n          orden._supabaseRaw.fecha_acta_inicio = args.p_fecha_efectiva || '2026-09-15';")
-t = t.replace("window.__FIX__.rpc.filter(r => r.nombre === 'coi_confirmar_etapa_circuito_v2')",
-              "window.__FIX__.rpc.filter(r => r.nombre === 'coi_confirmar_etapa_circuito_v3')")
-t = t.replace("""    await abrirPorNavegacion(page, {
-      estado_coi: 'OBRA/SERVICIO EN EJECUCIÓN',
-      fecha_acta_inicio: '2026-02-10',""", """    await abrirPorNavegacion(page, {
-      tipo: codigo === 'finalizada_saldo_remanente' ? 'Servicio' : 'Obra',
-      estado_coi: 'OBRA/SERVICIO EN EJECUCIÓN',
-      fecha_acta_inicio: '2026-02-10',""")
+required=[
+    'function nombreEtapaPorTipo(etapa,orden)',
+    'function hoyBuenosAires()',
+    'function etapasEtapa2(orden)',
+    "e.codigo === 'finalizada_saldo_remanente'",
+    'const fechaDefault = fechaInputEvento(eventoExistente) || hoyBuenosAires();',
+    'fechaEventoUI(ev)'
+]
+missing=[x for x in required if x not in mod]
+if missing:
+    raise SystemExit('faltan guards: '+repr(missing))
 
-if 'E1F-20 · OBRA muestra nombres propios' not in t:
-    t += r'''
-
-test('E1F-20 · OBRA muestra nombres propios y no ofrece saldo remanente', async ({ page }) => {
-  await abrirPorNavegacion(page, { tipo: 'Obra', fecha_acta_inicio: '2026-02-10', historial: [EVENTO(ACTA, '2026-02-10T10:00:00Z')] });
-  await page.click(PANEL + ' #etapa1Tab2');
-  const nombres = await page.locator(PANEL + ' #etapa1Panel2 .etapa1-nombre').allTextContents();
-  expect(nombres).toEqual(['OBRA EN EJECUCIÓN','OBRA FINALIZADA','OBRA FINALIZADA CON ACTA PROVISORIA Y DEFINITIVA']);
-  expect(nombres.join(' ')).not.toContain('OBRA/SERVICIO');
-  await expect(page.locator(PANEL + ' [data-etapa1-hito="finalizada_saldo_remanente"]')).toHaveCount(0);
-});
-
-test('E1F-21 · SERVICIO muestra nombres propios y conserva saldo remanente', async ({ page }) => {
-  await abrirPorNavegacion(page, { tipo: 'Servicio', fecha_acta_inicio: '2026-02-10', historial: [EVENTO(ACTA, '2026-02-10T10:00:00Z')] });
-  await page.click(PANEL + ' #etapa1Tab2');
-  const nombres = await page.locator(PANEL + ' #etapa1Panel2 .etapa1-nombre').allTextContents();
-  expect(nombres).toEqual(['SERVICIO EN EJECUCIÓN','SERVICIO FINALIZADO','SERVICIO FINALIZADO CON ACTA PROVISORIA Y DEFINITIVA','SERVICIO FINALIZADO PERO CON SALDO REMANENTE']);
-  expect(nombres.join(' ')).not.toContain('OBRA/SERVICIO');
-});
-
-test('E1F-22 · fecha efectiva es editable, viaja por RPC v3 y se conserva separada de fecha_evento', async ({ page }) => {
-  await abrirPorNavegacion(page, { tipo: 'Obra' });
-  await page.click(PANEL + ' [data-etapa1-hito="pliegos_preparacion"]');
-  await expect(page.locator('#etapa1ModalFecha')).toBeVisible();
-  await page.fill('#etapa1ModalFecha', '2026-09-10');
-  await page.click('#etapa1ModalConfirmarBtn');
-  await expect(page.locator('#etapa1ModalConfirmar')).toHaveCount(0);
-  const rpc = await page.evaluate(() => window.__FIX__.rpc.filter(r => r.nombre === 'coi_confirmar_etapa_circuito_v3'));
-  expect(rpc).toHaveLength(1);
-  expect(rpc[0].args.p_fecha_efectiva).toBe('2026-09-10');
-  const ev = await page.evaluate(() => window.__FIX__.historial.find(e => e.campo_modificado === 'pliegos_preparacion'));
-  expect(ev.fecha_efectiva).toBe('2026-09-10');
-  expect(ev.fecha_evento).toBeTruthy();
-  await expect(page.locator(PANEL + ' [data-etapa1-hito="pliegos_preparacion"] .etapa1-meta')).toContainText('10/09/2026');
-});
-'''
-tp.write_text(t, encoding='utf-8')
-
-Path('tests/check_etapa1_tipo_fecha_efectiva.js').write_text(r'''const fs=require('fs');
-const assert=require('assert');
-const html=fs.readFileSync('index.html','utf8');
-const sql=fs.readFileSync('supabase/migrations/202609160001_etapa1_tipo_fecha_efectiva.sql','utf8');
-assert(html.includes("coi_confirmar_etapa_circuito_v3"),'frontend debe usar RPC v3');
-assert(html.includes('p_fecha_efectiva:clean(options.fechaEfectiva)||null'),'writer debe enviar fecha efectiva');
-assert(html.includes('id=\\"etapa1ModalFecha\\" type=\\"date\\"'),'modal debe ofrecer fecha efectiva editable');
-assert(html.includes("e.codigo === 'finalizada_saldo_remanente'"),'UI debe filtrar saldo remanente por tipo');
-assert(html.includes('SERVICIO FINALIZADO PERO CON SALDO REMANENTE'),'Servicio conserva saldo remanente');
-assert(sql.includes('add column if not exists fecha_efectiva date'),'schema debe separar fecha efectiva');
-assert(sql.includes("message='COI_STAGE_NOT_APPLICABLE_TO_TYPE'"),'servidor debe rechazar saldo remanente para Obra');
-assert(sql.includes("message='COI_EFFECTIVE_DATE_FUTURE'"),'servidor debe rechazar fecha efectiva futura');
-assert(sql.includes("'CONFIRMAR_ETAPA_CIRCUITO_V3'"),'fecha efectiva debe quedar auditada');
-console.log('Etapa 1/2 tipo + fecha efectiva: controles OK');
-''', encoding='utf-8')
-
-pp = Path('package.json')
-pkg = json.loads(pp.read_text(encoding='utf-8'))
-pkg['version'] = '60.0.4'
-needle = 'node tests/check_etapa1_hardening.js'
-cmd = pkg['scripts']['test:sql']
-if 'check_etapa1_tipo_fecha_efectiva.js' not in cmd:
-    cmd = cmd.replace(needle, needle + ' && node tests/check_etapa1_tipo_fecha_efectiva.js')
-pkg['scripts']['test:sql'] = cmd
-pp.write_text(json.dumps(pkg, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-
-print('Patch Etapa 1/2 aplicado.')
+html=html[:start]+mod+html[end:]
+p.write_text(html,encoding='utf-8')
+print('repair aplicado/idempotente')
