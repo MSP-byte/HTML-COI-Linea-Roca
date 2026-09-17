@@ -19,8 +19,10 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
           p = Path('tests/contractual_ct_hotfix.spec.js')
           s = p.read_text(encoding='utf-8')
+
           old = "if (name === 'coi_confirmar_etapa_circuito_v2') {"
           new = "if (name === 'coi_confirmar_etapa_circuito_v2' || name === 'coi_confirmar_etapa_circuito_v3') {"
           if old in s:
@@ -28,15 +30,15 @@ jobs:
           elif new not in s:
               raise SystemExit('No se encontró el mock contractual v2/v3')
 
-          old_event = """                fecha_evento: new Date().toISOString(),
-                usuario_email: user.email"""
-          new_event = """                fecha_evento: new Date().toISOString(),
-                fecha_efectiva: args.p_fecha_efectiva || null,
-                usuario_email: user.email"""
-          if old_event in s:
-              s = s.replace(old_event, new_event, 1)
-          elif new_event not in s:
-              raise SystemExit('No se encontró bloque de historial del mock')
+          if 'fecha_efectiva: args.p_fecha_efectiva || null,' not in s:
+              s, n = re.subn(
+                  r"(\s+fecha_evento: new Date\(\)\.toISOString\(\),\n)(\s+usuario_email: user\.email)",
+                  r"\1                fecha_efectiva: args.p_fecha_efectiva || null,\n\2",
+                  s,
+                  count=1
+              )
+              if n != 1:
+                  raise SystemExit(f'No se encontró bloque de historial del mock: {n}')
 
           old_filter = "const confirmaciones = state.writes.filter(write => write.name === 'coi_confirmar_etapa_circuito_v2');"
           new_filter = "const confirmaciones = state.writes.filter(write => write.name === 'coi_confirmar_etapa_circuito_v3');"
@@ -49,6 +51,7 @@ jobs:
           PY
           git diff --check
           grep -q "coi_confirmar_etapa_circuito_v2' || name === 'coi_confirmar_etapa_circuito_v3" tests/contractual_ct_hotfix.spec.js
+          grep -q "fecha_efectiva: args.p_fecha_efectiva || null" tests/contractual_ct_hotfix.spec.js
           grep -q "write.name === 'coi_confirmar_etapa_circuito_v3'" tests/contractual_ct_hotfix.spec.js
       - name: Commit
         shell: bash
