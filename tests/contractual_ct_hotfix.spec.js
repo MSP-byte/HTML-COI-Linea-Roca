@@ -116,7 +116,7 @@ async function openFixture(page, {
           Object.assign(state.persisted, clone(args.p_cambios));
           return { data: { orden: clone(state.persisted) }, error: null };
         }
-        if (name === 'coi_confirmar_etapa_circuito_v2') {
+        if (name === 'coi_confirmar_etapa_circuito_v2' || name === 'coi_confirmar_etapa_circuito_v3') {
           if (state.rejectCircuit) return { data: null, error: { code: '42501', message: 'permission denied fixture circuit' } };
           const nombre = args.p_codigo === 'ejecucion' ? 'OBRA/SERVICIO EN EJECUCIÓN' : state.persisted.estado_documental;
           state.persisted.estado_documental = nombre;
@@ -133,6 +133,7 @@ async function openFixture(page, {
                 tipo_evento: 'Circuito administrativo',
                 campo_modificado: args.p_codigo,
                 fecha_evento: new Date().toISOString(),
+                fecha_efectiva: args.p_fecha_efectiva || null,
                 usuario_email: user.email
               }]
             },
@@ -452,7 +453,7 @@ test('usuario autorizado puede reingresar a una etapa por el camino canónico y 
     await window.actualizarEstadoDocumentalDesdePasoContractual(orderNumber, etapa, { allowLocalFallback: false });
   }, ORDER_NUMBER);
   const state = await stateSnapshot(page);
-  const confirmaciones = state.writes.filter(write => write.name === 'coi_confirmar_etapa_circuito_v2');
+  const confirmaciones = state.writes.filter(write => write.name === 'coi_confirmar_etapa_circuito_v3');
   expect(confirmaciones).toHaveLength(2);
   expect(confirmaciones.every(write => write.args.p_codigo === 'ejecucion')).toBe(true);
   expect(state.persistedDocumentState).toBe('OBRA/SERVICIO EN EJECUCIÓN');
