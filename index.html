@@ -20567,10 +20567,11 @@ async function actualizarEstadoDocumentalDesdePasoContractual(ocNro,paso,options
   if(options.skipSupabase===true)throw new Error('El circuito contractual requiere confirmación de Supabase.');
   const {client}=await validarEscrituraCircuito();
   const ordenId=await resolverOrdenIdCircuito(client,resolved,nro);
-  const result=await client.rpc('coi_confirmar_etapa_circuito_v2',{
+  const result=await client.rpc('coi_confirmar_etapa_circuito_v3',{
     p_orden_id:ordenId,
     p_codigo:stage.codigo,
-    p_observacion:clean(options.observacion)||null
+    p_observacion:clean(options.observacion)||null,
+    p_fecha_efectiva:clean(options.fechaEfectiva)||null
   });
   if(result.error)throw new Error(detalleErrorCircuito(result.error));
   if(!result.data?.orden)throw new Error('Supabase no confirmó la actualización del circuito.');
@@ -23855,7 +23856,7 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       if(lookup.data?.length!==1)throw new Error('No se pudo resolver un UUID único para la OC.');
       orderId=lookup.data[0].id;
     }
-    const result=await c.rpc('coi_confirmar_etapa_circuito_v2',{p_orden_id:orderId,p_codigo:stage.codigo,p_observacion:clean(options.observacion)||null});
+    const result=await c.rpc('coi_confirmar_etapa_circuito_v3',{p_orden_id:orderId,p_codigo:stage.codigo,p_observacion:clean(options.observacion)||null,p_fecha_efectiva:clean(options.fechaEfectiva)||null});
     if(result.error)throw result.error;
     if(!result.data?.orden?.id||clean(result.data.orden.id)!==clean(orderId))throw new Error('Supabase no confirmó la actualización del circuito.');
     setEstadoDocumentalLocal(oc,result.data.nombre||estado);
@@ -34613,7 +34614,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 .etapa1-modal-datos dt{color:#6b8295;text-transform:uppercase;font-size:.7rem;letter-spacing:.04em;align-self:center}
 .etapa1-modal-datos dd{margin:0;color:#23394a}
 .etapa1-modal label{display:block;font-size:.74rem;color:#6b8295;margin-bottom:4px}
-.etapa1-modal textarea{width:100%;border:1px solid #d3dde6;border-radius:8px;padding:8px;font:inherit;resize:vertical}
+.etapa1-modal textarea,.etapa1-modal input[type="date"]{width:100%;border:1px solid #d3dde6;border-radius:8px;padding:8px;font:inherit}.etapa1-modal textarea{resize:vertical}
 .etapa1-modal-aviso{background:#fff7e6;border:1px solid #f0d9a8;color:#7a5410;border-radius:8px;
   padding:9px 11px;font-size:.78rem;margin:0 0 12px}
 .etapa1-modal-error{background:#fff1f1;border:1px solid #e7bcbc;color:#8a3535;border-radius:8px;
@@ -34735,6 +34736,26 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
   const MS_DIA = 86400000;
 
   const texto = (v) => String(v == null ? '' : v).trim();
+  function tipoOrden(orden) {
+    const raw=texto(orden&&((orden._supabaseRaw&&orden._supabaseRaw.tipo)||orden.tipo||orden.tipo_oc||orden.tipoOC));
+    const t=raw.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+    if(t.indexOf('SERVICIO')>=0)return 'SERVICIO';
+    if(t.indexOf('OBRA')>=0)return 'OBRA';
+    return t;
+  }
+  function esObra(orden){return tipoOrden(orden)==='OBRA';}
+  function nombreEtapaPorTipo(etapa,orden){
+    const codigo=texto(etapa&&etapa.codigo);
+    const tipo=tipoOrden(orden);
+    if(tipo!=='OBRA'&&tipo!=='SERVICIO')return texto(etapa&&etapa.nombre);
+    const servicio=tipo==='SERVICIO';
+    if(codigo==='ejecucion')return servicio?'SERVICIO EN EJECUCIÓN':'OBRA EN EJECUCIÓN';
+    if(codigo==='finalizada')return servicio?'SERVICIO FINALIZADO':'OBRA FINALIZADA';
+    if(codigo==='finalizada_actas')return servicio?'SERVICIO FINALIZADO CON ACTA PROVISORIA Y DEFINITIVA':'OBRA FINALIZADA CON ACTA PROVISORIA Y DEFINITIVA';
+    if(codigo==='finalizada_saldo_remanente')return servicio?'SERVICIO FINALIZADO PERO CON SALDO REMANENTE':'OBRA FINALIZADA';
+    if(codigo==='cancelada_suspendida')return servicio?'SERVICIO CANCELADO O SUSPENDIDO':'OBRA CANCELADA O SUSPENDIDA';
+    return texto(etapa&&etapa.nombre);
+  }
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[c]));
@@ -34764,11 +34785,12 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
     const corte = todas.findIndex((e) => e.codigo === CODIGO_ACTA);
     return corte >= 0 ? todas.slice(0, corte + 1) : todas.slice(0, 8);
   }
-  function etapasEtapa2() {
+  function etapasEtapa2(orden) {
     const todas = etapas();
     const extra = etapaExtraSaldo();
-    const lista = todas.filter((e) => CODIGOS_ETAPA2.indexOf(e.codigo) >= 0);
-    if (extra && !lista.some((e) => e.codigo === extra.codigo)) lista.push(Object.assign({}, extra));
+    const lista = todas.filter((e) => CODIGOS_ETAPA2.indexOf(e.codigo) >= 0)
+      .filter((e) => !(esObra(orden) && e.codigo === 'finalizada_saldo_remanente'));
+    if (extra && !esObra(orden) && !lista.some((e) => e.codigo === extra.codigo)) lista.push(Object.assign({}, extra));
     return lista;
   }
   const etapaTransversal = () => etapas().find((e) => e.codigo === CODIGO_TRANSVERSAL) || null;
@@ -34815,6 +34837,30 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
     try { return typeof window.formatearFechaHoraCOI === 'function' ? window.formatearFechaHoraCOI(v) : texto(v) || '—'; }
     catch (e) { return texto(v) || '—'; }
   };
+  function hoyBuenosAires(){
+    try{
+      const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+      const get=(k)=>parts.find((part)=>part.type===k)?.value||'';
+      return get('year')+'-'+get('month')+'-'+get('day');
+    }catch(e){return new Date().toISOString().slice(0,10);}
+  }
+  function fechaInputEvento(ev){
+    const efectiva=texto(ev&&ev.fecha_efectiva);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(efectiva))return efectiva;
+    const registrada=texto(ev&&ev.fecha_evento);
+    return /^\d{4}-\d{2}-\d{2}/.test(registrada)?registrada.slice(0,10):'';
+  }
+  function fechaCalculoEvento(ev){
+    const f=fechaInputEvento(ev);
+    return f ? f+'T12:00:00-03:00' : texto(ev&&ev.fecha_evento);
+  }
+  function fechaEventoUI(ev){
+    const efectiva=texto(ev&&ev.fecha_efectiva);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(efectiva)){
+      const a=efectiva.split('-'); return a[2]+'/'+a[1]+'/'+a[0];
+    }
+    return fechaHora(ev&&ev.fecha_evento);
+  }
 
   // ------------------------------------------------------------ historial
   function confirmaciones(nro) {
@@ -34949,7 +34995,7 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
     if (transversalVigente) {
       // Antes o despues del inicio: lo decide si habia acta al momento.
       const antes = !actaEvento || (transversal &&
-        new Date(transversal.fecha_evento || 0) < new Date(actaEvento.fecha_evento || 0));
+        new Date(fechaCalculoEvento(transversal) || 0) < new Date(fechaCalculoEvento(actaEvento) || 0));
       transversalTexto = antes && !actaFecha
         ? 'Contratación cancelada/suspendida antes del inicio'
         : 'Ejecución cancelada/suspendida';
@@ -34957,6 +35003,7 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
 
     return {
       nro: nro,
+      orden: orden,
       hitos: hitos,
       porCodigo: porCodigo,
       observacionesPorCodigo: observacionesPorCodigo,
@@ -35009,16 +35056,16 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
       if (x.etapa.codigo === CODIGO_ACTA) return null;
       // Ultimo hito contractual confirmado y etapa abierta: corre contra ahora.
       const esActual = estado.hitoActual && estado.hitoActual.etapa.codigo === x.etapa.codigo;
-      if (esActual && !estado.etapa1Finalizada) return diasEntre(x.ev.fecha_evento, null);
+      if (esActual && !estado.etapa1Finalizada) return diasEntre(fechaCalculoEvento(x.ev), null);
       // Hueco: el inmediato siguiente no esta registrado.
       return null;
     }
-    const desde = new Date(x.ev.fecha_evento);
-    const hasta = new Date(siguienteEv.fecha_evento);
+    const desde = new Date(fechaCalculoEvento(x.ev));
+    const hasta = new Date(fechaCalculoEvento(siguienteEv));
     if (isNaN(desde.getTime()) || isNaN(hasta.getTime())) return null;
     // Backfill incoherente: el siguiente quedo con fecha anterior.
     if (hasta.getTime() < desde.getTime()) return null;
-    return diasEntre(x.ev.fecha_evento, siguienteEv.fecha_evento);
+    return diasEntre(fechaCalculoEvento(x.ev), fechaCalculoEvento(siguienteEv));
   }
 
   // ------------------------------------------------------------ render
@@ -35038,7 +35085,7 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
         '<span class="etapa1-nombre">' + esc(etapa.nombre) + '</span>' +
         '<span class="etapa1-estado">' + etiqueta + '</span>' +
         '<span class="etapa1-meta">' +
-          (ev ? esc(fechaHora(ev.fecha_evento)) + ' · ' + esc(texto(ev.usuario_email) || '—')
+          (ev ? esc(fechaEventoUI(ev)) + ' · ' + esc(texto(ev.usuario_email) || '—')
               : 'Sin confirmación registrada') +
         '</span>' +
         '<span class="etapa1-dias">Días en etapa: ' + (dias == null ? '—' : dias) + '</span>' +
@@ -35115,23 +35162,23 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
       'No forma parte del avance secuencial.</p>' +
       '<button type="button" class="etapa1-hito etapa1-' + (ev ? 'completado' : 'pendiente') + '"' +
       ' data-etapa1-hito="' + esc(et.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '">' +
-      '<span class="etapa1-cuerpo"><span class="etapa1-nombre">' + esc(et.nombre) + '</span>' +
+      '<span class="etapa1-cuerpo"><span class="etapa1-nombre">' + esc(nombreEtapaPorTipo(et,estado.orden)) + '</span>' +
       '<span class="etapa1-estado">' + (ev ? esc(estado.transversalTexto) : 'SIN REGISTRO') + '</span>' +
-      '<span class="etapa1-meta">' + (ev ? esc(fechaHora(ev.fecha_evento)) + ' · ' +
+      '<span class="etapa1-meta">' + (ev ? esc(fechaEventoUI(ev)) + ' · ' +
         esc(texto(ev.usuario_email) || '—') : 'Registrable en cualquier momento') + '</span>' +
       '</span></button></div>';
   }
 
   function bloqueEtapa2(estado) {
-    const lista = etapasEtapa2();
+    const lista = etapasEtapa2(estado.orden);
     const bloqueada = !estado.etapa2Habilitada;
     const items = lista.map((et) => {
       const ev = estado.porCodigo.get(et.codigo) || null;
       return '<button type="button" class="etapa1-hito etapa1-' + (ev ? 'completado' : 'pendiente') + '"' +
         ' data-etapa1-hito="' + esc(et.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '"' +
         (bloqueada ? ' disabled' : '') + '>' +
-        '<span class="etapa1-cuerpo"><span class="etapa1-nombre">' + esc(et.nombre) + '</span>' +
-        '<span class="etapa1-meta">' + (ev ? esc(fechaHora(ev.fecha_evento)) + ' · ' +
+        '<span class="etapa1-cuerpo"><span class="etapa1-nombre">' + esc(nombreEtapaPorTipo(et,estado.orden)) + '</span>' +
+        '<span class="etapa1-meta">' + (ev ? esc(fechaEventoUI(ev)) + ' · ' +
           esc(texto(ev.usuario_email) || '—') : 'Sin confirmación registrada') + '</span>' +
         '</span></button>';
     }).join('');
@@ -35294,6 +35341,8 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
     const etapa = etapaPorCodigo(codigo);
     if (!etapa) return;
     const estado = estadoPipeline(orden || {});
+    const eventoExistente = estado.porCodigo.get(codigo) || null;
+    const fechaDefault = fechaInputEvento(eventoExistente) || hoyBuenosAires();
     // Advertencia por salto: hitos contractuales anteriores sin registro. La
     // transversal no participa de la secuencia, asi que no dispara aviso.
     const indice = estado.hitos.findIndex((h) => h.codigo === codigo);
@@ -35311,11 +35360,14 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
         '<h3 id="etapa1ModalTitulo">Confirmar hito contractual</h3>' +
         '<dl class="etapa1-modal-datos">' +
           '<dt>OC</dt><dd id="etapa1ModalOC">' + esc(estado.nro || nro) + '</dd>' +
-          '<dt>Hito</dt><dd id="etapa1ModalHito">' + esc(etapa.nombre) + '</dd>' +
-          '<dt>Fecha y hora</dt><dd>' + esc(fechaHora(new Date().toISOString())) +
-            ' <span class="muted">(informativa)</span></dd>' +
+          '<dt>Hito</dt><dd id="etapa1ModalHito">' + esc(nombreEtapaPorTipo(etapa,orden)) + '</dd>' +
+          '<dt>Registrado</dt><dd>' + esc(fechaHora(new Date().toISOString())) +
+            ' <span class="muted">(auditoría automática)</span></dd>' +
           '<dt>Usuario</dt><dd id="etapa1ModalUsuario">' + esc(usuario) + '</dd>' +
         '</dl>' +
+        '<label for="etapa1ModalFecha">Fecha efectiva del hito</label>' +
+        '<input id="etapa1ModalFecha" type="date" required value="' + esc(fechaDefault) + '" max="' + esc(hoyBuenosAires()) + '">' +
+        '<p class="etapa1-nota">Puede informar la fecha real aunque el hito se cargue después. La fecha/hora de registración se conserva para auditoría.</p>' +
         (faltantes ? '<p class="etapa1-modal-aviso" id="etapa1ModalAvisoSalto">' +
           'Existen hitos anteriores sin registrar. La confirmación no completará ' +
           'automáticamente esos pasos.</p>' : '') +
@@ -35365,16 +35417,26 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
     });
     const btn = $('etapa1ModalConfirmarBtn');
     const obs = $('etapa1ModalObs');
+    const fecha = $('etapa1ModalFecha');
     const observacion = texto(obs && obs.value);
+    const fechaEfectiva = texto(fecha && fecha.value);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaEfectiva)) {
+      const error=$('etapa1ModalError'); if(error){error.hidden=false;error.textContent='Seleccione una fecha efectiva válida.';}
+      return;
+    }
+    if (fechaEfectiva > hoyBuenosAires()) {
+      const error=$('etapa1ModalError'); if(error){error.hidden=false;error.textContent='La fecha efectiva no puede ser futura.';}
+      return;
+    }
     guardando = true;
     if (btn) btn.disabled = true;
     try {
       if (typeof window.actualizarEstadoDocumentalDesdePasoContractual !== 'function')
         throw new Error('El circuito contractual no está disponible.');
-      // Camino canónico que devuelve el payload real de coi_confirmar_etapa_circuito_v2.
+      // Camino canónico que devuelve el payload real de coi_confirmar_etapa_circuito_v3.
       // No usa confirm/prompt legacy y propaga cualquier error de Supabase.
       const resultado = await window.actualizarEstadoDocumentalDesdePasoContractual(
-        contexto.nro, contexto.etapa, { observacion: observacion, allowLocalFallback: false }
+        contexto.nro, contexto.etapa, { observacion: observacion, fechaEfectiva: fechaEfectiva, allowLocalFallback: false }
       );
       const resultId=identidadOrden(resultado && resultado.orden);
       if (contexto.identidad && resultId && contexto.identidad!==resultId)
