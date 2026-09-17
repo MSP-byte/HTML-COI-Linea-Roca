@@ -560,11 +560,28 @@ test('E1F-23 · legacy UTC usa día administrativo Buenos Aires', async ({ page 
 test('E1F-24 · reingreso histórico propone hoy y edición vigente conserva fecha efectiva', async ({ page }) => {
   const h1=EVENTO('pliegos_preparacion','2026-09-10T10:00:00-03:00'); h1.fecha_efectiva='2026-09-10';
   const h2=EVENTO('pliegos_terminado_sin_solped','2026-09-12T10:00:00-03:00'); h2.fecha_efectiva='2026-09-12';
-  await abrirPorNavegacion(page,{tipo:'Obra',estado_documental:'PLIEGOS TERMINADO SIN SOLPED',historial:[h1,h2]});
+  await abrirPorNavegacion(page,{tipo:'Obra',estado_coi:'PLIEGOS TERMINADO SIN SOLPED',historial:[h1,h2]});
   const hoy=await page.evaluate(()=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const g=k=>p.find(x=>x.type===k).value;return g('year')+'-'+g('month')+'-'+g('day')});
   await page.click(PANEL+' [data-etapa1-hito="pliegos_preparacion"]');
   await expect(page.locator('#etapa1ModalFecha')).toHaveValue(hoy);
   await page.click('#etapa1ModalCancelar');
   await page.click(PANEL+' [data-etapa1-hito="pliegos_terminado_sin_solped"]');
   await expect(page.locator('#etapa1ModalFecha')).toHaveValue('2026-09-12');
+});
+
+
+test('E1F-25 · mismo día administrativo mixto calcula 0 días', async ({ page }) => {
+  const h1=EVENTO('pliegos_preparacion','2026-09-10T10:00:00Z');
+  const h2=EVENTO('pliegos_terminado_sin_solped','2026-09-10T22:00:00Z'); h2.fecha_efectiva='2026-09-10';
+  await abrirPorNavegacion(page,{tipo:'Obra',estado_documental:'PLIEGOS TERMINADO SIN SOLPED',historial:[h1,h2]});
+  await expect(page.locator(PANEL+' [data-etapa1-hito="pliegos_preparacion"] .etapa1-dias')).toContainText('Días en etapa: 0');
+});
+
+test('E1F-26 · cancelada vigente no convierte el último hito histórico en edición', async ({ page }) => {
+  const h1=EVENTO('pliegos_preparacion','2026-09-10T10:00:00-03:00'); h1.fecha_efectiva='2026-09-10';
+  const cancel=EVENTO('cancelada_suspendida','2026-09-12T10:00:00-03:00'); cancel.fecha_efectiva='2026-09-12';
+  await abrirPorNavegacion(page,{tipo:'Obra',estado_coi:'OBRA/SERVICIO CANCELADA O SUSPENDIDA',historial:[h1,cancel]});
+  const hoy=await page.evaluate(()=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const g=k=>p.find(x=>x.type===k).value;return g('year')+'-'+g('month')+'-'+g('day')});
+  await page.click(PANEL+' [data-etapa1-hito="pliegos_preparacion"]');
+  await expect(page.locator('#etapa1ModalFecha')).toHaveValue(hoy);
 });

@@ -261,8 +261,8 @@ async function main() {
     'la duracion se mide contra el hito contractual N+1, no contra el proximo evento cronologico');
   check(/if \(!siguienteEv\)/.test(cuerpoDias),
     'si falta el hito inmediato siguiente no hay duracion que mostrar');
-  check(/if \(hasta\.getTime\(\) < desde\.getTime\(\)\) return null;/.test(cuerpoDias),
-    'un backfill con fecha anterior no puede producir una duracion');
+  check(/if\s*\(hastaDia\s*<\s*desdeDia\)\s*return null;/.test(cuerpoDias),
+    'un backfill con día administrativo anterior no puede producir una duración');
   check(/if \(x\.etapa\.codigo === CODIGO_ACTA\) return null;/.test(cuerpoDias),
     'cerrada la etapa 1, el hito 8 no puede seguir acumulando dias contra NOW');
   check(/return\s+dias\s*<\s*0\s*\?\s*null\s*:\s*dias;/.test(codigo),

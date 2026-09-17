@@ -1,5 +1,5 @@
--- Hardening final Etapa 1/2: fecha efectiva y writer canónico v3.
--- Incremental sobre 202609160001; seguro para staging ya migrado y producción.
+-- Follow-up PR81: misma definición final de v3 para entornos que ya ejecutaron 202609170001.
+-- Idempotente por CREATE OR REPLACE / GRANT-REVOKE.
 
 alter table public.coi_historial_oc add column if not exists fecha_efectiva date;
 

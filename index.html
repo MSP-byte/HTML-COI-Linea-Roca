@@ -20581,7 +20581,8 @@ async function actualizarEstadoDocumentalDesdePasoContractual(ocNro,paso,options
   const inserted=Array.isArray(result.data?.historial)?result.data.historial:[];
   if(inserted.length){
     const current=historialCircuitoCache.get(nro)||[];
-    historialCircuitoCache.set(nro,[...current,...inserted.filter(row=>!current.some(item=>item.id&&item.id===row.id))]);
+    const returnedIds=new Set(inserted.map(row=>row&&row.id).filter(Boolean));
+    historialCircuitoCache.set(nro,[...current.filter(item=>!item?.id||!returnedIds.has(item.id)),...inserted]);
     guardarCacheCircuito();
   }
   try{if(typeof guardarBaseLocal==='function')guardarBaseLocal();}catch(e){}
@@ -23867,7 +23868,8 @@ const link=validLink?`<a href="${attr(rawLink)}" target="_blank" rel="noopener n
       const rows=Array.isArray(result.data.historial)?result.data.historial:[];
       if(rows.length&&typeof historialCircuitoCache!=='undefined'&&historialCircuitoCache?.get){
         const cache=historialCircuitoCache.get(nro)||[];
-        historialCircuitoCache.set(nro,[...cache,...rows.filter(row=>!cache.some(item=>item.id&&item.id===row.id))]);
+        const returnedIds=new Set(rows.map(row=>row&&row.id).filter(Boolean));
+        historialCircuitoCache.set(nro,[...cache.filter(item=>!item?.id||!returnedIds.has(item.id)),...rows]);
         if(typeof guardarCacheCircuito==='function')guardarCacheCircuito();
       }
     }catch(e){}
@@ -34861,9 +34863,8 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
     return diaBuenosAires(ev&&ev.fecha_evento);
   }
   function fechaCalculoEvento(ev){
-    const efectiva=texto(ev&&ev.fecha_efectiva);
-    if(/^\d{4}-\d{2}-\d{2}$/.test(efectiva))return efectiva;
-    return texto(ev&&ev.fecha_evento);
+    // Toda comparación contractual se hace por día administrativo BA.
+    return fechaInputEvento(ev);
   }
   function ordinalDiaBuenosAires(valor){
     const raw=texto(valor);
@@ -34877,7 +34878,18 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
     if(/^\d{4}-\d{2}-\d{2}$/.test(efectiva)){
       const a=efectiva.split('-'); return a[2]+'/'+a[1]+'/'+a[0];
     }
-    return fechaHora(ev&&ev.fecha_evento);
+    const registrada=texto(ev&&ev.fecha_evento);
+    const dia=diaBuenosAires(registrada);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(dia)){
+      const a=dia.split('-');
+      let hora='';
+      try{
+        const d=new Date(registrada);
+        if(!isNaN(d.getTime()))hora=new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);
+      }catch(e){}
+      return a[2]+'/'+a[1]+'/'+a[0]+(hora?' '+hora:'');
+    }
+    return fechaHora(registrada);
   }
 
   // ------------------------------------------------------------ historial
@@ -35078,12 +35090,12 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
       // Hueco: el inmediato siguiente no esta registrado.
       return null;
     }
-    const desde = new Date(fechaCalculoEvento(x.ev));
-    const hasta = new Date(fechaCalculoEvento(siguienteEv));
-    if (isNaN(desde.getTime()) || isNaN(hasta.getTime())) return null;
-    // Backfill incoherente: el siguiente quedo con fecha anterior.
-    if (hasta.getTime() < desde.getTime()) return null;
-    return diasEntre(fechaCalculoEvento(x.ev), fechaCalculoEvento(siguienteEv));
+    const desdeDia=ordinalDiaBuenosAires(fechaCalculoEvento(x.ev));
+    const hastaDia=ordinalDiaBuenosAires(fechaCalculoEvento(siguienteEv));
+    if(desdeDia==null||hastaDia==null)return null;
+    // Backfill incoherente: el siguiente quedó con día administrativo anterior.
+    if(hastaDia<desdeDia)return null;
+    return hastaDia-desdeDia;
   }
 
   // ------------------------------------------------------------ render
@@ -35360,9 +35372,10 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
     if (!etapa) return;
     const estado = estadoPipeline(orden || {});
     const eventoExistente = estado.porCodigo.get(codigo) || null;
+    const etapaCanonica=estado.etapaVigente||null;
     const confirmacionVigente = Boolean(eventoExistente && (
-      (estado.etapaVigente && estado.etapaVigente.codigo===codigo) ||
-      (estado.hitoActual && estado.hitoActual.etapa.codigo===codigo && !estado.etapa1Finalizada)
+      (etapaCanonica && etapaCanonica.codigo===codigo) ||
+      (!etapaCanonica && estado.hitoActual && estado.hitoActual.etapa.codigo===codigo && !estado.etapa1Finalizada)
     ));
     const fechaDefault = confirmacionVigente ? (fechaInputEvento(eventoExistente) || hoyBuenosAires()) : hoyBuenosAires();
     // Advertencia por salto: hitos contractuales anteriores sin registro. La

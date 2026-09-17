@@ -11,4 +11,10 @@ assert(sql.includes('EDITAR_FECHA_EFECTIVA_CIRCUITO'),'edición idempotente debe
 assert(sql.includes('set fecha_efectiva=v_fecha'),'edición idempotente debe persistir');
 assert(sql.includes("revoke all on function public.coi_confirmar_etapa_circuito_v2(uuid,text,text) from authenticated"),'v2 no debe ser writer cliente');
 assert(sql.includes("message='COI_STAGE_NOT_APPLICABLE_TO_TYPE'"),'Obra no admite saldo remanente');
+assert(sql.includes('v_fecha date := p_fecha_efectiva'),'fecha omitida no debe convertirse a hoy al entrar a v3');
+assert(sql.includes('v_idempotente and p_fecha_efectiva is null'),'reapertura idempotente sin fecha no debe reconciliar Acta');
+assert(sql.includes("v_conflicto.motivo,'')))='conflicto'"),'resolución de conflicto debe depender del último marcador persistido');
+assert(html.includes('!etapaCanonica && estado.hitoActual'),'hitoActual sólo es fallback sin estado canónico');
+assert(html.includes('const desdeDia=ordinalDiaBuenosAires'),'orden entre hitos debe comparar días administrativos');
+assert((html.match(/const returnedIds=new Set/g)||[]).length>=2,'ambos wrappers deben reemplazar filas cacheadas por id');
 console.log('Etapa1 fecha/RPC v3 hardening: OK');
