@@ -1,0 +1,273 @@
+name: TMP fix PR81 review findings
+
+on:
+  push:
+    branches:
+      - hotfix/etapa1-fecha-rpc-v3
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: hotfix/etapa1-fecha-rpc-v3
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Aplicar findings PR81
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count=text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: esperado 1 match, encontrados {count}')
+              return text.replace(old,new,1)
+
+          index_path=Path('index.html')
+          html=index_path.read_text(encoding='utf-8')
+
+          html=replace_once(html,
+          """  function fechaCalculoEvento(ev){
+    const efectiva=texto(ev&&ev.fecha_efectiva);
+    if(/^\\d{4}-\\d{2}-\\d{2}$/.test(efectiva))return efectiva;
+    return texto(ev&&ev.fecha_evento);
+  }""",
+          """  function fechaCalculoEvento(ev){
+    // Toda comparación contractual se hace por día administrativo BA.
+    return fechaInputEvento(ev);
+  }""", 'fechaCalculoEvento')
+
+          html=replace_once(html,
+          """  function fechaEventoUI(ev){
+    const efectiva=texto(ev&&ev.fecha_efectiva);
+    if(/^\\d{4}-\\d{2}-\\d{2}$/.test(efectiva)){
+      const a=efectiva.split('-'); return a[2]+'/'+a[1]+'/'+a[0];
+    }
+    return fechaHora(ev&&ev.fecha_evento);
+  }""",
+          """  function fechaEventoUI(ev){
+    const efectiva=texto(ev&&ev.fecha_efectiva);
+    if(/^\\d{4}-\\d{2}-\\d{2}$/.test(efectiva)){
+      const a=efectiva.split('-'); return a[2]+'/'+a[1]+'/'+a[0];
+    }
+    const registrada=texto(ev&&ev.fecha_evento);
+    const dia=diaBuenosAires(registrada);
+    if(/^\\d{4}-\\d{2}-\\d{2}$/.test(dia)){
+      const a=dia.split('-');
+      let hora='';
+      try{
+        const d=new Date(registrada);
+        if(!isNaN(d.getTime()))hora=new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);
+      }catch(e){}
+      return a[2]+'/'+a[1]+'/'+a[0]+(hora?' '+hora:'');
+    }
+    return fechaHora(registrada);
+  }""", 'fechaEventoUI')
+
+          html=replace_once(html,
+          """    const desde = new Date(fechaCalculoEvento(x.ev));
+    const hasta = new Date(fechaCalculoEvento(siguienteEv));
+    if (isNaN(desde.getTime()) || isNaN(hasta.getTime())) return null;
+    // Backfill incoherente: el siguiente quedo con fecha anterior.
+    if (hasta.getTime() < desde.getTime()) return null;
+    return diasEntre(fechaCalculoEvento(x.ev), fechaCalculoEvento(siguienteEv));""",
+          """    const desdeDia=ordinalDiaBuenosAires(fechaCalculoEvento(x.ev));
+    const hastaDia=ordinalDiaBuenosAires(fechaCalculoEvento(siguienteEv));
+    if(desdeDia==null||hastaDia==null)return null;
+    // Backfill incoherente: el siguiente quedó con día administrativo anterior.
+    if(hastaDia<desdeDia)return null;
+    return hastaDia-desdeDia;""", 'diasDeHito orden administrativo')
+
+          html=replace_once(html,
+          """    const confirmacionVigente = Boolean(eventoExistente && (
+      (estado.etapaVigente && estado.etapaVigente.codigo===codigo) ||
+      (estado.hitoActual && estado.hitoActual.etapa.codigo===codigo && !estado.etapa1Finalizada)
+    ));""",
+          """    const etapaCanonica=estado.etapaVigente||null;
+    const confirmacionVigente = Boolean(eventoExistente && (
+      (etapaCanonica && etapaCanonica.codigo===codigo) ||
+      (!etapaCanonica && estado.hitoActual && estado.hitoActual.etapa.codigo===codigo && !estado.etapa1Finalizada)
+    ));""", 'confirmacionVigente')
+
+          old_cache="""    const current=historialCircuitoCache.get(nro)||[];
+    historialCircuitoCache.set(nro,[...current,...inserted.filter(row=>!current.some(item=>item.id&&item.id===row.id))]);
+    guardarCacheCircuito();"""
+          new_cache="""    const current=historialCircuitoCache.get(nro)||[];
+    const returnedIds=new Set(inserted.map(row=>row&&row.id).filter(Boolean));
+    historialCircuitoCache.set(nro,[...current.filter(item=>!item?.id||!returnedIds.has(item.id)),...inserted]);
+    guardarCacheCircuito();"""
+          html=replace_once(html,old_cache,new_cache,'cache writer principal')
+
+          old_cache_r28="""        const cache=historialCircuitoCache.get(nro)||[];
+        historialCircuitoCache.set(nro,[...cache,...rows.filter(row=>!cache.some(item=>item.id&&item.id===row.id))]);
+        if(typeof guardarCacheCircuito==='function')guardarCacheCircuito();"""
+          new_cache_r28="""        const cache=historialCircuitoCache.get(nro)||[];
+        const returnedIds=new Set(rows.map(row=>row&&row.id).filter(Boolean));
+        historialCircuitoCache.set(nro,[...cache.filter(item=>!item?.id||!returnedIds.has(item.id)),...rows]);
+        if(typeof guardarCacheCircuito==='function')guardarCacheCircuito();"""
+          html=replace_once(html,old_cache_r28,new_cache_r28,'cache writer R28')
+
+          index_path.write_text(html,encoding='utf-8')
+
+          sql_path=Path('supabase/migrations/202609170001_etapa1_fecha_rpc_v3_hardening.sql')
+          sql=sql_path.read_text(encoding='utf-8')
+          sql=replace_once(sql,
+          "  v_fecha date := coalesce(p_fecha_efectiva,(now() at time zone 'America/Argentina/Buenos_Aires')::date);",
+          "  v_fecha date := p_fecha_efectiva;\n  v_idempotente boolean := false;", 'sql v_fecha')
+          sql=replace_once(sql,
+          """  if v_fecha > v_hoy then
+    raise exception using errcode='22007',message='COI_EFFECTIVE_DATE_FUTURE',detail=v_fecha::text;
+  end if;""",
+          """  if p_fecha_efectiva is not null and p_fecha_efectiva > v_hoy then
+    raise exception using errcode='22007',message='COI_EFFECTIVE_DATE_FUTURE',detail=p_fecha_efectiva::text;
+  end if;""", 'sql future guard')
+          sql=replace_once(sql,
+          """    v_event_before := v_event.fecha_efectiva;
+    update public.coi_historial_oc
+       set fecha_efectiva=v_fecha
+     where id=v_event.id
+     returning * into v_event;""",
+          """    v_idempotente := true;
+    v_event_before := v_event.fecha_efectiva;
+    v_fecha := coalesce(
+      p_fecha_efectiva,
+      v_event.fecha_efectiva,
+      (v_event.fecha_evento at time zone 'America/Argentina/Buenos_Aires')::date,
+      v_hoy
+    );
+    -- Sin fecha explícita, una reapertura de la etapa vigente es idempotente:
+    -- no reescribe historia ni inventa una nueva fecha administrativa.
+    if p_fecha_efectiva is not null then
+      update public.coi_historial_oc
+         set fecha_efectiva=v_fecha
+       where id=v_event.id
+       returning * into v_event;
+    end if;""", 'sql idempotente preserve')
+          sql=replace_once(sql,
+          "    if v_event_before is distinct from v_fecha then",
+          "    if p_fecha_efectiva is not null and v_event_before is distinct from v_fecha then", 'sql audit explicit date')
+          sql=replace_once(sql,
+          """  else
+    -- v3 usa directamente el writer base. No delega en v2 y por lo tanto
+    -- nunca ejecuta una conciliación de Acta contra la fecha de hoy.
+    v_result := public.coi_confirmar_etapa_circuito(p_orden_id,v_codigo,p_observacion);""",
+          """  else
+    -- Sólo una confirmación nueva o un reingreso sin fecha explícita toma hoy.
+    v_fecha := coalesce(p_fecha_efectiva,v_hoy);
+    -- v3 usa directamente el writer base. No delega en v2 y por lo tanto
+    -- nunca ejecuta una conciliación de Acta contra la fecha de hoy.
+    v_result := public.coi_confirmar_etapa_circuito(p_orden_id,v_codigo,p_observacion);""", 'sql new/reentry default')
+          sql=replace_once(sql,
+          "  if v_codigo='control_terceros_con_acta' then",
+          "  if v_codigo='control_terceros_con_acta' and not (v_idempotente and p_fecha_efectiva is null) then", 'sql acta no-op omitted')
+          sql=replace_once(sql,
+          """    elsif v_order.fecha_acta_inicio=v_fecha then
+      v_result := jsonb_set(
+        v_result,'{acta_inicio}',
+        jsonb_build_object('estado','coincide','valor',v_order.fecha_acta_inicio,'valor_confirmacion',v_fecha),true
+      );""",
+          """    elsif v_order.fecha_acta_inicio=v_fecha then
+      -- Si existía un conflicto previo, persistir explícitamente su resolución
+      -- para que una recarga reconstruya el estado correcto desde historial.
+      select * into v_conflicto
+        from public.coi_historial_oc h
+       where h.orden_id=p_orden_id
+         and h.tipo_evento='Conciliación Acta de Inicio'
+         and h.campo_modificado='fecha_acta_inicio'
+       order by h.fecha_evento desc,h.id desc
+       limit 1;
+      if found and lower(trim(coalesce(v_conflicto.motivo,'')))='conflicto' then
+        insert into public.coi_historial_oc(
+          orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,
+          motivo,usuario_email,creado_por,fecha_efectiva
+        ) values (
+          p_orden_id,v_order.nro_oc,'Conciliación Acta de Inicio','fecha_acta_inicio',
+          v_order.fecha_acta_inicio::text,v_fecha::text,'coincide',
+          nullif(auth.jwt()->>'email',''),auth.uid(),v_fecha
+        ) returning * into v_conflicto;
+        v_result := jsonb_set(
+          v_result,'{historial}',coalesce(v_result->'historial','[]'::jsonb)||jsonb_build_array(to_jsonb(v_conflicto)),true
+        );
+      end if;
+      v_result := jsonb_set(
+        v_result,'{acta_inicio}',
+        jsonb_build_object('estado','coincide','valor',v_order.fecha_acta_inicio,'valor_confirmacion',v_fecha),true
+      );""", 'sql conflict resolution')
+          sql_path.write_text(sql,encoding='utf-8')
+
+          # Staging ya ejecutó 170001: dejar un follow-up reproducible que lleve
+          # cualquier entorno ya migrado a la misma definición final.
+          follow=Path('supabase/migrations/202609170002_etapa1_rpc_v3_review_fix.sql')
+          follow.write_text(sql.replace(
+              '-- Hardening final Etapa 1/2: fecha efectiva y writer canónico v3.\n-- Incremental sobre 202609160001; seguro para staging ya migrado y producción.\n',
+              '-- Follow-up PR81: misma definición final de v3 para entornos que ya ejecutaron 202609170001.\n-- Idempotente por CREATE OR REPLACE / GRANT-REVOKE.\n',1),encoding='utf-8')
+
+          check_path=Path('tests/check_etapa1_fecha_rpc_v3_hardening.js')
+          check=check_path.read_text(encoding='utf-8')
+          marker="console.log('Etapa1 fecha/RPC v3 hardening: OK');"
+          extra="""assert(sql.includes('v_fecha date := p_fecha_efectiva'),'fecha omitida no debe convertirse a hoy al entrar a v3');
+assert(sql.includes('v_idempotente and p_fecha_efectiva is null'),'reapertura idempotente sin fecha no debe reconciliar Acta');
+assert(sql.includes(\"motivo,usuario_email,creado_por,fecha_efectiva\"),'conciliación debe persistir fecha efectiva');
+assert(sql.includes(\"v_conflicto.motivo,'')))='conflicto'\"),'resolución de conflicto debe depender del último marcador persistido');
+assert(html.includes('!etapaCanonica && estado.hitoActual'),'hitoActual sólo es fallback sin estado canónico');
+assert(html.includes('const desdeDia=ordinalDiaBuenosAires'),'orden entre hitos debe comparar días administrativos');
+assert((html.match(/const returnedIds=new Set/g)||[]).length>=2,'ambos wrappers deben reemplazar filas cacheadas por id');
+"""
+          if extra not in check:
+              check=check.replace(marker,extra+marker)
+          check_path.write_text(check,encoding='utf-8')
+
+          spec_path=Path('tests/etapa1_ficha_integracion.spec.js')
+          spec=spec_path.read_text(encoding='utf-8')
+          extra_spec=r'''
+
+test('E1F-25 · mismo día administrativo mixto calcula 0 días', async ({ page }) => {
+  const h1=EVENTO('pliegos_preparacion','2026-09-10T10:00:00Z');
+  const h2=EVENTO('pliegos_terminado_sin_solped','2026-09-10T22:00:00Z'); h2.fecha_efectiva='2026-09-10';
+  await abrirPorNavegacion(page,{tipo:'Obra',estado_documental:'PLIEGOS TERMINADO SIN SOLPED',historial:[h1,h2]});
+  await expect(page.locator(PANEL+' [data-etapa1-hito="pliegos_preparacion"] .etapa1-dias')).toContainText('Días en etapa: 0');
+});
+
+test('E1F-26 · cancelada vigente no convierte el último hito histórico en edición', async ({ page }) => {
+  const h1=EVENTO('pliegos_preparacion','2026-09-10T10:00:00-03:00'); h1.fecha_efectiva='2026-09-10';
+  const cancel=EVENTO('cancelada_suspendida','2026-09-12T10:00:00-03:00'); cancel.fecha_efectiva='2026-09-12';
+  await abrirPorNavegacion(page,{tipo:'Obra',estado_documental:'OBRA/SERVICIO CANCELADA O SUSPENDIDA',historial:[h1,cancel]});
+  const hoy=await page.evaluate(()=>{const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const g=k=>p.find(x=>x.type===k).value;return g('year')+'-'+g('month')+'-'+g('day')});
+  await page.click(PANEL+' [data-etapa1-hito="pliegos_preparacion"]');
+  await expect(page.locator('#etapa1ModalFecha')).toHaveValue(hoy);
+});
+'''
+          if 'E1F-25 · mismo día administrativo mixto calcula 0 días' not in spec:
+              spec += extra_spec
+          spec_path.write_text(spec,encoding='utf-8')
+          PY
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Ejecutar regresión estática
+        run: npm test
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Ejecutar integración contractual focalizada
+        run: npx playwright test tests/etapa1_ficha_integracion.spec.js --project=chromium
+      - name: Validar diff
+        run: |
+          git diff --check
+          test "$(grep -c '<!DOCTYPE html>' index.html)" -eq 1
+      - name: Commit y push del fix
+        shell: bash
+        run: |
+          git config user.name "MSP-byte"
+          git config user.email "mespecial92@gmail.com"
+          git rm .github/workflows/tmp-pr81-review-fix.yml
+          git add index.html supabase/migrations tests
+          git commit -m "fix: cerrar findings finales de fecha efectiva contractual"
+          git push origin HEAD:hotfix/etapa1-fecha-rpc-v3
