@@ -35139,7 +35139,7 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
         '<div><span>Estado actual</span><b id="etapa1EstadoActual">' +
           esc(estadoActual) + '</b></div>' +
         '<div><span>Última actualización</span><b id="etapa1UltimaAct">' +
-          esc(ultimaAct ? fechaEventoUI(ultimaAct.ev) : '—') + '</b></div>' +
+          esc(ultimaAct ? fechaHora(ultimaAct.ev.fecha_evento) : '—') + '</b></div>' +
         '<div><span>Usuario</span><b id="etapa1UltimoUsuario">' +
           esc(ultimaAct ? (texto(ultimaAct.ev.usuario_email) || '—') : '—') + '</b></div>' +
         '<div><span>Días en estado</span><b>' + (dias == null ? '—' : dias) + '</b></div>' +
