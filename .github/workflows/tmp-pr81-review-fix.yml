@@ -30,7 +30,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Contractual integration
-        run: npx playwright test tests/etapa1_ficha_integracion.spec.js --project=chromium
+        run: npx playwright test tests/etapa1_ficha_integracion.spec.js --project=chromium-desktop --project=chromium-mobile
       - name: Validate diff
         run: |
           git diff --check
