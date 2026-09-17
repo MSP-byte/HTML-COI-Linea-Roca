@@ -29,4 +29,12 @@ new="""  // Desde 202609170001 el único writer de cliente es v3. v2 queda como
 """
 if old not in s:
     raise SystemExit('bloque ACL viejo no encontrado')
-p.write_text(s.replace(old,new,1),encoding='utf-8')
+s=s.replace(old,new,1)
+old_guard="""  check(/return dias < 0 \\? null : dias;/.test(codigo),
+    'una diferencia invalida devuelve null, no un numero inventado');"""
+new_guard="""  check(/return\\s+dias\\s*<\\s*0\\s*\\?\\s*null\\s*:\\s*dias;/.test(codigo),
+    'una diferencia invalida devuelve null, no un numero inventado');"""
+if old_guard not in s:
+    raise SystemExit('guard viejo de dias no encontrado')
+s=s.replace(old_guard,new_guard,1)
+p.write_text(s,encoding='utf-8')
