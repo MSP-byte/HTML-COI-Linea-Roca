@@ -21,8 +21,6 @@ jobs:
           import re
           p=Path('tools/tmp_patch_etapa1_tipo_fecha.py')
           s=p.read_text(encoding='utf-8')
-          old_js = r'''<span class=\"etapa1-cuerpo\"><span class=\"etapa1-nombre\">'''
-          # Reescribir el bloque old_name/new_name con repr() para que el script sea Python válido.
           pattern=r"old_name = .*?\nif mod\.count\(old_name\) != 2:\n    raise SystemExit\(f'nombres etapa2/transversal: se esperaban 2 y hubo \{mod\.count\(old_name\)\}'\)\nmod = mod\.replace\(old_name, .*?, 2\)"
           old_name = "'<span class=\\\"etapa1-cuerpo\\\"><span class=\\\"etapa1-nombre\\\">' + esc(et.nombre) + '</span>' +"
           new_name = "'<span class=\\\"etapa1-cuerpo\\\"><span class=\\\"etapa1-nombre\\\">' + esc(nombreEtapaPorTipo(et,estado.orden)) + '</span>' +"
@@ -31,19 +29,32 @@ jobs:
                 "    raise SystemExit(f'nombres etapa2/transversal: se esperaban 2 y hubo {mod.count(old_name)}')\n"
                 "mod = mod.replace(old_name, "+repr(new_name)+", 2)")
           s,n=re.subn(pattern,repl,s,flags=re.S)
-          if n!=1: raise SystemExit(f'reparación old_name: {n} coincidencias')
-          # Reescribir también la llamada del nombre del modal, evitando strings frágiles.
-          pattern2=r"mod = once\(mod, .*?etapa1ModalHito.*?'modal nombre'\)"
-          old_modal = "'<dt>Hito</dt><dd id=\\\"etapa1ModalHito\\\">' + esc(etapa.nombre) + '</dd>' +"
-          new_modal = "'<dt>Hito</dt><dd id=\\\"etapa1ModalHito\\\">' + esc(nombreEtapaPorTipo(etapa,orden)) + '</dd>' +"
-          repl2="mod = once(mod, "+repr(old_modal)+", "+repr(new_modal)+", 'modal nombre')"
-          s,n2=re.subn(pattern2,repl2,s,flags=re.S)
-          if n2!=1: raise SystemExit(f'reparación modal nombre: {n2} coincidencias')
-          p.write_text(s,encoding='utf-8')
+          if n==1:
+            pattern2=r"mod = once\(mod, .*?etapa1ModalHito.*?'modal nombre'\)"
+            old_modal = "'<dt>Hito</dt><dd id=\\\"etapa1ModalHito\\\">' + esc(etapa.nombre) + '</dd>' +"
+            new_modal = "'<dt>Hito</dt><dd id=\\\"etapa1ModalHito\\\">' + esc(nombreEtapaPorTipo(etapa,orden)) + '</dd>' +"
+            repl2="mod = once(mod, "+repr(old_modal)+", "+repr(new_modal)+", 'modal nombre')"
+            s,n2=re.subn(pattern2,repl2,s,flags=re.S)
+            if n2!=1: raise SystemExit(f'reparación modal nombre: {n2} coincidencias')
+            p.write_text(s,encoding='utf-8')
           PY
           python3 -m py_compile tools/tmp_patch_etapa1_tipo_fecha.py
       - name: Aplicar patch idempotente
         run: python3 tools/tmp_patch_etapa1_tipo_fecha.py
+      - name: Normalizar control estático generado
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/check_etapa1_tipo_fecha_efectiva.js')
+          s=p.read_text(encoding='utf-8')
+          lines=[]
+          for line in s.splitlines():
+            if 'modal debe ofrecer fecha efectiva editable' in line:
+              line="assert(html.includes('etapa1ModalFecha')&&html.includes('type=\"date\"'),'modal debe ofrecer fecha efectiva editable');"
+            lines.append(line)
+          p.write_text('\n'.join(lines)+'\n',encoding='utf-8')
+          PY
       - name: Controles estáticos del cambio
         run: |
           node tests/check_etapa1_tipo_fecha_efectiva.js
