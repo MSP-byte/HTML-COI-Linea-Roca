@@ -102,9 +102,9 @@ if '      orden: orden,\n      hitos: hitos,' not in mod:
       hitos: hitos,""",'estado orden')
 
 mod=mod.replace('    const lista = etapasEtapa2();','    const lista = etapasEtapa2(estado.orden);')
-old_name="'<span class=\\"etapa1-cuerpo\\"><span class=\\"etapa1-nombre\\">' + esc(et.nombre) + '</span>' +"
-new_name="'<span class=\\"etapa1-cuerpo\\"><span class=\\"etapa1-nombre\\">' + esc(nombreEtapaPorTipo(et,estado.orden)) + '</span>' +"
-mod=mod.replace(old_name,new_name)
+# Dentro de E1, los hitos de la primera etapa conservan el mismo nombre;
+# por eso es seguro hacer dinámica toda referencia de card a et.nombre.
+mod=mod.replace('esc(et.nombre)', 'esc(nombreEtapaPorTipo(et,estado.orden))')
 
 mod=mod.replace('fechaHora(ev.fecha_evento)','fechaEventoUI(ev)')
 mod=mod.replace('fechaHora(ultimaAct.ev.fecha_evento)','fechaEventoUI(ultimaAct.ev)')
