@@ -34922,8 +34922,36 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
   const MS_DIA = 86400000;
 
   const texto = (v) => String(v == null ? '' : v).trim();
+  /* El objeto que llega al pipeline no siempre conserva el tipo: seg\u00fan por qu\u00e9
+     camino se haya resuelto y qu\u00e9 normalizador lo haya tocado, puede llegar
+     sin `tipo` y sin `_supabaseRaw`. Cuando eso pasa, la etiqueta ca\u00eda al
+     nombre gen\u00e9rico \u00abOBRA/SERVICIO \u2026\u00bb, que es lo que se vio en producci\u00f3n.
+     Antes de rendirse se consulta el cat\u00e1logo can\u00f3nico por N\u00b0 de OC. */
+  function tipoDesdeCatalogo(orden) {
+    const nro=texto(orden&&(orden.nro_oc||orden.numeroOC||orden.oc||
+      (orden._supabaseRaw&&orden._supabaseRaw.nro_oc)));
+    if(!nro)return '';
+    const clave=nro.toUpperCase();
+    try{
+      const filas=typeof window.todasLasOC==='function'?window.todasLasOC():[];
+      for(const fila of (Array.isArray(filas)?filas:[])){
+        const it=fila&&(fila.item||fila);
+        const k=texto((it&&(it.numeroOC||it.oc||it.nro_oc))||(fila&&fila.numeroOC)).toUpperCase();
+        if(k&&k===clave){
+          return texto((it&&it.tipo)||(fila&&fila.tipo)||(it&&it._supabaseRaw&&it._supabaseRaw.tipo));
+        }
+      }
+    }catch(e){}
+    try{
+      const resuelto=typeof window.resolverOrdenActual==='function'?window.resolverOrdenActual(nro):null;
+      const it=resuelto&&(resuelto.item||resuelto);
+      if(it&&it!==orden)return texto(it.tipo||(it._supabaseRaw&&it._supabaseRaw.tipo));
+    }catch(e){}
+    return '';
+  }
   function tipoOrden(orden) {
-    const raw=texto(orden&&((orden._supabaseRaw&&orden._supabaseRaw.tipo)||orden.tipo||orden.tipo_oc||orden.tipoOC));
+    let raw=texto(orden&&((orden._supabaseRaw&&orden._supabaseRaw.tipo)||orden.tipo||orden.tipo_oc||orden.tipoOC));
+    if(!raw)raw=texto(tipoDesdeCatalogo(orden));
     const t=raw.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
     if(t.indexOf('SERVICIO')>=0)return 'SERVICIO';
     if(t.indexOf('OBRA')>=0)return 'OBRA';
