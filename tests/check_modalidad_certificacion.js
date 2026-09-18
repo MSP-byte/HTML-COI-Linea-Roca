@@ -203,6 +203,22 @@ async function main() {
   check(Boolean(fueraDominio) && /modalidad_certificacion_check/.test(fueraDominio),
     `la RPC no puede escribir fuera del dominio (vino ${fueraDominio})`);
 
+  /* ===================== camino autoritativo de metadatos (finding P1)
+     syncExecutiveMetadata() selecciona una lista explícita de columnas y
+     mapRowToItem() reemplaza _supabaseRaw con esa fila. Si la modalidad no
+     está en ambos, un MENSUAL persistido desaparece de memoria tras el sync
+     y el servicio deja de proyectar. */
+  const html = fs.readFileSync('index.html', 'utf8');
+  check(/META_FIELDS\s*=\s*\[[^\]]*'modalidad_certificacion'[^\]]*\]/.test(html),
+    'META_FIELDS tiene que incluir modalidad_certificacion');
+  check(html.includes("modalidadCertificacion:r.modalidad_certificacion||''"),
+    'mapRowToItem tiene que preservar la modalidad');
+  // Y el editor activo tiene que poder escribirla.
+  check(/ALLOWED\s*=\s*Object\.freeze\(\[[^\]]*'modalidad_certificacion'[^\]]*\]/.test(html),
+    'el editor V60 tiene que declarar la modalidad como campo editable');
+  check(html.includes("modalidad_certificacion:['modalidad_certificacion','modalidadCertificacion']"),
+    'el editor V60 tiene que conocer los alias de la modalidad');
+
   await db.close();
   console.log(`Modalidad de certificación: ${aprobados} controles aprobados; 0 fallidos.`);
 }

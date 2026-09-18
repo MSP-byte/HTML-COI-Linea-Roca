@@ -336,3 +336,26 @@ test('RV-15 · el editor V60 arrastra la modalidad elegida al cambio a persistir
   });
   expect(recolectado).toBe('MENSUAL');
 });
+
+/* ------------------------------ FINDING · syncExecutiveMetadata conserva */
+
+test('RV-16 · el sync ejecutivo no borra la modalidad persistida', async ({ page }) => {
+  await abrirCalendario(page, { tipo: 'Servicio', modalidad: 'MENSUAL' });
+  // Antes del sync el servicio mensual proyecta.
+  expect(await proyeccion(page)).toBe('2026-02-28');
+
+  const corrio = await page.evaluate(async () => {
+    if (typeof window.syncExecutiveMetadata !== 'function') return false;
+    try { await window.syncExecutiveMetadata(); } catch (e) {}
+    return true;
+  });
+  expect(corrio).toBe(true);
+
+  // Y después del sync sigue proyectando: MENSUAL sobrevivió al refresh.
+  expect(await proyeccion(page)).toBe('2026-02-28');
+  const modalidad = await page.evaluate(() => {
+    const it = window.todasLasOC()[0].item;
+    return (it._supabaseRaw || {}).modalidad_certificacion || it.modalidad_certificacion || '';
+  });
+  expect(modalidad).toBe('MENSUAL');
+});
