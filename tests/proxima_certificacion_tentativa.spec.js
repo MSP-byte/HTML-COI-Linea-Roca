@@ -128,11 +128,26 @@ test('PC-12 · un Servicio MENSUAL proyecta desde su última certificación real
 
 /* ------------------------------------------------------- dato vs inferencia */
 
-test('PC-13 · una próxima certificación cargada a mano se respeta y no se recalcula', async ({ page }) => {
+/* Tras el review, «cargada a mano» significa exactamente la columna
+   coi_ordenes.proxima_certificacion. Los alias que derivan todasLasOC() y sus
+   envoltorios son CÁLCULOS, no evidencia de carga manual. */
+
+test('PC-13 · la columna persistida sí se respeta y no se recalcula', async ({ page }) => {
   await abrir(page);
-  // A demanda no proyecta, pero un dato explícito es un dato, no una inferencia.
-  const item = Object.assign({}, SERVICIO, { modalidad_certificacion: 'A_DEMANDA', proximaCertificacion: '2026-08-10' });
+  const item = Object.assign({}, SERVICIO, {
+    modalidad_certificacion: 'A_DEMANDA',
+    _supabaseRaw: { proxima_certificacion: '2026-08-10', modalidad_certificacion: 'A_DEMANDA' }
+  });
   expect(await proyectar(page, item)).toBe('2026-08-10');
+});
+
+test('PC-13b · un alias derivado NO se toma por carga manual', async ({ page }) => {
+  await abrir(page);
+  // Mismo caso, pero la fecha sólo vive en el alias del item: no hay override.
+  const item = Object.assign({}, SERVICIO, {
+    modalidad_certificacion: 'A_DEMANDA', proximaCertificacion: '2026-08-10'
+  });
+  expect(await proyectar(page, item)).toBe('');
 });
 
 test('PC-14 · la proyección no usa fecha_creacion técnica como base', async ({ page }) => {

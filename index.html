@@ -36052,6 +36052,8 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
      cambió: una respuesta tardía no puede repoblar el cache de otro. */
   let uidSnapshot = '';
   let generacion = 0;
+  // Lecturas remotas efectivamente realizadas por ESTE módulo.
+  let cargas = 0;
 
   function invalidarPorIdentidad() {
     generacion += 1;
@@ -36079,8 +36081,12 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
       if (!c || !c.auth || typeof c.auth.onAuthStateChange !== 'function') return;
       c.auth.onAuthStateChange((evento, sesion) => {
         const uid = texto(sesion && sesion.user && sesion.user.id);
-        if (evento === 'SIGNED_OUT' || !uid) { invalidarPorIdentidad(); return; }
-        if (uidSnapshot && uid !== uidSnapshot) invalidarPorIdentidad();
+        // Sólo el cierre de sesión explícito y el cambio REAL de identidad
+        // invalidan. Otros eventos llegan sin sesión adjunta —refresh de token,
+        // sesión inicial— y tratarlos como logout reiniciaba el snapshot en
+        // bucle, disparando una relectura por cada evento.
+        if (evento === 'SIGNED_OUT') { invalidarPorIdentidad(); return; }
+        if (uid && uidSnapshot && uid !== uidSnapshot) invalidarPorIdentidad();
       });
       vigilarIdentidad.__instalado = true;
     } catch (e) {}
@@ -36090,10 +36096,16 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     if (cargando) return;
     cargando = true;
     const gen = ++generacion;
+    // Sólo una lectura REAL justifica repintar el Calendario. Repintar también
+    // en los retornos tempranos realimentaba render → observador → cargar.
+    let leyo = false;
     try {
       vigilarIdentidad();
       const uid = await uidVigente();
       if (gen !== generacion) return;
+      /* Sin identidad no hay historial: RLS no devolvería nada y reutilizar el
+         del usuario anterior es justamente lo que hay que evitar. */
+      if (!uid) { consolidadas = []; cargado = false; uidSnapshot = ''; error = ''; return; }
       // Identidad distinta a la del snapshot: se descarta, no se reutiliza.
       if (uidSnapshot && uid !== uidSnapshot) { consolidadas = []; cargado = false; uidSnapshot = ''; }
       if (cargado && !forzar) return;
@@ -36104,6 +36116,8 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
       consolidadas = consolidar(datos);
       uidSnapshot = uid;
       cargado = true;
+      leyo = true;
+      cargas += 1;
     } catch (e) {
       if (gen !== generacion) return;
       error = texto(e && (e.message || e.details)) || 'error desconocido';
@@ -36115,7 +36129,7 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
       if (gen === generacion) {
         cargando = false;
         pintar();
-        repintarCalendarioUnaVez();
+        if (leyo) repintarCalendarioUnaVez();
       }
     }
   }
@@ -36218,7 +36232,7 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     invalidarPorIdentidad,
     uid: () => uidSnapshot,
     filas: () => consolidadas.slice(),
-    estado: () => ({ cargando, cargado, error })
+    estado: () => ({ cargando, cargado, error, cargas })
   };
 })();
 </script>
