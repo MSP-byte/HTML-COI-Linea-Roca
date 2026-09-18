@@ -64,10 +64,19 @@ async function abrirCalendario(page, opciones = {}) {
 
   await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof window.renderCalendarioCOIUnificado === 'function', null, { timeout: 20000 });
-  await page.evaluate(() => {
-    window.mostrarVista && window.mostrarVista('vistaCalendarioCOI');
-    window.renderCalendarioCOIUnificado();
-  });
+  /* Bajo emulación móvil y con la máquina cargada, el arranque puede tardar
+     más que el timeout: una sola llamada a mostrarVista() se pierde si el
+     registro de vistas todavía no está listo y nadie reintenta. Se insiste
+     hasta que la vista quede activa de verdad. */
+  await page.waitForFunction(() => {
+    const vista = document.getElementById('vistaCalendarioCOI');
+    if (vista && vista.classList.contains('active')) return true;
+    try {
+      window.mostrarVista && window.mostrarVista('vistaCalendarioCOI');
+      window.renderCalendarioCOIUnificado && window.renderCalendarioCOIUnificado();
+    } catch (e) {}
+    return false;
+  }, null, { timeout: 40000, polling: 250 });
   // La vista tiene que quedar realmente activa antes de tocar sus subpestañas.
   await page.locator('#vistaCalendarioCOI.active').waitFor({ state: 'attached', timeout: 25000 });
   await page.locator('#btnCalendarioVistaCOI1').waitFor({ state: 'visible', timeout: 25000 });
