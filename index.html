@@ -10242,16 +10242,38 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       return isoFix(buscar(ocNroFix(item,row)))||'';
     }catch(e){ return ''; }
   }
+  /* Tipo REAL de la OC, sin adivinar. tipoFix() cae a 'Obra' cuando no hay
+     dato, y coi_ordenes.tipo admite además Financiera y Otro: tratarlos como
+     Obra fabricaba eventos de certificación para contrataciones que no
+     certifican por avance. Acá se devuelve lo que el dato dice, o vacío. */
+  function tipoCanonicoFix(item,row){
+    const crudo=String((item&&((item._supabaseRaw&&item._supabaseRaw.tipo)||item.tipo))||(row&&row.tipo)||'').trim();
+    const t=normFix(crudo);
+    if(t.includes('SERVICIO'))return 'SERVICIO';
+    if(t.includes('OBRA'))return 'OBRA';
+    return t;
+  }
+  /* Sólo la columna persistida coi_ordenes.proxima_certificacion cuenta como
+     carga manual. Los alias que arma todasLasOC() son CÁLCULOS derivados del
+     Acta de Inicio: tomarlos por dato cargado hacía que un servicio a demanda
+     siguiera emitiendo mensualidades y que una Obra conservara la cuenta vieja. */
+  function proxCertPersistidaFix(item){
+    const raw=item&&item._supabaseRaw;
+    return raw?String(raw.proxima_certificacion||'').trim():'';
+  }
   function proyeccionMensualFix(item,row){
     if(cerradaFix(item,row))return null;
     const inicio=inicioFix(item,row);
     if(!inicio)return null;
-    const esServicio=normFix(tipoFix(item,row)).includes('SERV');
-    if(esServicio){
+    const tipo=tipoCanonicoFix(item,row);
+    if(tipo==='SERVICIO'){
       if(modalidadCertFix(item)!==MODALIDAD_MENSUAL)return null;
-    }else{
+    }else if(tipo==='OBRA'){
       const plazo=Number(plazoFix(item,row))||0;
       if(!(plazo>=30&&plazo<=120))return null;
+    }else{
+      // Financiera, Otro o sin tipo: la regla documentada no las alcanza.
+      return null;
     }
     const base=ultimaCertRealFix(item,row)||inicio;
     const proxima=sumarMesCalendarioFix(base,1);
@@ -10262,8 +10284,8 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     return proxima;
   }
   function proxCertFix(item,row){
-    const cargada=row?.proximaCertificacion || item?.proximaCertificacion || item?.proxCertificacion || item?.fechaProximaCertificacion;
-    if(cargada)return cargada;
+    const persistida=proxCertPersistidaFix(item);
+    if(persistida)return persistida;
     return proyeccionMensualFix(item,row);
   }
   function saldoFix(item){
@@ -10715,7 +10737,14 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     const item=e.item||{};
     const esObraEvento=!normFix(e.tipo).includes('SERV');
     const avance=item.avanceObraPct??item.avance_obra_pct??item.avanceFisico??item.avancePorc;
-    const ultima=item.ultimaCertificacion||item.ultimaActa||item.fechaUltimaCertificacion||'';
+    /* La última certificación sale del historial consolidado de
+       coi_certificaciones, que es la autoridad. Los campos legacy del item
+       vienen vacíos en las OC de Supabase y sólo se usan como último recurso. */
+    const detalle=(()=>{ try{ return typeof window.__COI_CERT_ULTIMA_DETALLE__==='function'
+      ? window.__COI_CERT_ULTIMA_DETALLE__(e.oc) : null; }catch(err){ return null; } })();
+    const ultima=detalle
+      ? [detalle.acta||'Certificación registrada',fmtFix(detalle.fecha)].filter(Boolean).join(' · ')
+      : (item.ultimaCertificacion||item.ultimaActa||item.fechaUltimaCertificacion||'');
     cerrarResumenEventoFix();
     const modal=document.createElement('div');
     modal.id='coiResumenEvento';
@@ -10767,7 +10796,18 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   },true);
   document.addEventListener('keydown',(ev)=>{ if(ev.key==='Escape'&&document.getElementById('coiResumenEvento'))cerrarResumenEventoFix(); });
 
-  function renderCalendarioFix(){ prepararFiltrosCalendarioFix(); const ev=eventosFiltradosCalendarioFix(); eventosVigentesFix=ev; renderPeriodoCalendarioFix(ev); renderVistaInteligenteFix(ev); renderVistaCalendarioFix(ev); renderTablasCalendarioFix(ev); activarTabCalendarioFix(calendarioTabFix); }
+  /* La proyección tentativa depende del historial REAL de certificaciones. Si
+     todavía no se leyó, se pide acá —al entrar al Calendario, sin exigir que
+     el operador pase antes por Tabla Certificaciones— y el propio historial
+     repinta una vez cuando termina. El guard de `cargado` corta el bucle
+     render → query → render. */
+  function pedirHistorialCertificaciones(){
+    try{
+      const h=window.__COI_CERT_HISTORIAL__;
+      if(h&&typeof h.cargar==='function'&&!h.estado().cargado&&!h.estado().cargando)h.cargar(false);
+    }catch(e){}
+  }
+  function renderCalendarioFix(){ pedirHistorialCertificaciones(); prepararFiltrosCalendarioFix(); const ev=eventosFiltradosCalendarioFix(); eventosVigentesFix=ev; renderPeriodoCalendarioFix(ev); renderVistaInteligenteFix(ev); renderVistaCalendarioFix(ev); renderTablasCalendarioFix(ev); activarTabCalendarioFix(calendarioTabFix); }
   function exportCalendarioFix(fmt){
     const ev=eventosFiltradosCalendarioFix(); const f=filtrosCalendarioFix();
     if(fmt==='ics'){
@@ -17459,7 +17499,7 @@ const APP_DATA_MODE = "supabase_first";
   'use strict';
   const T_ORDENES='coi_ordenes',T_DOCUMENTOS_STORAGE='coi_documentos_oc',T_HIST='coi_historial_oc',T_AUD='coi_auditorias_calidad';
   const CACHE_AUD='coi_exec_audit_cache_v1';
-  const META_FIELDS=['id','id_obra','nro_oc','tipo','tipo_trabajo','especialidad','descripcion','proveedor','estacion','ramal','sector','expediente','monto_total','moneda','fecha_acta_inicio','plazo_dias','fecha_vencimiento','proxima_certificacion','fecha_recepcion_documentacion','estado_coi','estado_documental','estado_registro','observaciones','saldo_remanente','certificable_con_saldo','justificacion_administrativa','link_documental_principal','estado_link_documental','calidad_datos_estado','calidad_datos_score','prioridad_operativa','responsable_coi','fecha_ultimo_control','requiere_accion','motivo_requiere_accion','fecha_cierre_operativo','observacion_cierre','control_terceros_hasta','control_terceros_estado','avance_obra_pct'];
+  const META_FIELDS=['id','id_obra','nro_oc','tipo','tipo_trabajo','especialidad','descripcion','proveedor','estacion','ramal','sector','expediente','monto_total','moneda','fecha_acta_inicio','plazo_dias','fecha_vencimiento','proxima_certificacion','fecha_recepcion_documentacion','estado_coi','estado_documental','estado_registro','observaciones','saldo_remanente','certificable_con_saldo','justificacion_administrativa','link_documental_principal','estado_link_documental','calidad_datos_estado','calidad_datos_score','prioridad_operativa','responsable_coi','fecha_ultimo_control','requiere_accion','motivo_requiere_accion','fecha_cierre_operativo','observacion_cierre','control_terceros_hasta','control_terceros_estado','avance_obra_pct','modalidad_certificacion'];
   const DOCUMENTOS_STORAGE_FIELDS=['id','orden_id','nro_oc','tipo_documento','nombre_documento','expediente','estado','fecha_documento','fecha_recepcion','fecha_envio_planificacion','storage_bucket','storage_path','url_externa','observaciones','fecha_creacion','fecha_actualizacion'];
   const metaByOC=new Map(),historyByOC=new Map();
   const documentosStorageCache=new Map(),documentosStoragePromises=new Map();
@@ -17479,7 +17519,7 @@ const APP_DATA_MODE = "supabase_first";
   async function requireWrite(){const u=await user();if(!u)throw new Error('Debe iniciar sesión en Supabase para modificar información.');if(!navigator.onLine)throw new Error('Supabase no está disponible sin conexión.');if(!client())throw new Error('Cliente Supabase no disponible.');return u}
   function localOrders(){let rows=[];try{rows=typeof window.todasLasOC==='function'?window.todasLasOC():[]}catch(e){}const out=[],seen=new Set();rows.forEach(r=>{const item=r?.item||r;const key=nro(item)||clean(item?.idObra||item?.idOC);if(!key||seen.has(key))return;seen.add(key);const meta=metaByOC.get(key);if(meta)Object.assign(item,mapRowToItem(meta));out.push(item)});return out}
   function resolveOrder(value){if(value&&typeof value==='object'){const key=nro(value);return Object.assign(value,mapRowToItem(metaByOC.get(key)||{}))}const key=clean(value);try{const f=typeof window.obtenerOC==='function'?window.obtenerOC(key):null;if(f?.item)return Object.assign(f.item,mapRowToItem(metaByOC.get(nro(f.item))||{}))}catch(e){}return localOrders().find(o=>[nro(o),clean(o.idObra),clean(o.idOC)].some(x=>norm(x)===norm(key)))||null}
-  function mapRowToItem(r){if(!r)return{};return{_supabaseRaw:r,supabaseId:r.id,idObra:r.id_obra||'',idOC:r.id_obra||'',numeroOC:r.nro_oc||'',oc:r.nro_oc||'',tipo:r.tipo||'',tipoTrabajo:r.tipo_trabajo||'',especialidad:r.especialidad||'',descripcion:r.descripcion||'',proveedor:r.proveedor||'',estacion:r.estacion||'',ramal:r.ramal||'',sector:r.sector||'',expediente:r.expediente||'',monto:Number(r.monto_total||0),montoTotal:Number(r.monto_total||0),moneda:r.moneda||'ARS',actaInicio:r.fecha_acta_inicio||'',fechaInicio:r.fecha_acta_inicio||'',plazoDias:Number(r.plazo_dias||0),vencimiento:r.fecha_vencimiento||'',fechaFin:r.fecha_vencimiento||'',proximaCertificacion:r.proxima_certificacion||'',fechaRecepcionDocumentacion:r.fecha_recepcion_documentacion||'',estado:r.estado_coi||'',estadoCOI:r.estado_coi||'',estadoDocumental:r.estado_documental||'',estadoRegistro:r.estado_registro||'',observaciones:r.observaciones||'',saldoRemanente:Number(r.saldo_remanente||0),certificableConSaldo:bool(r.certificable_con_saldo),justificacionAdministrativa:r.justificacion_administrativa||'',linkDocumentalPrincipal:r.link_documental_principal||'',estadoLinkDocumental:r.estado_link_documental||'Sin link',calidadDatosEstado:r.calidad_datos_estado||'Sin auditar',calidadDatosScore:Number(r.calidad_datos_score||0),prioridadOperativa:r.prioridad_operativa||'Normal',responsableCOI:r.responsable_coi||'',fechaUltimoControl:r.fecha_ultimo_control||'',requiereAccion:bool(r.requiere_accion),motivoRequiereAccion:r.motivo_requiere_accion||'',fechaCierreOperativo:r.fecha_cierre_operativo||'',observacionCierre:r.observacion_cierre||'',controlTercerosHasta:r.control_terceros_hasta||'',controlTercerosEstado:r.control_terceros_estado||'',avance_obra_pct:r.avance_obra_pct??null}}
+  function mapRowToItem(r){if(!r)return{};return{_supabaseRaw:r,supabaseId:r.id,idObra:r.id_obra||'',idOC:r.id_obra||'',numeroOC:r.nro_oc||'',oc:r.nro_oc||'',tipo:r.tipo||'',tipoTrabajo:r.tipo_trabajo||'',especialidad:r.especialidad||'',descripcion:r.descripcion||'',proveedor:r.proveedor||'',estacion:r.estacion||'',ramal:r.ramal||'',sector:r.sector||'',expediente:r.expediente||'',monto:Number(r.monto_total||0),montoTotal:Number(r.monto_total||0),moneda:r.moneda||'ARS',actaInicio:r.fecha_acta_inicio||'',fechaInicio:r.fecha_acta_inicio||'',plazoDias:Number(r.plazo_dias||0),vencimiento:r.fecha_vencimiento||'',fechaFin:r.fecha_vencimiento||'',proximaCertificacion:r.proxima_certificacion||'',modalidadCertificacion:r.modalidad_certificacion||'',fechaRecepcionDocumentacion:r.fecha_recepcion_documentacion||'',estado:r.estado_coi||'',estadoCOI:r.estado_coi||'',estadoDocumental:r.estado_documental||'',estadoRegistro:r.estado_registro||'',observaciones:r.observaciones||'',saldoRemanente:Number(r.saldo_remanente||0),certificableConSaldo:bool(r.certificable_con_saldo),justificacionAdministrativa:r.justificacion_administrativa||'',linkDocumentalPrincipal:r.link_documental_principal||'',estadoLinkDocumental:r.estado_link_documental||'Sin link',calidadDatosEstado:r.calidad_datos_estado||'Sin auditar',calidadDatosScore:Number(r.calidad_datos_score||0),prioridadOperativa:r.prioridad_operativa||'Normal',responsableCOI:r.responsable_coi||'',fechaUltimoControl:r.fecha_ultimo_control||'',requiereAccion:bool(r.requiere_accion),motivoRequiereAccion:r.motivo_requiere_accion||'',fechaCierreOperativo:r.fecha_cierre_operativo||'',observacionCierre:r.observacion_cierre||'',controlTercerosHasta:r.control_terceros_hasta||'',controlTercerosEstado:r.control_terceros_estado||'',avance_obra_pct:r.avance_obra_pct??null}}
   function mergeRows(rows){(rows||[]).forEach(r=>{const k=clean(r.nro_oc).replace(/\s+/g,'');if(k)metaByOC.set(k,r)});localOrders().forEach(o=>{const m=metaByOC.get(nro(o));if(m)Object.assign(o,mapRowToItem(m))});window.todasLasOC?.invalidarCache?.();window.__coiExecutiveRows=[...metaByOC.values()];return rows||[]}
   async function syncExecutiveMetadata(){const c=client(),u=await user();if(!c||!u||!navigator.onLine)return[];const {data,error}=await c.from(T_ORDENES).select(META_FIELDS.join(',')).limit(10000);if(error)throw error;mergeRows(data||[]);renderDashboardEjecutivo();enhanceOrders();renderAlertsExecutive();return data||[]}
   function normalizeExtraPayload(o){return{link_documental_principal:clean(o?.link_documental_principal??o?.linkDocumentalPrincipal)||null,estado_link_documental:clean(o?.estado_link_documental??o?.estadoLinkDocumental)||'Sin link',calidad_datos_estado:clean(o?.calidad_datos_estado??o?.calidadDatosEstado)||'Sin auditar',calidad_datos_score:Number(o?.calidad_datos_score??o?.calidadDatosScore??0)||0,prioridad_operativa:clean(o?.prioridad_operativa??o?.prioridadOperativa)||'Normal',responsable_coi:clean(o?.responsable_coi??o?.responsableCOI)||null,fecha_ultimo_control:o?.fecha_ultimo_control??o?.fechaUltimoControl??null,requiere_accion:bool(o?.requiere_accion??o?.requiereAccion),motivo_requiere_accion:clean(o?.motivo_requiere_accion??o?.motivoRequiereAccion)||null,fecha_cierre_operativo:o?.fecha_cierre_operativo??o?.fechaCierreOperativo??null,observacion_cierre:clean(o?.observacion_cierre??o?.observacionCierre)||null}}
@@ -17881,7 +17921,7 @@ const APP_DATA_MODE = "supabase_first";
 
   async function registrarHistorialOC(orden,evento={}){const u=await requireWrite(),o=resolveOrder(orden),n=nro(o);if(!n)throw new Error('OC sin nro_oc para historial.');const payload={orden_id:oid(o),nro_oc:n,tipo_evento:clean(evento.tipo_evento||evento.tipoEvento||'Actualización general'),campo_modificado:clean(evento.campo_modificado||evento.campo||''),valor_anterior:clean(evento.valor_anterior??evento.anterior??''),valor_nuevo:clean(evento.valor_nuevo??evento.nuevo??''),motivo:clean(evento.motivo||''),usuario_email:u.email||'',creado_por:u.id,fecha_evento:isoNow()};const {data,error}=await client().from(T_HIST).insert(payload).select();if(error)throw error;historyByOC.delete(n);return data}
   async function cargarHistorialOC(orden){const o=resolveOrder(orden),n=nro(o);if(!n)return[];const c=client(),u=await user();if(!c||!u||!navigator.onLine)return historyByOC.get(n)||[];const {data,error}=await c.from(T_HIST).select('*').eq('nro_oc',n).order('fecha_evento',{ascending:false}).limit(500);if(error)throw error;historyByOC.set(n,data||[]);return data||[]}
-  function compararCambiosOC(original={},actualizado={}){const fields={estado_coi:'Estado COI',estado_documental:'Estado documental',fecha_vencimiento:'Vencimiento',proxima_certificacion:'Próxima certificación',estacion:'Estación principal',link_documental_principal:'Link documental principal',fecha_cierre_operativo:'Cierre operativo',observaciones:'Observaciones',monto_total:'Monto total',prioridad_operativa:'Prioridad',responsable_coi:'Responsable COI'};return Object.entries(fields).filter(([k])=>clean(original?.[k])!==clean(actualizado?.[k])).map(([k,label])=>({campo:k,label,anterior:original?.[k]??'',nuevo:actualizado?.[k]??''}))}
+  function compararCambiosOC(original={},actualizado={}){const fields={estado_coi:'Estado COI',estado_documental:'Estado documental',fecha_vencimiento:'Vencimiento',modalidad_certificacion:'Modalidad de certificación',proxima_certificacion:'Próxima certificación',estacion:'Estación principal',link_documental_principal:'Link documental principal',fecha_cierre_operativo:'Cierre operativo',observaciones:'Observaciones',monto_total:'Monto total',prioridad_operativa:'Prioridad',responsable_coi:'Responsable COI'};return Object.entries(fields).filter(([k])=>clean(original?.[k])!==clean(actualizado?.[k])).map(([k,label])=>({campo:k,label,anterior:original?.[k]??'',nuevo:actualizado?.[k]??''}))}
   async function registrarCambioCampo(orden,campo,anterior,nuevo,motivo=''){if(clean(anterior)===clean(nuevo))return null;return registrarHistorialOC(orden,{tipo_evento:campo==='estado_coi'?'Cambio de estado COI':campo==='estado_documental'?'Cambio de estado documental':campo==='fecha_vencimiento'?'Cambio de vencimiento':campo==='proxima_certificacion'?'Cambio de próxima certificación':campo==='estacion'?'Cambio de estación principal':'Actualización general',campo_modificado:campo,valor_anterior:anterior,valor_nuevo:nuevo,motivo})}
   async function renderHistorialOC(orden){const o=resolveOrder(orden);if(!o)return[];let card=$('execHistoryCard');if(card)card.remove();const host=$('fichaOCBody');if(!host)return[];card=document.createElement('section');card.id='execHistoryCard';card.className='exec-history-card ficha-oc-panel';card.innerHTML='<h3>Historial y trazabilidad</h3><div class="exec-empty">Cargando historial…</div>';host.appendChild(card);try{const rows=await cargarHistorialOC(o);card.innerHTML=`<div class="exec-card-head"><div><h3>Historial y trazabilidad</h3><div class="muted">Cambios registrados en Supabase para la OC ${esc(nro(o))}.</div></div></div><div class="table-wrap"><table class="coi-table tabla-operativa exec-table"><thead><tr><th>Fecha</th><th>Usuario</th><th>Tipo evento</th><th>Campo</th><th>Valor anterior</th><th>Valor nuevo</th><th>Motivo</th></tr></thead><tbody>${rows.map(h=>`<tr><td>${fmtDate(h.fecha_evento)}</td><td>${esc(h.usuario_email||'—')}</td><td>${esc(h.tipo_evento||'—')}</td><td>${esc(h.campo_modificado||'—')}</td><td>${esc(h.valor_anterior||'—')}</td><td>${esc(h.valor_nuevo||'—')}</td><td>${esc(h.motivo||'—')}</td></tr>`).join('')||'<tr><td colspan="7">Sin historial registrado.</td></tr>'}</tbody></table></div>`;return rows}catch(e){card.innerHTML=`<h3>Historial y trazabilidad</h3><div class="coi-error-box">${esc(e.message||e)}</div>`;return[]}}
   function badge(text,kind){return`<span class="exec-badge ${esc(norm(kind||text).toLowerCase().replace(/\s+/g,'-'))}">${esc(text||'—')}</span>`}
@@ -26954,7 +26994,7 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   const CACHE_KEY='coi_supabase_ordenes_cache_v2';
   const RENUMBER_RPC_INSTALLED=true;
   const UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  const ALLOWED=Object.freeze(['id_obra','tipo','tipo_trabajo','especialidad','descripcion','proveedor','estacion','ramal','sector','expediente','monto_total','moneda','fecha_acta_inicio','plazo_dias','fecha_vencimiento','proxima_certificacion','fecha_recepcion_documentacion','estado_coi','estado_documental','estado_registro','observaciones','certificable_con_saldo','justificacion_administrativa','link_documental_principal','estado_link_documental','calidad_datos_estado','calidad_datos_score','prioridad_operativa','responsable_coi','fecha_ultimo_control','requiere_accion','motivo_requiere_accion','fecha_cierre_operativo','observacion_cierre','control_terceros_hasta']);
+  const ALLOWED=Object.freeze(['id_obra','tipo','tipo_trabajo','especialidad','descripcion','proveedor','estacion','ramal','sector','expediente','monto_total','moneda','fecha_acta_inicio','plazo_dias','fecha_vencimiento','proxima_certificacion','modalidad_certificacion','fecha_recepcion_documentacion','estado_coi','estado_documental','estado_registro','observaciones','certificable_con_saldo','justificacion_administrativa','link_documental_principal','estado_link_documental','calidad_datos_estado','calidad_datos_score','prioridad_operativa','responsable_coi','fecha_ultimo_control','requiere_accion','motivo_requiere_accion','fecha_cierre_operativo','observacion_cierre','control_terceros_hasta']);
   const PROTECTED=Object.freeze(['id','nro_oc','creado_por','fecha_creacion','actualizado_por','fecha_actualizacion','saldo_remanente']);
   const EDITOR_BLOCKED=new Set(['estado_registro','fecha_cierre_operativo','observacion_cierre']);
   const EDITOR_FIELDS=Object.freeze(ALLOWED.filter(name=>!EDITOR_BLOCKED.has(name)));
@@ -26962,11 +27002,11 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   const BOOLEAN_FIELDS=new Set(['certificable_con_saldo','requiere_accion']);
   const NUMBER_FIELDS=new Set(['monto_total','plazo_dias','calidad_datos_score']);
   const ALIASES={
-    id:['id','supabaseId'],nro_oc:['nro_oc','numeroOC','oc','ocNro','OC_NRO'],id_obra:['id_obra','idObra','idOC'],tipo_trabajo:['tipo_trabajo','tipoTrabajo'],monto_total:['monto_total','monto','montoTotal','montoOC'],fecha_acta_inicio:['fecha_acta_inicio','actaInicio','fechaInicio'],plazo_dias:['plazo_dias','plazoDias','plazo'],fecha_vencimiento:['fecha_vencimiento','vencimiento','fechaFin'],proxima_certificacion:['proxima_certificacion','proximaCertificacion','proxCertificacion'],fecha_recepcion_documentacion:['fecha_recepcion_documentacion','fechaRecepcionDocumentacion'],estado_coi:['estado_coi','estadoCOI','estado'],estado_documental:['estado_documental','estadoDocumental'],estado_registro:['estado_registro','estadoRegistro'],certificable_con_saldo:['certificable_con_saldo','certificableConSaldo'],justificacion_administrativa:['justificacion_administrativa','justificacionAdministrativa'],link_documental_principal:['link_documental_principal','linkDocumentalPrincipal'],estado_link_documental:['estado_link_documental','estadoLinkDocumental'],calidad_datos_estado:['calidad_datos_estado','calidadDatosEstado'],calidad_datos_score:['calidad_datos_score','calidadDatosScore'],prioridad_operativa:['prioridad_operativa','prioridadOperativa'],responsable_coi:['responsable_coi','responsableCOI'],fecha_ultimo_control:['fecha_ultimo_control','fechaUltimoControl'],requiere_accion:['requiere_accion','requiereAccion'],motivo_requiere_accion:['motivo_requiere_accion','motivoRequiereAccion'],fecha_cierre_operativo:['fecha_cierre_operativo','fechaCierreOperativo'],observacion_cierre:['observacion_cierre','observacionCierre'],control_terceros_hasta:['control_terceros_hasta','controlTercerosHasta'],control_terceros_estado:['control_terceros_estado','controlTercerosEstado'],fecha_creacion:['fecha_creacion','fechaCreacion','created_at'],fecha_actualizacion:['fecha_actualizacion','fechaUltimaModificacion','updated_at'],creado_por:['creado_por'],actualizado_por:['actualizado_por'],saldo_remanente:['saldo_remanente','saldoRemanente']
+    id:['id','supabaseId'],nro_oc:['nro_oc','numeroOC','oc','ocNro','OC_NRO'],id_obra:['id_obra','idObra','idOC'],tipo_trabajo:['tipo_trabajo','tipoTrabajo'],monto_total:['monto_total','monto','montoTotal','montoOC'],fecha_acta_inicio:['fecha_acta_inicio','actaInicio','fechaInicio'],plazo_dias:['plazo_dias','plazoDias','plazo'],fecha_vencimiento:['fecha_vencimiento','vencimiento','fechaFin'],proxima_certificacion:['proxima_certificacion','proximaCertificacion','proxCertificacion'],modalidad_certificacion:['modalidad_certificacion','modalidadCertificacion'],fecha_recepcion_documentacion:['fecha_recepcion_documentacion','fechaRecepcionDocumentacion'],estado_coi:['estado_coi','estadoCOI','estado'],estado_documental:['estado_documental','estadoDocumental'],estado_registro:['estado_registro','estadoRegistro'],certificable_con_saldo:['certificable_con_saldo','certificableConSaldo'],justificacion_administrativa:['justificacion_administrativa','justificacionAdministrativa'],link_documental_principal:['link_documental_principal','linkDocumentalPrincipal'],estado_link_documental:['estado_link_documental','estadoLinkDocumental'],calidad_datos_estado:['calidad_datos_estado','calidadDatosEstado'],calidad_datos_score:['calidad_datos_score','calidadDatosScore'],prioridad_operativa:['prioridad_operativa','prioridadOperativa'],responsable_coi:['responsable_coi','responsableCOI'],fecha_ultimo_control:['fecha_ultimo_control','fechaUltimoControl'],requiere_accion:['requiere_accion','requiereAccion'],motivo_requiere_accion:['motivo_requiere_accion','motivoRequiereAccion'],fecha_cierre_operativo:['fecha_cierre_operativo','fechaCierreOperativo'],observacion_cierre:['observacion_cierre','observacionCierre'],control_terceros_hasta:['control_terceros_hasta','controlTercerosHasta'],control_terceros_estado:['control_terceros_estado','controlTercerosEstado'],fecha_creacion:['fecha_creacion','fechaCreacion','created_at'],fecha_actualizacion:['fecha_actualizacion','fechaUltimaModificacion','updated_at'],creado_por:['creado_por'],actualizado_por:['actualizado_por'],saldo_remanente:['saldo_remanente','saldoRemanente']
   };
   const SECTIONS=[
     ['Identificación',['id_obra','tipo','tipo_trabajo','especialidad','descripcion','proveedor']],
-    ['Contractual',['expediente','fecha_acta_inicio','plazo_dias','fecha_vencimiento','proxima_certificacion']],
+    ['Contractual',['expediente','fecha_acta_inicio','plazo_dias','fecha_vencimiento','proxima_certificacion','modalidad_certificacion']],
     ['Ubicación y alcance',['estacion','ramal','sector']],
     ['Financiero general',['monto_total','moneda','certificable_con_saldo','justificacion_administrativa']],
     ['Documentación',['fecha_recepcion_documentacion','estado_documental']],
@@ -27085,6 +27125,14 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   function fieldInput(name,value){
     const label=LABELS[name]||name,display=DATE_FIELDS.has(name)?text(value).slice(0,10):value;
     if(BOOLEAN_FIELDS.has(name))return `<label class="coi-edit-v60-field"><span>${esc(label)}</span><input type="checkbox" data-coi-edit-field="${name}" ${value===true||text(value).toLowerCase()==='true'?'checked':''}><small data-coi-edit-error="${name}"></small></label>`;
+    if(name==='modalidad_certificacion'){
+      // Dominio cerrado por el check de la migración. Sólo MENSUAL proyecta.
+      const actual=(text(value)||'SIN_DEFINIR').toUpperCase().replace(/s+/g,'_');
+      const opciones=[['SIN_DEFINIR','Sin definir'],['MENSUAL','Mantenimiento mensual'],['A_DEMANDA','Servicio a demanda']];
+      return `<label class="coi-edit-v60-field"><span>${esc(label)}</span><select data-coi-edit-field="${name}">`+
+        opciones.map(([v,t])=>`<option value="${v}" ${actual===v?'selected':''}>${esc(t)}</option>`).join('')+
+        `</select><small data-coi-edit-error="${name}"></small></label>`;
+    }
     if(name==='tipo')return `<label class="coi-edit-v60-field"><span>${esc(label)}</span><select data-coi-edit-field="${name}"><option value="Obra" ${text(value).toLowerCase()==='obra'?'selected':''}>Obra</option><option value="Servicio" ${text(value).toLowerCase()==='servicio'?'selected':''}>Servicio</option></select><small data-coi-edit-error="${name}"></small></label>`;
     if(['descripcion','observaciones','justificacion_administrativa','motivo_requiere_accion','observacion_cierre'].includes(name))return `<label class="coi-edit-v60-field full"><span>${esc(label)}</span><textarea data-coi-edit-field="${name}">${esc(display)}</textarea><small data-coi-edit-error="${name}"></small></label>`;
     const type=DATE_FIELDS.has(name)?'date':(name==='plazo_dias'||name==='calidad_datos_score'?'number':'text');
@@ -35996,21 +36044,96 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     </tr>`).join('') || '<tr><td colspan="10">Sin certificaciones para los filtros seleccionados.</td></tr>';
   }
 
+  /* ------------------------------------------------ aislamiento por identidad
+     El snapshot en memoria es de UN usuario. RLS sigue siendo la autoridad,
+     pero sin esto un cambio de sesión sin recargar la página reutilizaría el
+     historial del usuario anterior sin volver a consultar. `generacion`
+     descarta además cualquier lectura que quedó en vuelo cuando la identidad
+     cambió: una respuesta tardía no puede repoblar el cache de otro. */
+  let uidSnapshot = '';
+  let generacion = 0;
+
+  function invalidarPorIdentidad() {
+    generacion += 1;
+    consolidadas = [];
+    cargado = false;
+    cargando = false;
+    error = '';
+    uidSnapshot = '';
+    try { pintar(); } catch (e) {}
+  }
+
+  async function uidVigente() {
+    try {
+      const c = cliente();
+      if (!c || !c.auth || typeof c.auth.getUser !== 'function') return '';
+      const r = await c.auth.getUser();
+      return texto(r && r.data && r.data.user && r.data.user.id);
+    } catch (e) { return ''; }
+  }
+
+  function vigilarIdentidad() {
+    if (vigilarIdentidad.__instalado) return;
+    try {
+      const c = cliente();
+      if (!c || !c.auth || typeof c.auth.onAuthStateChange !== 'function') return;
+      c.auth.onAuthStateChange((evento, sesion) => {
+        const uid = texto(sesion && sesion.user && sesion.user.id);
+        if (evento === 'SIGNED_OUT' || !uid) { invalidarPorIdentidad(); return; }
+        if (uidSnapshot && uid !== uidSnapshot) invalidarPorIdentidad();
+      });
+      vigilarIdentidad.__instalado = true;
+    } catch (e) {}
+  }
+
   async function cargar(forzar) {
     if (cargando) return;
-    if (cargado && !forzar) { pintar(); return; }
-    cargando = true; error = '';
-    pintar();
+    cargando = true;
+    const gen = ++generacion;
     try {
-      consolidadas = consolidar(await traer());
+      vigilarIdentidad();
+      const uid = await uidVigente();
+      if (gen !== generacion) return;
+      // Identidad distinta a la del snapshot: se descarta, no se reutiliza.
+      if (uidSnapshot && uid !== uidSnapshot) { consolidadas = []; cargado = false; uidSnapshot = ''; }
+      if (cargado && !forzar) return;
+      error = '';
+      pintar();
+      const datos = await traer();
+      if (gen !== generacion) return;
+      consolidadas = consolidar(datos);
+      uidSnapshot = uid;
       cargado = true;
     } catch (e) {
+      if (gen !== generacion) return;
       error = texto(e && (e.message || e.details)) || 'error desconocido';
       consolidadas = [];
+      cargado = false;
     } finally {
-      cargando = false;
-      pintar();
+      // Si la identidad cambió durante la lectura, invalidarPorIdentidad() ya
+      // dejó el estado limpio y esta respuesta no puede tocarlo.
+      if (gen === generacion) {
+        cargando = false;
+        pintar();
+        repintarCalendarioUnaVez();
+      }
     }
+  }
+
+  /* El Calendario proyecta la próxima certificación desde este historial. Si
+     la lectura termina después del primer render, hay que repintarlo una vez.
+     El cerrojo evita el bucle render → query → render: `cargado` ya es true
+     cuando el Calendario vuelve a pedir el historial. */
+  let repintando = false;
+  function repintarCalendarioUnaVez() {
+    if (repintando) return;
+    const vista = $('vistaCalendarioCOI');
+    if (!vista || !vista.classList.contains('active')) return;
+    if (typeof window.renderCalendarioCOIUnificado !== 'function') return;
+    repintando = true;
+    setTimeout(() => {
+      try { window.renderCalendarioCOIUnificado(); } catch (e) {} finally { repintando = false; }
+    }, 0);
   }
 
   function esPanelActivo() {
@@ -36069,8 +36192,31 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
   }
   window.__COI_CERT_ULTIMA__ = ultimaPorOC;
 
+  /* Igual que ultimaPorOC pero con el número de acta, para que la tarjeta de
+     resumen del Calendario muestre la certificación real y no un campo legacy
+     del item, que en las OC de Supabase viene vacío. */
+  function ultimaDetallePorOC(nroOC) {
+    const clave = fold(nroOC);
+    if (!clave) return null;
+    let mejor = null;
+    consolidadas.forEach((g) => {
+      if (fold(g.nroOC) !== clave) return;
+      const ref = g.fin || g.inicio || '';
+      if (!ref) return;
+      if (!mejor || ref > mejor.fecha) mejor = { fecha: ref, acta: g.acta };
+    });
+    return mejor;
+  }
+  window.__COI_CERT_ULTIMA_DETALLE__ = ultimaDetallePorOC;
+
+  vigilarIdentidad();
+  document.addEventListener('DOMContentLoaded', vigilarIdentidad);
+  window.addEventListener('load', vigilarIdentidad);
+
   window.__COI_CERT_HISTORIAL__ = {
-    cargar, pintar, consolidar, ultimaPorOC,
+    cargar, pintar, consolidar, ultimaPorOC, ultimaDetallePorOC,
+    invalidarPorIdentidad,
+    uid: () => uidSnapshot,
     filas: () => consolidadas.slice(),
     estado: () => ({ cargando, cargado, error })
   };

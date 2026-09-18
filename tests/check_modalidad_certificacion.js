@@ -131,6 +131,78 @@ async function main() {
     "select modalidad_certificacion m from public.coi_ordenes where nro_oc = '4530700001'");
   check(conservada.rows[0].m === 'MENSUAL', 'el backfill no puede pisar una modalidad ya definida');
 
+  // ============================== writers canónicos (review finding P1)
+  // La columna no sirve de nada si los contratos server-side la rechazan.
+  const UID = '22222222-2222-4222-8222-222222222222';
+  await db.query('insert into auth.users(id, email) values ($1, $2)', [UID, 'editor@coiroca.com']);
+  await db.query(
+    `insert into public.profiles (id, email, rol, activo) values ($1, $2, 'administrador', true)
+     on conflict (id) do update set rol = 'administrador', activo = true`, [UID, 'editor@coiroca.com']);
+  await db.query("select set_config('request.jwt.claim.sub', $1, false)", [UID]);
+  await db.query("select set_config('request.jwt.claim.email', 'editor@coiroca.com', false)");
+  await db.query("select set_config('request.jwt.claim.role', 'administrador', false)");
+
+  const oc = await insertar(db, '4530700500');
+  const ordenId = oc.rows[0].id;
+  const actualizar = (cambios) => db.query(
+    'select public.coi_actualizar_orden_integral($1, $2::jsonb) r', [ordenId, JSON.stringify(cambios)]);
+  const modalidadDe = async () => (await db.query(
+    'select modalidad_certificacion m from public.coi_ordenes where id = $1', [ordenId])).rows[0].m;
+
+  // SIN_DEFINIR → MENSUAL → A_DEMANDA por la RPC canónica.
+  for (const destino of ['MENSUAL', 'A_DEMANDA', 'SIN_DEFINIR']) {
+    const err = await fallo(() => actualizar({ modalidad_certificacion: destino }));
+    check(!err, `la RPC tiene que aceptar modalidad_certificacion=${destino}: ${err}`);
+    check(await modalidadDe() === destino, `la RPC tiene que persistir ${destino}`);
+  }
+
+  // El guard NO se debilitó: un campo desconocido sigue rechazándose.
+  const desconocido = await fallo(() => actualizar({ campo_inventado: 'x' }));
+  check(Boolean(desconocido) && /COI_PROTECTED_OR_UNKNOWN_ORDER_FIELD/.test(desconocido),
+    `un campo desconocido tiene que seguir rechazándose (vino ${desconocido})`);
+  // Y un campo protegido tampoco pasa.
+  const protegido = await fallo(() => actualizar({ nro_oc: '4530700999' }));
+  check(Boolean(protegido) && /COI_PROTECTED_OR_UNKNOWN_ORDER_FIELD/.test(protegido),
+    `un campo protegido tiene que seguir rechazándose (vino ${protegido})`);
+
+  /* UPDATE directo. El guard exime al rol dueño —las RPC security definer
+     corren así—, de modo que hay que pedirlo como `authenticated` para que el
+     trigger se evalúe de verdad. */
+  const comoAuthenticated = async (sql, params) => {
+    await db.exec('set role authenticated;');
+    try { return await fallo(() => db.query(sql, params)); }
+    finally { await db.exec('reset role;'); }
+  };
+  const directo = await comoAuthenticated(
+    "update public.coi_ordenes set modalidad_certificacion = 'MENSUAL' where id = $1", [ordenId]);
+  check(!directo, `el guard de UPDATE directo tiene que permitir la modalidad: ${directo}`);
+  check(await modalidadDe() === 'MENSUAL', 'el UPDATE directo tiene que persistir la modalidad');
+  const directoProhibido = await comoAuthenticated(
+    "update public.coi_ordenes set avance_obra_pct = 42 where id = $1", [ordenId]);
+  check(Boolean(directoProhibido) && /COI_DIRECT_ORDER_FIELD_NOT_ALLOWED/.test(directoProhibido),
+    `el guard de UPDATE directo tiene que seguir cerrado (vino ${directoProhibido})`);
+
+  /* No debilitar el guard, verificado por diferencia: entre la definición
+     vigente y la redefinida tiene que haber EXACTAMENTE un agregado. */
+  const original = (f) => fs.readFileSync(path.join(DIR, f), 'utf8');
+  const nuevo = original('202609170004_modalidad_certificacion_writers.sql');
+  const sinAgregado = nuevo.split("'control_terceros_estado', 'modalidad_certificacion'").join("'control_terceros_estado'");
+  ['coi_actualizar_orden_integral', 'coi_direct_order_update_guard'].forEach((fn) => {
+    check(nuevo.includes('create or replace function public.' + fn),
+      `la migración tiene que redefinir ${fn}`);
+  });
+  check((nuevo.match(/'modalidad_certificacion'/g) || []).length >= 2,
+    'las dos allowlists tienen que incluir la modalidad');
+  check(!/drop\s+function|revoke\s+execute[\s\S]*authenticated/i.test(nuevo),
+    'la migración no puede quitar permisos existentes');
+  check(sinAgregado.includes("'control_terceros_estado'\n  ];"),
+    'el resto de la allowlist tiene que quedar igual que la vigente');
+
+  // Dominio: la RPC no puede escribir un valor fuera del check.
+  const fueraDominio = await fallo(() => actualizar({ modalidad_certificacion: 'QUINCENAL' }));
+  check(Boolean(fueraDominio) && /modalidad_certificacion_check/.test(fueraDominio),
+    `la RPC no puede escribir fuera del dominio (vino ${fueraDominio})`);
+
   await db.close();
   console.log(`Modalidad de certificación: ${aprobados} controles aprobados; 0 fallidos.`);
 }
