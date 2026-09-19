@@ -10296,7 +10296,21 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     if(fin&&isoFix(proxima)>isoFix(fin))return null;
     return proxima;
   }
+  /* Origen de la próxima certificación: 'persistida' si es la columna real de
+     coi_ordenes, 'calculada' si la derivó la proyección. El Calendario lo usa
+     para no presentar una estimación como si fuera una fecha acordada. */
+  function proxCertOrigenFix(item,row){
+    const tipo=tipoCanonicoFix(item,row);
+    if(tipo!=='OBRA'&&tipo!=='SERVICIO')return '';
+    if(proxCertPersistidaFix(item))return 'persistida';
+    return proyeccionMensualFix(item,row)?'calculada':'';
+  }
   function proxCertFix(item,row){
+    /* Dashboard, Órdenes y Centro de Alertas también proyectan por acá. Si el
+       historial sólo se pidiera desde el Calendario, esos módulos se quedarían
+       sin próxima certificación hasta que alguien abriera el Calendario. El
+       pedido es idempotente: sale una sola lectura y no hay bucle. */
+    pedirHistorialCertificaciones();
     /* El tipo manda incluso sobre una fecha persistida: coi_ordenes.tipo admite
        Financiera y Otro, y el editor les expone el campo, pero el Calendario
        sólo sabe clasificar certificaciones de Obra y de Servicio. Publicar esa
@@ -10690,7 +10704,14 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       const ini=inicioFix(item,r), fin=finFix(item,r), prox=proxCertFix(item,r);
       if(ini) eventos.push({id:'ini-'+id,tipoEvento:'Acta inicio',fecha:isoFix(ini),ocId:id,oc,tipo,estacion:est,proveedor:prov,estado,item});
       if(fin) eventos.push({id:'ven-'+id,tipoEvento:'Vencimiento OC',fecha:isoFix(fin),ocId:id,oc,tipo,estacion:est,proveedor:prov,estado,dias:diffFix(fin),item});
-      if(prox) eventos.push({id:'cert-'+id,tipoEvento:tipoCanonicoFix(item,r)==='SERVICIO'?'Certificación servicio':'Certificación obra',fecha:isoFix(prox),ocId:id,oc,tipo,estacion:est,proveedor:prov,estado,dias:diffFix(prox),item});
+      if(prox){
+        const origenCert=proxCertOrigenFix(item,r);
+        const baseCert=tipoCanonicoFix(item,r)==='SERVICIO'?'Certificación servicio':'Certificación obra';
+        eventos.push({id:'cert-'+id,
+          tipoEvento:origenCert==='calculada'?baseCert+' (tentativa)':baseCert,
+          certOrigen:origenCert,certTentativa:origenCert==='calculada',
+          fecha:isoFix(prox),ocId:id,oc,tipo,estacion:est,proveedor:prov,estado,dias:diffFix(prox),item});
+      }
       if(normFix(item.estadoDocumental||estado).includes('PENDIENTE')) eventos.push({id:'doc-'+id,tipoEvento:'Documentación pendiente',fecha:isoFix(prox||fin||ini),ocId:id,oc,tipo,estacion:est,proveedor:prov,estado,item});
     });
     return eventos.filter(e=>e.fecha);
@@ -10790,7 +10811,14 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
         ${filaResumenFix('Fecha Acta de Inicio',fmtFix(inicioFix(item,{})))}
         ${filaResumenFix('Última certificación',ultima)}
         ${esObraEvento?filaResumenFix('Avance de obra',avance==null||avance===''?'—':`${avance}%`):''}
-        ${filaResumenFix('Próxima certificación',fmtFix(proxCertFix(item,{})))}
+        ${(()=>{
+          // Una proyección no se presenta como una fecha acordada.
+          const origen=proxCertOrigenFix(item,{tipo:e.tipo});
+          const fecha=fmtFix(proxCertFix(item,{tipo:e.tipo}));
+          const rotulo=origen==='calculada'?'Próxima certificación tentativa':'Próxima certificación';
+          const valor=origen==='calculada'&&fecha&&fecha!=='—'?fecha+' · estimada':fecha;
+          return filaResumenFix(rotulo,valor);
+        })()}
         ${filaResumenFix('Vencimiento contractual',fmtFix(finFix(item,{})))}
         ${filaResumenFix('Estado documental',item.estadoDocumental||item.estado_documental)}
       </div>
@@ -10845,7 +10873,11 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   function pedirHistorialCertificaciones(){
     try{
       const h=window.__COI_CERT_HISTORIAL__;
-      if(h&&typeof h.cargar==='function'&&!h.estado().cargado&&!h.estado().cargando)h.cargar(false);
+      if(!h)return;
+      if(typeof h.cargar==='function'&&!h.estado().cargado&&!h.estado().cargando)h.cargar(false);
+      // Si el historial llegó antes que el catálogo de OC, se rejuntan acá:
+      // es una consolidación en memoria, sin lectura remota nueva.
+      else if(typeof window.__COI_CERT_REJOIN__==='function')window.__COI_CERT_REJOIN__();
     }catch(e){}
   }
   function renderCalendarioFix(){ pedirHistorialCertificaciones(); prepararFiltrosCalendarioFix(); const ev=eventosFiltradosCalendarioFix(); eventosVigentesFix=ev; renderPeriodoCalendarioFix(ev); renderVistaInteligenteFix(ev); renderVistaCalendarioFix(ev); renderTablasCalendarioFix(ev); activarTabCalendarioFix(calendarioTabFix); }
@@ -15267,7 +15299,7 @@ const APP_DATA_MODE = "supabase_first";
     let saldoRemanente = saldoRaw === '' ? montoTotal : normalizeAmount(saldoRaw);
     if (saldoRaw === '' && saldoEjecutadoRaw !== '') saldoRemanente = Math.max(0, montoTotal - normalizeAmount(saldoEjecutadoRaw));
 
-    return {
+    const normalizada = {
       id_obra: idObra,
       nro_oc: nroOC,
       tipo: normalizeType(pick(source, ['tipo', 'tipoRegistro'], 'Obra')),
@@ -15285,11 +15317,6 @@ const APP_DATA_MODE = "supabase_first";
       plazo_dias: normalizeInteger(pick(source, ['plazo_dias', 'plazoDias', 'plazo', 'PLAZO_DIAS'], 0)),
       fecha_vencimiento: toISODate(pick(source, ['fecha_vencimiento', 'vencimiento', 'fechaFin', 'FECHA_FIN'])),
       proxima_certificacion: toISODate(pick(source, ['proxima_certificacion', 'proximaCertificacion', 'proxCertificacion', 'PROX_CERTIFICACION'])),
-      // Dominio cerrado por el check de la migración: fuera de él, SIN_DEFINIR.
-      modalidad_certificacion: (() => {
-        const v = clean(pick(source, ['modalidad_certificacion', 'modalidadCertificacion'])).toUpperCase().replace(/\s+/g, '_');
-        return ['MENSUAL', 'A_DEMANDA', 'SIN_DEFINIR'].includes(v) ? v : 'SIN_DEFINIR';
-      })(),
       fecha_recepcion_documentacion: toISODate(pick(source, ['fecha_recepcion_documentacion', 'fechaRecepcionDocumentacion'])),
       estado_coi: clean(pick(source, ['estado_coi', 'estadoCOI', 'estado', 'ESTADO'], 'Pendiente de completar')) || 'Pendiente de completar',
       estado_documental: clean(pick(source, ['estado_documental', 'estadoDocumental', 'ESTADO_DOCUMENTAL'])),
@@ -15299,6 +15326,27 @@ const APP_DATA_MODE = "supabase_first";
       certificable_con_saldo: normalizeBoolean(pick(source, ['certificable_con_saldo', 'certificableConSaldo'], false)),
       justificacion_administrativa: clean(pick(source, ['justificacion_administrativa', 'justificacionAdministrativa']))
     };
+
+    /* modalidad_certificacion se emite SÓLO si la fuente la informa. Dos
+       razones, y las dos corrompen datos si se ignoran:
+
+       1. Compatibilidad pre-migración. Mientras la columna y la allowlist no
+          estén aplicadas en el remoto, mandar la clave hace que el alta, la
+          carga rápida y el upsert masivo se rechacen enteros.
+       2. Upserts parciales. Una fila de importación que no trae el campo NO
+          está diciendo «SIN_DEFINIR»: está callando. Emitir el default pisaría
+          el MENSUAL ya configurado de un servicio y apagaría sus proyecciones.
+
+       El dominio se sigue cerrando cuando el valor viene: un valor explícito
+       inválido cae en SIN_DEFINIR, que es el estado seguro. */
+    if (hasOwn(source, ['modalidad_certificacion', 'modalidadCertificacion'])) {
+      const crudo = clean(pick(source, ['modalidad_certificacion', 'modalidadCertificacion']))
+        .toUpperCase().replace(/\s+/g, '_');
+      normalizada.modalidad_certificacion =
+        ['MENSUAL', 'A_DEMANDA', 'SIN_DEFINIR'].indexOf(crudo) >= 0 ? crudo : 'SIN_DEFINIR';
+    }
+
+    return normalizada;
   }
 
   function normalizarCambiosParaSupabase(cambios) {
@@ -35946,6 +35994,8 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     'descripcion,posicion,nro_hes,nro_if,proveedor,aux_porcentaje,anio,fecha_actualizacion';
 
   let consolidadas = [];
+  // Filas crudas de la última lectura: permiten re-consolidar sin volver al remoto.
+  let filasCrudas = [];
   let cargando = false;
   let cargado = false;
   let error = '';
@@ -36014,7 +36064,14 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
       const nro = texto(row.nro_oc);
       const acta = texto(row.acta_medicion_nro);
       const ocKey = texto(row.orden_id) || fold(nro);
-      const clave = acta ? ocKey + '|' + fold(acta) : ocKey + '|#' + (texto(row.id) || i);
+      /* El período forma parte de la identidad de la certificación: el writer
+         trata como distintas dos filas con la misma OC y acta pero otro
+         fecha_inicio/fecha_fin —están en buscarCertificacionExistente()— y la
+         base no impone unicidad del número de acta por orden. Agrupar sólo por
+         OC + acta fusionaría dos certificaciones reales que reutilizan el
+         número en otro período, mezclando sus POS y borrando una del historial. */
+      const periodo = iso(row.fecha_inicio) + '~' + iso(row.fecha_fin);
+      const clave = acta ? ocKey + '|' + fold(acta) + '|' + periodo : ocKey + '|#' + (texto(row.id) || i);
       let g = grupos.get(clave);
       if (!g) {
         const meta = idx.get(fold(nro)) || idx.get(fold(row.orden_id)) || {};
@@ -36137,6 +36194,7 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
   function invalidarPorIdentidad() {
     generacion += 1;
     consolidadas = [];
+    filasCrudas = [];
     cargado = false;
     cargando = false;
     error = '';
@@ -36171,8 +36229,33 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     } catch (e) {}
   }
 
+  /* Relectura pedida mientras había una en vuelo. Descartar un cargar(true)
+     porque justo corría otra lectura dejaría como snapshot final la respuesta
+     ANTERIOR al guardado: el historial y la próxima certificación quedarían
+     viejos hasta que alguien refrescara a mano. Se encola y se atiende al
+     terminar la actual. */
+  let relecturaPendiente = false;
+  let enVuelo = null;
+
+  /* Punto de entrada. Si hay una lectura corriendo y se pide una FORZADA, se
+     espera la actual y se vuelve a leer: devolver enseguida dejaría como
+     snapshot final la respuesta anterior al guardado. Quien hace await sobre
+     cargar(true) recibe datos posteriores a su pedido. */
   async function cargar(forzar) {
-    if (cargando) return;
+    if (cargando) {
+      if (!forzar) return;
+      relecturaPendiente = true;
+      try { await enVuelo; } catch (e) {}
+      if (!relecturaPendiente) return;
+      relecturaPendiente = false;
+      return cargar(true);
+    }
+    const ejecucion = ejecutarCarga(forzar);
+    enVuelo = ejecucion;
+    return ejecucion;
+  }
+
+  async function ejecutarCarga(forzar) {
     cargando = true;
     const gen = ++generacion;
     // Sólo una lectura REAL justifica repintar el Calendario. Repintar también
@@ -36202,6 +36285,7 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
         consolidadas = []; cargado = false; uidSnapshot = ''; error = '';
         return;
       }
+      filasCrudas = datos;
       consolidadas = consolidar(datos);
       uidSnapshot = uid;
       cargado = true;
@@ -36219,6 +36303,9 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
         cargando = false;
         pintar();
         if (leyo) repintarCalendarioUnaVez();
+      } else {
+        // La identidad cambió: la relectura encolada ya no corresponde.
+        relecturaPendiente = false;
       }
     }
   }
@@ -36297,6 +36384,29 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     });
     return mejor;
   }
+  /* Si el historial llegó ANTES que el catálogo de OC, indiceOC() estaba vacío
+     y esas certificaciones quedaron sin tipo, sin proveedor resuelto y sin
+     identidad de navegación. Cuando el catálogo aparece se vuelve a consolidar
+     desde las filas crudas ya leídas: no hace falta otra lectura remota. */
+  function metadatosIncompletos() {
+    return consolidadas.some((g) => !texto(g.tipo));
+  }
+  function hayCatalogo() {
+    try {
+      const filas = typeof window.todasLasOC === 'function' ? window.todasLasOC() : [];
+      return Array.isArray(filas) && filas.length > 0;
+    } catch (e) { return false; }
+  }
+  function reconsolidarSiFalta() {
+    if (!cargado || !filasCrudas.length) return false;
+    if (!metadatosIncompletos() || !hayCatalogo()) return false;
+    consolidadas = consolidar(filasCrudas);
+    if (metadatosIncompletos()) return false;   // el catálogo todavía no la tiene
+    pintar();
+    return true;
+  }
+  window.__COI_CERT_REJOIN__ = reconsolidarSiFalta;
+
   window.__COI_CERT_ULTIMA__ = ultimaPorOC;
 
   /* Igual que ultimaPorOC pero con el número de acta, para que la tarjeta de

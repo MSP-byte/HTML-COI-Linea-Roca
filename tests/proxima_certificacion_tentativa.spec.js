@@ -169,6 +169,9 @@ test('PC-14 · la proyección no usa fecha_creacion técnica como base', async (
 
 test('PC-15 · sin historial autoritativo no se proyecta, aunque el resto habilite', async ({ page }) => {
   await abrir(page);
+  // El fixture reinstala su stub en 'load': se espera a que eso ya ocurrió
+  // antes de retirar la precondición, o la reinstalación pisaría el cambio.
+  await page.waitForFunction(() => document.readyState === 'complete', null, { timeout: 20000 });
   // Se retira la precondición: el historial deja de estar cargado.
   await page.evaluate(() => {
     window.__COI_CERT_HISTORIAL__ = Object.assign({}, window.__COI_CERT_HISTORIAL__, {
@@ -180,6 +183,7 @@ test('PC-15 · sin historial autoritativo no se proyecta, aunque el resto habili
 
 test('PC-16 · un error de lectura tampoco habilita la proyección', async ({ page }) => {
   await abrir(page);
+  await page.waitForFunction(() => document.readyState === 'complete', null, { timeout: 20000 });
   await page.evaluate(() => {
     window.__COI_CERT_HISTORIAL__ = Object.assign({}, window.__COI_CERT_HISTORIAL__, {
       estado: () => ({ cargando: false, cargado: true, error: 'RLS', cargas: 1 })
