@@ -28,6 +28,14 @@ async function abrir(page, ultimasPorOC = {}) {
       // Sustituye al historial real: devuelve la última certificación
       // administrativa conocida por OC.
       window.__COI_CERT_ULTIMA__ = (nro) => mapa[String(nro || '')] || '';
+      /* La proyección falla cerrada mientras el historial no sea autoritativo
+         (review finding 3). Estas pruebas verifican la REGLA de proyección, no
+         la carga, así que declaran esa precondición de forma explícita. */
+      window.__COI_CERT_HISTORIAL__ = Object.assign({}, window.__COI_CERT_HISTORIAL__, {
+        estado: () => ({ cargando: false, cargado: true, error: '', cargas: 1 }),
+        ultimaPorOC: (nro) => mapa[String(nro || '')] || '',
+        filas: () => []
+      });
     };
     instalar();
     document.addEventListener('DOMContentLoaded', instalar);
@@ -155,4 +163,27 @@ test('PC-14 · la proyección no usa fecha_creacion técnica como base', async (
   // fecha_creacion muy posterior no puede desplazar la proyección.
   const item = Object.assign({}, OBRA, { fecha_creacion: '2026-11-20T10:00:00Z' });
   expect(await proyectar(page, item)).toBe('2026-07-30');
+});
+
+/* ------------------------------------------------- fail-closed (review) */
+
+test('PC-15 · sin historial autoritativo no se proyecta, aunque el resto habilite', async ({ page }) => {
+  await abrir(page);
+  // Se retira la precondición: el historial deja de estar cargado.
+  await page.evaluate(() => {
+    window.__COI_CERT_HISTORIAL__ = Object.assign({}, window.__COI_CERT_HISTORIAL__, {
+      estado: () => ({ cargando: true, cargado: false, error: '', cargas: 0 })
+    });
+  });
+  expect(await proyectar(page, OBRA)).toBe('');
+});
+
+test('PC-16 · un error de lectura tampoco habilita la proyección', async ({ page }) => {
+  await abrir(page);
+  await page.evaluate(() => {
+    window.__COI_CERT_HISTORIAL__ = Object.assign({}, window.__COI_CERT_HISTORIAL__, {
+      estado: () => ({ cargando: false, cargado: true, error: 'RLS', cargas: 1 })
+    });
+  });
+  expect(await proyectar(page, OBRA)).toBe('');
 });

@@ -219,6 +219,74 @@ async function main() {
   check(html.includes("modalidad_certificacion:['modalidad_certificacion','modalidadCertificacion']"),
     'el editor V60 tiene que conocer los alias de la modalidad');
 
+  /* ============== alta/upsert canónico (review round 2, finding 1)
+     normalizarOrdenParaSupabase() emite siempre la clave, así que si
+     coi_guardar_orden_integral no la acepta, TODA alta se rechaza. */
+  const alta = (datos) => db.query(
+    'select public.coi_guardar_orden_integral(null, $1::jsonb) r', [JSON.stringify(datos)]);
+  const baseAlta = (nro, extra) => Object.assign({
+    nro_oc: nro, id_obra: 'OB-' + nro, tipo: 'Servicio', estacion: 'PLAZA CONSTITUCION',
+    estado_coi: 'En ejecución'
+  }, extra || {});
+
+  // Positivo: alta autenticada con modalidad explícita.
+  const altaOK = await fallo(() => alta(baseAlta('4530800001', { modalidad_certificacion: 'MENSUAL' })));
+  check(!altaOK, `el alta tiene que aceptar modalidad_certificacion: ${altaOK}`);
+  const guardada = await db.query(
+    "select modalidad_certificacion m from public.coi_ordenes where nro_oc = '4530800001'");
+  check(guardada.rows[0].m === 'MENSUAL', `el alta tiene que persistir MENSUAL y quedó ${guardada.rows[0].m}`);
+
+  // Un alta sin modalidad explícita queda en SIN_DEFINIR, que no proyecta.
+  const altaSin = await fallo(() => alta(baseAlta('4530800002')));
+  check(!altaSin, `el alta sin modalidad no puede romperse: ${altaSin}`);
+  const porDefecto = await db.query(
+    "select modalidad_certificacion m from public.coi_ordenes where nro_oc = '4530800002'");
+  check(porDefecto.rows[0].m === 'SIN_DEFINIR', 'un alta sin modalidad tiene que quedar SIN_DEFINIR');
+
+  // Y el que emite el frontend hoy —siempre con la clave— también pasa.
+  const altaFrontend = await fallo(() => alta(baseAlta('4530800003', { modalidad_certificacion: 'SIN_DEFINIR' })));
+  check(!altaFrontend, `el payload que emite el frontend tiene que ser aceptado: ${altaFrontend}`);
+
+  // Control negativo: el guard del alta NO se debilitó.
+  const altaDesconocida = await fallo(() => alta(baseAlta('4530800004', { campo_inventado: 'x' })));
+  check(Boolean(altaDesconocida) && /COI_PROTECTED_OR_UNKNOWN_ORDER_FIELD/.test(altaDesconocida),
+    `el alta tiene que seguir rechazando campos desconocidos (vino ${altaDesconocida})`);
+  const altaFueraDominio = await fallo(() => alta(baseAlta('4530800005', { modalidad_certificacion: 'QUINCENAL' })));
+  check(Boolean(altaFueraDominio) && /modalidad_certificacion_check/.test(altaFueraDominio),
+    `el alta no puede escribir fuera del dominio (vino ${altaFueraDominio})`);
+
+  /* ============== paginación del historial (finding 6)
+     El frontend pagina coi_certificaciones ordenando por fechas, que empatan
+     entre posiciones de una misma acta. Sin desempate único el borde de página
+     pierde o duplica filas. Se verifica el orden total sobre datos empatados. */
+  const htmlCert = fs.readFileSync('index.html', 'utf8');
+  check(/\.order\('fecha_actualizacion',[^)]*\)\s*\n\s*\.order\('id',\s*\{\s*ascending:\s*true\s*\}\)/.test(htmlCert),
+    'la paginación del historial tiene que desempatar por id antes de .range()');
+
+  // La OC y su estación principal van juntas: el guard de ciclo de vida exige
+  // exactamente una principal por orden.
+  const ordenCert = (await insertar(db, '4530800900')).rows[0].id;
+  // 600 filas con fechas EMPATADAS: sólo el id las distingue.
+  await db.query(
+    `insert into public.coi_certificaciones (orden_id, nro_oc, acta_medicion_nro, fecha_inicio, fecha_fin, posicion)
+     select $1, '4530800900', 'AM-' || (g / 10), date '2026-05-01', date '2026-05-31', 'POS-' || g
+       from generate_series(1, 600) g`, [ordenCert]);
+
+  const pagina = 500;
+  const vistos = new Set();
+  let duplicados = 0;
+  for (let desde = 0; desde < 600; desde += pagina) {
+    const { rows } = await db.query(
+      `select id from public.coi_certificaciones
+        where nro_oc = '4530800900'
+        order by fecha_fin desc nulls last, fecha_inicio desc nulls last,
+                 fecha_actualizacion desc nulls last, id asc
+        offset $1 limit $2`, [desde, pagina]);
+    rows.forEach((r) => { if (vistos.has(r.id)) duplicados++; vistos.add(r.id); });
+  }
+  check(duplicados === 0, `la paginación con desempate no puede duplicar filas (hubo ${duplicados})`);
+  check(vistos.size === 600, `la paginación tiene que traer las 600 filas y trajo ${vistos.size}`);
+
   await db.close();
   console.log(`Modalidad de certificación: ${aprobados} controles aprobados; 0 fallidos.`);
 }

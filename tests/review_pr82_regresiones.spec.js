@@ -359,3 +359,228 @@ test('RV-16 · el sync ejecutivo no borra la modalidad persistida', async ({ pag
   });
   expect(modalidad).toBe('MENSUAL');
 });
+
+/* ===================== review round 2 ===================== */
+
+/* FINDING · fail-closed mientras el historial no sea autoritativo */
+
+test('RV-17 · sin historial cargado no se proyecta desde el Acta de Inicio', async ({ page }) => {
+  // Se bloquea la lectura para que el historial nunca quede autoritativo.
+  await abrirCalendario(page, { certificaciones: [], demoraLectura: 30000 });
+  expect(await page.evaluate(() => window.__COI_CERT_HISTORIAL__.estado().cargado)).toBe(false);
+  expect(await proyeccion(page)).toBe('');
+});
+
+test('RV-18 · si la lectura del historial falla, tampoco se proyecta', async ({ page }) => {
+  await abrirCalendario(page, {});
+  await page.evaluate(() => {
+    // Se fuerza un error de lectura y se recarga.
+    window.__RV__.fallar = true;
+    const base = window.getSupabaseClient().from;
+    window.getSupabaseClient().from = (t) => t === 'coi_certificaciones'
+      ? { select: () => ({ order: function () { return this; }, range: function () { return this; },
+          then: (r) => r({ data: null, error: { code: '42501', message: 'RLS' } }) }) }
+      : base(t);
+    return window.__COI_CERT_HISTORIAL__.cargar(true);
+  });
+  await page.waitForFunction(() => Boolean(window.__COI_CERT_HISTORIAL__.estado().error), null, { timeout: 20000 });
+  expect(await proyeccion(page)).toBe('');
+});
+
+/* FINDING · Financiera / Otro con fecha persistida */
+
+test('RV-19 · una fecha persistida en Financiera u Otro no genera evento de certificación', async ({ page }) => {
+  for (const tipo of ['Financiera', 'Otro']) {
+    const contexto = await page.context().browser().newContext();
+    const hoja = await contexto.newPage();
+    await abrirCalendario(hoja, { tipo, proximaPersistida: '2026-08-10', certificaciones: [CERT({})] });
+    await hoja.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 20000 });
+    expect(await proyeccion(hoja)).toBe('');
+    const eventos = await hoja.evaluate(() => {
+      const fila = window.todasLasOC()[0];
+      return window.__COI_PROXIMA_CERT__(fila.item, fila);
+    });
+    expect(eventos).toBe('');
+    await contexto.close();
+  }
+});
+
+/* FINDING · avance de obra sólo para Obra */
+
+test('RV-20 · la tarjeta no muestra avance de obra en Financiera u Otro', async ({ page }) => {
+  const hoy = new Date();
+  const enMes = (d) => `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  await abrirCalendario(page, { tipo: 'Financiera', vencimiento: enMes(20), certificaciones: [CERT({})] });
+  await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 20000 });
+  await page.click('#btnCalendarioVistaCOI1');
+  const evento = page.locator('#calendarioInteligenteCOI [data-coi-evento]').first();
+  await expect(evento).toBeVisible();
+  await evento.scrollIntoViewIfNeeded();
+  await evento.click();
+  await expect(page.locator('#coiResumenEvento')).toBeVisible();
+  const texto = await page.locator('#coiResumenEvento').innerText();
+  expect(texto.toUpperCase()).not.toContain('AVANCE DE OBRA');
+});
+
+/* FINDING · cambio de identidad durante la PRIMERA carga */
+
+test('RV-21 · un cambio de cuenta durante la primera carga descarta la respuesta', async ({ page }) => {
+  await abrirCalendario(page, { certificaciones: [CERT({})], demoraLectura: 800 });
+  // Se fuerza la primera carga y se cambia de identidad mientras está en vuelo.
+  await page.evaluate(() => { window.__COI_CERT_HISTORIAL__.invalidarPorIdentidad(); window.__COI_CERT_HISTORIAL__.cargar(true); });
+  await page.waitForTimeout(150);
+  await page.evaluate((uidB) => {
+    window.__RV__.uid = uidB;
+    window.__RV__.sesion = { user: { id: uidB, email: 'b@coiroca.com' } };
+    window.__RV__.notificar('SIGNED_IN', window.__RV__.sesion);
+  }, UID_B);
+  await page.waitForTimeout(1400);
+  const tras = await page.evaluate(() => ({
+    filas: window.__COI_CERT_HISTORIAL__.filas().length,
+    uid: window.__COI_CERT_HISTORIAL__.uid()
+  }));
+  // La respuesta de A no puede quedar visible para B.
+  expect(tras.filas).toBe(0);
+  expect(tras.uid).not.toBe(UID_A);
+});
+
+/* FINDING · tarjeta abierta mientras carga el historial */
+
+test('RV-22 · una tarjeta abierta se actualiza cuando llega el historial', async ({ page }) => {
+  const hoy = new Date();
+  const enMes = (d) => `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  await abrirCalendario(page, {
+    vencimiento: enMes(20), demoraLectura: 1200,
+    certificaciones: [CERT({ acta_medicion_nro: 'AM-TARDE', fecha_fin: '2026-06-30' })]
+  });
+  await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 25000 });
+  await page.click('#btnCalendarioVistaCOI1');
+
+  // Se vuelve al estado 'historial todavía no autoritativo' de forma explícita.
+  await page.evaluate(() => window.__COI_CERT_HISTORIAL__.invalidarPorIdentidad());
+  expect(await page.evaluate(() => window.__COI_CERT_HISTORIAL__.estado().cargado)).toBe(false);
+
+  const evento = page.locator('#calendarioInteligenteCOI [data-coi-evento]').first();
+  await expect(evento).toBeVisible();
+  await evento.scrollIntoViewIfNeeded();
+  await evento.click();
+  await expect(page.locator('#coiResumenEvento')).toBeVisible();
+  // Sin historial autoritativo la tarjeta no puede afirmar un acta.
+  expect(await page.locator('#coiResumenEvento').innerText()).not.toContain('AM-TARDE');
+
+  // Al completarse la lectura, la tarjeta abierta se actualiza sola.
+  await page.evaluate(() => window.__COI_CERT_HISTORIAL__.cargar(true));
+  await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 25000 });
+  await expect(page.locator('#coiResumenEvento')).toContainText('AM-TARDE', { timeout: 15000 });
+});
+
+/* FINDING · compatibilidad PRE-migración del sync ejecutivo */
+
+async function abrirConEsquema(page, { tieneColumna }) {
+  await page.route(url => url.hostname !== '127.0.0.1', r => r.abort());
+  await page.addInitScript((tieneColumna) => {
+    const estado = { intentos: [], sesion: { user: { id: 'u1', email: 'a@coiroca.com' } } };
+    window.__ESQ__ = estado;
+    const fila = { id: 'o1', nro_oc: '4530000001', tipo: 'Servicio', estado_coi: 'En ejecución' };
+    if (tieneColumna) fila.modalidad_certificacion = 'MENSUAL';
+    const consulta = (tabla) => {
+      let campos = '';
+      const api = {
+        select(c) { campos = String(c || ''); return api; },
+        order: () => api, eq: () => api, in: () => api, is: () => api,
+        ilike: () => api, gt: () => api, range: () => api,
+        limit() { return api; },
+        single: async () => ({ data: null, error: null }),
+        then(res, rej) {
+          if (tabla === 'coi_ordenes') {
+            estado.intentos.push(campos);
+            if (!tieneColumna && campos.includes('modalidad_certificacion')) {
+              return Promise.resolve({ data: null, error: {
+                code: '42703', message: 'column coi_ordenes.modalidad_certificacion does not exist' } }).then(res, rej);
+            }
+            return Promise.resolve({ data: [Object.assign({}, fila)], error: null }).then(res, rej);
+          }
+          return Promise.resolve({ data: [], error: null }).then(res, rej);
+        }
+      };
+      return api;
+    };
+    const fake = {
+      from: consulta, rpc: async () => ({ data: null, error: null }),
+      auth: {
+        getSession: async () => ({ data: { session: estado.sesion }, error: null }),
+        getUser: async () => ({ data: { user: estado.sesion.user }, error: null }),
+        onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } })
+      }
+    };
+    const instalar = () => {
+      window.getSupabaseClient = () => fake;
+      window.initSupabase = async () => fake;
+      window.getUsuarioActual = async () => estado.sesion.user;
+    };
+    instalar();
+    document.addEventListener('DOMContentLoaded', instalar);
+    window.addEventListener('load', instalar);
+  }, tieneColumna);
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => typeof window.syncExecutiveMetadata === 'function', null, { timeout: 25000 });
+}
+
+test('RV-23 · sin la columna en el esquema remoto, el sync ejecutivo NO se rompe', async ({ page }) => {
+  await abrirConEsquema(page, { tieneColumna: false });
+  const r = await page.evaluate(async () => {
+    try { const filas = await window.syncExecutiveMetadata(); return { ok: true, n: (filas || []).length }; }
+    catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+  });
+  expect(r.ok).toBe(true);            // no propaga el 42703
+  expect(r.n).toBeGreaterThan(0);     // y sigue trayendo metadatos
+  const intentos = await page.evaluate(() => window.__ESQ__.intentos);
+  // Pidió con la columna, y al faltar reintentó sin ella.
+  expect(intentos.some(c => c.includes('modalidad_certificacion'))).toBe(true);
+  expect(intentos.some(c => !c.includes('modalidad_certificacion'))).toBe(true);
+});
+
+test('RV-24 · con la columna presente el sync la pide y no reintenta', async ({ page }) => {
+  await abrirConEsquema(page, { tieneColumna: true });
+  const ok = await page.evaluate(async () => {
+    try { await window.syncExecutiveMetadata(); return true; } catch (e) { return false; }
+  });
+  expect(ok).toBe(true);
+  const intentos = await page.evaluate(() => window.__ESQ__.intentos);
+  expect(intentos.every(c => c.includes('modalidad_certificacion'))).toBe(true);
+});
+
+test('RV-25 · otros errores de Supabase siguen propagándose', async ({ page }) => {
+  await abrirConEsquema(page, { tieneColumna: true });
+  const r = await page.evaluate(async () => {
+    const base = window.getSupabaseClient();
+    base.from = () => ({
+      select: () => ({ limit: function () { return this; },
+        then: (res) => res({ data: null, error: { code: '42501', message: 'permission denied' } }) })
+    });
+    try { await window.syncExecutiveMetadata(); return { propago: false }; }
+    catch (e) { return { propago: true, msg: String(e && e.message || e) }; }
+  });
+  expect(r.propago).toBe(true);       // no es un catch-all
+  expect(r.msg).toContain('permission denied');
+});
+
+/* FINDING · recarga del historial tras guardar una certificación */
+
+test('RV-26 · guardar una certificación relee el historial autoritativo', async ({ page }) => {
+  await abrirCalendario(page, { certificaciones: [CERT({ acta_medicion_nro: 'AM-VIEJA' })] });
+  await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 20000 });
+  expect(await page.evaluate(() => window.__COI_CERT_HISTORIAL__.filas().length)).toBe(1);
+  const cargasAntes = await page.evaluate(() => window.__COI_CERT_HISTORIAL__.estado().cargas);
+
+  // Llega una certificación nueva y se dispara el refresco canónico.
+  await page.evaluate(() => {
+    window.__RV__.extra = true;
+    return typeof window.refrescarModulosTrasCertificacion === 'function'
+      ? window.refrescarModulosTrasCertificacion(['4530990001'])
+      : window.__COI_CERT_HISTORIAL__.cargar(true);
+  });
+  await page.waitForFunction((n) => window.__COI_CERT_HISTORIAL__.estado().cargas > n, cargasAntes, { timeout: 20000 });
+  // Se releyó sin que el operador tocara «Actualizar» ni recargara la página.
+  expect(await page.evaluate(() => window.__COI_CERT_HISTORIAL__.estado().cargado)).toBe(true);
+});
