@@ -295,7 +295,8 @@ test('RV-12 · una lectura en vuelo no repuebla el cache después del logout', a
 /* ------------------------------------- FINDING · editor activo V60 */
 
 test('RV-13 · el editor V60 ofrece la modalidad con su dominio cerrado', async ({ page }) => {
-  await abrirCalendario(page, {});
+  // Escenario post-migración: la fila remota ya contiene la columna.
+  await abrirCalendario(page, { tipo: 'Servicio', modalidad: 'SIN_DEFINIR' });
   await page.evaluate(() => window.COI_ORDENES_EDIT_V60.abrir('4530990001'));
   const select = page.locator('[data-coi-edit-field="modalidad_certificacion"]');
   await expect(select).toBeVisible({ timeout: 20000 });
@@ -307,6 +308,22 @@ test('RV-13 · el editor V60 ofrece la modalidad con su dominio cerrado', async 
     ['MENSUAL', 'Mantenimiento mensual'],
     ['A_DEMANDA', 'Servicio a demanda']
   ]);
+});
+
+test('RV-13b · pre-migración V60 omite modalidad ausente del patch', async ({ page }) => {
+  // Escenario productivo previo a la migración: la fila remota no trae la
+  // columna. El control no debe existir, así collectForm no puede inventar
+  // SIN_DEFINIR durante una edición no relacionada.
+  await abrirCalendario(page, { tipo: 'Servicio' });
+  await page.evaluate(() => window.COI_ORDENES_EDIT_V60.abrir('4530990001'));
+
+  const select = page.locator('[data-coi-edit-field="modalidad_certificacion"]');
+  await expect(select).toHaveCount(0);
+
+  const campos = await page.evaluate(() =>
+    [...document.querySelectorAll('#coiEditOCModalV60 [data-coi-edit-field]')]
+      .map((n) => n.dataset.coiEditField));
+  expect(campos).not.toContain('modalidad_certificacion');
 });
 
 test('RV-14 · el editor V60 declara la modalidad como campo editable', async ({ page }) => {
