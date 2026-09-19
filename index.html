@@ -19664,6 +19664,21 @@ function obtenerOrdenesFiltradas(){
 }
 function selectionChecked(row){try{return typeof v45SeleccionOrdenes!=='undefined'&&v45SeleccionOrdenes.has(field(row,['idSeleccion'],rowId(row)));}catch(e){return false;}}
 function vigencia(row){const state=field(row,['estadoVigenciaOperativa','vigencia_operativa'],'');try{if(state&&typeof window.v60BadgeEstado==='function')return window.v60BadgeEstado(state);}catch(e){}return esc(state||'—');}
+/* El renderer final de Órdenes es el que queda instalado por installOverrides().
+   Debe usar la misma proyección canónica que Calendario/Alertas: de lo contrario
+   un Servicio MENSUAL no muestra fecha calculada y un alias legacy puede volver
+   a exponer mensualidades para A_DEMANDA/SIN_DEFINIR. */
+function proximaCertificacionFinal(row){
+  try{
+    if(typeof window.__COI_PROXIMA_CERT__==='function'){
+      const item=(row&&row.item)||row||{};
+      return clean(window.__COI_PROXIMA_CERT__(item,row||{}));
+    }
+  }catch(e){console.warn('COI Órdenes: falló la proyección canónica.',e);}
+  // Fallback de arranque: únicamente la columna persistida, nunca aliases derivados.
+  const raw=(row&&row._supabaseRaw)||(row&&row.item&&row.item._supabaseRaw)||{};
+  return clean(raw.proxima_certificacion||(row&&row.proxima_certificacion)||'');
+}
 function renderOrdersFinal(){
   orderRenderScheduled=false;
   if(orderRenderBusy)return;orderRenderBusy=true;
@@ -19676,7 +19691,7 @@ function renderOrdersFinal(){
     table.className='coi-table ordenes-table table-ordenes-clean';
     if(table.tHead)table.tHead.innerHTML='<tr><th class="col-sel">Sel.</th><th class="col-id">ID_OBRA / ID_SERVICIO</th><th class="col-oc">N° OC</th><th class="col-tipo">Tipo</th><th class="col-estacion">Estación</th><th class="col-proveedor">Proveedor</th><th class="col-monto">Monto $</th><th class="col-sector">Sector</th><th class="col-trabajo">Tipo de trabajo</th><th class="col-estado">Estado COI</th><th class="col-fecha">Próxima certificación</th><th class="col-fecha">Vencimiento</th><th class="col-vigencia">Vigencia operativa</th><th class="col-ficha">Ficha</th></tr>';
     tbody.innerHTML=rows.map(row=>{
-      const key=rowId(row),oc=rowOC(row),type=clasificarOrdenFinal(row),station=field(row,['estacion'],'—'),provider=field(row,['proveedor','PROVEEDOR','razon_social','razonSocial'],'—'),sector=field(row,['sector'],'—'),umv=field(row,['umVinculada','um_vinculada','unidadMantenimiento','especialidad'],'—'),work=field(row,['tipoTrabajo','tipo_trabajo','descripcion'],'—'),state=field(row,['estado_coi','estadoCOI','estado'],'—'),cert=dateValue(row,['proxima_certificacion','proximaCertificacion','proxCertificacion']),venc=dateValue(row,['fecha_vencimiento','fechaVencimiento','vencimiento','fechaFin','fin']);
+      const key=rowId(row),oc=rowOC(row),type=clasificarOrdenFinal(row),station=field(row,['estacion'],'—'),provider=field(row,['proveedor','PROVEEDOR','razon_social','razonSocial'],'—'),sector=field(row,['sector'],'—'),umv=field(row,['umVinculada','um_vinculada','unidadMantenimiento','especialidad'],'—'),work=field(row,['tipoTrabajo','tipo_trabajo','descripcion'],'—'),state=field(row,['estado_coi','estadoCOI','estado'],'—'),cert=proximaCertificacionFinal(row),venc=dateValue(row,['fecha_vencimiento','fechaVencimiento','vencimiento','fechaFin','fin']);
       return`<tr class="ordenes-row-clickable" data-open-oc="${esc(key)}" data-coi-tipo-final="${type}"><td class="col-sel"><input type="checkbox" class="chk-orden-row" data-orden-key="${esc(key)}" data-orden-id="${esc(field(row,['supabaseId','id'],''))}" data-orden-oc="${esc(oc)}" ${selectionChecked(row)?'checked':''} aria-label="Seleccionar OC ${esc(oc)}"></td><td class="col-id"><b>${esc(key||'—')}</b></td><td class="col-oc"><b>${esc(oc||'—')}</b></td><td class="col-tipo">${esc(type)}</td><td class="col-estacion">${esc(station)}</td><td class="col-proveedor">${esc(provider)}</td><td class="col-monto">${esc(money(amount(row)))}</td><td class="col-sector">${esc(sector)}</td><td class="col-trabajo">${esc(work)}</td><td class="col-estado">${esc(state)}</td><td class="col-fecha">${esc(fmtDate(cert))}</td><td class="col-fecha">${esc(fmtDate(venc))}</td><td class="col-vigencia">${vigencia(row)}</td><td class="col-ficha"><button type="button" class="btn-open-oc" data-open-oc="${esc(key)}">Ver OC</button></td></tr>`;
     }).join('')||'<tr><td colspan="14">Sin resultados para los filtros seleccionados.</td></tr>';
     tbody.dataset.coiFinalRender=String(Date.now());
@@ -36319,23 +36334,41 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     }
   }
 
-  /* El Calendario proyecta la próxima certificación desde este historial. Si
-     la lectura termina después del primer render, hay que repintarlo una vez.
-     El cerrojo evita el bucle render → query → render: `cargado` ya es true
-     cuando el Calendario vuelve a pedir el historial. */
+  /* Órdenes, Dashboard, Centro de Alertas y Calendario consumen la misma
+     proyección. Si cualquiera fue el primer módulo abierto, su primer render
+     ocurre antes de que el historial autoritativo termine de cargar. Al cerrar
+     la lectura se repinta UNA vez sólo el consumidor activo. `cargado` ya es
+     true, por lo que los renderers pueden volver a pedir historial sin abrir
+     otra lectura ni formar un bucle. */
   let repintando = false;
   function repintarCalendarioUnaVez() {
     if (repintando) return;
-    const vista = $('vistaCalendarioCOI');
-    if (!vista || !vista.classList.contains('active')) return;
-    if (typeof window.renderCalendarioCOIUnificado !== 'function') return;
+    const activa = document.querySelector('.view.active')?.id || '';
+    const consumidores = new Set(['vistaCalendarioCOI','vistaOrdenes','vistaDashboard','vistaCentroAlertas']);
+    if (!consumidores.has(activa)) return;
     repintando = true;
     setTimeout(() => {
-      try { window.renderCalendarioCOIUnificado(); } catch (e) {}
-      // Una tarjeta abierta mientras se leía el historial quedó con el valor
-      // de respaldo: se reemplaza por el dato autoritativo.
-      try { if (typeof window.__COI_REFRESCAR_RESUMEN__ === 'function') window.__COI_REFRESCAR_RESUMEN__(); } catch (e) {}
-      repintando = false;
+      try {
+        if (activa === 'vistaCalendarioCOI') {
+          if (typeof window.renderCalendarioCOIUnificado === 'function') window.renderCalendarioCOIUnificado();
+          // Una tarjeta abierta mientras se leía el historial quedó con el
+          // valor de respaldo: se reemplaza por el dato autoritativo.
+          if (typeof window.__COI_REFRESCAR_RESUMEN__ === 'function') window.__COI_REFRESCAR_RESUMEN__();
+        } else if (activa === 'vistaOrdenes') {
+          if (typeof window.renderOrdenes === 'function') window.renderOrdenes();
+        } else if (activa === 'vistaCentroAlertas') {
+          if (typeof window.renderCentroAlertas === 'function') window.renderCentroAlertas();
+        } else if (activa === 'vistaDashboard') {
+          if (typeof window.updateKpis === 'function') window.updateKpis();
+          if (typeof window.renderDashboard === 'function') window.renderDashboard();
+          if (typeof window.renderDashboardInteractivoExtra === 'function') window.renderDashboardInteractivoExtra();
+          if (typeof window.renderDashboardAlertSummary === 'function') window.renderDashboardAlertSummary();
+        }
+      } catch (e) {
+        console.warn('COI: no se pudo repintar el consumidor de proyección activo.', e);
+      } finally {
+        repintando = false;
+      }
     }, 0);
   }
 

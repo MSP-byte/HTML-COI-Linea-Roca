@@ -146,6 +146,27 @@ async function abrirCalendario(page, opciones) {
   await page.locator('#vistaCalendarioCOI.active').waitFor({ state: 'attached', timeout: 25000 });
 }
 
+async function abrirOrdenes(page, opciones) {
+  await page.route(url => url.hostname !== '127.0.0.1', r => r.abort());
+  await fixture(page, opciones);
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => typeof window.renderOrdenes === 'function'
+    && Boolean(window.__COI_CERT_HISTORIAL__), null, { timeout: 25000 });
+  await page.waitForFunction(() => {
+    const vista = document.getElementById('vistaOrdenes');
+    if (vista && vista.classList.contains('active')) {
+      try { window.renderOrdenes(); } catch (e) {}
+      return true;
+    }
+    try {
+      window.mostrarVista && window.mostrarVista('vistaOrdenes');
+      window.renderOrdenes && window.renderOrdenes();
+    } catch (e) {}
+    return false;
+  }, null, { timeout: 40000, polling: 250 });
+  await page.locator('#vistaOrdenes.active').waitFor({ state: 'attached', timeout: 25000 });
+}
+
 const proyeccion = page => page.evaluate(() => {
   const fila = window.todasLasOC()[0];
   return window.__COI_PROXIMA_CERT__(fila.item, fila);
@@ -600,4 +621,34 @@ test('RV-26 · guardar una certificación relee el historial autoritativo', asyn
   await page.waitForFunction((n) => window.__COI_CERT_HISTORIAL__.estado().cargas > n, cargasAntes, { timeout: 20000 });
   // Se releyó sin que el operador tocara «Actualizar» ni recargara la página.
   expect(await page.evaluate(() => window.__COI_CERT_HISTORIAL__.estado().cargado)).toBe(true);
+});
+
+
+/* ===================== review follow-up final ===================== */
+
+test('RV-27 · Órdenes como primer consumidor se repinta con la proyección canónica', async ({ page }) => {
+  await abrirOrdenes(page, {
+    tipo: 'Servicio',
+    modalidad: 'MENSUAL',
+    certificaciones: [CERT({ fecha_fin: '2026-06-30' })],
+    demoraLectura: 350
+  });
+
+  // No se abrió Calendario. La primera pasada inicia la lectura y queda sin
+  // estimación; al terminar el historial, el consumidor activo se repinta solo.
+  await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 20000 });
+  const celda = page.locator('#ordenesTbody tr').first().locator('td.col-fecha').first();
+  await expect(celda).toContainText(/30\/0?7\/2026/, { timeout: 20000 });
+});
+
+test('RV-28 · el renderer final de Órdenes no revive un alias legacy para A_DEMANDA', async ({ page }) => {
+  await abrirOrdenes(page, {
+    tipo: 'Servicio',
+    modalidad: 'A_DEMANDA',
+    proximaAlias: '2026-08-10',
+    certificaciones: []
+  });
+  await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 20000 });
+  const celda = page.locator('#ordenesTbody tr').first().locator('td.col-fecha').first();
+  await expect(celda).not.toContainText(/10\/0?8\/2026/);
 });
