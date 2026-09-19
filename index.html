@@ -36195,6 +36195,7 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     generacion += 1;
     consolidadas = [];
     filasCrudas = [];
+    metadataPendiente = false;
     cargado = false;
     cargando = false;
     error = '';
@@ -36287,6 +36288,7 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
       }
       filasCrudas = datos;
       consolidadas = consolidar(datos);
+      recordarMetadataPendiente();
       uidSnapshot = uid;
       cargado = true;
       leyo = true;
@@ -36388,8 +36390,14 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
      y esas certificaciones quedaron sin tipo, sin proveedor resuelto y sin
      identidad de navegación. Cuando el catálogo aparece se vuelve a consolidar
      desde las filas crudas ya leídas: no hace falta otra lectura remota. */
-  function metadatosIncompletos() {
-    return consolidadas.some((g) => !texto(g.tipo));
+  /* Se recuerda si quedó metadata sin resolver, en vez de recorrer el historial
+     en cada consulta: reconsolidarSiFalta() se llama desde proxCertFix(), que
+     corre una vez POR FILA en cada render de Órdenes, Dashboard y Alertas.
+     Recalcularlo ahí convertía un chequeo barato en trabajo cuadrático. */
+  let metadataPendiente = false;
+  function recordarMetadataPendiente() {
+    metadataPendiente = consolidadas.some((g) => !texto(g.tipo));
+    return metadataPendiente;
   }
   function hayCatalogo() {
     try {
@@ -36398,10 +36406,12 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     } catch (e) { return false; }
   }
   function reconsolidarSiFalta() {
+    // Camino habitual: nada pendiente, salida inmediata y sin tocar el catálogo.
+    if (!metadataPendiente) return false;
     if (!cargado || !filasCrudas.length) return false;
-    if (!metadatosIncompletos() || !hayCatalogo()) return false;
+    if (!hayCatalogo()) return false;
     consolidadas = consolidar(filasCrudas);
-    if (metadatosIncompletos()) return false;   // el catálogo todavía no la tiene
+    if (recordarMetadataPendiente()) return false;   // el catálogo todavía no la tiene
     pintar();
     return true;
   }
