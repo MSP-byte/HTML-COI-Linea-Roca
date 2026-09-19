@@ -734,3 +734,32 @@ Queda abierto: consolidar las declaraciones duplicadas de `renderFichaOC` y
 `renderChecksDocumentales`. No se hizo acá para no ampliar el alcance de un fix
 de integración, pero mientras convivan, envolver una función homónima **no** es
 evidencia de que la Ficha la ejecute. Verificar el DOM, no el símbolo.
+
+## KI-034 — `modalidad_certificacion` está en el repo y no en producción
+Estado: abierto (pendiente de aplicación autorizada).
+
+La migración `202609170003_modalidad_certificacion.sql` agrega
+`coi_ordenes.modalidad_certificacion` y **no** se aplicó en producción. Queda
+declarada como divergencia pendiente en
+`tests/fixtures/production_schema_contract.json`.
+
+Mientras no se aplique, la columna no existe en remoto: la lectura del
+frontend la resuelve como vacía y ningún Servicio proyecta próxima
+certificación automática, que es el comportamiento seguro. Al aplicarla, todos
+los registros históricos quedan en `SIN_DEFINIR` y hay que elegir la modalidad
+por OC para que los mantenimientos mensuales vuelvan a proyectar.
+
+Ver `TD-075`.
+
+## KI-035 — La subpestaña Certificaciones ya no lista próximas certificaciones
+Estado: abierto (cambio deliberado, documentado).
+
+`Tabla Certificaciones` pasó a ser el historial de certificaciones **reales**
+(ver `TD-074`). La tabla de *próximas* certificaciones que ocupaba ese panel se
+retiró de ahí: las proyecciones siguen visibles como eventos del Calendario en
+Vista COI I y Vista COI II, y la vista `vistaCalendarioCertificaciones` sigue
+existiendo como módulo aparte.
+
+Si hiciera falta una tabla tabular de próximas certificaciones dentro del
+Calendario COI, conviene agregarla como subpestaña propia en vez de volver a
+mezclar proyecciones con hechos en el mismo panel.
