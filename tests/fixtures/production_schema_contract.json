@@ -15,6 +15,16 @@
         "repo": "presente",
         "migracion": "202608310004_h04_st_oc_referencial.sql",
         "motivo": "coi_servicios_tecnicos_um era la unica tabla dependiente de OC sin orden_id: la RPC de renumeracion 20260813033959 lo documenta explicitamente y por eso la excluye de su preflight de integridad. Agregarla le da la misma identidad tecnica por UUID que tienen coi_certificaciones, coi_posiciones_oc, coi_documentos_oc y el resto."
+      },
+      {
+        "tabla": "coi_ordenes",
+        "columna": "modalidad_certificacion",
+        "tipo": "text",
+        "nn": false,
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202609170003_modalidad_certificacion.sql",
+        "motivo": "La proyeccion de proximas certificaciones necesitaba distinguir un servicio de mantenimiento MENSUAL de uno A DEMANDA, y no existia ningun atributo canonico que lo dijera: la unica via era inferirlo del texto de la descripcion, que no es un dato. La columna cierra el dominio en MENSUAL/A_DEMANDA/SIN_DEFINIR, los registros historicos quedan en SIN_DEFINIR y SIN_DEFINIR no proyecta nada, de modo que ninguna fila existente cambia de significado. Pendiente de aplicar en produccion."
       }
     ],
     "fk": [
