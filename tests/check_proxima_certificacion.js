@@ -87,7 +87,7 @@ assert.match(
 );
 assert.match(
   html,
-  /function obtenerPendientesSemana\([^)]*\)\{[^\n]*daysTo\(proximaCertificacionEjecutiva\(o\)\)/,
+  /function obtenerPendientesSemana\(ordenes=normalizedRows\(\)\)\{[^\n]*daysTo\(proximaCertificacionEjecutiva\(o\)\)/,
   'Para resolver esta semana no puede usar proxima_certificacion cruda'
 );
 assert.match(
