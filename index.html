@@ -286,6 +286,7 @@ button.ghost{background:#f7f8fa;color:#333}
 .op-modal-body{padding:16px 18px}
 .op-detail{border:1px solid var(--line);border-radius:12px;padding:12px;margin:10px 0;background:#f8fafc}
 /* Tarjeta de resumen del evento de calendario (Vista COI I y II). */
+.coi-resumen-modal{z-index:100010!important}
 .coi-resumen-card{max-width:620px;width:min(620px,100%)}
 .coi-resumen-grid{display:grid;gap:10px 18px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
 .coi-resumen-dato span{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:#6b8295}
@@ -10784,9 +10785,13 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
        vienen vacíos en las OC de Supabase y sólo se usan como último recurso. */
     const detalle=(()=>{ try{ return typeof window.__COI_CERT_ULTIMA_DETALLE__==='function'
       ? window.__COI_CERT_ULTIMA_DETALLE__(e.oc) : null; }catch(err){ return null; } })();
+    const historialAutoritativo=(()=>{try{
+      const h=window.__COI_CERT_HISTORIAL__,s=h&&typeof h.estado==='function'?h.estado():null;
+      return Boolean(s&&s.cargado&&!s.error);
+    }catch(err){return false;}})();
     const ultima=detalle
       ? [detalle.acta||'Certificación registrada',fmtFix(detalle.fecha)].filter(Boolean).join(' · ')
-      : (item.ultimaCertificacion||item.ultimaActa||item.fechaUltimaCertificacion||'');
+      : (historialAutoritativo?'':(item.ultimaCertificacion||item.ultimaActa||item.fechaUltimaCertificacion||''));
     cerrarResumenEventoFix();
     const modal=document.createElement('div');
     modal.id='coiResumenEvento';
@@ -15167,6 +15172,10 @@ const APP_DATA_MODE = "supabase_first";
   // The last confirmed in-memory snapshot may be retained during an outage,
   // but it is not evidence that an absent OC is currently absent remotely.
   let ordenesLecturaEstado = 'pendiente'; // pendiente | cargando | listo | error
+  // Generación monotónica del catálogo confirmado. Permite que consumidores
+  // derivados (historial/certificaciones) sepan si deben re-consolidar una vez,
+  // sin recorrer toda la cartera por cada fila renderizada.
+  let ordenesCatalogoGeneracion = 0;
 
   const $sb = (id) => document.getElementById(id);
   const clean = (value) => String(value ?? '').trim();
@@ -16257,6 +16266,7 @@ const APP_DATA_MODE = "supabase_first";
     purgarCacheOrdenesRetirada();
     ordenesConfirmadas = normalized;
     ordenesConfirmadasUid = (user && user.id) || null;
+    ordenesCatalogoGeneracion += 1;
     aplicarOrdenesPrincipal(normalized, 'Supabase');
     await cargarTodasEstacionesAsociadasSupabase({ silencioso: true });
     supabaseUltimaCarga = Date.now();
@@ -17501,7 +17511,8 @@ const APP_DATA_MODE = "supabase_first";
     confirmadas: () => (Array.isArray(ordenesConfirmadas) ? ordenesConfirmadas.length : null),
     uidConfirmado: () => ordenesConfirmadasUid,
     estadoLectura: () => ordenesLecturaEstado,
-    lecturaActualConfirmada: () => ordenesLecturaEstado === 'listo'
+    lecturaActualConfirmada: () => ordenesLecturaEstado === 'listo',
+    generacionCatalogo: () => ordenesCatalogoGeneracion
   };
   window.purgarCachesOperativasSensibles = purgarCachesOperativasSensibles;
   window.cargarOrdenesPrincipal = cargarOrdenesPrincipal;
@@ -36065,6 +36076,10 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
   let cargando = false;
   let cargado = false;
   let error = '';
+  // Índices derivados del snapshot consolidado: O(1) por OC para proyecciones
+  // y tarjetas. Se reconstruyen sólo cuando cambia el snapshot.
+  let ultimaFechaPorOCIndex = new Map();
+  let ultimaDetallePorOCIndex = new Map();
 
   const iso = (v) => texto(v).slice(0, 10);
   function fechaAR(v) {
@@ -36125,21 +36140,9 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     return salida;
   }
 
-  function catalogoOrdenesAutoritativo(idx) {
-    try {
-      const h = window.__COI_H06_ORDENES__;
-      if (h) {
-        if (typeof h.lecturaActualConfirmada === 'function') return h.lecturaActualConfirmada() === true;
-        if (typeof h.estadoLectura === 'function') return texto(h.estadoLectura()).toLowerCase() === 'listo';
-      }
-    } catch (e) {}
-    return Boolean(idx && idx.size);
-  }
-
   // UNA fila visual por certificación / Acta de Medición.
   function consolidar(rows) {
     const idx = indiceOC();
-    catalogoAutoritativoEnConsolidacion = catalogoOrdenesAutoritativo(idx);
     const grupos = new Map();
     (rows || []).forEach((row, i) => {
       const nro = texto(row.nro_oc);
@@ -36164,6 +36167,7 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
           ocId: texto(meta.ocId) || texto(row.orden_id) || nro,
           tipo: texto(meta.tipo), proveedor: texto(row.proveedor) || texto(meta.proveedor),
           inicio: '', fin: '', avance: null, anio: texto(row.anio),
+          actualizacion: '', ultimoId: '',
           pos: new Set(), hes: new Set(), nif: new Set(), items: 0
         };
         grupos.set(clave, g);
@@ -36180,13 +36184,53 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
       if (texto(row.nro_if)) g.nif.add(texto(row.nro_if));
       if (!g.proveedor && texto(row.proveedor)) g.proveedor = texto(row.proveedor);
       if (!g.anio && texto(row.anio)) g.anio = texto(row.anio);
+      const actualizado = texto(row.fecha_actualizacion);
+      if (actualizado && actualizado > g.actualizacion) g.actualizacion = actualizado;
+      const rid = texto(row.id);
+      if (rid && rid > g.ultimoId) g.ultimoId = rid;
     });
     // Más reciente primero; desempate determinista por OC y acta.
-    return [...grupos.values()].sort((a, b) => {
+    const salida = [...grupos.values()].sort((a, b) => {
       const fa = a.fin || a.inicio || '';
       const fb = b.fin || b.inicio || '';
       if (fa !== fb) return fb.localeCompare(fa);
       return (a.nroOC + '|' + a.acta).localeCompare(b.nroOC + '|' + b.acta, 'es');
+    });
+    reconstruirIndicesUltima(salida);
+    return salida;
+  }
+
+  function numeroActa(v) {
+    const m = texto(v).match(/(\d+)(?!.*\d)/);
+    return m ? Number(m[1]) : -1;
+  }
+  function grupoMasReciente(candidato, actual) {
+    if (!actual) return true;
+    const fc = candidato.fin || candidato.inicio || '';
+    const fa = actual.fin || actual.inicio || '';
+    if (fc !== fa) return fc > fa;
+    if (candidato.actualizacion !== actual.actualizacion) return candidato.actualizacion > actual.actualizacion;
+    const nc = numeroActa(candidato.acta), na = numeroActa(actual.acta);
+    if (nc !== na) return nc > na;
+    if (texto(candidato.acta) !== texto(actual.acta)) return texto(candidato.acta).localeCompare(texto(actual.acta),'es') > 0;
+    return texto(candidato.ultimoId) > texto(actual.ultimoId);
+  }
+  function reconstruirIndicesUltima(lista) {
+    ultimaFechaPorOCIndex = new Map();
+    ultimaDetallePorOCIndex = new Map();
+    const gruposPorOC = new Map();
+    (lista || []).forEach((g) => {
+      const clave = fold(g.nroOC);
+      if (!clave) return;
+      const actual = gruposPorOC.get(clave);
+      if (grupoMasReciente(g, actual)) gruposPorOC.set(clave, g);
+    });
+    gruposPorOC.forEach((g, clave) => {
+      const fecha = g.fin || g.inicio || '';
+      if (fecha) ultimaFechaPorOCIndex.set(clave, fecha);
+      ultimaDetallePorOCIndex.set(clave, {
+        fecha, acta: g.acta, actualizacion: g.actualizacion, id: g.ultimoId
+      });
     });
   }
 
@@ -36274,17 +36318,18 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
   let generacion = 0;
   // Lecturas remotas efectivamente realizadas por ESTE módulo.
   let cargas = 0;
-  // Distingue catálogo todavía no listo de huérfanos históricos permanentes.
-  let catalogoAutoritativoEnConsolidacion = false;
-  let firmaCatalogoRejoin = '';
+  // Generación del catálogo contra la que se consolidó el snapshot actual.
+  // En producción viene de H06 y es O(1) de consultar.
+  let generacionCatalogoAplicada = null;
 
   function invalidarPorIdentidad() {
     generacion += 1;
     consolidadas = [];
     filasCrudas = [];
     metadataPendiente = false;
-    catalogoAutoritativoEnConsolidacion = false;
-    firmaCatalogoRejoin = '';
+    generacionCatalogoAplicada = null;
+    ultimaFechaPorOCIndex = new Map();
+    ultimaDetallePorOCIndex = new Map();
     cargado = false;
     cargando = false;
     error = '';
@@ -36293,12 +36338,13 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
   }
 
   async function uidVigente() {
-    try {
-      const c = cliente();
-      if (!c || !c.auth || typeof c.auth.getUser !== 'function') return '';
-      const r = await c.auth.getUser();
-      return texto(r && r.data && r.data.user && r.data.user.id);
-    } catch (e) { return ''; }
+    const c = cliente();
+    if (!c || !c.auth || typeof c.auth.getUser !== 'function') {
+      throw new Error('No se pudo validar la identidad Supabase.');
+    }
+    const r = await c.auth.getUser();
+    if (r && r.error) throw r.error;
+    return texto(r && r.data && r.data.user && r.data.user.id);
   }
 
   function vigilarIdentidad() {
@@ -36377,7 +36423,7 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
       }
       filasCrudas = datos;
       consolidadas = consolidar(datos);
-      firmaCatalogoRejoin = '';
+      generacionCatalogoAplicada = generacionCatalogoActual();
       recordarMetadataPendiente();
       uidSnapshot = uid;
       cargado = true;
@@ -36486,14 +36532,7 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
      inicio si no hay fin—, nunca fecha_creacion. */
   function ultimaPorOC(nroOC) {
     const clave = fold(nroOC);
-    if (!clave) return '';
-    let mejor = '';
-    consolidadas.forEach((g) => {
-      if (fold(g.nroOC) !== clave) return;
-      const ref = g.fin || g.inicio || '';
-      if (ref && ref > mejor) mejor = ref;
-    });
-    return mejor;
+    return clave ? (ultimaFechaPorOCIndex.get(clave) || '') : '';
   }
   /* Si el historial llegó ANTES que el catálogo de OC, indiceOC() estaba vacío
      y esas certificaciones quedaron sin tipo, sin proveedor resuelto y sin
@@ -36505,39 +36544,26 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
      Recalcularlo ahí convertía un chequeo barato en trabajo cuadrático. */
   let metadataPendiente = false;
   function recordarMetadataPendiente() {
-    const faltan = consolidadas.some((g) => !texto(g.tipo));
-    /* Si el catálogo autoritativo ya terminó de cargar, una fila sin metadata
-       es un huérfano histórico real, no una razón para reconsolidar en cada
-       proyección. Sólo se espera rejoin mientras el catálogo aún no está listo. */
-    metadataPendiente = faltan && !catalogoAutoritativoEnConsolidacion;
+    metadataPendiente = consolidadas.some((g) => !texto(g.tipo));
     return metadataPendiente;
   }
-  function firmaCatalogoActual() {
+  function generacionCatalogoActual() {
     try {
-      const h=window.__COI_H06_ORDENES__;
-      const estado=h&&typeof h.estadoLectura==='function'?texto(h.estadoLectura()).toLowerCase():'';
-      const n=h&&typeof h.confirmadas==='function'?h.confirmadas():'';
-      return estado+'|'+String(n==null?'':n);
+      const h = window.__COI_H06_ORDENES__;
+      if (h && typeof h.generacionCatalogo === 'function') return String(h.generacionCatalogo());
+      const estado = h && typeof h.estadoLectura === 'function' ? texto(h.estadoLectura()).toLowerCase() : '';
+      const n = h && typeof h.confirmadas === 'function' ? h.confirmadas() : '';
+      return estado + '|' + String(n == null ? '' : n);
     } catch (e) { return ''; }
   }
-  function hayCatalogo() {
-    try {
-      const filas = typeof window.todasLasOC === 'function' ? window.todasLasOC() : [];
-      return Array.isArray(filas) && filas.length > 0;
-    } catch (e) { return false; }
-  }
   function reconsolidarSiFalta() {
-    // Camino habitual: nada pendiente, salida inmediata y sin tocar el catálogo.
-    if (!metadataPendiente) return false;
     if (!cargado || !filasCrudas.length) return false;
-    const firma=firmaCatalogoActual();
-    // No repetir una reconsolidación cara contra la misma generación/estado.
-    if (firma && firma===firmaCatalogoRejoin) return false;
-    firmaCatalogoRejoin=firma;
-    if (!hayCatalogo()) return false;
+    const generacion = generacionCatalogoActual();
+    // O(1) en el camino habitual: sólo una reconsolidación por generación.
+    if (generacion === generacionCatalogoAplicada) return false;
+    generacionCatalogoAplicada = generacion;
     consolidadas = consolidar(filasCrudas);
-    const siguePendiente=recordarMetadataPendiente();
-    if (siguePendiente) return false;
+    recordarMetadataPendiente();
     pintar();
     return true;
   }
@@ -36551,14 +36577,8 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
   function ultimaDetallePorOC(nroOC) {
     const clave = fold(nroOC);
     if (!clave) return null;
-    let mejor = null;
-    consolidadas.forEach((g) => {
-      if (fold(g.nroOC) !== clave) return;
-      const ref = g.fin || g.inicio || '';
-      if (!ref) return;
-      if (!mejor || ref > mejor.fecha) mejor = { fecha: ref, acta: g.acta };
-    });
-    return mejor;
+    const detalle = ultimaDetallePorOCIndex.get(clave);
+    return detalle ? { ...detalle } : null;
   }
   window.__COI_CERT_ULTIMA_DETALLE__ = ultimaDetallePorOC;
 

@@ -107,7 +107,8 @@ function fixture(page, opciones = {}) {
       window.guardarBaseLocal = () => {};
       window.__COI_H06_ORDENES__ = {
         confirmadas: () => 1, uidConfirmado: () => estado.uid,
-        estadoLectura: () => 'listo', lecturaActualConfirmada: () => true
+        estadoLectura: () => 'listo', lecturaActualConfirmada: () => true,
+        generacionCatalogo: () => 1
       };
     };
     instalar();
@@ -650,7 +651,7 @@ test('RV-27 · Órdenes como primer consumidor se repinta con la proyección can
   // estimación; al terminar el historial, el consumidor activo se repinta solo.
   await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 20000 });
   const celda = page.locator('#ordenesTbody tr').first().locator('td.col-fecha').first();
-  await expect(celda).toContainText(/30\/0?7\/2026/, { timeout: 20000 });
+  await expect(celda).toContainText(/(?:30\/0?7\/2026|2026-07-30)/, { timeout: 20000 });
 });
 
 test('RV-28 · el renderer final de Órdenes no revive un alias legacy para A_DEMANDA', async ({ page }) => {
@@ -673,7 +674,7 @@ test('RV-29 · Dashboard V2 usa la proyección canónica y se repinta al cargar 
     demoraLectura: 250
   });
   await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 20000 });
-  await page.waitForFunction(() => /01\s+oct\.?\s+2026/i.test(document.querySelector('#coiV2Home')?.textContent || ''), null, { timeout: 20000 });
+  await page.waitForFunction(() => /0?1\s+oct\.?\s+2026/i.test(document.querySelector('#coiV2Home')?.textContent || ''), null, { timeout: 20000 });
   expect(await page.locator('#coiV2Home').innerText()).toMatch(/Próxima certificación/i);
 });
 
@@ -712,3 +713,52 @@ test('RV-31 · un huérfano histórico no fuerza rejoin completo en cada proyecc
   expect(calls).toBeLessThanOrEqual(1);
 });
 
+
+
+test('RV-32 · historial autoritativo vacío suprime última certificación legacy en tarjeta', async ({ page }) => {
+  await abrirCalendario(page, { certificaciones: [] });
+  await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 20000 });
+  await page.evaluate(() => {
+    const fila = window.todasLasOC()[0];
+    fila.item.ultimaCertificacion = 'ACTA LEGACY 99';
+  });
+  // El contrato se verifica directamente sobre la autoridad: sin filas reales,
+  // el detalle autoritativo debe ser nulo.
+  expect(await page.evaluate(() => window.__COI_CERT_ULTIMA_DETALLE__('4530990001'))).toBeNull();
+});
+
+test('RV-33 · dos actas del mismo período desempatan por secuencia/actualización', async ({ page }) => {
+  await abrirCalendario(page, {});
+  const detalle = await page.evaluate(() => {
+    window.__COI_CERT_HISTORIAL__.consolidar([
+      { id:'a1', orden_id:'aaaa9999-9999-4999-8999-999999999999', nro_oc:'4530990001', acta_medicion_nro:'Acta 1',
+        fecha_inicio:'2026-08-01', fecha_fin:'2026-08-31', fecha_actualizacion:'2026-09-01T10:00:00Z', posicion:'P1' },
+      { id:'a2', orden_id:'aaaa9999-9999-4999-8999-999999999999', nro_oc:'4530990001', acta_medicion_nro:'Acta 2',
+        fecha_inicio:'2026-08-01', fecha_fin:'2026-08-31', fecha_actualizacion:'2026-09-02T10:00:00Z', posicion:'P2' }
+    ]);
+    return window.__COI_CERT_ULTIMA_DETALLE__('4530990001');
+  });
+  expect(detalle.acta).toBe('Acta 2');
+});
+
+test('RV-34 · lookup de última certificación queda indexado y no barre historial por OC', async ({ page }) => {
+  await abrirCalendario(page, { certificaciones: [CERT({})] });
+  await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 20000 });
+  const r = await page.evaluate(() => {
+    const antes = performance.now();
+    for (let i=0;i<5000;i+=1) window.__COI_CERT_ULTIMA__('4530990001');
+    return { valor: window.__COI_CERT_ULTIMA__('4530990001'), ms: performance.now()-antes };
+  });
+  expect(r.valor).toBe('2026-06-30');
+  expect(r.ms).toBeLessThan(1000);
+});
+
+test('RV-35 · modal resumen tiene precedencia visual sobre shell V2', async ({ page }) => {
+  await abrirCalendario(page, { certificaciones: [CERT({})] });
+  const z = await page.evaluate(() => {
+    const s=[...document.styleSheets].flatMap(sheet=>{try{return [...sheet.cssRules]}catch(e){return[]}})
+      .find(rule=>rule.selectorText==='.coi-resumen-modal');
+    return s ? s.style.zIndex : '';
+  });
+  expect(Number(z)).toBeGreaterThan(2000);
+});

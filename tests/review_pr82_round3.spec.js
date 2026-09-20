@@ -95,7 +95,8 @@ function fixture(page, opciones = {}) {
       window.guardarBaseLocal = () => {};
       window.__COI_H06_ORDENES__ = {
         confirmadas: () => 1, uidConfirmado: () => estado.uid,
-        estadoLectura: () => 'listo', lecturaActualConfirmada: () => true
+        estadoLectura: () => 'listo', lecturaActualConfirmada: () => true,
+        generacionCatalogo: () => window.__CATALOGO_LISTO__ ? 1 : 0
       };
     };
     instalar();
