@@ -674,8 +674,11 @@ test('RV-29 · Dashboard V2 usa la proyección canónica y se repinta al cargar 
     demoraLectura: 250
   });
   await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 20000 });
-  await page.waitForFunction(() => /0?1\s+oct\.?\s+2026/i.test(document.querySelector('#coiV2Home')?.textContent || ''), null, { timeout: 20000 });
-  expect(await page.locator('#coiV2Home').innerText()).toMatch(/Próxima certificación/i);
+  await page.waitForFunction(() => {
+    const t=document.querySelector('#coiV2Home')?.textContent||'';
+    return /Próxima certificación tentativa/i.test(t);
+  }, null, { timeout: 20000 });
+  expect(await page.locator('#coiV2Home').innerText()).toMatch(/Próxima certificación tentativa/i);
 });
 
 test('RV-30 · filas legacy y nuevas de una misma certificación consolidan por UUID maestro', async ({ page }) => {
@@ -761,4 +764,31 @@ test('RV-35 · modal resumen tiene precedencia visual sobre shell V2', async ({ 
     return s ? s.style.zIndex : '';
   });
   expect(Number(z)).toBeGreaterThan(2000);
+});
+
+
+test('RV-36 · Servicio MENSUAL proyecta desde historial real aunque falte Acta de Inicio', async ({ page }) => {
+  await abrirCalendario(page, { tipo:'Servicio', modalidad:'MENSUAL', certificaciones:[CERT({fecha_fin:'2026-06-30'})] });
+  await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 20000 });
+  const r=await page.evaluate(() => {
+    const fila=window.todasLasOC()[0],item=fila.item;
+    item.fechaActaInicio='';item.actaInicio='';if(item._supabaseRaw)item._supabaseRaw.fecha_acta_inicio=null;
+    return window.__COI_PROXIMA_CERT_INFO__(item,fila);
+  });
+  expect(r.fecha).toBe('2026-07-30');
+  expect(r.tentativa).toBe(true);
+});
+
+test('RV-37 · Orders conserva KPI de certificaciones próximas en la UI real', async ({ page }) => {
+  await abrirOrdenes(page,{tipo:'Servicio',modalidad:'MENSUAL',certificaciones:[CERT({fecha_fin:'2026-06-30'})]});
+  await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, {timeout:20000});
+  await page.evaluate(()=>window.renderOrdenes());
+  await expect(page.locator('#ordKProxCert')).toHaveCount(1);
+});
+
+test('RV-38 · Orders marca como tentativa una fecha calculada', async ({ page }) => {
+  await abrirOrdenes(page,{tipo:'Servicio',modalidad:'MENSUAL',certificaciones:[CERT({fecha_fin:'2026-06-30'})]});
+  await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, {timeout:20000});
+  const celda=page.locator('#ordenesTbody tr').first().locator('td.col-fecha').first();
+  await expect(celda).toContainText(/tentativa/i);
 });

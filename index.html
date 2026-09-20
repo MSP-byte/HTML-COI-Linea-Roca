@@ -6313,7 +6313,7 @@ function sumarMeses(fecha,cantidad){return addMeses(fecha,cantidad);}
 function formatearFecha(fecha){return fmtFecha(fecha);}
 function alertaValor(item,row,keys){for(const k of keys){const v=item?.[k]??row?.[k];if(v!==undefined&&v!==null&&String(v).trim()!=='')return v;}return '';}
 function alertaFecha(item,row,keys){for(const k of keys){const d=(typeof parseFechaFlexible==='function'?parseFechaFlexible:parseFecha)(item?.[k]??row?.[k]);if(d)return d;}return null;}
-function alertaRegistro(row){const item=row.item||{};const id=alertaValor(item,row,['idObra','ID_OBRA','idServicio','ID_SERVICIO','idOC','id'])||slugOC([row.tipo,row.oc,row.estacion].join('-'));const oc=alertaValor(item,row,['ocNro','OC_NRO','numeroOC','oc','OC'])||row.oc||'SIN OC';const estacion=alertaValor(item,row,['estacion','ESTACION'])||row.estacion||'';const proveedor=alertaValor(item,row,['proveedor','PROVEEDOR'])||row.proveedor||'';const inicio=alertaFecha(item,row,['fechaInicio','FECHA_INICIO','fechaActaInicio','actaInicio','inicio'])||row.inicio;const fin=alertaFecha(item,row,['fechaFin','FECHA_FIN','fechaVencimiento','vencimiento','fin'])||row.fin;const prox=alertaFecha(item,row,['proxCertificacion','PROX_CERTIFICACION','proximaCertificacion','fechaProximaCertificacion'])||row.proximaCertificacion;const plazo=Number(alertaValor(item,row,['plazoDias','PLAZO_DIAS','plazo'])||row.plazo||0);const estadoDocumental=alertaValor(item,row,['estadoDocumental','ESTADO_DOCUMENTAL'])||row.estadoDocumental||'';return {item,id,oc,tipo:row.tipo||item.tipo||'',estacion,proveedor,inicio,fin,prox,plazo,estado:row.estado||item.estado||'',estadoDocumental,descripcion:item.descripcion||item.tipoTrabajo||row.especialidad||'',expediente:item.expediente||item.expte||item.EXPEDIENTE||'',ultimaActa:item.ultimaActa||item.ULTIMA_ACTA||item.ultimaCertificacion||'',periodoInicio:item.periodoInicio||item.PERIODO_INICIO||'',periodoFin:item.periodoFin||item.PERIODO_FIN||'',cerrada:row.cerrada||esOCCerradaLegacy(item)};}
+function alertaRegistro(row){const item=row.item||{};const id=alertaValor(item,row,['idObra','ID_OBRA','idServicio','ID_SERVICIO','idOC','id'])||slugOC([row.tipo,row.oc,row.estacion].join('-'));const oc=alertaValor(item,row,['ocNro','OC_NRO','numeroOC','oc','OC'])||row.oc||'SIN OC';const estacion=alertaValor(item,row,['estacion','ESTACION'])||row.estacion||'';const proveedor=alertaValor(item,row,['proveedor','PROVEEDOR'])||row.proveedor||'';const inicio=alertaFecha(item,row,['fechaInicio','FECHA_INICIO','fechaActaInicio','actaInicio','inicio'])||row.inicio;const fin=alertaFecha(item,row,['fechaFin','FECHA_FIN','fechaVencimiento','vencimiento','fin'])||row.fin;let prox=null,proxTentativa=false;try{if(typeof window.__COI_PROXIMA_CERT_INFO__==='function'){const info=window.__COI_PROXIMA_CERT_INFO__(item,row)||{};prox=info.fecha?(typeof parseFechaFlexible==='function'?parseFechaFlexible(info.fecha):parseFecha(info.fecha)):null;proxTentativa=Boolean(info.tentativa);}else if(typeof window.__COI_PROXIMA_CERT__==='function'){const f=window.__COI_PROXIMA_CERT__(item,row);prox=f?(typeof parseFechaFlexible==='function'?parseFechaFlexible(f):parseFecha(f)):null;}}catch(e){}if(!prox)prox=alertaFecha(item,row,['proxCertificacion','PROX_CERTIFICACION','proximaCertificacion','fechaProximaCertificacion'])||row.proximaCertificacion;const plazo=Number(alertaValor(item,row,['plazoDias','PLAZO_DIAS','plazo'])||row.plazo||0);const estadoDocumental=alertaValor(item,row,['estadoDocumental','ESTADO_DOCUMENTAL'])||row.estadoDocumental||'';return {item,id,oc,tipo:row.tipo||item.tipo||'',estacion,proveedor,inicio,fin,prox,proxTentativa,plazo,estado:row.estado||item.estado||'',estadoDocumental,descripcion:item.descripcion||item.tipoTrabajo||row.especialidad||'',expediente:item.expediente||item.expte||item.EXPEDIENTE||'',ultimaActa:item.ultimaActa||item.ULTIMA_ACTA||item.ultimaCertificacion||'',periodoInicio:item.periodoInicio||item.PERIODO_INICIO||'',periodoFin:item.periodoFin||item.PERIODO_FIN||'',cerrada:row.cerrada||esOCCerradaLegacy(item)};}
 function obtenerSeveridadAlerta(alerta){return alerta.severidad||({'Crítica':'ROJA','Próxima':'AMARILLA','Documental':'AMARILLA','Informativa':'AZUL'}[alerta.categoria]||'AZUL');}
 function crearAlerta(base,tipoAlerta,categoria,severidad,fecha,dias,mensaje,accion){const fechaIso=isoFechaCOI(fecha)||'SIN_FECHA';const id=`${slugOC(tipoAlerta)}_${slugOC(base.id)}_${fechaIso}`;return {id,tipoAlerta,categoria,severidad,oc:base.oc,idRegistro:base.id,tipoRegistro:base.tipo,estacion:base.estacion||'Sin definir',proveedor:base.proveedor||'Sin definir',descripcion:base.descripcion||'—',fechaRelacionada:fechaIso==='SIN_FECHA'?'':fechaIso,dias:dias??'',mensaje,accionSugerida:accion,ocId:base.id,item:base.item};}
 function estadoCerradoAlerta(txt){const s=normalizarTexto(txt);return s.includes('CERRAD')||s.includes('FINALIZAD')||s.includes('ARCHIVAD')||s.includes('DEFINITIVA');}
@@ -6343,7 +6343,7 @@ function generarAlertasCOI(){
       const sujeto=r.tipo==='Servicio'?'Servicio':'OC';
       push(crearAlerta(r,tipoAlerta,'Próxima','AMARILLA',r.fin,diasFin,`${sujeto} próximo a vencer en ${diasFin} días.`,'Planificar renovación, cierre o prórroga.'));
     }
-    if(r.prox&&!r.cerrada&&diasProx>=0&&diasProx<=15)push(crearAlerta(r,'Certificación próxima','Próxima','AMARILLA',r.prox,diasProx,`Certificación próxima en ${diasProx} días.`,'Preparar documentación de certificación.'));
+    if(r.prox&&!r.cerrada&&diasProx>=0&&diasProx<=15)push(crearAlerta(r,r.proxTentativa?'Certificación tentativa próxima':'Certificación próxima','Próxima','AMARILLA',r.prox,diasProx,`${r.proxTentativa?'Certificación tentativa':'Certificación'} próxima en ${diasProx} días.`,'Preparar documentación de certificación.'));
     if(r.tipo==='Obra'&&r.prox&&!r.cerrada&&diasProx>=0&&diasProx<=15)push(crearAlerta(r,'Control de avance de obra','Próxima','AMARILLA',r.prox,diasProx,`Obra con próximo avance en ${diasProx} días.`,'Revisar avance físico y acta de medición.'));
     if(!r.expediente)push(crearAlerta(r,'Falta expediente','Documental','AMARILLA','', '', 'Falta expediente.','Registrar expediente asociado.'));
     if(!r.ultimaActa)push(crearAlerta(r,'Falta última acta','Documental','AMARILLA','', '', 'Falta última acta.','Registrar última acta o certificación.'));
@@ -10277,8 +10277,9 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   function proyeccionMensualFix(item,row){
     if(!historialCertAutoritativo())return null;
     if(cerradaFix(item,row))return null;
+    const ultimaReal=ultimaCertRealFix(item,row);
     const inicio=inicioFix(item,row);
-    if(!inicio)return null;
+    if(!ultimaReal&&!inicio)return null;
     const tipo=tipoCanonicoFix(item,row);
     if(tipo==='SERVICIO'){
       if(modalidadCertFix(item)!==MODALIDAD_MENSUAL)return null;
@@ -10289,7 +10290,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       // Financiera, Otro o sin tipo: la regla documentada no las alcanza.
       return null;
     }
-    const base=ultimaCertRealFix(item,row)||inicio;
+    const base=ultimaReal||inicio;
     const proxima=sumarMesCalendarioFix(base,1);
     if(!proxima)return null;
     const fin=finFix(item,row);
@@ -10938,7 +10939,13 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   renderCalendarioCOIUnificado = renderCalendarioFix;
   /* Proyección tentativa de próxima certificación (CAMBIO 3), expuesta para
      poder afirmarla sin depender del mes que el calendario esté mostrando. */
-  window.__COI_PROXIMA_CERT__ = (item, row) => isoFix(proxCertFix(item || {}, row || {})) || '';
+  window.__COI_PROXIMA_CERT_INFO__ = (item, row) => {
+    const fuenteItem=item||{},fuenteRow=row||{};
+    const fecha=isoFix(proxCertFix(fuenteItem,fuenteRow))||'';
+    const origen=fecha?(proxCertOrigenFix(fuenteItem,fuenteRow)||''):'';
+    return {fecha,origen,tentativa:origen==='calculada'};
+  };
+  window.__COI_PROXIMA_CERT__ = (item, row) => window.__COI_PROXIMA_CERT_INFO__(item,row).fecha;
   window.__COI_PROYECCION_MENSUAL__ = (item, row) => isoFix(proyeccionMensualFix(item || {}, row || {})) || '';
   activarTabCalendarioCOI = function(tab){activarTabCalendarioFix(tab);};
   cambiarSubvistaCalendarioCOI = function(vista){ const mapa={coi1:'inteligente',coi2:'calendario',vencimientos:'vencimientos',certificaciones:'certificaciones'}; calendarioTabFix=mapa[vista]||vista||'inteligente'; renderCalendarioFix(); };
@@ -19295,7 +19302,7 @@ const APP_DATA_MODE = "supabase_first";
   function ensureOrdersUI(){
     const toolbar=document.querySelector('#vistaOrdenes .ordenes-toolbar');
     if(toolbar)toolbar.classList.add('ordenes-toolbar-v581r');
-    const summary=document.querySelector('#vistaOrdenes .ordenes-resumen');if(summary){summary.className='ordenes-resumen ordenes-resumen-financiero';summary.innerHTML='<div class="ordenes-kpi-financiero"><b id="ordKTotal">0</b><span>Total OC filtradas</span></div><div class="ordenes-kpi-financiero"><b id="ordKMontoTotal">$ 0,00</b><span>Monto total filtrado</span></div><div class="ordenes-kpi-financiero"><b id="ordKSubtotalObras">$ 0,00</b><span>Subtotal Obras</span></div><div class="ordenes-kpi-financiero"><b id="ordKSubtotalServicios">$ 0,00</b><span>Subtotal Servicios</span></div>';}
+    const summary=document.querySelector('#vistaOrdenes .ordenes-resumen');if(summary){summary.className='ordenes-resumen ordenes-resumen-financiero';summary.innerHTML='<div class="ordenes-kpi-financiero"><b id="ordKTotal">0</b><span>Total OC filtradas</span></div><div class="ordenes-kpi-financiero"><b id="ordKMontoTotal">$ 0,00</b><span>Monto total filtrado</span></div><div class="ordenes-kpi-financiero"><b id="ordKSubtotalObras">$ 0,00</b><span>Subtotal Obras</span></div><div class="ordenes-kpi-financiero"><b id="ordKSubtotalServicios">$ 0,00</b><span>Subtotal Servicios</span></div><div class="ordenes-kpi-financiero"><b id="ordKProxCert">0</b><span>Certificaciones próximas</span></div>';}
     const actions=document.querySelector('#vistaOrdenes .ordenes-bulk-actions');if(actions&&!$('btnExportOrdenesCSVV581R')){actions.classList.add('ordenes-export-actions');actions.insertAdjacentHTML('beforeend','<button type="button" id="btnExportOrdenesCSVV581R">Exportar CSV</button>');}
     const table=document.querySelector('#vistaOrdenes table.ordenes-table');if(table)table.classList.add('table-ordenes-clean');
   }
@@ -19689,15 +19696,14 @@ function indiceProyeccionOrdenesFinal(){
 }
 function proximaCertificacionFinal(row,indiceCanonico){
   try{
-    if(typeof window.__COI_PROXIMA_CERT__==='function'){
-      const oc=rowOC(row),fuente=(indiceCanonico&&oc&&indiceCanonico.get(oc))||row||{};
-      const item=(fuente&&fuente.item)||fuente||{};
-      return clean(window.__COI_PROXIMA_CERT__(item,fuente));
-    }
+    const oc=rowOC(row),fuente=(indiceCanonico&&oc&&indiceCanonico.get(oc))||row||{};
+    const item=(fuente&&fuente.item)||fuente||{};
+    if(typeof window.__COI_PROXIMA_CERT_INFO__==='function')return window.__COI_PROXIMA_CERT_INFO__(item,fuente);
+    if(typeof window.__COI_PROXIMA_CERT__==='function')return {fecha:clean(window.__COI_PROXIMA_CERT__(item,fuente)),origen:'',tentativa:false};
   }catch(e){console.warn('COI Órdenes: falló la proyección canónica.',e);}
-  // Fallback de arranque: únicamente la columna persistida, nunca aliases derivados.
   const raw=(row&&row._supabaseRaw)||(row&&row.item&&row.item._supabaseRaw)||{};
-  return clean(raw.proxima_certificacion||(row&&row.proxima_certificacion)||'');
+  const fecha=clean(raw.proxima_certificacion||(row&&row.proxima_certificacion)||'');
+  return {fecha,origen:fecha?'persistida':'',tentativa:false};
 }
 function renderOrdersFinal(){
   orderRenderScheduled=false;
@@ -19712,8 +19718,8 @@ function renderOrdersFinal(){
     rows.forEach(r=>{
       const m=amount(r);total+=m;
       const tipo=clasificarOrdenFinal(r);if(tipo==='Obra')works+=m;else services+=m;
-      const cert=proximaCertificacionFinal(r,indiceCanonico),oc=rowOC(r);if(oc)certPorOC.set(oc,cert);
-      const d=daysTo(cert);if(d!==null&&d>=0&&d<=30)proximas30+=1;
+      const info=proximaCertificacionFinal(r,indiceCanonico),oc=rowOC(r);if(oc)certPorOC.set(oc,info);
+      const d=daysTo(info&&info.fecha);if(d!==null&&d>=0&&d<=30)proximas30+=1;
     });
     $('ordKTotal')&&($('ordKTotal').textContent=String(rows.length));
     $('ordKObras')&&($('ordKObras').textContent=String(rows.filter(r=>clasificarOrdenFinal(r)==='Obra').length));
@@ -19723,8 +19729,8 @@ function renderOrdersFinal(){
     table.className='coi-table ordenes-table table-ordenes-clean';
     if(table.tHead)table.tHead.innerHTML='<tr><th class="col-sel">Sel.</th><th class="col-id">ID_OBRA / ID_SERVICIO</th><th class="col-oc">N° OC</th><th class="col-tipo">Tipo</th><th class="col-estacion">Estación</th><th class="col-proveedor">Proveedor</th><th class="col-monto">Monto $</th><th class="col-sector">Sector</th><th class="col-trabajo">Tipo de trabajo</th><th class="col-estado">Estado COI</th><th class="col-fecha">Próxima certificación</th><th class="col-fecha">Vencimiento</th><th class="col-vigencia">Vigencia operativa</th><th class="col-ficha">Ficha</th></tr>';
     tbody.innerHTML=rows.map(row=>{
-      const key=rowId(row),oc=rowOC(row),type=clasificarOrdenFinal(row),station=field(row,['estacion'],'—'),provider=field(row,['proveedor','PROVEEDOR','razon_social','razonSocial'],'—'),sector=field(row,['sector'],'—'),umv=field(row,['umVinculada','um_vinculada','unidadMantenimiento','especialidad'],'—'),work=field(row,['tipoTrabajo','tipo_trabajo','descripcion'],'—'),state=field(row,['estado_coi','estadoCOI','estado'],'—'),cert=certPorOC.get(rowOC(row))||'',venc=dateValue(row,['fecha_vencimiento','fechaVencimiento','vencimiento','fechaFin','fin']);
-      return`<tr class="ordenes-row-clickable" data-open-oc="${esc(key)}" data-coi-tipo-final="${type}"><td class="col-sel"><input type="checkbox" class="chk-orden-row" data-orden-key="${esc(key)}" data-orden-id="${esc(field(row,['supabaseId','id'],''))}" data-orden-oc="${esc(oc)}" ${selectionChecked(row)?'checked':''} aria-label="Seleccionar OC ${esc(oc)}"></td><td class="col-id"><b>${esc(key||'—')}</b></td><td class="col-oc"><b>${esc(oc||'—')}</b></td><td class="col-tipo">${esc(type)}</td><td class="col-estacion">${esc(station)}</td><td class="col-proveedor">${esc(provider)}</td><td class="col-monto">${esc(money(amount(row)))}</td><td class="col-sector">${esc(sector)}</td><td class="col-trabajo">${esc(work)}</td><td class="col-estado">${esc(state)}</td><td class="col-fecha">${esc(fmtDate(cert))}</td><td class="col-fecha">${esc(fmtDate(venc))}</td><td class="col-vigencia">${vigencia(row)}</td><td class="col-ficha"><button type="button" class="btn-open-oc" data-open-oc="${esc(key)}">Ver OC</button></td></tr>`;
+      const key=rowId(row),oc=rowOC(row),type=clasificarOrdenFinal(row),station=field(row,['estacion'],'—'),provider=field(row,['proveedor','PROVEEDOR','razon_social','razonSocial'],'—'),sector=field(row,['sector'],'—'),umv=field(row,['umVinculada','um_vinculada','unidadMantenimiento','especialidad'],'—'),work=field(row,['tipoTrabajo','tipo_trabajo','descripcion'],'—'),state=field(row,['estado_coi','estadoCOI','estado'],'—'),certInfo=certPorOC.get(rowOC(row))||{fecha:'',tentativa:false},cert=certInfo.fecha,venc=dateValue(row,['fecha_vencimiento','fechaVencimiento','vencimiento','fechaFin','fin']);
+      return`<tr class="ordenes-row-clickable" data-open-oc="${esc(key)}" data-coi-tipo-final="${type}"><td class="col-sel"><input type="checkbox" class="chk-orden-row" data-orden-key="${esc(key)}" data-orden-id="${esc(field(row,['supabaseId','id'],''))}" data-orden-oc="${esc(oc)}" ${selectionChecked(row)?'checked':''} aria-label="Seleccionar OC ${esc(oc)}"></td><td class="col-id"><b>${esc(key||'—')}</b></td><td class="col-oc"><b>${esc(oc||'—')}</b></td><td class="col-tipo">${esc(type)}</td><td class="col-estacion">${esc(station)}</td><td class="col-proveedor">${esc(provider)}</td><td class="col-monto">${esc(money(amount(row)))}</td><td class="col-sector">${esc(sector)}</td><td class="col-trabajo">${esc(work)}</td><td class="col-estado">${esc(state)}</td><td class="col-fecha">${esc(fmtDate(cert))}${certInfo.tentativa?' · tentativa':''}</td><td class="col-fecha">${esc(fmtDate(venc))}</td><td class="col-vigencia">${vigencia(row)}</td><td class="col-ficha"><button type="button" class="btn-open-oc" data-open-oc="${esc(key)}">Ver OC</button></td></tr>`;
     }).join('')||'<tr><td colspan="14">Sin resultados para los filtros seleccionados.</td></tr>';
     tbody.dataset.coiFinalRender=String(Date.now());
     try{if(typeof window.v45ActualizarSeleccionOrdenes==='function')window.v45ActualizarSeleccionOrdenes();}catch(e){}
@@ -26611,13 +26617,15 @@ body.coi-v2-light input,body.coi-v2-light select,body.coi-v2-light textarea{back
   ];
   let lastView='';
   function rows(){try{return typeof window.todasLasOC==='function'?(window.todasLasOC()||[]):[]}catch(error){console.warn('[COI V2] No se pudo obtener la cartera',error);return[]}}
-  function nextCertification(row){
+  function nextCertificationInfo(row){
     try{
-      if(typeof window.__COI_PROXIMA_CERT__==='function')return window.__COI_PROXIMA_CERT__(row?.item||row,row)||'';
+      if(typeof window.__COI_PROXIMA_CERT_INFO__==='function')return window.__COI_PROXIMA_CERT_INFO__(row?.item||row,row)||{fecha:'',origen:'',tentativa:false};
+      if(typeof window.__COI_PROXIMA_CERT__==='function'){const fecha=window.__COI_PROXIMA_CERT__(row?.item||row,row)||'';return {fecha,origen:'',tentativa:false};}
     }catch(error){console.warn('[COI V2] No se pudo calcular la próxima certificación canónica',error);}
-    const raw=row?.item?._supabaseRaw||row?._supabaseRaw||{};
-    return raw.proxima_certificacion||'';
+    const raw=row?.item?._supabaseRaw||row?._supabaseRaw||{},fecha=raw.proxima_certificacion||'';
+    return {fecha,origen:fecha?'persistida':'',tentativa:false};
   }
+  function nextCertification(row){return nextCertificationInfo(row).fecha;}
   function parseDate(value){try{if(typeof window.parseFecha==='function')return window.parseFecha(value)}catch(e){}if(!value)return null;const d=value instanceof Date?value:new Date(value);return Number.isNaN(d.getTime())?null:d}
   function diffDays(date){const d=parseDate(date);if(!d)return null;const a=new Date();a.setHours(0,0,0,0);d.setHours(0,0,0,0);return Math.round((d-a)/86400000)}
   function fmtDate(value){const d=parseDate(value);return d?new Intl.DateTimeFormat('es-AR',{day:'2-digit',month:'short',year:'numeric'}).format(d):'Sin fecha'}
@@ -26653,7 +26661,7 @@ body.coi-v2-light input,body.coi-v2-light select,body.coi-v2-light textarea{back
   }
   function renderSearch(query){const panel=$('coiV2SearchPanel');if(!panel)return;const q=fold(query);if(!q){panel.classList.remove('open');panel.innerHTML='';return}const matches=rows().filter(r=>fold([r.oc,r.tipo,r.estacion,r.proveedor,r.especialidad,r.estado,r.item?.tipoTrabajo,r.item?.descripcion,r.item?.observaciones].join(' ')).includes(q)).slice(0,12);panel.innerHTML=`<div class="coi-v2-search-head"><span>Resultados operativos</span><span>${matches.length}</span></div>${matches.map(r=>`<button type="button" class="coi-v2-search-item" data-v2-open-oc="${esc(keyFor(r))}"><span class="coi-v2-result-icon">${esc(text(r.tipo).slice(0,2).toUpperCase()||'OC')}</span><span class="coi-v2-result-main"><b>OC ${esc(r.oc||'Sin número')} · ${esc(r.proveedor)}</b><span>${esc(r.estacion)} · ${esc(r.item?.tipoTrabajo||r.especialidad||'Sin descripción')}</span></span><span class="coi-v2-result-state">${esc(risk(r).label)}</span></button>`).join('')||'<div class="coi-v2-empty">No se encontraron coincidencias.</div>'}<div class="coi-v2-search-head"><span>Enter: abrir · Esc: cerrar</span><span>COI V2</span></div>`;panel.classList.add('open')}
   function continueCards(all){const sorted=all.filter(r=>!isClosed(r)).map(r=>({r,k:risk(r)})).sort((a,b)=>b.k.score-a.k.score||text(a.r.oc).localeCompare(text(b.r.oc))).slice(0,10);if(!sorted.length)return'<div class="coi-v2-empty">No hay OCs activas para continuar gestionando.</div>';return `<div class="coi-v2-rail">${sorted.map(({r,k})=>{const pct=Math.max(4,Math.min(100,Number(r.avanceFisico||0)||((k.venc!==null&&k.venc<0)?90:28)));return `<article class="coi-v2-card" tabindex="0" data-v2-open-oc="${esc(keyFor(r))}"><div class="coi-v2-card-art"><span class="oc">OC ${esc(r.oc||'SIN OC')}</span><span class="coi-v2-card-type">${esc(r.tipo||'Gestión')}</span></div><div class="coi-v2-card-body"><h3>${esc(r.proveedor||'Sin proveedor')}</h3><p>${esc(r.estacion||'Sin estación')} · ${esc(r.item?.tipoTrabajo||r.especialidad||'Intervención COI')}</p><div class="coi-v2-card-meta"><span class="coi-v2-risk ${k.kind}"><i></i>${esc(k.label)}</span><span>${esc(text(r.estado).slice(0,20)||'Activo')}</span></div></div><div class="coi-v2-progress"><span style="width:${pct}%"></span></div></article>`}).join('')}</div>`}
-  function eventCards(all){const events=[];all.filter(r=>!isClosed(r)).forEach(r=>{const vd=diffDays(r.fin);if(r.fin&&vd!==null&&vd<=120)events.push({row:r,type:'venc',date:r.fin,days:vd,title:'Vencimiento contractual'});const certDate=nextCertification(r),cd=diffDays(certDate);if(certDate&&cd!==null&&cd<=120)events.push({row:r,type:'cert',date:certDate,days:cd,title:'Próxima certificación'})});events.sort((a,b)=>Math.abs(a.days)-Math.abs(b.days)||a.days-b.days);const list=events.slice(0,12);if(!list.length)return'<div class="coi-v2-empty">No hay hitos contractuales próximos con fecha registrada.</div>';return `<div class="coi-v2-rail">${list.map(e=>`<article class="coi-v2-event-card ${e.type}" tabindex="0" data-v2-open-oc="${esc(keyFor(e.row))}"><div class="coi-v2-event-date">${esc(fmtDate(e.date))}</div><h3>${esc(e.title)} · OC ${esc(e.row.oc)}</h3><p>${esc(e.row.proveedor)} · ${esc(e.row.estacion)}</p><div class="coi-v2-event-days">${e.days<0?`${Math.abs(e.days)} días vencido`:e.days===0?'Es hoy':`Faltan ${e.days} días`}</div></article>`).join('')}</div>`}
+  function eventCards(all){const events=[];all.filter(r=>!isClosed(r)).forEach(r=>{const vd=diffDays(r.fin);if(r.fin&&vd!==null&&vd<=120)events.push({row:r,type:'venc',date:r.fin,days:vd,title:'Vencimiento contractual'});const certInfo=nextCertificationInfo(r),certDate=certInfo.fecha,cd=diffDays(certDate);if(certDate&&cd!==null&&cd<=120)events.push({row:r,type:'cert',date:certDate,days:cd,title:certInfo.tentativa?'Próxima certificación tentativa':'Próxima certificación'})});events.sort((a,b)=>Math.abs(a.days)-Math.abs(b.days)||a.days-b.days);const list=events.slice(0,12);if(!list.length)return'<div class="coi-v2-empty">No hay hitos contractuales próximos con fecha registrada.</div>';return `<div class="coi-v2-rail">${list.map(e=>`<article class="coi-v2-event-card ${e.type}" tabindex="0" data-v2-open-oc="${esc(keyFor(e.row))}"><div class="coi-v2-event-date">${esc(fmtDate(e.date))}</div><h3>${esc(e.title)} · OC ${esc(e.row.oc)}</h3><p>${esc(e.row.proveedor)} · ${esc(e.row.estacion)}</p><div class="coi-v2-event-days">${e.days<0?`${Math.abs(e.days)} días vencido`:e.days===0?'Es hoy':`Faltan ${e.days} días`}</div></article>`).join('')}</div>`}
   function quickGrid(){const q=[['btnOrdenes','orders','Órdenes','Tabla y tarjetas de la cartera contractual'],['btnCalendarioCOI','calendar','Agenda COI','Certificaciones, vencimientos y avances'],['btnRed','map','Red Línea Roca','Consulta operativa por estación'],['btnCarga','upload','Carga rápida','Importación masiva desde Excel']];return `<div class="coi-v2-quick-grid">${q.map(([id,ic,title,desc])=>`<article class="coi-v2-quick" tabindex="0" data-v2-open-module="${id}">${icon(ic)}<div><h3>${title}</h3><p>${desc}</p></div></article>`).join('')}</div>`}
   function renderHome(){const view=$('vistaDashboard');const body=view?.querySelector('.view-body');if(!body)return;let mount=$('coiV2Home');if(!mount){mount=document.createElement('section');mount.id='coiV2Home';body.prepend(mount)}const all=rows();const urgent=all.filter(r=>risk(r).score>=54&&!isClosed(r)).length;const cert=all.filter(r=>{const d=diffDays(nextCertification(r));return !isClosed(r)&&d!==null&&d>=0&&d<=30}).length;const today=new Intl.DateTimeFormat('es-AR',{weekday:'long',day:'2-digit',month:'long'}).format(new Date());mount.innerHTML=`<section class="coi-v2-hero"><div class="coi-v2-hero-content"><div class="coi-v2-eyebrow"><i></i>${esc(today)} · Línea General Roca</div><h1>Tu operación COI, en una sola vista.</h1><p>${all.length} órdenes registradas, ${urgent} prioridades activas y ${cert} certificaciones previstas dentro de los próximos 30 días.</p><div class="coi-v2-hero-actions"><button type="button" class="primary" data-v2-open-module="btnOrdenes">Abrir cartera de OCs</button><button type="button" data-v2-open-module="btnCalendarioCOI">Ver agenda</button><button type="button" data-v2-open-module="btnCarga">Cargar información</button></div></div></section><section class="coi-v2-section"><div class="coi-v2-section-head"><div><h2>Continuar gestionando</h2><p>OCs priorizadas por vencimiento, certificación y documentación.</p></div><button type="button" data-v2-open-module="btnOrdenes">Ver todas ›</button></div>${continueCards(all)}</section><section class="coi-v2-section"><div class="coi-v2-section-head"><div><h2>Próximos hitos</h2><p>Agenda contractual y mensual de la cartera activa.</p></div><button type="button" data-v2-open-module="btnCalendarioCOI">Abrir calendario ›</button></div>${eventCards(all)}</section><section class="coi-v2-section"><div class="coi-v2-section-head"><div><h2>Accesos rápidos</h2><p>Entradas directas a los circuitos de trabajo más utilizados.</p></div></div>${quickGrid()}</section>`}
   function bind(){
@@ -36459,6 +36467,9 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     if (repintando) return;
     const activa = document.querySelector('.view.active')?.id || '';
     const consumidores = new Set(['vistaCalendarioCOI','vistaOrdenes','vistaDashboard','vistaCentroAlertas']);
+    // V2 puede terminar de inicializar alrededor de la lectura del historial:
+    // repintarlo siempre que exista evita perder la única actualización.
+    try{ if(window.COI_V2&&typeof window.COI_V2.renderHome==='function') window.COI_V2.renderHome(); }catch(e){}
     if (!consumidores.has(activa)) return;
     repintando = true;
     setTimeout(() => {
