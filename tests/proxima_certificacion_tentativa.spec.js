@@ -199,11 +199,12 @@ test('PC-13e · una OC en ejecución conserva el override persistido', async ({ 
   expect(await proyectar(page, item)).toBe('2026-08-10');
 });
 
-test('PC-13f · Cerrada parcialmente conserva el override aun con row.estado legacy = Cerrada', async ({ page }) => {
+test('PC-13f · Cerrada parcialmente conserva el override aun con flags legacy de cierre', async ({ page }) => {
   await abrir(page);
   const item = Object.assign({}, SERVICIO, {
     modalidad_certificacion: 'A_DEMANDA',
     estadoCOI: 'Cerrada parcialmente',
+    cerrada: true, // normalizarOC() puede dejar este flag legacy pegado
     _supabaseRaw: {
       estado_coi: 'Cerrada parcialmente',
       proxima_certificacion: '2026-08-10',
@@ -243,6 +244,38 @@ test('PC-13h · FINALIZADA sin saldo remanente suprime la certificación persist
     _supabaseRaw: {
       estado_coi: 'OBRA/SERVICIO FINALIZADA',
       certificable_con_saldo: false,
+      proxima_certificacion: '2026-08-10',
+      modalidad_certificacion: 'A_DEMANDA'
+    }
+  });
+  const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
+  expect(info).toEqual({ fecha: '', origen: '', tentativa: false });
+});
+
+test('PC-13i · un flag de saldo remanente viejo no revive una OC ya FINALIZADA', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, SERVICIO, {
+    estadoCOI: 'OBRA/SERVICIO FINALIZADA',
+    certificableConSaldo: true,
+    modalidad_certificacion: 'A_DEMANDA',
+    _supabaseRaw: {
+      estado_coi: 'OBRA/SERVICIO FINALIZADA',
+      certificable_con_saldo: true,
+      proxima_certificacion: '2026-08-10',
+      modalidad_certificacion: 'A_DEMANDA'
+    }
+  });
+  const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
+  expect(info).toEqual({ fecha: '', origen: '', tentativa: false });
+});
+
+test('PC-13j · OBRA/SERVICIO CERRADA suprime la fecha persistida', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, SERVICIO, {
+    estadoCOI: 'OBRA/SERVICIO CERRADA',
+    modalidad_certificacion: 'A_DEMANDA',
+    _supabaseRaw: {
+      estado_coi: 'OBRA/SERVICIO CERRADA',
       proxima_certificacion: '2026-08-10',
       modalidad_certificacion: 'A_DEMANDA'
     }

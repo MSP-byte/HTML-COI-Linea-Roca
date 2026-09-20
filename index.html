@@ -10266,14 +10266,19 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     const fechaCierre=String(
       item?.fechaCierreOperativo||item?.fecha_cierre_operativo||(raw&&raw.fecha_cierre_operativo)||''
     ).trim();
-    const cierreExplicito=item?.cerrada===true||estado==='CERRADA'||estado==='CERRADO'
-      ||registro==='CERRADO'||Boolean(fechaCierre);
+    /* item.cerrada es un flag legacy "pegajoso": normalizarOC() puede dejarlo
+       en true para "Cerrada parcialmente". Sólo sirve como fallback cuando no
+       existe un estado real. Los estados canónicos con prefijo (p.ej.
+       "OBRA/SERVICIO CERRADA") se reconocen por sufijo exacto. */
+    const cierrePorEstado=estado==='CERRADA'||estado==='CERRADO'
+      ||estado.endsWith(' CERRADA')||estado.endsWith(' CERRADO');
+    const cierreLegacy=!estado&&item?.cerrada===true;
+    const cierreExplicito=cierrePorEstado||cierreLegacy||registro==='CERRADO'||Boolean(fechaCierre);
     const terminal=[estado,documental,registro].filter(Boolean).join(' ');
-    const certSaldoRaw=item?.certificableConSaldo??item?.certificable_con_saldo
-      ??(raw&&raw.certificable_con_saldo);
-    const certSaldo=certSaldoRaw===true||['TRUE','1','SI','SÍ'].includes(normFix(certSaldoRaw));
-    const finalizadaConSaldo=terminal.includes('FINALIZADA PERO CON SALDO REMANENTE')
-      ||(terminal.includes('FINALIZAD')&&certSaldo);
+    /* El flag certificable_con_saldo puede quedar true después de abandonar la
+       etapa residual. Preservar una fecha persistida exige que EL ESTADO actual
+       sea realmente una finalización con saldo remanente. */
+    const finalizadaConSaldo=terminal.includes('FINALIZAD')&&terminal.includes('SALDO REMANENTE');
     return {estado,registro,documental,terminal,cierreExplicito,finalizadaConSaldo};
   }
   function cerradaFix(item,row){
