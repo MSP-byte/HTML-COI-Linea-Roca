@@ -1,0 +1,141 @@
+#!/usr/bin/env node
+'use strict';
+// Final PR45 validation marker — Supabase serialization layer included.
+
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+
+const html = fs.readFileSync('index.html', 'utf8');
+const sql = fs.readFileSync('supabase/migrations/202608250001_timeline_supabase_first.sql', 'utf8');
+const actorIndexes = fs.readFileSync('supabase/migrations/202608250002_timeline_actor_indexes.sql', 'utf8');
+const atomicUpsert = fs.readFileSync('supabase/migrations/202608250003_timeline_atomic_upsert.sql', 'utf8');
+const atomicInvoker = fs.readFileSync('supabase/migrations/202608250004_timeline_atomic_upsert_invoker.sql', 'utf8');
+const consistency = fs.readFileSync('supabase/migrations/202608250005_timeline_consistency_hardening.sql', 'utf8');
+const lockOrder = fs.readFileSync('supabase/migrations/202608250006_timeline_lock_order_hardening.sql', 'utf8');
+const lockHelper = fs.readFileSync('supabase/migrations/202608250007_timeline_order_lock_helper.sql', 'utf8');
+const privateLockHelper = fs.readFileSync('supabase/migrations/202608250008_timeline_private_lock_helper.sql', 'utf8');
+const finalHardening = fs.readFileSync('supabase/migrations/202608250009_timeline_final_review_hardening.sql', 'utf8');
+const serialization = fs.readFileSync('supabase/migrations/202608260010_timeline_transaction_serialization.sql', 'utf8');
+
+for (const pattern of [
+  /const TIMELINE_TABLE='coi_timeline_events'/,
+  /const TIMELINE_MIGRATION_KEY='coi_timeline_supabase_migrated_v1'/,
+  /const TIMELINE_LEGACY_KEY='coi_timeline_legacy_pending_v1'/,
+  /async function fetchTimelineEventsSupabase/,
+  /client\.rpc\('coi_timeline_list_page'/,
+  /client\.rpc\('coi_timeline_upsert_events',\{p_events:payload\}\)/,
+  /client\.rpc\('coi_timeline_replace_events',\{p_events:payload\}\)/,
+  /expected_actualizado_en:event\.actualizado_en/,
+  /client\.rpc\('coi_timeline_delete_event',\{p_id:id,p_expected_actualizado_en:event\.actualizado_en\|\|null\}\)/,
+  /COI_TIMELINE_STALE_DELETE/,
+  /let timelineAuthGeneration=0/,
+  /loadGeneration!==timelineAuthGeneration/,
+  /timelineAuthGeneration\+=1/,
+  /async function saveForm/,
+  /async function importTimelineEvents/,
+  /await initializeStore\(\)/,
+  /Se eliminará el registro compartido de Supabase/,
+  /Supabase es la fuente de verdad/,
+  /se conservan los datos remotos/,
+  /state\.permissions\.canWrite/,
+  /state\.permissions\.canDelete/,
+  /Supabase confirm(?:ó|\\u00f3) \$\{saved\.length\} evento/,
+  /const wrapped=async function\(\)/,
+  /restoreLocalSnapshot/,
+  /replaceTimelineEventsSupabase\(incoming/,
+  /Supabase confirm.*el restore, pero no se pudo guardar el marcador local/,
+  /await adminApplyLocalStorageSnapshot/,
+  /const result=await saveTimelineEventsSupabase/
+]) assert.match(html, pattern);
+
+assert.doesNotMatch(html, /function saveEvents\(/);
+assert.doesNotMatch(html, /window\.coiTimelineEvents=loadEvents\(\)/);
+assert.doesNotMatch(html, /saveTimelineEventsSupabaseLegacyDisabled/);
+assert.doesNotMatch(html, /Se conserva localStorage/);
+assert.doesNotMatch(html, /for\(let from=0;from<list\.length;from\+=500\)/);
+assert.doesNotMatch(html, /Promise\.resolve\(incoming\.length/);
+
+for (const pattern of [
+  /create table if not exists public\.coi_timeline_events/,
+  /enable row level security/i,
+  /coi_timeline_audit_row/,
+  /coi_timeline_sync_order_number/,
+  /add constraint coi_timeline_title_required/,
+  /add constraint coi_timeline_status_valid/,
+  /coi_timeline_fecha_idx/,
+  /coi_timeline_nro_oc_idx/
+]) assert.match(sql, pattern);
+assert.match(actorIndexes, /coi_timeline_created_by_idx/);
+assert.match(actorIndexes, /coi_timeline_updated_by_idx/);
+assert.match(atomicUpsert, /coi_timeline_upsert_events/);
+assert.match(atomicUpsert, /jsonb_array_length\(p_events\) > 5000/);
+assert.match(atomicUpsert, /perform public\.coi_assert_role/);
+assert.match(atomicUpsert, /security invoker/);
+assert.match(atomicInvoker, /security invoker/);
+for (const pattern of [
+  /coi_timeline_list_page/,
+  /coi_timeline_page_idx/,
+  /COI_TIMELINE_STALE_WRITE/,
+  /expected_actualizado_en/,
+  /coi_timeline_replace_events/,
+  /lock table public\.coi_timeline_events/,
+  /security invoker/g
+]) assert.match(consistency, pattern);
+for (const pattern of [
+  /coi_timeline_upsert_events/,
+  /from public\.coi_ordenes orders/,
+  /order by orders\.id\s+for key share of orders/,
+  /order by target\.id\s+for update of target/,
+  /security invoker/
+]) assert.match(lockOrder, pattern);
+assert.ok(
+  lockOrder.indexOf('for key share of orders') < lockOrder.indexOf('for update of target'),
+  'La migración 006 debe bloquear las OC antes que los eventos Timeline.'
+);
+for (const pattern of [
+  /coi_timeline_lock_orders/,
+  /security definer\s+set search_path = public, pg_temp/,
+  /perform public\.coi_assert_role/,
+  /for key share of orders/,
+  /perform public\.coi_timeline_lock_orders\(p_events\)/,
+  /security invoker/,
+  /for update of target/
+]) assert.match(lockHelper, pattern);
+assert.ok(
+  lockHelper.indexOf('perform public.coi_timeline_lock_orders(p_events)')
+    < lockHelper.indexOf('for update of target'),
+  'La migración 007 debe adquirir los locks de OC antes de bloquear Timeline.'
+);
+for (const pattern of [
+  /create schema if not exists coi_private/,
+  /coi_private\.coi_timeline_lock_orders/,
+  /security definer\s+set search_path = public, pg_temp/,
+  /perform public\.coi_assert_role/,
+  /for key share of orders/,
+  /public\.coi_timeline_lock_orders\(p_events jsonb\)[\s\S]*security invoker/,
+  /perform coi_private\.coi_timeline_lock_orders\(p_events\)/
+]) assert.match(privateLockHelper, pattern);
+
+for (const pattern of [
+  /jsonb_array_length\(p_events\) > 5000/,
+  /event\.id < p_before_id/,
+  /order by event\.id desc/,
+  /COI_TIMELINE_STALE_WRITE/,
+  /perform public\.coi_timeline_lock_orders\(p_events\)[\s\S]*lock table public\.coi_timeline_events/,
+  /source\.value - 'expected_actualizado_en'/
+]) assert.match(finalHardening, pattern);
+assert.match(html, /const writeGeneration=timelineAuthGeneration/);
+assert.match(html, /const deleteGeneration=timelineAuthGeneration/);
+for (const pattern of [
+  /pg_advisory_xact_lock\(hashtextextended\('coi_timeline_mutation_v1'/,
+  /coi_timeline_replace_events/,
+  /coi_timeline_delete_event/,
+  /COI_TIMELINE_STALE_DELETE/,
+  /Restore administrativo atomico y sin limite artificial de 5000/
+]) assert.match(serialization, pattern);
+assert.match(html, /replacement\?\.discarded/);
+assert.match(html, /validateExactTimelineSnapshotEvent/);
+assert.match(html, /let timelineMutationGeneration=0/);
+assert.match(html, /loadMutationGeneration!==timelineMutationGeneration/);
+
+console.log('Timeline/Mailing Supabase-first: caché aislada, CRUD concurrente, restore exacto y contrato SQL verificados.');

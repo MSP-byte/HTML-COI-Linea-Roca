@@ -1,0 +1,16 @@
+const fs = require('fs');
+const assert = require('assert');
+const html = fs.readFileSync('index.html','utf8');
+assert(html.includes('id="coiAuthGateH14"'), 'Debe existir el gate institucional H14');
+assert(html.includes('id="coi-auth-h14-prelock"'), 'Debe existir pre-lock contra flash no autenticado');
+assert(html.includes('id="coi-h15-executive-auth-style"'), 'Debe existir el estilo ejecutivo H15');
+const authStyle = html.match(/<style id="coi-auth-h14-style">([\s\S]*?)<\/style>/i)?.[1] || '';
+assert(!authStyle.includes('data:image/jpeg;base64,'), 'El login ejecutivo no debe depender de una foto base64 full-screen');
+assert(authStyle.includes('linear-gradient(135deg,#061925 0%,#0a2d43 48%,#0f5f91 100%)'), 'El gate debe usar el fondo ejecutivo institucional');
+assert(html.includes("from('profiles').select('id,email,nombre,apellido,rol,activo')"), 'El rol/activo deben validarse contra public.profiles');
+assert(html.includes("data.activo===false"), 'Los perfiles inactivos deben bloquearse');
+assert(html.includes("window.loginSupabase(email,password)"), 'H14 debe reutilizar Supabase Auth real');
+assert(html.includes("window.usuarioTienePermisoEdicion=usuarioTienePermisoEdicion"), 'El permiso operativo debe quedar exportado');
+assert(html.includes("role==='coi'"), 'El rol COI debe contemplarse como rol operativo');
+assert(!/password\s*[:=]\s*['\"][^'\"]+['\"]/i.test(html.match(/<script id="coi-auth-h14-script">[\s\S]*?<\/script>/i)?.[0]||''), 'H14 no debe contener contraseñas hardcodeadas');
+console.log('H14/H15 auth gate: OK');

@@ -1,0 +1,12 @@
+doctype_count= 1
+conflict_markers= 0
+ctEditState_present= True
+setControlTercerosEditMode_present= True
+cancelarEdicionControlTerceros_present= True
+saveCTFromButton_present= True
+setControlTercerosEditMode_unchanged= True
+cancelarEdicionControlTerceros_unchanged= True
+saveCTFromButton_unchanged= True
+new_functions= {'finR383ActualizarFila': 1, 'finR383ActualizarConteo': 1}
+unexpected_duplicate_functions= {}
+base_backup_sha256= 8f81ac908dcabddfde09c86d647a463a12c64413bd5be7f69d6631896d627107

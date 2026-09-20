@@ -1,0 +1,21 @@
+{
+  "repoExpectedBranch": "release/rc2-estabilizacion",
+  "stagingProjectRef": "brmrroikctfbtzwfewan",
+  "productionProjectRef": "ooepgbzqlpjrtpaoqawc",
+  "stagingHtml": "index.STAGING.html",
+  "productionHtml": "index.html",
+  "localHost": "127.0.0.1",
+  "localPort": 8765,
+  "testOcOriginal": "4530001234",
+  "testOcTemporary": "4530005678",
+  "testOcUuid": "11066ee1-1470-47ec-82f6-1357d88dade3",
+  "ui": {
+    "searchSelector": "input[placeholder*='Buscar OC']",
+    "editButtonSelector": "#btnEditarOCV60",
+    "editModalSelector": "#coiEditOCModalV60",
+    "dirtyBadgeSelector": "#coiEditDirtyV60",
+    "saveButtonSelector": "#coiEditSaveV60",
+    "renumberButtonSelector": "[data-coi-renumber]",
+    "providerFieldSelector": "[data-coi-edit-field='proveedor']"
+  }
+}

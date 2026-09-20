@@ -1,0 +1,13 @@
+const fs = require('fs');
+const assert = require('assert');
+const sql = fs.readFileSync('supabase/migrations/202609110003_obra_avance_manual.sql','utf8');
+assert(sql.includes('avance_obra_pct numeric(5,2)'), 'falta columna avance_obra_pct');
+assert(sql.includes('coi_ordenes_avance_obra_pct_check'), 'falta CHECK de avance manual');
+assert(sql.includes('avance_obra_pct >= 0') && sql.includes('avance_obra_pct <= 100'), 'el CHECK debe limitar el avance a 0-100');
+assert(sql.includes('coi_actualizar_avance_obra'), 'falta RPC de avance manual');
+assert(sql.includes('coi_assert_role'), 'falta guard de roles de escritura');
+assert(sql.includes('COI_OBRA_PROGRESS_ONLY_FOR_OBRA'), 'falta guard de tipo Obra');
+assert(sql.includes('ACTUALIZAR_AVANCE_OBRA_MANUAL'), 'falta auditoria de avance manual');
+assert(sql.includes('grant execute on function public.coi_actualizar_avance_obra(uuid, numeric) to authenticated'), 'falta grant authenticated');
+assert(sql.includes('revoke all on function public.coi_actualizar_avance_obra(uuid, numeric) from anon'), 'anon no debe ejecutar RPC');
+console.log('obra avance manual schema: OK');
