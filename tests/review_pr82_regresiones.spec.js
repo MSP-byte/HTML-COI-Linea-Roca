@@ -167,6 +167,18 @@ async function abrirOrdenes(page, opciones) {
   await page.locator('#vistaOrdenes.active').waitFor({ state: 'attached', timeout: 25000 });
 }
 
+async function abrirDashboard(page, opciones) {
+  await page.route(url => url.hostname !== '127.0.0.1', r => r.abort());
+  await fixture(page, opciones);
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => Boolean(window.COI_V2 && window.COI_V2.renderHome)
+    && Boolean(window.__COI_CERT_HISTORIAL__), null, { timeout: 25000 });
+  await page.evaluate(() => {
+    try { window.mostrarVista && window.mostrarVista('vistaDashboard'); } catch (e) {}
+    window.COI_V2.renderHome();
+  });
+}
+
 const proyeccion = page => page.evaluate(() => {
   const fila = window.todasLasOC()[0];
   return window.__COI_PROXIMA_CERT__(fila.item, fila);
@@ -652,3 +664,51 @@ test('RV-28 · el renderer final de Órdenes no revive un alias legacy para A_DE
   const celda = page.locator('#ordenesTbody tr').first().locator('td.col-fecha').first();
   await expect(celda).not.toContainText(/10\/0?8\/2026/);
 });
+
+test('RV-29 · Dashboard V2 usa la proyección canónica y se repinta al cargar historial', async ({ page }) => {
+  await abrirDashboard(page, {
+    tipo: 'Servicio',
+    modalidad: 'MENSUAL',
+    certificaciones: [CERT({ fecha_inicio: '2026-09-01', fecha_fin: '2026-09-01' })],
+    demoraLectura: 250
+  });
+  await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 20000 });
+  await page.waitForFunction(() => /01\s+oct\.?\s+2026/i.test(document.querySelector('#coiV2Home')?.textContent || ''), null, { timeout: 20000 });
+  expect(await page.locator('#coiV2Home').innerText()).toMatch(/Próxima certificación/i);
+});
+
+test('RV-30 · filas legacy y nuevas de una misma certificación consolidan por UUID maestro', async ({ page }) => {
+  await abrirCalendario(page, {});
+  const r = await page.evaluate(() => {
+    const base = {
+      nro_oc: '4530990001', acta_medicion_nro: 'AM-MIXTA',
+      fecha_inicio: '2026-07-01', fecha_fin: '2026-07-31',
+      proveedor: 'CONTRATISTA REVIEW', aux_porcentaje: 50, anio: 2026
+    };
+    const filas = window.__COI_CERT_HISTORIAL__.consolidar([
+      { ...base, id: 'legacy-pos', orden_id: null, posicion: 'POS-1', item_nro: '1' },
+      { ...base, id: 'new-pos', orden_id: 'aaaa9999-9999-4999-8999-999999999999', posicion: 'POS-2', item_nro: '2' }
+    ]);
+    return { grupos: filas.length, items: filas[0] && filas[0].items, pos: filas[0] ? [...filas[0].pos] : [] };
+  });
+  expect(r.grupos).toBe(1);
+  expect(r.items).toBe(2);
+  expect(r.pos).toEqual(expect.arrayContaining(['POS-1','POS-2']));
+});
+
+test('RV-31 · un huérfano histórico no fuerza rejoin completo en cada proyección', async ({ page }) => {
+  await abrirCalendario(page, {
+    certificaciones: [CERT({ id: 'orphan-1', nro_oc: 'OC-HUERFANA', orden_id: null })]
+  });
+  await page.waitForFunction(() => window.__COI_CERT_HISTORIAL__.estado().cargado, null, { timeout: 20000 });
+  const calls = await page.evaluate(() => {
+    const base = window.todasLasOC;
+    const fila = base()[0];
+    let n = 0;
+    window.todasLasOC = () => { n += 1; return base(); };
+    for (let i = 0; i < 25; i += 1) window.__COI_PROXIMA_CERT__(fila.item, fila);
+    return n;
+  });
+  expect(calls).toBeLessThanOrEqual(1);
+});
+
