@@ -27200,6 +27200,16 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   const DATE_FIELDS=new Set(['fecha_acta_inicio','fecha_vencimiento','proxima_certificacion','fecha_recepcion_documentacion','fecha_ultimo_control','fecha_cierre_operativo','control_terceros_hasta']);
   const BOOLEAN_FIELDS=new Set(['certificable_con_saldo','requiere_accion']);
   const NUMBER_FIELDS=new Set(['monto_total','plazo_dias','calidad_datos_score']);
+  /* Campos cuyo CONTROL sintetiza un valor cuando el dato no existe en la fila
+     remota. Un fallback de interfaz no es un dato persistido: si la fila no lo
+     traía y el operador no lo tocó, ese valor lo puso el selector, no la
+     persona, y no puede viajar como cambio. Sin esto, editar cualquier otro
+     campo de una OC histórica arrastraba modalidad_certificacion al delta y el
+     RPC desplegado la rechazaba como clave desconocida.
+
+     Elegir explícitamente el mismo valor SÍ es un cambio cuando la fila ya
+     tenía otro: la regla sólo aplica cuando el original está ausente. */
+  const UI_DEFAULTS=Object.freeze({modalidad_certificacion:'SIN_DEFINIR'});
   const ALIASES={
     id:['id','supabaseId'],nro_oc:['nro_oc','numeroOC','oc','ocNro','OC_NRO'],id_obra:['id_obra','idObra','idOC'],tipo_trabajo:['tipo_trabajo','tipoTrabajo'],monto_total:['monto_total','monto','montoTotal','montoOC'],fecha_acta_inicio:['fecha_acta_inicio','actaInicio','fechaInicio'],plazo_dias:['plazo_dias','plazoDias','plazo'],fecha_vencimiento:['fecha_vencimiento','vencimiento','fechaFin'],proxima_certificacion:['proxima_certificacion','proximaCertificacion','proxCertificacion'],modalidad_certificacion:['modalidad_certificacion','modalidadCertificacion'],fecha_recepcion_documentacion:['fecha_recepcion_documentacion','fechaRecepcionDocumentacion'],estado_coi:['estado_coi','estadoCOI','estado'],estado_documental:['estado_documental','estadoDocumental'],estado_registro:['estado_registro','estadoRegistro'],certificable_con_saldo:['certificable_con_saldo','certificableConSaldo'],justificacion_administrativa:['justificacion_administrativa','justificacionAdministrativa'],link_documental_principal:['link_documental_principal','linkDocumentalPrincipal'],estado_link_documental:['estado_link_documental','estadoLinkDocumental'],calidad_datos_estado:['calidad_datos_estado','calidadDatosEstado'],calidad_datos_score:['calidad_datos_score','calidadDatosScore'],prioridad_operativa:['prioridad_operativa','prioridadOperativa'],responsable_coi:['responsable_coi','responsableCOI'],fecha_ultimo_control:['fecha_ultimo_control','fechaUltimoControl'],requiere_accion:['requiere_accion','requiereAccion'],motivo_requiere_accion:['motivo_requiere_accion','motivoRequiereAccion'],fecha_cierre_operativo:['fecha_cierre_operativo','fechaCierreOperativo'],observacion_cierre:['observacion_cierre','observacionCierre'],control_terceros_hasta:['control_terceros_hasta','controlTercerosHasta'],control_terceros_estado:['control_terceros_estado','controlTercerosEstado'],fecha_creacion:['fecha_creacion','fechaCreacion','created_at'],fecha_actualizacion:['fecha_actualizacion','fechaUltimaModificacion','updated_at'],creado_por:['creado_por'],actualizado_por:['actualizado_por'],saldo_remanente:['saldo_remanente','saldoRemanente']
   };
@@ -27248,11 +27258,27 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   }
   function comparable(name,value){if(value===null||value===undefined||value==='')return null;if(BOOLEAN_FIELDS.has(name))return Boolean(value);if(NUMBER_FIELDS.has(name))return Number(value);if(DATE_FIELDS.has(name))return text(value).slice(0,10);if(name==='estado_coi')return text(value).toLocaleUpperCase('es-AR');return text(value);}
   function equalValue(name,left,right){return comparable(name,left)===comparable(name,right);}
+  /* Verdadero sólo si el campo tiene default de interfaz, la fila remota NO
+     traía valor y lo enviado es exactamente ese default. Con dato remoto
+     presente devuelve falso siempre, así que elegir un valor distinto —o el
+     mismo sobre un original existente— sigue detectándose como cambio. */
+  function esFallbackDeInterfaz(name,normalized,current){
+    if(!has(UI_DEFAULTS,name))return false;
+    if(comparable(name,current?.[name])!==null)return false;
+    return comparable(name,normalized)===comparable(name,UI_DEFAULTS[name]);
+  }
   function normalizeChanges(changes,current){
     const patch={},errors={};
     for(const [name,value] of Object.entries(changes||{})){
       if(!ALLOWED.includes(name)){errors[name]=`El campo ${name} no está permitido.`;continue;}
-      try{const normalized=normalizeField(name,value);if(!equalValue(name,normalized,current?.[name]))patch[name]=normalized;}catch(error){Object.assign(errors,error.fieldErrors||{[name]:error.message});}
+      try{
+        const normalized=normalizeField(name,value);
+        if(equalValue(name,normalized,current?.[name]))continue;
+        // El original está ausente y lo enviado es el valor que pone el propio
+        // control: es un fallback de interfaz, no una edición del operador.
+        if(esFallbackDeInterfaz(name,normalized,current))continue;
+        patch[name]=normalized;
+      }catch(error){Object.assign(errors,error.fieldErrors||{[name]:error.message});}
     }
     if(has(patch,'control_terceros_hasta')){
       const calculator=window.calcularEstadoControlTerceros;
