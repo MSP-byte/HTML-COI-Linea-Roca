@@ -167,19 +167,27 @@ test('R3-3 · una fila de importación sin el campo no sobrescribe el MENSUAL re
 
 /* ------------------ FINDING · historial para todos los consumidores */
 
-test('R3-4 · proyectar desde cualquier módulo dispara la carga del historial', async ({ page }) => {
-  await abrirCalendario(page, { certificaciones: [CERT({})] });
-  await cargado(page);
-  // Se vuelve al estado de una sesión que nunca abrió el Calendario.
-  await page.evaluate(() => window.__COI_CERT_HISTORIAL__.invalidarPorIdentidad());
-  expect(await page.evaluate(() => window.__COI_CERT_HISTORIAL__.estado().cargado)).toBe(false);
+test('R3-4 · proyectar sin haber abierto el Calendario dispara la carga del historial', async ({ page }) => {
+  /* Escenario exacto del finding: una sesión fresca que entra por Órdenes,
+     Dashboard o Centro de Alertas. El Calendario NO se abre en ningún momento,
+     así que si el historial se carga sólo puede haberlo pedido proxCertFix(). */
+  await page.route(url => url.hostname !== '127.0.0.1', r => r.abort());
+  await fixture(page, { certificaciones: [CERT({})] });
+  await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => typeof window.__COI_PROXIMA_CERT__ === 'function'
+    && Boolean(window.__COI_CERT_HISTORIAL__), null, { timeout: 25000 });
 
-  await page.evaluate(() => {
+  const proyectar = () => page.evaluate(() => {
     const fila = window.todasLasOC()[0];
     return window.__COI_PROXIMA_CERT__(fila.item, fila);
   });
+
+  await proyectar();
   await cargado(page);
   expect(await page.evaluate(() => window.__COI_CERT_HISTORIAL__.estado().cargado)).toBe(true);
+  expect(await page.evaluate(() => window.__RV__.lecturas)).toBeGreaterThan(0);
+  // Y nunca se activó el Calendario.
+  expect(await page.locator('#vistaCalendarioCOI.active').count()).toBe(0);
 });
 
 test('R3-5 · pedir la proyección muchas veces no duplica lecturas', async ({ page }) => {
