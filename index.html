@@ -10350,6 +10350,11 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
        fecha produciría un evento «Certificación obra» mal tipificado. */
     const tipo=tipoCanonicoFix(item,row);
     if(tipo!=='OBRA'&&tipo!=='SERVICIO')return null;
+    /* El ciclo de vida manda también sobre una fecha persistida. Cerrar o
+       archivar una OC no borra necesariamente coi_ordenes.proxima_certificacion:
+       si devolvemos esa columna antes de mirar el estado, la OC reaparece como
+       certificable en Calendario, Órdenes y Dashboard después del cierre. */
+    if(cerradaFix(item,row))return null;
     const persistida=proxCertPersistidaFix(item);
     if(persistida)return persistida;
     return proyeccionMensualFix(item,row);

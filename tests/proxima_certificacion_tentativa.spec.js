@@ -158,6 +158,47 @@ test('PC-13b · un alias derivado NO se toma por carga manual', async ({ page })
   expect(await proyectar(page, item)).toBe('');
 });
 
+test('PC-13c · una OC CERRADA suprime la próxima certificación persistida', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, SERVICIO, {
+    estadoCOI: 'CERRADA',
+    modalidad_certificacion: 'A_DEMANDA',
+    _supabaseRaw: {
+      proxima_certificacion: '2026-08-10',
+      modalidad_certificacion: 'A_DEMANDA'
+    }
+  });
+  const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
+  expect(info).toEqual({ fecha: '', origen: '', tentativa: false });
+  expect(await proyectar(page, item)).toBe('');
+});
+
+test('PC-13d · una OC ARCHIVADA por estado_registro también suprime la fecha persistida', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, OBRA, {
+    estado_registro: 'ARCHIVADA',
+    _supabaseRaw: { proxima_certificacion: '2026-08-10' }
+  });
+  const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
+  expect(info).toEqual({ fecha: '', origen: '', tentativa: false });
+  expect(await proyectar(page, item)).toBe('');
+});
+
+test('PC-13e · una OC en ejecución conserva el override persistido', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, SERVICIO, {
+    modalidad_certificacion: 'A_DEMANDA',
+    estadoCOI: 'OBRA/SERVICIO EN EJECUCIÓN',
+    _supabaseRaw: {
+      proxima_certificacion: '2026-08-10',
+      modalidad_certificacion: 'A_DEMANDA'
+    }
+  });
+  const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
+  expect(info).toEqual({ fecha: '2026-08-10', origen: 'persistida', tentativa: false });
+  expect(await proyectar(page, item)).toBe('2026-08-10');
+});
+
 test('PC-14 · la proyección no usa fecha_creacion técnica como base', async ({ page }) => {
   await abrir(page, { '4530500001': '2026-06-30' });
   // fecha_creacion muy posterior no puede desplazar la proyección.
