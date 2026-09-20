@@ -10250,9 +10250,19 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
      Obra o a un servicio mensual recibiendo fechas calculadas después del
      cierre, visibles en Calendario y contadas por las métricas de Órdenes. */
   function cerradaFix(item,row){
-    const estado=normFix(estadoFix(item,row)+' '+(item?.estadoDocumental||'')+' '+(item?.estadoRegistro||item?.estado_registro||''));
-    return estado.includes('FINALIZAD')||estado.includes('CANCELAD')||estado.includes('SUSPENDID')
-      ||estado.includes('CERRAD')||estado.includes('ARCHIVAD');
+    const estado=normFix(estadoFix(item,row));
+    const registro=normFix(item?.estadoRegistro||item?.estado_registro||'');
+    const documental=normFix(item?.estadoDocumental||'');
+    const raw=item&&item._supabaseRaw;
+    const fechaCierre=String(item?.fechaCierreOperativo||item?.fecha_cierre_operativo||(raw&&raw.fecha_cierre_operativo)||'').trim();
+    /* El cierre explícito se compara por igualdad: "Cerrada parcialmente" no
+       es un cierre operativo. Se conservan los marcadores canónicos de H10 y,
+       por separado, los estados terminales que inhabilitan certificaciones. */
+    const cierreExplicito=item?.cerrada===true||estado==='CERRADA'||estado==='CERRADO'
+      ||registro==='CERRADO'||Boolean(fechaCierre);
+    const terminal=[estado,documental,registro].filter(Boolean).join(' ');
+    return cierreExplicito||terminal.includes('FINALIZAD')||terminal.includes('CANCELAD')
+      ||terminal.includes('SUSPENDID')||terminal.includes('ARCHIVAD');
   }
   // Última certificación REAL de la OC, por su fecha administrativa.
   /* Identidades con las que puede estar indexada la certificación: el N° de OC

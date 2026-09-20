@@ -199,6 +199,21 @@ test('PC-13e · una OC en ejecución conserva el override persistido', async ({ 
   expect(await proyectar(page, item)).toBe('2026-08-10');
 });
 
+test('PC-13f · Cerrada parcialmente NO es un cierre terminal y conserva el override', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, SERVICIO, {
+    modalidad_certificacion: 'A_DEMANDA',
+    estadoCOI: 'Cerrada parcialmente',
+    _supabaseRaw: {
+      proxima_certificacion: '2026-08-10',
+      modalidad_certificacion: 'A_DEMANDA'
+    }
+  });
+  const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
+  expect(info).toEqual({ fecha: '2026-08-10', origen: 'persistida', tentativa: false });
+  expect(await proyectar(page, item)).toBe('2026-08-10');
+});
+
 test('PC-14 · la proyección no usa fecha_creacion técnica como base', async ({ page }) => {
   await abrir(page, { '4530500001': '2026-06-30' });
   // fecha_creacion muy posterior no puede desplazar la proyección.
