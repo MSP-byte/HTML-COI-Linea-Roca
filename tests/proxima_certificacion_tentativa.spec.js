@@ -199,19 +199,56 @@ test('PC-13e · una OC en ejecución conserva el override persistido', async ({ 
   expect(await proyectar(page, item)).toBe('2026-08-10');
 });
 
-test('PC-13f · Cerrada parcialmente NO es un cierre terminal y conserva el override', async ({ page }) => {
+test('PC-13f · Cerrada parcialmente conserva el override aun con row.estado legacy = Cerrada', async ({ page }) => {
   await abrir(page);
   const item = Object.assign({}, SERVICIO, {
     modalidad_certificacion: 'A_DEMANDA',
     estadoCOI: 'Cerrada parcialmente',
     _supabaseRaw: {
+      estado_coi: 'Cerrada parcialmente',
+      proxima_certificacion: '2026-08-10',
+      modalidad_certificacion: 'A_DEMANDA'
+    }
+  });
+  const row = { estado: 'Cerrada', item };
+  const info = await page.evaluate(({item,row}) => window.__COI_PROXIMA_CERT_INFO__(item, row), {item,row});
+  expect(info).toEqual({ fecha: '2026-08-10', origen: 'persistida', tentativa: false });
+});
+
+test('PC-13g · FINALIZADA con saldo remanente conserva una certificación persistida', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, SERVICIO, {
+    estadoCOI: 'OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE',
+    certificableConSaldo: true,
+    modalidad_certificacion: 'A_DEMANDA',
+    _supabaseRaw: {
+      estado_coi: 'OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE',
+      certificable_con_saldo: true,
       proxima_certificacion: '2026-08-10',
       modalidad_certificacion: 'A_DEMANDA'
     }
   });
   const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
   expect(info).toEqual({ fecha: '2026-08-10', origen: 'persistida', tentativa: false });
-  expect(await proyectar(page, item)).toBe('2026-08-10');
+  // La proyección automática sigue detenida; sólo sobrevive el dato explícito.
+  expect(await soloProyeccion(page, item)).toBe('');
+});
+
+test('PC-13h · FINALIZADA sin saldo remanente suprime la certificación persistida', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, SERVICIO, {
+    estadoCOI: 'OBRA/SERVICIO FINALIZADA',
+    certificableConSaldo: false,
+    modalidad_certificacion: 'A_DEMANDA',
+    _supabaseRaw: {
+      estado_coi: 'OBRA/SERVICIO FINALIZADA',
+      certificable_con_saldo: false,
+      proxima_certificacion: '2026-08-10',
+      modalidad_certificacion: 'A_DEMANDA'
+    }
+  });
+  const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
+  expect(info).toEqual({ fecha: '', origen: '', tentativa: false });
 });
 
 test('PC-14 · la proyección no usa fecha_creacion técnica como base', async ({ page }) => {

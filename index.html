@@ -10249,20 +10249,49 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
      Alertas: reconocer sólo finalización, cancelación y suspensión dejaba a una
      Obra o a un servicio mensual recibiendo fechas calculadas después del
      cierre, visibles en Calendario y contadas por las métricas de Órdenes. */
-  function cerradaFix(item,row){
-    const estado=normFix(estadoFix(item,row));
-    const registro=normFix(item?.estadoRegistro||item?.estado_registro||'');
-    const documental=normFix(item?.estadoDocumental||'');
+  function estadoCertificacionFix(item,row){
     const raw=item&&item._supabaseRaw;
-    const fechaCierre=String(item?.fechaCierreOperativo||item?.fecha_cierre_operativo||(raw&&raw.fecha_cierre_operativo)||'').trim();
-    /* El cierre explícito se compara por igualdad: "Cerrada parcialmente" no
-       es un cierre operativo. Se conservan los marcadores canónicos de H10 y,
-       por separado, los estados terminales que inhabilitan certificaciones. */
+    /* El estado real del item manda sobre row.estado: todasLasOC() puede
+       sintetizar "Cerrada" desde predicados legacy incluso para estados como
+       "Cerrada parcialmente". Sólo se usa la fila como último fallback. */
+    const estado=normFix(
+      item?.estadoCOI||item?.estado_coi||(raw&&raw.estado_coi)||item?.estado||row?.estado||''
+    );
+    const registro=normFix(
+      item?.estadoRegistro||item?.estado_registro||(raw&&raw.estado_registro)||''
+    );
+    const documental=normFix(
+      item?.estadoDocumental||item?.estado_documental||(raw&&raw.estado_documental)||''
+    );
+    const fechaCierre=String(
+      item?.fechaCierreOperativo||item?.fecha_cierre_operativo||(raw&&raw.fecha_cierre_operativo)||''
+    ).trim();
     const cierreExplicito=item?.cerrada===true||estado==='CERRADA'||estado==='CERRADO'
       ||registro==='CERRADO'||Boolean(fechaCierre);
     const terminal=[estado,documental,registro].filter(Boolean).join(' ');
-    return cierreExplicito||terminal.includes('FINALIZAD')||terminal.includes('CANCELAD')
-      ||terminal.includes('SUSPENDID')||terminal.includes('ARCHIVAD');
+    const certSaldoRaw=item?.certificableConSaldo??item?.certificable_con_saldo
+      ??(raw&&raw.certificable_con_saldo);
+    const certSaldo=certSaldoRaw===true||['TRUE','1','SI','SÍ'].includes(normFix(certSaldoRaw));
+    const finalizadaConSaldo=terminal.includes('FINALIZADA PERO CON SALDO REMANENTE')
+      ||(terminal.includes('FINALIZAD')&&certSaldo);
+    return {estado,registro,documental,terminal,cierreExplicito,finalizadaConSaldo};
+  }
+  function cerradaFix(item,row){
+    const c=estadoCertificacionFix(item,row);
+    /* Para una proyección automática, toda finalización detiene el calendario
+       mensual, incluso si existe saldo remanente certificable. */
+    return c.cierreExplicito||c.terminal.includes('FINALIZAD')||c.terminal.includes('CANCELAD')
+      ||c.terminal.includes('SUSPENDID')||c.terminal.includes('ARCHIVAD');
+  }
+  function bloqueaCertificacionPersistidaFix(item,row){
+    const c=estadoCertificacionFix(item,row);
+    if(c.cierreExplicito)return true;
+    if(c.terminal.includes('CANCELAD')||c.terminal.includes('SUSPENDID')||c.terminal.includes('ARCHIVAD'))return true;
+    /* FINALIZADA con saldo remanente sigue siendo certificable: se detiene la
+       proyección automática, pero una fecha explícitamente persistida conserva
+       vigencia para certificar ese saldo. */
+    if(c.terminal.includes('FINALIZAD'))return !c.finalizadaConSaldo;
+    return false;
   }
   // Última certificación REAL de la OC, por su fecha administrativa.
   /* Identidades con las que puede estar indexada la certificación: el N° de OC
@@ -10364,9 +10393,11 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
        archivar una OC no borra necesariamente coi_ordenes.proxima_certificacion:
        si devolvemos esa columna antes de mirar el estado, la OC reaparece como
        certificable en Calendario, Órdenes y Dashboard después del cierre. */
-    if(cerradaFix(item,row))return null;
     const persistida=proxCertPersistidaFix(item);
-    if(persistida)return persistida;
+    if(persistida){
+      if(bloqueaCertificacionPersistidaFix(item,row))return null;
+      return persistida;
+    }
     return proyeccionMensualFix(item,row);
   }
   function saldoFix(item){
@@ -18120,12 +18151,23 @@ const APP_DATA_MODE = "supabase_first";
   function auditSummary(rows){const s={total:rows.length,verdes:0,amarillas:0,rojas:0,grises:0,sinActa:0,sinPlazo:0,sinVencimiento:0,sinProveedor:0,sinEstacion:0,sinLink:0,montoCero:0,vencidasSinJustificacion:0,detalles:[]};rows.forEach(o=>{const r=evaluarCalidadOrden(o);s[r.estado.toLowerCase()+'s']=(s[r.estado.toLowerCase()+'s']||0)+1;s.sinActa+=r.faltantes.includes('acta')?1:0;s.sinPlazo+=r.faltantes.includes('plazo')?1:0;s.sinVencimiento+=r.faltantes.includes('vencimiento')?1:0;s.sinProveedor+=r.faltantes.includes('proveedor')?1:0;s.sinEstacion+=r.faltantes.includes('estacion')?1:0;s.montoCero+=r.faltantes.includes('monto_cero')?1:0;s.vencidasSinJustificacion+=r.faltantes.includes('vencida_sin_justificacion')?1:0;s.detalles.push({nro_oc:nro(o),estado:r.estado,score:r.score,motivo:r.motivo_requiere_accion})});return s}
   async function ejecutarAuditoriaCalidadDatos(){await requireWrite();const {data,error}=await client().from(T_ORDENES).select('*').limit(10000);if(error)throw error;const rows=data||[],resumen=auditSummary(rows);for(const o of rows){const r=evaluarCalidadOrden(o);await actualizarCalidadOrdenSupabase(o,r)}await guardarResultadoAuditoriaSupabase(resumen);lastAudit={...resumen,fecha:isoNow()};try{sessionStorage.setItem(CACHE_AUD,JSON.stringify(lastAudit))}catch(e){}renderResumenAuditoriaCalidad(lastAudit);await syncExecutiveMetadata();toast(`Auditoría completada: ${resumen.total} OC(s).`,'ok');return resumen}
   function renderResumenAuditoriaCalidad(resumen=lastAudit){const host=$('execAuditResult');if(!host||!resumen)return;host.innerHTML=`<div class="exec-audit-summary">${[['Total',resumen.total],['Verdes',resumen.verdes],['Amarillas',resumen.amarillas],['Rojas',resumen.rojas],['Grises',resumen.grises],['Sin acta',resumen.sinActa],['Sin plazo',resumen.sinPlazo],['Sin vencimiento',resumen.sinVencimiento],['Sin proveedor',resumen.sinProveedor],['Sin estación',resumen.sinEstacion],['Vencidas sin justificación',resumen.vencidasSinJustificacion]].map(([l,v])=>`<div class="exec-audit-kpi"><b>${Number(v||0)}</b><span>${esc(l)}</span></div>`).join('')}</div><div class="exec-admin-message">Última auditoría: ${fmtDate(resumen.fecha||isoNow())}</div>`}
+  function proximaCertificacionEjecutiva(o){
+    try{
+      if(typeof window.__COI_PROXIMA_CERT_INFO__==='function'){
+        const pareceRaw=Boolean(o&&(o.nro_oc!==undefined||o.estado_coi!==undefined||o.proxima_certificacion!==undefined));
+        const item=o?._supabaseRaw?o:(pareceRaw?mapRowToItem(o):o);
+        const info=window.__COI_PROXIMA_CERT_INFO__(item||{}, {item:item||{}});
+        return clean(info&&info.fecha);
+      }
+    }catch(e){console.warn('COI ejecutivo: no se pudo resolver la próxima certificación canónica.',e);}
+    return clean(o?.proxima_certificacion||o?.proximaCertificacion||'');
+  }
   function normalizedRows(){const remote=[...metaByOC.values()];return remote.length?remote:localOrders().map(o=>({...o,nro_oc:nro(o),monto_total:o.monto||0,fecha_vencimiento:o.vencimiento,proxima_certificacion:o.proximaCertificacion,estado_coi:o.estado,estado_documental:o.estadoDocumental,link_documental_principal:o.linkDocumentalPrincipal,estado_link_documental:o.estadoLinkDocumental,calidad_datos_estado:o.calidadDatosEstado,calidad_datos_score:o.calidadDatosScore,prioridad_operativa:o.prioridadOperativa,requiere_accion:o.requiereAccion}))}
   function calcularDashboardEjecutivo(ordenes=normalizedRows()){const active=ordenes.filter(o=>!isClosed(o)),sum=ordenes.reduce((a,o)=>a+Number(o.monto_total||0),0);return{total:ordenes.length,obras:active.filter(o=>norm(o.tipo).includes('OBRA')).length,servicios:active.filter(o=>norm(o.tipo).includes('SERV')).length,monto:sum,proximas:active.filter(o=>{const d=daysTo(o.fecha_vencimiento);return d!==null&&d>=0&&d<=30}).length,vencidasSaldo:ordenes.filter(o=>daysTo(o.fecha_vencimiento)<0&&Number(o.saldo_remanente||0)>0&&bool(o.certificable_con_saldo)).length,calidadRoja:ordenes.filter(o=>norm(o.calidad_datos_estado)==='ROJO').length,requieren:ordenes.filter(o=>bool(o.requiere_accion)).length}}
   function obtenerTopEstaciones(ordenes=normalizedRows()){const m=new Map();ordenes.forEach(o=>{const k=clean(o.estacion)||'Sin estación';m.set(k,(m.get(k)||0)+1)});(window.__coiEstacionesAsociadas||[]).forEach(a=>{const k=clean(a.estacion);if(k)m.set(k,(m.get(k)||0)+1)});return[...m].sort((a,b)=>b[1]-a[1]).slice(0,8)}
   function obtenerTopProveedores(ordenes=normalizedRows()){const m=new Map();ordenes.forEach(o=>{const k=clean(o.proveedor)||'Sin proveedor';m.set(k,(m.get(k)||0)+Number(o.monto_total||0))});return[...m].sort((a,b)=>b[1]-a[1]).slice(0,8)}
   function obtenerOCsCriticas(ordenes=normalizedRows()){return ordenes.filter(o=>norm(o.calidad_datos_estado)==='ROJO'||bool(o.requiere_accion)||(!clean(o.justificacion_administrativa)&&daysTo(o.fecha_vencimiento)<0)).slice(0,12)}
-  function obtenerPendientesSemana(ordenes=normalizedRows()){return ordenes.filter(o=>{const dc=daysTo(o.proxima_certificacion),dv=daysTo(o.fecha_vencimiento);return(dc!==null&&dc>=0&&dc<=7)||(dv!==null&&dv>=0&&dv<=15)||norm(o.calidad_datos_estado)==='ROJO'||(dv!==null&&dv<0&&!clean(o.justificacion_administrativa))}).slice(0,15)}
+  function obtenerPendientesSemana(ordenes=normalizedRows()){return ordenes.filter(o=>{const dc=daysTo(proximaCertificacionEjecutiva(o)),dv=daysTo(o.fecha_vencimiento);return(dc!==null&&dc>=0&&dc<=7)||(dv!==null&&dv>=0&&dv<=15)||norm(o.calidad_datos_estado)==='ROJO'||(dv!==null&&dv<0&&!clean(o.justificacion_administrativa))}).slice(0,15)}
   function calcularEstadoDocumentalGeneral(ordenes=normalizedRows()){const m={};ordenes.forEach(o=>{const k=clean(o.estado_documental)||'Sin estado documental';m[k]=(m[k]||0)+1});return m}
   function calcularCalidadGeneral(ordenes=normalizedRows()){const m={};ordenes.forEach(o=>{const k=clean(o.calidad_datos_estado)||'Sin auditar';m[k]=(m[k]||0)+1});return m}
   function renderDashboardEjecutivo(){const host=document.querySelector('#vistaDashboard .view-body');if(!host)return;let box=$('execDashboard');if(box)box.remove();const rows=normalizedRows();if(!rows.length)return;const k=calcularDashboardEjecutivo(rows),stations=obtenerTopEstaciones(rows),providers=obtenerTopProveedores(rows),week=obtenerPendientesSemana(rows),docs=calcularEstadoDocumentalGeneral(rows),qual=calcularCalidadGeneral(rows);box=document.createElement('section');box.id='execDashboard';box.className='exec-dashboard';box.innerHTML=`<div class="exec-kpis">${[['Total OCs',k.total],['Obras activas',k.obras],['Servicios activos',k.servicios],['Monto comprometido',money(k.monto)],['Próximas a vencer',k.proximas],['Vencidas certificables',k.vencidasSaldo],['Calidad roja',k.calidadRoja],['Requieren acción',k.requieren]].map(([l,v])=>`<div class="exec-kpi"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('')}</div><div class="exec-grid"><div class="exec-card"><h3>Top estaciones con más intervenciones</h3><div class="exec-list">${stations.map(([n,c])=>`<div class="exec-list-item"><b>${esc(n)}</b><span>${c}</span></div>`).join('')}</div></div><div class="exec-card"><h3>Top proveedores por monto</h3><div class="exec-list">${providers.map(([n,c])=>`<div class="exec-list-item"><b>${esc(n)}</b><span>${money(c)}</span></div>`).join('')}</div></div><div class="exec-card"><h3>Para resolver esta semana</h3><div class="exec-list">${week.map(o=>`<div class="exec-list-item"><div><b>OC ${esc(o.nro_oc)}</b><small>${esc(o.motivo_requiere_accion||o.estado_documental||'Seguimiento pendiente')}</small></div><button type="button" data-open-oc="${esc(o.id_obra||o.nro_oc)}">Ficha</button></div>`).join('')||'<div class="exec-empty">Sin pendientes inmediatos.</div>'}</div></div><div class="exec-card"><h3>Estado documental general</h3><div class="exec-list">${Object.entries(docs).map(([n,c])=>`<div class="exec-list-item"><b>${esc(n)}</b><span>${c}</span></div>`).join('')}</div></div><div class="exec-card"><h3>Calidad de datos</h3><div class="exec-list">${Object.entries(qual).map(([n,c])=>`<div class="exec-list-item"><b>${esc(n)}</b><span>${c}</span></div>`).join('')}</div></div></div>`;host.appendChild(box)}
@@ -18234,7 +18276,7 @@ const APP_DATA_MODE = "supabase_first";
     ensureExecAlertsLifecycle();
   }
 
-  function renderExecutiveFicha(orden){const o=resolveOrder(orden);if(!o)return;currentOrder=o;const host=$('fichaOCBody');if(!host)return;let card=$('execHeaderCard');if(card)card.remove();card=document.createElement('section');card.id='execHeaderCard';card.className='exec-header-card';card.innerHTML=`<div class="exec-card-head"><div><h3>Cabecera ejecutiva</h3><div class="muted">OC ${esc(nro(o))} · ${esc(o.proveedor||'Sin proveedor')}</div></div><div>${qualityBadge(o)} ${docBadge(o)}</div></div><div class="exec-header-grid">${[['N° OC',nro(o)],['Proveedor',o.proveedor],['Tipo',o.tipo],['Estación principal',o.estacion],['Estado COI',o.estado||o.estadoCOI],['Vigencia operativa',daysTo(o.vencimiento)<0?'Vencida':'Vigente'],['Próxima certificación',fmtDate(o.proximaCertificacion)],['Estado documental',o.estadoDocumental||'—'],['Calidad',`${o.calidadDatosEstado||'Sin auditar'} (${Number(o.calidadDatosScore||0)})`]].map(([l,v])=>`<div class="exec-header-item"><b>${esc(l)}</b><span>${esc(v||'—')}</span></div>`).join('')}</div><div class="exec-top-actions"><button type="button" id="execBtnEditar">Editar OC</button><button type="button" id="execBtnGuardar" class="primary">Guardar cambios</button><button type="button" data-oc-station-add>Agregar estación asociada</button><button type="button" id="execBtnQuality">Ejecutar control de calidad</button><button type="button" id="execBtnClose" class="btn-danger-soft">Cerrar OC</button></div>`;host.insertBefore(card,host.firstChild)}
+  function renderExecutiveFicha(orden){const o=resolveOrder(orden);if(!o)return;currentOrder=o;const host=$('fichaOCBody');if(!host)return;let card=$('execHeaderCard');if(card)card.remove();card=document.createElement('section');card.id='execHeaderCard';card.className='exec-header-card';card.innerHTML=`<div class="exec-card-head"><div><h3>Cabecera ejecutiva</h3><div class="muted">OC ${esc(nro(o))} · ${esc(o.proveedor||'Sin proveedor')}</div></div><div>${qualityBadge(o)} ${docBadge(o)}</div></div><div class="exec-header-grid">${[['N° OC',nro(o)],['Proveedor',o.proveedor],['Tipo',o.tipo],['Estación principal',o.estacion],['Estado COI',o.estado||o.estadoCOI],['Vigencia operativa',daysTo(o.vencimiento)<0?'Vencida':'Vigente'],['Próxima certificación',fmtDate(proximaCertificacionEjecutiva(o))],['Estado documental',o.estadoDocumental||'—'],['Calidad',`${o.calidadDatosEstado||'Sin auditar'} (${Number(o.calidadDatosScore||0)})`]].map(([l,v])=>`<div class="exec-header-item"><b>${esc(l)}</b><span>${esc(v||'—')}</span></div>`).join('')}</div><div class="exec-top-actions"><button type="button" id="execBtnEditar">Editar OC</button><button type="button" id="execBtnGuardar" class="primary">Guardar cambios</button><button type="button" data-oc-station-add>Agregar estación asociada</button><button type="button" id="execBtnQuality">Ejecutar control de calidad</button><button type="button" id="execBtnClose" class="btn-danger-soft">Cerrar OC</button></div>`;host.insertBefore(card,host.firstChild)}
   async function controlQualitySingle(o){const r=evaluarCalidadOrden(metaByOC.get(nro(o))||o);await actualizarCalidadOrdenSupabase(o,r);await registrarHistorialOC(o,{tipo_evento:'Control de calidad',campo_modificado:'calidad_datos_estado',valor_anterior:o.calidadDatosEstado||'',valor_nuevo:r.estado,motivo:r.motivo_requiere_accion});await syncExecutiveMetadata();renderExecutiveFicha(o);toast(`Calidad ${r.estado} · Score ${r.score}`,'ok');return r}
   async function closeOrder(o){const obs=prompt('Observación de cierre operativo:','');if(obs===null)return;await updateOrder(o,{fecha_cierre_operativo:isoNow(),observacion_cierre:clean(obs)||null,estado_registro:'Cerrado'},{history:false});await registrarHistorialOC(o,{tipo_evento:'Cierre operativo',campo_modificado:'estado_registro',valor_anterior:o.estadoRegistro||'',valor_nuevo:'Cerrado',motivo:obs});toast('OC cerrada operativamente.','ok')}
   function readEditForm(){const v=id=>clean($(id)?.value);return{id_obra:v('edit_idObra'),nro_oc:v('edit_numeroOC'),tipo:v('edit_tipo'),tipo_trabajo:v('edit_tipoUM'),especialidad:v('edit_tipoUM'),descripcion:v('edit_descripcion'),estacion:v('edit_estacion'),proveedor:v('edit_proveedor'),expediente:v('edit_expediente'),monto_total:Number(v('edit_montoOC').replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0,plazo_dias:Number(v('edit_plazoDias'))||0,fecha_acta_inicio:dateOnly(v('edit_fechaInicio'))||null,fecha_vencimiento:dateOnly(v('edit_fechaFin'))||null,estado_coi:v('edit_estado'),estado_documental:v('edit_estadoDocumental'),proxima_certificacion:dateOnly(v('edit_proximaCertificacion'))||null,observaciones:v('edit_observaciones')}}
