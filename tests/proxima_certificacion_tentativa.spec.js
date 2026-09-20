@@ -158,6 +158,132 @@ test('PC-13b · un alias derivado NO se toma por carga manual', async ({ page })
   expect(await proyectar(page, item)).toBe('');
 });
 
+test('PC-13c · una OC CERRADA suprime la próxima certificación persistida', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, SERVICIO, {
+    estadoCOI: 'CERRADA',
+    modalidad_certificacion: 'A_DEMANDA',
+    _supabaseRaw: {
+      proxima_certificacion: '2026-08-10',
+      modalidad_certificacion: 'A_DEMANDA'
+    }
+  });
+  const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
+  expect(info).toEqual({ fecha: '', origen: '', tentativa: false });
+  expect(await proyectar(page, item)).toBe('');
+});
+
+test('PC-13d · una OC ARCHIVADA por estado_registro también suprime la fecha persistida', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, OBRA, {
+    estado_registro: 'ARCHIVADA',
+    _supabaseRaw: { proxima_certificacion: '2026-08-10' }
+  });
+  const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
+  expect(info).toEqual({ fecha: '', origen: '', tentativa: false });
+  expect(await proyectar(page, item)).toBe('');
+});
+
+test('PC-13e · una OC en ejecución conserva el override persistido', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, SERVICIO, {
+    modalidad_certificacion: 'A_DEMANDA',
+    estadoCOI: 'OBRA/SERVICIO EN EJECUCIÓN',
+    _supabaseRaw: {
+      proxima_certificacion: '2026-08-10',
+      modalidad_certificacion: 'A_DEMANDA'
+    }
+  });
+  const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
+  expect(info).toEqual({ fecha: '2026-08-10', origen: 'persistida', tentativa: false });
+  expect(await proyectar(page, item)).toBe('2026-08-10');
+});
+
+test('PC-13f · Cerrada parcialmente conserva el override aun con flags legacy de cierre', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, SERVICIO, {
+    modalidad_certificacion: 'A_DEMANDA',
+    estadoCOI: 'Cerrada parcialmente',
+    cerrada: true, // normalizarOC() puede dejar este flag legacy pegado
+    _supabaseRaw: {
+      estado_coi: 'Cerrada parcialmente',
+      proxima_certificacion: '2026-08-10',
+      modalidad_certificacion: 'A_DEMANDA'
+    }
+  });
+  const row = { estado: 'Cerrada', item };
+  const info = await page.evaluate(({item,row}) => window.__COI_PROXIMA_CERT_INFO__(item, row), {item,row});
+  expect(info).toEqual({ fecha: '2026-08-10', origen: 'persistida', tentativa: false });
+});
+
+test('PC-13g · FINALIZADA con saldo remanente conserva una certificación persistida', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, SERVICIO, {
+    estadoCOI: 'OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE',
+    certificableConSaldo: true,
+    modalidad_certificacion: 'A_DEMANDA',
+    _supabaseRaw: {
+      estado_coi: 'OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE',
+      certificable_con_saldo: true,
+      proxima_certificacion: '2026-08-10',
+      modalidad_certificacion: 'A_DEMANDA'
+    }
+  });
+  const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
+  expect(info).toEqual({ fecha: '2026-08-10', origen: 'persistida', tentativa: false });
+  // La proyección automática sigue detenida; sólo sobrevive el dato explícito.
+  expect(await soloProyeccion(page, item)).toBe('');
+});
+
+test('PC-13h · FINALIZADA sin saldo remanente suprime la certificación persistida', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, SERVICIO, {
+    estadoCOI: 'OBRA/SERVICIO FINALIZADA',
+    certificableConSaldo: false,
+    modalidad_certificacion: 'A_DEMANDA',
+    _supabaseRaw: {
+      estado_coi: 'OBRA/SERVICIO FINALIZADA',
+      certificable_con_saldo: false,
+      proxima_certificacion: '2026-08-10',
+      modalidad_certificacion: 'A_DEMANDA'
+    }
+  });
+  const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
+  expect(info).toEqual({ fecha: '', origen: '', tentativa: false });
+});
+
+test('PC-13i · un flag de saldo remanente viejo no revive una OC ya FINALIZADA', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, SERVICIO, {
+    estadoCOI: 'OBRA/SERVICIO FINALIZADA',
+    certificableConSaldo: true,
+    modalidad_certificacion: 'A_DEMANDA',
+    _supabaseRaw: {
+      estado_coi: 'OBRA/SERVICIO FINALIZADA',
+      certificable_con_saldo: true,
+      proxima_certificacion: '2026-08-10',
+      modalidad_certificacion: 'A_DEMANDA'
+    }
+  });
+  const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
+  expect(info).toEqual({ fecha: '', origen: '', tentativa: false });
+});
+
+test('PC-13j · OBRA/SERVICIO CERRADA suprime la fecha persistida', async ({ page }) => {
+  await abrir(page);
+  const item = Object.assign({}, SERVICIO, {
+    estadoCOI: 'OBRA/SERVICIO CERRADA',
+    modalidad_certificacion: 'A_DEMANDA',
+    _supabaseRaw: {
+      estado_coi: 'OBRA/SERVICIO CERRADA',
+      proxima_certificacion: '2026-08-10',
+      modalidad_certificacion: 'A_DEMANDA'
+    }
+  });
+  const info = await page.evaluate(i => window.__COI_PROXIMA_CERT_INFO__(i, {}), item);
+  expect(info).toEqual({ fecha: '', origen: '', tentativa: false });
+});
+
 test('PC-14 · la proyección no usa fecha_creacion técnica como base', async ({ page }) => {
   await abrir(page, { '4530500001': '2026-06-30' });
   // fecha_creacion muy posterior no puede desplazar la proyección.

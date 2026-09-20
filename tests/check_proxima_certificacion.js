@@ -80,4 +80,20 @@ assert.match(
   'El flujo focalizado debe estar disponible para regresión de navegador'
 );
 
+assert.match(
+  html,
+  /function proximaCertificacionEjecutiva\(o\)[\s\S]*?__COI_PROXIMA_CERT_INFO__/,
+  'Las superficies ejecutivas deben resolver la próxima certificación por el helper canónico'
+);
+assert.match(
+  html,
+  /function obtenerPendientesSemana\(ordenes=normalizedRows\(\)\)\{[^\n]*daysTo\(proximaCertificacionEjecutiva\(o\)\)/,
+  'Para resolver esta semana no puede usar proxima_certificacion cruda'
+);
+assert.match(
+  html,
+  /function renderExecutiveFicha\(orden\)[^\n]*\['Próxima certificación',fmtDate\(proximaCertificacionEjecutiva\(o\)\)\]/,
+  'La cabecera ejecutiva no puede mostrar la fecha persistida sin aplicar el estado de ciclo de vida'
+);
+
 console.log('Próxima certificación: RPC puntual, verificación remota y fallo visible sin autoridad local.');
