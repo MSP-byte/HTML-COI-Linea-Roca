@@ -6313,7 +6313,7 @@ function sumarMeses(fecha,cantidad){return addMeses(fecha,cantidad);}
 function formatearFecha(fecha){return fmtFecha(fecha);}
 function alertaValor(item,row,keys){for(const k of keys){const v=item?.[k]??row?.[k];if(v!==undefined&&v!==null&&String(v).trim()!=='')return v;}return '';}
 function alertaFecha(item,row,keys){for(const k of keys){const d=(typeof parseFechaFlexible==='function'?parseFechaFlexible:parseFecha)(item?.[k]??row?.[k]);if(d)return d;}return null;}
-function alertaRegistro(row){const item=row.item||{};const id=alertaValor(item,row,['idObra','ID_OBRA','idServicio','ID_SERVICIO','idOC','id'])||slugOC([row.tipo,row.oc,row.estacion].join('-'));const oc=alertaValor(item,row,['ocNro','OC_NRO','numeroOC','oc','OC'])||row.oc||'SIN OC';const estacion=alertaValor(item,row,['estacion','ESTACION'])||row.estacion||'';const proveedor=alertaValor(item,row,['proveedor','PROVEEDOR'])||row.proveedor||'';const inicio=alertaFecha(item,row,['fechaInicio','FECHA_INICIO','fechaActaInicio','actaInicio','inicio'])||row.inicio;const fin=alertaFecha(item,row,['fechaFin','FECHA_FIN','fechaVencimiento','vencimiento','fin'])||row.fin;let prox=null,proxTentativa=false;try{if(typeof window.__COI_PROXIMA_CERT_INFO__==='function'){const info=window.__COI_PROXIMA_CERT_INFO__(item,row)||{};prox=info.fecha?(typeof parseFechaFlexible==='function'?parseFechaFlexible(info.fecha):parseFecha(info.fecha)):null;proxTentativa=Boolean(info.tentativa);}else if(typeof window.__COI_PROXIMA_CERT__==='function'){const f=window.__COI_PROXIMA_CERT__(item,row);prox=f?(typeof parseFechaFlexible==='function'?parseFechaFlexible(f):parseFecha(f)):null;}}catch(e){}if(!prox)prox=alertaFecha(item,row,['proxCertificacion','PROX_CERTIFICACION','proximaCertificacion','fechaProximaCertificacion'])||row.proximaCertificacion;const plazo=Number(alertaValor(item,row,['plazoDias','PLAZO_DIAS','plazo'])||row.plazo||0);const estadoDocumental=alertaValor(item,row,['estadoDocumental','ESTADO_DOCUMENTAL'])||row.estadoDocumental||'';return {item,id,oc,tipo:row.tipo||item.tipo||'',estacion,proveedor,inicio,fin,prox,proxTentativa,plazo,estado:row.estado||item.estado||'',estadoDocumental,descripcion:item.descripcion||item.tipoTrabajo||row.especialidad||'',expediente:item.expediente||item.expte||item.EXPEDIENTE||'',ultimaActa:item.ultimaActa||item.ULTIMA_ACTA||item.ultimaCertificacion||'',periodoInicio:item.periodoInicio||item.PERIODO_INICIO||'',periodoFin:item.periodoFin||item.PERIODO_FIN||'',cerrada:row.cerrada||esOCCerradaLegacy(item)};}
+function alertaRegistro(row){const item=row.item||{};const id=alertaValor(item,row,['idObra','ID_OBRA','idServicio','ID_SERVICIO','idOC','id'])||slugOC([row.tipo,row.oc,row.estacion].join('-'));const oc=alertaValor(item,row,['ocNro','OC_NRO','numeroOC','oc','OC'])||row.oc||'SIN OC';const estacion=alertaValor(item,row,['estacion','ESTACION'])||row.estacion||'';const proveedor=alertaValor(item,row,['proveedor','PROVEEDOR'])||row.proveedor||'';const inicio=alertaFecha(item,row,['fechaInicio','FECHA_INICIO','fechaActaInicio','actaInicio','inicio'])||row.inicio;const fin=alertaFecha(item,row,['fechaFin','FECHA_FIN','fechaVencimiento','vencimiento','fin'])||row.fin;let prox=null,proxTentativa=false,canonicoResolvio=false;try{if(typeof window.__COI_PROXIMA_CERT_INFO__==='function'){const info=window.__COI_PROXIMA_CERT_INFO__(item,row)||{};prox=info.fecha?(typeof parseFechaFlexible==='function'?parseFechaFlexible(info.fecha):parseFecha(info.fecha)):null;proxTentativa=Boolean(info.tentativa);canonicoResolvio=true;}else if(typeof window.__COI_PROXIMA_CERT__==='function'){const f=window.__COI_PROXIMA_CERT__(item,row);prox=f?(typeof parseFechaFlexible==='function'?parseFechaFlexible(f):parseFecha(f)):null;}}catch(e){}if(!prox&&!canonicoResolvio)prox=alertaFecha(item,row,['proxCertificacion','PROX_CERTIFICACION','proximaCertificacion','fechaProximaCertificacion'])||row.proximaCertificacion;const plazo=Number(alertaValor(item,row,['plazoDias','PLAZO_DIAS','plazo'])||row.plazo||0);const estadoDocumental=alertaValor(item,row,['estadoDocumental','ESTADO_DOCUMENTAL'])||row.estadoDocumental||'';return {item,id,oc,tipo:row.tipo||item.tipo||'',estacion,proveedor,inicio,fin,prox,proxTentativa,plazo,estado:row.estado||item.estado||'',estadoDocumental,descripcion:item.descripcion||item.tipoTrabajo||row.especialidad||'',expediente:item.expediente||item.expte||item.EXPEDIENTE||'',ultimaActa:item.ultimaActa||item.ULTIMA_ACTA||item.ultimaCertificacion||'',periodoInicio:item.periodoInicio||item.PERIODO_INICIO||'',periodoFin:item.periodoFin||item.PERIODO_FIN||'',cerrada:row.cerrada||esOCCerradaLegacy(item)};}
 function obtenerSeveridadAlerta(alerta){return alerta.severidad||({'Crítica':'ROJA','Próxima':'AMARILLA','Documental':'AMARILLA','Informativa':'AZUL'}[alerta.categoria]||'AZUL');}
 function crearAlerta(base,tipoAlerta,categoria,severidad,fecha,dias,mensaje,accion){const fechaIso=isoFechaCOI(fecha)||'SIN_FECHA';const id=`${slugOC(tipoAlerta)}_${slugOC(base.id)}_${fechaIso}`;return {id,tipoAlerta,categoria,severidad,oc:base.oc,idRegistro:base.id,tipoRegistro:base.tipo,estacion:base.estacion||'Sin definir',proveedor:base.proveedor||'Sin definir',descripcion:base.descripcion||'—',fechaRelacionada:fechaIso==='SIN_FECHA'?'':fechaIso,dias:dias??'',mensaje,accionSugerida:accion,ocId:base.id,item:base.item};}
 function estadoCerradoAlerta(txt){const s=normalizarTexto(txt);return s.includes('CERRAD')||s.includes('FINALIZAD')||s.includes('ARCHIVAD')||s.includes('DEFINITIVA');}
@@ -10231,16 +10231,34 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     const raw=item&&((item._supabaseRaw&&item._supabaseRaw.modalidad_certificacion)||item.modalidad_certificacion||item.modalidadCertificacion);
     return normFix(raw).replace(/\s+/g,'_');
   }
+  /* Una OC cerrada o archivada por el ciclo de vida H10 tampoco proyecta. El
+     criterio es el mismo que ya usa estadoCerradoAlerta() en el Centro de
+     Alertas: reconocer sólo finalización, cancelación y suspensión dejaba a una
+     Obra o a un servicio mensual recibiendo fechas calculadas después del
+     cierre, visibles en Calendario y contadas por las métricas de Órdenes. */
   function cerradaFix(item,row){
-    const estado=normFix(estadoFix(item,row)+' '+(item?.estadoDocumental||''));
-    return estado.includes('FINALIZAD')||estado.includes('CANCELAD')||estado.includes('SUSPENDID');
+    const estado=normFix(estadoFix(item,row)+' '+(item?.estadoDocumental||'')+' '+(item?.estadoRegistro||item?.estado_registro||''));
+    return estado.includes('FINALIZAD')||estado.includes('CANCELAD')||estado.includes('SUSPENDID')
+      ||estado.includes('CERRAD')||estado.includes('ARCHIVAD');
   }
   // Última certificación REAL de la OC, por su fecha administrativa.
+  /* Identidades con las que puede estar indexada la certificación: el N° de OC
+     del catálogo y el UUID de la orden. El nro_oc de coi_certificaciones está
+     denormalizado y puede haber quedado viejo, así que se prueban las dos. */
+  function identidadesOCFix(item,row){
+    const crudo=item&&item._supabaseRaw;
+    return [ocNroFix(item,row),item&&item.id,crudo&&crudo.id,item&&item.supabaseId,row&&row.ordenId]
+      .map(v=>String(v==null?'':v).trim()).filter(Boolean);
+  }
   function ultimaCertRealFix(item,row){
     try{
       const buscar=window.__COI_CERT_ULTIMA__;
       if(typeof buscar!=='function')return '';
-      return isoFix(buscar(ocNroFix(item,row)))||'';
+      for(const id of identidadesOCFix(item,row)){
+        const f=isoFix(buscar(id));
+        if(f)return f;
+      }
+      return '';
     }catch(e){ return ''; }
   }
   /* Tipo REAL de la OC, sin adivinar. tipoFix() cae a 'Obra' cuando no hay
@@ -10785,7 +10803,9 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
        coi_certificaciones, que es la autoridad. Los campos legacy del item
        vienen vacíos en las OC de Supabase y sólo se usan como último recurso. */
     const detalle=(()=>{ try{ return typeof window.__COI_CERT_ULTIMA_DETALLE__==='function'
-      ? window.__COI_CERT_ULTIMA_DETALLE__(e.oc) : null; }catch(err){ return null; } })();
+      ? (identidadesOCFix(item,{tipo:e.tipo}).concat([e.oc])
+          .map(id=>window.__COI_CERT_ULTIMA_DETALLE__(id)).find(Boolean)||null)
+      : null; }catch(err){ return null; } })();
     const historialAutoritativo=(()=>{try{
       const h=window.__COI_CERT_HISTORIAL__,s=h&&typeof h.estado==='function'?h.estado():null;
       return Boolean(s&&s.cargado&&!s.error);
@@ -26794,10 +26814,21 @@ body.coi-v2-light .coi-v2-day-event-grid div{background:#fff}
   }
   function eventsForDay(day,date){
     const rendered=[...day.querySelectorAll('.op-event')].map(button=>parseRenderedButton(button,date));
-    const generated=generatedEvents(date);
+    /* Para las certificaciones manda lo que el Calendario ya pintó: ese set
+       sale del helper canónico, que suprime las que no corresponden y marca
+       «(tentativa)» las calculadas. El generador legacy no lleva ese sufijo,
+       así que la deduplicación por tipoEvento no las reconoce como la misma:
+       el día mostraba la certificación dos veces y reponía fechas que el
+       canónico había suprimido. */
+    const esCertificacion=(tipo)=>normalizedKey(tipo).includes('CERTIFICACI');
+    const hayCertPintada=rendered.some(e=>esCertificacion(e&&e.tipoEvento));
+    const generated=generatedEvents(date).filter(e=>!(hayCertPintada&&esCertificacion(e&&e.tipoEvento)));
     const merged=[],seen=new Set();
     [...rendered,...generated].forEach(event=>{
-      const key=[canonicalDate(event.fecha),normalizedKey(event.tipoEvento),normalizedKey(event.ocId||event.oc),normalizedKey(event.proveedor)].join('|');
+      // Las certificaciones se deduplican por OC, no por rótulo: el sufijo
+      // «(tentativa)» no puede hacer pasar la misma fecha por dos eventos.
+      const claveTipo=esCertificacion(event.tipoEvento)?'CERTIFICACION':normalizedKey(event.tipoEvento);
+      const key=[canonicalDate(event.fecha),claveTipo,normalizedKey(event.ocId||event.oc),normalizedKey(event.proveedor)].join('|');
       if(seen.has(key))return;seen.add(key);merged.push(event);
     });
     return merged;
@@ -36198,6 +36229,7 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
       if (!g) {
         g = {
           clave, nroOC: nro, acta,
+          ordenId: texto(row.orden_id) || texto(meta.ordenId),
           ocId: texto(meta.ocId) || texto(row.orden_id) || nro,
           tipo: texto(meta.tipo), proveedor: texto(row.proveedor) || texto(meta.proveedor),
           inicio: '', fin: '', avance: null, anio: texto(row.anio),
@@ -36261,9 +36293,15 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     });
     gruposPorOC.forEach((g, clave) => {
       const fecha = g.fin || g.inicio || '';
-      if (fecha) ultimaFechaPorOCIndex.set(clave, fecha);
-      ultimaDetallePorOCIndex.set(clave, {
-        fecha, acta: g.acta, actualizacion: g.actualizacion, id: g.ultimoId
+      const detalle = { fecha, acta: g.acta, actualizacion: g.actualizacion, id: g.ultimoId };
+      /* Se indexa por N° de OC y TAMBIÉN por UUID. El nro_oc de
+         coi_certificaciones está denormalizado y puede haber quedado viejo: en
+         ese caso la búsqueda por el número actual del catálogo no encontraba la
+         certificación y la OC se proyectaba desde el Acta de Inicio como si no
+         tuviera ninguna. */
+      [clave, fold(g.ordenId)].filter(Boolean).forEach((k) => {
+        if (fecha) ultimaFechaPorOCIndex.set(k, fecha);
+        ultimaDetallePorOCIndex.set(k, detalle);
       });
     });
   }
@@ -36352,6 +36390,8 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
   let generacion = 0;
   // Lecturas remotas efectivamente realizadas por ESTE módulo.
   let cargas = 0;
+  // Intentos de lectura remota, exitosos o no: permite afirmar el back-off.
+  let intentos = 0;
   // Generación del catálogo contra la que se consolidó el snapshot actual.
   // En producción viene de H06 y es O(1) de consultar.
   let generacionCatalogoAplicada = null;
@@ -36406,12 +36446,23 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
      terminar la actual. */
   let relecturaPendiente = false;
   let enVuelo = null;
+  /* Back-off tras un error. Sin esto, una lectura que falla de forma
+     persistente —RLS, autenticación, red, error del servidor— deja `cargado`
+     en false y CADA render que proyecta vuelve a pedir el historial completo.
+     El shell V2 llama a syncNav() una vez por segundo y su cálculo de riesgo
+     consume la proyección, así que una pestaña ociosa martillaba el endpoint.
+     Un pedido explícito —cargar(true): botón Actualizar o post-guardado— pasa
+     igual: el back-off sólo frena los reintentos automáticos. */
+  const ESPERA_TRAS_FALLO_MS = 60000;
+  let ultimoFallo = 0;
 
   /* Punto de entrada. Si hay una lectura corriendo y se pide una FORZADA, se
      espera la actual y se vuelve a leer: devolver enseguida dejaría como
      snapshot final la respuesta anterior al guardado. Quien hace await sobre
      cargar(true) recibe datos posteriores a su pedido. */
   async function cargar(forzar) {
+    // Reintento automático demasiado pronto tras un fallo: se deja pasar.
+    if (!forzar && error && (Date.now() - ultimoFallo) < ESPERA_TRAS_FALLO_MS) return;
     if (cargando) {
       if (!forzar) return;
       relecturaPendiente = true;
@@ -36443,6 +36494,7 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
       if (cargado && !forzar) return;
       error = '';
       pintar();
+      intentos += 1;
       const datos = await traer();
       if (gen !== generacion) return;
       /* La identidad pudo cambiar DURANTE la lectura. En la primera carga
@@ -36466,7 +36518,17 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     } catch (e) {
       if (gen !== generacion) return;
       error = texto(e && (e.message || e.details)) || 'error desconocido';
+      ultimoFallo = Date.now();
+      /* Los índices derivados salen del snapshot que acaba de invalidarse. Si
+         sobreviven, la tabla informa el error pero la tarjeta de un evento
+         sigue mostrando la certificación del snapshot viejo a través de
+         __COI_CERT_ULTIMA_DETALLE__. Se limpian con el resto. */
       consolidadas = [];
+      filasCrudas = [];
+      ultimaFechaPorOCIndex = new Map();
+      ultimaDetallePorOCIndex = new Map();
+      metadataPendiente = false;
+      generacionCatalogoAplicada = null;
       cargado = false;
     } finally {
       // Si la identidad cambió durante la lectura, invalidarPorIdentidad() ya
@@ -36628,7 +36690,7 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
     invalidarPorIdentidad,
     uid: () => uidSnapshot,
     filas: () => consolidadas.slice(),
-    estado: () => ({ cargando, cargado, error, cargas })
+    estado: () => ({ cargando, cargado, error, cargas, intentos })
   };
 })();
 </script>
