@@ -10350,6 +10350,11 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
        fecha produciría un evento «Certificación obra» mal tipificado. */
     const tipo=tipoCanonicoFix(item,row);
     if(tipo!=='OBRA'&&tipo!=='SERVICIO')return null;
+    /* El cierre contractual manda también sobre una fecha persistida. Sin este
+       guard, una OC cerrada/archivada podía saltarse proyeccionMensualFix() y
+       conservar una próxima certificación porque el return de persistida
+       ocurría antes de consultar cerradaFix(). */
+    if(cerradaFix(item,row))return null;
     const persistida=proxCertPersistidaFix(item);
     if(persistida)return persistida;
     return proyeccionMensualFix(item,row);
