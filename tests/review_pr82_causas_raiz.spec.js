@@ -179,6 +179,21 @@ test('CR02-3 · una OC en ejecución sigue proyectando', async ({ page }) => {
   expect(await proyectar(page)).toBe('2026-07-30');
 });
 
+test('CR02-4 · una fecha persistida no revive una OC cerrada o archivada', async ({ page }) => {
+  await abrir(page, { estadoCOI: 'Cerrada', certificaciones: [] });
+  await cargado(page);
+  const r = await page.evaluate(() => {
+    const fila = window.todasLasOC()[0];
+    const item = Object.assign({}, fila.item, {
+      _supabaseRaw: Object.assign({}, fila.item._supabaseRaw, {
+        proxima_certificacion: '2026-10-15'
+      })
+    });
+    return window.__COI_PROXIMA_CERT__(item, fila);
+  });
+  expect(r).toBe('');
+});
+
 /* ---------------------------------------------------------------- CR-03 */
 
 test('CR03-1 · una lectura fallida no deja viva la certificación del snapshot anterior', async ({ page }) => {
