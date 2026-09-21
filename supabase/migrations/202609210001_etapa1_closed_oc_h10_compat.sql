@@ -134,8 +134,7 @@ begin
     'ya_confirmada', v_already
   );
 end;
-$function$
-
+$function$;
 
 comment on function public.coi_confirmar_etapa_circuito(uuid,text,text) is
   'Writer interno del circuito contractual. En OCs ya cerradas conserva estado_coi y permite registrar el hito en estado_documental/historial sin violar H10.';
