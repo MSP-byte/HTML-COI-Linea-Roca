@@ -28704,6 +28704,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     if (!runtime.sincronizado && runtime.ultimoError) {
       return 'No se pudo sincronizar con Supabase. No se muestran datos locales.';
     }
+  // Remoto vacio es un estado valido.
     if (!total) return 'No hay Unidades de Mantenimiento cargadas en Supabase.';
     return 'Sin UM para los filtros seleccionados.';
   }
