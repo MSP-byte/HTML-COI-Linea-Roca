@@ -86,8 +86,8 @@ check(html.includes("supabaseCargaPendiente = true;"),
   'una lectura concurrente de otra identidad debe quedar encolada');
 check(html.includes("supabaseCargaUid = null;"),
   'la identidad de la lectura en vuelo debe limpiarse al finalizar');
-check(html.includes("cargarOrdenesPrincipal({ coalescer: true, origen: 'startup-session', authUid: user.id })"),
-  'la verificación inicial de sesión debe usar la vía coalescida');
+check(html.includes("cargarOrdenesPrincipal({ coalescer: true, origen: 'startup-session', authUid: user.id, authUser: user })"),
+  'la verificación inicial de sesión debe usar la vía coalescida y reutilizar la identidad validada');
 check(html.includes("event === 'SIGNED_IN'"),
   'SIGNED_IN debe conservar la capacidad de cargar cuando realmente hace falta');
 check(html.includes("authUid: session.user.id"),
