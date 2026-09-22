@@ -25517,6 +25517,27 @@ function renderSide(rows,groups){
 
 <!-- PREPRODUCCION 2026-08-07: analitica de Ordenes estabilizada como visualizacion; tooltip conservado, filtro por click eliminado. -->
 <script id="coi-v581r38-financiero-oc-estable">
+/*
+AUDITORÍA V58.1R38.1 — CORRECCIÓN DE ARRANQUE
+0. Causa del bloqueo de GitHub Pages: dos MutationObserver de versionado se
+   reescribían entre R37 y R38 durante DOMContentLoaded, generando un ciclo de
+   microtareas que impedía terminar el arranque y dejaba la interfaz sin responder.
+1. Se unificaron las constantes activas de versión y se retiraron ambos observers
+   globales de versionado.
+
+AUDITORÍA V58.1R38 — HALLAZGOS PRINCIPALES
+1. El guardado financiero tenía varias generaciones de handlers superpuestos (V45/R6/R7/R8).
+2. Un MutationObserver global V67 recorría TODO document.body ante cualquier nodo agregado.
+   El toast posterior al guardado disparaba ese recorrido completo, incluyendo mapa, dashboard,
+   tablas y módulos ocultos; esa era una causa directa de congelamiento posterior a "Posiciones cargadas".
+3. El guardado financiero actualizaba KPIs/renderizadores globales aunque el usuario seguía en Carga.
+4. La relación financiera dependía solo de coincidencias informales de OC y no dejaba un índice
+   compacto por expediente ni el orden_id de Supabase cuando estaba disponible.
+
+La corrección R38 mantiene Fase 11, Visual, Dashboard y Analítica de Órdenes habilitados,
+pero aísla el guardado financiero para que actualice únicamente la grilla y el expediente OC afectado.
+*/
+
 
 (function(){
   'use strict';
@@ -25838,6 +25859,27 @@ function renderSide(rows,groups){
 
 
 <script id="coi-hotfix-memo-todaslasoc">
+/* Hotfix de rendimiento — freeze al Guardar en Carga > Financiera.
+   Sintoma: al guardar una posicion (logueado a Supabase) se congelaba TODA la
+   pestania (>20s). Offline no pasaba porque no habia ordenes que decorar.
+
+   Causa raiz (medida con el profiler): recursion mutua + recomputo sin cache.
+     todasLasOC()  ->  decora cada OC  ->  obtenerSaldoRemanenteCertificable()
+        ->  calcularResumenFinancieroOC()  ->  obtenerPosicionesFinancierasPorOC()
+        ->  finV56MigrarMemoria()  (re-normaliza TODO el arreglo de posiciones)
+        ->  normalizarRegistroFinanciero()  ->  finBuscarOC()  ->  todasLasOC()  ...
+   todasLasOC esta envuelta 5 veces y re-decora TODAS las OCs en cada llamada, y
+   finV56MigrarMemoria re-normaliza TODAS las posiciones en cada lectura por OC.
+   Con datos reales eso es O(posiciones x ordenes x calculo) -> bloqueo del hilo.
+
+   Fix (2 guardas aditivas, sin tocar la logica):
+   1) todasLasOC() memoizada por rafaga sincronica: 1 computo por operacion.
+   2) finV56MigrarMemoria() (una MIGRACION que solo hace falta 1 vez) no se
+      re-ejecuta dentro de la misma rafaga, con guarda anti-reentrada que corta
+      la recursion mutua.
+   Ambas caches se limpian solas en el proximo macrotask, asi que cualquier
+   recarga de datos o interaccion posterior recomputa con datos frescos. */
+
 
 (function(){
   'use strict';
@@ -25875,6 +25917,15 @@ function renderSide(rows,groups){
 </script>
 
 <script id="coi-hotfix-parse-montos-ar">
+/* Fix #1 — Parseo de montos ARS con punto de miles.
+   Antes: "1.000"->1, "2.000.000"->2000, "102.976"->102.976, y ademas los dos
+   parsers (parseMontoARS y parseNumero) devolvian valores DISTINTOS para "1.234.567".
+   Aca definimos UN parser canonico AR y lo usamos en ambos caminos:
+     - coma = decimal ; punto = separador de miles
+     - "1.000"->1000 ; "2.000.000"->2000000 ; "102.976"->102976 ; "102.975,84"->102975.84
+     - se respeta el decimal estilo US cuando NO puede ser miles: "12.5"->12.5, "1234.56"->1234.56
+   Nota: "1.234" en formato ARS = 1234 (miles). Es el caso ambiguo asumido a favor de ARS. */
+
 
 (function(){
   'use strict';
@@ -27887,6 +27938,22 @@ document.addEventListener('click',function(event){
 </script>
 
 <script id="coi-h03-observaciones-supabase-first">
+/* H03 - Observaciones OC: Supabase como unica fuente de verdad.
+
+   Antes de esta capa, observacionesOC vivia en sessionStorage['coi_observaciones_oc']:
+   lo que cargaba un operador no existia para nadie mas y desaparecia al limpiar el
+   navegador.
+
+     lectura      -> select paginado sobre public.coi_observaciones_oc
+     mutacion     -> insert/update fila por fila, nunca "guardar el array entero"
+     memoria      -> window.observacionesOC es solo el modelo de la UI
+     sessionStorage -> fallback de solo lectura del legado, jamas destino de escritura
+
+   Las acciones reales de la UI viven dentro de IIFEs que no se pueden reasignar
+   desde window y que ademas llaman a stopImmediatePropagation. Por eso los clicks
+   se interceptan en fase de captura sobre window, que corre antes que cualquier
+   listener de document: es el mismo mecanismo que ya usa el modulo R27 de PDF. */
+
 
 (function(){
   'use strict';
@@ -28939,6 +29006,46 @@ document.addEventListener('click',function(event){
 </script>
 
 <script id="coi-h05-um-st-supabase-first">
+/* H05/H04 - Unidades de Mantenimiento y Servicios Tecnicos: Supabase como unica
+   fuente de verdad.
+
+   Antes de esta capa el inventario vivia en sessionStorage y varias capas legadas
+   (V58.1R8 recoverUMs, R13/R14/R15/R16) lo reconstruian mezclando claves locales,
+   sembrando 28 UM y 3 ST de demostracion en cada arranque. Nada de eso era
+   operativo: PRODUCCION y STAGING tienen ambas tablas VACIAS y la decision
+   tomada es NO migrar esas filas de demo.
+
+     lectura      -> select paginado sobre coi_unidades_mantenimiento y
+                     coi_servicios_tecnicos_um
+     mutacion     -> insert/update fila por fila, nunca "guardar el array entero"
+     memoria      -> unidadesMantenimiento / serviciosTecnicos son solo el modelo de la UI
+     sessionStorage -> legado NO autoritativo; se conserva fisicamente hasta H06 y
+                     se lo hace invisible para los lectores operativos
+
+   REMOTO VACIO ES UN ESTADO VALIDO: si Supabase devuelve 0 UM se muestran 0 UM.
+   No hay fallback legado, a diferencia de H03: alli el legado seguia siendo
+   historia pendiente de importar; aca ya se decidio descartarlo.
+
+   IDENTIDAD: la identidad canonica es el uuid `id`. `codigo_um` es clave de
+   negocio (UNIQUE) y es lo que la UI legada usa como etiqueta; toda escritura
+   viaja con el uuid, y un ST solo acepta un unidad_id uuid resuelto contra el
+   catalogo remoto: nunca un identificador legado tipo «UM-001».
+
+   ESQUEMA REAL (baseline 202608090000, identico al snapshot productivo):
+     coi_unidades_mantenimiento(id, codigo_um, tipo_um, estacion, ramal, sector,
+       descripcion, marca, modelo, nro_serie, estado, proveedor_mantenimiento,
+       observaciones, fecha_creacion, fecha_actualizacion)
+     coi_servicios_tecnicos_um(id, unidad_id, nro_st, nro_oc, fecha, descripcion,
+       tecnico, proveedor, estado, observaciones, fecha_creacion, fecha_actualizacion)
+   No existen fecha_alta ni fecha_baja: la baja es logica (estado = BAJA) y su
+   fecha queda en fecha_actualizacion y en una marca [BAJA aaaa-mm-dd] dentro de
+   observaciones, con el mismo criterio que H03 usa para el detalle de resolucion.
+
+   Los handlers reales de la UI viven dentro de IIFEs que llaman a
+   stopImmediatePropagation sobre document. Por eso los clicks se interceptan en
+   fase de captura sobre window, que corre antes que cualquier listener de
+   document: mismo mecanismo que ya usan H03 y el modulo R27 de PDF. */
+
 
 (function () {
   'use strict';
@@ -31052,6 +31159,41 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
 })();
 </script>
 <script id="coi-h07-documentacion-legacy-retirada">
+/* H07 · La documentacion de OC basada en referencias externas queda RETIRADA.
+
+   Contexto y por que cambio la solucion respecto del primer intento de H07.
+
+   El primer intento creaba public.coi_documentacion_oc para darle autoridad
+   remota al modelo documental de la V64/V575: repositorio, ruta, «Carpeta
+   documental OneDrive» y links externos. Eso construia un SEGUNDO camino
+   operativo documental, en contra de lo que fija la baseline vigente:
+
+     AGENTS.md          · «No reintroducir OneDrive ni `Agregar link documental`
+                           en Ficha OC.»
+                         · «Supabase Storage y las tablas documentales vigentes
+                           son el camino activo.»
+     BASELINE_OPERATIVA · Documentacion — no reintroducir OneDrive en Ficha OC
+                           ni `Agregar link documental`.
+
+   El camino ACTIVO y canonico es el que ya existe: los PDF viven en el bucket
+   privado coi-documentos y se indexan en public.coi_documentos_oc, que el
+   modulo V58.1R28 lee en memoria y publica en la ficha. Ese camino NO se toca.
+
+   Lo que hace esta capa es lo unico que H07 debe hacer aca: sacar la clave
+   legada coi_documentacion_oc del modelo operacional, sin crear una tabla nueva
+   y sin borrar nada.
+
+     - documentacionOC queda SIEMPRE vacio y congelado: no se siembra desde
+       sessionStorage y ninguna capa legada puede republicarlo;
+     - el material historico se conserva intacto, se puede contar y exportar
+       desde __COI_DOC_H07_LEGACY__, y nunca se autoimporta;
+     - las acciones del editor documental retirado quedan deshabilitadas con un
+       mensaje operativo, en vez de «guardar OK» sin autoridad detras;
+     - los lectores legados dejan de sumar documentacion local a conteos,
+       diagnosticos y backup.
+
+   No hay migracion nueva: H07 no necesita esquema para esto. */
+
 
 (function () {
   'use strict';
@@ -31394,6 +31536,33 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
 </script>
 
 <script id="coi-h09-um-red-inventario">
+/* H09 · Unidades de Mantenimiento como INVENTARIO DE LA RED ROCA.
+
+   Cambia el eje funcional del modulo. Hasta aca la UM se leia como un accesorio
+   de la OC; la definicion vigente es:
+
+     RED ROCA -> ESTACION -> UNIDADES DE MANTENIMIENTO -> HISTORIAL DE ST
+
+   La relacion con una OC pasa a ser una REFERENCIA OPCIONAL. Ya lo era en el
+   modelo remoto —prepararFilaST() exige unidad_id, N° ST, fecha y descripcion,
+   nunca nro_oc— pero la UI no lo reflejaba.
+
+   Que resuelve esta capa, sin tocar el modelo de datos ni agregar columnas:
+
+     1. ACCESO. El boton del modulo estaba oculto por CSS
+        (#btnUnidadesMantenimiento{display:none!important}), de modo que el
+        inventario existia y era inalcanzable desde la navegacion. Se lo
+        reestablece y se lo rotula «UM / Servicios Técnicos».
+     2. SERVICIOS TECNICOS como seccion consultable del modulo global, con sus
+        propios filtros: UM, estacion, estado, rango de fechas y busqueda libre
+        —que incluye la OC referencial—. Antes solo existia el historial dentro
+        de la ficha de cada UM y el panel de alta.
+     3. Un KPI de cobertura de red: estaciones con UM.
+
+   H05 sigue siendo la unica autoridad de datos: lectura, alta y edicion pasan
+   por su capa Supabase-first. Aca no se lee ni se escribe sessionStorage, no se
+   siembran datos de demostracion y el remoto vacio se muestra como vacio. */
+
 
 (function () {
   'use strict';
@@ -31826,6 +31995,39 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
 </script>
 
 <script id="coi-h09-archivar-oc-supabase">
+/* H09 · Archivar / Desarchivar OC contra Supabase.
+
+   El handler historico hacia esto:
+
+     found.item.estadoRegistro = 'Archivado';
+     guardarBaseLocal();
+
+   es decir, mutaba el objeto en memoria y lo escribia en sessionStorage. La OC
+   «quedaba archivada» hasta el siguiente F5, porque Supabase nunca se entero.
+   Era exactamente el patron que el proyecto ya cerro en H03/H05/H06/H07: UI
+   optimista sobre un estado que ninguna autoridad confirmo.
+
+   Aca no hace falta ninguna columna nueva ni ninguna migracion:
+   public.coi_ordenes YA tiene `estado_registro` y la RPC canonica
+   coi_actualizar_orden_integral YA lo admite. Se reutiliza el repositorio que
+   el proyecto ya expone —COI_REPOSITORY.ordenes.actualizar()— que ademas relee
+   la fila y verifica el cambio contra el servidor antes de dar por buena la
+   escritura.
+
+   Secuencia, sin atajos:
+
+     confirmacion del usuario
+       -> RPC Supabase
+       -> verificacion remota
+       -> recarga del modelo desde Supabase
+       -> recien ahi cambia la UI
+
+   Si Supabase falla, la OC sigue Activa, el boton no cambia y se informa el
+   error. No se cachea ningun estado que el servidor no haya confirmado.
+
+   `estado_coi` NO se usa para archivar: es el estado operativo de la OC y
+   mezclarlos perderia informacion. */
+
 
 (function () {
   'use strict';
@@ -32146,6 +32348,46 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
 </script>
 
 <script id="coi-h10-cierre-operativo">
+/* H10 · CERRAR una OC y ARCHIVARLA son dos decisiones distintas.
+
+   Diagnostico del cierre que habia:
+
+   1. `cerrarOC()` (V59) era el handler vivo de #btnCerrarOCFicha,
+      #btnCerrarOCFichaTop, #btnCerrarOC y [data-v59-cerrar-oc]. Mutaba el
+      objeto en memoria y llamaba a v59GuardarBase() -> sessionStorage. Supabase
+      nunca se enteraba: el cierre desaparecia en el siguiente F5. Y escribia
+      `estadoRegistro = 'Cerrado'`, es decir, la MISMA columna que H09 usa para
+      archivar: cerrar pisaba el archivo y archivar pisaba el cierre.
+
+   2. `closeOrder()` (fase ejecutiva) si llegaba a Supabase, pero tambien
+      escribia `estado_registro:'Cerrado'` —la misma colision— y ademas por un
+      UPDATE directo a la tabla en vez de la RPC canonica.
+
+   Correccion, sin columnas nuevas y sin migracion. public.coi_ordenes YA tiene
+   los tres campos del cierre operativo, y los tres estan en la lista permitida
+   de coi_actualizar_orden_integral:
+
+     estado_coi              -> 'Cerrada'   (vocabulario ya existente)
+     fecha_cierre_operativo  -> ISO del cierre
+     observacion_cierre      -> motivo
+
+   `estado_registro` queda reservado para el ESTADO DE REGISTRO —Activo y
+   Archivado— y nadie mas lo toca.
+
+     ESTADO OPERATIVO / CONTRACTUAL   !=   ESTADO DE REGISTRO
+     estado_coi                            estado_registro
+
+   Secuencia, igual que en H09: confirmacion -> RPC -> verificacion remota ->
+   recarga del modelo -> recien ahi la interfaz. Si Supabase falla, la OC sigue
+   como estaba y no se cachea nada.
+
+   Regla de negocio: solo se archiva una OC CERRADA.
+
+     EN EJECUCION -> Cerrar OC -> CERRADA -> Archivar OC -> CERRADA + ARCHIVADA
+
+   Y a la inversa, desarchivar NO reabre: devuelve la OC al registro activo
+   dejando intacto su estado operativo. */
+
 
 (function () {
   'use strict';
@@ -32698,6 +32940,36 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
 </script>
 
 <script id="coi-h10-routing-hash">
+/* H10 · Navegacion persistente por URL.
+
+   La aplicacion no tenia routing: ni una sola lectura de location.hash en
+   32.000 lineas. Cualquier F5 devolvia al operador a la vista inicial, con la
+   Ficha OC que estaba mirando perdida. Para un tablero operativo eso no es un
+   detalle estetico: se pierde el contexto de trabajo en cada recarga.
+
+   El hash es estado de NAVEGACION, no autoridad de datos. Dice que vista,
+   que entidad y que subpestaña mirar; el dato sigue viniendo de Supabase. Por
+   eso la restauracion respeta el orden:
+
+     carga -> sesion -> identidad confirmada -> datos autoritativos
+       -> recien ahi se interpreta el hash -> se abre vista/entidad/subpestaña
+
+   Nunca al reves: no se abre una entidad antes de que el modelo pueda
+   resolverla, y no hay fallback local.
+
+   Rutas:
+
+     #inicio            #ordenes/activas|archivadas|todas   #calendario
+     #alertas           #red            #estacion/<nombre>  #carga
+     #um  #um/servicios #buscador       #administracion     #acerca
+     #timeline          #ficha-oc/<nro>[/<subpestaña>]      #ficha-um/<id>
+
+   La subpestaña de la Ficha OC usa los siete paneles reales: resumen,
+   contractual, certificaciones, financiero, documentos, fotos y observaciones.
+
+   Un unico guard de reentrada evita el bucle clasico
+   (routing abre vista -> vista publica hash -> hash reabre vista). */
+
 
 (function () {
   'use strict';
@@ -34379,6 +34651,50 @@ body.coi-v2-ready .etapa1-modal-error{background:rgba(242,102,119,.13);
   border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
 </style>
 <script id="coi-etapa1-pipeline-contractual">
+/* =====================================================================
+   1° ETAPA — Pipeline contractual y gate de Acta de Inicio
+   =====================================================================
+
+   QUE RESUELVE
+     El circuito administrativo mostraba sus 12 etapas como una grilla plana:
+     todas al mismo nivel, sin distinguir la gestion CONTRACTUAL de la
+     EJECUCION, sin decir cuanto llevaba cada hito ni quien lo confirmo, y sin
+     ningun corte formal entre una cosa y la otra.
+
+     Esta capa reclasifica esas mismas etapas —no crea otras— en:
+
+       1° ETAPA (hitos 1-8)  ->  ACTA DE INICIO  ->  2° ETAPA (ejecucion/cierre)
+
+   QUE REUTILIZA, Y POR QUE NO DUPLICA NADA
+     CIRCUITO_ADMINISTRATIVO_ETAPAS   la definicion data-driven ya existente
+     coi_confirmar_etapa_circuito_v2  la RPC atomica (snapshot + historial)
+     coi_historial_oc                 el historial append-only
+     confirmarEtapaCircuitoOC()       el camino de escritura ya probado
+     cargarHistorialCircuitoOC()      la lectura del historial
+     formatearFechaHoraCOI()          el formato es-AR canonico
+     getUsuarioActualR12()            la sesion canonica
+     fecha_acta_inicio                el campo canonico del acta
+
+     No hay tabla nueva, ni historial paralelo, ni una segunda fecha de acta.
+     Lo unico que se agrego en SQL es la conciliacion de fecha_acta_inicio
+     dentro de la RPC existente (202609150001).
+
+   CLASIFICACION
+     Los 8 hitos de la etapa 1 son los 8 primeros del array, EN SU ORDEN
+     ACTUAL, y con sus nombres actuales: no se renombra nada. El corte cae
+     justo en 'control_terceros_con_acta', que es literalmente el acta.
+
+     'cancelada_suspendida' NO es un paso secuencial: una contratacion puede
+     cancelarse antes o despues del acta. Se renderiza aparte, como estado
+     TRANSVERSAL, no cuenta en el X/8 y no exige que la etapa 2 este
+     habilitada. Su codigo y su persistencia quedan intactos: el cambio es de
+     clasificacion y renderizado.
+
+     'finalizada_saldo_remanente' vive fuera del array principal en la
+     arquitectura actual y se deja ahi; se lo agrupa visualmente con los
+     estados de cierre de la etapa 2.
+   ===================================================================== */
+
 
 (function () {
   'use strict';
@@ -35258,6 +35574,26 @@ body.coi-v2-ready .cert-hist-pos{color:var(--v2-text)}
 body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
 </style>
 <script id="coi-certificaciones-historial">
+/* =====================================================================
+   CAMBIO 2 — Tabla Certificaciones como historial central
+   =====================================================================
+   Vista histórica de TODAS las certificaciones reales registradas desde
+   Carga Operativa → Carga Certificación.
+
+   FUENTE ÚNICA: public.coi_certificaciones + public.coi_ordenes.
+   No hay caché propia ni almacenamiento del navegador: si Supabase falla se
+   informa el error y no se inventa contenido.
+
+   CONSOLIDACIÓN: coi_certificaciones guarda UNA FILA POR ÍTEM/POSICIÓN, de
+   modo que una misma Acta de Medición aparece repetida. Acá se agrupa por
+   (orden_id | nro_oc) + acta_medicion_nro y se emite UNA fila visual por
+   certificación, con sus posiciones agrupadas. Una fila sin acta no se
+   pierde: cae en su propio grupo.
+
+   Las PRÓXIMAS certificaciones son proyecciones tentativas y NO viven acá:
+   se muestran como eventos del Calendario (ver CAMBIO 3).
+   ===================================================================== */
+
 
 (function () {
   'use strict';
