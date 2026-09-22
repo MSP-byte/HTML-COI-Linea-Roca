@@ -15368,6 +15368,7 @@ window.COI_CERTIFICACION_LEGACY_DISABLED=true;
    La aplicación continúa disponible en modo local si ambos CDN fallan. */
 (function(){
   'use strict';
+  if(window.__coiSupabaseReady)return;
   if(window.supabase && typeof window.supabase.createClient==='function'){
     window.__coiSupabaseReady=Promise.resolve(true);
     return;
@@ -15443,6 +15444,7 @@ const APP_DATA_MODE = "supabase_first";
   let supabaseUltimaCarga = 0;
   let supabaseCargaEnCurso = false;
   let supabaseCargaPendiente = false;
+  let supabaseCargaPendienteOptions = null;
   let supabaseCargaUid = null;
   let supabaseAuthGeneration = 0;
   let supabaseColumnas = new Set();
@@ -16588,6 +16590,16 @@ const APP_DATA_MODE = "supabase_first";
       // sin catálogo autoritativo.
       if (options.coalescer === true && requestedUid && requestedUid === supabaseCargaUid) return false;
       supabaseCargaPendiente = true;
+      // La cola no conserva identidad resuelta de una solicitud anterior.
+      // Cuando se libere el lock, la nueva vuelta debe consultar la sesión
+      // vigente para no reutilizar authUser/authUid obsoletos.
+      supabaseCargaPendienteOptions = {
+        ...options,
+        coalescer: false,
+        authUid: null,
+        authUser: null,
+        origen: 'queued-current-session'
+      };
       return false;
     }
     supabaseCargaEnCurso = true;
@@ -16616,8 +16628,10 @@ const APP_DATA_MODE = "supabase_first";
       supabaseCargaEnCurso = false;
       supabaseCargaUid = null;
       if (supabaseCargaPendiente) {
+        const pendingOptions = supabaseCargaPendienteOptions || {};
         supabaseCargaPendiente = false;
-        Promise.resolve().then(() => cargarOrdenesPrincipal(options));
+        supabaseCargaPendienteOptions = null;
+        Promise.resolve().then(() => cargarOrdenesPrincipal(pendingOptions));
       }
     }
   }

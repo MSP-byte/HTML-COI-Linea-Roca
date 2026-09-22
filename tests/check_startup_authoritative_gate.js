@@ -86,6 +86,13 @@ check(html.includes("supabaseCargaPendiente = true;"),
   'una lectura concurrente de otra identidad debe quedar encolada');
 check(html.includes("supabaseCargaUid = null;"),
   'la identidad de la lectura en vuelo debe limpiarse al finalizar');
+check(html.includes("let supabaseCargaPendienteOptions = null;"),
+  'la cola debe conservar por separado el contexto de la solicitud pendiente');
+check(html.includes("origen: 'queued-current-session'")&&html.includes("authUser: null")&&html.includes("authUid: null"),
+  'una recarga pendiente debe reacreditar la sesión vigente y no reutilizar authUser/authUid anteriores');
+check(html.includes("const pendingOptions = supabaseCargaPendienteOptions || {};")&&
+      html.includes("cargarOrdenesPrincipal(pendingOptions)"),
+  'al liberar el lock debe ejecutarse la solicitud pendiente, no repetirse las opciones de la carga terminada');
 check(html.includes("cargarOrdenesPrincipal({ coalescer: true, origen: 'startup-session', authUid: user.id, authUser: user })"),
   'la verificación inicial de sesión debe usar la vía coalescida y reutilizar la identidad validada');
 check(html.includes("event === 'SIGNED_IN'"),
@@ -107,7 +114,8 @@ check(html.includes("window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__=window.__coiSu
   'el bootstrap temprano debe preparar el cliente canónico apenas llega supabase-js');
 check(html.includes("window.__COI_SUPABASE_CLIENT__=client;"),
   'el cliente temprano debe publicarse en la referencia canónica existente');
-check(html.includes("if(window.__coiSupabaseReady)return;"),
+const legacyLoader=html.slice(supabaseLoaderPos,html.indexOf('</'+'script>',supabaseLoaderPos));
+check(legacyLoader.includes("if(window.__coiSupabaseReady)return;"),
   'el loader tardío debe reutilizar el bootstrap temprano y no descargar Supabase dos veces');
 
 check(html.includes("const user = options.authUser || await getUsuarioActual();"),
