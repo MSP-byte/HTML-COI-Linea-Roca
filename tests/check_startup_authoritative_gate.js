@@ -26,8 +26,14 @@ check(headScript.includes('window.__COI_H06_ORDENES__'),
   'el gate debe observar el contrato H06 de autoridad remota');
 check(headScript.includes("state==='listo'&&confirmed"),
   'solo una lectura lista y confirmada puede liberar la tabla');
-check(headScript.includes("else if(state==='error')setState('error'"),
-  'un fallo remoto debe dejar un estado de error explícito');
+check(headScript.includes("else if(state==='error')"),
+  'un fallo remoto sin snapshot confirmado debe dejar un estado de error explícito');
+check(headScript.includes('const hasConfirmedSnapshot=snapshotCount!==null&&snapshotCount!==undefined&&uid!==\'\';'),
+  'una relectura del mismo operador debe reconocer el último snapshot remoto confirmado');
+check(headScript.includes("else if(hasConfirmedSnapshot&&(!readyUid||uid===readyUid))"),
+  'un refresh del mismo usuario no debe ocultar datos que ya fueron confirmados remotamente');
+check(headScript.includes("if(!uid||(readyUid&&uid!==readyUid))"),
+  'un cambio real de identidad debe volver a cerrar el gate antes de adoptar el catálogo nuevo');
 check(headScript.includes('window.recargarDatosDesdeSupabase||window.cargarOrdenesPrincipal'),
   'Reintentar debe usar el camino canónico de lectura Supabase');
 check(!/localStorage|sessionStorage/.test(headScript),
