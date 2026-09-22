@@ -97,6 +97,30 @@ check(html.includes("ordenesLecturaEstado === 'listo' &&\n                  orde
 check(!html.includes("['SIGNED_IN', 'TOKEN_REFRESHED', 'INITIAL_SESSION', 'USER_UPDATED'].includes(event) && session?.user)"),
   'INITIAL_SESSION/TOKEN_REFRESHED no deben conservar el disparador legacy de recarga completa');
 
+
+const earlyBootstrapPos=html.indexOf('id="coi-supabase-early-bootstrap"');
+check(earlyBootstrapPos>=0&&earlyBootstrapPos<headEnd,
+  'el loader ejecutable de Supabase debe arrancar dentro de <head>');
+check(earlyBootstrapPos<supabaseLoaderPos,
+  'el bootstrap temprano debe ejecutarse antes del loader legacy tardío');
+check(html.includes("window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__=window.__coiSupabaseReady.then"),
+  'el bootstrap temprano debe preparar el cliente canónico apenas llega supabase-js');
+check(html.includes("window.__COI_SUPABASE_CLIENT__=client;"),
+  'el cliente temprano debe publicarse en la referencia canónica existente');
+check(html.includes("if(window.__coiSupabaseReady)return;"),
+  'el loader tardío debe reutilizar el bootstrap temprano y no descargar Supabase dos veces');
+
+check(html.includes("const user = options.authUser || await getUsuarioActual();"),
+  'las lecturas autoritativas deben reutilizar la identidad ya validada cuando está disponible');
+check(html.includes("user = options.authUser || await getUsuarioActual();"),
+  'cargarOrdenesPrincipal debe evitar una segunda lectura de sesión en el fast-path');
+check(html.includes("authUid: user.id, authUser: user"),
+  'startup-session debe propagar el usuario validado a la carga autoritativa');
+check(html.includes("authUser: session.user"),
+  'SIGNED_IN debe propagar la identidad Auth sin volver a consultar getSession');
+check(html.includes("metrics.ordersAuthoritativeReady=performance.now();"),
+  'el arranque debe exponer una métrica verificable de primera lectura autoritativa');
+
 console.log('Startup authoritative loading gate: OK');
 console.log('  Primer paint : sin filas legacy/parciales');
 console.log('  Autoridad    : H06 + lectura remota confirmada');
