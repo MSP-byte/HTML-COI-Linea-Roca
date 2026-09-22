@@ -32,14 +32,24 @@ check(headScript.includes('const hasConfirmedSnapshot=snapshotCount!==null&&snap
   'una relectura del mismo operador debe reconocer el último snapshot remoto confirmado');
 check(headScript.includes("else if(hasConfirmedSnapshot&&(!readyUid||uid===readyUid))"),
   'un refresh del mismo usuario no debe ocultar datos que ya fueron confirmados remotamente');
+check(headScript.includes('let observedAuthUid=null;')&&headScript.includes('observedAuthUid=uid;'),
+  'el gate debe recordar la identidad informada por Supabase Auth');
+check(headScript.includes("const identityMatches=observedAuthUid===null||(observedAuthUid!==''&&uid===observedAuthUid);"),
+  'un snapshot H06 solo puede reutilizarse si pertenece a la identidad Auth observada');
+check(headScript.includes("if(!identityMatches){setState('pendiente');return;}"),
+  'un cambio o cierre de sesión debe mantener el gate cerrado mientras H06 invalida/adopta identidad');
 check(headScript.includes("if(!uid||(readyUid&&uid!==readyUid))"),
-  'un cambio real de identidad debe volver a cerrar el gate antes de adoptar el catálogo nuevo');
+  'un cambio real de identidad debe limpiar el UID previamente autorizado');
 check(headScript.includes('window.recargarDatosDesdeSupabase||window.cargarOrdenesPrincipal'),
   'Reintentar debe usar el camino canónico de lectura Supabase');
 check(!/localStorage|sessionStorage/.test(headScript),
   'el Startup Data Gate no puede leer una cache local como autoridad');
 check(!/setTimeout\([^)]*(1500|4800)/.test(headScript),
   'el gate no puede decidir readiness por temporizadores históricos');
+check(headScript.includes("gate&&gate.dataset.coiGateRenderKey!==renderKey")&&headScript.includes('gate.dataset.coiGateRenderKey=renderKey'),
+  'el poll no debe reescribir el DOM cuando estado y detalle efectivos no cambiaron');
+check(headScript.includes("if(gate.getAttribute('aria-busy')!==busy)gate.setAttribute('aria-busy',busy);"),
+  'aria-busy también debe actualizarse solo ante cambio efectivo');
 
 const css=html.slice(styleStart,html.indexOf('</style>',styleStart));
 check(css.includes('html[data-coi-orders-state="pendiente"] #vistaOrdenes .view-body > :not(#coiOrdersStartupGate)'),

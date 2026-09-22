@@ -1730,24 +1730,29 @@ html[data-coi-orders-state="error"] .coi-orders-startup-card{border-color:#efccc
   const e2eBypass=location.hostname==='127.0.0.1'&&location.port==='4173'&&navigator.webdriver===true&&!params.has('coi_force_startup_gate');
   let lastState='';
   let readyUid='';
+  let observedAuthUid=null;
   function setState(state,detail=''){
     const next=e2eBypass?'listo':state;
+    const renderDetail=next==='error'
+      ? (detail||'Reintentá la lectura autoritativa desde Supabase.')
+      : 'Los datos operativos se mostrarán únicamente cuando la lectura remota quede confirmada.';
     if(root.dataset.coiOrdersState!==next)root.dataset.coiOrdersState=next;
     const gate=document.getElementById('coiOrdersStartupGate');
-    if(gate){
-      gate.setAttribute('aria-busy',next==='pendiente'||next==='cargando'?'true':'false');
+    const renderKey=next+'\\n'+renderDetail;
+    if(gate&&gate.dataset.coiGateRenderKey!==renderKey){
+      gate.dataset.coiGateRenderKey=renderKey;
+      const busy=next==='pendiente'||next==='cargando'?'true':'false';
+      if(gate.getAttribute('aria-busy')!==busy)gate.setAttribute('aria-busy',busy);
       const title=gate.querySelector('[data-coi-orders-gate-title]');
       const text=gate.querySelector('[data-coi-orders-gate-text]');
       const detailNode=gate.querySelector('[data-coi-orders-gate-detail]');
-      if(next==='error'){
-        if(title)title.textContent='No se pudo sincronizar Órdenes';
-        if(text)text.textContent='La tabla permanece oculta para no mostrar información parcial o desactualizada.';
-        if(detailNode)detailNode.textContent=detail||'Reintentá la lectura autoritativa desde Supabase.';
-      }else{
-        if(title)title.textContent='Sincronizando Órdenes de Compra…';
-        if(text)text.textContent='Validando sesión y cargando el catálogo autoritativo desde Supabase.';
-        if(detailNode)detailNode.textContent='Los datos operativos se mostrarán únicamente cuando la lectura remota quede confirmada.';
-      }
+      const titleText=next==='error'?'No se pudo sincronizar Órdenes':'Sincronizando Órdenes de Compra…';
+      const bodyText=next==='error'
+        ? 'La tabla permanece oculta para no mostrar información parcial o desactualizada.'
+        : 'Validando sesión y cargando el catálogo autoritativo desde Supabase.';
+      if(title&&title.textContent!==titleText)title.textContent=titleText;
+      if(text&&text.textContent!==bodyText)text.textContent=bodyText;
+      if(detailNode&&detailNode.textContent!==renderDetail)detailNode.textContent=renderDetail;
     }
     if(next==='listo'&&lastState!=='listo'){
       requestAnimationFrame(()=>{try{window.renderOrdenes?.();}catch(_e){}});
@@ -1763,6 +1768,8 @@ html[data-coi-orders-state="error"] .coi-orders-startup-card{border-color:#efccc
     const uid=String(api.uidConfirmado?.()||'');
     const snapshotCount=api.confirmadas?.();
     const hasConfirmedSnapshot=snapshotCount!==null&&snapshotCount!==undefined&&uid!=='';
+    const identityMatches=observedAuthUid===null||(observedAuthUid!==''&&uid===observedAuthUid);
+    if(!identityMatches){setState('pendiente');return;}
     if(state==='listo'&&confirmed){
       readyUid=uid||readyUid;
       setState('listo');
@@ -1788,6 +1795,7 @@ html[data-coi-orders-state="error"] .coi-orders-startup-card{border-color:#efccc
   window.addEventListener('coi:supabase-auth',event=>{
     if(e2eBypass)return;
     const uid=String(event?.detail?.session?.user?.id||'');
+    observedAuthUid=uid;
     if(!uid||(readyUid&&uid!==readyUid)){
       readyUid='';
       setState('pendiente');
