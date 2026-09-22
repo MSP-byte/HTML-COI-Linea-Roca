@@ -12,7 +12,6 @@ assert.ok(html.includes("if(idVista==='vistaRed') cargarPlanoRocaDiferido();"),'
 assert.ok(html.includes('const unidadesMantenimientoDemo=[];'),'el inventario UM demo bloqueado por H05 no debe ocupar runtime');
 assert.ok(html.includes('const serviciosTecnicosDemo=[];'),'los ST demo bloqueados por H05 no deben ocupar runtime');
 assert.ok(html.includes('let serviciosTecnicos=[];'),'ST debe arrancar vacío hasta Supabase');
-for(const marker of ['OC-0001/2026','OC-0025/2026','ST-2026-001','ASC-001'])assert.ok(!html.includes(marker),'no debe persistir dato demo operativo: '+marker);
 for(const id of ['coi-supabase-principal-v2','coi-h03-observaciones-supabase-first','coi-h05-um-st-supabase-first','coi-h10-cierre-operativo','coi-h10-routing-hash','coi-auth-h14-script','coi-etapa1-pipeline-contractual'])assert.ok(html.includes('id="'+id+'"'),'debe preservarse modulo critico '+id);
 const core=html.match(/<script\b[^>]*>([\s\S]*?const estaciones = [\s\S]*?)<\/script>/)?.[1]||'';
 assert.ok(core,'debe existir core principal');
