@@ -71,6 +71,26 @@ check(headScript.includes("location.hostname==='127.0.0.1'&&location.port==='417
 check(headScript.includes("!params.has('coi_force_startup_gate')"),
   'debe existir una forma explícita de probar el gate aun bajo webdriver');
 
+const preloadPos=html.indexOf('<link rel="preload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2"');
+const supabaseLoaderPos=html.indexOf('id="coi-supabase-loader-r36"');
+check(preloadPos>=0&&preloadPos<headEnd,
+  'supabase-js debe pre-cargarse desde <head> antes del bootstrap tardío');
+check(html.includes('<link rel="preconnect" href="https://ooepgbzqlpjrtpaoqawc.supabase.co" crossorigin>'),
+  'el arranque debe preconectar con el origen de Supabase');
+check(supabaseLoaderPos>preloadPos,
+  'el preload debe anteceder al loader dinámico de supabase-js');
+
+check(html.includes("if (options.coalescer === true) return false;"),
+  'las solicitudes Auth/startup concurrentes deben coalescer sin encadenar otra lectura completa');
+check(html.includes("cargarOrdenesPrincipal({ coalescer: true, origen: 'startup-session' })"),
+  'la verificación inicial de sesión debe usar la vía coalescida');
+check(html.includes("event === 'SIGNED_IN'"),
+  'SIGNED_IN debe conservar la capacidad de cargar cuando realmente hace falta');
+check(html.includes("ordenesLecturaEstado === 'listo' &&\n                  ordenesConfirmadasUid === session.user.id"),
+  'SIGNED_IN repetido del mismo usuario no debe releer un catálogo ya confirmado');
+check(!html.includes("['SIGNED_IN', 'TOKEN_REFRESHED', 'INITIAL_SESSION', 'USER_UPDATED'].includes(event) && session?.user)"),
+  'INITIAL_SESSION/TOKEN_REFRESHED no deben conservar el disparador legacy de recarga completa');
+
 console.log('Startup authoritative loading gate: OK');
 console.log('  Primer paint : sin filas legacy/parciales');
 console.log('  Autoridad    : H06 + lectura remota confirmada');
