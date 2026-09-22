@@ -15199,6 +15199,7 @@ const APP_DATA_MODE = "supabase_first";
     return { data: data?.orden ? [data.orden] : [], error: null };
   }
 
+  /* coi-delete-v60-canonical: único propietario del borrado persistente de OCs. */
   const DELETE_FINANCE_CACHE_V60 = 'coi_cache_posiciones_oc_supabase_v1';
   let deleteOrdersPromiseV60 = null;
 
