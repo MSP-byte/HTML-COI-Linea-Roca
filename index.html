@@ -27606,6 +27606,7 @@ document.addEventListener('click',function(event){
   const norm = (v) => texto(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ');
   const clave = (v) => norm(v).replace(/[\s\.\-\/]/g, '');
   const claveST = (v) => String(v == null ? '' : v).replace(/[\s.\/-]+/g, '').toUpperCase();
+  // SQL canonico: upper(regexp_replace(codigo_um, '[[:space:]./-]+', '', 'g'))
   const claveUM = (v) => String(v == null ? '' : v).replace(/[\s.\/-]+/g, '').toUpperCase();
   const esUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(texto(v));
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
