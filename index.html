@@ -2860,12 +2860,12 @@ function claseEstado(i){
   return 'ok';
 }
 
-function fotoEstacion(s){
-  // Futuro: agregar propiedad "foto" en cada estación:
-  // foto: "imagenes/temperley.jpg" o una imagen base64.
-  if(s.foto){ return `<img src="${s.foto}" alt="Foto de estación ${s.nombre}">`; }
-  return `<div>Foto principal de estación<br><span class="muted">${s.nombre}</span></div>`;
-}
+
+
+
+
+
+
 
 function tipoActivoDesdeEspecialidad(i){
   const e=String(i.especialidad||'').toLowerCase();
@@ -2933,82 +2933,82 @@ function verFotosObra(oc){
   alert('Fotos de obra de ' + oc + '. Próxima mejora: galería por OC con antes/después y evidencia documental.');
 }
 
-function selectStation(s){
-  mostrarVista('vistaRed');
-  document.getElementById('panelEstacion')?.classList.add('active');
 
-  $('pTitle').textContent=s.nombre;
-  $('pSub').textContent=ramalTexto(s);
 
-  const items=allItems(s);
-  const obras=items.filter(i=>i.tipo==='Obra');
-  const servicios=items.filter(i=>i.tipo==='Servicio');
-  const ocUnicas=[...new Set(items.map(i=>i.oc).filter(Boolean))];
-  const proxVenc=items
-    .filter(i=>i.vencimiento&&!esFinalizado(i)&&!esCancelado(i))
-    .sort((a,b)=>new Date(a.vencimiento)-new Date(b.vencimiento))[0]?.vencimiento || '—';
 
-  $('panel').innerHTML=`
-    <div class="station-summary">
-      <div class="station-photo">${fotoEstacion(s)}</div>
-      <div class="station-info">
-        <div>
-          ${items.length ? items.map(i=>`<span class="badge"><i class="dot ${claseEstado(i)}"></i>${i.tipo} · ${i.estado}</span>`).join('') : '<span class="badge">Sin intervenciones cargadas</span>'}
-        </div>
 
-        <div class="quick-stats">
-          <div class="quick-stat"><b>${obras.length}</b><span>Obras</span></div>
-          <div class="quick-stat"><b>${servicios.length}</b><span>Servicios UM</span></div>
-          <div class="quick-stat"><b>${ocUnicas.length}</b><span>OC vinculadas</span></div>
-          <div class="quick-stat"><b>${proxVenc}</b><span>Próximo venc.</span></div>
-          <div class="quick-stat"><b>${items.filter(i=>!esFinalizado(i)&&!esCancelado(i)).length}</b><span>Intervenciones activas</span></div>
-        </div>
 
-        <div class="grid">
-          <div><b>Estación</b>${s.nombre}</div>
-          <div><b>Ramal</b>${ramalTexto(s)}</div>
-          <div><b>Resumen técnico</b>Ficha preparada para seguimiento COI de obras, servicios, documentación, certificaciones y evidencia fotográfica.</div>
-          <div><b>Modelo de datos</b>Estación ? Activos ? OC ? Certificaciones ? Fotos / Documentación</div>
-        </div>
-      </div>
-    </div>
 
-    <h3 class="section-title">Obras asociadas a la estación</h3>
-    ${obras.length ? obras.map(i=>`
-      <article class="technical-card">
-        <div>
-          <h3>${i.oc||'SIN OC'} — ${i.descripcion||'Obra sin descripción'}</h3>
-          <div class="grid">
-            <div><b>Proveedor</b>${i.proveedor||'—'}</div>
-            <div><b>Especialidad</b>${i.especialidad||'—'}</div>
-            <div><b>Estado</b>${i.estado||'—'}</div>
-            <div><b>% avance físico</b>${i.avanceFisico||0}%</div>
-            <div><b>% avance financiero</b>${i.avanceFinanciero||0}%</div>
-            <div><b>Vencimiento</b>${i.vencimiento||'—'}</div>
-          </div>
-        </div>
-        <div class="card-actions">
-          <button type="button" class="secondary" data-legacy-action="ficha" data-oc="${esc(i.oc||'')}">Ver ficha completa</button>
-          <button type="button" class="secondary" data-legacy-action="certificaciones" data-oc="${esc(i.oc||'')}">Ver certificaciones</button>
-          <button type="button" class="secondary" data-legacy-action="fotos" data-oc="${esc(i.oc||'')}">Ver fotos de obra</button>
-        </div>
-      </article>`).join('') : '<p class="empty">Sin obras cargadas para esta estación.</p>'}
 
-    <h3 class="section-title">Servicios UM / activos mantenibles</h3>
-    ${activosUM(s)}
-<h3 class="section-title">Unidades de Mantenimiento de la estación</h3>
-    ${renderUMEnPanelEstacion(s)}
-    <h3 class="section-title">Galería futura de fotos de obra</h3>
-    <div class="gallery-placeholder">
-      Espacio preparado para fotos por OC: antes / durante / después, relevamientos, actas escaneadas, informes técnicos y evidencia de certificación.
-    </div>
 
-    <br>
-    <button type="button" class="primary" data-legacy-action="pdf">Exportar ficha a PDF</button>
-  `;
 
-  document.querySelector('.panel').scrollIntoView({behavior:'smooth',block:'start'});
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function fakePdf(){ alert('Exportación PDF simulada. Luego se puede conectar a window.print(), jsPDF o backend documental.'); }
 function initBotonesLegacySinInline(){
   /* V32 estabilizacion: acciones antiguas pasan de onclick inline a delegacion con addEventListener. */
@@ -3278,87 +3278,87 @@ function clonarItemParaEstacion(item, est){
   return copia;
 }
 
-function importRows(rows, forcedTipo='auto', options={}){
-  detectarOrdenFechaCSV(rows);
-  const acumular = options.acumular !== undefined ? options.acumular : (document.getElementById('importAcumular') ? document.getElementById('importAcumular').checked : true);
-  const reemplazar = options.reemplazar !== undefined ? options.reemplazar : (document.getElementById('importReemplazar') ? document.getElementById('importReemplazar').checked : false);
 
-  if(reemplazar || !acumular){
-    clearInterventions();
-  }
 
-  let creadas=0, actualizadas=0, sinEstacion=0, todo=0;
 
-  rows.forEach(row=>{
-    const estRaw=getVal(row,['ESTACION','ESTACIÓN','Estación']);
-    if(!estRaw){ sinEstacion++; return; }
 
-    const item=rowToItem(row, forcedTipo);
-    if(!item.oc && !item.descripcion){ sinEstacion++; return; }
 
-    const estacionesDestino=resolverEstacionesDestino(row, estRaw, item);
-    if(!estacionesDestino.length){ sinEstacion++; return; }
-    if(esEstacionTodo(estRaw)) todo++;
 
-    estacionesDestino.forEach(est=>{
-      const itemEstacion=clonarItemParaEstacion(item, est);
 
-      // Clave estable: ID_OBRA si existe; si no, OC + Tipo + Estación + Especialidad.
-      const claveNueva = itemEstacion.idObra || itemEstacion.idOC || [
-        itemEstacion.oc || itemEstacion.numeroOC || '',
-        itemEstacion.tipo || '',
-        est.nombre || '',
-        itemEstacion.especialidad || '',
-        itemEstacion.descripcion || ''
-      ].join('|').toUpperCase();
 
-      const lista = itemEstacion.tipo==='Servicio' ? est.servicios : est.obras;
-      const idx = lista.findIndex(x=>{
-        const claveExistente = x.idObra || x.idOC || [
-          x.oc || x.numeroOC || '',
-          x.tipo || '',
-          est.nombre || '',
-          x.especialidad || '',
-          x.descripcion || ''
-        ].join('|').toUpperCase();
-        return claveExistente === claveNueva;
-      });
 
-      if(idx >= 0){
-        lista[idx] = {
-          ...lista[idx],
-          ...itemEstacion,
-          fechaCreacion: lista[idx].fechaCreacion || itemEstacion.fechaCreacion,
-          fotos: lista[idx].fotos || itemEstacion.fotos || [],
-          actas: lista[idx].actas || itemEstacion.actas || [],
-          certificaciones: lista[idx].certificaciones || itemEstacion.certificaciones || [],
-          historialDocumental: lista[idx].historialDocumental || itemEstacion.historialDocumental || [],
-          fechaUltimaModificacion: new Date().toISOString()
-        };
-        actualizadas++;
-      }else{
-        itemEstacion.fechaCreacion = itemEstacion.fechaCreacion || new Date().toISOString();
-        itemEstacion.fechaUltimaModificacion = new Date().toISOString();
-        itemEstacion.estadoRegistro = itemEstacion.estadoRegistro || 'Activo';
-        lista.push(itemEstacion);
-        creadas++;
-      }
-    });
-  });
 
-  saveJSON(STORAGE_KEY, estaciones.map(e=>({nombre:e.nombre,obras:e.obras,servicios:e.servicios})));
-  if(typeof guardarBaseLocal === 'function') guardarBaseLocal();
 
-  renderMap();
-  if(typeof cargarFiltrosCalendario==='function') cargarFiltrosCalendario();
-  if(typeof renderCalendarioCOI==='function') renderCalendarioCOI();
-  if(typeof cargarFiltrosV16==='function'){ cargarFiltrosV16('venc'); cargarFiltrosV16('cert'); }
-  if(typeof updateKpis==='function') updateKpis();
 
-  const msg=`Importación acumulativa OK. Creadas: ${creadas}. Actualizadas: ${actualizadas}. Servicios TODO procesados: ${todo}. Sin estación reconocida: ${sinEstacion}.`;
-  if($('importMsg')) $('importMsg').textContent=msg;
-  return {creadas,actualizadas,sinEstacion,todo};
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function loadImportedData(){
   let demoExplicita=false;
   try{demoExplicita=sessionStorage.getItem('coi.demo.explicit.once')==='1';}catch(error){console.warn('COI demo: sessionStorage no disponible.',error);}
@@ -3385,43 +3385,43 @@ function restoreDemo(){
   sessionStorage.removeItem(STORAGE_KEY);
   location.reload();
 }
-function handleImport(){
-  const files=[...($('fileImport').files||[])];
-  if(!files.length){ alert('Primero seleccioná uno o más archivos CSV.'); return; }
 
-  const forcedTipo=$('importTipo').value;
-  const reemplazar=$('importReemplazar')?.checked || false;
 
-  if(reemplazar){
-    clearInterventions();
-  }
 
-  let total={creadas:0, actualizadas:0, sinEstacion:0, todo:0};
-  let pendientes=files.length;
 
-  files.forEach(file=>{
-    const reader=new FileReader();
-    reader.onload=()=>{
-      const res=importRows(parseCSV(reader.result), forcedTipo, {acumular:true, reemplazar:false});
-      total.creadas += res.creadas;
-      total.actualizadas += res.actualizadas;
-      total.sinEstacion += res.sinEstacion;
-      total.todo += res.todo;
-      pendientes--;
 
-      if(pendientes===0){
-        saveJSON(STORAGE_KEY, estaciones.map(e=>({nombre:e.nombre,obras:e.obras,servicios:e.servicios})));
-        if(typeof guardarBaseLocal === 'function') guardarBaseLocal();
-        renderMap();
-        if(typeof updateKpis==='function') updateKpis();
-        if($('importMsg')){
-          $('importMsg').textContent=`Archivos procesados: ${files.length}. Creadas: ${total.creadas}. Actualizadas: ${total.actualizadas}. Servicios TODO: ${total.todo}. Sin estación: ${total.sinEstacion}.`;
-        }
-      }
-    };
-    reader.readAsText(file,'UTF-8');
-  });
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 function updateKpis(){
   const visible=estaciones.filter(matches);
@@ -3777,38 +3777,38 @@ function renderKpisV16(prefix){
   put('KAvPend',base.filter(r=>r.tipo==='Obra' && !r.cerrada && r.avanceFisico<100).length);
   put('KServPend',base.filter(r=>r.tipo==='Servicio' && !r.cerrada && (!r.ultimaFechaCertificacion || diffDias(r.proximaCertificacion,COI_TODAY)<=30)).length);
 }
-function renderCalendarioVencimientos(){
-  cargarFiltrosV16('venc');
-  const rows=rowsFiltradasV16('venc','venc').sort((a,b)=>(parseFecha(a.fin)||Infinity)-(parseFecha(b.fin)||Infinity));
-  if($('vencTbody')) $('vencTbody').innerHTML=rows.map(r=>{
-    const sem=semaforoVencimiento(r);
-    return `<tr><td>${pill(sem)}</td><td>${esc(r.oc)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${fmtFecha(r.inicio)}</td><td>${esc(r.plazo||'—')}</td><td>${fmtFecha(r.fin)}</td><td>${r.diasRestantes===null?'—':r.diasRestantes}</td><td>${esc(r.estado)}</td></tr>`;
-  }).join('') || '<tr><td colspan="10">Sin vencimientos para los filtros seleccionados.</td></tr>';
-  renderKpisV16('venc');
-}
-function renderCalendarioCertificaciones(){
-  cargarFiltrosV16('cert');
-  const rows=rowsFiltradasV16('cert','cert').sort((a,b)=>(parseFecha(a.proximaCertificacion)||Infinity)-(parseFecha(b.proximaCertificacion)||Infinity));
-  if($('certTbody')) $('certTbody').innerHTML=rows.map(r=>{
-    const sem=semaforoCert(r);
-    const avanceDoc=r.tipo==='Obra'?`${r.avanceFisico}% avance físico`:r.estadoDocumental;
-    return `<tr><td>${pill(sem)}</td><td>${esc(r.oc)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${fmtFecha(r.inicio)}</td><td>${fmtFecha(r.ultimaFechaCertificacion)}</td><td>${r.ultimaActa?.numero||'—'}</td><td>${fmtFecha(r.proximaCertificacion)}</td><td>${r.proximoNroActa||1}</td><td>${esc(avanceDoc)}</td><td>${fmtFecha(r.fin)}</td><td>${esc(sem.texto)}</td></tr>`;
-  }).join('') || '<tr><td colspan="13">Sin certificaciones para los filtros seleccionados.</td></tr>';
-  renderKpisV16('cert');
-  renderCalendarioOperativoCOI('cert');
-}
-function renderOrdenes(){
-  const rows=todasLasOC().sort((a,b)=>String(a.oc).localeCompare(String(b.oc)));
-  if($('ordenesTbody')) $('ordenesTbody').innerHTML=rows.map(r=>`<tr><td>${esc(r.oc)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.especialidad)}</td><td>${esc(r.estado)}</td><td>${fmtFecha(r.fin)}</td></tr>`).join('') || '<tr><td colspan="7">Sin OC cargadas.</td></tr>';
-}
-function renderBuscador(){
-  const q=($('buscadorGlobal')?.value||'').toLowerCase().trim();
-  const rows=todasLasOC().filter(r=>{
-    const txt=[r.oc,r.tipo,r.estacion,r.proveedor,r.especialidad,r.estado,r.item?.observaciones].join(' ').toLowerCase();
-    return !q || txt.includes(q);
-  });
-  if($('buscadorTbody')) $('buscadorTbody').innerHTML=rows.map(r=>`<tr><td>${esc(r.oc)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.especialidad)}</td><td>${esc(r.estado)}</td><td>${esc(r.item?.observaciones||'—')}</td></tr>`).join('') || '<tr><td colspan="7">Sin resultados.</td></tr>';
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function initVistasCOI(){
   document.getElementById('btnDashboard')?.addEventListener('click',()=>{mostrarVista('vistaDashboard'); updateKpis();});
   document.getElementById('btnRed')?.addEventListener('click',()=>{mostrarVista('vistaRed'); ocultarPanelEstacion(); renderMap();});
@@ -3869,14 +3869,14 @@ function asegurarIdsOC(){
     });
   });
 }
-function obtenerOC(idOC){
-  asegurarIdsOC();
-  for(const est of estaciones){
-    const item=allItems(est).find(i=>i.idOC===idOC || i.oc===idOC || i.numeroOC===idOC);
-    if(item) return {estacion:est,item};
-  }
-  return null;
-}
+
+
+
+
+
+
+
+
 function fechaProximaCertificacionPersistida(item){
   const raw=[
     item?.proximaCertificacion,
@@ -3920,12 +3920,12 @@ function estadoAvanceOC(item,calc){
   if(calc.dias!==null && calc.dias<0 && av<100) return 'Atrasada';
   return 'En ejecución';
 }
-function abrirFichaOC(idOC){
-  vistaAnterior=document.querySelector('.view.active')?.id || 'vistaRed';
-  mostrarVista('vistaFichaOC');
-  ocActualId=idOC;
-  renderFichaOC(idOC);
-}
+
+
+
+
+
+
 function volverVistaAnterior(){
   mostrarVista(vistaAnterior || 'vistaRed');
 }
@@ -3933,116 +3933,116 @@ function abrirPanelEstacion(idEstacion){
   const est=estaciones.find(e=>e.idEstacion===idEstacion || e.nombre===idEstacion);
   if(est){ mostrarVista('vistaRed'); selectStation(est); }
 }
-function renderFichaOC(idOC){
-  const found=obtenerOC(idOC);
-  const body=$('fichaOCBody');
-  if(!body) return;
-  if(!found){ body.innerHTML='<p class="empty">No se encontró la OC solicitada.</p>'; return; }
-  const {estacion,item}=found;
-  const calc=calcularFichaOC(item);
-  const sem=estadoVencimientoFicha(calc);
-  const estadoDoc=item.estadoDocumental || (item.fechaRecepcionDocumentacion?'Recibida':'Pendiente');
-  const monto=item.monto || item.saldoOcTotal || item['SALDO $ OC TOTAL'] || '—';
-  const sector=item.sector || item.ubicacion || '—';
-  const tipoTrabajo=item.tipoTrabajo || item.descripcion || item.especialidad || '—';
-  const avanceDoc=item.tipo==='Obra'
-    ? `<b>${Number(item.avanceFisico||0)}%</b><span>Avance físico</span>`
-    : `<b>${esc(estadoAvanceOC(item,calc))}</b><span>Estado mensual</span>`;
-  body.innerHTML=`
-    <div class="oc-header">
-      <div class="oc-title">
-        <h2>${esc(item.oc || item.numeroOC || 'SIN OC')}</h2>
-        <div class="oc-subtitle">
-          <span><b>ID_OBRA:</b> ${esc(item.idOC)}</span>
-          <span><b>Tipo:</b> ${esc(item.tipo||'—')}</span>
-          <span><b>Estación:</b> ${esc(estacion.nombre)}</span>
-          <span>${pill(sem)}</span>
-        </div>
-      </div>
-    </div>
 
-    <div class="oc-kpis">
-      <div class="oc-kpi"><b>${esc(monto)}</b><span>Monto</span></div>
-      <div class="oc-kpi"><b>${fmtFecha(calc.venc)}</b><span>Vencimiento</span></div>
-      <div class="oc-kpi"><b>${calc.dias===null?'—':calc.dias}</b><span>Días restantes</span></div>
-      <div class="oc-kpi"><b>${calc.proxNro}</b><span>Próxima acta</span></div>
-      <div class="oc-kpi">${avanceDoc}</div>
-    </div>
 
-    <div class="oc-card">
-      <h3>A. Encabezado</h3>
-      <div class="grid">
-        <div><b>N° OC</b>${esc(item.oc || item.numeroOC || '—')}</div>
-        <div><b>ID_OBRA</b>${esc(item.idObra||item.idOC)}</div>
-        <div><b>Tipo</b>${esc(item.tipo||'—')}</div>
-        <div><b>Tipo de trabajo</b>${esc(tipoTrabajo)}</div>
-        <div><b>Estación</b>${esc(estacion.nombre)}</div>
-        <div><b>Sector</b>${esc(sector)}</div>
-        <div><b>Proveedor</b>${esc(item.proveedor||'—')}</div>
-        <div><b>Estado COI</b>${esc(item.estado||'—')}</div>
-      </div>
-    </div>
 
-    <div class="oc-grid">
-      <div class="oc-card">
-        <h3>B. Resumen contractual</h3>
-        <div class="grid">
-          <div><b>Monto</b>${esc(monto)}</div>
-          <div><b>Acta de inicio</b>${fmtFecha(calc.inicio)}</div>
-          <div><b>Plazo contractual</b>${esc(calc.plazo||'—')} días</div>
-          <div><b>Fecha vencimiento</b>${fmtFecha(calc.venc)}</div>
-          <div><b>Días restantes</b>${calc.dias===null?'—':calc.dias}</div>
-          <div><b>Estado vencimiento</b>${pill(sem)}</div>
-        </div>
-      </div>
-      <div class="oc-card">
-        <h3>C. Estado documental</h3>
-        <div class="grid">
-          <div><b>Recepción documentación</b>${item.fechaRecepcionDocumentacion || '—'}</div>
-          <div><b>Estado documental</b>${esc(estadoDoc)}</div>
-          <div><b>Observaciones documentales</b>${esc(item.observacionesDocumentales || item.observaciones || '—')}</div>
-        </div>
-      </div>
-    </div>
 
-    <div class="oc-card">
-      <h3>D. Certificaciones y actas</h3>
-      ${calc.actas.length ? `<div class="table-wrap"><table class="coi-table"><thead><tr><th>idActa</th><th>N° Acta</th><th>Fecha</th><th>Tipo</th><th>% avance físico</th><th>Monto certificado</th><th>Observaciones</th></tr></thead><tbody>${calc.actas.map(a=>`<tr><td>${esc(a.idActa||'—')}</td><td>${esc(a.numero||'—')}</td><td>${fmtFecha(a.fecha)}</td><td>${esc(a.tipo||'—')}</td><td>${esc(a.avanceFisico??0)}%</td><td>${esc(a.montoCertificado||'—')}</td><td>${esc(a.observaciones||'—')}</td></tr>`).join('')}</tbody></table></div>` : '<div class="oc-empty">No hay actas de medición cargadas para esta OC.</div>'}
-    </div>
 
-    <div class="oc-card">
-      <h3>E. Próxima certificación</h3>
-      <div class="grid">
-        <div><b>Última acta</b>${calc.ultima?.numero || '—'}</div>
-        <div><b>Última fecha</b>${fmtFecha(calc.ultima?.fecha)}</div>
-        <div><b>Próxima certificación</b>${fmtFecha(calc.prox)}</div>
-        <div><b>Próximo N° acta</b>${calc.proxNro}</div>
-        <div><b>Estado</b>${calc.fuera ? 'OC vencida / Fuera de plazo' : estadoAvanceOC(item,calc)}</div>
-      </div>
-    </div>
 
-    <div class="oc-card">
-      <h3>F. Avance</h3>
-      <div class="grid">
-        <div><b>% avance físico</b>${Number(item.avanceFisico||0)}%</div>
-        <div><b>% avance financiero</b>${Number(item.avanceFinanciero||0)}%</div>
-        <div><b>Última certificación</b>${esc(item.ultimaCertificacion||'—')}</div>
-        <div><b>Próxima certificación</b>${fmtFecha(calc.prox)}</div>
-        <div><b>Estado avance</b>${esc(estadoAvanceOC(item,calc))}</div>
-      </div>
-    </div>
 
-    <div class="oc-card">
-      <h3>G. Fotos / Evidencia</h3>
-      ${item.fotos && item.fotos.length ? `<div class="gallery-grid">${item.fotos.map(f=>`<div class="gallery-item">${f.url?`<img src="${esc(f.url)}" alt="${esc(f.descripcion||'Foto OC')}">`:''}<div><b>${esc(f.idFoto||'Foto')}</b><br>${fmtFecha(f.fecha)}<br>${esc(f.descripcion||'—')}</div></div>`).join('')}</div>` : '<div class="oc-empty">Sin fotos cargadas.</div>'}
-    </div>
 
-    <div class="oc-card">
-      <h3>H. Observaciones generales</h3>
-      <p>${esc(item.observaciones||'Sin observaciones cargadas.')}</p>
-    </div>
-  `;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function resumenOCTexto(){
   const found=ocActualId ? obtenerOC(ocActualId) : null;
   if(!found) return '';
@@ -4101,10 +4101,10 @@ function initFichaOC(){
 
 
 /* V17 - Overrides no destructivos para abrir Ficha OC desde módulos */
-function botonFichaOC(item,label='Ver ficha OC'){
-  asegurarIdsOC();
-  return `<button type="button" class="btn-open-oc" data-open-oc="${esc(item.idOC)}">${esc(label)}</button>`;
-}
+
+
+
+
 
 function selectStation(s){
   mostrarVista('vistaRed');
@@ -4163,17 +4163,17 @@ function selectStation(s){
   document.querySelector('.panel').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
-function renderCalendarioVencimientos(){
-  cargarFiltrosV16('venc');
-  asegurarIdsOC();
-  const rows=rowsFiltradasV16('venc','venc').sort((a,b)=>(parseFecha(a.fin)||Infinity)-(parseFecha(b.fin)||Infinity));
-  if($('vencTbody')) $('vencTbody').innerHTML=rows.map(r=>{
-    const sem=semaforoVencimiento(r);
-    return `<tr><td>${pill(sem)}</td><td>${esc(r.oc)}<br>${botonFichaOC(r.item)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${fmtFecha(r.inicio)}</td><td>${esc(r.plazo||'—')}</td><td>${fmtFecha(r.fin)}</td><td>${r.diasRestantes===null?'—':r.diasRestantes}</td><td>${esc(r.estado)}</td></tr>`;
-  }).join('') || '<tr><td colspan="10">Sin vencimientos para los filtros seleccionados.</td></tr>';
-  renderKpisV16('venc');
-  renderCalendarioOperativoCOI('venc');
-}
+
+
+
+
+
+
+
+
+
+
+
 function renderCalendarioCertificaciones(){
   cargarFiltrosV16('cert');
   asegurarIdsOC();
@@ -4186,20 +4186,20 @@ function renderCalendarioCertificaciones(){
   renderKpisV16('cert');
   renderCalendarioOperativoCOI('cert');
 }
-function renderOrdenes(){
-  asegurarIdsOC();
-  const rows=todasLasOC().sort((a,b)=>String(a.oc).localeCompare(String(b.oc)));
-  if($('ordenesTbody')) $('ordenesTbody').innerHTML=rows.map(r=>`<tr><td>${esc(r.oc)}<br>${botonFichaOC(r.item)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.especialidad)}</td><td>${esc(r.estado)}</td><td>${fmtFecha(r.fin)}</td></tr>`).join('') || '<tr><td colspan="7">Sin OC cargadas.</td></tr>';
-}
-function renderBuscador(){
-  asegurarIdsOC();
-  const q=($('buscadorGlobal')?.value||'').toLowerCase().trim();
-  const rows=todasLasOC().filter(r=>{
-    const txt=[r.oc,r.item?.idOC,r.tipo,r.estacion,r.proveedor,r.especialidad,r.estado,r.item?.observaciones].join(' ').toLowerCase();
-    return !q || txt.includes(q);
-  });
-  if($('buscadorTbody')) $('buscadorTbody').innerHTML=rows.map(r=>`<tr><td>${esc(r.oc)}<br>${botonFichaOC(r.item)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.especialidad)}</td><td>${esc(r.estado)}</td><td>${esc(r.item?.observaciones||'—')}</td></tr>`).join('') || '<tr><td colspan="7">Sin resultados.</td></tr>';
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* ===============================
@@ -4391,16 +4391,16 @@ function guardarOCManual(){
   updateKpis();
   cargarFiltrosV16('venc'); cargarFiltrosV16('cert');
 }
-function cerrarOC(idObra){
-  const found=buscarPorIdObra(idObra || ocActualId || $('f_idObra')?.value);
-  if(!found){ setFormMsg('No se encontró ID_OBRA para cerrar.','error'); return; }
-  found.item.estadoRegistro='Cerrado';
-  found.item.estadoDocumental=found.item.estadoDocumental || 'Cerrada';
-  found.item.fechaUltimaModificacion=new Date().toISOString();
-  guardarBaseLocal();
-  setFormMsg('OC cerrada: ' + found.item.idObra,'ok');
-  if(ocActualId===found.item.idObra) renderFichaOC(found.item.idObra);
-}
+
+
+
+
+
+
+
+
+
+
 function archivarOC(idObra){
   const found=buscarPorIdObra(idObra || ocActualId || $('f_idObra')?.value);
   if(!found){ setFormMsg('No se encontró ID_OBRA para archivar.','error'); return; }
@@ -4602,11 +4602,11 @@ function renderBuscador(){
     return `<tr><td>${esc(r.item.idObra)}<br>${botonFichaOC(r.item)}</td><td>${esc(r.oc)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.item?.tipoTrabajo||r.especialidad)}</td><td>${esc(r.estado)}</td><td>${fmtFecha(c.prox)}</td><td>${fmtFecha(c.venc)}</td></tr>`;
   }).join('') || '<tr><td colspan="9">Sin resultados.</td></tr>';
 }
-function renderOrdenes(){
-  migrarArquitecturaIdObra();
-  const rows=todasLasOC().sort((a,b)=>String(a.item.idObra).localeCompare(String(b.item.idObra)));
-  if($('ordenesTbody')) $('ordenesTbody').innerHTML=rows.map(r=>`<tr><td>${esc(r.item.idObra)}<br>${botonFichaOC(r.item)}</td><td>${esc(r.oc)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.especialidad)}</td><td>${esc(r.estado)}</td><td>${esc(r.item.estadoRegistro||'Activo')}</td><td>${fmtFecha(r.fin)}</td></tr>`).join('') || '<tr><td colspan="9">Sin OC cargadas.</td></tr>';
-}
+
+
+
+
+
 
 
 /* ===============================
@@ -4743,17 +4743,17 @@ function guardarFotoOC(idObra,dataUrl){
   item.fechaUltimaModificacion=new Date().toISOString();
   guardarBaseLocal();
 }
-function eliminarFotoOC(idObra){
-  const found=buscarPorIdObra(idObra);
-  if(!found) return;
-  const item=found.item;
-  item.fotos=(item.fotos||[]).filter(f=>f.idFoto!=='FOTO-PRINCIPAL-'+item.idObra);
-  const data=cargarFotosOCStorage();
-  delete data[item.idObra];
-  guardarFotosOCStorage(data);
-  item.fechaUltimaModificacion=new Date().toISOString();
-  guardarBaseLocal();
-}
+
+
+
+
+
+
+
+
+
+
+
 function fotoPrincipalOC(item){
   const foto=(item.fotos||[]).find(f=>f.idFoto==='FOTO-PRINCIPAL-'+item.idObra) || (item.fotos||[])[0];
   const preview=foto?.url ? `<img src="${esc(foto.url)}" alt="Foto OC ${esc(item.idObra)}">` : `<div>Foto principal de OC<br><span class="muted">${esc(item.idObra)}</span></div>`;
@@ -4766,13 +4766,13 @@ function fotoPrincipalOC(item){
     </div>
   </div>`;
 }
-function opcionesDocOC(){
-  return [
-    ['recepcionDocumentacion','Recepción documentación'],
-    ['estadoDocumental','Estado documental validado'],
-    ['observacionesDocumentales','Observaciones documentales revisadas']
-  ];
-}
+
+
+
+
+
+
+
 function marcarCheckDocumental(idObra,campo,checked){
   const found=buscarPorIdObra(idObra);
   if(!found) return;
@@ -4787,16 +4787,16 @@ function marcarCheckDocumental(idObra,campo,checked){
   guardarBaseLocal();
   renderFichaOC(idObra);
 }
-function renderChecksDocumentales(item){
-  const conf=item.confirmacionesDocumentales||{};
-  return `<div class="doc-check-grid">${opcionesDocOC().map(([campo,label])=>{
-    const c=conf[campo]||{};
-    return `<label class="doc-check ${c.ok?'ok':''}">
-      <input type="checkbox" data-doc-check="${esc(campo)}" data-id-obra="${esc(item.idObra)}" ${c.ok?'checked':''}>
-      <span><b>${esc(label)}</b><small>${c.ok?'OK confirmado: '+esc(c.fechaHora):'Pendiente de confirmación'}</small></span>
-    </label>`;
-  }).join('')}</div>`;
-}
+
+
+
+
+
+
+
+
+
+
 function initFotoYChecksOC(){
   aplicarFotosOCDesdeStorage();
   document.addEventListener('click',ev=>{
@@ -4834,125 +4834,125 @@ function initFotoYChecksOC(){
 
 
 /* V20 - Override renderFichaOC con foto OC + checks documentales */
-function renderFichaOC(idObra){
-  const found=obtenerOC(idObra);
-  const body=$('fichaOCBody');
-  if(!body) return;
-  if(!found){ body.innerHTML='<p class="empty">No se encontró la OC solicitada.</p>'; return; }
-  const {estacion,item}=found;
-  const calc=calcularFichaOC(item);
-  const sem=estadoVencimientoFicha(calc);
-  const estadoDoc=item.estadoDocumental || (item.fechaRecepcionDocumentacion?'Recibida':'Pendiente');
-  const monto=item.monto || item.saldoOcTotal || item['SALDO $ OC TOTAL'] || '—';
-  const sector=item.sector || item.ubicacion || '—';
-  const tipoTrabajo=item.tipoTrabajo || item.descripcion || item.especialidad || '—';
-  const avanceDoc=item.tipo==='Obra'
-    ? `<b>${Number(item.avanceFisico||0)}%</b><span>Avance físico</span>`
-    : `<b>${esc(estadoAvanceOC(item,calc))}</b><span>Estado mensual</span>`;
-  body.innerHTML=`
-    <div class="oc-header">
-      <div class="oc-title">
-        <h2>${esc(item.oc || item.numeroOC || 'SIN OC')}</h2>
-        <div class="oc-subtitle">
-          <span><b>ID_OBRA:</b> ${esc(item.idObra||item.idOC)}</span>
-          <span><b>Tipo:</b> ${esc(item.tipo||'—')}</span>
-          <span><b>Estación:</b> ${esc(estacion.nombre)}</span>
-          <span>${pill(sem)}</span>
-        </div>
-      </div>
-    </div>
 
-    <div class="oc-kpis">
-      <div class="oc-kpi"><b>${esc(monto)}</b><span>Monto</span></div>
-      <div class="oc-kpi"><b>${fmtFecha(calc.venc)}</b><span>Vencimiento</span></div>
-      <div class="oc-kpi"><b>${calc.dias===null?'—':calc.dias}</b><span>Días restantes</span></div>
-      <div class="oc-kpi"><b>${calc.proxNro}</b><span>Próxima acta</span></div>
-      <div class="oc-kpi">${avanceDoc}</div>
-    </div>
 
-    <div class="oc-grid">
-      <div class="oc-card">
-        <h3>Foto principal de OC</h3>
-        ${fotoPrincipalOC(item)}
-      </div>
-      <div class="oc-card">
-        <h3>A. Datos generales</h3>
-        <div class="grid">
-          <div><b>N° OC</b>${esc(item.oc || item.numeroOC || '—')}</div>
-          <div><b>ID_OBRA</b>${esc(item.idObra||item.idOC)}</div>
-          <div><b>Tipo</b>${esc(item.tipo||'—')}</div>
-          <div><b>Tipo de trabajo</b>${esc(tipoTrabajo)}</div>
-          <div><b>Estación</b>${esc(estacion.nombre)}</div>
-          <div><b>Sector</b>${esc(sector)}</div>
-          <div><b>Alcance</b>${item.alcanceLinea==='TODO'?'<span class="scope-tag">TODO / A demanda</span>':'—'}</div>
-          <div><b>UM asociada</b>${esc(item.unidadMantenimiento||item.especialidad||'—')}</div>
-          <div><b>Proveedor</b>${esc(item.proveedor||'—')}</div>
-          <div><b>Estado COI</b>${esc(item.estado||'—')}</div>
-        </div>
-      </div>
-    </div>
 
-    <div class="oc-grid">
-      <div class="oc-card">
-        <h3>B. Resumen contractual</h3>
-        <div class="grid">
-          <div><b>Monto</b>${esc(monto)}</div>
-          <div><b>Acta de inicio</b>${fmtFecha(calc.inicio)}</div>
-          <div><b>Plazo contractual</b>${esc(calc.plazo||'—')} días</div>
-          <div><b>Fecha vencimiento</b>${fmtFecha(calc.venc)}</div>
-          <div><b>Días restantes</b>${calc.dias===null?'—':calc.dias}</div>
-          <div><b>Estado vencimiento</b>${pill(sem)}</div>
-        </div>
-      </div>
-      <div class="oc-card">
-        <h3>C. Estado documental</h3>
-        <div class="grid">
-          <div><b>Recepción documentación</b>${item.fechaRecepcionDocumentacion || '—'}</div>
-          <div><b>Estado documental</b>${esc(estadoDoc)}</div>
-          <div><b>Observaciones documentales</b>${esc(item.observacionesDocumentales || item.observaciones || '—')}</div>
-        </div>
-        ${renderChecksDocumentales(item)}
-      </div>
-    </div>
 
-    <div class="oc-card">
-      <h3>D. Certificaciones y actas</h3>
-      ${calc.actas.length ? `<div class="table-wrap"><table class="coi-table"><thead><tr><th>idActa</th><th>N° Acta</th><th>Fecha</th><th>Tipo</th><th>% avance físico</th><th>Monto certificado</th><th>Observaciones</th></tr></thead><tbody>${calc.actas.map(a=>`<tr><td>${esc(a.idActa||'—')}</td><td>${esc(a.numero||'—')}</td><td>${fmtFecha(a.fecha)}</td><td>${esc(a.tipo||'—')}</td><td>${esc(a.avanceFisico??0)}%</td><td>${esc(a.montoCertificado||'—')}</td><td>${esc(a.observaciones||'—')}</td></tr>`).join('')}</tbody></table></div>` : '<div class="oc-empty">No hay actas de medición cargadas para esta OC.</div>'}
-    </div>
 
-    <div class="oc-card">
-      <h3>E. Próxima certificación</h3>
-      <div class="grid">
-        <div><b>Última acta</b>${calc.ultima?.numero || '—'}</div>
-        <div><b>Última fecha</b>${fmtFecha(calc.ultima?.fecha)}</div>
-        <div><b>Próxima certificación</b>${fmtFecha(calc.prox)}</div>
-        <div><b>Próximo N° acta</b>${calc.proxNro}</div>
-        <div><b>Estado</b>${calc.fuera ? 'OC vencida / Fuera de plazo' : estadoAvanceOC(item,calc)}</div>
-      </div>
-    </div>
 
-    <div class="oc-card">
-      <h3>F. Avance</h3>
-      <div class="grid">
-        <div><b>% avance físico</b>${Number(item.avanceFisico||0)}%</div>
-        <div><b>% avance financiero</b>${Number(item.avanceFinanciero||0)}%</div>
-        <div><b>Última certificación</b>${esc(item.ultimaCertificacion||'—')}</div>
-        <div><b>Próxima certificación</b>${fmtFecha(calc.prox)}</div>
-        <div><b>Estado avance</b>${esc(estadoAvanceOC(item,calc))}</div>
-      </div>
-    </div>
 
-    <div class="oc-card">
-      <h3>G. Fotos / Evidencia</h3>
-      ${item.fotos && item.fotos.length ? `<div class="gallery-grid">${item.fotos.map(f=>`<div class="gallery-item">${f.url?`<img src="${esc(f.url)}" alt="${esc(f.descripcion||'Foto OC')}">`:''}<div><b>${esc(f.idFoto||'Foto')}</b><br>${fmtFecha(f.fecha)}<br>${esc(f.descripcion||'—')}</div></div>`).join('')}</div>` : '<div class="oc-empty">Sin fotos cargadas.</div>'}
-    </div>
 
-    <div class="oc-card">
-      <h3>H. Observaciones generales</h3>
-      <p>${esc(item.observaciones||'Sin observaciones cargadas.')}</p>
-    </div>
-  `;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 function initImportacionAcumulativaV23(){
@@ -4966,57 +4966,57 @@ function initImportacionAcumulativaV23(){
 
 
 /* V24 - Vencimientos: días junto al semáforo y Ficha OC al final */
-function renderCalendarioVencimientos(){
-  cargarFiltrosV16('venc');
-  if(typeof migrarArquitecturaIdObra === 'function') migrarArquitecturaIdObra();
 
-  const rows=rowsFiltradasV16('venc','venc')
-    .sort((a,b)=>(parseFecha(a.fin)||Infinity)-(parseFecha(b.fin)||Infinity));
 
-  if($('vencTbody')){
-    $('vencTbody').innerHTML=rows.map(r=>{
-      const sem=semaforoVencimiento(r);
-      return `<tr>
-        <td>${pill(sem)}</td>
-        <td><b>${r.diasRestantes===null?'—':r.diasRestantes}</b></td>
-        <td>${esc(r.oc)}</td>
-        <td>${esc(r.tipo)}</td>
-        <td>${esc(r.estacion)}</td>
-        <td>${esc(r.proveedor)}</td>
-        <td>${fmtFecha(r.inicio)}</td>
-        <td>${esc(r.plazo||'—')}</td>
-        <td>${fmtFecha(r.fin)}</td>
-        <td>${esc(r.estado)}</td>
-        <td>${botonFichaOC(r.item,'Ficha OC')}</td>
-      </tr>`;
-    }).join('') || '<tr><td colspan="11">Sin vencimientos para los filtros seleccionados.</td></tr>';
-  }
-  renderKpisV16('venc');
-  renderCalendarioOperativoCOI('venc');
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* V25 - Filtro de ordenamiento en Vencimientos */
-function ordenarVencimientos(rows){
-  const orden=$('vencOrden')?.value || 'reciente';
-  return rows.sort((a,b)=>{
-    const fa=parseFecha(a.fin);
-    const fb=parseFecha(b.fin);
-    const da=a.diasRestantes ?? 999999;
-    const db=b.diasRestantes ?? 999999;
 
-    if(orden==='antiguo') return (fa||Infinity)-(fb||Infinity);
-    if(orden==='diasAsc') return da-db;
-    if(orden==='diasDesc') return db-da;
 
-    // reciente: fecha contractual más cercana al día operativo primero.
-    // Primero vencidas/próximas por distancia absoluta, luego fecha.
-    const absA=Math.abs(da);
-    const absB=Math.abs(db);
-    if(absA!==absB) return absA-absB;
-    return (fa||Infinity)-(fb||Infinity);
-  });
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function renderCalendarioVencimientos(){
   cargarFiltrosV16('venc');
   if(typeof migrarArquitecturaIdObra === 'function') migrarArquitecturaIdObra();
@@ -5367,119 +5367,119 @@ function initObservacionesDocumentalesV29(){
 
 
 /* V29 - Override renderFichaOC: limpia C. Estado Documental y deja observaciones editables al final */
-function renderFichaOC(idObra){
-  const found=obtenerOC(idObra);
-  const body=$('fichaOCBody');
-  if(!body) return;
-  if(!found){ body.innerHTML='<p class="empty">No se encontró la OC solicitada.</p>'; return; }
-  const {estacion,item}=found;
-  const calc=calcularFichaOC(item);
-  const sem=estadoVencimientoFicha(calc);
-  const monto=item.monto || item.saldoOcTotal || item['SALDO $ OC TOTAL'] || '—';
-  const sector=item.sector || item.ubicacion || '—';
-  const tipoTrabajo=item.tipoTrabajo || item.descripcion || item.especialidad || '—';
-  const avanceDoc=item.tipo==='Obra'
-    ? `<b>${Number(item.avanceFisico||0)}%</b><span>Avance físico</span>`
-    : `<b>${esc(estadoAvanceOC(item,calc))}</b><span>Estado mensual</span>`;
-  body.innerHTML=`
-    <div class="oc-header">
-      <div class="oc-title">
-        <h2>${esc(item.oc || item.numeroOC || 'SIN OC')}</h2>
-        <div class="oc-subtitle">
-          <span><b>ID_OBRA:</b> ${esc(item.idObra||item.idOC)}</span>
-          <span><b>Tipo:</b> ${esc(item.tipo||'—')}</span>
-          <span><b>Estación:</b> ${esc(estacion.nombre)}</span>
-          <span>${pill(sem)}</span>
-        </div>
-      </div>
-    </div>
 
-    <div class="oc-kpis">
-      <div class="oc-kpi"><b>${esc(monto)}</b><span>Monto</span></div>
-      <div class="oc-kpi"><b>${fmtFecha(calc.venc)}</b><span>Vencimiento</span></div>
-      <div class="oc-kpi"><b>${calc.dias===null?'—':calc.dias}</b><span>Días restantes</span></div>
-      <div class="oc-kpi"><b>${calc.proxNro}</b><span>Próxima acta</span></div>
-      <div class="oc-kpi">${avanceDoc}</div>
-    </div>
 
-    <div class="oc-grid">
-      <div class="oc-card">
-        <h3>Foto principal de OC</h3>
-        ${fotoPrincipalOC(item)}
-      </div>
-      <div class="oc-card">
-        <h3>A. Datos generales</h3>
-        <div class="grid">
-          <div><b>N° OC</b>${esc(item.oc || item.numeroOC || '—')}</div>
-          <div><b>ID_OBRA</b>${esc(item.idObra||item.idOC)}</div>
-          <div><b>Tipo</b>${esc(item.tipo||'—')}</div>
-          <div><b>Tipo de trabajo</b>${esc(tipoTrabajo)}</div>
-          <div><b>Estación</b>${esc(estacion.nombre)}</div>
-          <div><b>Sector</b>${esc(sector)}</div>
-          <div><b>Alcance</b>${item.alcanceLinea==='TODO'?'<span class="scope-tag">TODO / A demanda</span>':'—'}</div>
-          <div><b>UM asociada</b>${esc(item.unidadMantenimiento||item.especialidad||'—')}</div>
-          <div><b>Proveedor</b>${esc(item.proveedor||'—')}</div>
-          <div><b>Estado COI</b>${esc(item.estado||'—')}</div>
-        </div>
-      </div>
-    </div>
 
-    <div class="oc-grid">
-      <div class="oc-card">
-        <h3>B. Resumen contractual</h3>
-        <div class="grid">
-          <div><b>Monto</b>${esc(monto)}</div>
-          <div><b>Acta de inicio</b>${fmtFecha(calc.inicio)}</div>
-          <div><b>Plazo contractual</b>${esc(calc.plazo||'—')} días</div>
-          <div><b>Fecha vencimiento</b>${fmtFecha(calc.venc)}</div>
-          <div><b>Días restantes</b>${calc.dias===null?'—':calc.dias}</div>
-          <div><b>Estado vencimiento</b>${pill(sem)}</div>
-        </div>
-      </div>
-      <div class="oc-card">
-        <h3>C. Estado documental</h3>
-        ${renderBloqueEstadoDocumental(item)}
-      </div>
-    </div>
 
-    <div class="oc-card">
-      <h3>D. Certificaciones y actas</h3>
-      ${calc.actas.length ? `<div class="table-wrap"><table class="coi-table"><thead><tr><th>idActa</th><th>N° Acta</th><th>Fecha</th><th>Tipo</th><th>% avance físico</th><th>Monto certificado</th><th>Observaciones</th></tr></thead><tbody>${calc.actas.map(a=>`<tr><td>${esc(a.idActa||'—')}</td><td>${esc(a.numero||'—')}</td><td>${fmtFecha(a.fecha)}</td><td>${esc(a.tipo||'—')}</td><td>${esc(a.avanceFisico??0)}%</td><td>${esc(a.montoCertificado||'—')}</td><td>${esc(a.observaciones||'—')}</td></tr>`).join('')}</tbody></table></div>` : '<div class="oc-empty">No hay actas de medición cargadas para esta OC.</div>'}
-    </div>
 
-    <div class="oc-card">
-      <h3>E. Próxima certificación</h3>
-      <div class="grid">
-        <div><b>Última acta</b>${calc.ultima?.numero || '—'}</div>
-        <div><b>Última fecha</b>${fmtFecha(calc.ultima?.fecha)}</div>
-        <div><b>Próxima certificación</b>${fmtFecha(calc.prox)}</div>
-        <div><b>Próximo N° acta</b>${calc.proxNro}</div>
-        <div><b>Estado</b>${calc.fuera ? 'OC vencida / Fuera de plazo' : estadoAvanceOC(item,calc)}</div>
-      </div>
-    </div>
 
-    <div class="oc-card">
-      <h3>F. Avance</h3>
-      <div class="grid">
-        <div><b>% avance físico</b>${Number(item.avanceFisico||0)}%</div>
-        <div><b>% avance financiero</b>${Number(item.avanceFinanciero||0)}%</div>
-        <div><b>Última certificación</b>${esc(item.ultimaCertificacion||'—')}</div>
-        <div><b>Próxima certificación</b>${fmtFecha(calc.prox)}</div>
-        <div><b>Estado avance</b>${esc(estadoAvanceOC(item,calc))}</div>
-      </div>
-    </div>
 
-    <div class="oc-card">
-      <h3>G. Fotos / Evidencia</h3>
-      ${item.fotos && item.fotos.length ? `<div class="gallery-grid">${item.fotos.map(f=>`<div class="gallery-item">${f.url?`<img src="${esc(f.url)}" alt="${esc(f.descripcion||'Foto OC')}">`:''}<div><b>${esc(f.idFoto||'Foto')}</b><br>${fmtFecha(f.fecha)}<br>${esc(f.descripcion||'—')}</div></div>`).join('')}</div>` : '<div class="oc-empty">Sin fotos cargadas.</div>'}
-    </div>
 
-    <div class="oc-card">
-      <h3>H. Observaciones generales</h3>
-      <p>${esc(item.observaciones||'Sin observaciones cargadas.')}</p>
-    </div>
-  `;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -5541,13 +5541,13 @@ function recalcularEstadoFinancieroOC(oc){
   oc.saldoFinancieroPendiente=montoPendiente;
   return {montoOriginal:oc.montoTotalOCOriginal,montoConsumido,montoPendiente,posiciones:posiciones.length,pendientes:posiciones.filter(p=>p.estado==="Pendiente").length,parciales:posiciones.filter(p=>p.estado==="Parcial").length,consumidas:posiciones.filter(p=>p.estado==="Consumida").length};
 }
-function renderEstadoFinancieroOC(oc){
-  if(!oc) return "";
-  const resumen=recalcularEstadoFinancieroOC(oc);
-  const idOC=obtenerIdOCV52(oc);
-  const cards=asegurarPosicionesFinancieras(oc).map(p=>`<article class="finance-pos-card"><h4>Posición ${esc(p.numeroPosicion)}</h4><p>${esc(p.descripcion)}</p><span class="finance-state ${esc(p.estado.toLowerCase())}">${esc(p.estado)}</span><div class="line"><span>Unidad</span><b>${esc(p.unidadMedida)}</b></div><div class="line"><span>Cantidad total</span><b>${p.cantidadTotal}</b></div><div class="line"><span>Consumida</span><b>${p.cantidadConsumida}</b></div><div class="line"><span>Pendiente</span><b>${p.cantidadPendiente}</b></div><div class="line"><span>Monto total</span><b>${formatoMoneda(p.montoTotalPosicion)}</b></div><div class="line"><span>Certificado</span><b>${formatoMoneda(p.montoConsumido)}</b></div><div class="line"><span>Saldo</span><b>${formatoMoneda(p.montoPendiente)}</b></div><button type="button" class="btn-certificar-posicion" data-id-obra="${esc(idOC)}" data-id-posicion="${esc(p.idPosicion)}" data-edit-only>Certificar / Descontar cantidad</button></article>`).join('');
-  return `<section class="expediente-card full"><h3>4. Estado Financiero</h3><div class="finance-summary"><div class="finance-kpi"><b>${formatoMoneda(resumen.montoOriginal)}</b><span>Monto total OC original</span></div><div class="finance-kpi"><b>${formatoMoneda(resumen.montoConsumido)}</b><span>Consumido / certificado</span></div><div class="finance-kpi"><b>${formatoMoneda(resumen.montoPendiente)}</b><span>Saldo pendiente OC</span></div><div class="finance-kpi"><b>${resumen.posiciones}</b><span>Posiciones</span></div><div class="finance-kpi"><b>${resumen.pendientes}/${resumen.parciales}</b><span>Pendientes / parciales</span></div><div class="finance-kpi"><b>${resumen.consumidas}</b><span>Consumidas</span></div></div><div class="finance-grid">${cards}</div></section>`;
-}
+
+
+
+
+
+
+
 function certificarCantidadPosicion(idObra,idPosicion){
   if(!usuarioTienePermiso("editar")){alert("El rol actual no permite editar ni certificar posiciones.");return;}
   const found=typeof obtenerOC==='function'?obtenerOC(idObra):null;
@@ -6829,27 +6829,27 @@ function normalizarRegistroCargaFinanciera(row){
   return {idPosicionFinanciera:row.idPosicionFinanciera||`FIN-${Date.now()}-${Math.random().toString(16).slice(2,8)}`,ocNro,idObra:item.idObra||item.idOC||'',idServicio:item.idServicio||item.ID_SERVICIO||'',tipoRegistro:item.tipo||match?.tipo||'',posicion,descripcionPosicion:String(row.DESCRIPCION_POSICION||'').trim(),cantidadTotal,unidad:String(row.UNIDAD||'').trim(),montoPosicion,moneda,actaMedicionNro:String(row.ACTA_MEDICION_NRO||'').trim(),periodoMes:String(row.PERIODO_MES||'').trim(),periodoDesde:v45FechaISOFlexible(row.PERIODO_DESDE)||row.PERIODO_DESDE||'',periodoHasta:v45FechaISOFlexible(row.PERIODO_HASTA)||row.PERIODO_HASTA||'',cantidadCertificada,montoCertificado,saldoCantidad,saldoMonto,estadoPosicion:finEstado(cantidadTotal,cantidadCertificada,saldoCantidad,saldoMonto,row.ESTADO_POSICION||(ocNro?'':'Revisar OC')||(posicion?'':'Revisar posición')),observaciones:String(row.OBSERVACIONES||'').trim(),fechaCarga:row.fechaCarga||new Date().toISOString(),fechaUltimaModificacion:new Date().toISOString()};
 }
 function finControl(c,v=''){if(['MONTO_POSICION','MONTO_CERTIFICADO','SALDO_MONTO'].includes(c))return `<input type="text" data-campo="${c}" value="${esc(v)}" placeholder="$ 0,00">`;if(['PERIODO_DESDE','PERIODO_HASTA'].includes(c))return `<input type="text" data-campo="${c}" value="${esc(v45FechaDisplay(v)||v)}" placeholder="DD/MM/AAAA">`;if(c==='OBSERVACIONES'||c==='DESCRIPCION_POSICION')return `<textarea data-campo="${c}" class="${c==='DESCRIPCION_POSICION'?'w-desc':'w-obs'}">${esc(v)}</textarea>`;return `<input type="text" data-campo="${c}" value="${esc(v)}">`;}
-function agregarFilasCargaFinanciera(cantidad=5){const body=$('cargaRapidaFinancieraBody');if(!body)return;const start=body.querySelectorAll('tr').length+1;let html='';for(let i=0;i<cantidad;i++)html+=`<tr data-tipo-carga="Financiera"><td class="quick-load-row-num">${start+i}</td>${FIN_COLUMNS.map(c=>`<td>${finControl(c)}</td>`).join('')}</tr>`;body.insertAdjacentHTML('beforeend',html);}
-function renderCargaFinanciera(){const head=$('cargaRapidaFinancieraHead'),body=$('cargaRapidaFinancieraBody');if(!head||!body)return;head.innerHTML=`<tr><th>#</th>${FIN_HEADERS.map(h=>`<th class="excel-service-head">${esc(h)}</th>`).join('')}</tr>`;body.innerHTML='';agregarFilasCargaFinanciera(5);}
-function leerFilaFinanciera(tr){const row={};FIN_COLUMNS.forEach(c=>row[c]=(tr.querySelector(`[data-campo="${c}"]`)?.value||'').trim());return row;}
-function filaFinancieraVacia(row){return FIN_COLUMNS.filter(c=>!['SALDO_CANTIDAD','SALDO_MONTO','ESTADO_POSICION'].includes(c)).every(c=>!String(row[c]||'').trim());}
-function actualizarFilaFinanciera(tr){const row=leerFilaFinanciera(tr),n=normalizarRegistroCargaFinanciera(row);const set=(c,v)=>{const el=tr.querySelector(`[data-campo="${c}"]`);if(el)el.value=v;};set('MONEDA',n.moneda);set('SALDO_CANTIDAD',n.saldoCantidad||'');set('SALDO_MONTO',n.saldoMonto?finFormatoMonto(n.saldoMonto,n.moneda):'');set('ESTADO_POSICION',n.estadoPosicion);}
-function finClaveRegistro(p){return [p.ocNro,p.posicion,p.actaMedicionNro,p.periodoMes,p.periodoDesde,p.periodoHasta].map(x=>normalizarTexto(String(x||''))).join('|');}
-function guardarCargaFinanciera(){document.querySelectorAll('#panelCargaFinanciera tbody tr').forEach(actualizarFilaFinanciera);let guardados=0,actualizados=0,vacios=0;document.querySelectorAll('#panelCargaFinanciera tbody tr').forEach(tr=>{const row=leerFilaFinanciera(tr);if(filaFinancieraVacia(row)){vacios++;return;}const reg=normalizarRegistroCargaFinanciera(row),key=finClaveRegistro(reg),idx=posicionesFinancieras.findIndex(p=>finClaveRegistro(p)===key);if(idx>=0){posicionesFinancieras[idx]={...posicionesFinancieras[idx],...reg,idPosicionFinanciera:posicionesFinancieras[idx].idPosicionFinanciera,fechaCarga:posicionesFinancieras[idx].fechaCarga||reg.fechaCarga};actualizados++;}else{posicionesFinancieras.push(reg);guardados++;}});guardarPosicionesFinancieras();v45RefreshAfterDataChange();if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent=`Carga financiera guardada. Nuevas: ${guardados}. Actualizadas: ${actualizados}. Filas vacías: ${vacios}.`;$('cargaRapidaMsg').className='quick-load-msg ok';}alert(`Carga financiera guardada. Nuevas: ${guardados}. Actualizadas: ${actualizados}.`);}
-function limpiarGrillaCargaFinanciera(){renderCargaFinanciera();if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent='Grilla financiera limpia. Pegue posiciones desde Excel.';$('cargaRapidaMsg').className='quick-load-msg';}}
-function obtenerPosicionesPorOC(ocNro){const n=normalizarTexto(finNormalizarOC(ocNro));return posicionesFinancieras.filter(p=>normalizarTexto(finNormalizarOC(p.ocNro))===n);}
-function calcularTotalesFinancieros(lista=posicionesFinancieras){return lista.reduce((a,p)=>{if((p.moneda||'ARS')==='ARS'){a.monto+=Number(p.montoPosicion||0);a.cert+=Number(p.montoCertificado||0);a.saldo+=Number(p.saldoMonto||0);}a.posiciones++;if(Number(p.saldoMonto||0)<0)a.negativas++;if(!p.ocNro)a.sinOC++;if(!p.actaMedicionNro)a.sinActa++;return a;},{monto:0,cert:0,saldo:0,posiciones:0,negativas:0,sinOC:0,sinActa:0});}
+
+
+
+
+
+
+
+
+
+
 function obtenerResumenFinancieroOC(ocNro){const pos=obtenerPosicionesPorOC(ocNro),t=calcularTotalesFinancieros(pos);return {...t,posicionesLista:pos,certificadas:pos.filter(p=>Number(p.saldoCantidad)<=0&&Number(p.cantidadCertificada)>0).length,pendientes:pos.filter(p=>Number(p.cantidadCertificada||0)===0).length,parciales:pos.filter(p=>Number(p.cantidadCertificada||0)>0&&Number(p.saldoCantidad)>0).length};}
-function exportarPosicionesFinancierasCSV(){const h=['idPosicionFinanciera','ocNro','idObra','idServicio','tipoRegistro','posicion','descripcionPosicion','cantidadTotal','unidad','montoPosicion','moneda','actaMedicionNro','periodoMes','periodoDesde','periodoHasta','cantidadCertificada','montoCertificado','saldoCantidad','saldoMonto','estadoPosicion','observaciones','fechaCarga'];const csv=[h.join(';'),...posicionesFinancieras.map(p=>h.map(k=>coiCSVCell(p[k])).join(';'))].join('\n');const stamp=typeof adminNowStamp==='function'?adminNowStamp():Date.now();descargarArchivo(`posiciones_financieras_${stamp}.csv`,csv,'text/csv;charset=utf-8');}
-function renderEstadoFinancieroOC(oc){
-  if(!oc)return'';const ocNro=oc.numeroOC||oc.oc||oc.OC_NRO||oc.ocNro||obtenerIdOCV52(oc),res=obtenerResumenFinancieroOC(ocNro),base=recalcularEstadoFinancieroOC(oc),pos=res.posicionesLista;
-  const kpis=[['Monto total OC',formatoMoneda(base.montoOriginal)],['Monto total posiciones',finFormatoMonto(res.monto,'ARS')],['Monto certificado acumulado',finFormatoMonto(res.cert,'ARS')],['Saldo financiero',finFormatoMonto(res.saldo,'ARS')],['Cantidad posiciones',res.posiciones],['Certificadas',res.certificadas],['Pendientes',res.pendientes]].map(x=>`<div class="finance-kpi"><b>${esc(x[1])}</b><span>${esc(x[0])}</span></div>`).join('');
-  const estadoClase=p=>Number(p.saldoMonto)<0?'inconsistencia':Number(p.cantidadCertificada)>0&&Number(p.saldoCantidad)>0?'parcial':Number(p.cantidadCertificada)>0?'consumida':'pendiente';
-  const tabla=pos.length?`<div class="finance-table-wrap"><table class="finance-table"><thead><tr><th>Posición</th><th>Descripción</th><th>Cantidad total</th><th>Unidad</th><th>Monto posición</th><th>Acta asociada</th><th>Cantidad certificada</th><th>Monto certificado</th><th>Saldo</th><th>Estado</th><th>Observaciones</th></tr></thead><tbody>${pos.map(p=>`<tr><td>${esc(p.posicion||'Revisar')}</td><td>${esc(p.descripcionPosicion||'Sin descripción')}</td><td>${esc(p.cantidadTotal)}</td><td>${esc(p.unidad)}</td><td>${finFormatoMonto(p.montoPosicion,p.moneda)}</td><td>${esc(p.actaMedicionNro||'Sin acta')}</td><td>${esc(p.cantidadCertificada)}</td><td>${finFormatoMonto(p.montoCertificado,p.moneda)}</td><td>${finFormatoMonto(p.saldoMonto,p.moneda)}</td><td><span class="finance-state ${estadoClase(p)}">${esc(p.estadoPosicion)}</span></td><td>${esc(p.observaciones||'—')}</td></tr>`).join('')}</tbody></table></div>`:'';
-  const cards=pos.map(p=>`<details class="finance-pos-card"><summary>Posición ${esc(p.posicion||'Revisar')} · ${esc(p.estadoPosicion)}</summary><p>${esc(p.descripcionPosicion||'Sin descripción')}</p><span class="finance-state ${estadoClase(p)}">${esc(p.estadoPosicion)}</span><div class="line"><span>Cantidad</span><b>${esc(p.cantidadCertificada)} / ${esc(p.cantidadTotal)} ${esc(p.unidad)}</b></div><div class="line"><span>Monto posición</span><b>${finFormatoMonto(p.montoPosicion,p.moneda)}</b></div><div class="line"><span>Certificado</span><b>${finFormatoMonto(p.montoCertificado,p.moneda)}</b></div><div class="line"><span>Saldo</span><b>${finFormatoMonto(p.saldoMonto,p.moneda)}</b></div><div class="line"><span>Acta</span><b>${esc(p.actaMedicionNro||'Sin acta')}</b></div><div class="line"><span>Período</span><b>${esc(p.periodoDesde||'—')} / ${esc(p.periodoHasta||'—')}</b></div><div class="line"><span>Observaciones</span><b>${esc(p.observaciones||'—')}</b></div></details>`).join('')||'<div class="oc-empty">Sin posiciones financieras cargadas para esta OC.</div>';
-  const grupos=Object.entries(pos.reduce((a,p)=>{const k=p.actaMedicionNro?`Acta Medición N° ${p.actaMedicionNro}`:'Sin acta asociada';(a[k]=a[k]||[]).push(p);return a;},{})).map(([g,arr])=>`<article class="finance-pos-card"><h4>${esc(g)}</h4>${arr.map(p=>`<div class="line"><span>Posición ${esc(p.posicion)}</span><b>${finFormatoMonto(p.montoCertificado,p.moneda)}</b></div>`).join('')}<div class="line"><span>Total acta</span><b>${finFormatoMonto(arr.reduce((a,p)=>a+Number(p.montoCertificado||0),0),'ARS')}</b></div></article>`).join('');
-  return `<section class="expediente-card full"><h3>4. Estado Financiero</h3><div class="finance-summary">${kpis}</div>${tabla}<div class="finance-grid">${cards}</div><h4>Agrupación por acta de medición</h4><div class="finance-grid">${grupos||'<div class="oc-empty">Sin actas asociadas.</div>'}</div></section>`;
-}
+
+
+
+
+
+
+
+
+
+
 const _v45BodyActivoBase=v45BodyActivo;v45BodyActivo=function(){return v45TipoCarga==='Financiera'?$('cargaRapidaFinancieraBody'):_v45BodyActivoBase();};
 const _v45AgregarFilasBase=v45AgregarFilas;v45AgregarFilas=function(tipo=v45TipoCarga,cantidad=5){return tipo==='Financiera'?agregarFilasCargaFinanciera(cantidad):_v45AgregarFilasBase(tipo,cantidad);};
 const _v45RenderTablaBase=v45RenderTabla;v45RenderTabla=function(tipo){return tipo==='Financiera'?renderCargaFinanciera():_v45RenderTablaBase(tipo);};
@@ -6967,46 +6967,46 @@ function finV54Control(c,v=''){
   if(textArea)return `<textarea data-campo="${c}" class="${c==='DESCRIPCION'?'w-desc':'w-obs'}">${esc(v)}</textarea>`;
   return `<input type="text" data-campo="${c}" value="${esc(v)}" ${money?'placeholder="$ 0,00"':''}>`;
 }
-function renderCargaFinanciera(){
-  const panel=$('panelCargaFinanciera'); if(!panel)return;
-  const cfg=finV54Config();
-  panel.innerHTML=`<div class="fin-load-toolbar"><label for="finTipoBloqueCarga">Tipo de carga financiera:</label><select id="finTipoBloqueCarga">${Object.entries(FIN_V54_BLOQUES).map(([k,v])=>`<option value="${k}" ${k===finV54BloqueActivo?'selected':''}>${esc(v.label)}</option>`).join('')}</select><span class="muted">La grilla cambia columnas según el bloque seleccionado.</span></div><div class="quick-load-wrap"><table class="quick-load-table carga-grid-table"><thead id="cargaRapidaFinancieraHead"></thead><tbody id="cargaRapidaFinancieraBody"></tbody></table></div>`;
-  $('finTipoBloqueCarga')?.addEventListener('change',ev=>{finV54BloqueActivo=ev.target.value;renderCargaFinanciera();if($('cargaRapidaMsg'))$('cargaRapidaMsg').textContent='Carga financiera: '+finV54Config().label+'. Pegue desde Excel con estas columnas.';});
-  const head=$('cargaRapidaFinancieraHead'),body=$('cargaRapidaFinancieraBody');
-  head.innerHTML=`<tr><th>#</th>${cfg.headers.map(h=>`<th class="excel-service-head">${esc(h)}</th>`).join('')}</tr>`;
-  body.innerHTML='';
-  agregarFilasCargaFinanciera(5);
-}
-function agregarFilasCargaFinanciera(cantidad=5){
-  const body=$('cargaRapidaFinancieraBody');if(!body)return;
-  const cfg=finV54Config(),start=body.querySelectorAll('tr').length+1;let html='';
-  for(let i=0;i<cantidad;i++)html+=`<tr data-tipo-carga="Financiera" data-bloque-financiero="${finV54BloqueActivo}"><td class="quick-load-row-num">${start+i}</td>${cfg.columns.map(c=>`<td>${finV54Control(c)}</td>`).join('')}</tr>`;
-  body.insertAdjacentHTML('beforeend',html);
-}
-function leerFilaFinanciera(tr){const row={};(FIN_V54_BLOQUES[tr.dataset.bloqueFinanciero]||finV54Config()).columns.forEach(c=>row[c]=(tr.querySelector(`[data-campo="${c}"]`)?.value||'').trim());return row;}
-function filaFinancieraVacia(row){return Object.values(row||{}).every(v=>!String(v||'').trim());}
-function actualizarFilaFinanciera(tr){
-  const reg=finV54NormalizarRegistro(leerFilaFinanciera(tr),tr.dataset.bloqueFinanciero||finV54BloqueActivo);
-  const set=(c,v)=>{const el=tr.querySelector(`[data-campo="${c}"]`);if(el)el.value=v;};
-  if(tr.querySelector('[data-campo="PRECIO_TOTAL"]')&&!tr.querySelector('[data-campo="PRECIO_TOTAL"]').value&&reg.precioUnitario&&reg.cantidad)set('PRECIO_TOTAL',reg.precioTotal||reg.precioUnitario*reg.cantidad);
-  if(tr.querySelector('[data-campo="SALDO"]')&&!tr.querySelector('[data-campo="SALDO"]').value&&reg.tipoBloqueFinanciero!=='CERTIFICADA')set('SALDO',reg.saldo||reg.precioTotal);
-  if(tr.querySelector('[data-campo="SALDO_TOTAL"]')&&!tr.querySelector('[data-campo="SALDO_TOTAL"]').value)set('SALDO_TOTAL',reg.saldoTotal||Math.max(reg.precioTotal-reg.certificado,0));
-}
-function finClaveRegistro(p){return [p.tipoBloqueFinanciero,p.ocNro,p.remito,p.posicion,p.actaNro,p.mes,p.periodo,p.periodoDesde,p.periodoHasta].map(x=>normalizarTexto(String(x||''))).join('|');}
-function guardarCargaFinanciera(){
-  document.querySelectorAll('#panelCargaFinanciera tbody tr').forEach(actualizarFilaFinanciera);
-  let guardados=0,actualizados=0,vacios=0;
-  document.querySelectorAll('#panelCargaFinanciera tbody tr').forEach(tr=>{
-    const row=leerFilaFinanciera(tr);if(filaFinancieraVacia(row)){vacios++;return;}
-    const reg=finV54NormalizarRegistro(row,tr.dataset.bloqueFinanciero||finV54BloqueActivo),key=finClaveRegistro(reg),idx=posicionesFinancieras.findIndex(p=>finClaveRegistro(finV54NormalizarRegistro(p,p.tipoBloqueFinanciero))===key);
-    if(idx>=0){posicionesFinancieras[idx]={...posicionesFinancieras[idx],...reg,idPosicionFinanciera:posicionesFinancieras[idx].idPosicionFinanciera,fechaCarga:posicionesFinancieras[idx].fechaCarga||reg.fechaCarga};actualizados++;}else{posicionesFinancieras.push(reg);guardados++;}
-  });
-  guardarPosicionesFinancieras();v45RefreshAfterDataChange();
-  if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent=`${finV54Config().label} guardadas. Nuevas: ${guardados}. Actualizadas: ${actualizados}. Filas vacías: ${vacios}.`;$('cargaRapidaMsg').className='quick-load-msg ok';}
-  alert(`Carga financiera guardada. Nuevas: ${guardados}. Actualizadas: ${actualizados}.`);
-}
-function limpiarGrillaCargaFinanciera(){renderCargaFinanciera();if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent='Grilla financiera limpia. Seleccione un bloque y pegue desde Excel.';$('cargaRapidaMsg').className='quick-load-msg';}}
-function obtenerPosicionesPorOC(ocNro){finV54MigrarMemoria();const n=normalizarTexto(finNormalizarOC(ocNro));return posicionesFinancieras.filter(p=>normalizarTexto(finNormalizarOC(p.ocNro))===n);}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function finV54ListaPorBloque(oc,bloque){
   const pos=obtenerPosicionesPorOC(finV54OCNro(oc));
   if(bloque==='LIBRE'){
@@ -7034,15 +7034,15 @@ function finV54Tabla(lista,bloque){
   }).join('');
   return `<div class="finance-table-wrap"><table class="finance-table v54"><thead><tr>${cfg.headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows||`<tr><td colspan="${cfg.headers.length}">Sin registros para este bloque.</td></tr>`}</tbody></table></div>`;
 }
-function renderEstadoFinancieroOC(oc){
-  if(!oc)return'';const r=finV54ResumenOC(oc),diffClass=!r.posOC.length?'finance-diff-empty':r.montoCertificado>r.montoTotalPosiciones?'finance-diff-bad':Math.abs(r.diferencia)>1?'finance-diff-warn':'finance-diff-ok';
-  const kpis=[
-    ['Monto total OC',formatoMoneda(r.montoOc),''],['Monto total posiciones',finFormatoMonto(r.montoTotalPosiciones,'ARS'),''],['Monto certificado',finFormatoMonto(r.montoCertificado,'ARS'),''],['Saldo disponible',finFormatoMonto(r.saldoDisponible,'ARS'),''],
-    ['Cantidad total de posiciones',r.posOC.length,''],['Posiciones certificadas',r.cert.length,''],['Posiciones libres',r.libres.length,''],['Diferencia OC vs posiciones',finFormatoMonto(r.diferencia,'ARS'),diffClass]
-  ].map(x=>`<div class="finance-kpi ${x[2]}"><b>${esc(x[1])}</b><span>${esc(x[0])}</span></div>`).join('');
-  const safeId=slugOC(r.ocNro||obtenerIdOCV52(oc)||'OC');
-  return `<section class="expediente-card full" data-fin-oc="${esc(safeId)}"><div class="finance-advanced-head"><div><h3>4. Estado Financiero</h3><p class="muted">Detalle avanzado por posiciones, certificaciones y saldos de la OC.</p></div><span class="finance-semaforo ${r.semaforo}">${esc(r.semaforoTexto)}</span></div><div class="finance-summary">${kpis}</div><div class="finance-tabs" role="tablist"><button type="button" class="active" data-fin-tab="pos-${esc(safeId)}">A. Posiciones OC</button><button type="button" data-fin-tab="cert-${esc(safeId)}">B. Posiciones certificadas</button><button type="button" data-fin-tab="lib-${esc(safeId)}">C. Posiciones libres / saldo</button></div><div id="pos-${esc(safeId)}" class="finance-tab-panel active">${finV54Tabla(r.posOC,'POSICION_OC')}</div><div id="cert-${esc(safeId)}" class="finance-tab-panel">${finV54Tabla(r.cert,'CERTIFICADA')}</div><div id="lib-${esc(safeId)}" class="finance-tab-panel">${finV54Tabla(r.libres,'LIBRE')}</div></section>`;
-}
+
+
+
+
+
+
+
+
+
 function fichaV54EsAdmin(){return (typeof adminIsEnabled==='function'&&adminIsEnabled())||(typeof sesionActual==='function'&&sesionActual()?.rol==='Administrador');}
 function fichaV54Key(item){return item?.idObra||item?.idOC||item?.idServicio||item?.ID_SERVICIO||item?.oc||item?.numeroOC||'';}
 function fichaV54Encontrar(id){return typeof obtenerOC==='function'?obtenerOC(id):null;}
@@ -7200,45 +7200,45 @@ function finV55InferirTipo(row,tipoBloque=''){
   if(tieneActa||tieneFechaActa||tieneCert)return 'CERTIFICADA';
   return 'POSICION_OC';
 }
-function normalizarRegistroFinanciero(row,tipoBloque=''){
-  row=row||{};
-  const tipo=finV55InferirTipo(row,tipoBloque);
-  const ocNro=String(finV55Texto(row,'OC','OC_NRO','ocNro','oc','numeroOC'));
-  const match=typeof finBuscarOC==='function'?finBuscarOC(ocNro):null,item=match?.item||{};
-  const cantidad=normalizarCantidadFinanciera(finV55Texto(row,'CANTIDAD','cantidad','cantidadTotal'));
-  const precioUnitario=normalizarMontoFinanciero(finV55Texto(row,'PRECIO_UNITARIO','precioUnitario'));
-  const precioTotalRaw=normalizarMontoFinanciero(finV55Texto(row,'PRECIO_TOTAL','precioTotal','montoPosicion'));
-  const precioTotal=precioTotalRaw||(cantidad&&precioUnitario?cantidad*precioUnitario:0);
-  const reg={
-    idPosicionFinanciera:row.idPosicionFinanciera||`FIN-${Date.now()}-${Math.random().toString(16).slice(2,8)}`,
-    ocNro,
-    idObra:row.idObra||item.idObra||item.idOC||'',
-    idServicio:row.idServicio||item.idServicio||item.ID_SERVICIO||'',
-    tipoRegistro:row.tipoRegistro||item.tipo||match?.tipo||'',
-    tipoBloqueFinanciero:tipo,
-    remito:finV55Texto(row,'REMITO','remito'),
-    posicion:finV55Texto(row,'POS','POSICION','posicion'),
-    descripcion:finV55Texto(row,'DESCRIPCION','DESCRIPCIÓN','descripcion','descripcionPosicion'),
-    cantidad,
-    precioUnitario,
-    precioTotal,
-    periodo:finV55Texto(row,'PERIODO','periodo'),
-    saldo:normalizarMontoFinanciero(finV55Texto(row,'SALDO','saldo','saldoMonto')),
-    mes:finV55Texto(row,'MES','mes'),
-    actaNro:finV55Texto(row,'ACTA_NRO','ACTA Nº','ACTA N°','actaNro','actaMedicionNro'),
-    fechaActa:normalizarFechaFinanciera(finV55Texto(row,'FECHA_ACTA','FECHA ACTA','fechaActa')),
-    fechaCarga:row.fechaCarga||new Date().toISOString(),
-    fechaUltimaModificacion:new Date().toISOString()
-  };
-  reg.descripcionPosicion=reg.descripcion;
-  reg.cantidadTotal=reg.cantidad;
-  reg.montoPosicion=reg.precioTotal;
-  reg.saldoMonto=reg.saldo;
-  reg.periodoMes=reg.mes;
-  reg.actaMedicionNro=reg.actaNro;
-  reg.montoCertificado=tipo==='CERTIFICADA'?reg.precioTotal:0;
-  return reg;
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function finV55MigrarMemoria(){
   posicionesFinancieras=(Array.isArray(posicionesFinancieras)?posicionesFinancieras:[]).map(p=>normalizarRegistroFinanciero(p,p.tipoBloqueFinanciero||''));
 }
@@ -7283,14 +7283,14 @@ function guardarCargaFinanciera(){
   alert(`Carga financiera guardada. Nuevas: ${guardados}. Actualizadas: ${actualizados}.`);
 }
 function limpiarGrillaCargaFinanciera(){renderCargaFinanciera();if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent='Grilla financiera limpia. Seleccione un tipo y pegue desde Excel.';$('cargaRapidaMsg').className='quick-load-msg';}}
-function obtenerPosicionesFinancierasPorOC(ocNro){finV55MigrarMemoria();const n=normalizarTexto(String(ocNro||''));return posicionesFinancieras.filter(p=>normalizarTexto(String(p.ocNro||''))===n);}
-function obtenerPosicionesPorOC(ocNro){return obtenerPosicionesFinancierasPorOC(ocNro);}
-function calcularResumenFinancieroOC(ocNro){
-  const lista=obtenerPosicionesFinancierasPorOC(ocNro),posOC=lista.filter(p=>p.tipoBloqueFinanciero==='POSICION_OC'),cert=lista.filter(p=>p.tipoBloqueFinanciero==='CERTIFICADA'),libres=lista.filter(p=>p.tipoBloqueFinanciero==='LIBRE');
-  const sum=arr=>arr.reduce((a,p)=>a+Number(p.precioTotal||0),0);
-  const totalPosiciones=sum(posOC),totalCertificado=sum(cert),totalLibre=sum(libres),saldo=totalPosiciones-totalCertificado;
-  return {lista,posOC,cert,libres,totalPosiciones,totalCertificado,totalLibre,saldo,cantidadPosicionesOC:posOC.length,cantidadCertificadas:cert.length,cantidadLibres:libres.length};
-}
+
+
+
+
+
+
+
+
 function calcularTotalesFinancieros(lista=posicionesFinancieras){
   finV55MigrarMemoria();
   const l=lista.map(p=>normalizarRegistroFinanciero(p,p.tipoBloqueFinanciero));
@@ -7303,11 +7303,11 @@ function finV55Tabla(lista,tipo){
   }).join('');
   return `<div class="finance-table-wrap"><table class="finance-table v54"><thead><tr>${cfg.headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows||`<tr><td colspan="${cfg.headers.length}">Sin registros para este tipo.</td></tr>`}</tbody></table></div>`;
 }
-function renderEstadoFinancieroOC(oc){
-  if(!oc)return'';const ocNro=finV54OCNro(oc),r=calcularResumenFinancieroOC(ocNro),safeId=slugOC(ocNro||obtenerIdOCV52(oc)||'OC');
-  const kpis=[['Total Posiciones OC',finFormatoMonto(r.totalPosiciones,'ARS')],['Total Certificado',finFormatoMonto(r.totalCertificado,'ARS')],['Total Libre',finFormatoMonto(r.totalLibre,'ARS')],['Saldo',finFormatoMonto(r.saldo,'ARS')],['Cantidad posiciones OC',r.cantidadPosicionesOC],['Cantidad posiciones certificadas',r.cantidadCertificadas],['Cantidad posiciones libres',r.cantidadLibres]].map(x=>`<div class="finance-kpi"><b>${esc(x[1])}</b><span>${esc(x[0])}</span></div>`).join('');
-  return `<section class="expediente-card full" data-fin-oc="${esc(safeId)}"><div class="finance-advanced-head"><div><h3>4. Estado Financiero</h3><p class="muted">Carga financiera por Posiciones OC, Certificadas y Libres.</p></div></div><div class="finance-summary">${kpis}</div><div class="finance-tabs" role="tablist"><button type="button" class="active" data-fin-tab="pos-${esc(safeId)}">Posiciones OC</button><button type="button" data-fin-tab="cert-${esc(safeId)}">Posiciones Certificadas</button><button type="button" data-fin-tab="lib-${esc(safeId)}">Posiciones Libres</button></div><div id="pos-${esc(safeId)}" class="finance-tab-panel active">${finV55Tabla(r.posOC,'POSICION_OC')}</div><div id="cert-${esc(safeId)}" class="finance-tab-panel">${finV55Tabla(r.cert,'CERTIFICADA')}</div><div id="lib-${esc(safeId)}" class="finance-tab-panel">${finV55Tabla(r.libres,'LIBRE')}</div></section>`;
-}
+
+
+
+
+
 function exportarPosicionesFinancierasCSV(){
   finV55MigrarMemoria();
   const h=['idPosicionFinanciera','ocNro','idObra','idServicio','tipoRegistro','tipoBloqueFinanciero','remito','posicion','descripcion','cantidad','precioUnitario','precioTotal','periodo','saldo','mes','actaNro','fechaActa','fechaCarga','fechaUltimaModificacion'];
@@ -7848,16 +7848,16 @@ function eliminarFotoOC(idObra,idFoto){
   renderFichaOC(v59KeyOC(oc));
 }
 
-function guardarObservacionOC(idObra){
-  const found=v59BuscarOC(idObra), oc=found?.item||found, txt=($('v59ObsOC')?.value||'').trim();
-  if(!oc)return;
-  if(!txt){alert('Escriba una observacion antes de guardar.');return;}
-  normalizarOC(oc);
-  oc.observacionesHistorial.push({idObs:'OBS-'+Date.now()+'-'+Math.random().toString(16).slice(2,8),fecha:v59Now(),texto:txt,usuario:'Local'});
-  oc.fechaUltimaModificacion=v59Now();
-  v59GuardarBase();
-  renderFichaOC(v59KeyOC(oc));
-}
+
+
+
+
+
+
+
+
+
+
 
 function cerrarOC(idObra){
   const found=v59BuscarOC(idObra||ocActualId||$('f_idObra')?.value), oc=found?.item||found;
