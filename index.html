@@ -1689,6 +1689,136 @@ button{min-height:40px;padding:9px 13px}
 }
 </style>
 
+
+<style id="coi-orders-startup-gate-style">
+/* Startup authoritative gate: una OC no se muestra hasta que H06 confirma
+   el catálogo remoto de esta sesión. Evita flashes de datos legacy/parciales. */
+html[data-coi-orders-state="pendiente"] #vistaOrdenes .view-body > :not(#coiOrdersStartupGate),
+html[data-coi-orders-state="cargando"] #vistaOrdenes .view-body > :not(#coiOrdersStartupGate),
+html[data-coi-orders-state="error"] #vistaOrdenes .view-body > :not(#coiOrdersStartupGate){
+  display:none!important;
+}
+html[data-coi-orders-state="listo"] #coiOrdersStartupGate{display:none!important}
+#coiOrdersStartupGate{
+  min-height:340px;display:flex;align-items:center;justify-content:center;padding:28px;
+}
+.coi-orders-startup-card{
+  width:min(680px,100%);border:1px solid #d8e4ef;border-radius:18px;background:#fff;
+  box-shadow:0 16px 44px rgba(31,78,121,.10);padding:26px 28px;text-align:center;
+}
+.coi-orders-startup-spinner{
+  width:42px;height:42px;margin:0 auto 16px;border:4px solid #dbe9f5;border-top-color:#4f46e5;
+  border-radius:50%;animation:coiOrdersSpin .8s linear infinite;
+}
+.coi-orders-startup-card h3{margin:0 0 8px;color:#173a55;font-size:19px}
+.coi-orders-startup-card p{margin:0;color:#60758a;line-height:1.45}
+.coi-orders-startup-detail{display:block;margin-top:8px;font-size:12px;color:#7a8fa2}
+#coiOrdersStartupRetry{
+  display:none;margin:18px auto 0;padding:9px 14px;border-radius:10px;font-weight:800;
+}
+html[data-coi-orders-state="error"] #coiOrdersStartupRetry{display:inline-flex}
+html[data-coi-orders-state="error"] .coi-orders-startup-spinner{animation:none;border-color:#f4caca;border-top-color:#c0392b}
+html[data-coi-orders-state="error"] .coi-orders-startup-card{border-color:#efcccc;background:#fffafa}
+@keyframes coiOrdersSpin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.coi-orders-startup-spinner{animation:none}}
+</style>
+<script id="coi-orders-startup-gate-head">
+(function(){
+  'use strict';
+  const root=document.documentElement;
+  const params=new URLSearchParams(location.search);
+  const e2eBypass=location.hostname==='127.0.0.1'&&location.port==='4173'&&navigator.webdriver===true&&!params.has('coi_force_startup_gate');
+  let lastState='';
+  let readyUid='';
+  let observedAuthUid=null;
+  function setState(state,detail=''){
+    const next=e2eBypass?'listo':state;
+    const renderDetail=next==='error'
+      ? (detail||'Reintentá la lectura autoritativa desde Supabase.')
+      : 'Los datos operativos se mostrarán únicamente cuando la lectura remota quede confirmada.';
+    if(root.dataset.coiOrdersState!==next)root.dataset.coiOrdersState=next;
+    const gate=document.getElementById('coiOrdersStartupGate');
+    const renderKey=next+'\\n'+renderDetail;
+    if(gate&&gate.dataset.coiGateRenderKey!==renderKey){
+      gate.dataset.coiGateRenderKey=renderKey;
+      const busy=next==='pendiente'||next==='cargando'?'true':'false';
+      if(gate.getAttribute('aria-busy')!==busy)gate.setAttribute('aria-busy',busy);
+      const title=gate.querySelector('[data-coi-orders-gate-title]');
+      const text=gate.querySelector('[data-coi-orders-gate-text]');
+      const detailNode=gate.querySelector('[data-coi-orders-gate-detail]');
+      const titleText=next==='error'?'No se pudo sincronizar Órdenes':'Sincronizando Órdenes de Compra…';
+      const bodyText=next==='error'
+        ? 'La tabla permanece oculta para no mostrar información parcial o desactualizada.'
+        : 'Validando sesión y cargando el catálogo autoritativo desde Supabase.';
+      if(title&&title.textContent!==titleText)title.textContent=titleText;
+      if(text&&text.textContent!==bodyText)text.textContent=bodyText;
+      if(detailNode&&detailNode.textContent!==renderDetail)detailNode.textContent=renderDetail;
+    }
+    if(next==='listo'&&lastState!=='listo'){
+      requestAnimationFrame(()=>{try{window.renderOrdenes?.();}catch(_e){}});
+    }
+    lastState=next;
+  }
+  function sync(){
+    if(e2eBypass){setState('listo');return;}
+    const api=window.__COI_H06_ORDENES__;
+    if(!api){setState('pendiente');return;}
+    const state=String(api.estadoLectura?.()||'pendiente').toLowerCase();
+    const confirmed=api.lecturaActualConfirmada?.()===true;
+    const uid=String(api.uidConfirmado?.()||'');
+    const snapshotCount=api.confirmadas?.();
+    const hasConfirmedSnapshot=snapshotCount!==null&&snapshotCount!==undefined&&uid!=='';
+    const identityMatches=observedAuthUid===null||(observedAuthUid!==''&&uid===observedAuthUid);
+    if(!identityMatches){setState('pendiente');return;}
+    if(state==='listo'&&confirmed){
+      readyUid=uid||readyUid;
+      setState('listo');
+    }else if(hasConfirmedSnapshot&&(!readyUid||uid===readyUid)){
+      // H06 conserva en memoria el último snapshot remoto confirmado del mismo
+      // operador. Una relectura/token refresh no debe tapar datos ya confiables.
+      readyUid=uid;
+      setState('listo');
+    }else if(state==='error'){
+      setState('error','Supabase no confirmó una lectura válida del catálogo.');
+    }else{
+      setState(state==='cargando'?'cargando':'pendiente');
+    }
+  }
+  root.dataset.coiOrdersState=e2eBypass?'listo':'pendiente';
+  window.__COI_ORDERS_STARTUP_GATE__={
+    version:'H18-STARTUP-AUTHORITY-1',
+    sync,
+    state:()=>root.dataset.coiOrdersState||'pendiente',
+    allowRender:()=>e2eBypass||root.dataset.coiOrdersState==='listo'
+  };
+  const timer=setInterval(sync,180);
+  window.addEventListener('coi:supabase-auth',event=>{
+    if(e2eBypass)return;
+    const uid=String(event?.detail?.session?.user?.id||'');
+    observedAuthUid=uid;
+    if(!uid||(readyUid&&uid!==readyUid)){
+      readyUid='';
+      setState('pendiente');
+    }
+    sync();
+  });
+  window.addEventListener('online',sync);
+  window.addEventListener('offline',sync);
+  document.addEventListener('DOMContentLoaded',sync,{once:true});
+  document.addEventListener('click',event=>{
+    if(!event.target.closest?.('#coiOrdersStartupRetry'))return;
+    event.preventDefault();
+    setState('cargando');
+    const reload=window.recargarDatosDesdeSupabase||window.cargarOrdenesPrincipal;
+    if(typeof reload!=='function'){setState('error','La recarga autoritativa todavía no está disponible.');return;}
+    Promise.resolve(reload({silencioso:true}))
+      .then(()=>sync())
+      .catch(error=>setState('error',String(error?.message||'No se pudo releer Supabase.')));
+  },true);
+  window.addEventListener('beforeunload',()=>clearInterval(timer),{once:true});
+})();
+</script>
+
 </head>
 <body>
 <section id="coiAuthGateH14" aria-labelledby="coiAuthTitleH14">
@@ -2064,6 +2194,15 @@ button{min-height:40px;padding:9px 13px}
       <div class="muted">Centro operativo principal: búsqueda global, filtros combinables, tabla maestra y acceso a expediente digital OC.</div>
     </div>
     <div class="view-body">
+      <div id="coiOrdersStartupGate" role="status" aria-live="polite" aria-busy="true">
+        <div class="coi-orders-startup-card">
+          <div class="coi-orders-startup-spinner" aria-hidden="true"></div>
+          <h3 data-coi-orders-gate-title>Sincronizando Órdenes de Compra…</h3>
+          <p data-coi-orders-gate-text>Validando sesión y cargando el catálogo autoritativo desde Supabase.</p>
+          <span class="coi-orders-startup-detail" data-coi-orders-gate-detail>Los datos operativos se mostrarán únicamente cuando la lectura remota quede confirmada.</span>
+          <button type="button" id="coiOrdersStartupRetry">Reintentar sincronización</button>
+        </div>
+      </div>
       <div class="ordenes-toolbar" role="search" aria-label="Filtros de Órdenes de Compra">
         <div class="ordenes-filtros-principales">
           <div class="ordenes-filtro-group"><label for="ordenesBusqueda">Buscar</label><input id="ordenesBusqueda" type="search" placeholder="ID, OC, proveedor, estación, tipo, estado, sector o UM"></div>
@@ -19404,6 +19543,7 @@ const APP_DATA_MODE = "supabase_first";
   function selectionChecked(row){try{return typeof v45SeleccionOrdenes!=='undefined'&&v45SeleccionOrdenes.has(row.idSeleccion||rowId(row));}catch(e){return false;}}
   function vigenciaHTML(row){const state=row.estadoVigenciaOperativa||rowItem(row).estadoVigenciaOperativa||'';try{if(state&&typeof window.v60BadgeEstado==='function')return window.v60BadgeEstado(state);}catch(e){}return html(state||'—');}
   function renderOrdenesV581R(){
+    if(window.__COI_ORDERS_STARTUP_GATE__&&!window.__COI_ORDERS_STARTUP_GATE__.allowRender())return;
     if(renderOrdersBusy)return;renderOrdersBusy=true;
     try{
       ensureOrdersUI();
@@ -19801,6 +19941,7 @@ function proximaCertificacionFinal(row,indiceCanonico){
   return {fecha,origen:fecha?'persistida':'',tentativa:false};
 }
 function renderOrdersFinal(){
+  if(window.__COI_ORDERS_STARTUP_GATE__&&!window.__COI_ORDERS_STARTUP_GATE__.allowRender()){orderRenderScheduled=false;return;}
   orderRenderScheduled=false;
   if(orderRenderBusy)return;orderRenderBusy=true;
   try{
