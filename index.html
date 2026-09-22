@@ -28463,6 +28463,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     let ocPorConfirmar = null;
     let ocSinCambios = false;
     if (datos.oc && texto(ocOriginal) && clave(datos.oc) === clave(ocOriginal)) {
+      // Sin cambios: se conserva la OC ya persistida y no se revalida
       nroOC = texto(ocOriginal);
       ocSinCambios = true;
     } else if (datos.oc) {
