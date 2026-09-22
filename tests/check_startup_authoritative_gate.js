@@ -80,12 +80,18 @@ check(html.includes('<link rel="preconnect" href="https://ooepgbzqlpjrtpaoqawc.s
 check(supabaseLoaderPos>preloadPos,
   'el preload debe anteceder al loader dinámico de supabase-js');
 
-check(html.includes("if (options.coalescer === true) return false;"),
-  'las solicitudes Auth/startup concurrentes deben coalescer sin encadenar otra lectura completa');
-check(html.includes("cargarOrdenesPrincipal({ coalescer: true, origen: 'startup-session' })"),
+check(html.includes("options.coalescer === true && requestedUid && requestedUid === supabaseCargaUid"),
+  'solo se coalescen lecturas concurrentes de la misma identidad');
+check(html.includes("supabaseCargaPendiente = true;"),
+  'una lectura concurrente de otra identidad debe quedar encolada');
+check(html.includes("supabaseCargaUid = null;"),
+  'la identidad de la lectura en vuelo debe limpiarse al finalizar');
+check(html.includes("cargarOrdenesPrincipal({ coalescer: true, origen: 'startup-session', authUid: user.id })"),
   'la verificación inicial de sesión debe usar la vía coalescida');
 check(html.includes("event === 'SIGNED_IN'"),
   'SIGNED_IN debe conservar la capacidad de cargar cuando realmente hace falta');
+check(html.includes("authUid: session.user.id"),
+  'la recarga SIGNED_IN debe identificar explícitamente al usuario que la solicitó');
 check(html.includes("ordenesLecturaEstado === 'listo' &&\n                  ordenesConfirmadasUid === session.user.id"),
   'SIGNED_IN repetido del mismo usuario no debe releer un catálogo ya confirmado');
 check(!html.includes("['SIGNED_IN', 'TOKEN_REFRESHED', 'INITIAL_SESSION', 'USER_UPDATED'].includes(event) && session?.user)"),
