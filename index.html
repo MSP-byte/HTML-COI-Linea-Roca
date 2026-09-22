@@ -7321,6 +7321,7 @@ function organizarSubmodulosFichaOC(idOC){
 const _renderFichaOCV63Base=typeof renderFichaOC==='function'?renderFichaOC:null;
 if(_renderFichaOCV63Base){renderFichaOC=function(idOC){_renderFichaOCV63Base(idOC);organizarSubmodulosFichaOC(idOC);};}
 document.addEventListener('click',ev=>{const btn=ev.target.closest('[data-ficha-submodulo]');if(!btn)return;ev.preventDefault();activarSubmoduloFichaOC(btn.dataset.fichaSubmodulo);});
+/* `public.coi_documentacion_oc` NO existe; retirada. El unico camino documental activo es Supabase Storage. */
 const LS_DOCUMENTACION_OC_V64='coi_documentacion_oc';
 const DOC_TIPOS_OC_V64=['Acta de Inicio','Acta de Medición','Acta Final','Remito','Factura','Declaración Jurada','Constancia SERCAE','Print SERCAE','Póliza / Seguro','Nota / Comunicación','Informe Técnico','Foto / Evidencia','Otro'];
 const DOC_REPOSITORIOS_OC_V64=['SharePoint','OneDrive','Google Drive','Carpeta local','Otro'];
