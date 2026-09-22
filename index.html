@@ -1729,6 +1729,7 @@ html[data-coi-orders-state="error"] .coi-orders-startup-card{border-color:#efccc
   const params=new URLSearchParams(location.search);
   const e2eBypass=location.hostname==='127.0.0.1'&&location.port==='4173'&&navigator.webdriver===true&&!params.has('coi_force_startup_gate');
   let lastState='';
+  let readyUid='';
   function setState(state,detail=''){
     const next=e2eBypass?'listo':state;
     if(root.dataset.coiOrdersState!==next)root.dataset.coiOrdersState=next;
@@ -1759,9 +1760,22 @@ html[data-coi-orders-state="error"] .coi-orders-startup-card{border-color:#efccc
     if(!api){setState('pendiente');return;}
     const state=String(api.estadoLectura?.()||'pendiente').toLowerCase();
     const confirmed=api.lecturaActualConfirmada?.()===true;
-    if(state==='listo'&&confirmed)setState('listo');
-    else if(state==='error')setState('error','Supabase no confirmó una lectura válida del catálogo.');
-    else setState(state==='cargando'?'cargando':'pendiente');
+    const uid=String(api.uidConfirmado?.()||'');
+    const snapshotCount=api.confirmadas?.();
+    const hasConfirmedSnapshot=snapshotCount!==null&&snapshotCount!==undefined&&uid!=='';
+    if(state==='listo'&&confirmed){
+      readyUid=uid||readyUid;
+      setState('listo');
+    }else if(hasConfirmedSnapshot&&(!readyUid||uid===readyUid)){
+      // H06 conserva en memoria el último snapshot remoto confirmado del mismo
+      // operador. Una relectura/token refresh no debe tapar datos ya confiables.
+      readyUid=uid;
+      setState('listo');
+    }else if(state==='error'){
+      setState('error','Supabase no confirmó una lectura válida del catálogo.');
+    }else{
+      setState(state==='cargando'?'cargando':'pendiente');
+    }
   }
   root.dataset.coiOrdersState=e2eBypass?'listo':'pendiente';
   window.__COI_ORDERS_STARTUP_GATE__={
@@ -1771,7 +1785,15 @@ html[data-coi-orders-state="error"] .coi-orders-startup-card{border-color:#efccc
     allowRender:()=>e2eBypass||root.dataset.coiOrdersState==='listo'
   };
   const timer=setInterval(sync,180);
-  window.addEventListener('coi:supabase-auth',()=>{if(!e2eBypass)setState('pendiente');sync();});
+  window.addEventListener('coi:supabase-auth',event=>{
+    if(e2eBypass)return;
+    const uid=String(event?.detail?.session?.user?.id||'');
+    if(!uid||(readyUid&&uid!==readyUid)){
+      readyUid='';
+      setState('pendiente');
+    }
+    sync();
+  });
   window.addEventListener('online',sync);
   window.addEventListener('offline',sync);
   document.addEventListener('DOMContentLoaded',sync,{once:true});
