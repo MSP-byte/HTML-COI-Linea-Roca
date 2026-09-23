@@ -9,10 +9,19 @@
 <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
 <link rel="dns-prefetch" href="//ooepgbzqlpjrtpaoqawc.supabase.co">
 <link rel="preload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2" as="script" crossorigin fetchpriority="high">
+<script id="coi-supabase-config">
+window.__COI_SUPABASE_CONFIG__=window.__COI_SUPABASE_CONFIG__||{
+  enabled:true,
+  url:'https://ooepgbzqlpjrtpaoqawc.supabase.co',
+  key:'sb_publishable_jsbYq_s9RO6Dq9TrfRAYtA_5mq7kWSs'
+};
+</script>
 <script id="coi-supabase-early-bootstrap">
 (function(){
   'use strict';
   if(window.__coiSupabaseReady)return;
+  const cfg=window.__COI_SUPABASE_CONFIG__;
+  if(!cfg||cfg.enabled!==true||!cfg.url||!cfg.key)return;
   const urls=[
     'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2',
     'https://unpkg.com/@supabase/supabase-js@2.112.2/dist/umd/supabase.js'
@@ -46,8 +55,8 @@
     if(!ok||!window.supabase||typeof window.supabase.createClient!=='function')return null;
     if(window.__COI_SUPABASE_CLIENT__)return window.__COI_SUPABASE_CLIENT__;
     const client=window.supabase.createClient(
-      'https://ooepgbzqlpjrtpaoqawc.supabase.co',
-      'sb_publishable_jsbYq_s9RO6Dq9TrfRAYtA_5mq7kWSs',
+      cfg.url,
+      cfg.key,
       {auth:{persistSession:true,storage:window.sessionStorage,autoRefreshToken:true,detectSessionInUrl:true}}
     );
     window.__COI_SUPABASE_CLIENT__=client;
@@ -15300,11 +15309,7 @@ const APP_DATA_MODE = "supabase_first";
 (function () {
   'use strict';
 
-  const SUPABASE_CONFIG = {
-    enabled: true,
-    url: "https://ooepgbzqlpjrtpaoqawc.supabase.co",
-    key: "sb_publishable_jsbYq_s9RO6Dq9TrfRAYtA_5mq7kWSs"
-  };
+  const SUPABASE_CONFIG = window.__COI_SUPABASE_CONFIG__ || { enabled: false, url: '', key: '' };
 
   const SUPABASE_TABLE = 'coi_ordenes';
   const SUPABASE_STATIONS_TABLE = 'coi_ordenes_estaciones';
