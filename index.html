@@ -14200,998 +14200,998 @@ background: #fff;
 
 <script id="coi-certificaciones-r20-script">
 (function(){
-'use strict';
+  'use strict';
 
-const CERTIFICACIONES_TABLE='coi_certificaciones';
-const ORDENES_TABLE='coi_ordenes';
-const CERTIFICACION_LEGACY_KEYS=['coi_certificaciones_oc','coi_certificaciones_acta_inicio_v581r1'];
-const CERTIFICACION_CONFLICT_FIELDS='nro_oc,acta_medicion_nro,item_nro,posicion,fecha_inicio,fecha_fin';
-const CERTIFICACION_CONFIGS={
-Servicio:{
-fields:[
-'tipo_servicio','acta_medicion_nro','proxima_acta_medicion_fecha','nro_oc','fecha_inicio','fecha_fin',
-'item_nro','descripcion','posicion','nro_hes','nro_if','cantidad','unidad_medida','servicio_ejecutado_anterior',
-'servicio_ejecutado_periodo','servicio_ejecutado_acumulado','aux_porcentaje','proveedor','tipo_um',
-'actores_firmantes','ejecutado_100','anexo_fotografia_actas','anio'
-],
-headers:[
-'TIPO DE SERVICIO','ACTA MEDICION N°','PROX ACTA MED. FECHA','OC','FECHA INICIO','FECHA FIN',
-'ITEM_NRO','Descripcion','POS SAP','N° HES','N° IF','CANT','UM','SERVC EJEC. ANT','SERV.EJEC.PTE',
-'SERV EJEC. ACUM','AUX %','PROVEEDOR','TIPO_UM','ACTORES FIRMANTES','EJECUTADO 100%',
-'ANEXO FOTOGRAFIA ACTAS','AÑO'
-]
-},
-Obra:{
-fields:[
-'id_obra','tipo_servicio','acta_medicion_nro','proxima_acta_medicion_fecha','nro_oc','fecha_inicio','fecha_fin',
-'item_nro','descripcion','cantidad','unidad_medida','servicio_ejecutado_anterior','servicio_ejecutado_periodo',
-'servicio_ejecutado_acumulado','aux_porcentaje','actores_firmantes','ejecutado_100','posicion','nro_hes','nro_if','anio'
-],
-headers:[
-'ID OBRA','TIPO DE SERVICIO','ACTA MEDICION N°','PROX ACTA MED FECHA','OC','FECHA INICIO','FECHA FIN',
-'ITEM_NRO','Descripcion','CANT','UM','SERVC EJEC. ANT','SERV.EJEC.PTE','SERV EJEC. ACUM','AUX %',
-'ACTORES FIRMANTES','EJECUTADO 100%','POS SAP','N° HES','N° IF','AÑO'
-]
-}
-};
-let tipoGridCertificacion='Servicio';
-let CERTIFICACION_FIELDS=[...CERTIFICACION_CONFIGS.Servicio.fields];
-let CERTIFICACION_HEADERS=[...CERTIFICACION_CONFIGS.Servicio.headers];
-const certificacionBorradores={Servicio:[],Obra:[]};
-const DATE_FIELDS=new Set(['proxima_acta_medicion_fecha','fecha_inicio','fecha_fin']);
-const NUMERIC_FIELDS=new Set([
-'acta_medicion_nro','item_nro','cantidad','servicio_ejecutado_anterior',
-'servicio_ejecutado_periodo','servicio_ejecutado_acumulado','aux_porcentaje','anio'
-]);
-const INTEGER_FIELDS=new Set(['acta_medicion_nro','item_nro','anio']);
-const GENERATED_FIELDS=new Set(['servicio_ejecutado_acumulado','aux_porcentaje']);
-const certificacionesCacheOC=new Map();
-let submodoCargaCertificacion='principal';
-let eventosCargaCertificacionInicializados=false;
-let guardandoCargaCertificaciones=false;
+  const CERTIFICACIONES_TABLE='coi_certificaciones';
+  const ORDENES_TABLE='coi_ordenes';
+  const CERTIFICACION_LEGACY_KEYS=['coi_certificaciones_oc','coi_certificaciones_acta_inicio_v581r1'];
+  const CERTIFICACION_CONFLICT_FIELDS='nro_oc,acta_medicion_nro,item_nro,posicion,fecha_inicio,fecha_fin';
+  const CERTIFICACION_CONFIGS={
+    Servicio:{
+      fields:[
+        'tipo_servicio','acta_medicion_nro','proxima_acta_medicion_fecha','nro_oc','fecha_inicio','fecha_fin',
+        'item_nro','descripcion','posicion','nro_hes','nro_if','cantidad','unidad_medida','servicio_ejecutado_anterior',
+        'servicio_ejecutado_periodo','servicio_ejecutado_acumulado','aux_porcentaje','proveedor','tipo_um',
+        'actores_firmantes','ejecutado_100','anexo_fotografia_actas','anio'
+      ],
+      headers:[
+        'TIPO DE SERVICIO','ACTA MEDICION N°','PROX ACTA MED. FECHA','OC','FECHA INICIO','FECHA FIN',
+        'ITEM_NRO','Descripcion','POS SAP','N° HES','N° IF','CANT','UM','SERVC EJEC. ANT','SERV.EJEC.PTE',
+        'SERV EJEC. ACUM','AUX %','PROVEEDOR','TIPO_UM','ACTORES FIRMANTES','EJECUTADO 100%',
+        'ANEXO FOTOGRAFIA ACTAS','AÑO'
+      ]
+    },
+    Obra:{
+      fields:[
+        'id_obra','tipo_servicio','acta_medicion_nro','proxima_acta_medicion_fecha','nro_oc','fecha_inicio','fecha_fin',
+        'item_nro','descripcion','cantidad','unidad_medida','servicio_ejecutado_anterior','servicio_ejecutado_periodo',
+        'servicio_ejecutado_acumulado','aux_porcentaje','actores_firmantes','ejecutado_100','posicion','nro_hes','nro_if','anio'
+      ],
+      headers:[
+        'ID OBRA','TIPO DE SERVICIO','ACTA MEDICION N°','PROX ACTA MED FECHA','OC','FECHA INICIO','FECHA FIN',
+        'ITEM_NRO','Descripcion','CANT','UM','SERVC EJEC. ANT','SERV.EJEC.PTE','SERV EJEC. ACUM','AUX %',
+        'ACTORES FIRMANTES','EJECUTADO 100%','POS SAP','N° HES','N° IF','AÑO'
+      ]
+    }
+  };
+  let tipoGridCertificacion='Servicio';
+  let CERTIFICACION_FIELDS=[...CERTIFICACION_CONFIGS.Servicio.fields];
+  let CERTIFICACION_HEADERS=[...CERTIFICACION_CONFIGS.Servicio.headers];
+  const certificacionBorradores={Servicio:[],Obra:[]};
+  const DATE_FIELDS=new Set(['proxima_acta_medicion_fecha','fecha_inicio','fecha_fin']);
+  const NUMERIC_FIELDS=new Set([
+    'acta_medicion_nro','item_nro','cantidad','servicio_ejecutado_anterior',
+    'servicio_ejecutado_periodo','servicio_ejecutado_acumulado','aux_porcentaje','anio'
+  ]);
+  const INTEGER_FIELDS=new Set(['acta_medicion_nro','item_nro','anio']);
+  const GENERATED_FIELDS=new Set(['servicio_ejecutado_acumulado','aux_porcentaje']);
+  const certificacionesCacheOC=new Map();
+  let submodoCargaCertificacion='principal';
+  let eventosCargaCertificacionInicializados=false;
+  let guardandoCargaCertificaciones=false;
 
-const byId=id=>document.getElementById(id);
-const clean=value=>String(value??'').trim();
-const fold=value=>clean(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ');
-const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-const currentYear=()=>new Date().getFullYear();
-const isUUID=value=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(value));
+  const byId=id=>document.getElementById(id);
+  const clean=value=>String(value??'').trim();
+  const fold=value=>clean(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,' ');
+  const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const currentYear=()=>new Date().getFullYear();
+  const isUUID=value=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(value));
 
-function normalizarTextoCertificacion(value){return clean(value);}
+  function normalizarTextoCertificacion(value){return clean(value);}
 
-function normalizarNroOCCertificacion(value){
-let raw=clean(value).split('·')[0].trim().toUpperCase();
-raw=raw.replace(/^N[°º]?\s*OC\s*[:#-]?\s*/i,'');
-raw=raw.replace(/^OC\s*[:#-]?\s*(?=\d)/i,'');
-return raw.replace(/\s+/g,'');
-}
+  function normalizarNroOCCertificacion(value){
+    let raw=clean(value).split('·')[0].trim().toUpperCase();
+    raw=raw.replace(/^N[°º]?\s*OC\s*[:#-]?\s*/i,'');
+    raw=raw.replace(/^OC\s*[:#-]?\s*(?=\d)/i,'');
+    return raw.replace(/\s+/g,'');
+  }
 
-function obtenerNroOCCertificacion(data){
-if(!data||typeof data!=='object')return normalizarNroOCCertificacion(data);
-return normalizarNroOCCertificacion(data.nro_oc??data.oc??data.OC??data.nroOC??data.numeroOC??data.OC_NRO??data.ocNro);
-}
+  function obtenerNroOCCertificacion(data){
+    if(!data||typeof data!=='object')return normalizarNroOCCertificacion(data);
+    return normalizarNroOCCertificacion(data.nro_oc??data.oc??data.OC??data.nroOC??data.numeroOC??data.OC_NRO??data.ocNro);
+  }
 
-function parsearNumeroCertificacion(value){
-if(typeof value==='number')return {valido:Number.isFinite(value),valor:Number.isFinite(value)?value:0};
-const original=clean(value);
-if(original===''||original==='-')return {valido:true,valor:0};
-let raw=original.replace(/\s/g,'');
-if(raw.includes(',')&&raw.includes('.')){
-raw=raw.lastIndexOf(',')>raw.lastIndexOf('.')?raw.replace(/\./g,'').replace(',','.'):raw.replace(/,/g,'');
-}else if(raw.includes(','))raw=raw.replace(',','.');
-raw=raw.replace(/[$%]/g,'');
-if(!/^-?\d+(?:\.\d+)?$/.test(raw))return {valido:false,valor:0};
-const number=Number(raw);
-return {valido:Number.isFinite(number),valor:Number.isFinite(number)?number:0};
-}
+  function parsearNumeroCertificacion(value){
+    if(typeof value==='number')return {valido:Number.isFinite(value),valor:Number.isFinite(value)?value:0};
+    const original=clean(value);
+    if(original===''||original==='-')return {valido:true,valor:0};
+    let raw=original.replace(/\s/g,'');
+    if(raw.includes(',')&&raw.includes('.')){
+      raw=raw.lastIndexOf(',')>raw.lastIndexOf('.')?raw.replace(/\./g,'').replace(',','.'):raw.replace(/,/g,'');
+    }else if(raw.includes(','))raw=raw.replace(',','.');
+    raw=raw.replace(/[$%]/g,'');
+    if(!/^-?\d+(?:\.\d+)?$/.test(raw))return {valido:false,valor:0};
+    const number=Number(raw);
+    return {valido:Number.isFinite(number),valor:Number.isFinite(number)?number:0};
+  }
 
-function normalizarNumeroCertificacion(value){return parsearNumeroCertificacion(value).valor;}
+  function normalizarNumeroCertificacion(value){return parsearNumeroCertificacion(value).valor;}
 
-function normalizarBooleanoCertificacion(value){
-if(typeof value==='boolean')return value;
-const normalized=fold(value).replace(/\s+/g,'');
-return ['TRUE','SI','SÍ','X','1','100%','COMPLETO','COMPLETADO','EJECUTADO'].includes(normalized);
-}
+  function normalizarBooleanoCertificacion(value){
+    if(typeof value==='boolean')return value;
+    const normalized=fold(value).replace(/\s+/g,'');
+    return ['TRUE','SI','SÍ','X','1','100%','COMPLETO','COMPLETADO','EJECUTADO'].includes(normalized);
+  }
 
-function normalizarFechaCertificacion(value){
-if(value instanceof Date&&!Number.isNaN(value.getTime()))return value.toISOString().slice(0,10);
-const raw=clean(value);
-if(!raw)return '';
-const validParts=(year,month,day)=>{
-const date=new Date(Number(year),Number(month)-1,Number(day));
-return date.getFullYear()===Number(year)&&date.getMonth()===Number(month)-1&&date.getDate()===Number(day);
-};
-let match=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
-if(match&&validParts(match[1],match[2],match[3]))return `${match[1]}-${String(match[2]).padStart(2,'0')}-${String(match[3]).padStart(2,'0')}`;
-match=raw.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2}|\d{4})$/);
-if(match){
-const year=match[3].length===2?`20${match[3]}`:match[3];
-if(validParts(year,match[2],match[1]))return `${year}-${String(match[2]).padStart(2,'0')}-${String(match[1]).padStart(2,'0')}`;
-}
-return '';
-}
+  function normalizarFechaCertificacion(value){
+    if(value instanceof Date&&!Number.isNaN(value.getTime()))return value.toISOString().slice(0,10);
+    const raw=clean(value);
+    if(!raw)return '';
+    const validParts=(year,month,day)=>{
+      const date=new Date(Number(year),Number(month)-1,Number(day));
+      return date.getFullYear()===Number(year)&&date.getMonth()===Number(month)-1&&date.getDate()===Number(day);
+    };
+    let match=raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
+    if(match&&validParts(match[1],match[2],match[3]))return `${match[1]}-${String(match[2]).padStart(2,'0')}-${String(match[3]).padStart(2,'0')}`;
+    match=raw.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2}|\d{4})$/);
+    if(match){
+      const year=match[3].length===2?`20${match[3]}`:match[3];
+      if(validParts(year,match[2],match[1]))return `${year}-${String(match[2]).padStart(2,'0')}-${String(match[1]).padStart(2,'0')}`;
+    }
+    return '';
+  }
 
-function fechaVisible(value){
-const iso=normalizarFechaCertificacion(value);
-if(!iso)return clean(value)||'—';
-const [year,month,day]=iso.split('-');
-return `${day}/${month}/${year}`;
-}
+  function fechaVisible(value){
+    const iso=normalizarFechaCertificacion(value);
+    if(!iso)return clean(value)||'—';
+    const [year,month,day]=iso.split('-');
+    return `${day}/${month}/${year}`;
+  }
 
-function campoHistorico(data,names,fallback=''){
-for(const name of names){
-if(Object.prototype.hasOwnProperty.call(data||{},name)&&clean(data[name])!=='')return data[name];
-}
-return fallback;
-}
+  function campoHistorico(data,names,fallback=''){
+    for(const name of names){
+      if(Object.prototype.hasOwnProperty.call(data||{},name)&&clean(data[name])!=='')return data[name];
+    }
+    return fallback;
+  }
 
-function normalizarCertificacionDesdeSupabase(row={}){
-const cantidad=normalizarNumeroCertificacion(campoHistorico(row,['cantidad','cant','CANT']));
-const anterior=normalizarNumeroCertificacion(campoHistorico(row,['servicio_ejecutado_anterior','serv_ejec_ant','SERV_EJEC_ANT']));
-const periodo=normalizarNumeroCertificacion(campoHistorico(row,['servicio_ejecutado_periodo','serv_ejec_pte','SERV_EJEC_PTE']));
-const acumulado=normalizarNumeroCertificacion(campoHistorico(row,['servicio_ejecutado_acumulado','serv_ejec_acum','SERV_EJEC_ACUM'],anterior+periodo));
-const auxPorcentajePersistido=campoHistorico(row,['aux_porcentaje','aux','AUX'],null);
-const porcentaje=normalizarNumeroCertificacion(auxPorcentajePersistido===null||auxPorcentajePersistido===undefined||clean(auxPorcentajePersistido)===''?(cantidad>0?(acumulado/cantidad)*100:0):auxPorcentajePersistido);
-return {
-id:row.id??null,
-_legacy:!!row._legacy,
-orden_id:row.orden_id??null,
-id_obra:clean(campoHistorico(row,['id_obra','idObra','ID_OBRA'])),
-tipo_servicio:clean(campoHistorico(row,['tipo_servicio','tipoServicio','tipo','TIPO_DE_SERVICIO'])),
-acta_medicion_nro:clean(campoHistorico(row,['acta_medicion_nro','acta_medicion','actaMedicion','ACTA_MEDICION_NRO','ACTA_MEDICION'],row._legacy?'Histórico':'')),
-proxima_acta_medicion_fecha:normalizarFechaCertificacion(campoHistorico(row,['proxima_acta_medicion_fecha','prox_acta_med','proximaActaMedicionFecha'])),
-nro_oc:obtenerNroOCCertificacion(row),
-fecha_inicio:normalizarFechaCertificacion(campoHistorico(row,['fecha_inicio','fechaInicio','actaInicio','ACTA_INICIO'])),
-fecha_fin:normalizarFechaCertificacion(campoHistorico(row,['fecha_fin','fechaFin','fechaVto','FECHA_VTO'])),
-item_nro:clean(campoHistorico(row,['item_nro','itemNro','ITEM_NRO'])),
-descripcion:clean(campoHistorico(row,['descripcion','DESCRIPCION'])),
-posicion:clean(campoHistorico(row,['posicion','pos_sap','POSICION','POS_SAP','POS SAP'])),
-nro_hes:clean(campoHistorico(row,['nro_hes','nroHes','NRO_HES','N° HES'])),
-nro_if:clean(campoHistorico(row,['nro_if','nroIf','NRO_IF','N° IF'])),
-cantidad,
-unidad_medida:clean(campoHistorico(row,['unidad_medida','UM','um','unidadMantenimiento','UNIDAD_MANTENIMIENTO'])),
-servicio_ejecutado_anterior:anterior,
-servicio_ejecutado_periodo:periodo,
-servicio_ejecutado_acumulado:acumulado,
-aux_porcentaje:porcentaje,
-_aux_porcentaje_persistido:auxPorcentajePersistido,
-proveedor:clean(campoHistorico(row,['proveedor','PROVEEDOR','proveed'])),
-tipo_um:clean(campoHistorico(row,['tipo_um','TIPO_UM','tipoUM'])),
-actores_firmantes:clean(campoHistorico(row,['actores_firmantes','actoresFirmantes','ACTORES_FIRMANTES'])),
-ejecutado_100:normalizarBooleanoCertificacion(campoHistorico(row,['ejecutado_100','ejecutado100','EJECUTADO_100'])),
-anexo_fotografia_actas:clean(campoHistorico(row,['anexo_fotografia_actas','anexoFotografiaActas','ANEXO_FOTOGRAFIA_ACTAS'])),
-anio:Number(campoHistorico(row,['anio','año','AÑO'],''))||Number((normalizarFechaCertificacion(row.fecha_fin)||normalizarFechaCertificacion(row.fecha_inicio)).slice(0,4))||currentYear(),
-observaciones:clean(campoHistorico(row,['observaciones','OBSERVACIONES'])),
-usuario_email:clean(row.usuario_email),
-fecha_creacion:row.fecha_creacion||row.created_at||'',
-fecha_actualizacion:row.fecha_actualizacion||row.updated_at||''
-};
-}
+  function normalizarCertificacionDesdeSupabase(row={}){
+    const cantidad=normalizarNumeroCertificacion(campoHistorico(row,['cantidad','cant','CANT']));
+    const anterior=normalizarNumeroCertificacion(campoHistorico(row,['servicio_ejecutado_anterior','serv_ejec_ant','SERV_EJEC_ANT']));
+    const periodo=normalizarNumeroCertificacion(campoHistorico(row,['servicio_ejecutado_periodo','serv_ejec_pte','SERV_EJEC_PTE']));
+    const acumulado=normalizarNumeroCertificacion(campoHistorico(row,['servicio_ejecutado_acumulado','serv_ejec_acum','SERV_EJEC_ACUM'],anterior+periodo));
+    const auxPorcentajePersistido=campoHistorico(row,['aux_porcentaje','aux','AUX'],null);
+    const porcentaje=normalizarNumeroCertificacion(auxPorcentajePersistido===null||auxPorcentajePersistido===undefined||clean(auxPorcentajePersistido)===''?(cantidad>0?(acumulado/cantidad)*100:0):auxPorcentajePersistido);
+    return {
+      id:row.id??null,
+      _legacy:!!row._legacy,
+      orden_id:row.orden_id??null,
+      id_obra:clean(campoHistorico(row,['id_obra','idObra','ID_OBRA'])),
+      tipo_servicio:clean(campoHistorico(row,['tipo_servicio','tipoServicio','tipo','TIPO_DE_SERVICIO'])),
+      acta_medicion_nro:clean(campoHistorico(row,['acta_medicion_nro','acta_medicion','actaMedicion','ACTA_MEDICION_NRO','ACTA_MEDICION'],row._legacy?'Histórico':'')),
+      proxima_acta_medicion_fecha:normalizarFechaCertificacion(campoHistorico(row,['proxima_acta_medicion_fecha','prox_acta_med','proximaActaMedicionFecha'])),
+      nro_oc:obtenerNroOCCertificacion(row),
+      fecha_inicio:normalizarFechaCertificacion(campoHistorico(row,['fecha_inicio','fechaInicio','actaInicio','ACTA_INICIO'])),
+      fecha_fin:normalizarFechaCertificacion(campoHistorico(row,['fecha_fin','fechaFin','fechaVto','FECHA_VTO'])),
+      item_nro:clean(campoHistorico(row,['item_nro','itemNro','ITEM_NRO'])),
+      descripcion:clean(campoHistorico(row,['descripcion','DESCRIPCION'])),
+      posicion:clean(campoHistorico(row,['posicion','pos_sap','POSICION','POS_SAP','POS SAP'])),
+      nro_hes:clean(campoHistorico(row,['nro_hes','nroHes','NRO_HES','N° HES'])),
+      nro_if:clean(campoHistorico(row,['nro_if','nroIf','NRO_IF','N° IF'])),
+      cantidad,
+      unidad_medida:clean(campoHistorico(row,['unidad_medida','UM','um','unidadMantenimiento','UNIDAD_MANTENIMIENTO'])),
+      servicio_ejecutado_anterior:anterior,
+      servicio_ejecutado_periodo:periodo,
+      servicio_ejecutado_acumulado:acumulado,
+      aux_porcentaje:porcentaje,
+      _aux_porcentaje_persistido:auxPorcentajePersistido,
+      proveedor:clean(campoHistorico(row,['proveedor','PROVEEDOR','proveed'])),
+      tipo_um:clean(campoHistorico(row,['tipo_um','TIPO_UM','tipoUM'])),
+      actores_firmantes:clean(campoHistorico(row,['actores_firmantes','actoresFirmantes','ACTORES_FIRMANTES'])),
+      ejecutado_100:normalizarBooleanoCertificacion(campoHistorico(row,['ejecutado_100','ejecutado100','EJECUTADO_100'])),
+      anexo_fotografia_actas:clean(campoHistorico(row,['anexo_fotografia_actas','anexoFotografiaActas','ANEXO_FOTOGRAFIA_ACTAS'])),
+      anio:Number(campoHistorico(row,['anio','año','AÑO'],''))||Number((normalizarFechaCertificacion(row.fecha_fin)||normalizarFechaCertificacion(row.fecha_inicio)).slice(0,4))||currentYear(),
+      observaciones:clean(campoHistorico(row,['observaciones','OBSERVACIONES'])),
+      usuario_email:clean(row.usuario_email),
+      fecha_creacion:row.fecha_creacion||row.created_at||'',
+      fecha_actualizacion:row.fecha_actualizacion||row.updated_at||''
+    };
+  }
 
-function construirClaveCertificacion(data){
-const normalized=normalizarCertificacionDesdeSupabase(data);
-return [normalized.nro_oc,normalized.acta_medicion_nro,normalized.item_nro,normalized.posicion,normalized.fecha_inicio,normalized.fecha_fin]
-.map(value=>fold(value).replace(/\|/g,'/')).join('|');
-}
+  function construirClaveCertificacion(data){
+    const normalized=normalizarCertificacionDesdeSupabase(data);
+    return [normalized.nro_oc,normalized.acta_medicion_nro,normalized.item_nro,normalized.posicion,normalized.fecha_inicio,normalized.fecha_fin]
+      .map(value=>fold(value).replace(/\|/g,'/')).join('|');
+  }
 
-function filasOrdenesCertificacion(){
-const sources=[];
-try{
-if(typeof window.todasLasOC==='function'){
-const rows=window.todasLasOC();
-if(Array.isArray(rows))sources.push(...rows);
-}
-}catch(error){console.warn('COI: no se pudo leer el repositorio de OCs.',error);}
-return sources;
-}
+  function filasOrdenesCertificacion(){
+    const sources=[];
+    try{
+      if(typeof window.todasLasOC==='function'){
+        const rows=window.todasLasOC();
+        if(Array.isArray(rows))sources.push(...rows);
+      }
+    }catch(error){console.warn('COI: no se pudo leer el repositorio de OCs.',error);}
+    return sources;
+  }
 
-function datosOrdenCertificacion(row){
-const item=row?.item||row||{};
-const nro=normalizarNroOCCertificacion(row?.oc||row?.numeroOC||item.nro_oc||item.numeroOC||item.oc||item.OC_NRO||item.ocNro);
-const candidates=[item.supabaseId,item._supabaseRaw?.id,item.orden_id,item.id,row?.supabaseId,row?._supabaseRaw?.id,row?.orden_id];
-const ordenID=candidates.find(isUUID)||null;
-return {
-row,item,nro,orden_id:ordenID,
-id_obra:clean(item.id_obra||item.idObra||item.ID_OBRA||item.idOC),
-proveedor:clean(row?.proveedor||item.proveedor),
-descripcion:clean(row?.tipoTrabajo||item.tipo_trabajo||item.tipoTrabajo||item.descripcion),
-estacion:clean(row?.estacion||item.estacion)
-};
-}
+  function datosOrdenCertificacion(row){
+    const item=row?.item||row||{};
+    const nro=normalizarNroOCCertificacion(row?.oc||row?.numeroOC||item.nro_oc||item.numeroOC||item.oc||item.OC_NRO||item.ocNro);
+    const candidates=[item.supabaseId,item._supabaseRaw?.id,item.orden_id,item.id,row?.supabaseId,row?._supabaseRaw?.id,row?.orden_id];
+    const ordenID=candidates.find(isUUID)||null;
+    return {
+      row,item,nro,orden_id:ordenID,
+      id_obra:clean(item.id_obra||item.idObra||item.ID_OBRA||item.idOC),
+      proveedor:clean(row?.proveedor||item.proveedor),
+      descripcion:clean(row?.tipoTrabajo||item.tipo_trabajo||item.tipoTrabajo||item.descripcion),
+      estacion:clean(row?.estacion||item.estacion)
+    };
+  }
 
-function buscarOrdenPorNroOC(nroOC){
-const target=normalizarNroOCCertificacion(nroOC);
-if(!target)return null;
-return filasOrdenesCertificacion().map(datosOrdenCertificacion).find(order=>order.nro===target)||null;
-}
+  function buscarOrdenPorNroOC(nroOC){
+    const target=normalizarNroOCCertificacion(nroOC);
+    if(!target)return null;
+    return filasOrdenesCertificacion().map(datosOrdenCertificacion).find(order=>order.nro===target)||null;
+  }
 
-function ordenDesdeReferencia(reference){
-if(reference&&typeof reference==='object'){
-const item=reference.item||reference;
-const order=datosOrdenCertificacion({item,...reference});
-if(order.nro)return order;
-}
-const direct=buscarOrdenPorNroOC(reference);
-if(direct)return direct;
-const key=fold(reference);
-return filasOrdenesCertificacion().map(datosOrdenCertificacion).find(order=>[order.id_obra,order.item?.idOC,order.item?.idServicio].some(value=>fold(value)===key))||null;
-}
+  function ordenDesdeReferencia(reference){
+    if(reference&&typeof reference==='object'){
+      const item=reference.item||reference;
+      const order=datosOrdenCertificacion({item,...reference});
+      if(order.nro)return order;
+    }
+    const direct=buscarOrdenPorNroOC(reference);
+    if(direct)return direct;
+    const key=fold(reference);
+    return filasOrdenesCertificacion().map(datosOrdenCertificacion).find(order=>[order.id_obra,order.item?.idOC,order.item?.idServicio].some(value=>fold(value)===key))||null;
+  }
 
-function clienteSupabaseCertificacion(){return typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;}
+  function clienteSupabaseCertificacion(){return typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;}
 
-async function usuarioEscritorCertificacion(){
-const user=typeof window.getUsuarioActual==='function'?await window.getUsuarioActual():null;
-if(!user)throw new Error('Debe iniciar sesión en Supabase para guardar certificaciones.');
-if(!navigator.onLine)throw new Error('No hay conexión. La certificación no se guardó.');
-const client=clienteSupabaseCertificacion();
-if(!client)throw new Error('El cliente Supabase no está disponible.');
-if(typeof window.usuarioTienePermisoEdicion==='function'&&!window.usuarioTienePermisoEdicion())throw new Error('El usuario actual no tiene permiso de edición.');
-return {user,client};
-}
+  async function usuarioEscritorCertificacion(){
+    const user=typeof window.getUsuarioActual==='function'?await window.getUsuarioActual():null;
+    if(!user)throw new Error('Debe iniciar sesión en Supabase para guardar certificaciones.');
+    if(!navigator.onLine)throw new Error('No hay conexión. La certificación no se guardó.');
+    const client=clienteSupabaseCertificacion();
+    if(!client)throw new Error('El cliente Supabase no está disponible.');
+    if(typeof window.usuarioTienePermisoEdicion==='function'&&!window.usuarioTienePermisoEdicion())throw new Error('El usuario actual no tiene permiso de edición.');
+    return {user,client};
+  }
 
-function crearErrorSupabase(error,context='',payload=null){
-const err=new Error(clean(error?.message||error?.details||error)||'Supabase no pudo completar la operación.');
-err.code=clean(error?.code);
-err.details=clean(error?.details);
-err.hint=clean(error?.hint);
-err.context=context;
-err.payload=payload;
-return err;
-}
+  function crearErrorSupabase(error,context='',payload=null){
+    const err=new Error(clean(error?.message||error?.details||error)||'Supabase no pudo completar la operación.');
+    err.code=clean(error?.code);
+    err.details=clean(error?.details);
+    err.hint=clean(error?.hint);
+    err.context=context;
+    err.payload=payload;
+    return err;
+  }
 
-function detalleErrorEsquema(error){
-const code=clean(error?.code);
-const message=clean(error?.message||error?.details||error);
-const details=clean(error?.details);
-const hint=clean(error?.hint);
-if(code==='PGRST205'||code==='42P01')return 'La tabla public.coi_certificaciones no está disponible para la API de Supabase.';
-if(code==='PGRST204'||code==='42703')return `La tabla existe, pero falta una columna esperada: ${message}`;
-if(code==='42501'||/row-level security|permission denied/i.test(message))return 'La sesión no tiene permisos para guardar certificaciones. Revise RLS y políticas para authenticated.';
-if(code==='23505')return 'La certificación ya existe. Se debe actualizar el registro existente.';
-if(code==='42P10'||/no unique or exclusion constraint/i.test(message))return 'Supabase no encontró un índice único compatible; se aplicará actualización o inserción controlada.';
-if(code==='OC_NOT_FOUND')return message;
-return [code?`${code}: ${message}`:message,details&&details!==message?details:'',hint?`Sugerencia: ${hint}`:''].filter(Boolean).join(' · ')||'Supabase no pudo completar la operación.';
-}
+  function detalleErrorEsquema(error){
+    const code=clean(error?.code);
+    const message=clean(error?.message||error?.details||error);
+    const details=clean(error?.details);
+    const hint=clean(error?.hint);
+    if(code==='PGRST205'||code==='42P01')return 'La tabla public.coi_certificaciones no está disponible para la API de Supabase.';
+    if(code==='PGRST204'||code==='42703')return `La tabla existe, pero falta una columna esperada: ${message}`;
+    if(code==='42501'||/row-level security|permission denied/i.test(message))return 'La sesión no tiene permisos para guardar certificaciones. Revise RLS y políticas para authenticated.';
+    if(code==='23505')return 'La certificación ya existe. Se debe actualizar el registro existente.';
+    if(code==='42P10'||/no unique or exclusion constraint/i.test(message))return 'Supabase no encontró un índice único compatible; se aplicará actualización o inserción controlada.';
+    if(code==='OC_NOT_FOUND')return message;
+    return [code?`${code}: ${message}`:message,details&&details!==message?details:'',hint?`Sugerencia: ${hint}`:''].filter(Boolean).join(' · ')||'Supabase no pudo completar la operación.';
+  }
 
-async function resolverOrdenCertificacionPorNroOC(nroOC,client){
-const target=normalizarNroOCCertificacion(nroOC);
-if(!target){const error=new Error('Falta OC.');error.code='OC_NOT_FOUND';throw error;}
-const local=buscarOrdenPorNroOC(target);
-if(local?.orden_id)return local;
-const exact=await client.from(ORDENES_TABLE).select('id,nro_oc,id_obra,proveedor,tipo_trabajo,descripcion,estacion').eq('nro_oc',target).limit(1);
-if(exact.error)throw crearErrorSupabase(exact.error,'buscar OC',{nro_oc:target});
-let row=Array.isArray(exact.data)?exact.data[0]:null;
-if(!row){
-const fallback=await client.from(ORDENES_TABLE).select('id,nro_oc,id_obra,proveedor,tipo_trabajo,descripcion,estacion').limit(5000);
-if(fallback.error)throw crearErrorSupabase(fallback.error,'buscar OC normalizada',{nro_oc:target});
-row=(fallback.data||[]).find(item=>normalizarNroOCCertificacion(item?.nro_oc)===target)||null;
-}
-if(!row){const error=new Error(`No se encontró la OC ${target} en public.coi_ordenes.`);error.code='OC_NOT_FOUND';throw error;}
-return {
-row,item:row,nro:target,orden_id:isUUID(row.id)?row.id:null,id_obra:clean(row.id_obra),
-proveedor:clean(row.proveedor),descripcion:clean(row.tipo_trabajo||row.descripcion),estacion:clean(row.estacion)
-};
-}
+  async function resolverOrdenCertificacionPorNroOC(nroOC,client){
+    const target=normalizarNroOCCertificacion(nroOC);
+    if(!target){const error=new Error('Falta OC.');error.code='OC_NOT_FOUND';throw error;}
+    const local=buscarOrdenPorNroOC(target);
+    if(local?.orden_id)return local;
+    const exact=await client.from(ORDENES_TABLE).select('id,nro_oc,id_obra,proveedor,tipo_trabajo,descripcion,estacion').eq('nro_oc',target).limit(1);
+    if(exact.error)throw crearErrorSupabase(exact.error,'buscar OC',{nro_oc:target});
+    let row=Array.isArray(exact.data)?exact.data[0]:null;
+    if(!row){
+      const fallback=await client.from(ORDENES_TABLE).select('id,nro_oc,id_obra,proveedor,tipo_trabajo,descripcion,estacion').limit(5000);
+      if(fallback.error)throw crearErrorSupabase(fallback.error,'buscar OC normalizada',{nro_oc:target});
+      row=(fallback.data||[]).find(item=>normalizarNroOCCertificacion(item?.nro_oc)===target)||null;
+    }
+    if(!row){const error=new Error(`No se encontró la OC ${target} en public.coi_ordenes.`);error.code='OC_NOT_FOUND';throw error;}
+    return {
+      row,item:row,nro:target,orden_id:isUUID(row.id)?row.id:null,id_obra:clean(row.id_obra),
+      proveedor:clean(row.proveedor),descripcion:clean(row.tipo_trabajo||row.descripcion),estacion:clean(row.estacion)
+    };
+  }
 
-function normalizarIdentificadorNumerico(value){
-const parsed=parsearNumeroCertificacion(value);
-if(!parsed.valido)return clean(value)||null;
-return Number.isInteger(parsed.valor)?parsed.valor:parsed.valor;
-}
+  function normalizarIdentificadorNumerico(value){
+    const parsed=parsearNumeroCertificacion(value);
+    if(!parsed.valido)return clean(value)||null;
+    return Number.isInteger(parsed.valor)?parsed.valor:parsed.valor;
+  }
 
-function normalizarCertificacionParaSupabase(data={},order=null,user=null){
-const normalized=normalizarCertificacionDesdeSupabase(data);
-const anio=Number(normalized.anio)||Number((normalized.fecha_fin||normalized.fecha_inicio).slice(0,4))||currentYear();
-return {
-orden_id:order?.orden_id||data.orden_id||null,
-nro_oc:normalizarNroOCCertificacion(normalized.nro_oc),
-id_obra:normalized.id_obra||clean(order?.id_obra)||null,
-tipo_servicio:normalized.tipo_servicio||null,
-acta_medicion_nro:normalizarIdentificadorNumerico(normalized.acta_medicion_nro),
-proxima_acta_medicion_fecha:normalized.proxima_acta_medicion_fecha||null,
-fecha_inicio:normalized.fecha_inicio||null,
-fecha_fin:normalized.fecha_fin||null,
-item_nro:normalized.item_nro===''?null:normalizarIdentificadorNumerico(normalized.item_nro),
-descripcion:normalized.descripcion||null,
-posicion:normalized.posicion||null,
-nro_hes:normalized.nro_hes||null,
-nro_if:normalized.nro_if||null,
-cantidad:normalized.cantidad,
-unidad_medida:normalized.unidad_medida||null,
-servicio_ejecutado_anterior:normalized.servicio_ejecutado_anterior,
-servicio_ejecutado_periodo:normalized.servicio_ejecutado_periodo,
-proveedor:normalized.proveedor||clean(order?.proveedor)||null,
-tipo_um:normalized.tipo_um||null,
-actores_firmantes:normalized.actores_firmantes||null,
-ejecutado_100:Boolean(normalized.ejecutado_100),
-anexo_fotografia_actas:normalized.anexo_fotografia_actas||null,
-anio,
-observaciones:normalized.observaciones||null,
-usuario_email:clean(user?.email||normalized.usuario_email)||null
-};
-}
+  function normalizarCertificacionParaSupabase(data={},order=null,user=null){
+    const normalized=normalizarCertificacionDesdeSupabase(data);
+    const anio=Number(normalized.anio)||Number((normalized.fecha_fin||normalized.fecha_inicio).slice(0,4))||currentYear();
+    return {
+      orden_id:order?.orden_id||data.orden_id||null,
+      nro_oc:normalizarNroOCCertificacion(normalized.nro_oc),
+      id_obra:normalized.id_obra||clean(order?.id_obra)||null,
+      tipo_servicio:normalized.tipo_servicio||null,
+      acta_medicion_nro:normalizarIdentificadorNumerico(normalized.acta_medicion_nro),
+      proxima_acta_medicion_fecha:normalized.proxima_acta_medicion_fecha||null,
+      fecha_inicio:normalized.fecha_inicio||null,
+      fecha_fin:normalized.fecha_fin||null,
+      item_nro:normalized.item_nro===''?null:normalizarIdentificadorNumerico(normalized.item_nro),
+      descripcion:normalized.descripcion||null,
+      posicion:normalized.posicion||null,
+      nro_hes:normalized.nro_hes||null,
+      nro_if:normalized.nro_if||null,
+      cantidad:normalized.cantidad,
+      unidad_medida:normalized.unidad_medida||null,
+      servicio_ejecutado_anterior:normalized.servicio_ejecutado_anterior,
+      servicio_ejecutado_periodo:normalized.servicio_ejecutado_periodo,
+      proveedor:normalized.proveedor||clean(order?.proveedor)||null,
+      tipo_um:normalized.tipo_um||null,
+      actores_firmantes:normalized.actores_firmantes||null,
+      ejecutado_100:Boolean(normalized.ejecutado_100),
+      anexo_fotografia_actas:normalized.anexo_fotografia_actas||null,
+      anio,
+      observaciones:normalized.observaciones||null,
+      usuario_email:clean(user?.email||normalized.usuario_email)||null
+    };
+  }
 
-function validarFilaCertificacion(data,{verificarOC=true,requiereItem=false}={}){
-const errors=[];
-const normalized=normalizarCertificacionDesdeSupabase(data);
-if(!normalized.nro_oc)errors.push('Campo obligatorio faltante: OC');
-else if(verificarOC&&filasOrdenesCertificacion().length&&!buscarOrdenPorNroOC(normalized.nro_oc))errors.push(`OC no encontrada: ${normalized.nro_oc}`);
-if(!clean(data.acta_medicion_nro))errors.push('Campo obligatorio faltante: ACTA MEDICIÓN N°');
-if(!clean(data.fecha_inicio))errors.push('Campo obligatorio faltante: FECHA INICIO');
-if(!clean(data.fecha_fin))errors.push('Campo obligatorio faltante: FECHA FIN');
-if(requiereItem&&!clean(data.item_nro))errors.push('Campo obligatorio faltante: ITEM_NRO');
-DATE_FIELDS.forEach(field=>{if(clean(data[field])&&!normalizarFechaCertificacion(data[field]))errors.push(`Fecha inválida: ${field}`);});
-NUMERIC_FIELDS.forEach(field=>{
-if(GENERATED_FIELDS.has(field))return;
-const raw=clean(data[field]);
-if(raw!==''&&!parsearNumeroCertificacion(raw).valido)errors.push(`Número inválido: ${field}`);
-else if(parsearNumeroCertificacion(raw).valor<0)errors.push(`${field}: no puede ser negativo`);
-});
-if(clean(data.anio)&&(!parsearNumeroCertificacion(data.anio).valido||!/^[0-9]{4}$/.test(String(Math.trunc(normalizarNumeroCertificacion(data.anio))))))errors.push('AÑO debe tener cuatro dígitos');
-return {valida:errors.length===0,errores:errors,data:normalized};
-}
+  function validarFilaCertificacion(data,{verificarOC=true,requiereItem=false}={}){
+    const errors=[];
+    const normalized=normalizarCertificacionDesdeSupabase(data);
+    if(!normalized.nro_oc)errors.push('Campo obligatorio faltante: OC');
+    else if(verificarOC&&filasOrdenesCertificacion().length&&!buscarOrdenPorNroOC(normalized.nro_oc))errors.push(`OC no encontrada: ${normalized.nro_oc}`);
+    if(!clean(data.acta_medicion_nro))errors.push('Campo obligatorio faltante: ACTA MEDICIÓN N°');
+    if(!clean(data.fecha_inicio))errors.push('Campo obligatorio faltante: FECHA INICIO');
+    if(!clean(data.fecha_fin))errors.push('Campo obligatorio faltante: FECHA FIN');
+    if(requiereItem&&!clean(data.item_nro))errors.push('Campo obligatorio faltante: ITEM_NRO');
+    DATE_FIELDS.forEach(field=>{if(clean(data[field])&&!normalizarFechaCertificacion(data[field]))errors.push(`Fecha inválida: ${field}`);});
+    NUMERIC_FIELDS.forEach(field=>{
+      if(GENERATED_FIELDS.has(field))return;
+      const raw=clean(data[field]);
+      if(raw!==''&&!parsearNumeroCertificacion(raw).valido)errors.push(`Número inválido: ${field}`);
+      else if(parsearNumeroCertificacion(raw).valor<0)errors.push(`${field}: no puede ser negativo`);
+    });
+    if(clean(data.anio)&&(!parsearNumeroCertificacion(data.anio).valido||!/^[0-9]{4}$/.test(String(Math.trunc(normalizarNumeroCertificacion(data.anio))))))errors.push('AÑO debe tener cuatro dígitos');
+    return {valida:errors.length===0,errores:errors,data:normalized};
+  }
 
-function controlFila(field,value=''){
-const normalizedValue=field==='ejecutado_100'?(value?'SI':''):value;
-const safe=escapeHTML(normalizedValue);
-if(DATE_FIELDS.has(field))return `<input type="date" data-cert-field="${field}" value="${escapeHTML(normalizarFechaCertificacion(value))}">`;
-if(field==='descripcion'||field==='actores_firmantes')return `<textarea data-cert-field="${field}">${safe}</textarea>`;
-if(GENERATED_FIELDS.has(field))return `<input class="certificacion-campo-calculado" type="text" inputmode="decimal" data-cert-field="${field}" value="${safe||'0.00'}" readonly tabindex="-1">`;
-if(field==='anio')return `<input type="text" inputmode="numeric" data-cert-field="${field}" value="${safe||currentYear()}" data-auto-year="true">`;
-const attrs=[];
-if(field==='nro_oc')attrs.push('inputmode="text"','autocomplete="off"','placeholder="Ej.: 4520003305"');
-else if(NUMERIC_FIELDS.has(field))attrs.push('inputmode="decimal"');
-else if(field==='unidad_medida')attrs.push('placeholder="MES, unidad, servicio…"');
-else if(field==='ejecutado_100')attrs.push('placeholder="SI / NO"');
-return `<input type="text" data-cert-field="${field}" value="${safe}" ${attrs.join(' ')}>`;
-}
+  function controlFila(field,value=''){
+    const normalizedValue=field==='ejecutado_100'?(value?'SI':''):value;
+    const safe=escapeHTML(normalizedValue);
+    if(DATE_FIELDS.has(field))return `<input type="date" data-cert-field="${field}" value="${escapeHTML(normalizarFechaCertificacion(value))}">`;
+    if(field==='descripcion'||field==='actores_firmantes')return `<textarea data-cert-field="${field}">${safe}</textarea>`;
+    if(GENERATED_FIELDS.has(field))return `<input class="certificacion-campo-calculado" type="text" inputmode="decimal" data-cert-field="${field}" value="${safe||'0.00'}" readonly tabindex="-1">`;
+    if(field==='anio')return `<input type="text" inputmode="numeric" data-cert-field="${field}" value="${safe||currentYear()}" data-auto-year="true">`;
+    const attrs=[];
+    if(field==='nro_oc')attrs.push('inputmode="text"','autocomplete="off"','placeholder="Ej.: 4520003305"');
+    else if(NUMERIC_FIELDS.has(field))attrs.push('inputmode="decimal"');
+    else if(field==='unidad_medida')attrs.push('placeholder="MES, unidad, servicio…"');
+    else if(field==='ejecutado_100')attrs.push('placeholder="SI / NO"');
+    return `<input type="text" data-cert-field="${field}" value="${safe}" ${attrs.join(' ')}>`;
+  }
 
-function filaCertificacionHTML(data={}){
-const normalized=normalizarCertificacionDesdeSupabase(data);
-return `<tr>${CERTIFICACION_FIELDS.map(field=>`<td>${controlFila(field,normalized[field])}</td>`).join('')}<td class="certificacion-validacion"><span class="certificacion-row-status pendiente" data-cert-status>Pendiente</span></td></tr>`;
-}
+  function filaCertificacionHTML(data={}){
+    const normalized=normalizarCertificacionDesdeSupabase(data);
+    return `<tr>${CERTIFICACION_FIELDS.map(field=>`<td>${controlFila(field,normalized[field])}</td>`).join('')}<td class="certificacion-validacion"><span class="certificacion-row-status pendiente" data-cert-status>Pendiente</span></td></tr>`;
+  }
 
-function crearFilasCertificacionSiFaltan(cantidad){
-const body=byId('cargaCertificacionBodyR18');
-if(!body)return [];
-const needed=Math.max(0,Number(cantidad)||0);
-const current=body.querySelectorAll('tr').length;
-if(current<needed)body.insertAdjacentHTML('beforeend',Array.from({length:needed-current},()=>filaCertificacionHTML({})).join(''));
-return [...body.querySelectorAll('tr')];
-}
+  function crearFilasCertificacionSiFaltan(cantidad){
+    const body=byId('cargaCertificacionBodyR18');
+    if(!body)return [];
+    const needed=Math.max(0,Number(cantidad)||0);
+    const current=body.querySelectorAll('tr').length;
+    if(current<needed)body.insertAdjacentHTML('beforeend',Array.from({length:needed-current},()=>filaCertificacionHTML({})).join(''));
+    return [...body.querySelectorAll('tr')];
+  }
 
-function agregarFilasCertificacion(count=1,rows=[]){
-const body=byId('cargaCertificacionBodyR18');
-if(!body)return;
-const source=Array.isArray(rows)&&rows.length?rows:Array.from({length:Math.max(1,count)},()=>({}));
-body.insertAdjacentHTML('beforeend',source.map(filaCertificacionHTML).join(''));
-body.querySelectorAll('tr').forEach(row=>recalcularFilaCertificacion(row,{actualizarAnio:true}));
-validarFilasCargaCertificacion();
-actualizarEstadoCargaCertificacion();
-}
+  function agregarFilasCertificacion(count=1,rows=[]){
+    const body=byId('cargaCertificacionBodyR18');
+    if(!body)return;
+    const source=Array.isArray(rows)&&rows.length?rows:Array.from({length:Math.max(1,count)},()=>({}));
+    body.insertAdjacentHTML('beforeend',source.map(filaCertificacionHTML).join(''));
+    body.querySelectorAll('tr').forEach(row=>recalcularFilaCertificacion(row,{actualizarAnio:true}));
+    validarFilasCargaCertificacion();
+    actualizarEstadoCargaCertificacion();
+  }
 
-function leerFilaCertificacion(row){
-const data={};
-CERTIFICACION_FIELDS.forEach(field=>{
-const control=row?.querySelector(`[data-cert-field="${field}"]`);
-data[field]=clean(control?.dataset?.rawInvalid||control?.value);
-});
-return data;
-}
+  function leerFilaCertificacion(row){
+    const data={};
+    CERTIFICACION_FIELDS.forEach(field=>{
+      const control=row?.querySelector(`[data-cert-field="${field}"]`);
+      data[field]=clean(control?.dataset?.rawInvalid||control?.value);
+    });
+    return data;
+  }
 
-function filaCertificacionVacia(data){
-const zeroDefaults=new Set(['cantidad','servicio_ejecutado_anterior','servicio_ejecutado_periodo']);
-return CERTIFICACION_FIELDS.filter(field=>!GENERATED_FIELDS.has(field)&&field!=='anio').every(field=>{
-if(zeroDefaults.has(field))return normalizarNumeroCertificacion(data[field])===0;
-if(field==='ejecutado_100')return !normalizarBooleanoCertificacion(data[field]);
-return !clean(data[field]);
-});
-}
+  function filaCertificacionVacia(data){
+    const zeroDefaults=new Set(['cantidad','servicio_ejecutado_anterior','servicio_ejecutado_periodo']);
+    return CERTIFICACION_FIELDS.filter(field=>!GENERATED_FIELDS.has(field)&&field!=='anio').every(field=>{
+      if(zeroDefaults.has(field))return normalizarNumeroCertificacion(data[field])===0;
+      if(field==='ejecutado_100')return !normalizarBooleanoCertificacion(data[field]);
+      return !clean(data[field]);
+    });
+  }
 
-function establecerCampoFila(row,field,value){
-const control=row?.querySelector(`[data-cert-field="${field}"]`);
-if(control){control.value=value??'';delete control.dataset.rawInvalid;}
-}
+  function establecerCampoFila(row,field,value){
+    const control=row?.querySelector(`[data-cert-field="${field}"]`);
+    if(control){control.value=value??'';delete control.dataset.rawInvalid;}
+  }
 
-function recalcularFilaCertificacion(row,{actualizarAnio=false}={}){
-if(!row)return;
-const data=leerFilaCertificacion(row);
-const previous=normalizarNumeroCertificacion(data.servicio_ejecutado_anterior);
-const period=normalizarNumeroCertificacion(data.servicio_ejecutado_periodo);
-const amount=normalizarNumeroCertificacion(data.cantidad);
-const accumulated=previous+period;
-const percentage=amount>0?(accumulated/amount)*100:0;
-establecerCampoFila(row,'servicio_ejecutado_acumulado',accumulated.toFixed(2));
-establecerCampoFila(row,'aux_porcentaje',percentage.toFixed(2));
-const yearControl=row.querySelector('[data-cert-field="anio"]');
-if(yearControl&&(actualizarAnio||yearControl.dataset.autoYear==='true'||!yearControl.value)){
-const year=Number((normalizarFechaCertificacion(data.fecha_fin)||normalizarFechaCertificacion(data.fecha_inicio)).slice(0,4))||currentYear();
-yearControl.value=String(year);
-yearControl.dataset.autoYear='true';
-}
-}
+  function recalcularFilaCertificacion(row,{actualizarAnio=false}={}){
+    if(!row)return;
+    const data=leerFilaCertificacion(row);
+    const previous=normalizarNumeroCertificacion(data.servicio_ejecutado_anterior);
+    const period=normalizarNumeroCertificacion(data.servicio_ejecutado_periodo);
+    const amount=normalizarNumeroCertificacion(data.cantidad);
+    const accumulated=previous+period;
+    const percentage=amount>0?(accumulated/amount)*100:0;
+    establecerCampoFila(row,'servicio_ejecutado_acumulado',accumulated.toFixed(2));
+    establecerCampoFila(row,'aux_porcentaje',percentage.toFixed(2));
+    const yearControl=row.querySelector('[data-cert-field="anio"]');
+    if(yearControl&&(actualizarAnio||yearControl.dataset.autoYear==='true'||!yearControl.value)){
+      const year=Number((normalizarFechaCertificacion(data.fecha_fin)||normalizarFechaCertificacion(data.fecha_inicio)).slice(0,4))||currentYear();
+      yearControl.value=String(year);
+      yearControl.dataset.autoYear='true';
+    }
+  }
 
-function estadoFila(row,text,kind='pendiente'){
-const badge=row?.querySelector('[data-cert-status]');
-if(!badge)return;
-badge.className=`certificacion-row-status ${kind}`;
-badge.textContent=text;
-row.dataset.certValidation=kind;
-}
+  function estadoFila(row,text,kind='pendiente'){
+    const badge=row?.querySelector('[data-cert-status]');
+    if(!badge)return;
+    badge.className=`certificacion-row-status ${kind}`;
+    badge.textContent=text;
+    row.dataset.certValidation=kind;
+  }
 
-function marcarResultadoFila(row,message='',kind=''){
-if(!row)return;
-row.classList.toggle('certificacion-error',kind==='error');
-row.classList.toggle('certificacion-guardada',kind==='ok');
-row.classList.toggle('certificacion-omitida',kind==='warning');
-row.title=message;
-if(kind==='ok')estadoFila(row,message||'Guardada','valida');
-else if(kind==='error')estadoFila(row,message||'Con error','error');
-else if(kind==='warning')estadoFila(row,message||'Omitida','duplicado');
-else estadoFila(row,'Pendiente','pendiente');
-}
+  function marcarResultadoFila(row,message='',kind=''){
+    if(!row)return;
+    row.classList.toggle('certificacion-error',kind==='error');
+    row.classList.toggle('certificacion-guardada',kind==='ok');
+    row.classList.toggle('certificacion-omitida',kind==='warning');
+    row.title=message;
+    if(kind==='ok')estadoFila(row,message||'Guardada','valida');
+    else if(kind==='error')estadoFila(row,message||'Con error','error');
+    else if(kind==='warning')estadoFila(row,message||'Omitida','duplicado');
+    else estadoFila(row,'Pendiente','pendiente');
+  }
 
-function validarFilasCargaCertificacion(){
-const body=byId('cargaCertificacionBodyR18');
-if(!body)return [];
-const entries=[...body.querySelectorAll('tr')].map((row,index)=>({row,index,data:leerFilaCertificacion(row)}));
-const used=entries.filter(entry=>!filaCertificacionVacia(entry.data));
-const groupCounts=new Map();
-used.forEach(entry=>{
-const n=normalizarCertificacionDesdeSupabase(entry.data);
-const key=[n.nro_oc,n.acta_medicion_nro,n.fecha_inicio,n.fecha_fin].map(fold).join('|');
-groupCounts.set(key,(groupCounts.get(key)||0)+1);
-});
-const seen=new Set();
-entries.forEach(entry=>{
-entry.row.classList.remove('certificacion-error','certificacion-guardada','certificacion-omitida');
-if(filaCertificacionVacia(entry.data)){estadoFila(entry.row,'Pendiente','pendiente');entry.row.title='';return;}
-const normalized=normalizarCertificacionDesdeSupabase(entry.data);
-const groupKey=[normalized.nro_oc,normalized.acta_medicion_nro,normalized.fecha_inicio,normalized.fecha_fin].map(fold).join('|');
-const validation=validarFilaCertificacion(entry.data,{verificarOC:true,requiereItem:(groupCounts.get(groupKey)||0)>1});
-const logicalKey=construirClaveCertificacion(entry.data);
-if(!validation.valida){
-entry.row.classList.add('certificacion-error');
-entry.row.title=validation.errores.join(' · ');
-const main=validation.errores.find(error=>error.includes('OC no encontrada'))?'OC no encontrada':validation.errores[0]||'Con error';
-estadoFila(entry.row,main,'error');
-}else if(seen.has(logicalKey)){
-entry.row.classList.add('certificacion-omitida');
-entry.row.title='Duplicado dentro del bloque pegado.';
-estadoFila(entry.row,'Duplicado','duplicado');
-}else{
-entry.row.title='Fila válida y lista para guardar.';
-estadoFila(entry.row,'Válida','valida');
-seen.add(logicalKey);
-}
-});
-return entries;
-}
+  function validarFilasCargaCertificacion(){
+    const body=byId('cargaCertificacionBodyR18');
+    if(!body)return [];
+    const entries=[...body.querySelectorAll('tr')].map((row,index)=>({row,index,data:leerFilaCertificacion(row)}));
+    const used=entries.filter(entry=>!filaCertificacionVacia(entry.data));
+    const groupCounts=new Map();
+    used.forEach(entry=>{
+      const n=normalizarCertificacionDesdeSupabase(entry.data);
+      const key=[n.nro_oc,n.acta_medicion_nro,n.fecha_inicio,n.fecha_fin].map(fold).join('|');
+      groupCounts.set(key,(groupCounts.get(key)||0)+1);
+    });
+    const seen=new Set();
+    entries.forEach(entry=>{
+      entry.row.classList.remove('certificacion-error','certificacion-guardada','certificacion-omitida');
+      if(filaCertificacionVacia(entry.data)){estadoFila(entry.row,'Pendiente','pendiente');entry.row.title='';return;}
+      const normalized=normalizarCertificacionDesdeSupabase(entry.data);
+      const groupKey=[normalized.nro_oc,normalized.acta_medicion_nro,normalized.fecha_inicio,normalized.fecha_fin].map(fold).join('|');
+      const validation=validarFilaCertificacion(entry.data,{verificarOC:true,requiereItem:(groupCounts.get(groupKey)||0)>1});
+      const logicalKey=construirClaveCertificacion(entry.data);
+      if(!validation.valida){
+        entry.row.classList.add('certificacion-error');
+        entry.row.title=validation.errores.join(' · ');
+        const main=validation.errores.find(error=>error.includes('OC no encontrada'))?'OC no encontrada':validation.errores[0]||'Con error';
+        estadoFila(entry.row,main,'error');
+      }else if(seen.has(logicalKey)){
+        entry.row.classList.add('certificacion-omitida');
+        entry.row.title='Duplicado dentro del bloque pegado.';
+        estadoFila(entry.row,'Duplicado','duplicado');
+      }else{
+        entry.row.title='Fila válida y lista para guardar.';
+        estadoFila(entry.row,'Válida','valida');
+        seen.add(logicalKey);
+      }
+    });
+    return entries;
+  }
 
-function actualizarEstadoCargaCertificacion(message='',kind=''){
-const body=byId('cargaCertificacionBodyR18');
-const status=byId('cargaCertificacionStatusR18');
-if(!status)return;
-const rows=body?[...body.querySelectorAll('tr')].map(leerFilaCertificacion):[];
-const used=rows.filter(row=>!filaCertificacionVacia(row));
-status.className=`carga-certificacion-status ${kind}`.trim();
-status.innerHTML=message||`Filas con datos: <b>${used.length}</b> · Con OC: <b>${used.filter(row=>row.nro_oc).length}</b> · Listas para validar: <b>${used.filter(row=>row.nro_oc&&row.acta_medicion_nro&&row.fecha_inicio&&row.fecha_fin).length}</b>`;
-}
+  function actualizarEstadoCargaCertificacion(message='',kind=''){
+    const body=byId('cargaCertificacionBodyR18');
+    const status=byId('cargaCertificacionStatusR18');
+    if(!status)return;
+    const rows=body?[...body.querySelectorAll('tr')].map(leerFilaCertificacion):[];
+    const used=rows.filter(row=>!filaCertificacionVacia(row));
+    status.className=`carga-certificacion-status ${kind}`.trim();
+    status.innerHTML=message||`Filas con datos: <b>${used.length}</b> · Con OC: <b>${used.filter(row=>row.nro_oc).length}</b> · Listas para validar: <b>${used.filter(row=>row.nro_oc&&row.acta_medicion_nro&&row.fecha_inicio&&row.fecha_fin).length}</b>`;
+  }
 
-function limpiarFilasCertificacion(){
-const body=byId('cargaCertificacionBodyR18');
-if(!body)return;
-const hasData=[...body.querySelectorAll('tr')].some(row=>!filaCertificacionVacia(leerFilaCertificacion(row)));
-if(hasData&&!confirm('¿Limpiar todas las filas no guardadas de Carga Certificación?'))return;
-body.innerHTML='';
-certificacionBorradores[tipoGridCertificacion]=[];
-agregarFilasCertificacion(1);
-actualizarEstadoCargaCertificacion('Grilla de Carga Certificación limpia.');
-}
+  function limpiarFilasCertificacion(){
+    const body=byId('cargaCertificacionBodyR18');
+    if(!body)return;
+    const hasData=[...body.querySelectorAll('tr')].some(row=>!filaCertificacionVacia(leerFilaCertificacion(row)));
+    if(hasData&&!confirm('¿Limpiar todas las filas no guardadas de Carga Certificación?'))return;
+    body.innerHTML='';
+    certificacionBorradores[tipoGridCertificacion]=[];
+    agregarFilasCertificacion(1);
+    actualizarEstadoCargaCertificacion('Grilla de Carga Certificación limpia.');
+  }
 
-function asignarValorPegadoCertificacion(control,value){
-if(!control)return;
-const field=control.dataset.certField;
-const raw=String(value??'');
-delete control.dataset.rawInvalid;
-if(DATE_FIELDS.has(field)){
-const iso=normalizarFechaCertificacion(raw);
-control.value=iso;
-if(clean(raw)&&!iso)control.dataset.rawInvalid=clean(raw);
-return;
-}
-if(GENERATED_FIELDS.has(field)){control.value=clean(raw);return;}
-if(NUMERIC_FIELDS.has(field)){
-const parsed=parsearNumeroCertificacion(raw);
-control.value=parsed.valido?String(INTEGER_FIELDS.has(field)?Math.trunc(parsed.valor):parsed.valor):clean(raw);
-return;
-}
-control.value=clean(raw);
-}
+  function asignarValorPegadoCertificacion(control,value){
+    if(!control)return;
+    const field=control.dataset.certField;
+    const raw=String(value??'');
+    delete control.dataset.rawInvalid;
+    if(DATE_FIELDS.has(field)){
+      const iso=normalizarFechaCertificacion(raw);
+      control.value=iso;
+      if(clean(raw)&&!iso)control.dataset.rawInvalid=clean(raw);
+      return;
+    }
+    if(GENERATED_FIELDS.has(field)){control.value=clean(raw);return;}
+    if(NUMERIC_FIELDS.has(field)){
+      const parsed=parsearNumeroCertificacion(raw);
+      control.value=parsed.valido?String(INTEGER_FIELDS.has(field)?Math.trunc(parsed.valor):parsed.valor):clean(raw);
+      return;
+    }
+    control.value=clean(raw);
+  }
 
-function parsearPortapapelesExcel(texto){
-const lines=String(texto??'').replace(/\r/g,'').split('\n');
-if(lines.length&&lines[lines.length-1]==='')lines.pop();
-let matrix=lines.map(line=>line.split('\t'));
-if(matrix.length){
-const first=matrix[0].map(fold);
-const headerMatches=first.filter((value,index)=>value===fold(CERTIFICACION_HEADERS[index]||'')).length;
-if(headerMatches>=4)matrix=matrix.slice(1);
-}
-return matrix;
-}
+  function parsearPortapapelesExcel(texto){
+    const lines=String(texto??'').replace(/\r/g,'').split('\n');
+    if(lines.length&&lines[lines.length-1]==='')lines.pop();
+    let matrix=lines.map(line=>line.split('\t'));
+    if(matrix.length){
+      const first=matrix[0].map(fold);
+      const headerMatches=first.filter((value,index)=>value===fold(CERTIFICACION_HEADERS[index]||'')).length;
+      if(headerMatches>=4)matrix=matrix.slice(1);
+    }
+    return matrix;
+  }
 
-function aplicarMatrizPegadaCertificaciones(matriz,filaInicial=0,columnaInicial=0){
-const body=byId('cargaCertificacionBodyR18');
-if(!body||!Array.isArray(matriz)||!matriz.length)return;
-const required=Math.max(1,filaInicial+matriz.length);
-const rows=crearFilasCertificacionSiFaltan(required);
-matriz.forEach((values,rowIndex)=>{
-const row=rows[filaInicial+rowIndex];
-if(!row)return;
-values.forEach((value,columnIndex)=>{
-const field=CERTIFICACION_FIELDS[columnaInicial+columnIndex];
-if(!field)return;
-const control=row.querySelector(`[data-cert-field="${field}"]`);
-asignarValorPegadoCertificacion(control,value);
-});
-recalcularFilaCertificacion(row,{actualizarAnio:true});
-});
-validarFilasCargaCertificacion();
-actualizarEstadoCargaCertificacion(`${matriz.length} fila(s) pegadas desde Excel. No se guardaron todavía: revise la columna Validación y pulse Guardar registros.`,'ok');
-}
+  function aplicarMatrizPegadaCertificaciones(matriz,filaInicial=0,columnaInicial=0){
+    const body=byId('cargaCertificacionBodyR18');
+    if(!body||!Array.isArray(matriz)||!matriz.length)return;
+    const required=Math.max(1,filaInicial+matriz.length);
+    const rows=crearFilasCertificacionSiFaltan(required);
+    matriz.forEach((values,rowIndex)=>{
+      const row=rows[filaInicial+rowIndex];
+      if(!row)return;
+      values.forEach((value,columnIndex)=>{
+        const field=CERTIFICACION_FIELDS[columnaInicial+columnIndex];
+        if(!field)return;
+        const control=row.querySelector(`[data-cert-field="${field}"]`);
+        asignarValorPegadoCertificacion(control,value);
+      });
+      recalcularFilaCertificacion(row,{actualizarAnio:true});
+    });
+    validarFilasCargaCertificacion();
+    actualizarEstadoCargaCertificacion(`${matriz.length} fila(s) pegadas desde Excel. No se guardaron todavía: revise la columna Validación y pulse Guardar registros.`,'ok');
+  }
 
-function procesarPegadoExcelCertificaciones(evento,filaInicial,columnaInicial){
-const texto=evento?.clipboardData?.getData('text/plain')||'';
-const matriz=parsearPortapapelesExcel(texto);
-if(!matriz.length)return false;
-evento.preventDefault();
-aplicarMatrizPegadaCertificaciones(matriz,filaInicial,columnaInicial);
-return true;
-}
+  function procesarPegadoExcelCertificaciones(evento,filaInicial,columnaInicial){
+    const texto=evento?.clipboardData?.getData('text/plain')||'';
+    const matriz=parsearPortapapelesExcel(texto);
+    if(!matriz.length)return false;
+    evento.preventDefault();
+    aplicarMatrizPegadaCertificaciones(matriz,filaInicial,columnaInicial);
+    return true;
+  }
 
-function contenidoPanelCargaCertificacion(){
-return `<div class="carga-certificacion-shell">
+  function contenidoPanelCargaCertificacion(){
+    return `<div class="carga-certificacion-shell">
       <div class="carga-certificacion-toolbar"><div><h3>Carga Certificación — ${escapeHTML(tipoGridCertificacion)}</h3><p>Copie y pegue directamente desde Excel. La OC se valida contra public.coi_ordenes y la certificación se vincula mediante nro_oc + orden_id.</p></div><div class="carga-certificacion-actions"><button type="button" id="btnCertificacionNuevaFila">Nueva fila</button><button type="button" id="btnCertificacionAgregarCinco">Agregar 5 filas</button><button type="button" id="btnCertificacionLimpiar">Limpiar filas</button><button type="button" id="btnCertificacionGuardar" class="primary">Guardar registros</button><button type="button" id="btnCertificacionExportarCSV">Exportar CSV</button></div></div>
       <div id="cargaCertificacionStatusR18" class="carga-certificacion-status">Preparando grilla…</div>
       <div class="carga-certificacion-table-wrap"><table class="carga-certificacion-table" data-cert-tipo="${escapeHTML(tipoGridCertificacion)}"><thead><tr>${CERTIFICACION_HEADERS.map(header=>`<th>${escapeHTML(header)}</th>`).join('')}<th>VALIDACIÓN</th></tr></thead><tbody id="cargaCertificacionBodyR18"></tbody></table></div>
       <div class="muted">Persistencia confirmada: public.${CERTIFICACIONES_TABLE}. Los campos acumulado y AUX % se recalculan en la grilla y no se envían porque PostgreSQL los genera automáticamente.</div>
     </div>`;
-}
+  }
 
-function seccionCargaCertificacion(){return byId('cargaRapidaOCSection')||byId('vistaCarga');}
-function panelesCargaPrincipal(){return ['panelCargaServicio','panelCargaObra','panelCargaFinanciera'].map(byId).filter(Boolean);}
-function tipoCargaActivo(){
-const active=document.querySelector('[data-carga-tipo].active,.quick-type-card.active');
-const value=fold(active?.dataset?.cargaTipo||active?.textContent||byId('cargaRapidaTipoActivo')?.textContent||'');
-if(value.includes('OBRA'))return'Obra';
-if(value.includes('SERVICIO'))return'Servicio';
-if(value.includes('FINANCIERA'))return'Financiera';
-return'Servicio';
-}
+  function seccionCargaCertificacion(){return byId('cargaRapidaOCSection')||byId('vistaCarga');}
+  function panelesCargaPrincipal(){return ['panelCargaServicio','panelCargaObra','panelCargaFinanciera'].map(byId).filter(Boolean);}
+  function tipoCargaActivo(){
+    const active=document.querySelector('[data-carga-tipo].active,.quick-type-card.active');
+    const value=fold(active?.dataset?.cargaTipo||active?.textContent||byId('cargaRapidaTipoActivo')?.textContent||'');
+    if(value.includes('OBRA'))return'Obra';
+    if(value.includes('SERVICIO'))return'Servicio';
+    if(value.includes('FINANCIERA'))return'Financiera';
+    return'Servicio';
+  }
 
-function aplicarConfigColumnasCertificacion(tipo=tipoCargaActivo()){
-const target=tipo==='Obra'?'Obra':'Servicio';
-const cfg=CERTIFICACION_CONFIGS[target];
-CERTIFICACION_FIELDS.splice(0,CERTIFICACION_FIELDS.length,...cfg.fields);
-CERTIFICACION_HEADERS.splice(0,CERTIFICACION_HEADERS.length,...cfg.headers);
-tipoGridCertificacion=target;
-return cfg;
-}
+  function aplicarConfigColumnasCertificacion(tipo=tipoCargaActivo()){
+    const target=tipo==='Obra'?'Obra':'Servicio';
+    const cfg=CERTIFICACION_CONFIGS[target];
+    CERTIFICACION_FIELDS.splice(0,CERTIFICACION_FIELDS.length,...cfg.fields);
+    CERTIFICACION_HEADERS.splice(0,CERTIFICACION_HEADERS.length,...cfg.headers);
+    tipoGridCertificacion=target;
+    return cfg;
+  }
 
-function guardarBorradorCertificacion(tipo=tipoGridCertificacion){
-const body=byId('cargaCertificacionBodyR18');
-if(!body||!CERTIFICACION_CONFIGS[tipo])return;
-certificacionBorradores[tipo]=[...body.querySelectorAll('tr')]
-.map(leerFilaCertificacion)
-.filter(row=>!filaCertificacionVacia(row));
-}
+  function guardarBorradorCertificacion(tipo=tipoGridCertificacion){
+    const body=byId('cargaCertificacionBodyR18');
+    if(!body||!CERTIFICACION_CONFIGS[tipo])return;
+    certificacionBorradores[tipo]=[...body.querySelectorAll('tr')]
+      .map(leerFilaCertificacion)
+      .filter(row=>!filaCertificacionVacia(row));
+  }
 
-function reconstruirPanelCargaCertificacion(){
-const panel=byId('panelCargaCertificacionR18');
-if(!panel)return;
-panel.innerHTML=contenidoPanelCargaCertificacion();
-const draft=certificacionBorradores[tipoGridCertificacion]||[];
-agregarFilasCertificacion(draft.length||1,draft);
-actualizarEstadoCargaCertificacion();
-}
+  function reconstruirPanelCargaCertificacion(){
+    const panel=byId('panelCargaCertificacionR18');
+    if(!panel)return;
+    panel.innerHTML=contenidoPanelCargaCertificacion();
+    const draft=certificacionBorradores[tipoGridCertificacion]||[];
+    agregarFilasCertificacion(draft.length||1,draft);
+    actualizarEstadoCargaCertificacion();
+  }
 
-function asegurarCargaCertificacion(){
-const section=seccionCargaCertificacion();
-if(!section)return null;
-let tabs=byId('cargaCertSubtabsR18');
-if(!tabs){
-tabs=document.createElement('div');
-tabs.id='cargaCertSubtabsR18';tabs.className='carga-cert-subtabs-r18';
-tabs.innerHTML='<button type="button" data-carga-cert-tab="principal" class="active">Carga principal</button><button type="button" data-carga-cert-tab="certificacion">Carga Certificación</button>';
-const first=byId('panelCargaServicio')||byId('panelCargaObra')||byId('panelCargaFinanciera')||section.firstElementChild;
-if(first)first.insertAdjacentElement('beforebegin',tabs);else section.appendChild(tabs);
-}
-let panel=byId('panelCargaCertificacionR18');
-if(!panel){
-panel=document.createElement('div');panel.id='panelCargaCertificacionR18';panel.className='quick-load-panel';
-panel.innerHTML=contenidoPanelCargaCertificacion();tabs.insertAdjacentElement('afterend',panel);
-agregarFilasCertificacion(1);
-}
-actualizarVisibilidadCargaCertificacion();
-return panel;
-}
+  function asegurarCargaCertificacion(){
+    const section=seccionCargaCertificacion();
+    if(!section)return null;
+    let tabs=byId('cargaCertSubtabsR18');
+    if(!tabs){
+      tabs=document.createElement('div');
+      tabs.id='cargaCertSubtabsR18';tabs.className='carga-cert-subtabs-r18';
+      tabs.innerHTML='<button type="button" data-carga-cert-tab="principal" class="active">Carga principal</button><button type="button" data-carga-cert-tab="certificacion">Carga Certificación</button>';
+      const first=byId('panelCargaServicio')||byId('panelCargaObra')||byId('panelCargaFinanciera')||section.firstElementChild;
+      if(first)first.insertAdjacentElement('beforebegin',tabs);else section.appendChild(tabs);
+    }
+    let panel=byId('panelCargaCertificacionR18');
+    if(!panel){
+      panel=document.createElement('div');panel.id='panelCargaCertificacionR18';panel.className='quick-load-panel';
+      panel.innerHTML=contenidoPanelCargaCertificacion();tabs.insertAdjacentElement('afterend',panel);
+      agregarFilasCertificacion(1);
+    }
+    actualizarVisibilidadCargaCertificacion();
+    return panel;
+  }
 
-function actualizarVisibilidadCargaCertificacion({revalidar=true}={}){
-const tabs=byId('cargaCertSubtabsR18'),panel=byId('panelCargaCertificacionR18');
-if(!tabs||!panel)return;
-const type=tipoCargaActivo();
-const available=type==='Obra'||type==='Servicio';
-if(available&&type!==tipoGridCertificacion){
-guardarBorradorCertificacion(tipoGridCertificacion);
-aplicarConfigColumnasCertificacion(type);
-reconstruirPanelCargaCertificacion();
-}
-tabs.hidden=!available;
-if(!available)submodoCargaCertificacion='principal';
-tabs.querySelectorAll('[data-carga-cert-tab]').forEach(button=>button.classList.toggle('active',button.dataset.cargaCertTab===submodoCargaCertificacion));
-const certificationActive=available&&submodoCargaCertificacion==='certificacion';
-panel.classList.toggle('active',certificationActive);panel.hidden=!certificationActive;
-panelesCargaPrincipal().forEach(item=>{
-item.hidden=certificationActive;
-if(!certificationActive)item.classList.toggle('active',item.id===`panelCarga${type}`);
-});
-const label=byId('cargaRapidaTipoActivo');
-if(label)label.textContent=`Carga activa: ${type}${certificationActive?' / Carga Certificación':''}`;
-if(certificationActive&&revalidar)setTimeout(validarFilasCargaCertificacion,0);
-}
+  function actualizarVisibilidadCargaCertificacion({revalidar=true}={}){
+    const tabs=byId('cargaCertSubtabsR18'),panel=byId('panelCargaCertificacionR18');
+    if(!tabs||!panel)return;
+    const type=tipoCargaActivo();
+    const available=type==='Obra'||type==='Servicio';
+    if(available&&type!==tipoGridCertificacion){
+      guardarBorradorCertificacion(tipoGridCertificacion);
+      aplicarConfigColumnasCertificacion(type);
+      reconstruirPanelCargaCertificacion();
+    }
+    tabs.hidden=!available;
+    if(!available)submodoCargaCertificacion='principal';
+    tabs.querySelectorAll('[data-carga-cert-tab]').forEach(button=>button.classList.toggle('active',button.dataset.cargaCertTab===submodoCargaCertificacion));
+    const certificationActive=available&&submodoCargaCertificacion==='certificacion';
+    panel.classList.toggle('active',certificationActive);panel.hidden=!certificationActive;
+    panelesCargaPrincipal().forEach(item=>{
+      item.hidden=certificationActive;
+      if(!certificationActive)item.classList.toggle('active',item.id===`panelCarga${type}`);
+    });
+    const label=byId('cargaRapidaTipoActivo');
+    if(label)label.textContent=`Carga activa: ${type}${certificationActive?' / Carga Certificación':''}`;
+    if(certificationActive&&revalidar)setTimeout(validarFilasCargaCertificacion,0);
+  }
 
-function aplicarFiltroClave(query,field,value){
-return value===null||value===undefined||value===''?query.is(field,null):query.eq(field,value);
-}
+  function aplicarFiltroClave(query,field,value){
+    return value===null||value===undefined||value===''?query.is(field,null):query.eq(field,value);
+  }
 
-async function buscarCertificacionExistente(client,payload){
-let query=client.from(CERTIFICACIONES_TABLE).select('id,nro_oc,acta_medicion_nro,item_nro,posicion,fecha_inicio,fecha_fin')
-.eq('nro_oc',payload.nro_oc)
-.eq('acta_medicion_nro',payload.acta_medicion_nro)
-.eq('fecha_inicio',payload.fecha_inicio)
-.eq('fecha_fin',payload.fecha_fin);
-query=aplicarFiltroClave(query,'item_nro',payload.item_nro);
-query=aplicarFiltroClave(query,'posicion',payload.posicion);
-const result=await query.limit(1);
-if(result.error)throw crearErrorSupabase(result.error,'buscar certificación existente',payload);
-return Array.isArray(result.data)?result.data[0]||null:null;
-}
+  async function buscarCertificacionExistente(client,payload){
+    let query=client.from(CERTIFICACIONES_TABLE).select('id,nro_oc,acta_medicion_nro,item_nro,posicion,fecha_inicio,fecha_fin')
+      .eq('nro_oc',payload.nro_oc)
+      .eq('acta_medicion_nro',payload.acta_medicion_nro)
+      .eq('fecha_inicio',payload.fecha_inicio)
+      .eq('fecha_fin',payload.fecha_fin);
+    query=aplicarFiltroClave(query,'item_nro',payload.item_nro);
+    query=aplicarFiltroClave(query,'posicion',payload.posicion);
+    const result=await query.limit(1);
+    if(result.error)throw crearErrorSupabase(result.error,'buscar certificación existente',payload);
+    return Array.isArray(result.data)?result.data[0]||null:null;
+  }
 
-function errorSinIndiceCompatible(error){
-const code=clean(error?.code);
-const message=clean(error?.message||error?.details);
-return code==='42P10'||/no unique or exclusion constraint|ON CONFLICT/i.test(message);
-}
+  function errorSinIndiceCompatible(error){
+    const code=clean(error?.code);
+    const message=clean(error?.message||error?.details);
+    return code==='42P10'||/no unique or exclusion constraint|ON CONFLICT/i.test(message);
+  }
 
-async function upsertCertificacionSupabase(data){
-const basicValidation=validarFilaCertificacion(data,{verificarOC:false});
-if(!basicValidation.valida)throw new Error(basicValidation.errores.join(' · '));
-const {user,client}=await usuarioEscritorCertificacion();
-const order=await resolverOrdenCertificacionPorNroOC(basicValidation.data.nro_oc,client);
-if(!order?.orden_id){const error=new Error(`La OC ${basicValidation.data.nro_oc} existe, pero no se pudo obtener su UUID de Supabase.`);error.code='OC_NOT_FOUND';throw error;}
-const payload=normalizarCertificacionParaSupabase(basicValidation.data,order,user);
-const existing=await buscarCertificacionExistente(client,payload);
-let result=null;
-let action=existing?.id?'updated':'inserted';
-try{
-if(existing?.id){
-result=await client.from(CERTIFICACIONES_TABLE).update(payload).eq('id',existing.id).select().limit(1);
-}else if(payload.item_nro!==null&&payload.posicion!==null){
-result=await client.from(CERTIFICACIONES_TABLE).upsert(payload,{onConflict:CERTIFICACION_CONFLICT_FIELDS}).select().limit(1);
-if(result.error&&errorSinIndiceCompatible(result.error))result=null;
-}
-if(!result){
-result=await client.from(CERTIFICACIONES_TABLE).insert(payload).select().limit(1);
-}
-if(result.error)throw crearErrorSupabase(result.error,action==='updated'?'actualizar certificación':'crear certificación',payload);
-}catch(error){
-const structured=error?.code?error:crearErrorSupabase(error,'guardar certificación',payload);
-console.error('Error certificación:',{code:structured?.code,message:structured?.message,details:structured?.details,hint:structured?.hint,payload});
-throw structured;
-}
-const raw=Array.isArray(result.data)&&result.data.length?result.data[0]:payload;
-const saved=normalizarCertificacionDesdeSupabase(raw);
-certificacionesCacheOC.delete(saved.nro_oc);
-return {action,data:saved};
-}
+  async function upsertCertificacionSupabase(data){
+    const basicValidation=validarFilaCertificacion(data,{verificarOC:false});
+    if(!basicValidation.valida)throw new Error(basicValidation.errores.join(' · '));
+    const {user,client}=await usuarioEscritorCertificacion();
+    const order=await resolverOrdenCertificacionPorNroOC(basicValidation.data.nro_oc,client);
+    if(!order?.orden_id){const error=new Error(`La OC ${basicValidation.data.nro_oc} existe, pero no se pudo obtener su UUID de Supabase.`);error.code='OC_NOT_FOUND';throw error;}
+    const payload=normalizarCertificacionParaSupabase(basicValidation.data,order,user);
+    const existing=await buscarCertificacionExistente(client,payload);
+    let result=null;
+    let action=existing?.id?'updated':'inserted';
+    try{
+      if(existing?.id){
+        result=await client.from(CERTIFICACIONES_TABLE).update(payload).eq('id',existing.id).select().limit(1);
+      }else if(payload.item_nro!==null&&payload.posicion!==null){
+        result=await client.from(CERTIFICACIONES_TABLE).upsert(payload,{onConflict:CERTIFICACION_CONFLICT_FIELDS}).select().limit(1);
+        if(result.error&&errorSinIndiceCompatible(result.error))result=null;
+      }
+      if(!result){
+        result=await client.from(CERTIFICACIONES_TABLE).insert(payload).select().limit(1);
+      }
+      if(result.error)throw crearErrorSupabase(result.error,action==='updated'?'actualizar certificación':'crear certificación',payload);
+    }catch(error){
+      const structured=error?.code?error:crearErrorSupabase(error,'guardar certificación',payload);
+      console.error('Error certificación:',{code:structured?.code,message:structured?.message,details:structured?.details,hint:structured?.hint,payload});
+      throw structured;
+    }
+    const raw=Array.isArray(result.data)&&result.data.length?result.data[0]:payload;
+    const saved=normalizarCertificacionDesdeSupabase(raw);
+    certificacionesCacheOC.delete(saved.nro_oc);
+    return {action,data:saved};
+  }
 
-async function guardarCertificacionSupabase(data){return upsertCertificacionSupabase(data);}
+  async function guardarCertificacionSupabase(data){return upsertCertificacionSupabase(data);}
 
-function cargarCertificacionesLegacyPorOC(nroOC){
-const target=normalizarNroOCCertificacion(nroOC),rows=[];
-CERTIFICACION_LEGACY_KEYS.forEach(key=>{
-try{
-const parsed=JSON.parse(sessionStorage.getItem(key)||'[]');
-if(Array.isArray(parsed))parsed.forEach(row=>{if(obtenerNroOCCertificacion(row)===target)rows.push(normalizarCertificacionDesdeSupabase({...row,_legacy:true}));});
-}catch(error){}
-});
-const seen=new Set();
-return rows.filter(row=>{const key=row.id||construirClaveCertificacion(row);if(seen.has(key))return false;seen.add(key);return true;});
-}
+  function cargarCertificacionesLegacyPorOC(nroOC){
+    const target=normalizarNroOCCertificacion(nroOC),rows=[];
+    CERTIFICACION_LEGACY_KEYS.forEach(key=>{
+      try{
+        const parsed=JSON.parse(sessionStorage.getItem(key)||'[]');
+        if(Array.isArray(parsed))parsed.forEach(row=>{if(obtenerNroOCCertificacion(row)===target)rows.push(normalizarCertificacionDesdeSupabase({...row,_legacy:true}));});
+      }catch(error){}
+    });
+    const seen=new Set();
+    return rows.filter(row=>{const key=row.id||construirClaveCertificacion(row);if(seen.has(key))return false;seen.add(key);return true;});
+  }
 
-async function cargarCertificacionesPorOC(reference){
-const order=ordenDesdeReferencia(reference);
-const nroOC=order?.nro||obtenerNroOCCertificacion(reference);
-if(!nroOC)return [];
-const client=clienteSupabaseCertificacion();
-let user=null;
-try{user=typeof window.getUsuarioActual==='function'?await window.getUsuarioActual():null;}catch(error){}
-if(!client||!user||!navigator.onLine){
-const memory=certificacionesCacheOC.get(nroOC)||[];
-const legacy=cargarCertificacionesLegacyPorOC(nroOC);
-return [...memory,...legacy];
-}
-let result=await client.from(CERTIFICACIONES_TABLE).select('*').eq('nro_oc',nroOC).order('fecha_fin',{ascending:false,nullsFirst:false}).limit(1000);
-if(result.error)throw crearErrorSupabase(result.error,'cargar certificaciones',{nro_oc:nroOC});
-let rows=result.data||[];
-const orderId=order?.orden_id;
-if(!rows.length&&orderId){
-result=await client.from(CERTIFICACIONES_TABLE).select('*').eq('orden_id',orderId).order('fecha_fin',{ascending:false,nullsFirst:false}).limit(1000);
-if(result.error)throw crearErrorSupabase(result.error,'cargar certificaciones por orden_id',{orden_id:orderId,nro_oc:nroOC});
-rows=result.data||[];
-}
-const normalized=rows.map(normalizarCertificacionDesdeSupabase);
-certificacionesCacheOC.set(nroOC,normalized);
-return normalized;
-}
+  async function cargarCertificacionesPorOC(reference){
+    const order=ordenDesdeReferencia(reference);
+    const nroOC=order?.nro||obtenerNroOCCertificacion(reference);
+    if(!nroOC)return [];
+    const client=clienteSupabaseCertificacion();
+    let user=null;
+    try{user=typeof window.getUsuarioActual==='function'?await window.getUsuarioActual():null;}catch(error){}
+    if(!client||!user||!navigator.onLine){
+      const memory=certificacionesCacheOC.get(nroOC)||[];
+      const legacy=cargarCertificacionesLegacyPorOC(nroOC);
+      return [...memory,...legacy];
+    }
+    let result=await client.from(CERTIFICACIONES_TABLE).select('*').eq('nro_oc',nroOC).order('fecha_fin',{ascending:false,nullsFirst:false}).limit(1000);
+    if(result.error)throw crearErrorSupabase(result.error,'cargar certificaciones',{nro_oc:nroOC});
+    let rows=result.data||[];
+    const orderId=order?.orden_id;
+    if(!rows.length&&orderId){
+      result=await client.from(CERTIFICACIONES_TABLE).select('*').eq('orden_id',orderId).order('fecha_fin',{ascending:false,nullsFirst:false}).limit(1000);
+      if(result.error)throw crearErrorSupabase(result.error,'cargar certificaciones por orden_id',{orden_id:orderId,nro_oc:nroOC});
+      rows=result.data||[];
+    }
+    const normalized=rows.map(normalizarCertificacionDesdeSupabase);
+    certificacionesCacheOC.set(nroOC,normalized);
+    return normalized;
+  }
 
-async function actualizarProximaCertificacionOrden(nroOC){
-certificacionesCacheOC.delete(nroOC);
-const source=await cargarCertificacionesPorOC(nroOC);
-const dates=source.map(row=>normalizarFechaCertificacion(row.proxima_acta_medicion_fecha)).filter(Boolean).sort();
-if(!dates.length)return {updated:false,reason:'sin_fecha'};
-const {client}=await usuarioEscritorCertificacion();
-const order=await resolverOrdenCertificacionPorNroOC(nroOC,client);
-if(!order?.orden_id){const error=new Error(`La OC ${nroOC} no tiene un UUID remoto válido.`);error.code='OC_NOT_FOUND';throw error;}
-const target=dates[0];
-const payload={proxima_certificacion:target};
-const result=await client.rpc('coi_actualizar_orden_integral',{p_orden_id:order.orden_id,p_cambios:payload});
-if(result.error)throw crearErrorSupabase(result.error,'actualizar próxima certificación por RPC',{nro_oc:nroOC,orden_id:order.orden_id,...payload});
-const confirmed=result.data?.orden;
-if(!confirmed?.id||String(confirmed.id)!==String(order.orden_id)||normalizarFechaCertificacion(confirmed.proxima_certificacion)!==target){
-const error=new Error('Supabase no confirmó la próxima certificación solicitada.');
-error.code='COI_NEXT_CERT_NOT_CONFIRMED';
-error.payload={nro_oc:nroOC,orden_id:order.orden_id,...payload};
-throw error;
-}
-const verification=await client.from(ORDENES_TABLE).select('id,nro_oc,proxima_certificacion').eq('id',order.orden_id).limit(1);
-if(verification.error)throw crearErrorSupabase(verification.error,'verificar próxima certificación',{nro_oc:nroOC,orden_id:order.orden_id,...payload});
-const persisted=Array.isArray(verification.data)?verification.data[0]:null;
-if(!persisted?.id||normalizarFechaCertificacion(persisted.proxima_certificacion)!==target){
-const error=new Error('La verificación posterior no encontró la próxima certificación persistida en Supabase.');
-error.code='COI_NEXT_CERT_VERIFY_FAILED';
-error.payload={nro_oc:nroOC,orden_id:order.orden_id,...payload};
-throw error;
-}
-return {updated:true,nro_oc:normalizarNroOCCertificacion(persisted.nro_oc||nroOC),proxima_certificacion:target,orden:persisted};
-}
+  async function actualizarProximaCertificacionOrden(nroOC){
+    certificacionesCacheOC.delete(nroOC);
+    const source=await cargarCertificacionesPorOC(nroOC);
+    const dates=source.map(row=>normalizarFechaCertificacion(row.proxima_acta_medicion_fecha)).filter(Boolean).sort();
+    if(!dates.length)return {updated:false,reason:'sin_fecha'};
+    const {client}=await usuarioEscritorCertificacion();
+    const order=await resolverOrdenCertificacionPorNroOC(nroOC,client);
+    if(!order?.orden_id){const error=new Error(`La OC ${nroOC} no tiene un UUID remoto válido.`);error.code='OC_NOT_FOUND';throw error;}
+    const target=dates[0];
+    const payload={proxima_certificacion:target};
+    const result=await client.rpc('coi_actualizar_orden_integral',{p_orden_id:order.orden_id,p_cambios:payload});
+    if(result.error)throw crearErrorSupabase(result.error,'actualizar próxima certificación por RPC',{nro_oc:nroOC,orden_id:order.orden_id,...payload});
+    const confirmed=result.data?.orden;
+    if(!confirmed?.id||String(confirmed.id)!==String(order.orden_id)||normalizarFechaCertificacion(confirmed.proxima_certificacion)!==target){
+      const error=new Error('Supabase no confirmó la próxima certificación solicitada.');
+      error.code='COI_NEXT_CERT_NOT_CONFIRMED';
+      error.payload={nro_oc:nroOC,orden_id:order.orden_id,...payload};
+      throw error;
+    }
+    const verification=await client.from(ORDENES_TABLE).select('id,nro_oc,proxima_certificacion').eq('id',order.orden_id).limit(1);
+    if(verification.error)throw crearErrorSupabase(verification.error,'verificar próxima certificación',{nro_oc:nroOC,orden_id:order.orden_id,...payload});
+    const persisted=Array.isArray(verification.data)?verification.data[0]:null;
+    if(!persisted?.id||normalizarFechaCertificacion(persisted.proxima_certificacion)!==target){
+      const error=new Error('La verificación posterior no encontró la próxima certificación persistida en Supabase.');
+      error.code='COI_NEXT_CERT_VERIFY_FAILED';
+      error.payload={nro_oc:nroOC,orden_id:order.orden_id,...payload};
+      throw error;
+    }
+    return {updated:true,nro_oc:normalizarNroOCCertificacion(persisted.nro_oc||nroOC),proxima_certificacion:target,orden:persisted};
+  }
 
-async function refrescarModulosTrasCertificacion(nrosOC=[]){
-const list=[...new Set((Array.isArray(nrosOC)?nrosOC:[nrosOC]).map(normalizarNroOCCertificacion).filter(Boolean))];
-list.forEach(nro=>certificacionesCacheOC.delete(nro));
-/* El historial autoritativo de certificaciones quedó viejo: sin releerlo,
+  async function refrescarModulosTrasCertificacion(nrosOC=[]){
+    const list=[...new Set((Array.isArray(nrosOC)?nrosOC:[nrosOC]).map(normalizarNroOCCertificacion).filter(Boolean))];
+    list.forEach(nro=>certificacionesCacheOC.delete(nro));
+    /* El historial autoritativo de certificaciones quedó viejo: sin releerlo,
        la tabla seguiría mostrando el estado previo al guardado y la próxima
        certificación se proyectaría desde una base desactualizada. Se recarga
        ANTES de repintar, para que el Calendario ya use el dato nuevo y el
        operador no tenga que apretar «Actualizar» ni recargar la página. */
-try{
-const h=window.__COI_CERT_HISTORIAL__;
-if(h&&typeof h.cargar==='function')await h.cargar(true);
-}catch(error){console.warn('COI: no se pudo releer el historial de certificaciones.',error);}
-try{if(typeof window.cargarOrdenesPrincipal==='function')await window.cargarOrdenesPrincipal();}catch(error){console.warn('COI: no se pudo refrescar Órdenes después de certificar.',error);}
-const renders=['updateKpis','renderDashboard','renderDashboardInteractivoExtra','renderOrdenes','renderCalendarioCOIUnificado','renderCalendario','renderCentroAlertas','renderRed'];
-renders.forEach(name=>{try{if(typeof window[name]==='function')window[name]();}catch(error){console.warn(`COI: ${name} no pudo refrescarse.`,error);}});
-try{
-const active=window.__coiFichaOCActiva||window.ocActualId||list[0]||'';
-if(active&&typeof window.renderFichaOC==='function')window.renderFichaOC(active);
-if(list[0])setTimeout(()=>renderCertificacionesSupabaseEnFicha(list[0]).catch(error=>console.warn('COI: no se pudo refrescar la ficha de certificaciones.',error)),120);
-}catch(error){console.warn('COI: la Ficha OC no pudo refrescarse.',error);}
-}
+    try{
+      const h=window.__COI_CERT_HISTORIAL__;
+      if(h&&typeof h.cargar==='function')await h.cargar(true);
+    }catch(error){console.warn('COI: no se pudo releer el historial de certificaciones.',error);}
+    try{if(typeof window.cargarOrdenesPrincipal==='function')await window.cargarOrdenesPrincipal();}catch(error){console.warn('COI: no se pudo refrescar Órdenes después de certificar.',error);}
+    const renders=['updateKpis','renderDashboard','renderDashboardInteractivoExtra','renderOrdenes','renderCalendarioCOIUnificado','renderCalendario','renderCentroAlertas','renderRed'];
+    renders.forEach(name=>{try{if(typeof window[name]==='function')window[name]();}catch(error){console.warn(`COI: ${name} no pudo refrescarse.`,error);}});
+    try{
+      const active=window.__coiFichaOCActiva||window.ocActualId||list[0]||'';
+      if(active&&typeof window.renderFichaOC==='function')window.renderFichaOC(active);
+      if(list[0])setTimeout(()=>renderCertificacionesSupabaseEnFicha(list[0]).catch(error=>console.warn('COI: no se pudo refrescar la ficha de certificaciones.',error)),120);
+    }catch(error){console.warn('COI: la Ficha OC no pudo refrescarse.',error);}
+  }
 
-async function guardarCargaCertificaciones(){
-if(guardandoCargaCertificaciones)return;
-const body=byId('cargaCertificacionBodyR18');
-const allRows=body?[...body.querySelectorAll('tr')]:[];
-const candidates=allRows.map((row,index)=>({row,index,data:leerFilaCertificacion(row)})).filter(entry=>!filaCertificacionVacia(entry.data));
-if(!candidates.length){actualizarEstadoCargaCertificacion('No hay filas con datos para guardar.','warning');return;}
+  async function guardarCargaCertificaciones(){
+    if(guardandoCargaCertificaciones)return;
+    const body=byId('cargaCertificacionBodyR18');
+    const allRows=body?[...body.querySelectorAll('tr')]:[];
+    const candidates=allRows.map((row,index)=>({row,index,data:leerFilaCertificacion(row)})).filter(entry=>!filaCertificacionVacia(entry.data));
+    if(!candidates.length){actualizarEstadoCargaCertificacion('No hay filas con datos para guardar.','warning');return;}
 
-const groupCounts=new Map();
-candidates.forEach(entry=>{
-const n=normalizarCertificacionDesdeSupabase(entry.data);
-const key=[n.nro_oc,n.acta_medicion_nro,n.fecha_inicio,n.fecha_fin].map(fold).join('|');
-groupCounts.set(key,(groupCounts.get(key)||0)+1);
-});
+    const groupCounts=new Map();
+    candidates.forEach(entry=>{
+      const n=normalizarCertificacionDesdeSupabase(entry.data);
+      const key=[n.nro_oc,n.acta_medicion_nro,n.fecha_inicio,n.fecha_fin].map(fold).join('|');
+      groupCounts.set(key,(groupCounts.get(key)||0)+1);
+    });
 
-guardandoCargaCertificaciones=true;
-const button=byId('btnCertificacionGuardar');
-if(button)button.disabled=true;
-const summary={detectadas:candidates.length,procesadas:0,nuevas:0,actualizadas:0,omitidas:0,errores:0,erroresFechaOC:0};
-const errors=[];
-const savedOC=new Set();
-const savedRowsByOC=new Map();
-const seen=new Set();
-actualizarEstadoCargaCertificacion(`Validando ${candidates.length} registro(s) y guardando únicamente las filas válidas…`);
-try{
-for(const entry of candidates){
-marcarResultadoFila(entry.row);
-const normalized=normalizarCertificacionDesdeSupabase(entry.data);
-const groupKey=[normalized.nro_oc,normalized.acta_medicion_nro,normalized.fecha_inicio,normalized.fecha_fin].map(fold).join('|');
-const logicalKey=construirClaveCertificacion(entry.data);
-const validation=validarFilaCertificacion(entry.data,{verificarOC:false,requiereItem:(groupCounts.get(groupKey)||0)>1});
-if(!validation.valida){
-summary.errores+=1;
-const message=validation.errores.join(' · ');
-errors.push(`Fila ${entry.index+1}: ${message}`);
-marcarResultadoFila(entry.row,message,'error');
-continue;
-}
-if(seen.has(logicalKey)){
-summary.omitidas+=1;
-const message='Duplicado dentro del bloque pegado.';
-marcarResultadoFila(entry.row,message,'warning');
-continue;
-}
-seen.add(logicalKey);
-try{
-const result=await upsertCertificacionSupabase(validation.data);
-summary.procesadas+=1;
-if(result.action==='inserted')summary.nuevas+=1;else summary.actualizadas+=1;
-const savedNro=normalizarNroOCCertificacion(result.data.nro_oc);
-savedOC.add(savedNro);
-if(!savedRowsByOC.has(savedNro))savedRowsByOC.set(savedNro,[]);
-savedRowsByOC.get(savedNro).push({row:entry.row,action:result.action});
-marcarResultadoFila(entry.row,result.action==='inserted'?'Creada en Supabase':'Actualizada en Supabase','ok');
-}catch(error){
-summary.errores+=1;
-const message=detalleErrorEsquema(error);
-errors.push(`Fila ${entry.index+1}: ${message}`);
-marcarResultadoFila(entry.row,message,'error');
-console.error('Error certificación:',{code:error?.code,message:error?.message,details:error?.details,hint:error?.hint,payload:error?.payload||validation.data});
-}
-}
-for(const nroOC of savedOC){
-try{
-const sync=await actualizarProximaCertificacionOrden(nroOC);
-if(sync?.updated)(savedRowsByOC.get(nroOC)||[]).forEach(entry=>marcarResultadoFila(entry.row,entry.action==='inserted'?'Creada y próxima fecha confirmada en Supabase':'Actualizada y próxima fecha confirmada en Supabase','ok'));
-}catch(error){
-summary.erroresFechaOC+=1;
-const message=detalleErrorEsquema(error);
-errors.push(`OC ${nroOC}: certificación guardada, pero próxima fecha no actualizada · ${message}`);
-(savedRowsByOC.get(nroOC)||[]).forEach(entry=>marcarResultadoFila(entry.row,`Certificación guardada; próxima fecha NO actualizada: ${message}`,'warning'));
-}
-}
-const report=`Filas detectadas: <b>${summary.detectadas}</b> · Procesadas: <b>${summary.procesadas}</b> · Nuevas: <b>${summary.nuevas}</b> · Actualizadas: <b>${summary.actualizadas}</b> · Omitidas: <b>${summary.omitidas}</b> · Filas con error: <b>${summary.errores}</b> · OCs sin fecha sincronizada: <b>${summary.erroresFechaOC}</b>`;
-actualizarEstadoCargaCertificacion(report+(errors.length?`<ul class="certificacion-error-list">${errors.slice(0,20).map(error=>`<li>${escapeHTML(error)}</li>`).join('')}</ul>`:''),errors.length?'warning':'ok');
-if(summary.procesadas){
-await refrescarModulosTrasCertificacion([...savedOC]);
-submodoCargaCertificacion='certificacion';
-actualizarVisibilidadCargaCertificacion({revalidar:false});
-}
-}finally{
-guardandoCargaCertificaciones=false;
-if(button)button.disabled=false;
-}
-}
+    guardandoCargaCertificaciones=true;
+    const button=byId('btnCertificacionGuardar');
+    if(button)button.disabled=true;
+    const summary={detectadas:candidates.length,procesadas:0,nuevas:0,actualizadas:0,omitidas:0,errores:0,erroresFechaOC:0};
+    const errors=[];
+    const savedOC=new Set();
+    const savedRowsByOC=new Map();
+    const seen=new Set();
+    actualizarEstadoCargaCertificacion(`Validando ${candidates.length} registro(s) y guardando únicamente las filas válidas…`);
+    try{
+      for(const entry of candidates){
+        marcarResultadoFila(entry.row);
+        const normalized=normalizarCertificacionDesdeSupabase(entry.data);
+        const groupKey=[normalized.nro_oc,normalized.acta_medicion_nro,normalized.fecha_inicio,normalized.fecha_fin].map(fold).join('|');
+        const logicalKey=construirClaveCertificacion(entry.data);
+        const validation=validarFilaCertificacion(entry.data,{verificarOC:false,requiereItem:(groupCounts.get(groupKey)||0)>1});
+        if(!validation.valida){
+          summary.errores+=1;
+          const message=validation.errores.join(' · ');
+          errors.push(`Fila ${entry.index+1}: ${message}`);
+          marcarResultadoFila(entry.row,message,'error');
+          continue;
+        }
+        if(seen.has(logicalKey)){
+          summary.omitidas+=1;
+          const message='Duplicado dentro del bloque pegado.';
+          marcarResultadoFila(entry.row,message,'warning');
+          continue;
+        }
+        seen.add(logicalKey);
+        try{
+          const result=await upsertCertificacionSupabase(validation.data);
+          summary.procesadas+=1;
+          if(result.action==='inserted')summary.nuevas+=1;else summary.actualizadas+=1;
+          const savedNro=normalizarNroOCCertificacion(result.data.nro_oc);
+          savedOC.add(savedNro);
+          if(!savedRowsByOC.has(savedNro))savedRowsByOC.set(savedNro,[]);
+          savedRowsByOC.get(savedNro).push({row:entry.row,action:result.action});
+          marcarResultadoFila(entry.row,result.action==='inserted'?'Creada en Supabase':'Actualizada en Supabase','ok');
+        }catch(error){
+          summary.errores+=1;
+          const message=detalleErrorEsquema(error);
+          errors.push(`Fila ${entry.index+1}: ${message}`);
+          marcarResultadoFila(entry.row,message,'error');
+          console.error('Error certificación:',{code:error?.code,message:error?.message,details:error?.details,hint:error?.hint,payload:error?.payload||validation.data});
+        }
+      }
+      for(const nroOC of savedOC){
+        try{
+          const sync=await actualizarProximaCertificacionOrden(nroOC);
+          if(sync?.updated)(savedRowsByOC.get(nroOC)||[]).forEach(entry=>marcarResultadoFila(entry.row,entry.action==='inserted'?'Creada y próxima fecha confirmada en Supabase':'Actualizada y próxima fecha confirmada en Supabase','ok'));
+        }catch(error){
+          summary.erroresFechaOC+=1;
+          const message=detalleErrorEsquema(error);
+          errors.push(`OC ${nroOC}: certificación guardada, pero próxima fecha no actualizada · ${message}`);
+          (savedRowsByOC.get(nroOC)||[]).forEach(entry=>marcarResultadoFila(entry.row,`Certificación guardada; próxima fecha NO actualizada: ${message}`,'warning'));
+        }
+      }
+      const report=`Filas detectadas: <b>${summary.detectadas}</b> · Procesadas: <b>${summary.procesadas}</b> · Nuevas: <b>${summary.nuevas}</b> · Actualizadas: <b>${summary.actualizadas}</b> · Omitidas: <b>${summary.omitidas}</b> · Filas con error: <b>${summary.errores}</b> · OCs sin fecha sincronizada: <b>${summary.erroresFechaOC}</b>`;
+      actualizarEstadoCargaCertificacion(report+(errors.length?`<ul class="certificacion-error-list">${errors.slice(0,20).map(error=>`<li>${escapeHTML(error)}</li>`).join('')}</ul>`:''),errors.length?'warning':'ok');
+      if(summary.procesadas){
+        await refrescarModulosTrasCertificacion([...savedOC]);
+        submodoCargaCertificacion='certificacion';
+        actualizarVisibilidadCargaCertificacion({revalidar:false});
+      }
+    }finally{
+      guardandoCargaCertificaciones=false;
+      if(button)button.disabled=false;
+    }
+  }
 
-function csvValue(value){return coiCSVCell(value);}
-function descargarArchivoCertificacion(name,content,type){
-const blob=new Blob(['\ufeff',content],{type});
-const url=URL.createObjectURL(blob);const link=document.createElement('a');
-link.href=url;link.download=name;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
-}
-function exportarCargaCertificacionesCSV(){
-const body=byId('cargaCertificacionBodyR18');
-const rows=body?[...body.querySelectorAll('tr')].map(leerFilaCertificacion).filter(row=>!filaCertificacionVacia(row)):[];
-if(!rows.length){actualizarEstadoCargaCertificacion('No hay registros en la grilla para exportar.','warning');return;}
-const lines=[CERTIFICACION_HEADERS.map(csvValue).join(';')];
-rows.forEach(row=>lines.push(CERTIFICACION_FIELDS.map(field=>csvValue(row[field])).join(';')));
-descargarArchivoCertificacion(`certificaciones_${tipoGridCertificacion.toLowerCase()}_coi_${new Date().toISOString().slice(0,10)}.csv`,lines.join('\r\n'),'text/csv;charset=utf-8');
-actualizarEstadoCargaCertificacion(`${rows.length} registro(s) exportados a CSV.`,'ok');
-}
+  function csvValue(value){return coiCSVCell(value);}
+  function descargarArchivoCertificacion(name,content,type){
+    const blob=new Blob(['\ufeff',content],{type});
+    const url=URL.createObjectURL(blob);const link=document.createElement('a');
+    link.href=url;link.download=name;document.body.appendChild(link);link.click();link.remove();URL.revokeObjectURL(url);
+  }
+  function exportarCargaCertificacionesCSV(){
+    const body=byId('cargaCertificacionBodyR18');
+    const rows=body?[...body.querySelectorAll('tr')].map(leerFilaCertificacion).filter(row=>!filaCertificacionVacia(row)):[];
+    if(!rows.length){actualizarEstadoCargaCertificacion('No hay registros en la grilla para exportar.','warning');return;}
+    const lines=[CERTIFICACION_HEADERS.map(csvValue).join(';')];
+    rows.forEach(row=>lines.push(CERTIFICACION_FIELDS.map(field=>csvValue(row[field])).join(';')));
+    descargarArchivoCertificacion(`certificaciones_${tipoGridCertificacion.toLowerCase()}_coi_${new Date().toISOString().slice(0,10)}.csv`,lines.join('\r\n'),'text/csv;charset=utf-8');
+    actualizarEstadoCargaCertificacion(`${rows.length} registro(s) exportados a CSV.`,'ok');
+  }
 
-function tablaCertificacionesFicha(rows){
-if(!rows.length)return '<div class="empty-state">La OC todavía no posee certificaciones registradas en Supabase.</div>';
-return `<div class="table-wrap"><table><thead><tr><th>Acta</th><th>Ítem</th><th>Período</th><th>Descripción</th><th>Ejecutado período</th><th>Acumulado</th><th>Avance</th><th>100%</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${escapeHTML(row.acta_medicion_nro||'—')}</td><td>${escapeHTML(row.item_nro||'—')}</td><td>${escapeHTML(fechaVisible(row.fecha_inicio))} al ${escapeHTML(fechaVisible(row.fecha_fin))}</td><td>${escapeHTML(row.descripcion||row.tipo_servicio||'—')}</td><td>${escapeHTML(row.servicio_ejecutado_periodo)}</td><td>${escapeHTML(row.servicio_ejecutado_acumulado)}</td><td>${escapeHTML(Number(row.aux_porcentaje||0).toFixed(2))}%</td><td>${row.ejecutado_100?'Sí':'No'}</td></tr>`).join('')}</tbody></table></div>`;
-}
+  function tablaCertificacionesFicha(rows){
+    if(!rows.length)return '<div class="empty-state">La OC todavía no posee certificaciones registradas en Supabase.</div>';
+    return `<div class="table-wrap"><table><thead><tr><th>Acta</th><th>Ítem</th><th>Período</th><th>Descripción</th><th>Ejecutado período</th><th>Acumulado</th><th>Avance</th><th>100%</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${escapeHTML(row.acta_medicion_nro||'—')}</td><td>${escapeHTML(row.item_nro||'—')}</td><td>${escapeHTML(fechaVisible(row.fecha_inicio))} al ${escapeHTML(fechaVisible(row.fecha_fin))}</td><td>${escapeHTML(row.descripcion||row.tipo_servicio||'—')}</td><td>${escapeHTML(row.servicio_ejecutado_periodo)}</td><td>${escapeHTML(row.servicio_ejecutado_acumulado)}</td><td>${escapeHTML(Number(row.aux_porcentaje||0).toFixed(2))}%</td><td>${row.ejecutado_100?'Sí':'No'}</td></tr>`).join('')}</tbody></table></div>`;
+  }
 
-async function renderCertificacionesSupabaseEnFicha(reference){
-const host=byId('panelFichaCertificaciones');
-if(!host)return;
-let section=byId('certificacionesSupabaseFichaR18');
-if(!section){
-section=document.createElement('div');section.id='certificacionesSupabaseFichaR18';section.className='certificaciones-supabase-ficha';
-host.appendChild(section);
-}
-section.innerHTML='<h4>Certificaciones registradas</h4><p>Consultando Supabase…</p>';
-try{
-const rows=await cargarCertificacionesPorOC(reference);
-if(!section.isConnected)return;
-const sourceNote=rows.some(row=>row._legacy)?' Lectura histórica local de respaldo; no mezclada con registros Supabase en línea.':'';
-let actasNote='';
-if(!rows.length){
-try{
-if(typeof window.cargarDocumentosStorageOC==='function'&&typeof window.obtenerActasMedicionDocumentalesOC==='function'){
-const documentos=await window.cargarDocumentosStorageOC(reference);
-const actas=window.obtenerActasMedicionDocumentalesOC(reference,documentos)||[];
-if(actas.length)actasNote=` No hay certificaciones estructuradas cargadas, pero se encontraron ${actas.length} Acta(s) de Medición documental(es) en "Actas de medición documentales" debajo.`;
-}
-}catch(error){}
-if(!section.isConnected)return;
-}
-section.innerHTML=`<h4>Certificaciones registradas</h4><p>${rows.length} movimiento(s) vinculados a esta OC.${escapeHTML(sourceNote)}${escapeHTML(actasNote)}</p>${tablaCertificacionesFicha(rows)}`;
-}catch(error){
-if(!section.isConnected)return;
-section.innerHTML=`<h4>Certificaciones registradas</h4><div class="carga-certificacion-status error">${escapeHTML(detalleErrorEsquema(error))}</div>`;
-}
-}
+  async function renderCertificacionesSupabaseEnFicha(reference){
+    const host=byId('panelFichaCertificaciones');
+    if(!host)return;
+    let section=byId('certificacionesSupabaseFichaR18');
+    if(!section){
+      section=document.createElement('div');section.id='certificacionesSupabaseFichaR18';section.className='certificaciones-supabase-ficha';
+      host.appendChild(section);
+    }
+    section.innerHTML='<h4>Certificaciones registradas</h4><p>Consultando Supabase…</p>';
+    try{
+      const rows=await cargarCertificacionesPorOC(reference);
+      if(!section.isConnected)return;
+      const sourceNote=rows.some(row=>row._legacy)?' Lectura histórica local de respaldo; no mezclada con registros Supabase en línea.':'';
+      let actasNote='';
+      if(!rows.length){
+        try{
+          if(typeof window.cargarDocumentosStorageOC==='function'&&typeof window.obtenerActasMedicionDocumentalesOC==='function'){
+            const documentos=await window.cargarDocumentosStorageOC(reference);
+            const actas=window.obtenerActasMedicionDocumentalesOC(reference,documentos)||[];
+            if(actas.length)actasNote=` No hay certificaciones estructuradas cargadas, pero se encontraron ${actas.length} Acta(s) de Medición documental(es) en "Actas de medición documentales" debajo.`;
+          }
+        }catch(error){}
+        if(!section.isConnected)return;
+      }
+      section.innerHTML=`<h4>Certificaciones registradas</h4><p>${rows.length} movimiento(s) vinculados a esta OC.${escapeHTML(sourceNote)}${escapeHTML(actasNote)}</p>${tablaCertificacionesFicha(rows)}`;
+    }catch(error){
+      if(!section.isConnected)return;
+      section.innerHTML=`<h4>Certificaciones registradas</h4><div class="carga-certificacion-status error">${escapeHTML(detalleErrorEsquema(error))}</div>`;
+    }
+  }
 
-function inicializarEventosCargaCertificacion(){
-asegurarCargaCertificacion();
-if(eventosCargaCertificacionInicializados)return;
-eventosCargaCertificacionInicializados=true;
-document.addEventListener('click',event=>{
-const tab=event.target.closest('[data-carga-cert-tab]');
-if(tab){submodoCargaCertificacion=tab.dataset.cargaCertTab||'principal';actualizarVisibilidadCargaCertificacion();return;}
-if(event.target.closest('#btnCertificacionNuevaFila')){agregarFilasCertificacion(1);return;}
-if(event.target.closest('#btnCertificacionAgregarCinco')){agregarFilasCertificacion(5);return;}
-if(event.target.closest('#btnCertificacionLimpiar')){limpiarFilasCertificacion();return;}
-if(event.target.closest('#btnCertificacionGuardar')){guardarCargaCertificaciones().catch(error=>actualizarEstadoCargaCertificacion(escapeHTML(detalleErrorEsquema(error)),'error'));return;}
-if(event.target.closest('#btnCertificacionExportarCSV')){exportarCargaCertificacionesCSV();return;}
-if(event.target.closest('[data-carga-tipo],.quick-type-card')){guardarBorradorCertificacion(tipoGridCertificacion);submodoCargaCertificacion='principal';setTimeout(()=>{asegurarCargaCertificacion();actualizarVisibilidadCargaCertificacion();},0);}
-});
-document.addEventListener('input',event=>{
-const control=event.target.closest('#panelCargaCertificacionR18 [data-cert-field]');
-if(!control)return;
-delete control.dataset.rawInvalid;
-if(control.dataset.certField==='anio')control.dataset.autoYear='false';
-recalcularFilaCertificacion(control.closest('tr'),{actualizarAnio:false});
-validarFilasCargaCertificacion();
-actualizarEstadoCargaCertificacion();
-});
-document.addEventListener('change',event=>{
-const control=event.target.closest('#panelCargaCertificacionR18 [data-cert-field]');
-if(!control)return;
-delete control.dataset.rawInvalid;
-recalcularFilaCertificacion(control.closest('tr'),{actualizarAnio:false});
-validarFilasCargaCertificacion();
-actualizarEstadoCargaCertificacion();
-});
-document.addEventListener('paste',event=>{
-const control=event.target.closest('#panelCargaCertificacionR18 [data-cert-field]');
-if(!control)return;
-const text=event.clipboardData?.getData('text/plain')||'';
-if(!text.includes('\t')&&!/[\r\n]/.test(text))return;
-const row=control.closest('tr');
-const rows=[...row.parentElement.children];
-procesarPegadoExcelCertificaciones(event,rows.indexOf(row),CERTIFICACION_FIELDS.indexOf(control.dataset.certField));
-});
-}
+  function inicializarEventosCargaCertificacion(){
+    asegurarCargaCertificacion();
+    if(eventosCargaCertificacionInicializados)return;
+    eventosCargaCertificacionInicializados=true;
+    document.addEventListener('click',event=>{
+      const tab=event.target.closest('[data-carga-cert-tab]');
+      if(tab){submodoCargaCertificacion=tab.dataset.cargaCertTab||'principal';actualizarVisibilidadCargaCertificacion();return;}
+      if(event.target.closest('#btnCertificacionNuevaFila')){agregarFilasCertificacion(1);return;}
+      if(event.target.closest('#btnCertificacionAgregarCinco')){agregarFilasCertificacion(5);return;}
+      if(event.target.closest('#btnCertificacionLimpiar')){limpiarFilasCertificacion();return;}
+      if(event.target.closest('#btnCertificacionGuardar')){guardarCargaCertificaciones().catch(error=>actualizarEstadoCargaCertificacion(escapeHTML(detalleErrorEsquema(error)),'error'));return;}
+      if(event.target.closest('#btnCertificacionExportarCSV')){exportarCargaCertificacionesCSV();return;}
+      if(event.target.closest('[data-carga-tipo],.quick-type-card')){guardarBorradorCertificacion(tipoGridCertificacion);submodoCargaCertificacion='principal';setTimeout(()=>{asegurarCargaCertificacion();actualizarVisibilidadCargaCertificacion();},0);}
+    });
+    document.addEventListener('input',event=>{
+      const control=event.target.closest('#panelCargaCertificacionR18 [data-cert-field]');
+      if(!control)return;
+      delete control.dataset.rawInvalid;
+      if(control.dataset.certField==='anio')control.dataset.autoYear='false';
+      recalcularFilaCertificacion(control.closest('tr'),{actualizarAnio:false});
+      validarFilasCargaCertificacion();
+      actualizarEstadoCargaCertificacion();
+    });
+    document.addEventListener('change',event=>{
+      const control=event.target.closest('#panelCargaCertificacionR18 [data-cert-field]');
+      if(!control)return;
+      delete control.dataset.rawInvalid;
+      recalcularFilaCertificacion(control.closest('tr'),{actualizarAnio:false});
+      validarFilasCargaCertificacion();
+      actualizarEstadoCargaCertificacion();
+    });
+    document.addEventListener('paste',event=>{
+      const control=event.target.closest('#panelCargaCertificacionR18 [data-cert-field]');
+      if(!control)return;
+      const text=event.clipboardData?.getData('text/plain')||'';
+      if(!text.includes('\t')&&!/[\r\n]/.test(text))return;
+      const row=control.closest('tr');
+      const rows=[...row.parentElement.children];
+      procesarPegadoExcelCertificaciones(event,rows.indexOf(row),CERTIFICACION_FIELDS.indexOf(control.dataset.certField));
+    });
+  }
 
-window.normalizarNroOCCertificacion=normalizarNroOCCertificacion;
-window.normalizarFechaCertificacion=normalizarFechaCertificacion;
-window.normalizarNumeroCertificacion=normalizarNumeroCertificacion;
-window.normalizarBooleanoCertificacion=normalizarBooleanoCertificacion;
-window.normalizarTextoCertificacion=normalizarTextoCertificacion;
-window.normalizarCertificacionDesdeSupabase=normalizarCertificacionDesdeSupabase;
-window.normalizarCertificacionParaSupabase=normalizarCertificacionParaSupabase;
-window.validarFilaCertificacion=validarFilaCertificacion;
-window.buscarOrdenPorNroOC=buscarOrdenPorNroOC;
-window.cargarCertificacionesPorOC=cargarCertificacionesPorOC;
-window.actualizarProximaCertificacionOrden=actualizarProximaCertificacionOrden;
-window.guardarCertificacionSupabase=guardarCertificacionSupabase;
-window.upsertCertificacionSupabase=upsertCertificacionSupabase;
-window.guardarCargaCertificaciones=guardarCargaCertificaciones;
-window.renderCertificacionesSupabaseEnFicha=renderCertificacionesSupabaseEnFicha;
-window.inicializarEventosCargaCertificacion=inicializarEventosCargaCertificacion;
-window.procesarPegadoExcelCertificaciones=procesarPegadoExcelCertificaciones;
-window.parsearPortapapelesExcel=parsearPortapapelesExcel;
-window.aplicarMatrizPegadaCertificaciones=aplicarMatrizPegadaCertificaciones;
-window.crearFilasCertificacionSiFaltan=crearFilasCertificacionSiFaltan;
-window.recalcularFilaCertificacion=recalcularFilaCertificacion;
+  window.normalizarNroOCCertificacion=normalizarNroOCCertificacion;
+  window.normalizarFechaCertificacion=normalizarFechaCertificacion;
+  window.normalizarNumeroCertificacion=normalizarNumeroCertificacion;
+  window.normalizarBooleanoCertificacion=normalizarBooleanoCertificacion;
+  window.normalizarTextoCertificacion=normalizarTextoCertificacion;
+  window.normalizarCertificacionDesdeSupabase=normalizarCertificacionDesdeSupabase;
+  window.normalizarCertificacionParaSupabase=normalizarCertificacionParaSupabase;
+  window.validarFilaCertificacion=validarFilaCertificacion;
+  window.buscarOrdenPorNroOC=buscarOrdenPorNroOC;
+  window.cargarCertificacionesPorOC=cargarCertificacionesPorOC;
+  window.actualizarProximaCertificacionOrden=actualizarProximaCertificacionOrden;
+  window.guardarCertificacionSupabase=guardarCertificacionSupabase;
+  window.upsertCertificacionSupabase=upsertCertificacionSupabase;
+  window.guardarCargaCertificaciones=guardarCargaCertificaciones;
+  window.renderCertificacionesSupabaseEnFicha=renderCertificacionesSupabaseEnFicha;
+  window.inicializarEventosCargaCertificacion=inicializarEventosCargaCertificacion;
+  window.procesarPegadoExcelCertificaciones=procesarPegadoExcelCertificaciones;
+  window.parsearPortapapelesExcel=parsearPortapapelesExcel;
+  window.aplicarMatrizPegadaCertificaciones=aplicarMatrizPegadaCertificaciones;
+  window.crearFilasCertificacionSiFaltan=crearFilasCertificacionSiFaltan;
+  window.recalcularFilaCertificacion=recalcularFilaCertificacion;
 
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',inicializarEventosCargaCertificacion,{once:true});
-else inicializarEventosCargaCertificacion();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',inicializarEventosCargaCertificacion,{once:true});
+  else inicializarEventosCargaCertificacion();
 })();
 </script>
 
