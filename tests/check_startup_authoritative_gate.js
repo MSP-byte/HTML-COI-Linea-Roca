@@ -104,7 +104,18 @@ check(html.includes("ordenesLecturaEstado === 'listo' &&\n                  orde
 check(!html.includes("['SIGNED_IN', 'TOKEN_REFRESHED', 'INITIAL_SESSION', 'USER_UPDATED'].includes(event) && session?.user)"),
   'INITIAL_SESSION/TOKEN_REFRESHED no deben conservar el disparador legacy de recarga completa');
 
+const earlyConfigPos=html.indexOf('id="coi-supabase-config"');
 const earlyBootstrapPos=html.indexOf('id="coi-supabase-early-bootstrap"');
+check(earlyConfigPos>=0&&earlyConfigPos<earlyBootstrapPos&&earlyBootstrapPos<headEnd,
+  'la configuración canónica debe existir en <head> antes del bootstrap temprano');
+check(html.includes("const cfg=window.__COI_SUPABASE_CONFIG__;")&&
+      html.includes("cfg.enabled!==true")&&
+      html.includes("cfg.url")&&html.includes("cfg.key"),
+  'el bootstrap temprano debe respetar enabled/url/key de la configuración canónica');
+check(html.includes("window.supabase.createClient(\n      cfg.url,\n      cfg.key,"),
+  'el cliente temprano no debe duplicar URL/key fuera de la configuración canónica');
+check(html.includes("const SUPABASE_CONFIG = window.__COI_SUPABASE_CONFIG__ || { enabled: false, url: '', key: '' };"),
+  'la capa principal debe reutilizar la misma configuración canónica con fallback fail-closed');
 check(earlyBootstrapPos>=0&&earlyBootstrapPos<headEnd,
   'el loader ejecutable de Supabase debe arrancar dentro de <head>');
 check(earlyBootstrapPos<supabaseLoaderPos,
