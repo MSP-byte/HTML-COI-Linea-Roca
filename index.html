@@ -15679,9 +15679,9 @@ console.warn('COI Supabase: no se pudo registrar el diagnóstico local de duplic
 }
 }
 return { eliminadas: 0, detectadas: extras.length, errores: [], duplicados: detalle };
-}
+  }
 
-async function upsertOrdenSupabase(orden, options = {}) {
+  async function upsertOrdenSupabase(orden, options = {}) {
 const user = await requireSupabaseWriteAccess();
 const client = getSupabaseClient();
 const payload = normalizarOrdenParaSupabase(orden);
