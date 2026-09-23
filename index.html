@@ -61,11 +61,9 @@ button.ghost{background:#f7f8fa;color:#333}
 .doc-box{background:#f7f8fa;border:1px solid #e3e7eb;border-radius:12px;padding:11px;font-size:13px}
 .gallery-placeholder{border:1px dashed #b8c3cc;border-radius:14px;background:#fbfcfd;padding:18px;color:#687684;text-align:center}
 
-
 /* V14: plano completo visible sin desplazamiento horizontal */
 .map-card svg{width:100%;height:auto}
 .map-wrap::-webkit-scrollbar{display:none}
-
 
 /* V15 - Módulo Calendario COI */
 .module-nav{display:flex;gap:10px;align-items:center;padding:12px 20px;background:#fff;border-bottom:1px solid #e3e7eb}
@@ -94,7 +92,6 @@ button.ghost{background:#f7f8fa;color:#333}
 .calendar-note{font-size:12px;color:#666;margin-top:8px}
 @media(max-width:1100px){.calendar-filters{grid-template-columns:1fr 1fr}.calendar-kpis{grid-template-columns:repeat(2,1fr)}.module-nav{flex-wrap:wrap}}
 
-
 /* V16 - Lógica centralizada de vistas */
 .view{display:none}
 .view.active{display:block}
@@ -106,7 +103,6 @@ button.ghost{background:#f7f8fa;color:#333}
 .view-card .view-body{padding:16px}
 .placeholder-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
 .placeholder-box{background:#f7f8fa;border:1px solid #e3e7eb;border-radius:14px;padding:14px}
-
 
 /* V17 - Ficha Individual de OC */
 .oc-header{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:start}
@@ -129,7 +125,6 @@ button.ghost{background:#f7f8fa;color:#333}
 .oc-empty{color:#666;background:#f7f8fa;border:1px dashed #b8c3cc;border-radius:12px;padding:13px}
 @media(max-width:1100px){.oc-header{grid-template-columns:1fr}.oc-kpis{grid-template-columns:repeat(2,1fr)}.oc-grid{grid-template-columns:1fr}.oc-actions{justify-content:flex-start}}
 
-
 /* V18 - Tablero operativo manual con ID_OBRA */
 .manual-form{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
 .manual-form label{font-size:12px;color:#555;font-weight:800;text-transform:uppercase}
@@ -143,14 +138,12 @@ button.ghost{background:#f7f8fa;color:#333}
 @media(max-width:1100px){.manual-form{grid-template-columns:1fr 1fr}}
 @media(max-width:700px){.manual-form{grid-template-columns:1fr}}
 
-
 /* V19 - Foto de estación cargable */
 .station-photo-box{display:flex;flex-direction:column;gap:10px;height:100%;width:100%}
 .station-photo-preview{position:relative;width:100%;min-height:260px;border:1px solid #e3e7eb;border-radius:14px;background:linear-gradient(135deg,#eef3f7,#dbe5ec);overflow:hidden;display:flex;align-items:center;justify-content:center;color:#5d6b77;font-weight:800;text-align:center}
 .station-photo-preview.has-photo{padding:0}.station-photo-preview.has-photo img{width:100%;height:100%;min-height:260px;object-fit:cover;display:block;border-radius:14px}.station-photo-preview.photo-placeholder{padding:18px;text-align:center;color:#5d6b77}.photo-placeholder-content{display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center}.photo-placeholder-content strong{font-size:18px;color:#1f4e79}.photo-placeholder-content span{font-size:13px;color:#667}.catalog-diagnostic-note{margin-top:8px;color:#667;font-size:12px}
 .station-photo-actions{display:flex;gap:8px;flex-wrap:wrap}
 .station-photo-actions button{font-size:12px;padding:8px 10px;border-radius:9px}
-
 
 /* V20 - Foto OC y checks documentales */
 .oc-photo-box{display:flex;flex-direction:column;gap:10px}
@@ -165,15 +158,12 @@ button.ghost{background:#f7f8fa;color:#333}
 .doc-check small{display:block;color:#666;margin-top:4px;line-height:1.35}
 .doc-check.ok{border-color:#bfe5cc;background:#f0fbf4}
 
-
 /* V22 - Servicios TODO / A demanda asociados a UM */
 .scope-tag{display:inline-flex;align-items:center;border-radius:999px;background:#eef5ff;border:1px solid #cfe2ff;color:#245f9f;font-size:11px;font-weight:800;padding:4px 8px;margin:3px 4px 3px 0}
-
 
 /* V23 FIX - Importación acumulativa estable */
 .import-mode{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0}
 .import-mode label{font-size:12px;color:#555;font-weight:800}
-
 
 /* V27 - Estado importador CSV */
 #importMsg{font-weight:800;color:#1f6fa8;margin-left:6px}
@@ -186,18 +176,15 @@ button.ghost{background:#f7f8fa;color:#333}
 .v33-message{background:#f7f8fa;border:1px solid #e3e7eb;border-radius:12px;padding:10px;margin:8px 0;color:#555}.v33-message.warn{background:#fff8e6;border-color:#ffe3a3;color:#916600}.v33-message.bad{background:#fff1f1;border-color:#ffd0d0;color:#9b1c1c}
 @media(max-width:1100px){.v33-import-grid,.v33-summary{grid-template-columns:1fr 1fr}}@media(max-width:700px){.v33-import-grid,.v33-summary{grid-template-columns:1fr}}
 
-
 /* V28 - Checklist Estado COI completo en Ficha OC */
 .doc-check-grid.estado-coi-checklist{grid-template-columns:repeat(auto-fit,minmax(310px,1fr))}
 .doc-check.estado-coi-proceso b{line-height:1.25}
-
 
 /* V29 - Estado documental limpio + observaciones editables */
 .doc-observaciones-box{margin-top:14px}
 .doc-observaciones-box label{display:block;font-size:12px;color:#333;font-weight:900;text-transform:uppercase;margin-bottom:6px}
 .doc-observaciones-box textarea{width:100%;min-height:120px;border:1px solid #cfd6dd;border-radius:12px;padding:10px 12px;font-family:inherit;font-size:14px;resize:vertical;background:#fff}
 .doc-observaciones-box small{display:block;margin-top:6px;color:#666}
-
 
 /* V29 - Historial de versiones */
 .version-current-card{background:linear-gradient(135deg,#1f4e79,#2f6fa3);color:white;border-radius:16px;padding:20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
@@ -243,7 +230,6 @@ button.ghost{background:#f7f8fa;color:#333}
 .about-module-badge{font-weight:900;color:#245f9f}
 @media(max-width:800px){.version-filter{grid-template-columns:1fr}.version-current-card strong{font-size:28px}}
 @media(max-width:1000px){.about-grid,.about-card.hero{grid-template-columns:1fr}.about-tech-grid,.about-roadmap,.about-kpis,.about-architecture{grid-template-columns:repeat(2,1fr)}.about-objectives{columns:1}}
-
 
 /* V30 - Órdenes como centro operativo + Ficha OC expediente digital */
 /* V32 estabilizacion: el buscador integrado suma filtros sin cambiar identidad visual. */
@@ -325,12 +311,10 @@ body.coi-v2-ready #coiResumenEvento .op-modal-head h3{color:var(--v2-text)}
 @media(max-width:800px){.ordenes-filtros-principales,.ordenes-filtros-secundarios{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){.ordenes-filtros-principales,.ordenes-filtros-secundarios,.ordenes-resumen{grid-template-columns:1fr}}
 
-
 /* V31 - Buscador integrado en Órdenes */
 .quick-search-link{margin-left:auto}
 .quick-search-link button{border-radius:999px;background:#f7f8fa;color:#2f6fa3;border:1px solid #cfd6dd;font-weight:900}
 @media(max-width:900px){.quick-search-link{margin-left:0;width:100%}.quick-search-link button{width:100%}}
-
 
 /* V32 - Repositorio UM / Unidades de Mantenimiento */
 .um-toolbar{display:grid;grid-template-columns:1.6fr repeat(5,1fr) auto auto;gap:10px;margin-bottom:14px}
@@ -761,8 +745,6 @@ body.modo-admin #btnAdminMode{background:#eef8f1;color:#236339;border-color:#bfe
 .doc-form-grid .doc-field-hidden{display:none}
 .doc-folder-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 
-
-
 /* V57.6R - Calendario COI separado en submódulos */
 .calendario-periodo-resumen{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 12px;border:1px solid #d8e4ef;border-radius:14px;background:linear-gradient(180deg,#fff,#f7fbfe);color:#31566f;font-size:13px;font-weight:800}
 .calendario-periodo-resumen b{color:#12324a}
@@ -770,7 +752,6 @@ body.modo-admin #btnAdminMode{background:#eef8f1;color:#236339;border-color:#bfe
 #coiTabInteligente .calendar-intel,#coiTabCalendario .op-calendar{margin-top:0}
 #coiTabCalendario .op-calendar{border-color:#d8e4ef}
 #coiTabCalendario .op-calendar-head,#coiTabCalendario .op-calendar-filters{display:none}
-
 
 /* V58.0 - Centro de Alertas por rol y calidad de datos */
 .alert-role-note{margin:0 0 12px;padding:12px 14px;border:1px solid #d8e7f0;border-left:5px solid #1f6fa9;border-radius:14px;background:linear-gradient(180deg,#fff,#f7fbfe);color:#24445d;font-weight:700}
@@ -2835,7 +2816,6 @@ function showTip(e,s){
 }
 function hideTip(){ $('tip').style.display='none'; }
 
-
 /* Helpers de estado COI - agregado para V13 operativa */
 function normalizarTextoEstado(v){
   return normalizarTexto(v);
@@ -2859,13 +2839,6 @@ function claseEstado(i){
   if(i && i.vencimiento && ((new Date(i.vencimiento)-today)/864e5)<=30 && !esFinalizado(i) && !esCancelado(i)) return 'warn';
   return 'ok';
 }
-
-
-
-
-
-
-
 
 function tipoActivoDesdeEspecialidad(i){
   const e=String(i.especialidad||'').toLowerCase();
@@ -2932,82 +2905,6 @@ function verCertificaciones(oc){
 function verFotosObra(oc){
   alert('Fotos de obra de ' + oc + '. Próxima mejora: galería por OC con antes/después y evidencia documental.');
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 function fakePdf(){ alert('Exportación PDF simulada. Luego se puede conectar a window.print(), jsPDF o backend documental.'); }
 function initBotonesLegacySinInline(){
@@ -3278,87 +3175,6 @@ function clonarItemParaEstacion(item, est){
   return copia;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 function loadImportedData(){
   let demoExplicita=false;
   try{demoExplicita=sessionStorage.getItem('coi.demo.explicit.once')==='1';}catch(error){console.warn('COI demo: sessionStorage no disponible.',error);}
@@ -3385,43 +3201,6 @@ function restoreDemo(){
   sessionStorage.removeItem(STORAGE_KEY);
   location.reload();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 function updateKpis(){
   const visible=estaciones.filter(matches);
@@ -3709,7 +3488,6 @@ function initCalendarioCOI(){
   $('navCalendario')?.addEventListener('click',()=>{document.getElementById('calendarioCOI')?.scrollIntoView({behavior:'smooth'});$('navCalendario').classList.add('active');$('navRed').classList.remove('active');});
 }
 
-
 /* ===============================
    V16 - Vistas internas y calendario separado
    =============================== */
@@ -3778,37 +3556,6 @@ function renderKpisV16(prefix){
   put('KServPend',base.filter(r=>r.tipo==='Servicio' && !r.cerrada && (!r.ultimaFechaCertificacion || diffDias(r.proximaCertificacion,COI_TODAY)<=30)).length);
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 function initVistasCOI(){
   document.getElementById('btnDashboard')?.addEventListener('click',()=>{mostrarVista('vistaDashboard'); updateKpis();});
   document.getElementById('btnRed')?.addEventListener('click',()=>{mostrarVista('vistaRed'); ocultarPanelEstacion(); renderMap();});
@@ -3834,7 +3581,6 @@ function initVistasCOI(){
   mostrarVista('vistaRed');
   ocultarPanelEstacion();
 }
-
 
 /* ===============================
    V17 - Ficha Individual de OC
@@ -3869,13 +3615,6 @@ function asegurarIdsOC(){
     });
   });
 }
-
-
-
-
-
-
-
 
 function fechaProximaCertificacionPersistida(item){
   const raw=[
@@ -3921,11 +3660,6 @@ function estadoAvanceOC(item,calc){
   return 'En ejecución';
 }
 
-
-
-
-
-
 function volverVistaAnterior(){
   mostrarVista(vistaAnterior || 'vistaRed');
 }
@@ -3933,115 +3667,6 @@ function abrirPanelEstacion(idEstacion){
   const est=estaciones.find(e=>e.idEstacion===idEstacion || e.nombre===idEstacion);
   if(est){ mostrarVista('vistaRed'); selectStation(est); }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 function resumenOCTexto(){
   const found=ocActualId ? obtenerOC(ocActualId) : null;
@@ -4099,12 +3724,7 @@ function initFichaOC(){
   });
 }
 
-
 /* V17 - Overrides no destructivos para abrir Ficha OC desde módulos */
-
-
-
-
 
 function selectStation(s){
   mostrarVista('vistaRed');
@@ -4163,17 +3783,6 @@ function selectStation(s){
   document.querySelector('.panel').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
-
-
-
-
-
-
-
-
-
-
-
 function renderCalendarioCertificaciones(){
   cargarFiltrosV16('cert');
   asegurarIdsOC();
@@ -4186,21 +3795,6 @@ function renderCalendarioCertificaciones(){
   renderKpisV16('cert');
   renderCalendarioOperativoCOI('cert');
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* ===============================
    V18 - Arquitectura maestra ID_OBRA
@@ -4392,15 +3986,6 @@ function guardarOCManual(){
   cargarFiltrosV16('venc'); cargarFiltrosV16('cert');
 }
 
-
-
-
-
-
-
-
-
-
 function archivarOC(idObra){
   const found=buscarPorIdObra(idObra || ocActualId || $('f_idObra')?.value);
   if(!found){ setFormMsg('No se encontró ID_OBRA para archivar.','error'); return; }
@@ -4574,7 +4159,6 @@ function initArquitecturaMaestra(){
   $('btnExportBaseCompleta')?.addEventListener('click',exportarBaseCompleta);
 }
 
-
 /* V18 - Overrides ID_OBRA sobre ficha OC y buscador */
 function obtenerOC(idObra){
   return buscarPorIdObra(idObra);
@@ -4602,12 +4186,6 @@ function renderBuscador(){
     return `<tr><td>${esc(r.item.idObra)}<br>${botonFichaOC(r.item)}</td><td>${esc(r.oc)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${esc(r.item?.tipoTrabajo||r.especialidad)}</td><td>${esc(r.estado)}</td><td>${fmtFecha(c.prox)}</td><td>${fmtFecha(c.venc)}</td></tr>`;
   }).join('') || '<tr><td colspan="9">Sin resultados.</td></tr>';
 }
-
-
-
-
-
-
 
 /* ===============================
    V19 - Carga / eliminación de foto principal de estación
@@ -4703,7 +4281,6 @@ function initFotosEstacion(){
   });
 }
 
-
 /* ===============================
    V20 - Foto principal de OC y confirmaciones documentales
    =============================== */
@@ -4744,16 +4321,6 @@ function guardarFotoOC(idObra,dataUrl){
   guardarBaseLocal();
 }
 
-
-
-
-
-
-
-
-
-
-
 function fotoPrincipalOC(item){
   const foto=(item.fotos||[]).find(f=>f.idFoto==='FOTO-PRINCIPAL-'+item.idObra) || (item.fotos||[])[0];
   const preview=foto?.url ? `<img src="${esc(foto.url)}" alt="Foto OC ${esc(item.idObra)}">` : `<div>Foto principal de OC<br><span class="muted">${esc(item.idObra)}</span></div>`;
@@ -4766,12 +4333,6 @@ function fotoPrincipalOC(item){
     </div>
   </div>`;
 }
-
-
-
-
-
-
 
 function marcarCheckDocumental(idObra,campo,checked){
   const found=buscarPorIdObra(idObra);
@@ -4787,15 +4348,6 @@ function marcarCheckDocumental(idObra,campo,checked){
   guardarBaseLocal();
   renderFichaOC(idObra);
 }
-
-
-
-
-
-
-
-
-
 
 function initFotoYChecksOC(){
   aplicarFotosOCDesdeStorage();
@@ -4832,128 +4384,7 @@ function initFotoYChecksOC(){
   });
 }
 
-
 /* V20 - Override renderFichaOC con foto OC + checks documentales */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 function initImportacionAcumulativaV23(){
   const acumular=document.getElementById('importAcumular');
@@ -4964,58 +4395,9 @@ function initImportacionAcumulativaV23(){
   }
 }
 
-
 /* V24 - Vencimientos: días junto al semáforo y Ficha OC al final */
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /* V25 - Filtro de ordenamiento en Vencimientos */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 function renderCalendarioVencimientos(){
   cargarFiltrosV16('venc');
@@ -5044,7 +4426,6 @@ function renderCalendarioVencimientos(){
   renderKpisV16('venc');
   renderCalendarioOperativoCOI('venc');
 }
-
 
 /* V26 - Override todasLasOC usando días restantes del Excel/CSV si existe */
 function todasLasOC(){
@@ -5089,7 +4470,6 @@ function todasLasOC(){
   return rows;
 }
 
-
 /* V26 - Orden vencimientos alineado a columna CANT. DÍAS SERVICIO RESTANTE */
 function ordenarVencimientos(rows){
   const orden=$('vencOrden')?.value || 'diasDesc';
@@ -5106,7 +4486,6 @@ function ordenarVencimientos(rows){
     return db-da;
   });
 }
-
 
 /* ===============================
    V27 - Importador CSV robusto Obras + Servicios
@@ -5304,7 +4683,6 @@ function handleImport(){
   });
 }
 
-
 /* ===============================
    V28 - Checklist completo de procesos Estado OC en Ficha OC
    =============================== */
@@ -5335,7 +4713,6 @@ function renderChecksDocumentales(item){
   }).join('')}</div>`;
 }
 
-
 /* ===============================
    V29 - Estado documental limpio + observaciones editables
    =============================== */
@@ -5365,123 +4742,7 @@ function initObservacionesDocumentalesV29(){
   });
 }
 
-
 /* V29 - Override renderFichaOC: limpia C. Estado Documental y deja observaciones editables al final */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 /* ===============================
    V52 - Gestión Financiera, Acceso y Red Interactiva
@@ -5541,12 +4802,6 @@ function recalcularEstadoFinancieroOC(oc){
   oc.saldoFinancieroPendiente=montoPendiente;
   return {montoOriginal:oc.montoTotalOCOriginal,montoConsumido,montoPendiente,posiciones:posiciones.length,pendientes:posiciones.filter(p=>p.estado==="Pendiente").length,parciales:posiciones.filter(p=>p.estado==="Parcial").length,consumidas:posiciones.filter(p=>p.estado==="Consumida").length};
 }
-
-
-
-
-
-
 
 function certificarCantidadPosicion(idObra,idPosicion){
   if(!usuarioTienePermiso("editar")){alert("El rol actual no permite editar ni certificar posiciones.");return;}
@@ -6179,7 +5434,6 @@ function renderFichaOC(idObra){
   $('btnFichaCopiarInterno')?.addEventListener('click',copiarResumenOC);
 }
 
-
 /* V31 - Buscador deja de ser módulo independiente: redirige a Órdenes */
 function abrirBuscadorIntegrado(){
   abrirModuloOrdenes(true);
@@ -6447,7 +5701,6 @@ function initCalendarioOperativoCOI(){
   document.addEventListener('click',ev=>{const eventBtn=ev.target.closest('[data-op-event]');if(eventBtn){ev.preventDefault();ev.stopPropagation();abrirDetalleEventoCalendario(eventBtn.dataset.opEvent);return;}const day=ev.target.closest('[data-op-day]');if(day){abrirDetalleEventoCalendario(`dia:${day.dataset.opDay}:${day.dataset.fecha}`);return;}const nav=ev.target.closest('[data-op-nav]');if(nav){cambiarMesCalendarioCOI(nav.dataset.opNav,Number(nav.dataset.dir));return;}const hoy=ev.target.closest('[data-op-hoy]');if(hoy){const st=calendarioOperativoEstado[hoy.dataset.opHoy];st.year=COI_TODAY.getFullYear();st.month=COI_TODAY.getMonth();renderCalendarioOperativoCOI(hoy.dataset.opHoy);return;}const exp=ev.target.closest('[data-op-export]');if(exp){exportarEventosCalendarioOperativo(exp.dataset.opExport,exp.dataset.format);return;}if(ev.target.closest('[data-op-close]')||ev.target.classList.contains('op-modal'))ev.target.closest('.op-modal')?.remove();});
 }
 
-
 /* ===============================
    V46 - Centro de Alertas + Calendario Inteligente
    =============================== */
@@ -6684,7 +5937,6 @@ function selectStationFichaOperativaCOI(s){
 selectStation=selectStationFichaOperativaCOI;
 function initUnidadesMantenimiento(){cargarUM();cargarFiltrosUM();$('btnUnidadesMantenimiento')?.addEventListener('click',()=>{mostrarVista('vistaUnidadesMantenimiento');renderUnidadesMantenimiento();});['umBuscar','umFiltroTipo','umFiltroEstacion','umFiltroEstado','umFiltroCriticidad','umFiltroProveedor'].forEach(id=>{const el=$(id);if(el)el.addEventListener(id==='umBuscar'?'input':'change',renderUnidadesMantenimiento);});$('btnLimpiarUM')?.addEventListener('click',()=>{['umBuscar','umFiltroTipo','umFiltroEstacion','umFiltroEstado','umFiltroCriticidad','umFiltroProveedor'].forEach(id=>{if($(id))$(id).value='';});renderUnidadesMantenimiento();});$('btnExportUMCSV')?.addEventListener('click',exportarUMCSV);$('btnNuevaUM')?.addEventListener('click',limpiarFormUM);$('btnGuardarUM')?.addEventListener('click',guardarFormUM);$('btnVolverUM')?.addEventListener('click',volverUM);$('btnEditarUM')?.addEventListener('click',()=>cargarFormUM(umActualId));$('btnCopiarUM')?.addEventListener('click',copiarResumenUM);$('btnIrEstacionUM')?.addEventListener('click',irEstacionUM);$('btnVincularOCUM')?.addEventListener('click',vincularOCUM);document.addEventListener('click',ev=>{const btn=ev.target.closest('[data-open-um]');if(btn){ev.preventDefault();ev.stopPropagation();abrirFichaUM(btn.dataset.openUm);}});document.addEventListener('error',ev=>{const img=ev.target;if(img?.matches?.('[data-um-foto-img]'))img.style.display='none';},true);}
 
-
 /* ===============================
    V45 CONSOLIDADA - Carga Servicio/Obra + selección/borrado Órdenes
    =============================== */
@@ -6830,25 +6082,7 @@ function normalizarRegistroCargaFinanciera(row){
 }
 function finControl(c,v=''){if(['MONTO_POSICION','MONTO_CERTIFICADO','SALDO_MONTO'].includes(c))return `<input type="text" data-campo="${c}" value="${esc(v)}" placeholder="$ 0,00">`;if(['PERIODO_DESDE','PERIODO_HASTA'].includes(c))return `<input type="text" data-campo="${c}" value="${esc(v45FechaDisplay(v)||v)}" placeholder="DD/MM/AAAA">`;if(c==='OBSERVACIONES'||c==='DESCRIPCION_POSICION')return `<textarea data-campo="${c}" class="${c==='DESCRIPCION_POSICION'?'w-desc':'w-obs'}">${esc(v)}</textarea>`;return `<input type="text" data-campo="${c}" value="${esc(v)}">`;}
 
-
-
-
-
-
-
-
-
-
 function obtenerResumenFinancieroOC(ocNro){const pos=obtenerPosicionesPorOC(ocNro),t=calcularTotalesFinancieros(pos);return {...t,posicionesLista:pos,certificadas:pos.filter(p=>Number(p.saldoCantidad)<=0&&Number(p.cantidadCertificada)>0).length,pendientes:pos.filter(p=>Number(p.cantidadCertificada||0)===0).length,parciales:pos.filter(p=>Number(p.cantidadCertificada||0)>0&&Number(p.saldoCantidad)>0).length};}
-
-
-
-
-
-
-
-
-
 
 const _v45BodyActivoBase=v45BodyActivo;v45BodyActivo=function(){return v45TipoCarga==='Financiera'?$('cargaRapidaFinancieraBody'):_v45BodyActivoBase();};
 const _v45AgregarFilasBase=v45AgregarFilas;v45AgregarFilas=function(tipo=v45TipoCarga,cantidad=5){return tipo==='Financiera'?agregarFilasCargaFinanciera(cantidad):_v45AgregarFilasBase(tipo,cantidad);};
@@ -6968,45 +6202,6 @@ function finV54Control(c,v=''){
   return `<input type="text" data-campo="${c}" value="${esc(v)}" ${money?'placeholder="$ 0,00"':''}>`;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 function finV54ListaPorBloque(oc,bloque){
   const pos=obtenerPosicionesPorOC(finV54OCNro(oc));
   if(bloque==='LIBRE'){
@@ -7034,14 +6229,6 @@ function finV54Tabla(lista,bloque){
   }).join('');
   return `<div class="finance-table-wrap"><table class="finance-table v54"><thead><tr>${cfg.headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows||`<tr><td colspan="${cfg.headers.length}">Sin registros para este bloque.</td></tr>`}</tbody></table></div>`;
 }
-
-
-
-
-
-
-
-
 
 function fichaV54EsAdmin(){return (typeof adminIsEnabled==='function'&&adminIsEnabled())||(typeof sesionActual==='function'&&sesionActual()?.rol==='Administrador');}
 function fichaV54Key(item){return item?.idObra||item?.idOC||item?.idServicio||item?.ID_SERVICIO||item?.oc||item?.numeroOC||'';}
@@ -7201,44 +6388,6 @@ function finV55InferirTipo(row,tipoBloque=''){
   return 'POSICION_OC';
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 function finV55MigrarMemoria(){
   posicionesFinancieras=(Array.isArray(posicionesFinancieras)?posicionesFinancieras:[]).map(p=>normalizarRegistroFinanciero(p,p.tipoBloqueFinanciero||''));
 }
@@ -7284,13 +6433,6 @@ function guardarCargaFinanciera(){
 }
 function limpiarGrillaCargaFinanciera(){renderCargaFinanciera();if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent='Grilla financiera limpia. Seleccione un tipo y pegue desde Excel.';$('cargaRapidaMsg').className='quick-load-msg';}}
 
-
-
-
-
-
-
-
 function calcularTotalesFinancieros(lista=posicionesFinancieras){
   finV55MigrarMemoria();
   const l=lista.map(p=>normalizarRegistroFinanciero(p,p.tipoBloqueFinanciero));
@@ -7303,10 +6445,6 @@ function finV55Tabla(lista,tipo){
   }).join('');
   return `<div class="finance-table-wrap"><table class="finance-table v54"><thead><tr>${cfg.headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows||`<tr><td colspan="${cfg.headers.length}">Sin registros para este tipo.</td></tr>`}</tbody></table></div>`;
 }
-
-
-
-
 
 function exportarPosicionesFinancierasCSV(){
   finV55MigrarMemoria();
@@ -7847,17 +6985,6 @@ function eliminarFotoOC(idObra,idFoto){
   v59GuardarBase();
   renderFichaOC(v59KeyOC(oc));
 }
-
-
-
-
-
-
-
-
-
-
-
 
 function cerrarOC(idObra){
   const found=v59BuscarOC(idObra||ocActualId||$('f_idObra')?.value), oc=found?.item||found;
@@ -11229,8 +10356,6 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bootstrapFix,{once:true}); else setTimeout(bootstrapFix,0);
 })();
 
-
-
 /* =========================================================
    V58.0R2 - Fix funcional Administración / subtabs
    Objetivo: que Datos, Usuarios, Catálogos, Diagnóstico,
@@ -11849,8 +10974,6 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',versionarR8,{once:true}); else setTimeout(versionarR8,0);
 })();
 
-
-
 /* ===============================
    V58.0R10 - Guardado financiero sin bloqueo + resumen libre por OC/POS
    =============================== */
@@ -11901,7 +11024,6 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',versionar,{once:true});else setTimeout(versionar,0);
 })();
-
 
 /* ===============================
    V58.0R11 - Fix robusto Ficha UM / botones Ver ficha UM
@@ -13271,7 +12393,6 @@ initNavegacionRespaldoCOI();
   setTimeout(init,500);setInterval(()=>{if($r15('vistaCentroAlertas')?.classList.contains('active'))procesarAlertas();},1200);
   window.COI_V58R15={version:VERSION_R15,renderFichaUM:renderFichaUMR15,abrirFichaUM:abrirFichaUMR15,renderST:renderServiciosTecnicosR15,procesarAlertas};
 })();
-
 
 /* ===============================
    V58.0R16 - Reordenamiento UM/ST
@@ -15781,7 +14902,6 @@ const APP_DATA_MODE = "supabase_first";
     return user;
   }
 
-
   function normalizeStationValue(value) {
     return clean(value).replace(/\s+/g, ' ');
   }
@@ -17692,7 +16812,6 @@ const APP_DATA_MODE = "supabase_first";
     bootstrapSupabasePrincipal();
   }
 })();
-
 </script>
 
 
