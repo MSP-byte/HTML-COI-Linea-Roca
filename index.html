@@ -2373,7 +2373,10 @@ function sincronizarListasOCGlobales(){
   });
   return {obras:obras.length,servicios:servicios.length};
 }
-
+/* ===============================
+   V50 - Modelo Maestro de Datos Ferroviarios
+   Capa arquitectónica: el SVG queda como representación visual y los módulos pueden resolver estaciones por IDs permanentes.
+   =============================== */
 const catalogoLineas = [{idLinea:'LGR', nombre:'Línea General Roca', nombreCorto:'Línea Roca', activa:true}];
 const catalogoRamales = [
   {idRamal:'RAM-LGR-001', nombre:'Plaza Constitución - La Plata', linea:'LGR', color:'#0079a8', orden:1, activo:true, aliases:['Plaza Constitución - La Plata']},
@@ -2414,7 +2417,9 @@ function inicializarModeloMaestroV50(){estaciones.forEach(est=>{const cat=resolv
 function validarCatalogos(){const problemas=[];const duplicados=(lista,campo,tipo)=>{const m={};lista.forEach(x=>{const k=normalizarNombreEstacion(x[campo]);if(k)m[k]=(m[k]||0)+1;});Object.entries(m).filter(([,c])=>c>1).forEach(([k,c])=>problemas.push({tipo,valor:k,cantidad:c}));};duplicados(catalogoEstaciones,'idEstacion','ID estación duplicado');duplicados(catalogoEstaciones,'codigo','Código estación duplicado');duplicados(catalogoEstaciones,'nombre','Nombre estación duplicado');const aliasMap={};catalogoEstaciones.forEach(e=>(e.aliases||[]).forEach(a=>{const k=normalizarNombreEstacion(a);if(k)aliasMap[k]=(aliasMap[k]||[]).concat(e.idEstacion);}));Object.entries(aliasMap).filter(([,ids])=>new Set(ids).size>1).forEach(([alias,ids])=>problemas.push({tipo:'Alias duplicado',valor:alias,cantidad:new Set(ids).size}));const ramales=new Set(catalogoRamales.map(r=>r.idRamal)),distritos=new Set(catalogoDistritos.map(d=>d.idDistrito));catalogoEstaciones.forEach(e=>{(e.ramales||[]).forEach(r=>{if(!ramales.has(r))problemas.push({tipo:'Ramal inexistente',estacion:e.nombre,valor:r});});if(!distritos.has(e.distrito))problemas.push({tipo:'Distrito inexistente',estacion:e.nombre,valor:e.distrito});});console.table(problemas);return problemas;}
 function validarPlano(){const problemas=[],hotspots=[...document.querySelectorAll('#hotspots .station-hotspot')];hotspots.forEach(h=>{const id=h.dataset.estacionId,n=h.dataset.nombre;if(id&&!obtenerEstacionPorId(id))problemas.push({tipo:'Hotspot con ID inexistente',id,nombre:n});if(!id&&!resolverEstacion(n))problemas.push({tipo:'Hotspot sin estación en catálogo',nombre:n});});const hotIds=new Set(hotspots.map(h=>h.dataset.estacionId).filter(Boolean));catalogoEstaciones.forEach(e=>{if(e.coordenadasSVG?.x>=0&&e.coordenadasSVG?.y>=0&&!hotIds.has(e.idEstacion))problemas.push({tipo:'Estación sin hotspot activo',id:e.idEstacion,nombre:e.nombre});});const textos=[...document.querySelectorAll('#svgMap text')].map(t=>t.textContent.trim()).filter(Boolean);textos.forEach(txt=>{if(!resolverEstacion(txt))problemas.push({tipo:'Texto SVG fuera de catálogo o no ferroviario',texto:txt});});const rep={};textos.forEach(txt=>{const k=normalizarNombreEstacion(txt);rep[k]=(rep[k]||0)+1;});Object.entries(rep).filter(([,c])=>c>1).forEach(([texto,cantidad])=>problemas.push({tipo:'Texto SVG duplicado',texto,cantidad}));console.table(problemas);return problemas;}
 inicializarModeloMaestroV50();
-
+/* ===============================
+   V50.1 - Productividad inicial con CAT_ESTACIONES y Auditor de datos
+   =============================== */
 const LS_DATA_LAST_UPDATE = 'coi_data_last_update_v50';
 const CAT_ESTACIONES = [];
 function ramalNombrePorId(idRamal){const r=catalogoRamales.find(x=>x.idRamal===idRamal);return r?r.nombre:(idRamal||'');}
@@ -2443,7 +2448,10 @@ function auditCard(label,items,clase=''){const n=Array.isArray(items)?items.leng
 function auditLista(titulo,items,mapper){return `<div class="admin-panel"><h3>${esc(titulo)}</h3>${items.length?`<ul class="audit-list">${items.slice(0,12).map(x=>`<li>${esc(mapper(x))}</li>`).join('')}</ul>${items.length>12?`<p class="muted">+ ${items.length-12} registros más.</p>`:''}`:'<p class="muted">Sin observaciones.</p>'}</div>`;}
 function renderAuditorDatos(){if(!$('adminTabAuditor'))return;const a=generarAuditoriaDatos();$('adminTabAuditor').innerHTML=`<div class="admin-panel"><h3>Auditor de datos</h3><p class="muted">Control productivo inicial sobre OC, estaciones, vencimientos, certificaciones y datos COI.</p><div class="admin-actions"><button type="button" id="btnEjecutarAuditorDatos" class="primary">Actualizar auditoría</button><button type="button" id="btnExportAuditoriaCsv">Exportar auditoría CSV</button></div><div class="audit-grid">${auditCard('Total OC',a.total)}${auditCard('Sin idEstacion',a.sinId,'warn')}${auditCard('Estación no reconocida',a.estacionNoReconocida,'bad')}${auditCard('Sin acta inicio',a.sinActa,'warn')}${auditCard('Sin plazo',a.sinPlazo,'warn')}${auditCard('Sin proveedor',a.sinProveedor,'warn')}${auditCard('Sin estado COI',a.sinEstado,'warn')}${auditCard('OC vencidas',a.vencidas,'bad')}${auditCard('Próximas a vencer',a.proximas,'warn')}${auditCard('Certificaciones próximas',a.certProx)}${auditCard('Proveedores posibles duplicados',a.provDuplicados,'warn')}</div></div>${auditLista('OCs sin idEstacion',a.sinId,r=>`${r.idObra||r.oc||'SIN ID'} · ${r.estacion||'Sin estación'} · ${r.proveedor||'Sin proveedor'}`)}${auditLista('Estaciones no reconocidas',a.estacionNoReconocida,r=>`${r.idObra||r.oc||'SIN ID'} · ${r.estacion||r.item?.estacion||'Sin estación'}`)}${auditLista('Vencidas / próximas',a.vencidas.concat(a.proximas),r=>`${r.oc||r.numeroOC||'SIN OC'} · ${r.estacion} · Vto ${fmtFecha(r.fin)} · ${r.proveedor}`)}${auditLista('Proveedores posiblemente duplicados',a.provDuplicados,p=>`${p.normalizado}: ${p.variantes.join(' / ')}`)}`;}
 function exportarAuditoriaDatosCSV(){const a=generarAuditoriaDatos(),rows=[];const push=(tipo,arr,map)=>arr.forEach(x=>rows.push([tipo,...map(x)]));push('Sin idEstacion',a.sinId,r=>[r.oc,r.idObra,r.estacion,r.proveedor]);push('Estación no reconocida',a.estacionNoReconocida,r=>[r.oc,r.idObra,r.estacion,r.proveedor]);push('Vencida',a.vencidas,r=>[r.oc,r.idObra,r.estacion,fmtFecha(r.fin)]);push('Próxima a vencer',a.proximas,r=>[r.oc,r.idObra,r.estacion,fmtFecha(r.fin)]);const csv=[['Tipo','OC','ID','Estación','Dato'].join(';'),...rows.map(r=>r.map(coiCSVCell).join(';'))].join('\n');descargarArchivo(`auditoria_datos_coi_${typeof adminNowStamp==='function'?adminNowStamp():Date.now()}.csv`,csv,'text/csv;charset=utf-8');mostrarMensajeCOI('Auditoría exportada en CSV','ok');}
-
+/* ===============================
+   V53 - Catálogo Maestro de Estaciones
+   Fuente oficial gradual para datos fijos de estaciones, fotos en assets y migración suave a idEstacion.
+   =============================== */
 const CATALOGO_MAESTRO_ESTACIONES = [];
 window.CATALOGO_MAESTRO_ESTACIONES = CATALOGO_MAESTRO_ESTACIONES;
 function normalizarIdEstacion(nombre){
@@ -2808,6 +2816,7 @@ function showTip(e,s){
 }
 function hideTip(){ $('tip').style.display='none'; }
 
+/* Helpers de estado COI - agregado para V13 operativa */
 function normalizarTextoEstado(v){
   return normalizarTexto(v);
 }
@@ -2899,7 +2908,7 @@ function verFotosObra(oc){
 
 function fakePdf(){ alert('Exportación PDF simulada. Luego se puede conectar a window.print(), jsPDF o backend documental.'); }
 function initBotonesLegacySinInline(){
-
+  /* V32 estabilizacion: acciones antiguas pasan de onclick inline a delegacion con addEventListener. */
   document.addEventListener('click',ev=>{
     const btn=ev.target.closest('[data-legacy-action]');
     if(!btn) return;
@@ -3031,6 +3040,9 @@ function stationAlias(raw){
 }
 function normalizeOC(v){ const s=String(v??'').trim(); return s?`OC-${s.replace(/^OC[-\s]*/i,'')}`:''; }
 
+/* ===============================
+   V26 - Corrección importación fechas/días restantes para Vencimientos
+   =============================== */
 let CSV_DATE_ORDER = 'DMY';
 function detectarOrdenFechaCSV(rows){
   let dmy=0, mdy=0;
@@ -3096,6 +3108,9 @@ function rowToItem(row, forcedTipo){
 }
 function clearInterventions(){ estaciones.forEach(e=>{e.obras=[]; e.servicios=[];}); }
 
+/* ===============================
+   V22 - ESTACION = TODO para servicios a demanda por UM
+   =============================== */
 const COBERTURA_UM_TODO = {
   'ASCENSOR':['Plaza Constitución','Temperley'],
   'ASCENSORES':['Plaza Constitución','Temperley'],
@@ -3191,7 +3206,7 @@ function updateKpis(){
   const visible=estaciones.filter(matches);
   const items=visible.flatMap(allItems);
   const setKpi=(key,value)=>document.querySelectorAll(`[data-kpi="${key}"]`).forEach(el=>{el.textContent=value;});
-
+  /* V32 estabilizacion: Dashboard y Red comparten KPIs sin duplicar IDs HTML. */
   setKpi('est',contarEstacionesUnicas(visible));
   setKpi('obras',items.filter(i=>i.tipo==='Obra'&&!esFinalizado(i)&&!esCancelado(i)).length);
   setKpi('serv',items.filter(i=>i.tipo==='Servicio'&&!esFinalizado(i)&&!esCancelado(i)).length);
@@ -3203,6 +3218,10 @@ function updateKpis(){
   if(typeof renderDashboardAlertSummary==='function')renderDashboardAlertSummary();
 }
 
+/* ===============================
+   V15 - Calendario COI
+   Trabaja con estaciones / obras / servicios existentes.
+   =============================== */
 const COI_TODAY = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
 
 function esc(v){
@@ -3469,6 +3488,9 @@ function initCalendarioCOI(){
   $('navCalendario')?.addEventListener('click',()=>{document.getElementById('calendarioCOI')?.scrollIntoView({behavior:'smooth'});$('navCalendario').classList.add('active');$('navRed').classList.remove('active');});
 }
 
+/* ===============================
+   V16 - Vistas internas y calendario separado
+   =============================== */
 function ocultarPanelEstacion(){
   const panel=document.getElementById('panelEstacion');
   if(panel) panel.classList.remove('active');
@@ -3542,7 +3564,7 @@ function initVistasCOI(){
   document.getElementById('btnAdministracionSistema')?.addEventListener('click',()=>{mostrarVista('vistaAdministracionSistema'); renderAdministracionSistema();});
   document.getElementById('btnOrdenes')?.addEventListener('click',()=>{abrirModuloOrdenes(false);});
   document.getElementById('btnCarga')?.addEventListener('click',()=>{mostrarVista('vistaCarga');});
-
+  /* V32 estabilizacion: el botón lateral Buscador queda desactivado; la búsqueda vive en Órdenes. */
   document.getElementById('buscadorGlobal')?.addEventListener('input',renderBuscador);
   ['vencEstacion','vencProveedor','vencTipo','vencMes','vencEstado','vencOrden'].forEach(id=>$(id)?.addEventListener('change',renderCalendarioVencimientos));
   ['certEstacion','certProveedor','certTipo','certMes','certEstado'].forEach(id=>$(id)?.addEventListener('change',renderCalendarioCertificaciones));
@@ -3560,6 +3582,10 @@ function initVistasCOI(){
   ocultarPanelEstacion();
 }
 
+/* ===============================
+   V17 - Ficha Individual de OC
+   idOC como clave primaria interna
+   =============================== */
 let vistaAnterior = 'vistaRed';
 let ocActualId = null;
 
@@ -3691,12 +3717,14 @@ function initFichaOC(){
   document.getElementById('btnCerrarOCFicha')?.addEventListener('click',()=>cerrarOC(ocActualId));
   document.getElementById('btnArchivarOCFicha')?.addEventListener('click',()=>archivarOC(ocActualId));
   document.addEventListener('click',ev=>{
-
+    /* coi-orders-selection-propagation-fix-v60: los controles de selección no abren la ficha de la fila. */
     if(ev.target.closest('#vistaOrdenes .col-sel, #vistaOrdenes .orden-check-cell, #vistaOrdenes .chk-orden-row, #vistaOrdenes #chkOrdenesSeleccionarTodas')) return;
     const btn=ev.target.closest('[data-open-oc]');
     if(btn){ ev.preventDefault(); abrirFichaOC(btn.dataset.openOc); }
   });
 }
+
+/* V17 - Overrides no destructivos para abrir Ficha OC desde módulos */
 
 function selectStation(s){
   mostrarVista('vistaRed');
@@ -3768,6 +3796,9 @@ function renderCalendarioCertificaciones(){
   renderCalendarioOperativoCOI('cert');
 }
 
+/* ===============================
+   V18 - Arquitectura maestra ID_OBRA
+   =============================== */
 const STORAGE_KEY_MASTER = 'coi_linea_roca_master_v18';
 
 function normalizarIdObra(v){
@@ -3977,12 +4008,16 @@ function exportarBaseCompleta(){
   }))].map(row=>row.map(coiCSVCell).join(';')).join('\n');
   descargarArchivo('base_completa_coi_linea_roca.csv', csv, 'text/csv;charset=utf-8');
 }
-
+/* Función base preparada para futuras versiones CSV Maestro ? HTML ? Power BI */
 function importarCSV(csvTexto){
+  // TODO futuro: parsear CSV maestro, validar ID_OBRA, actualizar existentes y crear nuevos sin duplicar.
 
   console.info('importarCSV() preparado para evolución futura.', csvTexto?.length || 0);
 }
 
+/* ===============================
+   V33 - Importador CSV COI normalizado
+   =============================== */
 const V33_LS_ORDENES='coiOrdenes',V33_LS_LOGS='coiImportLogs',V33_LS_INCOMPLETOS='coiRegistrosIncompletos',V33_LS_DOCS='coiDocumentos',V33_LS_UM='coiUM';
 let v33PreviewState=null;
 const v33HeaderAliases={
@@ -4124,6 +4159,7 @@ function initArquitecturaMaestra(){
   $('btnExportBaseCompleta')?.addEventListener('click',exportarBaseCompleta);
 }
 
+/* V18 - Overrides ID_OBRA sobre ficha OC y buscador */
 function obtenerOC(idObra){
   return buscarPorIdObra(idObra);
 }
@@ -4151,6 +4187,9 @@ function renderBuscador(){
   }).join('') || '<tr><td colspan="9">Sin resultados.</td></tr>';
 }
 
+/* ===============================
+   V19 - Carga / eliminación de foto principal de estación
+   =============================== */
 let estacionFotoActiva = null;
 function storageFotosEstacionKey(){
   return 'coi_linea_roca_fotos_estacion_v19';
@@ -4242,6 +4281,9 @@ function initFotosEstacion(){
   });
 }
 
+/* ===============================
+   V20 - Foto principal de OC y confirmaciones documentales
+   =============================== */
 function storageFotosOCKey(){
   return 'coi_linea_roca_fotos_oc_v20';
 }
@@ -4342,6 +4384,8 @@ function initFotoYChecksOC(){
   });
 }
 
+/* V20 - Override renderFichaOC con foto OC + checks documentales */
+
 function initImportacionAcumulativaV23(){
   const acumular=document.getElementById('importAcumular');
   const reemplazar=document.getElementById('importReemplazar');
@@ -4350,6 +4394,10 @@ function initImportacionAcumulativaV23(){
     reemplazar.addEventListener('change',()=>{ if(reemplazar.checked) acumular.checked=false; });
   }
 }
+
+/* V24 - Vencimientos: días junto al semáforo y Ficha OC al final */
+
+/* V25 - Filtro de ordenamiento en Vencimientos */
 
 function renderCalendarioVencimientos(){
   cargarFiltrosV16('venc');
@@ -4379,6 +4427,7 @@ function renderCalendarioVencimientos(){
   renderCalendarioOperativoCOI('venc');
 }
 
+/* V26 - Override todasLasOC usando días restantes del Excel/CSV si existe */
 function todasLasOC(){
   const rows=[];
   estaciones.forEach(est=>{
@@ -4421,6 +4470,7 @@ function todasLasOC(){
   return rows;
 }
 
+/* V26 - Orden vencimientos alineado a columna CANT. DÍAS SERVICIO RESTANTE */
 function ordenarVencimientos(rows){
   const orden=$('vencOrden')?.value || 'diasDesc';
   return rows.sort((a,b)=>{
@@ -4437,6 +4487,14 @@ function ordenarVencimientos(rows){
   });
 }
 
+/* ===============================
+   V27 - Importador CSV robusto Obras + Servicios
+   Corrige:
+   - checkboxes acumulativo/reemplazo
+   - selección múltiple
+   - detección por nombre de archivo
+   - estado visible de carga
+   =============================== */
 function setImportStatus(msg, detail='', tipo='info'){
   const m=$('importMsg');
   const d=$('importDebug');
@@ -4494,6 +4552,7 @@ function importRows(rows, forcedTipo='auto', options={}){
     estacionesDestino.forEach(est=>{
       const itemEstacion=clonarItemParaEstacion(item, est);
 
+      // Si no viene ID_OBRA del CSV, crear clave estable por OC + tipo + estación + especialidad.
       if(!itemEstacion.idObra){
         itemEstacion.idObra = normalizarIdObra(
           'ROCA-' + slugOC([
@@ -4623,6 +4682,9 @@ function handleImport(){
   });
 }
 
+/* ===============================
+   V28 - Checklist completo de procesos Estado OC en Ficha OC
+   =============================== */
 function opcionesDocOC(){
   return [
     ['pliegosPreparacion','PLIEGOS EN PREPARACION'],
@@ -4650,6 +4712,9 @@ function renderChecksDocumentales(item){
   }).join('')}</div>`;
 }
 
+/* ===============================
+   V29 - Estado documental limpio + observaciones editables
+   =============================== */
 function guardarObservacionesDocumentales(idObra, texto){
   const found=buscarPorIdObra(idObra);
   if(!found) return;
@@ -4676,6 +4741,11 @@ function initObservacionesDocumentalesV29(){
   });
 }
 
+/* V29 - Override renderFichaOC: limpia C. Estado Documental y deja observaciones editables al final */
+
+/* ===============================
+   V52 - Gestión Financiera, Acceso y Red Interactiva
+   =============================== */
 const USUARIOS_SISTEMA=Object.freeze([]); // Login local legado deshabilitado: Supabase Auth es la autoridad.
 const SESSION_KEY_V52="coi_sesion_activa_v52";
 const LS_ST_V52="coi_servicios_tecnicos";
@@ -4878,6 +4948,9 @@ function activarHoverEstaciones(){
   });
 }
 
+/* ===============================
+   V32.1 - Acerca del Sistema + Historial de versiones
+   =============================== */
 const APP_NAME = "COI Línea Roca";
 const APP_VERSION = "V58.1R39-FINANZAS-SUPABASE-2A";
 const APP_STATUS = "Versión operativa en desarrollo";
@@ -5067,7 +5140,9 @@ function initAcercaSistema(){
   $('btnAcercaSistema')?.addEventListener('click',()=>{ mostrarVista('vistaAcercaSistema'); renderAcercaSistema(); });
 }
 function initHistorialVersiones(){initAcercaSistema();}
-
+/* ===============================
+   V47 - Panel de Administración Profesional
+   =============================== */
 const LS_ADMIN_ROLE='coi_admin_role_v47',LS_ADMIN_LAST_BACKUP='coi_admin_last_backup_v1',LS_ADMIN_INTERNAL_BACKUP='coi_admin_internal_backup_v1',LS_ADMIN_LOGS='coi_admin_logs_v47',LS_ADMIN_USERS='coi_admin_users_v47',LS_ADMIN_CATALOGOS='coi_admin_catalogos_v47',LS_ADMIN_CONFIG='coi_admin_config_v47';
 let adminTabActiva='estado';
 function adminConfig(){return safeParseJSON(sessionStorage.getItem(LS_ADMIN_CONFIG),{})||{};}function adminPinActual(){return adminConfig().adminPin||ADMIN_PIN;}function adminRolActivo(){return (typeof esModoAdmin==="function"&&esModoAdmin())?USER_ROLES.ADMIN:"Modo Consulta";}function adminIsEnabled(){return typeof esModoAdmin==="function"&&esModoAdmin();}function adminSetRole(r){if(r===USER_ROLES.ADMIN&&typeof iniciarSesionAdministrador==="function")iniciarSesionAdministrador();else if(typeof cerrarSesionAdministrador==="function")cerrarSesionAdministrador();}function adminSetMsg(m,c='ok'){const e=$('adminMsg');if(e){e.textContent=m;e.className=`admin-msg ${c}`;}}function adminNowStamp(){const d=new Date(),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`;}function adminBackupFileName(){return `backup_coi_roca_${adminNowStamp()}.json`;}function adminSnapshotLocalStorage(){const d={};for(let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i);d[k]=sessionStorage.getItem(k);}return d;}function adminBackupPayload(){
@@ -5358,6 +5433,7 @@ function renderFichaOC(idObra){
   $('btnFichaCopiarInterno')?.addEventListener('click',copiarResumenOC);
 }
 
+/* V31 - Buscador deja de ser módulo independiente: redirige a Órdenes */
 function abrirBuscadorIntegrado(){
   abrirModuloOrdenes(true);
 }
@@ -5365,6 +5441,10 @@ function initBuscadorIntegradoV31(){
   document.getElementById('btnAccesoBusquedaOrdenes')?.addEventListener('click',abrirBuscadorIntegrado);
 }
 
+/* ===============================
+   V32 - Calendario Operativo COI
+   Eventos derivados: no modifica sessionStorage ni datos base.
+   =============================== */
 const calendarioOperativoEstado={venc:{year:COI_TODAY.getFullYear(),month:COI_TODAY.getMonth()},cert:{year:COI_TODAY.getFullYear(),month:COI_TODAY.getMonth()},coi:{year:COI_TODAY.getFullYear(),month:COI_TODAY.getMonth()}};
 let calendarioOperativoEventos=[];
 const calendarioOperativoTipos=['Vencimiento OC','Acta de inicio','Certificación servicio','Certificación obra','Avance de obra','Documentación pendiente','Alerta factura anticipada'];
@@ -5620,6 +5700,9 @@ function initCalendarioOperativoCOI(){
   document.addEventListener('click',ev=>{const eventBtn=ev.target.closest('[data-op-event]');if(eventBtn){ev.preventDefault();ev.stopPropagation();abrirDetalleEventoCalendario(eventBtn.dataset.opEvent);return;}const day=ev.target.closest('[data-op-day]');if(day){abrirDetalleEventoCalendario(`dia:${day.dataset.opDay}:${day.dataset.fecha}`);return;}const nav=ev.target.closest('[data-op-nav]');if(nav){cambiarMesCalendarioCOI(nav.dataset.opNav,Number(nav.dataset.dir));return;}const hoy=ev.target.closest('[data-op-hoy]');if(hoy){const st=calendarioOperativoEstado[hoy.dataset.opHoy];st.year=COI_TODAY.getFullYear();st.month=COI_TODAY.getMonth();renderCalendarioOperativoCOI(hoy.dataset.opHoy);return;}const exp=ev.target.closest('[data-op-export]');if(exp){exportarEventosCalendarioOperativo(exp.dataset.opExport,exp.dataset.format);return;}if(ev.target.closest('[data-op-close]')||ev.target.classList.contains('op-modal'))ev.target.closest('.op-modal')?.remove();});
 }
 
+/* ===============================
+   V46 - Centro de Alertas + Calendario Inteligente
+   =============================== */
 const LS_ALERTAS_REVISADAS='coi_alertas_revisadas_v46';
 const LS_ALERTAS_FILTROS='coi_alertas_filtros_v46';
 function sumarMeses(fecha,cantidad){return addMeses(fecha,cantidad);}
@@ -5628,7 +5711,10 @@ function alertaValor(item,row,keys){for(const k of keys){const v=item?.[k]??row?
 function alertaFecha(item,row,keys){for(const k of keys){const d=(typeof parseFechaFlexible==='function'?parseFechaFlexible:parseFecha)(item?.[k]??row?.[k]);if(d)return d;}return null;}
 function alertaRegistro(row){const item=row.item||{};const id=alertaValor(item,row,['idObra','ID_OBRA','idServicio','ID_SERVICIO','idOC','id'])||slugOC([row.tipo,row.oc,row.estacion].join('-'));const oc=alertaValor(item,row,['ocNro','OC_NRO','numeroOC','oc','OC'])||row.oc||'SIN OC';const estacion=alertaValor(item,row,['estacion','ESTACION'])||row.estacion||'';const proveedor=alertaValor(item,row,['proveedor','PROVEEDOR'])||row.proveedor||'';const inicio=alertaFecha(item,row,['fechaInicio','FECHA_INICIO','fechaActaInicio','actaInicio','inicio'])||row.inicio;const fin=alertaFecha(item,row,['fechaFin','FECHA_FIN','fechaVencimiento','vencimiento','fin'])||row.fin;let prox=null,proxTentativa=false,canonicoResolvio=false;try{if(typeof window.__COI_PROXIMA_CERT_INFO__==='function'){const info=window.__COI_PROXIMA_CERT_INFO__(item,row)||{};prox=info.fecha?(typeof parseFechaFlexible==='function'?parseFechaFlexible(info.fecha):parseFecha(info.fecha)):null;proxTentativa=Boolean(info.tentativa);canonicoResolvio=true;}else if(typeof window.__COI_PROXIMA_CERT__==='function'){const f=window.__COI_PROXIMA_CERT__(item,row);prox=f?(typeof parseFechaFlexible==='function'?parseFechaFlexible(f):parseFecha(f)):null;}}catch(e){}if(!prox&&!canonicoResolvio)prox=alertaFecha(item,row,['proxCertificacion','PROX_CERTIFICACION','proximaCertificacion','fechaProximaCertificacion'])||row.proximaCertificacion;const plazo=Number(alertaValor(item,row,['plazoDias','PLAZO_DIAS','plazo'])||row.plazo||0);const estadoDocumental=alertaValor(item,row,['estadoDocumental','ESTADO_DOCUMENTAL'])||row.estadoDocumental||'';return {item,id,oc,tipo:row.tipo||item.tipo||'',estacion,proveedor,inicio,fin,prox,proxTentativa,plazo,estado:row.estado||item.estado||'',estadoDocumental,descripcion:item.descripcion||item.tipoTrabajo||row.especialidad||'',expediente:item.expediente||item.expte||item.EXPEDIENTE||'',ultimaActa:item.ultimaActa||item.ULTIMA_ACTA||item.ultimaCertificacion||'',periodoInicio:item.periodoInicio||item.PERIODO_INICIO||'',periodoFin:item.periodoFin||item.PERIODO_FIN||'',cerrada:row.cerrada||esOCCerradaLegacy(item)};}
 function obtenerSeveridadAlerta(alerta){return alerta.severidad||({'Crítica':'ROJA','Próxima':'AMARILLA','Documental':'AMARILLA','Informativa':'AZUL'}[alerta.categoria]||'AZUL');}
-
+/* El 2º argumento admite un string —clase y etiqueta coinciden— o un
+   {clase,etiqueta} para cuando el texto que ve el operador varía sin que
+   cambie el evento subyacente. La CLASE es la identidad semántica: clasifica,
+   cuenta y arma el id estable. La ETIQUETA sólo se muestra. */
 function crearAlerta(base,tipo,categoria,severidad,fecha,dias,mensaje,accion){const claseAlerta=typeof tipo==='string'?tipo:String((tipo&&tipo.clase)||'');const tipoAlerta=typeof tipo==='string'?tipo:String((tipo&&tipo.etiqueta)||claseAlerta);const fechaIso=isoFechaCOI(fecha)||'SIN_FECHA';const id=`${slugOC(claseAlerta)}_${slugOC(base.id)}_${fechaIso}`;return {id,tipoAlerta,claseAlerta,categoria,severidad,oc:base.oc,idRegistro:base.id,tipoRegistro:base.tipo,estacion:base.estacion||'Sin definir',proveedor:base.proveedor||'Sin definir',descripcion:base.descripcion||'—',fechaRelacionada:fechaIso==='SIN_FECHA'?'':fechaIso,dias:dias??'',mensaje,accionSugerida:accion,ocId:base.id,item:base.item};}
 function estadoCerradoAlerta(txt){const s=normalizarTexto(txt);return s.includes('CERRAD')||s.includes('FINALIZAD')||s.includes('ARCHIVAD')||s.includes('DEFINITIVA');}
 function generarAlertasCOI(){
@@ -5674,7 +5760,10 @@ function generarAlertasCOI(){
 function getAlertasRevisadas(){return safeParseJSON(sessionStorage.getItem(LS_ALERTAS_REVISADAS),{})||{};}
 function setAlertaRevisada(id){const data=getAlertasRevisadas();data[id]={fecha:new Date().toISOString(),usuario:typeof APP_AUTHOR!=='undefined'?APP_AUTHOR:''};sessionStorage.setItem(LS_ALERTAS_REVISADAS,JSON.stringify(data));}
 function filtrarAlertasCOI(alertas=generarAlertasCOI()){const filtros={sev:$('alertFiltroSeveridad')?.value||'',tipo:$('alertFiltroTipo')?.value||'',est:$('alertFiltroEstacion')?.value||'',prov:$('alertFiltroProveedor')?.value||'',cat:$('alertFiltroCategoria')?.value||'',q:($('alertFiltroTexto')?.value||'').toLowerCase().trim()};sessionStorage.setItem(LS_ALERTAS_FILTROS,JSON.stringify(filtros));return alertas.filter(a=>(!filtros.sev||a.severidad===filtros.sev)&&(!filtros.tipo||a.tipoRegistro===filtros.tipo)&&(!filtros.est||a.estacion===filtros.est)&&(!filtros.prov||a.proveedor===filtros.prov)&&(!filtros.cat||a.categoria===filtros.cat)&&(!filtros.q||[a.tipoAlerta,a.oc,a.idRegistro,a.tipoRegistro,a.estacion,a.proveedor,a.descripcion,a.mensaje,a.accionSugerida].join(' ').toLowerCase().includes(filtros.q)));}
-
+/* Los KPI cuentan por CLASE, nunca por el texto que se muestra. Las alertas
+   que no nacen en crearAlerta() —las que arman por su cuenta los wrappers
+   V60+— no traen clase: ahí la etiqueta sigue oficiando de clase y el conteo
+   queda igual que antes. */
 function claseAlertaCOI(a){return (a&&a.claseAlerta)||(a&&a.tipoAlerta)||'';}
 function resumenAlertasCOI(alertas=generarAlertasCOI()){return {total:alertas.length,criticas:alertas.filter(a=>a.categoria==='Crítica').length,proximas:alertas.filter(a=>a.categoria==='Próxima').length,documentales:alertas.filter(a=>a.categoria==='Documental').length,vencidas:alertas.filter(a=>claseAlertaCOI(a)==='OC vencida').length,certProx:alertas.filter(a=>claseAlertaCOI(a)==='Certificación próxima').length,incompletos:alertas.filter(a=>claseAlertaCOI(a)==='Datos incompletos').length,sinEstProv:alertas.filter(a=>claseAlertaCOI(a)==='OC sin estación'||claseAlertaCOI(a)==='OC sin proveedor').length};}
 function cargarFiltrosCentroAlertas(alertas){const set=(id,vals,label)=>{const el=$(id);if(!el)return;const cur=el.value;el.innerHTML=`<option value="">${label}</option>`+[...new Set(vals.filter(Boolean))].sort().map(v=>`<option>${esc(v)}</option>`).join('');if([...el.options].some(o=>o.value===cur))el.value=cur;};set('alertFiltroEstacion',alertas.map(a=>a.estacion),'Estación');set('alertFiltroProveedor',alertas.map(a=>a.proveedor),'Proveedor');}
@@ -5685,8 +5774,20 @@ function renderCalendarioInteligenteCOI(){const cont=$('calendarioInteligenteCOI
 function exportarAlertasCSV(){const headers=['severidad','categoria','tipo alerta','OC','ID','tipo registro','estacion','proveedor','descripcion','fecha relacionada','dias','mensaje','accion sugerida','revisada'];const rows=filtrarAlertasCOI().map(a=>[a.severidad,a.categoria,a.tipoAlerta,a.oc,a.idRegistro,a.tipoRegistro,a.estacion,a.proveedor,a.descripcion,a.fechaRelacionada,a.dias,a.mensaje,a.accionSugerida,a.revisada?'SI':'NO']);descargarArchivo('centro_alertas_v46.csv',[headers,...rows].map(r=>r.map(coiCSVCell).join(';')).join('\n'),'text/csv;charset=utf-8');}
 function initCentroAlertasV46(){$('btnExportAlertasCSV')?.addEventListener('click',exportarAlertasCSV);['alertFiltroSeveridad','alertFiltroTipo','alertFiltroEstacion','alertFiltroProveedor','alertFiltroCategoria'].forEach(id=>$(id)?.addEventListener('change',renderCentroAlertas));$('alertFiltroTexto')?.addEventListener('input',renderCentroAlertas);$('btnLimpiarAlertas')?.addEventListener('click',()=>{['alertFiltroSeveridad','alertFiltroTipo','alertFiltroEstacion','alertFiltroProveedor','alertFiltroCategoria','alertFiltroTexto'].forEach(id=>{if($(id))$(id).value='';});renderCentroAlertas();});document.addEventListener('click',ev=>{const rev=ev.target.closest('[data-alert-reviewed]');if(rev){setAlertaRevisada(rev.dataset.alertReviewed);renderCentroAlertas();return;}const st=ev.target.closest('[data-alert-station]');if(st){mostrarVista('vistaRed');if($('q'))$('q').value=st.dataset.alertStation;renderMap();}});renderDashboardAlertSummary();}
 
+/* ===============================
+   V32 - Repositorio de Unidades de Mantenimiento
+   =============================== */
 const LS_UM="coi_roca_unidades_mantenimiento";let unidadesMantenimiento=[];let vistaAnteriorUM="vistaUnidadesMantenimiento";let umActualId=null;
-
+/* Un `let` de nivel superior NO es una propiedad de `window`: vive en el ambito
+   lexico global. Las capas nuevas (H05) y varias rutas legadas escriben
+   `window.umActualId`, mientras que copiarResumenUM() e irEstacionUM() leian el
+   binding lexico, que quedaba con la UM anterior —o en null— y los botones de la
+   ficha no hacian nada o actuaban sobre una UM fantasma. Aca los dos nombres
+   pasan a ser el MISMO almacenamiento: `window.umActualId` es un accessor sobre
+   la variable lexica, de modo que cualquier ruta —vieja o nueva, por
+   `umActualId` o por `window.umActualId`— lee y escribe lo mismo. No se cambia
+   ningun handler existente. Lo mismo para vistaAnteriorUM, que decide a donde
+   vuelve el boton Volver. */
 try{
   Object.defineProperty(window,'umActualId',{configurable:true,enumerable:true,
     get(){return umActualId;},set(v){umActualId=v;}});
@@ -5714,7 +5815,18 @@ function abrirFichaUM(idUM){vistaAnteriorUM=document.querySelector('.view.active
 function volverUM(){mostrarVista(vistaAnteriorUM||'vistaUnidadesMantenimiento');}
 function renderFichaUM(idUM){const u=unidadesMantenimiento.find(x=>x.idUM===idUM),body=$('fichaUMBody');if(!body)return;if(!u){body.innerHTML='<p class="empty">No se encontró la UM.</p>';return;}body.innerHTML=`<div class="oc-kpis"><div class="oc-kpi"><b>${esc(u.idUM)}</b><span>ID UM</span></div><div class="oc-kpi"><b>${esc(u.tipoUM)}</b><span>Tipo UM</span></div><div class="oc-kpi"><b>${esc(u.estacion)}</b><span>Estación</span></div><div class="oc-kpi"><b>${esc(u.criticidad||'—')}</b><span>Criticidad</span></div><div class="oc-kpi">${badgeUMEstado(u.estadoOperativo)}</div></div><div class="um-ficha-grid"><section class="um-ficha-card"><h3>A. Encabezado</h3><div class="grid"><div><b>ID UM</b>${esc(u.idUM)}</div><div><b>Tipo</b>${esc(u.tipoUM)}</div><div><b>Estación</b>${esc(u.estacion)}</div><div><b>Ubicación técnica</b>${esc(u.ubicacionTecnica)}</div><div><b>Estado operativo</b>${badgeUMEstado(u.estadoOperativo)}</div><div><b>Criticidad</b>${esc(u.criticidad||'—')}</div></div></section><section class="um-ficha-card"><h3>B. Datos técnicos</h3><div class="grid"><div><b>Sector</b>${esc(u.sector||'—')}</div><div><b>Descripción</b>${esc(u.descripcion||'—')}</div><div><b>Proveedor actual</b>${esc(u.proveedorActual||'—')}</div><div><b>OC actual</b>${esc(u.ocActual||'—')}</div></div></section><section class="um-ficha-card full"><h3>C. Servicios Técnicos Asociados</h3>${renderServiciosTecnicosAsociados(u.idUM)}<h4>Historial de mantenimiento</h4>${(u.historialMantenimiento&&u.historialMantenimiento.length)?`<div class="table-wrap"><table class="coi-table"><thead><tr><th>Fecha</th><th>Tipo evento</th><th>OC</th><th>Proveedor</th><th>Observación</th></tr></thead><tbody>${u.historialMantenimiento.map(h=>`<tr><td>${esc(h.fecha||'—')}</td><td>${esc(h.tipoEvento||'—')}</td><td>${esc(h.oc||'—')}</td><td>${esc(h.proveedor||'—')}</td><td>${esc(h.observacion||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="oc-empty">No hay historial de mantenimiento cargado.</div>'}</section><section class="um-ficha-card full"><h3>D. Fotos / Evidencia</h3>${(u.fotos&&u.fotos.length)?`<div class="gallery-grid">${u.fotos.map((f,i)=>`<div class="gallery-item"><img src="${esc(f)}" alt="${esc(u.idUM)} foto ${i+1}" data-um-foto-img><div><b>Foto ${i+1}</b><br>${esc(f)}</div></div>`).join('')}</div>`:'<div class="oc-empty">Sin fotos cargadas.</div>'}</section><section class="um-ficha-card full"><h3>E. Observaciones</h3><div class="exp-observaciones">${esc(u.observaciones||'Sin observaciones cargadas.')}</div></section></div>`;}
 function copiarResumenUM(){const u=unidadesMantenimiento.find(x=>x.idUM===umActualId);if(!u)return;const txt=`UM: ${u.idUM}\nTipo: ${u.tipoUM}\nEstación: ${u.estacion}\nUbicación: ${u.ubicacionTecnica}\nEstado: ${u.estadoOperativo}\nOC actual: ${u.ocActual||'—'}`;navigator.clipboard?.writeText(txt).then(()=>alert('Resumen UM copiado.')).catch(()=>prompt('Copiar resumen UM:',txt));}
+/* La estacion de una UM es texto libre y el catalogo guarda el nombre
+   canonico: «PLAZA CONSTITUCION» y «Plaza Constitución» son la misma. Comparar
+   por igualdad exacta dejaba el boton sin destino aunque la UM apareciera
+   asociada en Red y en el resto de las vistas.
 
+   Se reutiliza el mecanismo canonico que ya usa el proyecto —
+   normalizarNombreEstacion() y, si la resuelve, resolverEstacionMaestra()— en
+   lugar de una tabla de alias paralela. El valor almacenado en la UM no se
+   toca: solo se compara normalizado.
+
+   Devuelve SIEMPRE una entrada de `estaciones`, que es lo que selectStation()
+   espera; si no resuelve devuelve null y el boton no navega a ningun lado. */
 function resolverEstacionDeUM(valor){
   const buscado=String(valor==null?'':valor).trim();
   if(!buscado)return null;
@@ -5723,7 +5835,8 @@ function resolverEstacionDeUM(valor){
     ?normalizarNombreEstacion(n)
     :String(n==null?'':n).trim().toUpperCase();
   const claves=new Set([clave(buscado)]);
-
+  /* El catalogo maestro tambien resuelve por id y por alias: si conoce esta
+     estacion, su nombre canonico entra como segunda clave de comparacion. */
   try{
     const maestra=typeof resolverEstacionMaestra==='function'?resolverEstacionMaestra(buscado):null;
     if(maestra&&maestra.nombre)claves.add(clave(maestra.nombre));
@@ -5741,6 +5854,7 @@ function vincularOCUM(){const u=unidadesMantenimiento.find(x=>x.idUM===umActualI
 function exportarUMCSV(){const campos=new Set(['idUM']);unidadesMantenimiento.forEach(u=>Object.keys(u).forEach(k=>campos.add(k)));const headers=['idUM',...[...campos].filter(k=>k!=='idUM')];const csv=[headers,...unidadesMantenimiento.map(u=>headers.map(h=>Array.isArray(u[h])||typeof u[h]==='object'?JSON.stringify(u[h]||''):u[h]||''))].map(r=>r.map(coiCSVCell).join(';')).join('\n');descargarArchivo('unidades_mantenimiento_linea_roca.csv',csv,'text/csv;charset=utf-8');}
 function renderUMEnPanelEstacion(s){const ums=umsPorEstacion(s.nombre);if(!ums.length)return'<p class="empty">Sin Unidades de Mantenimiento cargadas para esta estación.</p>';return`<div class="um-mini-list">${ums.map(u=>`<div class="um-mini-card"><h4>${esc(u.idUM)} · ${esc(u.tipoUM)}</h4><div>${esc(u.ubicacionTecnica)}</div><div>${badgeUMEstado(u.estadoOperativo)}</div><br><button type="button" class="btn-open-um" data-open-um="${esc(u.idUM)}">Ver ficha UM</button></div>`).join('')}</div>`;}
 
+/* Ficha operativa de Estación en Red Línea Roca: foto, descripción, OC vigentes y UM asociadas. */
 function estacionOCVigenteCOI(item){
   if(!item)return false;
   const estado=normalizarTexto(item.estado||item.estadoRegistro||'');
@@ -5822,6 +5936,9 @@ function selectStationFichaOperativaCOI(s){
 selectStation=selectStationFichaOperativaCOI;
 function initUnidadesMantenimiento(){cargarUM();cargarFiltrosUM();$('btnUnidadesMantenimiento')?.addEventListener('click',()=>{mostrarVista('vistaUnidadesMantenimiento');renderUnidadesMantenimiento();});['umBuscar','umFiltroTipo','umFiltroEstacion','umFiltroEstado','umFiltroCriticidad','umFiltroProveedor'].forEach(id=>{const el=$(id);if(el)el.addEventListener(id==='umBuscar'?'input':'change',renderUnidadesMantenimiento);});$('btnLimpiarUM')?.addEventListener('click',()=>{['umBuscar','umFiltroTipo','umFiltroEstacion','umFiltroEstado','umFiltroCriticidad','umFiltroProveedor'].forEach(id=>{if($(id))$(id).value='';});renderUnidadesMantenimiento();});$('btnExportUMCSV')?.addEventListener('click',exportarUMCSV);$('btnNuevaUM')?.addEventListener('click',limpiarFormUM);$('btnGuardarUM')?.addEventListener('click',guardarFormUM);$('btnVolverUM')?.addEventListener('click',volverUM);$('btnEditarUM')?.addEventListener('click',()=>cargarFormUM(umActualId));$('btnCopiarUM')?.addEventListener('click',copiarResumenUM);$('btnIrEstacionUM')?.addEventListener('click',irEstacionUM);$('btnVincularOCUM')?.addEventListener('click',vincularOCUM);document.addEventListener('click',ev=>{const btn=ev.target.closest('[data-open-um]');if(btn){ev.preventDefault();ev.stopPropagation();abrirFichaUM(btn.dataset.openUm);}});document.addEventListener('error',ev=>{const img=ev.target;if(img?.matches?.('[data-um-foto-img]'))img.style.display='none';},true);}
 
+/* ===============================
+   V45 CONSOLIDADA - Carga Servicio/Obra + selección/borrado Órdenes
+   =============================== */
 const V45_SERVICIO_COLUMNS = ["ID_SERVICIO","OC_NRO","MONTO_OC","PLAZO_DIAS","EXPEDIENTE","ULTIMA_ACTA","PERIODO_MES","PERIODO_INICIO","PERIODO_FIN","DESCRIPCION","ESTACION","PROVEEDOR","FECHA_INICIO","FECHA_FIN","TIPO_UM","DIAS_RESTANTES","INDICADOR","ESTADO","PROX_CERTIFICACION","OBSERVACIONES"];
 const V45_OBRA_HEADERS = ["ID OBRA","% AVANCE","OC","TIPO UM","SALDO $ OC TOTAL","SALDO EJECUTADO $","ESTATUS","PLAZO OC (DIAS)","EXPTE.","Descripción del Servicio","ESTACION","PROVEED.","FECHA INICIO","FECHA FIN","CANT. DIAS SERVICIO RESTANTE","INDICADOR","FECHA ULT ACTA MED N°","PROX CERT. FECHA","PROX ACTA MED N°","OBSERVACIONES"];
 const V45_OBRA_COLUMNS = ["ID_OBRA","AVANCE_PORC","OC_NRO","TIPO_UM","MONTO_OC","SALDO_EJECUTADO","ESTADO","PLAZO_DIAS","EXPEDIENTE","DESCRIPCION","ESTACION","PROVEEDOR","FECHA_INICIO","FECHA_FIN","DIAS_RESTANTES","INDICADOR","FECHA_ULT_ACTA_MED","PROX_CERTIFICACION","PROX_ACTA_MED","OBSERVACIONES"];
@@ -5905,7 +6022,12 @@ function v45RefreshAfterDataChange(){if(typeof renderMap==='function')renderMap(
 function v45GuardarCarga(){document.querySelectorAll('#panelCargaServicio tbody tr,#panelCargaObra tbody tr').forEach(v45ActualizarFila);const body=v45BodyActivo();if(!body)return;let guardados=0,vacios=0,duplicados=0;[...body.querySelectorAll('tr')].forEach(tr=>{const tipo=tr.dataset.tipoCarga||v45TipoCarga,row=v45LeerFila(tr);if(v45FilaVacia(row,tipo)){vacios++;return;}const item=tipo==='Servicio'?v45ItemDesdeServicio(row):v45ItemDesdeObra(row);const key=v45RegistroKey(item);if(todasLasOC().some(r=>v45RegistroKey(r.item)===key)){duplicados++;return;}const est=v45EstacionDestino(item.estacion);item.estacion=est.nombre;item.idEstacion=est.idEstacion||('EST-'+slugOC(est.nombre));(tipo==='Servicio'?est.servicios:est.obras).push(item);guardados++;});v45MigrarCampos();guardarBaseLocal();v45RefreshAfterDataChange();const msg=`Se guardaron ${guardados} registros. Filas vacías: ${vacios}. Duplicados omitidos: ${duplicados}.`;if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent=msg;$('cargaRapidaMsg').className='quick-load-msg ok';}alert(msg);}
 function v45ActualizarSeleccionOrdenes(){const total=v45SeleccionOrdenes.size;if($('ordenesSeleccionadasCount'))$('ordenesSeleccionadasCount').textContent=`${total} seleccionada${total===1?'':'s'}`;if($('btnBorrarSeleccionadas'))$('btnBorrarSeleccionadas').disabled=!total;const checks=[...document.querySelectorAll('.chk-orden-row')];if($('chkOrdenesSeleccionarTodas'))$('chkOrdenesSeleccionarTodas').checked=checks.length>0&&checks.every(c=>c.checked);}
 const _loadImportedDataV45Base = typeof loadImportedData==='function' ? loadImportedData : null;
-
+/* H01 (COI-AUD-002): el override V45 sustituye por completo a la funcion base y por eso
+   nunca llegaba a evaluar su guard Supabase-first. Sin el, esta ruta legacy leia
+   roca_coi_intervenciones_v10 y hacia estaciones.push() sobre el catalogo ferroviario,
+   contaminando el catalogo maestro, los filtros y la Red. Se replica aqui la misma regla
+   de la base: con Supabase como fuente de verdad no se consume la clave (no se borra ni
+   se migra), salvo la autorizacion explicita y de un solo uso del modo demo. */
 loadImportedData = function(){
   let demoExplicita=false;
   try{demoExplicita=sessionStorage.getItem('coi.demo.explicit.once')==='1';}catch(error){console.warn('COI demo: sessionStorage no disponible.',error);}
@@ -5931,7 +6053,9 @@ function pegarDesdeExcelCarga(event){return v45PegarExcel(event);}
 function limpiarGrillaCarga(){v45RenderTabla(v45TipoCarga);if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent='Grilla limpia. Complete filas o pegue desde Excel.';$('cargaRapidaMsg').className='quick-load-msg';}}
 function agregarFilasCarga(cantidad=5){return v45AgregarFilas(v45TipoCarga,Number(cantidad)||5);}
 function initCargaRapidaConsolidadaV45(){v45RenderTabla('Servicio');v45RenderTabla('Obra');v45SetTipoCarga('Servicio');document.querySelectorAll('.quick-type-card').forEach(card=>card.addEventListener('click',()=>v45SetTipoCarga(card.dataset.cargaTipo)));$('btnAgregarFilasCargaRapida')?.addEventListener('click',()=>v45AgregarFilas(v45TipoCarga,5));$('btnLimpiarCargaRapida')?.addEventListener('click',()=>{v45RenderTabla(v45TipoCarga);if($('cargaRapidaMsg')){$('cargaRapidaMsg').textContent='Grilla limpia. Complete filas o pegue desde Excel.';$('cargaRapidaMsg').className='quick-load-msg';}});$('btnGuardarCargaRapida')?.addEventListener('click',v45GuardarCarga);document.addEventListener('paste',v45PegarExcel);document.addEventListener('input',ev=>{const el=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!el)return;const tr=el.closest('tr');if(el.dataset.campo==='MONTO_OC'||el.dataset.campo==='SALDO_EJECUTADO')el.dataset.montoRaw=v45LimpiarMonto(el.value);if(tr)v45ActualizarFila(tr);});document.addEventListener('change',ev=>{const el=ev.target.closest('#panelCargaServicio [data-campo],#panelCargaObra [data-campo]');if(!el)return;if(el.dataset.campo==='MONTO_OC'||el.dataset.campo==='SALDO_EJECUTADO')v45NormalizarMontoInput(el);const tr=el.closest('tr');if(tr)v45ActualizarFila(tr);});}
-
+/* ===============================
+   Carga Financiera - Posiciones por OC
+   =============================== */
 const LS_POSICIONES_FINANCIERAS='coi_posiciones_financieras';
 const FIN_COLUMNS=['OC_NRO','POSICION','DESCRIPCION_POSICION','CANTIDAD_TOTAL','UNIDAD','MONTO_POSICION','MONEDA','ACTA_MEDICION_NRO','PERIODO_MES','PERIODO_DESDE','PERIODO_HASTA','CANTIDAD_CERTIFICADA','MONTO_CERTIFICADO','SALDO_CANTIDAD','SALDO_MONTO','ESTADO_POSICION','OBSERVACIONES'];
 const FIN_HEADERS=['OC','POSICIÓN','DESCRIPCIÓN POSICIÓN','CANTIDAD TOTAL','UNIDAD','MONTO $ POSICIÓN','MONEDA','ACTA MEDICIÓN N°','PERÍODO MES','PERÍODO DESDE','PERÍODO HASTA','CANTIDAD CERTIFICADA','MONTO CERTIFICADO','SALDO CANTIDAD','SALDO MONTO','ESTADO POSICIÓN','OBSERVACIONES'];
@@ -5976,6 +6100,9 @@ adminBackupPayload=function(){const p=_adminBackupPayloadV53Base();p.version=APP
 const _ejecutarDiagnosticoSistemaBase=ejecutarDiagnosticoSistema;ejecutarDiagnosticoSistema=function(){const r=_ejecutarDiagnosticoSistemaBase(),fin=posicionesFinancieras;return {...r,posFinSinOC:fin.filter(p=>!p.ocNro).length,posFinSinPosicion:fin.filter(p=>!p.posicion).length,posFinSinMonto:fin.filter(p=>!p.montoPosicion).length,posFinSaldoNegativo:fin.filter(p=>Number(p.saldoMonto)<0).length,posFinCantidadExcedida:fin.filter(p=>Number(p.cantidadCertificada)>Number(p.cantidadTotal)).length,posFinSinActa:fin.filter(p=>!p.actaMedicionNro).length};};
 function initV45Consolidada(){v45CrearEstacionSinDefinir();v45MigrarCampos();initCargaRapidaConsolidadaV45();}
 
+/* ===============================
+   V54 - Estado Financiero avanzado y edición completa Ficha OC
+   =============================== */
 const FIN_V54_BLOQUES={
   POSICION_OC:{
     label:'Posiciones OC',
@@ -6188,6 +6315,9 @@ v45PegarExcel=function(ev){
   [...body.children].forEach(actualizarFilaFinanciera);
 };
 
+/* ===============================
+   V55 - Ramal Chascomus-MDP y Financiera exacta
+   =============================== */
 const RAMAL_CHASCOMUS_MDP_V55='Chascomús - Mar del Plata';
 function asegurarRamalChascomusMDPV55(){
   if(Array.isArray(ramalesDisponibles)&&!ramalesDisponibles.includes(RAMAL_CHASCOMUS_MDP_V55))ramalesDisponibles.push(RAMAL_CHASCOMUS_MDP_V55);
@@ -6210,6 +6340,7 @@ if(typeof reconstruirCatalogoMaestroEstaciones==='function'&&!window.__v55Catalo
   const _reconstruirCatalogoMaestroEstacionesV55=reconstruirCatalogoMaestroEstaciones;
   reconstruirCatalogoMaestroEstaciones=function(){const r=_reconstruirCatalogoMaestroEstacionesV55();asegurarRamalChascomusMDPV55();return r;};
 }
+/* fix V55 inferencia catalogo aplicado */
 
 const FIN_V55_BLOQUES={
   POSICION_OC:{label:'Posiciones OC',columns:['OC','REMITO','POS','DESCRIPCION','CANTIDAD','PRECIO_UNITARIO','PRECIO_TOTAL','PERIODO','SALDO'],headers:['OC','REMITO','POS','DESCRIPCIÓN','CANTIDAD','PRECIO UNITARIO','PRECIO TOTAL','PERIODO','SALDO']},
@@ -6349,6 +6480,9 @@ v45PegarExcel=function(ev){
   rows.forEach((cols,rIdx)=>cols.forEach((val,cIdx)=>{const campo=cfg.columns[startCol+cIdx],rowEl=body.children[startRow+rIdx],el=rowEl?.querySelector(`[data-campo="${campo}"]`);if(el)el.value=val.trim();}));
 };
 
+/* ===============================
+   V56 - Consumo financiero de posiciones OC
+   =============================== */
 let finV56EditandoCertificacion='';
 function finV56Usuario(){try{const s=typeof sesionActual==='function'?sesionActual():null;return s?`${s.nombre||s.usuario||'Usuario'} / ${s.rol||''}`:(typeof adminRolActivo==='function'?adminRolActivo():'');}catch(e){return '';}}
 function finV56Rol(){try{const s=typeof sesionActual==='function'?sesionActual():null;return s?.rol||((typeof adminRolActivo==='function')?adminRolActivo():'');}catch(e){return '';}}
@@ -6427,7 +6561,7 @@ function finV56CertsParaOrigen(origen,certs){
     if(c?.idPosicionOrigen&&origenId&&String(c.idPosicionOrigen).trim()===origenId)return true;
     const ocC=finV56ClaveComponente(c?.ocNro), remC=finV56ClaveComponente(c?.remito), posC=finV56ClaveComponente(c?.posicion);
     if([ocC,remC,posC].join('|')===keyO)return true;
-
+    // Fallback operativo: si OC y POS coinciden, considerar vinculada aunque el remito esté vacío en una de las fuentes.
     return !!(ocO&&posO&&ocO===ocC&&posO===posC&&(!remO||!remC||remO===remC));
   });
 }
@@ -6525,6 +6659,9 @@ document.addEventListener('click',ev=>{
   const del=ev.target.closest('[data-fin-cert-delete]');if(del){finV56EliminarCertificacion(del.dataset.finCertDelete);return;}
 });
 
+/* ===============================
+   V57 - Certificaciones OC e imagen UM
+   =============================== */
 function v57NumeroActa(valor){
   if(valor===null||valor===undefined)return 0;
   if(typeof valor==='number')return Number.isFinite(valor)?valor:0;
@@ -6625,6 +6762,7 @@ renderFichaUM=function(idUM){
   v57ConectarEventosImagenUM(idUM);
 };
 
+/* V58 - UI documentos Ficha OC */
 const _renderChecksDocumentalesV58Base = typeof renderChecksDocumentales === 'function' ? renderChecksDocumentales : null;
 renderChecksDocumentales = function(item){
   if(typeof window.renderCircuitoAdministrativoOC==='function')return window.renderCircuitoAdministrativoOC(item);
@@ -6654,6 +6792,7 @@ document.addEventListener('change', ev=>{
   v58ActualizarEstadoVisualDocumental(root);
 });
 
+/* V59 - Ficha OC/UM V56 */
 function formatearMonedaARS(valor){
   if(valor===undefined||valor===null) return '—';
   let s=String(valor).trim();
@@ -6970,6 +7109,7 @@ document.addEventListener('change',ev=>{
   if(umInput){cargarFotosUM(umInput.dataset.v59InputFotosUm,umInput.files);umInput.value='';return;}
 });
 
+/* V60 - Vigencia operativa por saldo remanente */
 const V60_ESTADO_VIGENTE='Vigente';
 const V60_ESTADO_PROXIMA='Próxima a vencer';
 const V60_ESTADO_NO_CERT='Vencida no certificable';
@@ -7169,6 +7309,7 @@ if(_ejecutarDiagnosticoSistemaV60Base){ejecutarDiagnosticoSistema=function(){con
 const _renderAuditorDatosV60Base=typeof renderAuditorDatos==='function'?renderAuditorDatos:null;
 if(_renderAuditorDatosV60Base){renderAuditorDatos=function(){_renderAuditorDatosV60Base();const a=typeof ejecutarDiagnosticoSistema==='function'?ejecutarDiagnosticoSistema():{};if($('adminTabAuditor'))$('adminTabAuditor').insertAdjacentHTML('beforeend',`<div class="admin-panel"><h3>Diagnostico vigencia operativa</h3><div class="admin-status-grid">${adminCard('Vencida sin estado vigencia',a.ocVencidaSinEstadoVigencia||0)}${adminCard('Certificable sin saldo',a.ocVencidaCertificableSinSaldo||0)}${adminCard('Certificable sin motivo',a.ocVencidaCertificableSinMotivo||0)}${adminCard('Certificable sin responsable',a.ocVencidaCertificableSinResponsable||0)}${adminCard('No certificable con saldo',a.ocVencidaNoCertificableConSaldo||0)}${adminCard('Cerrada con saldo',a.ocCerradaConSaldoRemanente||0)}${adminCard('Estado contradictorio',a.ocEstadoContradictorio||0)}</div></div>`);};}
 
+/* V61 - Auditoria integral y hardening V57 */
 const COI_HARDENING_VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
 function escapeHTML(valor){return typeof esc==='function'?esc(valor):String(valor??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
 function normalizarTextoSeguro(valor){return String(valor??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toUpperCase();}
@@ -7295,6 +7436,10 @@ function coiAuditoriaArranque(){
 }
 document.addEventListener('DOMContentLoaded',()=>safeExecute('auditoria de arranque',coiAuditoriaArranque));
 
+/* ===============================
+   V62 - Certificaciones de Obras sin calculo mensual automatico
+   Corrige contaminacion de actas de Servicio sobre OC tipo Obra.
+   =============================== */
 let v62CertEditandoId='';
 function v62Norm(v){return typeof normalizarTexto==='function'?normalizarTexto(v):String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();}
 function v62TieneValor(v){if(v===null||v===undefined)return false;const s=String(v).trim();return !!s&&s!=='-'&&s!=='\u2014'&&v62Norm(s)!=='SIN DATOS'&&v62Norm(s)!=='SIN DEFINIR';}
@@ -7355,10 +7500,17 @@ const _generarEventosCertificacionesObrasV62Base=typeof generarEventosCertificac
 generarEventosCertificacionesObras=function(rows=todasLasOC(),eventos=[],usados=new Set()){rows.filter(r=>r.tipo==='Obra').forEach(row=>{const rsum=v62ResumenCertificacionesObra(row.item||{});rsum.actas.forEach(a=>{if(a.fecha)pushEventoUnico(eventos,usados,baseEventoCalendario(row,'Certificaci\u00f3n obra',a.fecha,{detalle:`Acta de medicion registrada. Acta: ${a.numero||'--'}`}));});if(rsum.fechaProximaActa)pushEventoUnico(eventos,usados,baseEventoCalendario(row,'Certificaci\u00f3n obra',rsum.fechaProximaActa,{detalle:`Proxima certificacion de obra definida manualmente. Acta: ${rsum.proximaActaRaw||'No definida'}`}));});return eventos;};
 generarEventosAvanceObra=function(rows=todasLasOC(),eventos=[],usados=new Set()){rows.filter(r=>r.tipo==='Obra'&&!r.cerrada).forEach(row=>{const fecha=v62FechaISO(v62Campo(row.item,['fechaAvanceObra','FECHA_AVANCE_OBRA','fechaAvance','FECHA_AVANCE']));if(fecha)pushEventoUnico(eventos,usados,baseEventoCalendario(row,'Avance de obra',fecha,{detalle:`Control de avance fisico. Avance actual: ${row.avanceFisico||0}%`}));});return eventos;};
 const _generarAlertasCOIV62Base=typeof generarAlertasCOI==='function'?generarAlertasCOI:null;
-
+/* El guard de abajo se evalúa por CLASE, no por la etiqueta: una Obra sin
+   fuente real de certificación no debe recibir estas alertas, y la variante
+   tentativa —que sólo cambia el texto mostrado— eludía la regla por no estar
+   su etiqueta en la lista. */
 if(_generarAlertasCOIV62Base){generarAlertasCOI=function(){const base=_generarAlertasCOIV62Base().filter(a=>{if(a.tipoRegistro!=='Obra')return true;const r=v62ResumenCertificacionesObra(a.item||{});if(['Certificacion proxima','Certificaci\u00f3n pr\u00f3xima','Control de avance de obra','Sin proxima certificacion calculada','Sin pr\u00f3xima certificaci\u00f3n calculada','Falta ultima acta','Falta \u00faltima acta','Falta periodo de acta','Falta per\u00edodo de acta'].includes(typeof claseAlertaCOI==='function'?claseAlertaCOI(a):a.tipoAlerta))return r.tieneFuenteReal||r.tieneProximaManual;return true;});const ids=new Set(base.map(a=>a.id));const add=a=>{if(!ids.has(a.id)){ids.add(a.id);base.push(a);}};(typeof todasLasOC==='function'?todasLasOC():[]).filter(r=>r.tipo==='Obra').forEach(row=>{const oc=row.item||{},r=v62ResumenCertificacionesObra(oc),b={item:oc,id:v62KeyOC(oc),oc:oc.oc||oc.numeroOC||row.oc,tipo:'Obra',estacion:row.estacion,proveedor:row.proveedor,descripcion:oc.descripcion||row.especialidad||''};if(r.fechaProximaActa){const dias=diffDias(r.fechaProximaActa,COI_TODAY);if(dias<0)add(crearAlerta(b,'Certificacion de obra manual vencida','Pr\u00f3xima','AMARILLA',r.fechaProximaActa,dias,'La certificacion de obra definida manualmente esta vencida.','Revisar acta de medicion y documentacion.'));}if(Number(String(r.avance||0).replace(',','.'))>0&&!r.tieneActaFuente)add(crearAlerta(b,'Obra con avance sin acta de medicion','Documental','AMARILLA','', '', 'La obra tiene avance informado pero no registra acta de medicion asociada.','Cargar acta de medicion o corregir avance.'));if(estadoCerradoAlerta(row.estado||oc.estado)&&!r.tieneActaFinal)add(crearAlerta(b,'Obra finalizada sin acta final','Documental','AMARILLA',row.fin||'',row.fin?diffDias(row.fin,COI_TODAY):'', 'La obra figura finalizada/cerrada sin acta final asociada.','Registrar acta final documental.'));});const orden={ROJA:0,AMARILLA:1,AZUL:2,GRIS:3};return base.sort((a,b)=>(orden[a.severidad]-orden[b.severidad])||String(a.oc).localeCompare(String(b.oc)));};}
 document.addEventListener('click',ev=>{const edit=ev.target.closest('[data-v62-edit-cert]');if(edit){v62CertEditandoId=edit.dataset.v62EditCert;renderFichaOC(v62CertEditandoId);return;}const cancel=ev.target.closest('[data-v62-cancel-cert]');if(cancel){v62CertEditandoId='';renderFichaOC(cancel.dataset.v62CancelCert);return;}const save=ev.target.closest('[data-v62-save-cert]');if(save){v62GuardarCertificacionesOC(save.dataset.v62SaveCert,save.closest('[data-v62-cert-form]'));return;}const recalc=ev.target.closest('[data-v62-recalc-cert]');if(recalc){v62RecalcularCertificacionesOC(recalc.dataset.v62RecalcCert);return;}if(ev.target.closest('#btnRepararCertificacionesObras')){if(typeof adminIsEnabled==='function'&&!adminIsEnabled()){alert('Esta accion requiere modo Administrador.');return;}if(!confirm('Se creara un backup automatico en sessionStorage y se limpiaran solo certificaciones de Obras sospechosas. Continuar?'))return;const r=repararCertificacionesObrasMalCalculadas();if(r.error){alert(r.error);return;}if(typeof adminSetMsg==='function')adminSetMsg(`Reparacion ejecutada. Revisados: ${r.registrosRevisados}. Obras corregidas: ${r.obrasCorregidas}. Servicios ignorados: ${r.serviciosIgnorados}. Backup: ${r.backup}`,'ok');if(typeof adminRefreshAll==='function')adminRefreshAll();else{if(typeof renderAdministracionSistema==='function')renderAdministracionSistema();if(typeof renderOrdenes==='function')renderOrdenes();if(typeof renderCalendarioCOIUnificado==='function')renderCalendarioCOIUnificado();if(typeof renderCentroAlertas==='function')renderCentroAlertas();}}});
 
+/* ===============================
+   V63 - Submodulos internos de Ficha OC
+   Navegacion local sin duplicar contenido ni tocar datos.
+   =============================== */
 let fichaOCSubmoduloActivo='seccionFichaResumen';
 let fichaOCObserverV63=null;
 const FICHA_OC_SUBMODULOS=[
@@ -7432,12 +7584,18 @@ function organizarSubmodulosFichaOC(idOC){
 const _renderFichaOCV63Base=typeof renderFichaOC==='function'?renderFichaOC:null;
 if(_renderFichaOCV63Base){renderFichaOC=function(idOC){_renderFichaOCV63Base(idOC);organizarSubmodulosFichaOC(idOC);};}
 document.addEventListener('click',ev=>{const btn=ev.target.closest('[data-ficha-submodulo]');if(!btn)return;ev.preventDefault();activarSubmoduloFichaOC(btn.dataset.fichaSubmodulo);});
-
+/* ===============================
+   V64 - Ficha OC tabs reales y expediente digital documental
+   Mantiene datos existentes y agrega referencias documentales por OC.
+   =============================== */
 const LS_DOCUMENTACION_OC_V64='coi_documentacion_oc';
 const DOC_TIPOS_OC_V64=['Acta de Inicio','Acta de Medición','Acta Final','Remito','Factura','Declaración Jurada','Constancia SERCAE','Print SERCAE','Póliza / Seguro','Nota / Comunicación','Informe Técnico','Foto / Evidencia','Otro'];
 const DOC_REPOSITORIOS_OC_V64=['SharePoint','OneDrive','Google Drive','Carpeta local','Otro'];
 const DOC_ESTADOS_OC_V64=['Pendiente','Cargado','Revisado','Observado','Cerrado'];
-
+/* H07: sin `var`, para que la propiedad quede CONFIGURABLE y la capa
+   Supabase-first pueda instalar el guard que ignora las republicaciones del
+   legado. Las referencias lexicas a documentacionOC siguen resolviendo contra
+   esta misma propiedad de window. */
 window.documentacionOC=Array.isArray(window.documentacionOC)?window.documentacionOC:v64CargarDocumentacionOC();
 let fichaOCPanelActivoV64='panelFichaResumen';
 let fichaOCActualKeyV64='';
@@ -7468,7 +7626,15 @@ function v64DocId(){return 'DOC-OC-'+Date.now()+'-'+Math.random().toString(16).s
 function v64Ext(nombre){const s=String(nombre||'').trim();const i=s.lastIndexOf('.');return i>0?s.slice(i+1).toLowerCase():'';}
 function v64NormalizarDocumento(d={},oc=null){const now=v64Now(),nombre=d.nombreArchivo||d.archivo||d.fileName||'';const out={...d};out.idDocumento=out.idDocumento||out.idDoc||v64DocId();out.ocNro=out.ocNro||out.OC_NRO||out.nOC||out.oc||out.numeroOC||v64OCNro(oc)||'';out.idObra=out.idObra||out.ID_OBRA||out.idOC||oc?.idObra||oc?.idOC||'';out.idServicio=out.idServicio||out.ID_SERVICIO||oc?.idServicio||oc?.ID_SERVICIO||'';out.tipoRegistro=out.tipoRegistro||v64TipoRegistro(oc);out.tipoDocumento=out.tipoDocumento||out.tipoDoc||out.tipo||'Otro';out.nroDocumento=out.nroDocumento||out.numeroDocumento||out.nro||out.actaNro||'';out.nombreArchivo=nombre||out.nombreDocumento||'';out.extensionArchivo=out.extensionArchivo||v64Ext(out.nombreArchivo);out.repositorio=out.repositorio||out.origenRepositorio||v64FolderRepo(oc);out.rutaDocumental=out.rutaDocumental||out.ruta||v64FolderRuta(oc);out.linkDocumento=out.linkDocumento||out.linkOneDrive||out.link||out.url||'';out.linkCarpeta=out.linkCarpeta||out.linkCarpetaDocumental||v64FolderLink(oc);out.fechaDocumento=v64FechaISO(out.fechaDocumento||out.fecha||out.fechaActa)||out.fechaDocumento||'';out.periodo=out.periodo||out.periodoDesde||out.periodoHasta||'';out.actaNro=out.actaNro||out.actaMedicionNro||(/ACTA.*MEDICION|ACTA.*MEDICIÓN/i.test(out.tipoDocumento)?out.nroDocumento:'')||'';out.estadoDocumento=out.estadoDocumento||out.estado||'Pendiente';out.observaciones=out.observaciones||'';out.fechaCarga=out.fechaCarga||now;out.fechaUltimaModificacion=out.fechaUltimaModificacion||now;return out;}
 function v64CargarDocumentacionOC(){let data=[];try{data=JSON.parse(sessionStorage.getItem(LS_DOCUMENTACION_OC_V64)||'[]');}catch(e){console.warn('No se pudo leer documentacion OC',e);data=[];}if(!Array.isArray(data))data=[];return data.map(d=>v64NormalizarDocumento(d));}
-
+/* H07: la documentacion de OC ya NO se persiste en sessionStorage.
+   `public.coi_documentacion_oc` NO existe: esa tabla y su migracion fueron
+   retiradas. El unico camino documental activo es Supabase Storage (bucket
+   coi-documentos) indexado en public.coi_documentos_oc.
+   La documentacion por referencia externa —OneDrive/SharePoint, V64/V575— queda
+   fuera del modelo operacional; la cadena `coi_documentacion_oc` sobrevive
+   solamente como NOMBRE de la clave legada de sessionStorage, en cuarentena.
+   Esta funcion queda como reafirmacion del espejo en memoria: no escribe la
+   clave legada, que se conserva intacta como material de recuperacion. */
 function v64GuardarDocumentacionOC(){return window.documentacionOC;}
 function v64DocLink(d){return d?.linkDocumento||d?.linkOneDrive||d?.link||d?.url||'';}
 function v64DocTipoNorm(d){return v64Norm(d?.tipoDocumento||d?.tipoDoc||d?.tipo||'');}
@@ -7512,7 +7678,10 @@ const _generarAlertasCOIV64Base=typeof generarAlertasCOI==='function'?generarAle
 document.addEventListener('click',ev=>{const add=ev.target.closest('[data-v64-doc-add]');if(add){if(!v64EsAdmin()){alert('Solo Administrador puede agregar documentos.');return;}v64DocEditandoId='__new__';v64DocEditandoOC=add.dataset.v64DocAdd;const f=v64BuscarOC(v64DocEditandoOC);if(f)v64RerenderFichaOC(f.item||f,'panelFichaDocumentos');return;}const edit=ev.target.closest('[data-v64-doc-edit]');if(edit){if(!v64EsAdmin()){alert('Solo Administrador puede editar documentos.');return;}const doc=documentacionOC.find(d=>d.idDocumento===edit.dataset.v64DocEdit);if(!doc)return;v64DocEditandoId=doc.idDocumento;v64DocEditandoOC=v64KeyOC((v64BuscarOC(doc.ocNro||doc.idObra||doc.idServicio)?.item)||{})||fichaOCActualKeyV64;const f=v64BuscarOC(v64DocEditandoOC)||v64BuscarOC(doc.ocNro||doc.idObra||doc.idServicio);if(f)v64RerenderFichaOC(f.item||f,'panelFichaDocumentos');return;}if(ev.target.closest('[data-v64-doc-cancel]')){v64DocEditandoId='';v64DocEditandoOC='';const f=v64BuscarOC(fichaOCActualKeyV64);if(f)v64RerenderFichaOC(f.item||f,'panelFichaDocumentos');return;}if(ev.target.closest('[data-v64-doc-save]')){const form=ev.target.closest('.doc-modal-card')?.querySelector('[data-v64-doc-form]');if(form)v64GuardarDocumentoDesdeForm(form);return;}const del=ev.target.closest('[data-v64-doc-delete]');if(del){v64EliminarDocumento(del.dataset.v64DocDelete);return;}const open=ev.target.closest('[data-v64-doc-open]');if(open){const d=(documentacionOC||[]).find(x=>x.idDocumento===open.dataset.v64DocOpen);v64AbrirLink(v64DocLink(d),'Este documento no tiene link asociado.');return;}const copy=ev.target.closest('[data-v64-doc-copy]');if(copy){const d=(documentacionOC||[]).find(x=>x.idDocumento===copy.dataset.v64DocCopy);v64CopiarTexto(v64DocLink(d));return;}const exp=ev.target.closest('[data-v64-doc-export]');if(exp){const f=v64BuscarOC(exp.dataset.v64DocExport);if(f){const oc=f.item||f;v64ExportarDocumentosCSV(v64DocsOC(oc),`documentos_oc_${(v64OCNro(oc)||v64KeyOC(oc)||'sin_oc').replace(/\W+/g,'_')}.csv`);}return;}const openFolder=ev.target.closest('[data-v64-open-folder]');if(openFolder){const f=v64BuscarOC(openFolder.dataset.v64OpenFolder);const oc=f?.item||f;v64AbrirLink(v64FolderLink(oc),'Esta OC a\u00fan no tiene carpeta documental asociada.');return;}const saveFolder=ev.target.closest('[data-v64-save-folder]');if(saveFolder){v64GuardarCarpetaOC(saveFolder.dataset.v64SaveFolder);return;}if(ev.target.closest('#btnV64ExportDocGlobal')){v64ExportarDocumentosCSV((documentacionOC||[]).map(d=>v64NormalizarDocumento(d)),`documentacion_oc_${typeof adminNowStamp==='function'?adminNowStamp():Date.now()}.csv`);return;}if(ev.target.closest('#btnV64LimpiarDocGlobal')){if(!v64EsAdmin()){alert('Solo Administrador puede limpiar documentación.');return;}if(confirm('Primera confirmación: se eliminarán referencias documentales locales. ¿Continuar?')&&confirm('Segunda confirmación: no se borran archivos externos, solo referencias del sistema. ¿Limpiar?')){documentacionOC=[];v64GuardarDocumentacionOC();if(typeof registrarLogSistema==='function')registrarLogSistema('limpieza_documental','Repositorio documental local limpiado','');if(typeof renderAdministracionSistema==='function')renderAdministracionSistema();}}});
 document.addEventListener('change',ev=>{const input=ev.target.closest('[data-v64-doc-file]');if(!input||!input.files?.length)return;const file=input.files[0],card=input.closest('.doc-modal-card');const name=card?.querySelector('#v64DocNombre'),ext=card?.querySelector('#v64DocExtension');if(name)name.value=file.name;if(ext)ext.value=v64Ext(file.name);});
 v64MigrarDocsEmbebidos();
-
+/* ===============================
+   V57.2 - Filtro documental en Ficha OC
+   Agrega filtros visuales sin modificar sessionStorage ni la estructura documental.
+   =============================== */
 const DOC_TIPOS_FILTRO_OC_V572=["Todos","Acta de Inicio","DDJJ","Acta de Medici\u00f3n","SERCAE","Pliegos","Remitos","Facturas","Otros"];
 const DOC_TIPOS_FORM_OC_V572=["Acta de Inicio","DDJJ","Acta de Medici\u00f3n","SERCAE","Pliegos","Remitos","Facturas","Otros"];
 var filtrosDocumentosOCV572={};
@@ -7597,7 +7766,10 @@ document.addEventListener("click",ev=>{
   const exp=ev.target.closest("[data-v572-doc-export-filtered]");
   if(exp){const f=v64BuscarOC(exp.dataset.v572DocExportFiltered);if(f){const oc=f.item||f,key=v64KeyOC(oc),docs=filtrarDocumentosOC(v64DocsOC(oc),getFiltrosDocumentosOC(key));v64ExportarDocumentosCSV(docs,`documentos_oc_filtrados_${(v64OCNro(oc)||key||"sin_oc").replace(/\W+/g,"_")}.csv`);}return;}
 });
-
+/* ===============================
+   V65 - Observaciones generales Ficha OC
+   Submodulo interno 7 con persistencia independiente y alertas.
+   =============================== */
 const LS_OBSERVACIONES_OC_V65='coi_observaciones_oc';
 var observacionesOC=Array.isArray(window.observacionesOC)?window.observacionesOC:v65CargarObservacionesOC();
 window.observacionesOC=observacionesOC;
@@ -7626,7 +7798,11 @@ function v65FmtFecha(v){if(!v)return'—';try{const d=new Date(v);return isNaN(d
 function v65ObsId(){return 'OBS-OC-'+Date.now()+'-'+Math.random().toString(16).slice(2,8);}
 function v65NormalizarObservacion(o={},oc=null){const now=v65Now(),out={...o};out.idObservacion=out.idObservacion||out.idObs||v65ObsId();out.ocNro=out.ocNro||out.OC_NRO||out.oc||out.numeroOC||v65OCNro(oc)||'';out.idObra=out.idObra||out.ID_OBRA||out.idOC||oc?.idObra||oc?.idOC||'';out.idServicio=out.idServicio||out.ID_SERVICIO||oc?.idServicio||oc?.ID_SERVICIO||'';out.tipoRegistro=out.tipoRegistro||v65TipoRegistro(oc);out.texto=out.texto||out.observacion||out.descripcion||'';out.estadoObservacion=out.estadoObservacion||out.estado||'Pendiente';out.fechaCarga=out.fechaCarga||out.fecha||now;out.fechaResolucion=out.fechaResolucion||'';out.usuarioCarga=out.usuarioCarga||out.usuario||'Local';out.usuarioResolucion=out.usuarioResolucion||'';out.rolCarga=out.rolCarga||'';out.rolResolucion=out.rolResolucion||'';out.observacionResolucion=out.observacionResolucion||'';return out;}
 function v65CargarObservacionesOC(){let data=[];try{data=JSON.parse(sessionStorage.getItem(LS_OBSERVACIONES_OC_V65)||'[]');}catch(e){console.warn('No se pudo leer observaciones OC',e);data=[];}if(!Array.isArray(data))data=[];return data.map(o=>v65NormalizarObservacion(o));}
-
+/* H07: las observaciones NO se persisten en sessionStorage. La autoridad es
+   public.coi_observaciones_oc y la escritura remota la resuelve la capa H03.
+   Este choke point historico se conserva porque varias capas lo invocan, pero
+   ya no escribe la clave legada, que queda intacta como material de
+   recuperacion en cuarentena. */
 function v65GuardarObservacionesOC(){window.observacionesOC=(Array.isArray(window.observacionesOC)?window.observacionesOC:[]).map(o=>v65NormalizarObservacion(o));return window.observacionesOC;}
 function v65ObsPerteneceOC(obs,oc){const keys=new Set(v65IdsOC(oc));const vals=[obs?.ocNro,obs?.OC_NRO,obs?.oc,obs?.numeroOC,obs?.idObra,obs?.ID_OBRA,obs?.idServicio,obs?.ID_SERVICIO,obs?.idOC].filter(v65Tiene).map(v65Norm);return vals.length&&vals.some(v=>keys.has(v));}
 function v65ObservacionesDeOC(oc){const propias=(Array.isArray(observacionesOC)?observacionesOC:[]).map(o=>v65NormalizarObservacion(o)).filter(o=>v65ObsPerteneceOC(o,oc));const orden={PENDIENTE:0,REABIERTA:1,RESUELTA:2};return propias.sort((a,b)=>(orden[v65Norm(a.estadoObservacion)]??9)-(orden[v65Norm(b.estadoObservacion)]??9)||String(b.fechaCarga||'').localeCompare(String(a.fechaCarga||'')));}
@@ -7657,7 +7833,10 @@ const _adminApplyLocalStorageSnapshotV65Base=typeof adminApplyLocalStorageSnapsh
 const _ejecutarDiagnosticoSistemaV65Base=typeof ejecutarDiagnosticoSistema==='function'?ejecutarDiagnosticoSistema:null;if(_ejecutarDiagnosticoSistemaV65Base){ejecutarDiagnosticoSistema=function(){const r=_ejecutarDiagnosticoSistemaV65Base(),obs=(observacionesOC||[]).map(o=>v65NormalizarObservacion(o));return {...r,obsOCTotal:obs.length,obsOCPendientes:obs.filter(o=>v65Norm(o.estadoObservacion)==='PENDIENTE').length,obsOCReabiertas:obs.filter(o=>v65Norm(o.estadoObservacion)==='REABIERTA').length,obsOCResueltas:obs.filter(o=>v65Norm(o.estadoObservacion)==='RESUELTA').length};};}
 const _generarAlertasCOIV65Base=typeof generarAlertasCOI==='function'?generarAlertasCOI:null;if(_generarAlertasCOIV65Base){generarAlertasCOI=function(){const base=_generarAlertasCOIV65Base(),ids=new Set(base.map(a=>a.id));const add=a=>{if(!ids.has(a.id)){ids.add(a.id);base.push(a);}};(typeof todasLasOC==='function'?todasLasOC():[]).forEach(row=>{const oc=row.item||{},pend=v65ObservacionesDeOC(oc).filter(o=>v65Norm(o.estadoObservacion)!=='RESUELTA');if(!pend.length)return;const k=v65KeyOC(oc),b={item:oc,id:'OBS-PEND-'+k,oc:row.oc||v65OCNro(oc),tipo:row.tipo||v65TipoRegistro(oc,row),estacion:row.estacion,proveedor:row.proveedor,descripcion:oc.descripcion||row.especialidad||''};add(crearAlerta(b,'Observaci\u00f3n pendiente en Ficha OC','Documental','AMARILLA','', '', `La OC tiene ${pend.length} observaci\u00f3n(es) pendiente(s) o reabierta(s).`,'Revisar pesta\u00f1a 7. Observaciones de la Ficha OC.'));});const orden={ROJA:0,AMARILLA:1,AZUL:2,GRIS:3};return base.sort((a,b)=>(orden[a.severidad]-orden[b.severidad])||String(a.oc).localeCompare(String(b.oc)));};}
 document.addEventListener('click',ev=>{const save=ev.target.closest('[data-v65-guardar-obs]');if(save){guardarObservacionOC(save.dataset.v65GuardarObs);return;}const res=ev.target.closest('[data-v65-resolver-obs]');if(res){resolverObservacionOC(res.dataset.v65ResolverObs);return;}const reopen=ev.target.closest('[data-v65-reabrir-obs]');if(reopen){reabrirObservacionOC(reopen.dataset.v65ReabrirObs);return;}const del=ev.target.closest('[data-v65-borrar-obs]');if(del){borrarObservacionOC(del.dataset.v65BorrarObs);return;}const filter=ev.target.closest('[data-v65-obs-filter]');if(filter){v65FiltroObservaciones=filter.dataset.v65ObsFilter||'Todas';v65RefrescarPanelObsActual();return;}const exp=ev.target.closest('[data-v65-export-obs]');if(exp){const f=v65BuscarOC(exp.dataset.v65ExportObs);if(f){const oc=f.item||f;exportarObservacionesOCCSV(v65ObservacionesDeOC(oc),`observaciones_oc_${(v65OCNro(oc)||v65KeyOC(oc)||'sin_oc').replace(/\W+/g,'_')}.csv`);}return;}});
-
+/* ===============================
+   V66 - Barra superior acciones Ficha OC
+   Quita el bloque 8. Acciones del cuerpo y unifica los botones arriba.
+   =============================== */
 const FICHA_OC_SUBMODULOS_V66=[
   {id:'panelFichaResumen',btn:'btnSubFichaResumen',label:'1. Resumen'},
   {id:'panelFichaContractual',btn:'btnSubFichaContractual',label:'2. Contractual'},
@@ -7686,7 +7865,10 @@ function v66InstalarBarraAcciones(oc,idOC){const body=document.getElementById('f
 function v66AsegurarPanelesSoloTabs(){const body=document.getElementById('fichaOCBody');if(!body)return;body.classList.add('ficha-oc-tabs-mode');let active=(typeof fichaOCPanelActivoV64!=='undefined'&&document.getElementById(fichaOCPanelActivoV64))?fichaOCPanelActivoV64:'panelFichaResumen';activarSubmoduloFichaOC(active);}
 const _organizarSubmodulosFichaOCV66Base=typeof organizarSubmodulosFichaOC==='function'?organizarSubmodulosFichaOC:null;
 if(_organizarSubmodulosFichaOCV66Base){organizarSubmodulosFichaOC=function(idOC){const found=v66BuscarOC(idOC);const oc=found?.item||found;if(!oc){_organizarSubmodulosFichaOCV66Base(idOC);return;}_organizarSubmodulosFichaOCV66Base(idOC);v66InstalarBarraAcciones(oc,idOC||v66KeyOC(oc));v66AsegurarPanelesSoloTabs();};}
-
+/* ===============================
+   V67 - Tablas operativas y limpieza visual de textos
+   Corrige mojibake solo para UI y mejora lectura de tablas grandes.
+   =============================== */
 function limpiarTextoUI(valor){
   if(valor===null||valor===undefined)return '\u2014';
   let texto=String(valor);
@@ -7796,7 +7978,10 @@ function v67InstalarObserverUI(){
 });
 v67InstalarObserverUI();
 setTimeout(()=>aplicarMejorasVisualesUI(document.body),0);
-
+/* ===============================
+   V57.1 - Mejora visual modulo Carga
+   Solo agrega clases visuales; no modifica datos ni sessionStorage.
+   =============================== */
 const LOGO_INSTITUCIONAL_ROCA = "assets/branding/Trenes_Argentinos_-_L%C3%ADnea_Roca.svg";
 function v571AplicarLogoInstitucional(){
   document.querySelectorAll(".brand-logo-img,.footer-brand-logo-img,.about-brand-logo img").forEach(img=>{
@@ -7883,7 +8068,9 @@ function inicializarBrandingInstitucional(){
     window.__coiBrandingErrorListener=true;
   }
 }
-
+/* ===============================
+   V57.3 - Inicio seguro en Modo Consulta
+   =============================== */
 let modoAccesoActual = "consulta";
 const COI_SESSION_ADMIN_KEYS_V573 = [
   "modoAdministradorActivo",
@@ -8150,7 +8337,7 @@ if(typeof adminSetRole==="function"){
     else cerrarSesionAdministrador();
   };
 }
-
+/* Fix V57.3 - Ordenes: columna N° OC amplia y cuerpo alineado */
 function renderOrdenesV573Alineado(){
   if(typeof v60PrepararOrdenes==='function') v60PrepararOrdenes();
   cargarFiltrosOrdenes();
@@ -8190,6 +8377,7 @@ function renderOrdenesV573Alineado(){
 }
 renderOrdenes=renderOrdenesV573Alineado;
 
+/* V57.4 - Backup JSON completo y vigencia automatica */
 const V57_4_BACKUP_SCHEMA='COI_LINEA_ROCA_BACKUP';
 const V57_4_BACKUP_SCHEMA_VERSION='1.0';
 const V57_4_ESTADO_VENCIDA_SIN_SALDO='Vencida sin saldo';
@@ -8625,6 +8813,7 @@ function renderOrdenesV574Alineado(){
 }
 renderOrdenes=renderOrdenesV574Alineado;
 
+/* V57.5 - Documentos por tipologia y vencimiento contractual por Acta de Inicio */
 const DOC_TIPOS_OC_V575=['Factura','Remito','OC','Acta de Inicio','Acta de Medición','DDJJ','PRINT SERCAE','Pliegos','Fotos','Otros'];
 const DOC_ESTRUCTURA_ONEDRIVE_V575=['00_OC','01_ACTA_INICIO','02_PLIEGOS','03_REMITOS','04_ACTAS_MEDICION','05_FACTURAS','06_DDJJ','07_PRINT_SERCAE','08_FOTOS','09_OTROS','10_CIERRE'];
 const DOC_CAMPOS_COMUNES_V575=['idDocumento','idObra','ocNro','tipoDocumento','numeroDocumento','fechaDocumento','estadoDocumento','repositorio','rutaOneDrive','linkOneDrive','observaciones','fechaCarga','usuarioCarga'];
@@ -8988,6 +9177,7 @@ function initNavegacionRespaldoCOI(){
   if(btnBusqueda&&!btnBusqueda.dataset.coiBusquedaRespaldo){btnBusqueda.dataset.coiBusquedaRespaldo="1";btnBusqueda.addEventListener("click",function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}if(typeof abrirModuloOrdenes==='function')abrirModuloOrdenes(true);else{coiMostrarVistaSegura('vistaOrdenes','btnOrdenes');if(typeof renderOrdenes==='function')renderOrdenes();}});}
 }
 
+/* V57.6R - Calendario COI en submódulos separados: Vista Inteligente / Vista Calendario / Tablas */
 var coiCalendarioTabActivo = 'inteligente';
 function nombreMesCalendarioCOI(indice){
   const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -9016,7 +9206,7 @@ function renderCalendarioInteligenteCOI(){
   const por=Object.fromEntries(grupos.map(g=>[g,[]]));
   eventos.forEach(e=>{const g=categoriaCalendarioInteligente(e); if(g&&por[g]) por[g].push(e);});
   const sinClasificar=eventos.filter(e=>!categoriaCalendarioInteligente(e));
-
+  // Si el mes elegido tiene eventos fuera de la ventana de 30 días, los dejamos visibles en la primera columna sin romper el diseño anterior.
   if(sinClasificar.length){por['Hoy'].push(...sinClasificar);}
   cont.innerHTML=`<div class="calendar-intel"><h3>Vista Inteligente</h3><div class="muted" style="margin-bottom:10px">Resumen operativo del período seleccionado. Usa los filtros globales superiores.</div><div class="calendar-intel-grid">${grupos.map((g,idx)=>{const titulo=(idx===0&&sinClasificar.length)?'Hoy / otros del mes':g;return `<div class="calendar-intel-card"><h4>${esc(titulo)} (${por[g].length})</h4>${por[g].slice(0,8).map(e=>{const dias=diffDias(e.fecha,COI_TODAY);return `<div class="calendar-intel-event"><b>${esc(e.tipoEvento)}</b>${esc(e.oc)} · ${esc(e.estacion)}<br>${esc(e.proveedor)}<br>${fmtFecha(e.fecha)} · ${dias===null?'—':dias} días · ${esc(e.estado)}<br>${botonFichaOC(e.item,'Ver ficha OC')}</div>`;}).join('')||'<div class="calendar-intel-empty">Sin eventos.</div>'}</div>`;}).join('')}</div></div>`;
 }
@@ -9064,6 +9254,7 @@ function initCalendarioCOIUnificado(){
   activarTabCalendarioCOI(coiCalendarioTabActivo || 'inteligente', false);
 }
 
+/* V58.0 - Centro de Alertas por rol y calidad de datos */
 const ALERTAS_COI_V58 = true;
 const generarAlertasCOIV58Base = typeof generarAlertasCOI === 'function' ? generarAlertasCOI : null;
 const initCentroAlertasV46V58Base = typeof initCentroAlertasV46 === 'function' ? initCentroAlertasV46 : null;
@@ -9235,6 +9426,11 @@ function initSubmodulosCalendarioCOI(){
 const initCalendarioCOIUnificadoV58Base=typeof initCalendarioCOIUnificado==='function'?initCalendarioCOIUnificado:null;
 initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initCalendarioCOIUnificadoV58Base();initSubmodulosCalendarioCOI();};
 
+/* =========================================================
+   V58.0R - Rescate funcional de módulos críticos
+   Objetivo: si una mejora previa rompe un render, el sistema
+   mantiene navegación, Órdenes, Carga, Calendario y Alertas.
+   ========================================================= */
 (function(){
   const FIX_VERSION = 'V58.1R39-FINANZAS-SUPABASE-2A';
   const $fix = (id)=>document.getElementById(id);
@@ -9282,9 +9478,28 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   function inicioFix(item,row){ return row?.inicio || item?.fechaActaInicio || item?.actaInicio || item?.fechaInicio || item?.FECHA_INICIO || item?.inicio || ''; }
   function plazoFix(item,row){ return Number(row?.plazo || item?.plazoDias || item?.PLAZO_DIAS || item?.plazo || item?.['PLAZO OC (DIAS)'] || 0); }
   function finFix(item,row){ return row?.fin || item?.fechaFin || item?.fechaVencimiento || item?.vencimiento || (inicioFix(item,row)&&plazoFix(item,row)?addDaysFix(inicioFix(item,row),plazoFix(item,row)):null); }
+  /* ------------------------------------------------ CAMBIO 3
+     PRÓXIMA CERTIFICACIÓN TENTATIVA.
 
+     Una proyección no es una certificación: las reales viven en
+     public.coi_certificaciones y se consultan en el historial. Acá se calcula
+     una fecha TENTATIVA, y sólo cuando el modelo alcanza para afirmarla.
+
+     Base: la última certificación REAL si existe —por su fecha administrativa,
+     no por fecha_creacion— y si no, el Acta de Inicio.
+     Paso: un mes CALENDARIO, no 30 días.
+     Techo: nunca después del vencimiento contractual.
+
+     Obra   proyecta con Acta de Inicio y plazo contractual de 30 a 120 días.
+     Servicio proyecta sólo con modalidad_certificacion = MENSUAL. A demanda o
+              sin definir no inventan una mensualidad que nadie pactó.
+     Finalizada / cancelada / suspendida no proyectan.
+
+     Una fecha ya cargada a mano es un dato, no una inferencia: se respeta. */
   const MODALIDAD_MENSUAL='MENSUAL';
-
+  /* Un mes CALENDARIO con tope de fin de mes. Date.setMonth desborda: del 31
+     de enero salta al 3 de marzo, que no es «el mes siguiente» de nadie. El
+     día se recorta al último del mes destino. */
   function sumarMesCalendarioFix(v,n){
     const d=parseDateFix(v); if(!d) return null;
     const dia=d.getDate();
@@ -9297,10 +9512,16 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     const raw=item&&((item._supabaseRaw&&item._supabaseRaw.modalidad_certificacion)||item.modalidad_certificacion||item.modalidadCertificacion);
     return normFix(raw).replace(/\s+/g,'_');
   }
-
+  /* Una OC cerrada o archivada por el ciclo de vida H10 tampoco proyecta. El
+     criterio es el mismo que ya usa estadoCerradoAlerta() en el Centro de
+     Alertas: reconocer sólo finalización, cancelación y suspensión dejaba a una
+     Obra o a un servicio mensual recibiendo fechas calculadas después del
+     cierre, visibles en Calendario y contadas por las métricas de Órdenes. */
   function estadoCertificacionFix(item,row){
     const raw=item&&item._supabaseRaw;
-
+    /* El estado real del item manda sobre row.estado: todasLasOC() puede
+       sintetizar "Cerrada" desde predicados legacy incluso para estados como
+       "Cerrada parcialmente". Sólo se usa la fila como último fallback. */
     const estado=normFix(
       item?.estadoCOI||item?.estado_coi||(raw&&raw.estado_coi)||item?.estado||row?.estado||''
     );
@@ -9313,19 +9534,25 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     const fechaCierre=String(
       item?.fechaCierreOperativo||item?.fecha_cierre_operativo||(raw&&raw.fecha_cierre_operativo)||''
     ).trim();
-
+    /* item.cerrada es un flag legacy "pegajoso": normalizarOC() puede dejarlo
+       en true para "Cerrada parcialmente". Sólo sirve como fallback cuando no
+       existe un estado real. Los estados canónicos con prefijo (p.ej.
+       "OBRA/SERVICIO CERRADA") se reconocen por sufijo exacto. */
     const cierrePorEstado=estado==='CERRADA'||estado==='CERRADO'
       ||estado.endsWith(' CERRADA')||estado.endsWith(' CERRADO');
     const cierreLegacy=!estado&&item?.cerrada===true;
     const cierreExplicito=cierrePorEstado||cierreLegacy||registro==='CERRADO'||Boolean(fechaCierre);
     const terminal=[estado,documental,registro].filter(Boolean).join(' ');
-
+    /* El flag certificable_con_saldo puede quedar true después de abandonar la
+       etapa residual. Preservar una fecha persistida exige que EL ESTADO actual
+       sea realmente una finalización con saldo remanente. */
     const finalizadaConSaldo=terminal.includes('FINALIZAD')&&terminal.includes('SALDO REMANENTE');
     return {estado,registro,documental,terminal,cierreExplicito,finalizadaConSaldo};
   }
   function cerradaFix(item,row){
     const c=estadoCertificacionFix(item,row);
-
+    /* Para una proyección automática, toda finalización detiene el calendario
+       mensual, incluso si existe saldo remanente certificable. */
     return c.cierreExplicito||c.terminal.includes('FINALIZAD')||c.terminal.includes('CANCELAD')
       ||c.terminal.includes('SUSPENDID')||c.terminal.includes('ARCHIVAD');
   }
@@ -9333,11 +9560,16 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     const c=estadoCertificacionFix(item,row);
     if(c.cierreExplicito)return true;
     if(c.terminal.includes('CANCELAD')||c.terminal.includes('SUSPENDID')||c.terminal.includes('ARCHIVAD'))return true;
-
+    /* FINALIZADA con saldo remanente sigue siendo certificable: se detiene la
+       proyección automática, pero una fecha explícitamente persistida conserva
+       vigencia para certificar ese saldo. */
     if(c.terminal.includes('FINALIZAD'))return !c.finalizadaConSaldo;
     return false;
   }
-
+  // Última certificación REAL de la OC, por su fecha administrativa.
+  /* Identidades con las que puede estar indexada la certificación: el N° de OC
+     del catálogo y el UUID de la orden. El nro_oc de coi_certificaciones está
+     denormalizado y puede haber quedado viejo, así que se prueban las dos. */
   function identidadesOCFix(item,row){
     const crudo=item&&item._supabaseRaw;
     return [ocNroFix(item,row),item&&item.id,crudo&&crudo.id,item&&item.supabaseId,row&&row.ordenId]
@@ -9354,7 +9586,10 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       return '';
     }catch(e){ return ''; }
   }
-
+  /* Tipo REAL de la OC, sin adivinar. tipoFix() cae a 'Obra' cuando no hay
+     dato, y coi_ordenes.tipo admite además Financiera y Otro: tratarlos como
+     Obra fabricaba eventos de certificación para contrataciones que no
+     certifican por avance. Acá se devuelve lo que el dato dice, o vacío. */
   function tipoCanonicoFix(item,row){
     const crudo=String((item&&((item._supabaseRaw&&item._supabaseRaw.tipo)||item.tipo))||(row&&row.tipo)||'').trim();
     const t=normFix(crudo);
@@ -9362,12 +9597,18 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     if(t.includes('OBRA'))return 'OBRA';
     return t;
   }
-
+  /* Sólo la columna persistida coi_ordenes.proxima_certificacion cuenta como
+     carga manual. Los alias que arma todasLasOC() son CÁLCULOS derivados del
+     Acta de Inicio: tomarlos por dato cargado hacía que un servicio a demanda
+     siguiera emitiendo mensualidades y que una Obra conservara la cuenta vieja. */
   function proxCertPersistidaFix(item){
     const raw=item&&item._supabaseRaw;
     return raw?String(raw.proxima_certificacion||'').trim():'';
   }
-
+  /* El historial REAL es la base de la proyección. Si todavía no cargó, o si
+     la lectura falló por RLS, red o error del servidor, no sabemos si existen
+     certificaciones: proyectar desde el Acta de Inicio sería afirmar que no
+     las hay. Se falla cerrado y no se proyecta hasta tener el dato. */
   function historialCertAutoritativo(){
     try{
       const h=window.__COI_CERT_HISTORIAL__;
@@ -9389,7 +9630,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       const plazo=Number(plazoFix(item,row))||0;
       if(!(plazo>=30&&plazo<=120))return null;
     }else{
-
+      // Financiera, Otro o sin tipo: la regla documentada no las alcanza.
       return null;
     }
     const base=ultimaReal||inicio;
@@ -9400,7 +9641,9 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     if(fin&&isoFix(proxima)>isoFix(fin))return null;
     return proxima;
   }
-
+  /* Origen de la próxima certificación: 'persistida' si es la columna real de
+     coi_ordenes, 'calculada' si la derivó la proyección. El Calendario lo usa
+     para no presentar una estimación como si fuera una fecha acordada. */
   function proxCertOrigenFix(item,row){
     const tipo=tipoCanonicoFix(item,row);
     if(tipo!=='OBRA'&&tipo!=='SERVICIO')return '';
@@ -9408,12 +9651,21 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     return proyeccionMensualFix(item,row)?'calculada':'';
   }
   function proxCertFix(item,row){
-
+    /* Dashboard, Órdenes y Centro de Alertas también proyectan por acá. Si el
+       historial sólo se pidiera desde el Calendario, esos módulos se quedarían
+       sin próxima certificación hasta que alguien abriera el Calendario. El
+       pedido es idempotente: sale una sola lectura y no hay bucle. */
     pedirHistorialCertificaciones();
-
+    /* El tipo manda incluso sobre una fecha persistida: coi_ordenes.tipo admite
+       Financiera y Otro, y el editor les expone el campo, pero el Calendario
+       sólo sabe clasificar certificaciones de Obra y de Servicio. Publicar esa
+       fecha produciría un evento «Certificación obra» mal tipificado. */
     const tipo=tipoCanonicoFix(item,row);
     if(tipo!=='OBRA'&&tipo!=='SERVICIO')return null;
-
+    /* El ciclo de vida manda también sobre una fecha persistida. Cerrar o
+       archivar una OC no borra necesariamente coi_ordenes.proxima_certificacion:
+       si devolvemos esa columna antes de mirar el estado, la OC reaparece como
+       certificable en Calendario, Órdenes y Dashboard después del cierre. */
     const persistida=proxCertPersistidaFix(item);
     if(persistida){
       if(bloqueaCertificacionPersistidaFix(item,row))return null;
@@ -9498,6 +9750,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     if($fix('chkOrdenesSeleccionarTodas')) $fix('chkOrdenesSeleccionarTodas').checked=checks.length>0 && checks.every(c=>c.checked);
   }
 
+  /* V58.0R8 - Carga Financiera exacta por subtipo con subtotales */
   const FIN_CARGA_R6_BLOQUES = {
     POSICION_OC: {
       label: 'Posiciones OC',
@@ -9708,6 +9961,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     }catch(e){ console.error('COI Fix guardar carga',e); alert('No se pudo guardar la carga: '+(e.message||e)); }
   }
 
+  /* V58.0R3 - Pegado tabular Excel / Sheets en módulo Carga */
   function parsearClipboardTabularFix(texto){
     if(!texto) return [];
     return String(texto)
@@ -9832,7 +10086,9 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     return eventosCalendarioFix().filter(e=>{const d=parseDateFix(e.fecha); return d && d.getFullYear()===f.y && d.getMonth()===f.m && (!f.est||e.estacion===f.est) && (!f.prov||e.proveedor===f.prov) && (!f.tipo||e.tipo===f.tipo) && (!f.evento||e.tipoEvento===f.evento) && (!f.estado||e.estado===f.estado);});
   }
   function renderPeriodoCalendarioFix(ev){ const f=filtrosCalendarioFix(); const cont=$fix('coiPeriodoResumen'); if(cont) cont.innerHTML=`<span>Mostrando eventos de <b>${mesesFix[f.m]} ${f.y}</b></span><span><b>${ev.length}</b> eventos encontrados</span>`; }
-
+  /* Un evento de calendario NO navega: abre primero la tarjeta de resumen.
+     Por eso lleva data-coi-evento y no data-open-oc; ABRIR EXPEDIENTE vive
+     dentro de la tarjeta y sí usa la navegación canónica. */
   function eventoCardFix(e){ const dias=diffFix(e.fecha); return `<div class="calendar-intel-event"><b>${html(e.tipoEvento)}</b>${html(e.oc)} · ${html(e.estacion)}<br>${html(e.proveedor)}<br>${fmtFix(e.fecha)} · ${dias===null?'—':dias} días · ${html(e.estado)}<br><button type="button" class="btn-open-oc" data-coi-evento="${html(e.id)}">Ver resumen</button></div>`; }
   function renderVistaInteligenteFix(ev){
     const cont=$fix('calendarioInteligenteCOI'); if(!cont)return;
@@ -9855,7 +10111,9 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     if($fix('coiCertTbody')) $fix('coiCertTbody').innerHTML=cert.map(e=>`<tr><td>${diffFix(e.fecha)<0?'Vencida':diffFix(e.fecha)<=30?'Certificar':'Programada'}</td><td>${html(e.oc)}</td><td>${html(e.tipo)}</td><td>${html(e.estacion)}</td><td>${html(e.proveedor)}</td><td>${fmtFix(inicioFix(e.item,{}))}</td><td>—</td><td>—</td><td>${fmtFix(e.fecha)}</td><td>—</td><td>${html(e.estado)}</td><td>${fmtFix(finFix(e.item,{}))}</td><td>${diffFix(e.fecha)<0?'Vencida':'Programada'}</td></tr>`).join('')||'<tr><td colspan="13">Sin certificaciones para los filtros seleccionados.</td></tr>';
   }
   function activarTabCalendarioFix(tab){ calendarioTabFix=tab||'inteligente'; document.querySelectorAll('#vistaCalendarioCOI [data-coi-tab]').forEach(b=>b.classList.toggle('active',b.dataset.coiTab===calendarioTabFix)); document.querySelectorAll('#vistaCalendarioCOI .coi-tab-panel').forEach(p=>p.classList.remove('active')); const id={inteligente:'coiTabInteligente',calendario:'coiTabCalendario',vencimientos:'coiTabVencimientos',certificaciones:'coiTabCertificaciones'}[calendarioTabFix]; if($fix(id))$fix(id).classList.add('active'); }
-
+  /* ---------------------------------------------- tarjeta resumen de evento
+     Vista COI I y Vista COI II comparten el mismo modelo de evento, así que
+     comparten la tarjeta: un solo renderer, una sola navegación canónica. */
   let eventosVigentesFix=[];
   function eventoPorIdFix(id){
     const clave=String(id||'');
@@ -9869,10 +10127,13 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     const e=eventoPorIdFix(id);
     if(!e)return false;
     const item=e.item||{};
+    // Sólo Obra muestra avance. Financiera y Otro son tipos válidos del
 
     const esObraEvento=tipoCanonicoFix(item,{tipo:e.tipo})==='OBRA';
     const avance=item.avanceObraPct??item.avance_obra_pct??item.avanceFisico??item.avancePorc;
-
+    /* La última certificación sale del historial consolidado de
+       coi_certificaciones, que es la autoridad. Los campos legacy del item
+       vienen vacíos en las OC de Supabase y sólo se usan como último recurso. */
     const detalle=(()=>{ try{ return typeof window.__COI_CERT_ULTIMA_DETALLE__==='function'
       ? (identidadesOCFix(item,{tipo:e.tipo}).concat([e.oc])
           .map(id=>window.__COI_CERT_ULTIMA_DETALLE__(id)).find(Boolean)||null)
@@ -9927,7 +10188,10 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     if(enfocar!==false)modal.querySelector('[data-coi-resumen-cerrar]')?.focus();
     return true;
   }
-
+  /* Si la tarjeta se abrió mientras el historial todavía se leía, «Última
+     certificación» quedó con el valor de respaldo. Cuando la lectura
+     autoritativa termina hay que reemplazarlo, no dejarlo stale. No se roba el
+     foco salvo que ya estuviera dentro de la tarjeta. */
   function refrescarResumenAbiertoFix(){
     const modal=document.getElementById('coiResumenEvento');
     if(!modal)return false;
@@ -9950,18 +10214,26 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     if(!modal)return;
     if(ev.target.closest?.('[data-coi-resumen-cerrar]')||ev.target===modal){ ev.preventDefault(); cerrarResumenEventoFix(); }
   });
-
+  /* ABRIR EXPEDIENTE usa la navegación canónica (data-open-oc). La tarjeta se
+     retira en captura para no depender del orden en que quedaron registrados
+     los demás delegados de document, alguno de los cuales corta la burbuja. */
   document.addEventListener('click',(ev)=>{
     const modal=document.getElementById('coiResumenEvento');
     if(modal&&ev.target.closest?.('[data-open-oc]')&&modal.contains(ev.target))cerrarResumenEventoFix();
   },true);
   document.addEventListener('keydown',(ev)=>{ if(ev.key==='Escape'&&document.getElementById('coiResumenEvento'))cerrarResumenEventoFix(); });
 
+  /* La proyección tentativa depende del historial REAL de certificaciones. Si
+     todavía no se leyó, se pide acá —al entrar al Calendario, sin exigir que
+     el operador pase antes por Tabla Certificaciones— y el propio historial
+     repinta una vez cuando termina. El guard de `cargado` corta el bucle
+     render → query → render. */
   function pedirHistorialCertificaciones(){
     try{
       const h=window.__COI_CERT_HISTORIAL__;
       if(!h)return;
       if(typeof h.cargar==='function'&&!h.estado().cargado&&!h.estado().cargando)h.cargar(false);
+      // Si el historial llegó antes que el catálogo de OC, se rejuntan acá:
 
       else if(typeof window.__COI_CERT_REJOIN__==='function')window.__COI_CERT_REJOIN__();
     }catch(e){}
@@ -10016,7 +10288,8 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   renderCentroAlertas = renderCentroAlertasFix;
   renderDashboardAlertSummary = renderDashboardAlertSummaryFix;
   renderCalendarioCOIUnificado = renderCalendarioFix;
-
+  /* Proyección tentativa de próxima certificación (CAMBIO 3), expuesta para
+     poder afirmarla sin depender del mes que el calendario esté mostrando. */
   window.__COI_PROXIMA_CERT_INFO__ = (item, row) => {
     const fuenteItem=item||{},fuenteRow=row||{};
     const fecha=isoFix(proxCertFix(fuenteItem,fuenteRow))||'';
@@ -10036,7 +10309,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     Object.entries(nav).forEach(([id,[vista,fn]])=>{ const b=$fix(id); if(!b)return; b.addEventListener('click',ev=>{ev.preventDefault(); ev.stopImmediatePropagation(); mostrarVistaFix(vista,id); try{fn();}catch(e){console.error('COI Fix render '+vista,e);} },true); });
     $fix('btnAccesoBusquedaOrdenes')?.addEventListener('click',ev=>{ev.preventDefault();ev.stopImmediatePropagation();mostrarVistaFix('vistaOrdenes','btnOrdenes');try{window.renderOrdenes?.();}catch(e){console.error('COI búsqueda OC',e);}$fix('ordenesBusqueda')?.focus();},true);
     document.addEventListener('click',ev=>{
-
+      /* coi-orders-selection-propagation-fix-v60: evita que el click del checkbox burbujee como apertura de expediente. */
       if(ev.target.closest('#vistaOrdenes .col-sel, #vistaOrdenes .orden-check-cell, #vistaOrdenes .chk-orden-row, #vistaOrdenes #chkOrdenesSeleccionarTodas')) return;
       const oc=ev.target.closest('[data-open-oc]'); if(oc){ev.preventDefault(); ev.stopPropagation(); safeOpenOCFix(oc.dataset.openOc); return;}
       const card=ev.target.closest('.quick-type-card[data-carga-tipo]'); if(card){ev.preventDefault(); ev.stopImmediatePropagation(); setTipoCargaFix(card.dataset.cargaTipo); return;}
@@ -10079,6 +10352,12 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',bootstrapFix,{once:true}); else setTimeout(bootstrapFix,0);
 })();
 
+/* =========================================================
+   V58.0R2 - Fix funcional Administración / subtabs
+   Objetivo: que Datos, Usuarios, Catálogos, Diagnóstico,
+   Auditor de datos, Configuración y Logs sean navegables y
+   rendericen aunque algún panel tenga error interno.
+   ========================================================= */
 (function(){
   const FIX_ADMIN_VERSION = 'V58.1R39-FINANZAS-SUPABASE-2A';
   const $a = (id)=>document.getElementById(id);
@@ -10197,7 +10476,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       try{renderMensajeModoAdministracionV573();}catch(e){}
     }
   }
-
+  // Sobrescribe el render de Administración con una versión tolerante a fallos.
   renderAdministracionSistema = renderAdministracionSistemaSeguroA;
   adminMostrarTab = showAdminTabA;
 
@@ -10233,6 +10512,13 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',initAdminFixA,{once:true}); else setTimeout(initAdminFixA,0);
 })();
 
+/* =========================================================
+   V58.0R9 - Carga financiera exacta y fix selección/borrado en Órdenes
+   - Evita que el click en checkbox abra la Ficha OC.
+   - Permite selección individual y selección masiva.
+   - Reemplaza alerta de rescate por borrado con PIN administrador.
+   - Persiste la baja en sessionStorage vía guardarBaseLocal().
+   ========================================================= */
 (function(){
   const VERSION_ORDENES_DELETE_FIX = 'V58.1R39-FINANZAS-SUPABASE-2A';
   const qs = (sel,ctx=document)=>ctx.querySelector(sel);
@@ -10276,7 +10562,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     add(item?.idObra); add(item?.idServicio); add(item?.idOC); add(item?.id); add(row?.idObra); add(row?.id);
     add(item?.numeroOC); add(item?.ocNro); add(item?.OC_NRO); add(item?.oc); add(row?.oc);
     try{ if(typeof v45RegistroKey === 'function') add(v45RegistroKey(item)); }catch(e){}
-
+    // Compatibilidad con IDs derivados por estación en cargas demo/migradas.
     const oc = txt(item?.numeroOC || item?.ocNro || item?.OC_NRO || item?.oc || row?.oc || '');
     if(oc && estacionNombre){
       const slug = norm(estacionNombre).replace(/[^A-Z0-9]+/g,'-').replace(/^-|-$/g,'');
@@ -10304,6 +10590,8 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       master.indeterminate = checks.some(chk=>chk.checked) && !master.checked;
     }
 
+    // Mantiene sincronizado el set antiguo cuando existe. El set local de rescate no es accesible,
+
     try{
       if(typeof v45SeleccionOrdenes !== 'undefined' && v45SeleccionOrdenes?.clear){
         v45SeleccionOrdenes.clear();
@@ -10324,7 +10612,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     if(tbody&&typeof MutationObserver!=='undefined')new MutationObserver(()=>setTimeout(syncSeleccionOrdenesDesdeDOM,0)).observe(tbody,{childList:true,subtree:true});
     setTimeout(syncSeleccionOrdenesDesdeDOM,0);
   }
-
+  // Compatibilidad limitada a la selección; R4 ya no posee ninguna operación de borrado.
   window.COI_ORDENES_DELETE_FIX_R4 = Object.freeze({
     sync: syncSeleccionOrdenesDesdeDOM,
     version: VERSION_ORDENES_DELETE_FIX
@@ -10334,6 +10622,9 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   else setTimeout(bindOrdenesR4,0);
 })();
 
+/* ===============================
+   V58.0R9 - Guardado financiero robusto / sin congelar UI
+   =============================== */
 (function(){
   'use strict';
   const VERSION_CARGA_FIN_R7 = 'V58.1R39-FINANZAS-SUPABASE-2A';
@@ -10545,6 +10836,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
 
   window.COI_CARGA_FINANCIERA_R7 = {guardar:guardarCargaFinancieraR7, subtotal:updateSubtotalR7, version:VERSION_CARGA_FIN_R7};
 
+  // Override directo de funciones usadas por los handlers existentes.
   try{
     guardarCargaFinancieraR6 = guardarCargaFinancieraR7;
   }catch(e){}
@@ -10598,6 +10890,9 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', versionarR7, {once:true}); else setTimeout(versionarR7,0);
 })();
 
+/* ===============================
+   V58.0R9 - Cartel de carga financiera y borrado selectivo de posiciones
+   =============================== */
 (function(){
   const VERSION_FIN_R8 = 'V58.1R39-FINANZAS-SUPABASE-2A';
   const $r8 = (id)=>document.getElementById(id);
@@ -10638,6 +10933,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     document.querySelectorAll('.app-version-badge,.header-pill,.footer-pill').forEach(el=>{ if(/V58\.0R\w+/i.test(el.textContent||'')) el.textContent=(el.textContent||'').replace(/V58\.0R\w+/ig,VERSION_FIN_R8); });
   }
 
+  // Cartel posterior a Guardar registros en Carga > Financiera.
   try{
     const guardarBaseR8 = typeof guardarCargaFinancieraR8 === 'function' ? guardarCargaFinancieraR8 : (typeof guardarCargaFinancieraR7 === 'function' ? guardarCargaFinancieraR7 : null);
     if(guardarBaseR8){
@@ -10662,12 +10958,18 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     }
   }catch(e){ console.warn('COI R8 no pudo envolver guardado financiero',e); }
 
+  // El borrado local R8 fue retirado. La selección y el DELETE pertenecen al controlador V60 Supabase-first.
+
+  // Reaplicar versión y pequeño estilo visual.
   const style=document.createElement('style');
   style.textContent=`.finance-delete-bar button{border:1px solid #c9dff0;border-radius:10px;background:#fff;padding:8px 12px;font-weight:800;cursor:pointer}.finance-delete-bar .btn-danger-soft{background:#fff0f0;border-color:#fecaca;color:#991b1b}.finance-delete-bar b{color:#064b7a}.chk-fin-delete-position{width:16px;height:16px}`;
   document.head.appendChild(style);
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',versionarR8,{once:true}); else setTimeout(versionarR8,0);
 })();
 
+/* ===============================
+   V58.0R10 - Guardado financiero sin bloqueo + resumen libre por OC/POS
+   =============================== */
 (function(){
   const VERSION_FIN_R10='V58.1R39-FINANZAS-SUPABASE-2A';
   const norm=(v)=>String(v??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/\s+/g,'').replace(/\./g,',').trim();
@@ -10716,6 +11018,12 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',versionar,{once:true});else setTimeout(versionar,0);
 })();
 
+/* ===============================
+   V58.0R11 - Fix robusto Ficha UM / botones Ver ficha UM
+   Objetivo: garantizar apertura de Ficha UM desde Red Línea Roca,
+   listado UM y tarjetas de estación, incluso si listeners previos
+   quedan interceptados por renders dinámicos.
+   =============================== */
 (function(){
   const VERSION_UM_FIX='V58.1R39-FINANZAS-SUPABASE-2A';
   const $um=(id)=>document.getElementById(id);
@@ -10849,12 +11157,29 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     else mostrarVistaUMFix(destino, destino==='vistaRed'?'btnRed':'btnUnidadesMantenimiento');
   }
 
+  /* Los cinco botones de la ficha UM tienen DOS registros de click:
+     initUnidadesMantenimiento() los engancha al arrancar (volverUM,
+     cargarFormUM, copiarResumenUM, irEstacionUM, vincularOCUM) y esta capa
+     robusta los vuelve a enganchar al pintar la ficha. Mientras umActualId
+     estuvo desincronizado, el handler legado no encontraba la UM y el efecto
+     duplicado no se veia; una vez sincronizados los dos bindings, un solo
+     click ejecutaba la accion DOS veces —dos escrituras al portapapeles, dos
+     navegaciones—.
+
+     Se resuelve haciendo dueño del click al handler robusto, sin desregistrar
+     nada: el listener se registra en fase de CAPTURA sobre el propio boton.
+     En el target, la pasada de captura corre antes que la de burbuja, de modo
+     que este handler se ejecuta primero y con stopImmediatePropagation() deja
+     sin efecto al legado —que sigue registrado, por si otra ruta lo necesita—.
+     El guard dataset.umFix se conserva: evita registrar dos veces el mismo
+     handler cada vez que se repinta la ficha. */
   function duenoDelClick(id, accion){
     const btn=$um(id);
     if(!btn||btn.dataset.umFix)return;
     btn.dataset.umFix='1';
     btn.addEventListener('click',ev=>{
       ev.preventDefault();
+      // Corta tambien a los handlers legados de este mismo boton y a los
 
       ev.stopImmediatePropagation();
       try{accion();}catch(e){console.warn('COI UM FIX: '+id,e);}
@@ -10862,7 +11187,11 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   }
 
   function conectarBotonesFichaUM(){
-
+    /* Volver: se respeta el destino que haya fijado la capa de Administracion
+       (V58.1R reapunta window.volverUMRobusto a abrirUMDesdeAdministracion) y
+       recien si no hay override se usa el robusto local. Antes ganaba el
+       delegado de Administracion por ser el ultimo en correr; al tomar el
+       click aca hay que seguir honrandolo, o Volver cambiaria de destino. */
     duenoDelClick('btnVolverUM',()=>{
       const override=window.volverUMRobusto;
       if(typeof override==='function'&&override!==volverUMRobusto)override();
@@ -10904,6 +11233,27 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
 
 })();
 
+/* H05/H04 — Congelamiento del inventario legado de UM y ST.
+
+   Este bloque tiene que correr ANTES de init(), unas lineas mas abajo, porque
+   initUnidadesMantenimiento() llama a cargarUM() en tiempo de parseo y esa
+   funcion sembraba las 28 UM de unidadesMantenimientoDemo y las escribia en
+   sessionStorage. Lo mismo hacia el arranque de serviciosTecnicos con sus 3 ST de
+   demostracion. La capa H05 vive al final del documento y llega demasiado tarde
+   para impedirlo: para entonces la demo ya esta en memoria y en disco.
+
+   PRODUCCION y STAGING tienen coi_unidades_mantenimiento y
+   coi_servicios_tecnicos_um VACIAS, y la decision tomada es NO migrar esas filas
+   de demostracion. Por lo tanto aca no se borra nada: se congela.
+
+     lectura de las claves legadas  -> '[]' para los lectores operativos
+     escritura sobre esas claves    -> ignorada, para que el contenido historico
+                                       llegue intacto a H06
+     cargarUM / guardarUM           -> ya no siembran ni persisten
+     memoria                        -> vacia hasta que H05 confirme Supabase
+
+   El acceso deliberado al legado sigue disponible por
+   __COI_UM_H05_LEGACY_RAW__ y __COI_UM_H05_LEGACY_WRITE__. */
 (function () {
   'use strict';
 
@@ -10940,6 +11290,10 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       }
       return setItemNativo.call(this, k, v);
     };
+    // removeItem tambien tiene que estar cubierto. Varios caminos legados de
+    // Administracion borran claves antes de restaurar un backup; como setItem
+    // sobre esas claves ya esta bloqueado, un removeItem sin proteger dejaria el
+    // legado destruido y sin manera de reponerlo antes de H06. Congelar significa
 
     Storage.prototype.removeItem = function (k) {
       if (esLegada(k)) {
@@ -10948,6 +11302,9 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       }
       return removeItemNativo.call(this, k);
     };
+    // clear() no pasa por removeItem: limpiarLocal() de Administracion llama
+    // directo a sessionStorage.clear() y se llevaria por delante las claves que
+    // prometimos conservar intactas hasta H06. Se preservan releyendo con la API
 
     Storage.prototype.clear = function () {
       var conservados = [];
@@ -10969,9 +11326,22 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     Storage.prototype.__coiUmH05Shield = true;
   }
 
+  // El inventario en memoria arranca vacio: Supabase es la unica fuente y su
+  // lectura todavia no ocurrio. Remoto vacio es un estado valido.
+
+  // El modelo vive en un unico holder y las globales legadas pasan a ser vistas
+  // de solo lectura sobre el. Hace falta porque recoverUMs() de V58.1R8 guarda su
+  // propio umMaster: despues de un cambio de sesion volvia a publicar el
+
+  // setUMGlobal escribe primero el binding lexico y despues el de window, asi que
+
   var MODELO = { ums: [], sts: [] };
   window.__COI_UM_H05_MODELO__ = MODELO;
 
+  // asignacion por indice sobre estos arreglos —v33GuardarUM, los helpers ST de
+  // R15/R16—, y tambien muta los objetos fila. Si compartieran referencia con el
+
+  // «confirmado por Supabase» mientras sincronizado sigue en true.
   var copiarFila = function (fila) {
     var copia = {};
     for (var k in fila) {
@@ -10992,7 +11362,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
     try { serviciosTecnicos = copiarLista(MODELO.sts); } catch (e) {}
   };
   window.__COI_UM_H05_APLICAR__ = function (ums, sts) {
-
+    // El holder guarda su propia copia: ni siquiera comparte con quien publica.
     MODELO.ums = copiarLista(ums);
     MODELO.sts = copiarLista(sts);
     reponerLexicos();
@@ -11015,6 +11385,8 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   } catch (e) { /* si el entorno no lo permite queda la reafirmacion periodica */ }
   reponerLexicos();
 
+  // cargarUM/guardarUM siguen existiendo porque varias capas los invocan, pero
+  // dejan de sembrar la demo y de persistir en sessionStorage.
   try {
     cargarUM = function () { return window.unidadesMantenimiento || []; };
     guardarUM = function () { return window.unidadesMantenimiento || []; };
@@ -11261,7 +11633,9 @@ initNavegacionRespaldoCOI();
 </script>
 
 <script>
-
+/* =========================================================
+   V58.0R15 - Diagnóstico con eliminar, Alertas a Observaciones y ST asociados UM
+   ========================================================= */
 (function(){
   'use strict';
   const VERSION_R13='V58.1R39-FINANZAS-SUPABASE-2A';
@@ -11324,6 +11698,7 @@ initNavegacionRespaldoCOI();
     return !!item;
   }
 
+  /* --- Diagnóstico: agrega Eliminar al lado de Editar --- */
   function keysItemR13(item,row){
     const set=new Set(); const add=v=>{v=txt(v); if(v)set.add(norm(v));};
     add(ocIdFromItemR13(item,row)); add(ocNroFromItemR13(item,row));
@@ -11354,6 +11729,7 @@ initNavegacionRespaldoCOI();
     };
   }
 
+  /* --- Observaciones: botón Eliminar explícito / edición simple --- */
   const baseObsCardR13=typeof v65RenderObservacionCard==='function'?v65RenderObservacionCard:null;
   if(baseObsCardR13){
     window.v65RenderObservacionCard=function(o){
@@ -11377,6 +11753,7 @@ initNavegacionRespaldoCOI();
     toastR13('Observación actualizada.');
   }
 
+  /* --- Centro de Alertas: enviar Acción Sugerida a Observaciones --- */
   function agregarObservacionDesdeAlertaR13(key,texto){
     const found=findOCR13(key); const oc=found?.item||found;
     if(!oc){alert('No se encontró la OC vinculada a esta alerta.');return;}
@@ -11429,6 +11806,7 @@ initNavegacionRespaldoCOI();
     };
   }
 
+  /* --- UM: ST asociados con campos técnicos solicitados + carga rápida por UM --- */
   function stListaPorUMR13(idUM){
     const id=norm(idUM);
     try{return (serviciosTecnicos||[]).filter(st=>{
@@ -11481,7 +11859,10 @@ initNavegacionRespaldoCOI();
 
 
 <script>
-
+/* ============================================================
+   COI Línea Roca - V58.0R15
+   Fix final: Centro de Alertas -> Observaciones + Ficha UM ST
+   ============================================================ */
 (function(){
   const VERSION_R14='V58.1R39-FINANZAS-SUPABASE-2A';
   const q=(id)=>document.getElementById(id);
@@ -11736,6 +12117,12 @@ initNavegacionRespaldoCOI();
   window.COI_V58R14={version:VERSION_R14,postProcesarAlertas:postProcesarAlertasR14,renderFichaUM:renderFichaUMR14,abrirFichaUM:abrirFichaUMR14};
 })();
 
+/* ===============================
+   V58.0R15 - Corrección definitiva UM/ST + Alertas a Observaciones
+   - Muestra ST asociados dentro de Ficha UM y también en módulo UM.
+   - Permite cargar ST desde la Ficha UM o desde Carga manual de UM.
+   - Botón robusto en Centro de Alertas: Enviar a Observaciones.
+   =============================== */
 (function(){
   const VERSION_R15='V58.1R39-FINANZAS-SUPABASE-2A';
   const ST_LS_KEY='coi_servicios_tecnicos';
@@ -11992,6 +12379,12 @@ initNavegacionRespaldoCOI();
   window.COI_V58R15={version:VERSION_R15,renderFichaUM:renderFichaUMR15,abrirFichaUM:abrirFichaUMR15,renderST:renderServiciosTecnicosR15,procesarAlertas};
 })();
 
+/* ===============================
+   V58.0R16 - Reordenamiento UM/ST
+   - Módulo UM: reemplaza Carga manual de UM por Carga Servicios Técnicos (ST).
+   - El bloque C. Servicios Técnicos Asociados queda solo dentro de cada Ficha UM.
+   - Campos ST operativos: Fecha, Obra, Tipo UM, Descripción y Técnico.
+   =============================== */
 (function(){
   const VERSION_R16='V58.1R39-FINANZAS-SUPABASE-2A';
   const ST_KEY='coi_servicios_tecnicos';
@@ -12240,7 +12633,12 @@ initNavegacionRespaldoCOI();
 </script>
 
 <script>
-
+/* =========================================================
+   V58.1 - Piloto Operativo Estable
+   Estabilización general: backup JSON, diagnóstico avanzado,
+   alertas a observaciones, estado COI select, financiero,
+   Ficha UM + ST asociados y control sessionStorage.
+   ========================================================= */
 (function(){
   'use strict';
   const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
@@ -12412,6 +12810,19 @@ initNavegacionRespaldoCOI();
     p.innerHTML=`<div class="admin-panel"><h3>Diagnóstico avanzado V58.1</h3><div class="admin-actions"><button type="button" id="btnEjecutarDiagnostico" class="primary">Ejecutar diagnóstico</button><button type="button" id="btnOptimizarBase">Optimizar base</button></div><p class="muted">Última ejecución: ${esc(new Date(r.fecha).toLocaleString())}</p><div class="v581-grid">${cards.map(c=>`<div class="v581-card"><b>${esc(c[1])}</b><span>${esc(c[0])}</span></div>`).join('')}</div><div class="table-wrap"><table class="coi-table v581-diag-table"><thead><tr><th>Tipo problema</th><th>Severidad</th><th>ID</th><th>OC</th><th>Estación</th><th>Proveedor</th><th>Descripción</th><th>Acción sugerida</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   };
 
+  /* H07 · El Timeline ya no vive en sessionStorage: su autoridad es Supabase y en
+     el navegador solo queda el snapshot confirmado en memoria
+     (window.coiTimelineEvents). Este helper lo expone para el backup SIN
+     reintroducir la cache retirada.
+
+     Si esta sesion no confirmo ninguna lectura remota no se inventa nada: se
+     declara confirmado:false y el importador no restaura. Un Timeline vacio
+     CONFIRMADO se distingue de un Timeline ausente por ese mismo campo. */
+  /* H07 · Material en cuarentena, para RECUPERACION. No es dato operativo:
+     no alimenta KPIs, no se mezcla con datos.observacionesOC —que solo lleva lo
+     confirmado contra Supabase— y el importador no lo restaura. Se lee por la
+     API de cuarentena, que usa el getter nativo: el escudo sigue devolviendo
+     '[]' a los lectores comunes. */
   function recuperacionLegacy(){
     const salida={
       nota:'Material historico conservado para recuperacion. NO es dato operativo y el restore no lo reimporta.',
@@ -12444,7 +12855,9 @@ initNavegacionRespaldoCOI();
 
   function exportBackup(){
     const timeline=timelineAutoritativo();
+    // `autoritativo` son snapshots confirmados contra Supabase. `sessionStorage`
 
+    // autoridad. Nunca se mezclan.
     const payload={tipo:'backup-coi-linea-roca',version:VERSION,fechaExportacion:now(),usuario:'Local',resumen:{totalOC:getRows().length,totalUM:getUMs().length,totalPosiciones:getPositions().length,totalDocumentos:getDocs().length,totalObservaciones:getObs().length,totalST:getSTs().length,totalEventosTimeline:timeline.confirmado?timeline.eventos.length:null},autoritativo:{timeline:timeline},recuperacion:recuperacionLegacy(),datos:{obrasServicios:getRows().map(r=>ocItem(r)),unidadesMantenimiento:getUMs(),posicionesFinancieras:getPositions(),documentosOC:getDocs(),observacionesOC:getObs(),alertasRevisadas:safeJSON(LS_ALERTAS_REV,[]),serviciosTecnicosUM:getSTs(),configuracion:{version:VERSION,fechaVersion:RELEASE_DATE}},sessionStorage:snapshotLocalStorage()};
     const name=`backup-coi-linea-roca-v58-1-${dateStamp()}.json`;download(name,JSON.stringify(payload,null,2));saveJSONKey(LS_BACKUP_META,{fecha:now(),tipo:'Exportado',version:VERSION,archivo:name,usuario:'Local'});inyectarAdmin();toast('Backup JSON exportado','ok',name);
   }
@@ -12458,7 +12871,9 @@ initNavegacionRespaldoCOI();
         if(!data||typeof data!=='object')throw new Error('JSON inválido');
         const timelineKey=window.COI_TIMELINE_COI?.storageKey||'coi_timeline_events_v1';
         let timelineRestored=false;
-
+        // H07 · Primero el snapshot AUTORITATIVO del backup. El volcado crudo de
+        // sessionStorage se sigue aceptando, pero solo como formato LEGACY de los
+        // backups anteriores a H07: en los nuevos esa clave ya no existe.
         const timelineAuth=data.autoritativo&&data.autoritativo.timeline;
         let timelineIncoming=null;
         let timelineOrigen='';
@@ -12472,16 +12887,22 @@ initNavegacionRespaldoCOI();
         }
         let timelineDescartado=false;
         if(timelineIncoming){
-
+          // Siempre por la ruta remota canonica. La cache retirada no se
+          // reescribe en ningun caso: replace() publica contra Supabase.
           if(typeof window.COI_TIMELINE_COI?.replace!=='function')throw new Error('La restauración autoritativa de Timeline no está disponible.');
           const replacement=await window.COI_TIMELINE_COI.replace(timelineIncoming,`Timeline restaurado desde backup maestro V58.1 (${timelineOrigen})`);
+          // discarded = la escritura llego a Supabase pero una operacion
 
+          // restaurado, no se anuncia exito y no se recarga. El operador
+          // reintenta sobre el estado real.
           if(replacement&&replacement.discarded)timelineDescartado=true;
           else timelineRestored=true;
         }
         const omitted=data.datos&&typeof data.datos==='object'
           ?Object.entries(data.datos).filter(([,value])=>Array.isArray(value)&&value.length).map(([key])=>key)
           :[];
+        // La seccion de recuperacion NO se reimporta: es material historico sin
+        // autoridad. Se informa para que el operador sepa que viene en el
 
         const legacyRecuperacion=data.recuperacion&&data.recuperacion.observacionesLegacy;
         const legacyFilas=Array.isArray(legacyRecuperacion&&legacyRecuperacion.filas)?legacyRecuperacion.filas.length:0;
@@ -12497,7 +12918,7 @@ initNavegacionRespaldoCOI();
         ].filter(Boolean).join(' ');
         toast(timelineDescartado?'Restauración del Timeline descartada':'Backup procesado',
           (timelineDescartado||omitted.length||!timelineRestored)?'warn':'ok',detail);
-
+        // Solo se recarga cuando la restauracion quedo efectivamente confirmada.
         if(timelineRestored)setTimeout(()=>location.reload(),700);
       }catch(e){
         toast('No se pudo importar backup','error',e.message||String(e));
@@ -12590,6 +13011,8 @@ initNavegacionRespaldoCOI();
   window.COI_V581={version:VERSION,diagnostico,exportBackup,renderCentroAlertas:renderCentroAlertasV581,calcularResumenFinancieroOC:calcResumenFin,renderFichaUM:renderFichaUMV581};
 })();
 
+/* V58.1R18: implementación local heredada de Certificaciones retirada.
+   Los datos existentes no se eliminan; la persistencia activa es Supabase. */
 window.COI_CERTIFICACION_LEGACY_DISABLED=true;
 
 </script>
@@ -18031,7 +18454,9 @@ const APP_DATA_MODE = "supabase_first";
 <!-- COI V58.4 FILTROS Y FICHA HOTFIX END -->
 
 <script>
-
+/* =========================================================
+   V58.1R — Reordenamiento Administración, Órdenes y Alertas
+   ========================================================= */
 (function(){
   'use strict';
   const VERSION='V58.1R39-FINANZAS-SUPABASE-2A';
@@ -18160,7 +18585,8 @@ const APP_DATA_MODE = "supabase_first";
     const view=$('vistaAdministracionSistema'),tabs=view?.querySelector('.admin-tabs');if(!view||!tabs)return;
     let btn=tabs.querySelector('[data-admin-tab="unidadesMantenimiento"]');if(!btn){btn=document.createElement('button');btn.type='button';btn.className='admin-subtab';btn.dataset.adminTab='unidadesMantenimiento';btn.textContent='Unidades de Mantenimiento';tabs.appendChild(btn);}
     let panel=$('adminTabUnidadesMantenimiento');if(!panel){panel=document.createElement('section');panel.id='adminTabUnidadesMantenimiento';panel.className='admin-tab-panel';view.querySelector('.view-body')?.appendChild(panel);}
-
+    // H09: la vista de UM ya NO se mueve dentro de Administracion. El
+    // inventario es un modulo global (TD-068) y esta pestaña solo lo señala.
     if(!panel.dataset.h09Puntero){
       panel.dataset.h09Puntero='1';
       panel.innerHTML='<div class="admin-panel"><h3>Unidades de Mantenimiento</h3>'+
@@ -33442,7 +33868,10 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
 #fichaOCBody .coi-progress-manual-feedback.ok{color:#067647}
 </style>
 <script>
-
+/* COI_OBRA_PROGRESS_MANUAL_H12
+ * Separa la última Acta de Medición (automática desde Supabase) del
+ * porcentaje manual de avance físico de la OC tipo Obra.
+ */
 (function(){
   'use strict';
   if(window.COI_OBRA_PROGRESS_MANUAL?.version==='H12')return;
