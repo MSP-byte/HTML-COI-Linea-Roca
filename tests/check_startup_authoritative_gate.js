@@ -86,8 +86,15 @@ check(html.includes("supabaseCargaPendiente = true;"),
   'una lectura concurrente de otra identidad debe quedar encolada');
 check(html.includes("supabaseCargaUid = null;"),
   'la identidad de la lectura en vuelo debe limpiarse al finalizar');
-check(html.includes("cargarOrdenesPrincipal({ coalescer: true, origen: 'startup-session', authUid: user.id })"),
-  'la verificación inicial de sesión debe usar la vía coalescida');
+check(html.includes("let supabaseCargaPendienteOptions = null;"),
+  'la cola debe conservar por separado el contexto de la solicitud pendiente');
+check(html.includes("origen: 'queued-current-session'")&&html.includes("authUser: null")&&html.includes("authUid: null"),
+  'una recarga pendiente debe reacreditar la sesión vigente y no reutilizar authUser/authUid anteriores');
+check(html.includes("const pendingOptions = supabaseCargaPendienteOptions || {};")&&
+      html.includes("cargarOrdenesPrincipal(pendingOptions)"),
+  'al liberar el lock debe ejecutarse la solicitud pendiente, no repetirse las opciones de la carga terminada');
+check(html.includes("cargarOrdenesPrincipal({ coalescer: true, origen: 'startup-session', authUid: user.id, authUser: user })"),
+  'la verificación inicial de sesión debe usar la vía coalescida y reutilizar la identidad validada');
 check(html.includes("event === 'SIGNED_IN'"),
   'SIGNED_IN debe conservar la capacidad de cargar cuando realmente hace falta');
 check(html.includes("authUid: session.user.id"),
@@ -96,6 +103,30 @@ check(html.includes("ordenesLecturaEstado === 'listo' &&\n                  orde
   'SIGNED_IN repetido del mismo usuario no debe releer un catálogo ya confirmado');
 check(!html.includes("['SIGNED_IN', 'TOKEN_REFRESHED', 'INITIAL_SESSION', 'USER_UPDATED'].includes(event) && session?.user)"),
   'INITIAL_SESSION/TOKEN_REFRESHED no deben conservar el disparador legacy de recarga completa');
+
+const earlyBootstrapPos=html.indexOf('id="coi-supabase-early-bootstrap"');
+check(earlyBootstrapPos>=0&&earlyBootstrapPos<headEnd,
+  'el loader ejecutable de Supabase debe arrancar dentro de <head>');
+check(earlyBootstrapPos<supabaseLoaderPos,
+  'el bootstrap temprano debe ejecutarse antes del loader legacy tardío');
+check(html.includes("window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__=window.__coiSupabaseReady.then"),
+  'el bootstrap temprano debe preparar el cliente canónico apenas llega supabase-js');
+check(html.includes("window.__COI_SUPABASE_CLIENT__=client;"),
+  'el cliente temprano debe publicarse en la referencia canónica existente');
+const legacyLoader=html.slice(supabaseLoaderPos,html.indexOf('</'+'script>',supabaseLoaderPos));
+check(legacyLoader.includes("if(window.__coiSupabaseReady)return;"),
+  'el loader tardío debe reutilizar el bootstrap temprano y no descargar Supabase dos veces');
+
+check(html.includes("const user = options.authUser || await getUsuarioActual();"),
+  'las lecturas autoritativas deben reutilizar la identidad ya validada cuando está disponible');
+check(html.includes("user = options.authUser || await getUsuarioActual();"),
+  'cargarOrdenesPrincipal debe evitar una segunda lectura de sesión en el fast-path');
+check(html.includes("authUid: user.id, authUser: user"),
+  'startup-session debe propagar el usuario validado a la carga autoritativa');
+check(html.includes("authUser: session.user"),
+  'SIGNED_IN debe propagar la identidad Auth sin volver a consultar getSession');
+check(html.includes("metrics.ordersAuthoritativeReady=performance.now();"),
+  'el arranque debe exponer una métrica verificable de primera lectura autoritativa');
 
 console.log('Startup authoritative loading gate: OK');
 console.log('  Primer paint : sin filas legacy/parciales');
