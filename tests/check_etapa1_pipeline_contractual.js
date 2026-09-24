@@ -377,6 +377,31 @@ async function main() {
   check(!/localStorage|sessionStorage/.test(capa),
     'la capa no puede leer ni escribir almacenamiento del navegador');
 
+  // P · persistencia de hitos: Supabase confirma, la UI consume esa respuesta
+  // y ninguna capa contractual vuelve a guardar la OC por una ruta local.
+  const canonIni=html.indexOf('async function actualizarEstadoDocumentalDesdePasoContractual(ocNro,paso,options={}){');
+  const canonFin=html.indexOf('\n\nfunction formatearFechaHoraCOI',canonIni);
+  const canonico=html.slice(canonIni,canonFin);
+  check(canonIni>=0&&canonFin>canonIni,'no se encontro el writer contractual canonico');
+  check(!/guardarBaseLocal\s*\(/.test(canonico),
+    'el writer contractual canonico no puede persistir la OC en almacenamiento local');
+  check(/fusionarHistorialCircuitoConfirmado\(nro,result\.data\?\.historial\)/.test(canonico),
+    'la respuesta confirmada por Supabase tiene que entrar al historial canonico');
+
+  const r28Ini=html.indexOf('async function actualizarEstadoDocumentalDesdePasoContractualR28(ocNro,paso,options={}){');
+  const r28Fin=html.indexOf('\n  function renderCTCard',r28Ini);
+  const r28=html.slice(r28Ini,r28Fin);
+  check(r28Ini>=0&&r28Fin>r28Ini,'no se encontro el writer contractual R28');
+  check(!/guardarLocal\s*\(\s*\)/.test(r28),
+    'R28 no puede volver a persistir el hito por guardarLocal');
+  check(/__COI_CIRCUITO_CACHE_MERGE__/.test(r28),
+    'R28 tiene que publicar el historial devuelto por Supabase en la cache canonica');
+
+  check(/__COI_CIRCUITO_CACHE_MERGE__\(contexto\.nro,resultado&&resultado\.historial\)/.test(cuerpoConfirmar),
+    'el pipeline debe consumir el historial confirmado por el RPC antes de repintar');
+  check(/repintar\(orden,contexto\.identidad\);/.test(cuerpoConfirmar),
+    'fecha efectiva y X\/8 deben repintarse inmediatamente tras la confirmacion remota');
+
   // O · una sola representacion del circuito en la Ficha: se envuelve el punto
   //     por el que la ficha pide el bloque, sin borrar la funcion legacy que
   //     otras partes del sistema siguen usando.

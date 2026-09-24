@@ -7475,7 +7475,7 @@ function normalizarDatos(){
   return true;
 }
 const _guardarBaseLocalV61Base=typeof guardarBaseLocal==='function'?guardarBaseLocal:null;
-if(_guardarBaseLocalV61Base){guardarBaseLocal=function(){normalizarDatos();const r=_guardarBaseLocalV61Base();mostrarAviso('Datos guardados localmente','ok');return r;};}
+if(_guardarBaseLocalV61Base){guardarBaseLocal=function(){normalizarDatos();const r=_guardarBaseLocalV61Base();if(r===true&&window.__COI_SUPABASE_SOURCE_OF_TRUTH__!==true)mostrarAviso('Datos guardados localmente','ok');return r;};}
 const _cargarUMV61Base=typeof cargarUM==='function'?cargarUM:null;
 if(_cargarUMV61Base){cargarUM=function(){const r=_cargarUMV61Base();if(Array.isArray(unidadesMantenimiento)){unidadesMantenimiento=unidadesMantenimiento.map(normalizarUM);if(typeof guardarUM==='function')guardarUM();}return r;};}
 const _descargarArchivoV61Base=typeof descargarArchivo==='function'?descargarArchivo:null;
@@ -20357,6 +20357,17 @@ async function resolverOrdenIdCircuito(client,resolved,nro){
   if(result.data?.length!==1||!esUUIDCircuito(result.data[0].id))throw new Error('No se pudo resolver un UUID único para la OC.');
   return result.data[0].id;
 }
+function fusionarHistorialCircuitoConfirmado(nro,rows=[]){
+  const clave=normOC(nro);
+  const confirmadas=Array.isArray(rows)?rows.filter(Boolean):[];
+  const actual=historialCircuitoCache.get(clave)||[];
+  if(!confirmadas.length)return actual.slice();
+  const ids=new Set(confirmadas.map(row=>row&&row.id).filter(Boolean));
+  const merged=[...actual.filter(item=>!item?.id||!ids.has(item.id)),...confirmadas];
+  historialCircuitoCache.set(clave,merged);
+  guardarCacheCircuito();
+  return merged.slice();
+}
 async function actualizarEstadoDocumentalDesdePasoContractual(ocNro,paso,options={}){
   const stage=typeof paso==='string'?CIRCUITO_ADMINISTRATIVO_ETAPAS.find(item=>item.codigo===paso)||CIRCUITO_ADMINISTRATIVO_ETAPAS.find(item=>normalizarTextoEstado(item.nombre)===normalizarTextoEstado(paso)):paso;
   const estado=estadoContractualNormalizado(stage);
@@ -20377,14 +20388,7 @@ async function actualizarEstadoDocumentalDesdePasoContractual(ocNro,paso,options
   const now=result.data.orden.fecha_ultimo_control||new Date().toISOString();
   asignarEstadoDocumentalLocal(resolved,result.data.nombre||estado,now);
   if(result.data?.orden&&typeof mergeRows==='function')try{mergeRows([result.data.orden]);}catch(e){}
-  const inserted=Array.isArray(result.data?.historial)?result.data.historial:[];
-  if(inserted.length){
-    const current=historialCircuitoCache.get(nro)||[];
-    const returnedIds=new Set(inserted.map(row=>row&&row.id).filter(Boolean));
-    historialCircuitoCache.set(nro,[...current.filter(item=>!item?.id||!returnedIds.has(item.id)),...inserted]);
-    guardarCacheCircuito();
-  }
-  try{if(typeof guardarBaseLocal==='function')guardarBaseLocal();}catch(e){}
+  fusionarHistorialCircuitoConfirmado(nro,result.data?.historial);
   await refrescarModulosCircuito(nro);
   toast(result.data.ya_confirmada?`Etapa ya confirmada; estado reconciliado: ${estado}`:`Estado documental sincronizado: ${estado}`,'ok');
   return {nro_oc:nro,estado,synced:true,...result.data};
@@ -20598,6 +20602,7 @@ window.refrescarCircuitoAdministrativoOC=refrescarCircuitoAdministrativoOC;
    desde coi_historial_oc; esto solo la expone para que el pipeline de 1° Etapa
    no tenga que abrir una segunda fuente de historial. */
 window.__COI_CIRCUITO_CACHE_GET__=(nro)=>historialCircuitoCache.get(normOC(nro))||historialCircuitoCache.get(nro)||[];
+window.__COI_CIRCUITO_CACHE_MERGE__=fusionarHistorialCircuitoConfirmado;
 
 
 function inicializarEventosUIUnaVez(){
@@ -23660,18 +23665,15 @@ color:#fff;
     if(result.error)throw result.error;
     if(!result.data?.orden?.id||clean(result.data.orden.id)!==clean(orderId))throw new Error('Supabase no confirmó la actualización del circuito.');
     setEstadoDocumentalLocal(oc,result.data.nombre||estado);
-    guardarLocal();
+    if(result.data.orden&&oc._supabaseRaw&&typeof oc._supabaseRaw==='object')Object.assign(oc._supabaseRaw,result.data.orden);
+    try{if(result.data.orden&&typeof window.mergeRows==='function')window.mergeRows([result.data.orden]);}catch(e){}
     updateEstadoDOM(result.data.nombre||estado);
     markStageDOM(result.data.nombre||estado);
     try{
       const rows=Array.isArray(result.data.historial)?result.data.historial:[];
-      if(rows.length&&typeof historialCircuitoCache!=='undefined'&&historialCircuitoCache?.get){
-        const cache=historialCircuitoCache.get(nro)||[];
-        const returnedIds=new Set(rows.map(row=>row&&row.id).filter(Boolean));
-        historialCircuitoCache.set(nro,[...cache.filter(item=>!item?.id||!returnedIds.has(item.id)),...rows]);
-        if(typeof guardarCacheCircuito==='function')guardarCacheCircuito();
-      }
+      if(typeof window.__COI_CIRCUITO_CACHE_MERGE__==='function')window.__COI_CIRCUITO_CACHE_MERGE__(nro,rows);
     }catch(e){}
+    try{if(typeof window.cargarHistorialCircuitoOC==='function')await window.cargarHistorialCircuitoOC(oc);}catch(error){console.warn('COI: Supabase confirmó el hito, pero no se pudo releer el historial contractual.',error);}
     try{if(typeof window.renderOrdenes==='function')window.renderOrdenes();}catch(e){}
     try{if(typeof window.renderCentroAlertas==='function'&&document.getElementById('vistaCentroAlertas')?.classList.contains('active'))window.renderCentroAlertas();}catch(e){}
     toast(result.data.ya_confirmada?`Etapa reconciliada: ${estado}`:`Estado documental sincronizado: ${estado}`,'ok');
@@ -35395,6 +35397,13 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
       avisarActaInicio(resultado, contexto);
       const baseOrden=ordenDe(contexto.nro)||contexto.orden;
       const orden=reconciliarOrden(baseOrden, resultado&&resultado.orden);
+      // La respuesta ya confirmada por Supabase alimenta el historial canónico
+      // antes del repaint. Fecha efectiva y X/8 cambian sin F5 y sin escritura local.
+      try{
+        if(typeof window.__COI_CIRCUITO_CACHE_MERGE__==='function')
+          window.__COI_CIRCUITO_CACHE_MERGE__(contexto.nro,resultado&&resultado.historial);
+      }catch(e){}
+      repintar(orden,contexto.identidad);
       // Cerrar solo si sigue siendo EL MISMO modal. Cancel/Escape u otra OC no
       // pueden hacer que una respuesta tardía opere sobre el modal nuevo.
       if (modalActual && modalActual.token===contexto.token) cerrarModal();
