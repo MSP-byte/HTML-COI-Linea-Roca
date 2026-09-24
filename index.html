@@ -19101,6 +19101,11 @@ function proximaCertificacionFinal(row,indiceCanonico){
   return {fecha,origen:fecha?'persistida':'',tentativa:false};
 }
 function renderOrdersFinal(){
+  const h06=window.__COI_H06_ORDENES__;
+  if(h06?.lecturaActualConfirmada?.()===true && h06?.modeloOperativoIntegro?.()===false){
+    orderRenderScheduled=false;
+    if(h06?.reconciliarModelo?.()===true)return;
+  }
   if(window.__COI_ORDERS_STARTUP_GATE__&&!window.__COI_ORDERS_STARTUP_GATE__.allowRender()){orderRenderScheduled=false;return;}
   orderRenderScheduled=false;
   if(orderRenderBusy)return;orderRenderBusy=true;
