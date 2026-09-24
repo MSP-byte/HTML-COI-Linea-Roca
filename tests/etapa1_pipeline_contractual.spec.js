@@ -205,13 +205,19 @@ test('E1-39 · producción · 2° Etapa conserva fecha propia al avanzar ejecuci
     wrap.innerHTML=window.__COI_ETAPA1_RENDER__(window.__E1__.orden);
     const meta=codigo=>wrap.querySelector(`#etapa1Panel2 [data-etapa1-hito="${codigo}"] .etapa1-meta`)?.textContent||'';
     const fechas=Object.fromEntries(hist.map(x=>[x.campo_modificado,x.fecha_efectiva||'']));
+    const tarjeta=codigo=>wrap.querySelector(`#etapa1Panel2 [data-etapa1-hito="${codigo}"]`);
     return{
       localWrites,
       rpcV3:window.__E1__.rpc.filter(x=>x.nombre==='coi_confirmar_etapa_circuito_v3').length,
       fechas,
       ejecucion:meta('ejecucion'),
       finalizada:meta('finalizada'),
-      cierre:meta('finalizada_actas')
+      cierre:meta('finalizada_actas'),
+      claseEjecucion:tarjeta('ejecucion')?.className||'',
+      claseFinalizada:tarjeta('finalizada')?.className||'',
+      claseCierre:tarjeta('finalizada_actas')?.className||'',
+      estadoCierre:tarjeta('finalizada_actas')?.querySelector('.etapa1-estado')?.textContent||'',
+      estadoActual:wrap.querySelector('#etapa1EstadoActual')?.textContent||''
     };
   },{oc:OC});
   expect(r.localWrites).toBe(0);
@@ -222,6 +228,11 @@ test('E1-39 · producción · 2° Etapa conserva fecha propia al avanzar ejecuci
   expect(r.ejecucion).toContain('Fecha efectiva: 10/09/2026');
   expect(r.finalizada).toContain('Fecha efectiva: 20/09/2026');
   expect(r.cierre).toContain('Fecha efectiva: 24/09/2026');
+  expect(r.claseEjecucion).toContain('etapa1-completado');
+  expect(r.claseFinalizada).toContain('etapa1-completado');
+  expect(r.claseCierre).toContain('etapa1-actual');
+  expect(r.estadoCierre).toContain('EN CURSO');
+  expect(r.estadoActual).toContain('FINALIZADA CON ACTA PROVISORIA Y DEFINITIVA');
 });
 
 test('E1-40 · 2° Etapa reconstruye fecha desde traza histórica Cambio de estado contractual',async({page})=>{
