@@ -472,7 +472,7 @@ for (const codigo of ETAPA2) {
     expect(d.bloqueoTexto).toBe('');
 
     const c = await clases(page);
-    expect(c[codigo]).toContain('etapa1-completado');   // refleja el estado real
+    expect(c[codigo]).toContain(codigo === 'ejecucion' ? 'etapa1-actual' : 'etapa1-completado');   // el estado vigente queda EN CURSO; los históricos, COMPLETADO
     expect(c[codigo]).not.toContain('[disabled]');
 
     await page.click(PANEL + ' #etapa1Tab2');
