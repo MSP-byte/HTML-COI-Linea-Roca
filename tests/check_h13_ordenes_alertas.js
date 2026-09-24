@@ -31,6 +31,10 @@ assert(html.includes('obtenerPasoContractualDesdeEstadoDocumental'), 'Estado con
 assert(html.includes('col-contractual">Estado contractual'), 'la tabla de Órdenes debe mostrar la columna Estado contractual');
 assert(html.includes("'Estado contractual','Estado COI'"), 'Exportar CSV debe incluir Estado contractual');
 assert(html.includes('window.obtenerEstadoContractualOrden=estadoContractualOrden'), 'el resolver contractual debe quedar disponible para todas las capas de Órdenes');
+assert(html.includes('id="ordenesFiltroContractual"'), 'Órdenes debe exponer el filtro Estado contractual');
+assert(html.includes('function cargarFiltroEstadoContractualOrdenes()'), 'el filtro contractual debe poblarse desde el catálogo canónico');
+assert(html.includes("(!contractual||contractualActual===contractual)"), 'el renderer final debe aplicar el filtro contractual');
+assert(html.includes("'ordenesFiltroContractual','ordenesFiltroEstacion'"), 'Limpiar filtros debe resetear Estado contractual');
 
 // Cierre H13: protege hidratación autoritativa, asociación estable, lectura paginada y retry sin onclick.
 console.log('H13 ordenes/alertas static regression: OK');
