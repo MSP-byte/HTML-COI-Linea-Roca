@@ -5352,11 +5352,11 @@ function renderOrdenes(){
   }
 }
 function initOrdenesCentroOperativo(){
-  ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert'].forEach(id=>{
+  ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroContractual','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert'].forEach(id=>{
     const el=$(id); if(el) el.addEventListener(id==='ordenesBusqueda'?'input':'change',renderOrdenes);
   });
   $('btnOrdenesLimpiar')?.addEventListener('click',()=>{
-    ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert','ordenMontoOrden'].forEach(id=>{if($(id)) $(id).value='';});
+    ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroContractual','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert','ordenMontoOrden'].forEach(id=>{if($(id)) $(id).value='';});
     renderOrdenes();
   });
 }
@@ -10389,7 +10389,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
       if(ev.target.closest('#btnAgregarFilasCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); agregarFilasCargaFix(cargaTipoFix,5); return;}
       if(ev.target.closest('#btnLimpiarCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); renderTablaCargaFix(cargaTipoFix); return;}
       if(ev.target.closest('#btnGuardarCargaRapida')){ev.preventDefault(); ev.stopImmediatePropagation(); guardarCargaFix(); return;}
-      if(ev.target.closest('#btnOrdenesLimpiar')){ev.preventDefault(); ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert','ordenMontoOrden'].forEach(id=>{if($fix(id))$fix(id).value='';}); const reg=$fix('ordenesFiltroRegistro');if(reg){reg.value='activas';try{reg.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}} try{window.renderOrdenes?.();}catch(e){console.error('COI limpiar filtros',e);} return;}
+      if(ev.target.closest('#btnOrdenesLimpiar')){ev.preventDefault(); ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroContractual','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert','ordenMontoOrden'].forEach(id=>{if($fix(id))$fix(id).value='';}); const reg=$fix('ordenesFiltroRegistro');if(reg){reg.value='activas';try{reg.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){}} try{window.renderOrdenes?.();}catch(e){console.error('COI limpiar filtros',e);} return;}
       if(ev.target.closest('#btnCoiCsv')){ev.preventDefault(); exportCalendarioFix('csv'); return;}
       if(ev.target.closest('#btnCoiIcs')){ev.preventDefault(); exportCalendarioFix('ics'); return;}
       if(ev.target.closest('#btnExportAlertasCSV')){ev.preventDefault(); const rows=[['Categoria','Severidad','Tipo alerta','OC','ID','Tipo','Estacion','Proveedor','Fecha','Dias','Mensaje','Accion'],...alertasFix().map(a=>[a.categoria,a.severidad,a.tipoAlerta,a.oc,a.idObra,a.tipo,a.estacion,a.proveedor,a.fechaReferencia,a.dias,a.mensaje,a.accionSugerida])]; descargarArchivo('centro_alertas_v58_0r.csv',rows.map(r=>r.map(coiCSVCell).join(';')).join('\n'),'text/csv;charset=utf-8'); return;}
@@ -25086,7 +25086,7 @@ function coiR31UpdateVersion(){
   }
   function showView(viewId,buttonId){if(typeof window.mostrarVista==='function'){try{window.mostrarVista(viewId);}catch(e){}}else{document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));$(viewId)?.classList.add('active');}document.querySelectorAll('#moduleNav button').forEach(b=>b.classList.toggle('active',b.id===buttonId));}
   function selectContains(selectId,text){const select=$(selectId);if(!select)return;const wanted=fold(text),option=[...select.options].find(o=>fold(o.value||o.textContent).includes(wanted));if(option)select.value=option.value;}
-  function resetOrderFilters(){window.__dashboardOrdersStatusFilter='';['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenMontoOrden'].forEach(id=>{if($(id))$(id).value='';});const context=$('uxOrderContext');if(context){context.hidden=true;context.textContent='';}}
+  function resetOrderFilters(){window.__dashboardOrdersStatusFilter='';['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroContractual','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenMontoOrden'].forEach(id=>{if($(id))$(id).value='';});const context=$('uxOrderContext');if(context){context.hidden=true;context.textContent='';}}
   function openOrders(opts={}){showView('vistaOrdenes','btnOrdenes');resetOrderFilters();if(opts.type&&$('ordenesFiltroTipo'))$('ordenesFiltroTipo').value=opts.type;if(opts.station)selectContains('ordenesFiltroEstacion',opts.station);if(opts.provider)selectContains('ordenesFiltroProveedor',opts.provider);if(opts.status){window.__dashboardOrdersStatusFilter=opts.status;let context=$('uxOrderContext');if(!context){context=create('div','ux-filter-context');context.id='uxOrderContext';const body=document.querySelector('#vistaOrdenes .view-body');const anchor=body?.querySelector('.ordenes-toolbar');if(anchor)anchor.insertAdjacentElement('afterend',context);}if(context){context.hidden=false;context.textContent=opts.status==='active'?'Solo OCs activas':`Filtro Dashboard: ${STATUS[opts.status]?.label||opts.status}`;}}if(opts.status==='upcoming'&&$('ordenesFiltroMesVenc'))$('ordenesFiltroMesVenc').value='proximas';if(opts.status==='expired'&&$('ordenesFiltroMesVenc'))$('ordenesFiltroMesVenc').value='vencidas';if(opts.status==='closed')selectContains('ordenesFiltroEstado','FINALIZADA');if(opts.query&&$('ordenesBusqueda'))$('ordenesBusqueda').value=opts.query;if(typeof window.renderOrdenes==='function')setTimeout(()=>window.renderOrdenes(),0);}
   function openCalendar(date,type){showView('vistaCalendarioCOI','btnCalendarioCOI');const d=parseDate(date)||today();if($('coiYear'))$('coiYear').value=String(d.getFullYear());if($('coiMonth'))$('coiMonth').value=String(d.getMonth());selectContains('coiEvento',type||'');if(typeof window.renderCalendarioCOIUnificado==='function')setTimeout(()=>window.renderCalendarioCOIUnificado(),0);}
   function openOC(item,oc){const key=item?.idObra||item?.idServicio||item?.idOC||item?.id||oc;if(typeof window.abrirFichaOC==='function'){try{window.abrirFichaOC(key);return;}catch(e){}}showView('vistaFichaOC','');if(typeof window.renderFichaOC==='function')window.renderFichaOC(key);}
@@ -27502,7 +27502,7 @@ document.addEventListener('click',function(event){
 (function(){
   'use strict';
   const STATUS_LABELS={active:'OCs activas',execution:'En ejecución',upcoming:'Próximas a vencer',certifiable:'Vencidas con saldo certificable',expired:'Vencidas sin saldo',closed:'Finalizadas / cerradas'};
-  const MANUAL_FILTER_IDS=['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert','ordenMontoOrden'];
+  const MANUAL_FILTER_IDS=['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroContractual','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert','ordenMontoOrden'];
   const $=id=>document.getElementById(id);
 
   function removeObsoleteAlertCategories(){
@@ -35046,7 +35046,12 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
   // en curso. Cualquier otro registrado -> COMPLETADO.
   function visualDe(estado, x) {
     if (!x.ev) return 'pendiente';
+    // El estado visual vigente lo manda estado_documental confirmado por Supabase.
+    // Esto permite que un reingreso a una etapa anterior quede marcado como ACTUAL
+    // sin borrar las fechas históricas de los hitos ya recorridos.
+    const vigente = estado.etapaVigente && estado.etapaVigente.codigo === x.etapa.codigo;
     if (x.etapa.codigo === CODIGO_ACTA) return 'completado';
+    if (vigente && !estado.etapa1Finalizada) return 'actual';
     const esUltimo = estado.ultimo && estado.ultimo.etapa.codigo === x.etapa.codigo;
     return esUltimo && !estado.etapa1Finalizada ? 'actual' : 'completado';
   }
@@ -35118,9 +35123,12 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
        E) evidencia historica          -> 1° Etapa finalizada — evidencia histórica
           (fecha de acta cargada, o estado legacy posterior al acta, sin que
           nadie haya registrado el hito en el pipeline) */
-    const estadoActual = estado.etapa1Finalizada
-      ? (estado.etapa1FinalizadaLegacy ? '1° Etapa finalizada — evidencia histórica' : '1° Etapa finalizada')
-      : (ult ? ult.etapa.nombre : 'Sin iniciar');
+    const vigente = estado.etapaVigente;
+    const estadoActual = vigente
+      ? nombreEtapaPorTipo(vigente, estado.orden)
+      : (estado.etapa1Finalizada
+          ? (estado.etapa1FinalizadaLegacy ? '1° Etapa finalizada — evidencia histórica' : '1° Etapa finalizada')
+          : (ult ? ult.etapa.nombre : 'Sin iniciar'));
     const aviso = estado.actaPendienteConciliacion
       ? '<p class="etapa1-aviso" id="etapa1AvisoActa">Fecha de Acta de Inicio pendiente de conciliación.</p>'
       : '';
@@ -35181,10 +35189,14 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     const bloqueada = !estado.etapa2Habilitada;
     const items = lista.map((et) => {
       const ev = estado.porCodigo.get(et.codigo) || null;
-      return '<button type="button" class="etapa1-hito etapa1-' + (ev ? 'completado' : 'pendiente') + '"' +
+      const vigente = Boolean(estado.etapaVigente && estado.etapaVigente.codigo === et.codigo);
+      const visual = vigente ? 'actual' : (ev ? 'completado' : 'pendiente');
+      const etiqueta = vigente ? 'EN CURSO' : (ev ? 'COMPLETADO' : 'PENDIENTE');
+      return '<button type="button" class="etapa1-hito etapa1-' + visual + '"' +
         ' data-etapa1-hito="' + esc(et.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '"' +
         (bloqueada ? ' disabled' : '') + '>' +
         '<span class="etapa1-cuerpo"><span class="etapa1-nombre">' + esc(nombreEtapaPorTipo(et,estado.orden)) + '</span>' +
+        '<span class="etapa1-estado">' + etiqueta + '</span>' +
         '<span class="etapa1-meta">' + esc(metaFechaEtapa(ev)) + '</span>' +
         '</span></button>';
     }).join('');
