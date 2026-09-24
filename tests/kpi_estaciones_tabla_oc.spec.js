@@ -192,6 +192,36 @@ test('Estado contractual tiene filtro canónico con etapas de 1° y 2° etapa', 
   expect(filtro).toContain('(!contractual||contractualActual===contractual)');
 });
 
+test('el filtro Estado contractual repinta la tabla real al cambiar la selección', async ({ page }) => {
+  await page.goto('/index.html');
+  await page.waitForFunction(() => typeof window.renderOrdenes === 'function', null, { timeout: 20000 });
+  await page.evaluate(() => window.mostrarVista && window.mostrarVista('vistaOrdenes'));
+  await page.waitForFunction(() => {
+    const select=document.getElementById('ordenesFiltroContractual');
+    const rows=[...document.querySelectorAll('#ordenesTbody tr')].filter(r=>r.cells.length>1);
+    return !!select && select.options.length>2 && rows.some(r=>r.querySelector('.col-contractual'));
+  }, null, { timeout: 30000 });
+
+  const elegido=await page.evaluate(() => {
+    const select=document.getElementById('ordenesFiltroContractual');
+    const estados=[...document.querySelectorAll('#ordenesTbody tr .col-contractual')]
+      .map(td=>td.textContent.trim()).filter(Boolean);
+    return estados.find(v=>[...select.options].some(o=>o.value===v)) || '';
+  });
+  expect(elegido).not.toBe('');
+
+  await page.selectOption('#ordenesFiltroContractual',{value:elegido});
+  await page.waitForFunction((wanted) => {
+    const rows=[...document.querySelectorAll('#ordenesTbody tr')].filter(r=>r.cells.length>1);
+    if(!rows.length)return false;
+    return rows.every(r=>(r.querySelector('.col-contractual')?.textContent||'').trim()===wanted);
+  }, elegido, { timeout: 10000 });
+
+  const estados=await page.locator('#ordenesTbody tr .col-contractual').allTextContents();
+  expect(estados.length).toBeGreaterThan(0);
+  expect(estados.every(v=>v.trim()===elegido)).toBe(true);
+});
+
 test('el dato UM se conserva en el modelo, el filtro y la exportación CSV', () => {
   expect(SOURCE).toContain('<label for="ordenesFiltroUM">UM vinculada</label>');
   expect(SOURCE).toContain("opt('ordenesFiltroUM',base.map(r=>r.um),'UM vinculada')");
