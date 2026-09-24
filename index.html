@@ -34838,6 +34838,10 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     }
     return fechaHora(registrada);
   }
+  function metaFechaEtapa(ev){
+    if(!ev)return 'Sin confirmación registrada';
+    return 'Fecha efectiva: '+fechaEventoUI(ev)+' · '+(texto(ev.usuario_email)||'—');
+  }
 
   // ------------------------------------------------------------ historial
   function confirmaciones(nro) {
@@ -34846,19 +34850,49 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     return historial;
   }
 
+  /* La traza contractual existe en dos familias historicas de eventos:
+     - "Circuito administrativo": confirmacion canonica actual.
+     - "Cambio de estado contractual": espejo/auditoria de writers previos.
+
+     Para reconstruir tarjetas NO alcanza con mirar literalmente
+     campo_modificado: algunas filas historicas guardan "estado_documental"
+     y dejan el nombre real de la etapa en valor_nuevo. Se resuelve siempre
+     contra el catalogo contractual canonico y se prioriza la confirmacion
+     "Circuito administrativo" cuando ambas filas representan el mismo paso. */
+  function codigoEtapaDesdeEvento(ev) {
+    const campo = texto(ev && ev.campo_modificado);
+    const directa = etapaPorCodigo(campo);
+    if (directa) return directa.codigo;
+    const porCampo = resolverEtapaCanonica(campo);
+    if (porCampo) return porCampo.codigo;
+    const porValor = resolverEtapaCanonica(ev && ev.valor_nuevo);
+    return porValor ? porValor.codigo : '';
+  }
+  function esTrazaConfirmacionContractual(ev) {
+    const tipo = fold(ev && ev.tipo_evento);
+    return tipo === fold('Circuito administrativo') || tipo === fold('Cambio de estado contractual');
+  }
+
   // Primera confirmacion de cada codigo. La PRIMERA, no la ultima: un
   // reingreso a una etapa ya recorrida no puede mover la fecha en que se
   // alcanzo por primera vez.
   function confirmacionPorCodigo(historial) {
-    const mapa = new Map();
+    const candidatos = new Map();
     (historial || [])
-      .filter((ev) => fold(ev && ev.tipo_evento) === fold('Circuito administrativo'))
+      .filter(esTrazaConfirmacionContractual)
       .slice()
       .sort((a, b) => new Date(a.fecha_evento || 0) - new Date(b.fecha_evento || 0))
       .forEach((ev) => {
-        const cod = texto(ev.campo_modificado);
-        if (cod && !mapa.has(cod)) mapa.set(cod, ev);
+        const cod = codigoEtapaDesdeEvento(ev);
+        if (!cod) return;
+        if (!candidatos.has(cod)) candidatos.set(cod, []);
+        candidatos.get(cod).push(ev);
       });
+    const mapa = new Map();
+    candidatos.forEach((rows, cod) => {
+      const canonica = rows.find((ev) => fold(ev && ev.tipo_evento) === fold('Circuito administrativo'));
+      mapa.set(cod, canonica || rows[0]);
+    });
     return mapa;
   }
 
@@ -35061,10 +35095,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
       '<span class="etapa1-cuerpo">' +
         '<span class="etapa1-nombre">' + esc(etapa.nombre) + '</span>' +
         '<span class="etapa1-estado">' + etiqueta + '</span>' +
-        '<span class="etapa1-meta">' +
-          (ev ? esc(fechaEventoUI(ev)) + ' · ' + esc(texto(ev.usuario_email) || '—')
-              : 'Sin confirmación registrada') +
-        '</span>' +
+        '<span class="etapa1-meta">' + esc(metaFechaEtapa(ev)) + '</span>' +
         '<span class="etapa1-dias">Días en etapa: ' + (dias == null ? '—' : dias) + '</span>' +
         (obsCount ? '<span class="etapa1-obs" data-etapa1-historial="' + esc(etapa.codigo) + '" role="button" tabindex="0" title="Abrir historial y observaciones">Observaciones: ' + obsCount + '</span>' : '') +
       '</span></button>';
@@ -35141,8 +35172,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
       ' data-etapa1-hito="' + esc(et.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '">' +
       '<span class="etapa1-cuerpo"><span class="etapa1-nombre">' + esc(nombreEtapaPorTipo(et,estado.orden)) + '</span>' +
       '<span class="etapa1-estado">' + (ev ? esc(estado.transversalTexto) : 'SIN REGISTRO') + '</span>' +
-      '<span class="etapa1-meta">' + (ev ? esc(fechaEventoUI(ev)) + ' · ' +
-        esc(texto(ev.usuario_email) || '—') : 'Registrable en cualquier momento') + '</span>' +
+      '<span class="etapa1-meta">' + (ev ? esc(metaFechaEtapa(ev)) : 'Registrable en cualquier momento') + '</span>' +
       '</span></button></div>';
   }
 
@@ -35155,8 +35185,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
         ' data-etapa1-hito="' + esc(et.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '"' +
         (bloqueada ? ' disabled' : '') + '>' +
         '<span class="etapa1-cuerpo"><span class="etapa1-nombre">' + esc(nombreEtapaPorTipo(et,estado.orden)) + '</span>' +
-        '<span class="etapa1-meta">' + (ev ? esc(fechaEventoUI(ev)) + ' · ' +
-          esc(texto(ev.usuario_email) || '—') : 'Sin confirmación registrada') + '</span>' +
+        '<span class="etapa1-meta">' + esc(metaFechaEtapa(ev)) + '</span>' +
         '</span></button>';
     }).join('');
     return '<div class="etapa1-panel" id="etapa1Panel2" data-etapa1-habilitada="' + (bloqueada ? 'no' : 'si') + '">' +
