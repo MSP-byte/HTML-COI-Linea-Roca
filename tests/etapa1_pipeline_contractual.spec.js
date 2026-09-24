@@ -123,3 +123,54 @@ test('E1-37 · producción · hito v3 queda remoto, muestra fecha y suma X/8 sin
   expect(r.avance).toBe('1 / 8');
   expect(r.meta).toContain('05/09/2026');
 });
+
+
+test('E1-38 · producción · avanzar de hito conserva cada fecha y deja como actual el más reciente',async({page})=>{
+  await preparar(page);
+  await page.goto('/index.html',{waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>typeof window.actualizarEstadoDocumentalDesdePasoContractual==='function'&&typeof window.__COI_CIRCUITO_CACHE_MERGE__==='function'&&typeof window.__COI_ETAPA1_RENDER__==='function',null,{timeout:20000});
+  const r=await page.evaluate(async({oc})=>{
+    window.APP_STATE=window.APP_STATE||{};
+    window.APP_STATE.role='coi';
+    window.APP_STATE.user={id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',email:'admin@coiroca.com'};
+    window.__COI_H14_PROFILE__={activo:true};
+    let localWrites=0;
+    window.guardarBaseLocal=()=>{localWrites++;return true;};
+    const baseResolver=window.resolverOrdenActual;
+    window.resolverOrdenActual=(x)=>{
+      const v=typeof x==='string'?x:(x&&(x.nro_oc||x.numeroOC||x.oc));
+      if(String(v||'').replace(/^OC[-_ ]*/i,'')===oc)return window.__E1__.orden;
+      return typeof baseResolver==='function'?baseResolver(x):null;
+    };
+    const etapas=window.CIRCUITO_ADMINISTRATIVO_ETAPAS||[];
+    const primera=etapas.find(e=>e.codigo==='pliegos_preparacion');
+    const segunda=etapas.find(e=>e.codigo==='pliegos_terminado_sin_solped');
+    await window.actualizarEstadoDocumentalDesdePasoContractual(oc,primera,{fechaEfectiva:'2026-09-05',observacion:'Primera etapa histórica',allowLocalFallback:false});
+    await new Promise(resolve=>setTimeout(resolve,8));
+    await window.actualizarEstadoDocumentalDesdePasoContractual(oc,segunda,{fechaEfectiva:'2026-09-08',observacion:'Segundo estado vigente',allowLocalFallback:false});
+    const hist=(window.__COI_CIRCUITO_CACHE_GET__(oc)||[]).filter(x=>x&&x.tipo_evento==='Circuito administrativo');
+    const fechas=Object.fromEntries(hist.map(x=>[x.campo_modificado,x.fecha_efectiva||'']));
+    const wrap=document.createElement('div');
+    wrap.innerHTML=window.__COI_ETAPA1_RENDER__(window.__E1__.orden);
+    const meta=codigo=>wrap.querySelector(`[data-etapa1-hito="${codigo}"] .etapa1-meta`)?.textContent||'';
+    return{
+      localWrites,
+      rpcV3:window.__E1__.rpc.filter(x=>x.nombre==='coi_confirmar_etapa_circuito_v3').length,
+      historial:hist.length,
+      fechas,
+      avance:wrap.querySelector('#etapa1Avance')?.textContent||'',
+      estadoActual:wrap.querySelector('#etapa1EstadoActual')?.textContent||'',
+      metaPrimera:meta('pliegos_preparacion'),
+      metaSegunda:meta('pliegos_terminado_sin_solped')
+    };
+  },{oc:OC});
+  expect(r.localWrites).toBe(0);
+  expect(r.rpcV3).toBe(2);
+  expect(r.historial).toBeGreaterThanOrEqual(2);
+  expect(r.fechas.pliegos_preparacion).toBe('2026-09-05');
+  expect(r.fechas.pliegos_terminado_sin_solped).toBe('2026-09-08');
+  expect(r.avance).toBe('2 / 8');
+  expect(r.metaPrimera).toContain('05/09/2026');
+  expect(r.metaSegunda).toContain('08/09/2026');
+  expect(r.estadoActual).toContain('PLIEGOS TERMINADO SIN SOLPED');
+});
