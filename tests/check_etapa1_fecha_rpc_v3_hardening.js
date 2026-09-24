@@ -17,7 +17,7 @@ assert(sql.includes('v_idempotente and p_fecha_efectiva is null'),'reapertura id
 assert(sql.includes("v_conflicto.motivo,'')))='conflicto'"),'resolución de conflicto debe depender del último marcador persistido');
 assert(html.includes('!etapaCanonica && estado.hitoActual'),'hitoActual sólo es fallback sin estado canónico');
 assert(html.includes('const desdeDia=ordinalDiaBuenosAires'),'orden entre hitos debe comparar días administrativos');
-assert((html.match(/const returnedIds=new Set/g)||[]).length>=2,'ambos wrappers deben reemplazar filas cacheadas por id');
+assert(html.includes('function fusionarHistorialCircuitoConfirmado') && html.includes('const ids=new Set(confirmadas.map') && html.includes('fusionarHistorialCircuitoConfirmado(nro,result.data?.historial)') && html.includes('window.__COI_CIRCUITO_CACHE_MERGE__=fusionarHistorialCircuitoConfirmado') && html.includes('window.__COI_CIRCUITO_CACHE_MERGE__(nro,rows)'), 'ambos writers contractuales deben converger en el merge canónico por id');
 assert(sql.includes("translate(upper(trim(coalesce(v_current,'')))"),'estado vigente legacy debe normalizarse antes de decidir edición/reingreso');
 assert(html.includes('const eventoVigente=confirmacionVigente'),'edición vigente debe resolver la última confirmación del código');
 assert(html.includes('fechaInputEvento(eventoVigente)'),'modal vigente debe precargar la fila que v3 realmente edita');
