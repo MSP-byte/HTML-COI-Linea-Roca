@@ -2259,6 +2259,7 @@ html[data-coi-orders-state="error"] .coi-orders-startup-card{border-color:#efccc
         <div class="ordenes-filtros-principales">
           <div class="ordenes-filtro-group"><label for="ordenesBusqueda">Buscar</label><input id="ordenesBusqueda" type="search" placeholder="ID, OC, proveedor, estación, tipo, estado, sector o UM"></div>
           <div class="ordenes-filtro-group"><label for="ordenesFiltroTipo">Tipo</label><select id="ordenesFiltroTipo"><option value="">Todos los tipos</option><option>Obra</option><option>Servicio</option></select></div>
+          <div class="ordenes-filtro-group"><label for="ordenesFiltroContractual">Estado contractual</label><select id="ordenesFiltroContractual"><option value="">Todos los estados contractuales</option></select></div>
           <div class="ordenes-filtro-group"><label for="ordenesFiltroEstacion">Estación</label><select id="ordenesFiltroEstacion"><option value="">Todas las estaciones</option></select></div>
           <div class="ordenes-filtro-group"><label for="ordenesFiltroProveedor">Proveedor</label><select id="ordenesFiltroProveedor"><option value="">Todos los proveedores</option></select></div>
           <div class="ordenes-filtro-group"><label for="ordenesFiltroUM">UM vinculada</label><select id="ordenesFiltroUM"><option value="">Todas las UM</option></select></div>
@@ -19068,11 +19069,11 @@ function coiFiltrarPorRegistro(rows){
 function obtenerOrdenesFiltradas(){
   asegurarSelectorOrdenVencimiento();
   const rows=coiFiltrarPorRegistro([...getRowsFinal()]);
-  const q=fold($('ordenesBusqueda')?.value),typeValue=clean($('ordenesFiltroTipo')?.value),wanted=typeValue?normalizarTipoFinal(typeValue):'',est=fold($('ordenesFiltroEstacion')?.value),prov=fold($('ordenesFiltroProveedor')?.value),state=fold($('ordenesFiltroEstado')?.value),um=fold($('ordenesFiltroUM')?.value),doc=fold($('ordenesFiltroDoc')?.value),ordenVencimiento=clean($('ordenesFiltroMesVenc')?.value),ordenMonto=clean($('ordenMontoOrden')?.value),onlyActive=fold($('uxOrderContext')?.textContent).includes('SOLO OCS ACTIVAS');
+  const q=fold($('ordenesBusqueda')?.value),typeValue=clean($('ordenesFiltroTipo')?.value),wanted=typeValue?normalizarTipoFinal(typeValue):'',est=fold($('ordenesFiltroEstacion')?.value),prov=fold($('ordenesFiltroProveedor')?.value),state=fold($('ordenesFiltroEstado')?.value),um=fold($('ordenesFiltroUM')?.value),doc=fold($('ordenesFiltroDoc')?.value),contractual=fold($('ordenesFiltroContractual')?.value),ordenVencimiento=clean($('ordenesFiltroMesVenc')?.value),ordenMonto=clean($('ordenMontoOrden')?.value),onlyActive=fold($('uxOrderContext')?.textContent).includes('SOLO OCS ACTIVAS');
   const filtered=rows.filter(row=>{
-    const type=clasificarOrdenFinal(row),station=clean(field(row,['estacion'],'')),provider=clean(field(row,['proveedor','PROVEEDOR','razon_social','razonSocial'],'')),sec=clean(field(row,['sector'],'')),umv=clean(field(row,['umVinculada','um_vinculada','unidadMantenimiento','especialidad'],'')),st=clean(field(row,['estado_coi','estadoCOI','estado'],'')),docv=clean(field(row,['estadoDocumental','estado_documental'],''));
-    const text=fold([rowId(row),rowOC(row),type,station,provider,sec,umv,field(row,['tipoTrabajo','tipo_trabajo','descripcion'],''),st,docv].join(' '));
-    return(!q||text.includes(q))&&(!wanted||type===wanted)&&(!est||fold(station)===est)&&(!prov||fold(provider)===prov)&&(!state||fold(st)===state)&&(!um||fold(umv)===um)&&(!doc||fold(docv)===doc)&&(!onlyActive||isActive(row));
+    const type=clasificarOrdenFinal(row),station=clean(field(row,['estacion'],'')),provider=clean(field(row,['proveedor','PROVEEDOR','razon_social','razonSocial'],'')),sec=clean(field(row,['sector'],'')),umv=clean(field(row,['umVinculada','um_vinculada','unidadMantenimiento','especialidad'],'')),st=clean(field(row,['estado_coi','estadoCOI','estado'],'')),docv=clean(field(row,['estadoDocumental','estado_documental'],'')),contractualActual=fold(estadoContractualOrden(row));
+    const text=fold([rowId(row),rowOC(row),type,station,provider,sec,umv,field(row,['tipoTrabajo','tipo_trabajo','descripcion'],''),st,docv,estadoContractualOrden(row)].join(' '));
+    return(!q||text.includes(q))&&(!wanted||type===wanted)&&(!est||fold(station)===est)&&(!prov||fold(provider)===prov)&&(!state||fold(st)===state)&&(!um||fold(umv)===um)&&(!doc||fold(docv)===doc)&&(!contractual||contractualActual===contractual)&&(!onlyActive||isActive(row));
   });
   return ordenMonto?ordenarOrdenesPorMonto(filtered,ordenMonto):ordenarOrdenesPorVencimiento(filtered,ordenVencimiento);
 }
@@ -19113,6 +19114,21 @@ function estadoContractualOrden(row){
   return 'Sin iniciar';
 }
 window.obtenerEstadoContractualOrden=estadoContractualOrden;
+function cargarFiltroEstadoContractualOrdenes(){
+  const select=$('ordenesFiltroContractual');if(!select)return;
+  const actual=fold(select.value);
+  const etapas=(Array.isArray(window.CIRCUITO_ADMINISTRATIVO_ETAPAS)?window.CIRCUITO_ADMINISTRATIVO_ETAPAS:[]).map(e=>({...e}));
+  const extra=window.ESTADO_FINALIZADA_SALDO_REMANENTE?{...window.ESTADO_FINALIZADA_SALDO_REMANENTE}:null;
+  if(extra&&!etapas.some(e=>e.codigo===extra.codigo))etapas.push(extra);
+  const corte=Math.max(0,etapas.findIndex(e=>e.codigo==='control_terceros_con_acta'));
+  const etapa1=etapas.slice(0,corte+1),etapa2=etapas.slice(corte+1);
+  const option=e=>`<option value="${esc(clean(e.nombre))}">${esc(clean(e.nombre))}</option>`;
+  select.innerHTML='<option value="">Todos los estados contractuales</option><option value="Sin iniciar">Sin iniciar</option>'
+    +(etapa1.length?`<optgroup label="1° Etapa">${etapa1.map(option).join('')}</optgroup>`:'')
+    +(etapa2.length?`<optgroup label="2° Etapa / cierre">${etapa2.map(option).join('')}</optgroup>`:'');
+  const match=[...select.options].find(o=>fold(o.value)===actual);if(match)select.value=match.value;
+}
+window.cargarFiltroEstadoContractualOrdenes=cargarFiltroEstadoContractualOrdenes;
 function proximaCertificacionFinal(row,indiceCanonico){
   try{
     const oc=rowOC(row),fuente=(indiceCanonico&&oc&&indiceCanonico.get(oc))||row||{};
@@ -19135,6 +19151,7 @@ function renderOrdersFinal(){
   if(orderRenderBusy)return;orderRenderBusy=true;
   try{
     try{if(typeof window.cargarFiltrosOrdenes==='function')window.cargarFiltrosOrdenes();}catch(e){console.warn('COI filtros Órdenes',e);}
+    cargarFiltroEstadoContractualOrdenes();
     const table=document.querySelector('#vistaOrdenes table.ordenes-table'),tbody=$('ordenesTbody');if(!table||!tbody)return;
     const rows=obtenerOrdenesFiltradas();
     const indiceCanonico=indiceProyeccionOrdenesFinal();
@@ -19164,7 +19181,7 @@ function renderOrdersFinal(){
 function scheduleOrders(){if(orderRenderScheduled)return;orderRenderScheduled=true;requestAnimationFrame(renderOrdersFinal);}
 function aplicarFiltrosOrdenes(){scheduleOrders();}
 function limpiarFiltrosOrdenes(){
-  ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert','ordenMontoOrden'].forEach(id=>{const element=$(id);if(element)element.value='';});
+  ['ordenesBusqueda','ordenesFiltroTipo','ordenesFiltroContractual','ordenesFiltroEstacion','ordenesFiltroProveedor','ordenesFiltroEstado','ordenesFiltroSector','ordenesFiltroUM','ordenesFiltroDoc','ordenesFiltroMesVenc','ordenesFiltroMesCert','ordenMontoOrden'].forEach(id=>{const element=$(id);if(element)element.value='';});
   const context=$('uxOrderContext');if(context){context.hidden=true;context.innerHTML='';}
   renderOrdersFinal();
 }
