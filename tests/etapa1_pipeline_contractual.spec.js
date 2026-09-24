@@ -174,3 +174,70 @@ test('E1-38 · producción · avanzar de hito conserva cada fecha y deja como ac
   expect(r.metaSegunda).toContain('08/09/2026');
   expect(r.estadoActual).toContain('PLIEGOS TERMINADO SIN SOLPED');
 });
+
+
+test('E1-39 · producción · 2° Etapa conserva fecha propia al avanzar ejecución → finalizada → cierre con actas',async({page})=>{
+  await preparar(page,{fecha_acta_inicio:'2026-09-01'});
+  await page.goto('/index.html',{waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>typeof window.actualizarEstadoDocumentalDesdePasoContractual==='function'&&typeof window.__COI_ETAPA1_RENDER__==='function',null,{timeout:20000});
+  const r=await page.evaluate(async({oc})=>{
+    window.APP_STATE=window.APP_STATE||{};
+    window.APP_STATE.role='coi';
+    window.APP_STATE.user={id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',email:'admin@coiroca.com'};
+    window.__COI_H14_PROFILE__={activo:true};
+    let localWrites=0;
+    window.guardarBaseLocal=()=>{localWrites++;return true;};
+    const baseResolver=window.resolverOrdenActual;
+    window.resolverOrdenActual=(x)=>{
+      const v=typeof x==='string'?x:(x&&(x.nro_oc||x.numeroOC||x.oc));
+      if(String(v||'').replace(/^OC[-_ ]*/i,'')===oc)return window.__E1__.orden;
+      return typeof baseResolver==='function'?baseResolver(x):null;
+    };
+    const etapas=window.CIRCUITO_ADMINISTRATIVO_ETAPAS||[];
+    const ejecucion=etapas.find(e=>e.codigo==='ejecucion');
+    const finalizada=etapas.find(e=>e.codigo==='finalizada');
+    const cierre=etapas.find(e=>e.codigo==='finalizada_actas');
+    await window.actualizarEstadoDocumentalDesdePasoContractual(oc,ejecucion,{fechaEfectiva:'2026-09-10',observacion:'Inicio ejecución',allowLocalFallback:false});
+    await window.actualizarEstadoDocumentalDesdePasoContractual(oc,finalizada,{fechaEfectiva:'2026-09-20',observacion:'Finalización',allowLocalFallback:false});
+    await window.actualizarEstadoDocumentalDesdePasoContractual(oc,cierre,{fechaEfectiva:'2026-09-24',observacion:'Cierre con actas',allowLocalFallback:false});
+    const hist=(window.__COI_CIRCUITO_CACHE_GET__(oc)||[]).filter(x=>x&&x.tipo_evento==='Circuito administrativo');
+    const wrap=document.createElement('div');
+    wrap.innerHTML=window.__COI_ETAPA1_RENDER__(window.__E1__.orden);
+    const meta=codigo=>wrap.querySelector(`#etapa1Panel2 [data-etapa1-hito="${codigo}"] .etapa1-meta`)?.textContent||'';
+    const fechas=Object.fromEntries(hist.map(x=>[x.campo_modificado,x.fecha_efectiva||'']));
+    return{
+      localWrites,
+      rpcV3:window.__E1__.rpc.filter(x=>x.nombre==='coi_confirmar_etapa_circuito_v3').length,
+      fechas,
+      ejecucion:meta('ejecucion'),
+      finalizada:meta('finalizada'),
+      cierre:meta('finalizada_actas')
+    };
+  },{oc:OC});
+  expect(r.localWrites).toBe(0);
+  expect(r.rpcV3).toBe(3);
+  expect(r.fechas.ejecucion).toBe('2026-09-10');
+  expect(r.fechas.finalizada).toBe('2026-09-20');
+  expect(r.fechas.finalizada_actas).toBe('2026-09-24');
+  expect(r.ejecucion).toContain('Fecha efectiva: 10/09/2026');
+  expect(r.finalizada).toContain('Fecha efectiva: 20/09/2026');
+  expect(r.cierre).toContain('Fecha efectiva: 24/09/2026');
+});
+
+test('E1-40 · 2° Etapa reconstruye fecha desde traza histórica Cambio de estado contractual',async({page})=>{
+  const legacy={
+    id:'legacy-finalizada',
+    orden_id:ORDEN_ID,
+    nro_oc:OC,
+    tipo_evento:'Cambio de estado contractual',
+    campo_modificado:'estado_documental',
+    valor_nuevo:'OBRA/SERVICIO FINALIZADA',
+    fecha_evento:'2026-09-20T13:15:00Z',
+    fecha_efectiva:'2026-09-20',
+    usuario_email:EMAIL
+  };
+  await setup(page,{fecha_acta_inicio:'2026-09-01',estado_coi:'OBRA/SERVICIO FINALIZADA',historial:[legacy]});
+  const meta=await page.locator('#etapa1Panel2 [data-etapa1-hito="finalizada"] .etapa1-meta').textContent();
+  expect(meta).toContain('Fecha efectiva: 20/09/2026');
+  expect(meta).toContain(EMAIL);
+});
