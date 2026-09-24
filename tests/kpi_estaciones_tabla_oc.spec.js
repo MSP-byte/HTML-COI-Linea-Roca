@@ -170,12 +170,14 @@ test('los renderizadores activos de la tabla de OC mantienen encabezados y celda
     const thead = render.slice(render.indexOf('<tr><th class="col-sel">'), render.indexOf('</tr>'));
     const inicioFila = render.indexOf('<tr class="ordenes-row-clickable');
     const fila = render.slice(inicioFila, render.indexOf('</tr>', inicioFila));
-    expect(contar(thead, '<th')).toBe(14);
-    expect(contar(fila, '<td')).toBe(14);
+    expect(contar(thead, '<th')).toBe(15);
+    expect(contar(fila, '<td')).toBe(15);
+    expect(thead).toContain('<th class="col-contractual">Estado contractual</th>');
+    expect(fila).toContain('<td class="col-contractual"');
     expect(render).not.toContain('col-um');
-    // La fila de "sin resultados" cubre exactamente las columnas visibles.
-    expect(render).toContain('<td colspan="14">Sin resultados para los filtros seleccionados.</td>');
-    expect(render).not.toContain('<td colspan="15">');
+    // La fila de "sin resultados" cubre exactamente las 15 columnas visibles.
+    expect(render).toContain('<td colspan="15">Sin resultados para los filtros seleccionados.</td>');
+    expect(render).not.toContain('<td colspan="14">Sin resultados para los filtros seleccionados.</td>');
   }
 });
 
@@ -235,10 +237,11 @@ test('la tabla de OC se renderiza con % AVANCE y última Acta MED, sin columna U
   expect(tabla.headers).not.toContain('Sector');
   expect(tabla.headers).not.toContain('Estado COI');
   expect(tabla.headers).toContain('Tipo de trabajo');
+  expect(tabla.headers).toContain('Estado contractual');
   expect(tabla.headers).toContain('% AVANCE');
   expect(tabla.headers).toContain('ULT. ACTA MED Nº');
   expect(tabla.hayColUm).toBe(false);
-  expect(tabla.headers.length).toBeGreaterThanOrEqual(14);
+  expect(tabla.headers.length).toBeGreaterThanOrEqual(15);
   // El filtro por UM sigue disponible: se quitó la columna, no la funcionalidad.
   expect(tabla.filtroUM).toBe(true);
   expect(tabla.tbody).toBe(true);

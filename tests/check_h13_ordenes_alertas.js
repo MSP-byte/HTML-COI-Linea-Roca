@@ -26,6 +26,11 @@ assert(html.includes("b.type='button'"), 'retry de Acta debe usar type=button');
 assert(html.includes("b.addEventListener('click',b._h13RetryClick)"), 'retry de Acta debe usar addEventListener en el botón');
 assert(html.includes("await pageBy('nro_oc',ocs)"), 'fallback legacy debe consultar nro_oc también para órdenes con UUID');
 assert(html.includes("else better(bestLegacyOc,text(r.nro_oc),r)"), 'fallback legacy sólo debe aceptar Actas sin orden_id');
+assert(html.includes('function estadoContractualOrden(row)'), 'Órdenes debe tener un resolver explícito de Estado contractual');
+assert(html.includes('obtenerPasoContractualDesdeEstadoDocumental'), 'Estado contractual debe resolverse contra el circuito canónico, no texto libre');
+assert(html.includes('col-contractual">Estado contractual'), 'la tabla de Órdenes debe mostrar la columna Estado contractual');
+assert(html.includes("'Estado contractual','Estado COI'"), 'Exportar CSV debe incluir Estado contractual');
+assert(html.includes('window.obtenerEstadoContractualOrden=estadoContractualOrden'), 'el resolver contractual debe quedar disponible para todas las capas de Órdenes');
 
 // Cierre H13: protege hidratación autoritativa, asociación estable, lectura paginada y retry sin onclick.
 console.log('H13 ordenes/alertas static regression: OK');
