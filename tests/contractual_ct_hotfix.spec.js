@@ -385,7 +385,7 @@ test('éxito Supabase de CT actualiza fecha, estado, KPI, contractual y alertas'
   expect(state.writes[0]).toMatchObject({ name: 'coi_guardar_orden_integral' });
 });
 
-test('circuito contractual conserva estado local si Supabase rechaza y muta sólo tras confirmar', async ({ page }) => {
+test('circuito contractual no escribe local y muta sólo tras confirmación Supabase', async ({ page }) => {
   await openFixture(page);
   const rejected = await page.evaluate(async orderNumber => {
     const state = window.__HOTFIX_STATE__;
@@ -411,7 +411,7 @@ test('circuito contractual conserva estado local si Supabase rechaza y muta sól
   state = await stateSnapshot(page);
   expect(state.persistedDocumentState).toBe('OBRA/SERVICIO EN EJECUCIÓN');
   expect(state.documentState).toBe('OBRA/SERVICIO EN EJECUCIÓN');
-  expect(state.localWrites).toBeGreaterThan(0);
+  expect(state.localWrites).toBe(0);
 });
 
 test('Editar OC deriva y persiste fecha y estado de Control de Terceros', async ({ page }) => {
