@@ -64,8 +64,11 @@ check(css.includes('html[data-coi-orders-state="error"] #vistaOrdenes .view-body
 check(css.includes('html[data-coi-orders-state="listo"] #coiOrdersStartupGate'),
   'el gate debe retirarse solo al llegar a listo');
 
-check(html.includes("function renderOrdersFinal(){\n  if(window.__COI_ORDERS_STARTUP_GATE__&&!window.__COI_ORDERS_STARTUP_GATE__.allowRender()){orderRenderScheduled=false;return;}"),
-  'el renderer final debe cortar antes de leer/renderizar filas no autoritativas');
+check(html.includes("function renderOrdersFinal(){\n  const h06=window.__COI_H06_ORDENES__;")&&
+      html.includes("orderRenderScheduled=false;\n    if(h06?.reconciliarModelo?.()===true)return;"),
+  'el renderer final debe autocorregir el modelo degradado antes de leer/renderizar filas');
+check(html.includes("if(window.__COI_ORDERS_STARTUP_GATE__&&!window.__COI_ORDERS_STARTUP_GATE__.allowRender()){orderRenderScheduled=false;return;}"),
+  'el renderer final debe seguir bloqueado hasta que el gate autoritativo permita pintar');
 check(html.includes("function renderOrdenesV581R(){\n    const h06=window.__COI_H06_ORDENES__;")&&
       html.includes("h06?.lecturaActualConfirmada?.()===true && h06?.modeloOperativoIntegro?.()===false")&&
       html.includes("if(h06?.reconciliarModelo?.()===true)return;"),
