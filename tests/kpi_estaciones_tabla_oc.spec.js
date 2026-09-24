@@ -181,6 +181,17 @@ test('los renderizadores activos de la tabla de OC mantienen encabezados y celda
   }
 });
 
+test('Estado contractual tiene filtro canónico con etapas de 1° y 2° etapa', () => {
+  expect(SOURCE).toContain('<label for="ordenesFiltroContractual">Estado contractual</label>');
+  expect(SOURCE).toContain('function cargarFiltroEstadoContractualOrdenes()');
+  expect(SOURCE).toContain('<optgroup label="1° Etapa">');
+  expect(SOURCE).toContain('<optgroup label="2° Etapa / cierre">');
+  const filtro = bloque('function obtenerOrdenesFiltradas()', 'function selectionChecked(');
+  expect(filtro).toContain("contractual=fold($('ordenesFiltroContractual')?.value)");
+  expect(filtro).toContain('contractualActual=fold(estadoContractualOrden(row))');
+  expect(filtro).toContain('(!contractual||contractualActual===contractual)');
+});
+
 test('el dato UM se conserva en el modelo, el filtro y la exportación CSV', () => {
   expect(SOURCE).toContain('<label for="ordenesFiltroUM">UM vinculada</label>');
   expect(SOURCE).toContain("opt('ordenesFiltroUM',base.map(r=>r.um),'UM vinculada')");
@@ -226,6 +237,8 @@ test('la tabla de OC se renderiza con % AVANCE y última Acta MED, sin columna U
       celdas: fila ? fila.cells.length : null,
       hayColUm: !!t.querySelector('.col-um'),
       filtroUM: !!document.getElementById('ordenesFiltroUM'),
+      filtroContractual: !!document.getElementById('ordenesFiltroContractual'),
+      estadosContractuales: [...(document.getElementById('ordenesFiltroContractual')?.options || [])].map(o => o.textContent.trim()),
       tbody: !!document.getElementById('ordenesTbody')
     };
   });
@@ -244,6 +257,11 @@ test('la tabla de OC se renderiza con % AVANCE y última Acta MED, sin columna U
   expect(tabla.headers.length).toBeGreaterThanOrEqual(15);
   // El filtro por UM sigue disponible: se quitó la columna, no la funcionalidad.
   expect(tabla.filtroUM).toBe(true);
+  expect(tabla.filtroContractual).toBe(true);
+  expect(tabla.estadosContractuales).toContain('Sin iniciar');
+  expect(tabla.estadosContractuales).toContain('PLIEGOS EN PREPARACION');
+  expect(tabla.estadosContractuales).toContain('OBRA/SERVICIO EN EJECUCION');
+  expect(tabla.estadosContractuales).toContain('OBRA/SERVICIO FINALIZADA');
   expect(tabla.tbody).toBe(true);
   // Encabezados y celdas alineados.
   if (tabla.celdas !== null) expect(tabla.celdas).toBe(tabla.headers.length);
