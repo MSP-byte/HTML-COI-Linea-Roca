@@ -38,6 +38,9 @@ check(headScript.includes("const identityMatches=observedAuthUid===null||(observ
   'un snapshot H06 solo puede reutilizarse si pertenece a la identidad Auth observada');
 check(headScript.includes("if(!identityMatches){setState('pendiente');return;}"),
   'un cambio o cierre de sesión debe mantener el gate cerrado mientras H06 invalida/adopta identidad');
+check(headScript.includes("if(confirmed && integrity===false)")&&
+      headScript.includes("api.reconciliarModelo?.()"),
+  'si el modelo en memoria se degrada después de una lectura confirmada, el gate debe cerrarse y reconciliarlo');
 check(headScript.includes("if(!uid||(readyUid&&uid!==readyUid))"),
   'un cambio real de identidad debe limpiar el UID previamente autorizado');
 check(headScript.includes('window.recargarDatosDesdeSupabase||window.cargarOrdenesPrincipal'),
@@ -61,10 +64,17 @@ check(css.includes('html[data-coi-orders-state="error"] #vistaOrdenes .view-body
 check(css.includes('html[data-coi-orders-state="listo"] #coiOrdersStartupGate'),
   'el gate debe retirarse solo al llegar a listo');
 
-check(html.includes("function renderOrdersFinal(){\n  if(window.__COI_ORDERS_STARTUP_GATE__&&!window.__COI_ORDERS_STARTUP_GATE__.allowRender()){orderRenderScheduled=false;return;}"),
-  'el renderer final debe cortar antes de leer/renderizar filas no autoritativas');
-check(html.includes("function renderOrdenesV581R(){\n    if(window.__COI_ORDERS_STARTUP_GATE__&&!window.__COI_ORDERS_STARTUP_GATE__.allowRender())return;"),
-  'el renderer V58.1R también debe quedar bloqueado durante hidratación');
+check(html.includes("function renderOrdersFinal(){\n  const h06=window.__COI_H06_ORDENES__;")&&
+      html.includes("orderRenderScheduled=false;\n    if(h06?.reconciliarModelo?.()===true)return;"),
+  'el renderer final debe autocorregir el modelo degradado antes de leer/renderizar filas');
+check(html.includes("if(window.__COI_ORDERS_STARTUP_GATE__&&!window.__COI_ORDERS_STARTUP_GATE__.allowRender()){orderRenderScheduled=false;return;}"),
+  'el renderer final debe seguir bloqueado hasta que el gate autoritativo permita pintar');
+check(html.includes("function renderOrdenesV581R(){\n    const h06=window.__COI_H06_ORDENES__;")&&
+      html.includes("h06?.lecturaActualConfirmada?.()===true && h06?.modeloOperativoIntegro?.()===false")&&
+      html.includes("if(h06?.reconciliarModelo?.()===true)return;"),
+  'el renderer V58.1R debe autocorregir un modelo degradado antes de pintar filas');
+check(html.includes("if(window.__COI_ORDERS_STARTUP_GATE__&&!window.__COI_ORDERS_STARTUP_GATE__.allowRender())return;"),
+  'el renderer V58.1R debe seguir bloqueado durante hidratación');
 
 check(headScript.includes("location.hostname==='127.0.0.1'&&location.port==='4173'&&navigator.webdriver===true"),
   'el Quality Gate Chromium debe conservar su bypass controlado');
@@ -138,6 +148,18 @@ check(html.includes("authUser: session.user"),
   'SIGNED_IN debe propagar la identidad Auth sin volver a consultar getSession');
 check(html.includes("metrics.ordersAuthoritativeReady=performance.now();"),
   'el arranque debe exponer una métrica verificable de primera lectura autoritativa');
+check(html.includes("function modeloOrdenesCoincideConConfirmadas()")&&
+      html.includes("function reconciliarOrdenesConfirmadas()"),
+  'H06 debe comparar el modelo operativo vivo contra el snapshot remoto confirmado y poder restaurarlo');
+check(html.includes("modeloOperativoIntegro: () => modeloOrdenesCoincideConConfirmadas()")&&
+      html.includes("reconciliarModelo: () => reconciliarOrdenesConfirmadas()"),
+  'el contrato H06 debe exponer integridad y reconciliación al gate/renderer');
+check(html.includes("window.__COI_APP_BOOTSTRAP_COMPLETE__=true")&&
+      html.includes("window.dispatchEvent(new CustomEvent('coi:app-bootstrap-complete'))"),
+  'la inicialización general debe anunciar cuando terminó de tocar el modelo operativo');
+check(html.includes("window.addEventListener('coi:app-bootstrap-complete'")&&
+      html.includes("if (ordenesLecturaEstado === 'listo') reconciliarOrdenesConfirmadas();"),
+  'si Supabase terminó antes que el bootstrap legacy, el snapshot confirmado debe reaplicarse al finalizar la inicialización');
 
 console.log('Startup authoritative loading gate: OK');
 console.log('  Primer paint : sin filas legacy/parciales');
