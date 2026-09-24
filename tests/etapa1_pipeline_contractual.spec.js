@@ -18,7 +18,7 @@ async function preparar(page,opciones={}){
   const orden=Object.assign({id:ordenId,nro_oc:oc,numeroOC:oc,oc,id_obra:'OBRA-'+oc,tipo:'Servicio',descripcion:'Servicio E1',proveedor:'PROVEEDOR E1',estacion:'PLAZA CONSTITUCION',estado_coi:c.estado_coi,estado_documental:c.estado_coi,fecha_acta_inicio:c.fecha_acta_inicio,monto_total:1000,moneda:'ARS'},c.ordenExtra||{});
   window.__E1__={rpc:[],historial:c.historial.slice(),orden};
   function consulta(tabla){const datos=()=>tabla==='coi_ordenes'?[orden]:tabla==='coi_historial_oc'?window.__E1__.historial:[];const api={select(){return api},order(){return api},limit(){return api},range(){return api},in(){return api},is(){return api},ilike(){return api},gt(){return api},eq(){return api},single:async()=>({data:datos()[0]||null,error:null}),then(res,rej){return Promise.resolve({data:datos().map(x=>Object.assign({},x)),error:null}).then(res,rej)}};return api}
-  const fake={from:t=>consulta(t),rpc:async(nombre,args)=>{window.__E1__.rpc.push({nombre,args:JSON.parse(JSON.stringify(args||{}))});if(nombre==='coi_current_role')return{data:'administrador',error:null};if(nombre!=='coi_confirmar_etapa_circuito_v2')return{data:null,error:null};if(c.demoraRpc)await new Promise(r=>setTimeout(r,c.demoraRpc));if(c.fallaRpc)return{data:null,error:{code:'42501',message:'fixture E1: escritura rechazada'}};const codigo=args.p_codigo;const ev={id:'ev-'+codigo+'-'+Date.now(),orden_id:ordenId,nro_oc:oc,tipo_evento:'Circuito administrativo',campo_modificado:codigo,fecha_evento:new Date().toISOString(),usuario_email:email,motivo:args.p_observacion||null};window.__E1__.historial.push(ev);return{data:{orden,historial:[ev],codigo,nombre:codigo,ya_confirmada:false},error:null}},auth:{getSession:async()=>({data:{session:{user:{id:uid,email}}},error:null}),getUser:async()=>({data:{user:{id:uid,email}},error:null}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})}};
+  const fake={from:t=>consulta(t),rpc:async(nombre,args)=>{window.__E1__.rpc.push({nombre,args:JSON.parse(JSON.stringify(args||{}))});if(nombre==='coi_current_role')return{data:'administrador',error:null};if(!['coi_confirmar_etapa_circuito_v2','coi_confirmar_etapa_circuito_v3'].includes(nombre))return{data:null,error:null};if(c.demoraRpc)await new Promise(r=>setTimeout(r,c.demoraRpc));if(c.fallaRpc)return{data:null,error:{code:'42501',message:'fixture E1: escritura rechazada'}};const codigo=args.p_codigo;const ev={id:'ev-'+codigo+'-'+Date.now(),orden_id:ordenId,nro_oc:oc,tipo_evento:'Circuito administrativo',campo_modificado:codigo,fecha_evento:new Date().toISOString(),fecha_efectiva:args.p_fecha_efectiva||null,usuario_email:email,motivo:args.p_observacion||null};window.__E1__.historial.push(ev);return{data:{orden,historial:[ev],codigo,nombre:codigo,ya_confirmada:false},error:null}},auth:{getSession:async()=>({data:{session:{user:{id:uid,email}}},error:null}),getUser:async()=>({data:{user:{id:uid,email}},error:null}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})}};
   window.__COI_SUPABASE_CLIENT__=fake;window.getSupabaseClient=()=>fake;window.initSupabase=async()=>fake;window.getUsuarioActual=async()=>({id:uid,email});window.getUsuarioActualR12=async()=>({id:uid,email});window.esAutorizacionAdministrativaSupabaseV60=()=>true;
  },{c,uid:UID,email:EMAIL,oc:OC,ordenId:ORDEN_ID});
 }
@@ -82,3 +82,44 @@ test('E1-28 · F3 · una conciliación exitosa posterior limpia la advertencia',
  test('E1-34 · conflicto persistido se reconstruye desde historial remoto',async({page})=>{await setup(page,{fecha_acta_inicio:'2026-03-10',historial:[EVENTO(ACTA,'2026-09-15T10:00:00Z'),CONFLICTO('2026-09-15T10:00:01Z','2026-03-10','2026-09-15')]});await expect(page.locator('#etapa1AvisoConflictoActa')).toBeVisible();await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>typeof window.__COI_ETAPA1_RENDER__==='function');await page.evaluate(()=>{window.actualizarEstadoDocumentalDesdePasoContractual=async()=>({});});await pintar(page);await expect(page.locator('#etapa1AvisoConflictoActa')).toBeVisible()});
  test('E1-35 · Escape durante await no aplica respuesta a otro modal',async({page})=>{await setup(page,{demoraRpc:400});await page.click('[data-etapa1-hito="pliegos_preparacion"]');await page.click('#etapa1ModalConfirmarBtn');await page.keyboard.press('Escape');await page.waitForTimeout(650);expect(await page.locator('#etapa1ModalConfirmar').count()).toBe(0);expect(await rpcConfirmaciones(page)).toHaveLength(1)});
  test('E1-36 · repintado asíncrono rechaza host de UUID distinto',async({page})=>{await setup(page);const r=await page.evaluate(()=>{const h=document.getElementById('etapa1PipelineContractual');h.setAttribute('data-etapa1-orden-id','cccccccc-cccc-4ccc-8ccc-cccccccccccc');const antes=h.outerHTML;const ok=window.__COI_ETAPA1_REPINTAR__(window.__E1__.orden,window.__E1__.orden.id);return{ok,igual:document.getElementById('etapa1PipelineContractual').outerHTML===antes};});expect(r.ok).toBe(false);expect(r.igual).toBe(true)});
+
+
+test('E1-37 · producción · hito v3 queda remoto, muestra fecha y suma X/8 sin guardar local',async({page})=>{
+  await preparar(page);
+  await page.goto('/index.html',{waitUntil:'domcontentloaded'});
+  await page.waitForFunction(()=>typeof window.actualizarEstadoDocumentalDesdePasoContractual==='function'&&typeof window.__COI_CIRCUITO_CACHE_MERGE__==='function'&&typeof window.__COI_ETAPA1_RENDER__==='function',null,{timeout:20000});
+  const r=await page.evaluate(async({oc})=>{
+    window.APP_STATE=window.APP_STATE||{};
+    window.APP_STATE.role='coi';
+    window.APP_STATE.user={id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',email:'admin@coiroca.com'};
+    window.__COI_H14_PROFILE__={activo:true};
+    let localWrites=0;
+    window.guardarBaseLocal=()=>{localWrites++;return true;};
+    const baseResolver=window.resolverOrdenActual;
+    window.resolverOrdenActual=(x)=>{
+      const v=typeof x==='string'?x:(x&&(x.nro_oc||x.numeroOC||x.oc));
+      if(String(v||'').replace(/^OC[-_ ]*/i,'')===oc)return window.__E1__.orden;
+      return typeof baseResolver==='function'?baseResolver(x):null;
+    };
+    const etapa=(window.CIRCUITO_ADMINISTRATIVO_ETAPAS||[]).find(e=>e.codigo==='pliegos_preparacion');
+    await window.actualizarEstadoDocumentalDesdePasoContractual(oc,etapa,{fechaEfectiva:'2026-09-05',observacion:'Registro real v3',allowLocalFallback:false});
+    const hist=window.__COI_CIRCUITO_CACHE_GET__(oc)||[];
+    const wrap=document.createElement('div');
+    wrap.innerHTML=window.__COI_ETAPA1_RENDER__(window.__E1__.orden);
+    const hito=wrap.querySelector('[data-etapa1-hito="pliegos_preparacion"]');
+    return{
+      localWrites,
+      historial:hist.length,
+      fecha:hist[0]?.fecha_efectiva||'',
+      avance:wrap.querySelector('#etapa1Avance')?.textContent||'',
+      meta:hito?.querySelector('.etapa1-meta')?.textContent||'',
+      rpcV3:window.__E1__.rpc.filter(x=>x.nombre==='coi_confirmar_etapa_circuito_v3').length
+    };
+  },{oc:OC});
+  expect(r.rpcV3).toBe(1);
+  expect(r.localWrites).toBe(0);
+  expect(r.historial).toBeGreaterThanOrEqual(1);
+  expect(r.fecha).toBe('2026-09-05');
+  expect(r.avance).toBe('1 / 8');
+  expect(r.meta).toContain('05/09/2026');
+});
