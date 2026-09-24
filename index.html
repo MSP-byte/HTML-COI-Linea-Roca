@@ -1815,6 +1815,12 @@ html[data-coi-orders-state="error"] .coi-orders-startup-card{border-color:#efccc
     const hasConfirmedSnapshot=snapshotCount!==null&&snapshotCount!==undefined&&uid!=='';
     const identityMatches=observedAuthUid===null||(observedAuthUid!==''&&uid===observedAuthUid);
     if(!identityMatches){setState('pendiente');return;}
+    const integrity=typeof api.modeloOperativoIntegro==='function'?api.modeloOperativoIntegro():true;
+    if(confirmed && integrity===false){
+      setState('cargando');
+      try{api.reconciliarModelo?.();}catch(_e){}
+      return;
+    }
     if(state==='listo'&&confirmed){
       readyUid=uid||readyUid;
       setState('listo');
@@ -9183,6 +9189,10 @@ function init(){
   initUnidadesMantenimiento();
   renderAppVersionHeader();
   if(typeof actualizarUIModoAcceso==='function') actualizarUIModoAcceso();
+  if(window.__COI_APP_BOOTSTRAP_COMPLETE__!==true){
+    window.__COI_APP_BOOTSTRAP_COMPLETE__=true;
+    window.dispatchEvent(new CustomEvent('coi:app-bootstrap-complete'));
+  }
 }
 function coiEscError(valor){
   return String(valor==null?'':valor).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});
@@ -14463,6 +14473,10 @@ const APP_DATA_MODE = "supabase_first";
   // derivados (historial/certificaciones) sepan si deben re-consolidar una vez,
   // sin recorrer toda la cartera por cada fila renderizada.
   let ordenesCatalogoGeneracion = 0;
+  // Reconciliación H18.2: el bootstrap Supabase puede completar antes que
+  // capas legacy de inicialización. Si una capa posterior degrada el modelo
+  // en memoria, se reaplica el último snapshot remoto confirmado.
+  let reconciliacionOrdenesEnCurso = false;
 
   const $sb = (id) => document.getElementById(id);
   const clean = (value) => String(value ?? '').trim();
@@ -14839,6 +14853,48 @@ const APP_DATA_MODE = "supabase_first";
     try { window.todasLasOC?.invalidarCache?.(); } catch (error) {}
     refreshCOIViews();
     return normalized;
+  }
+
+  function claveOrdenAutoritativa(item) {
+    const nro = normalizeNroOC(item?.numeroOC || item?.nro_oc || item?.numero_oc || item?.oc);
+    if (nro && nro !== 'SINOC' && nro !== 'SINNROOC') return `OC:${nro}`;
+    const id = norm(item?.idObra || item?.ID_OBRA || item?.id_obra || item?.idOC);
+    return id ? `ID:${id}` : '';
+  }
+
+  function ordenesOperativasEnMemoria() {
+    const rows = [];
+    estacionesDisponibles().forEach((station) => {
+      ['obras', 'servicios'].forEach((collection) => {
+        const items = Array.isArray(station?.[collection]) ? station[collection] : [];
+        items.forEach((item) => {
+          if (item && !item._estacionAsociadaTemporal) rows.push(item);
+        });
+      });
+    });
+    return rows;
+  }
+
+  function modeloOrdenesCoincideConConfirmadas() {
+    if (!Array.isArray(ordenesConfirmadas)) return false;
+    const live = ordenesOperativasEnMemoria();
+    if (live.length !== ordenesConfirmadas.length) return false;
+    const liveKeys = new Set(live.map(claveOrdenAutoritativa).filter(Boolean));
+    const expectedKeys = ordenesConfirmadas.map(claveOrdenAutoritativa).filter(Boolean);
+    if (expectedKeys.length !== ordenesConfirmadas.length || liveKeys.size !== expectedKeys.length) return false;
+    return expectedKeys.every((key) => liveKeys.has(key));
+  }
+
+  function reconciliarOrdenesConfirmadas() {
+    if (reconciliacionOrdenesEnCurso || !Array.isArray(ordenesConfirmadas) || !ordenesConfirmadasUid) return false;
+    if (modeloOrdenesCoincideConConfirmadas()) return false;
+    reconciliacionOrdenesEnCurso = true;
+    try {
+      aplicarOrdenesPrincipal(ordenesConfirmadas, 'Supabase');
+      return true;
+    } finally {
+      reconciliacionOrdenesEnCurso = false;
+    }
   }
 
   function refreshCOIViews() {
@@ -16838,8 +16894,13 @@ const APP_DATA_MODE = "supabase_first";
     uidConfirmado: () => ordenesConfirmadasUid,
     estadoLectura: () => ordenesLecturaEstado,
     lecturaActualConfirmada: () => ordenesLecturaEstado === 'listo',
-    generacionCatalogo: () => ordenesCatalogoGeneracion
+    generacionCatalogo: () => ordenesCatalogoGeneracion,
+    modeloOperativoIntegro: () => modeloOrdenesCoincideConConfirmadas(),
+    reconciliarModelo: () => reconciliarOrdenesConfirmadas()
   };
+  window.addEventListener('coi:app-bootstrap-complete', () => {
+    if (ordenesLecturaEstado === 'listo') reconciliarOrdenesConfirmadas();
+  });
   window.purgarCachesOperativasSensibles = purgarCachesOperativasSensibles;
   window.cargarOrdenesPrincipal = cargarOrdenesPrincipal;
   window.cargarOrdenesDesdeSupabase = cargarOrdenesDesdeSupabase;
@@ -18638,6 +18699,10 @@ const APP_DATA_MODE = "supabase_first";
   function selectionChecked(row){try{return typeof v45SeleccionOrdenes!=='undefined'&&v45SeleccionOrdenes.has(row.idSeleccion||rowId(row));}catch(e){return false;}}
   function vigenciaHTML(row){const state=row.estadoVigenciaOperativa||rowItem(row).estadoVigenciaOperativa||'';try{if(state&&typeof window.v60BadgeEstado==='function')return window.v60BadgeEstado(state);}catch(e){}return html(state||'—');}
   function renderOrdenesV581R(){
+    const h06=window.__COI_H06_ORDENES__;
+    if(h06?.lecturaActualConfirmada?.()===true && h06?.modeloOperativoIntegro?.()===false){
+      if(h06?.reconciliarModelo?.()===true)return;
+    }
     if(window.__COI_ORDERS_STARTUP_GATE__&&!window.__COI_ORDERS_STARTUP_GATE__.allowRender())return;
     if(renderOrdersBusy)return;renderOrdersBusy=true;
     try{
