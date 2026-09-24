@@ -35051,9 +35051,9 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     // sin borrar las fechas históricas de los hitos ya recorridos.
     const vigente = estado.etapaVigente && estado.etapaVigente.codigo === x.etapa.codigo;
     if (x.etapa.codigo === CODIGO_ACTA) return 'completado';
-    if (vigente && !estado.etapa1Finalizada) return 'actual';
     const esUltimo = estado.ultimo && estado.ultimo.etapa.codigo === x.etapa.codigo;
-    return esUltimo && !estado.etapa1Finalizada ? 'actual' : 'completado';
+    const esActual = !estado.etapa1Finalizada && (vigente || esUltimo);
+    return esActual ? 'actual' : 'completado';
   }
 
   /* Duracion en ORDEN CONTRACTUAL 1->8, no «el proximo evento cronologico».
