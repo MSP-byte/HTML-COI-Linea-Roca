@@ -65,7 +65,7 @@ test('E1-21 · F4 · con la suspensión vigente el banner sí aparece',async({pa
 test('E1-22 · F5 · tras confirmar el hito 8 no aparece el aviso de conciliación',async({page})=>{await preparar(page);await abrir(page);await page.evaluate(()=>{const base=window.__COI_SUPABASE_CLIENT__.rpc;window.__COI_SUPABASE_CLIENT__.rpc=async(n,a)=>{const r=await base(n,a);if(n==='coi_confirmar_etapa_circuito_v2'&&r.data){r.data.orden=Object.assign({},r.data.orden,{fecha_acta_inicio:'2026-09-15'});r.data.acta_inicio={estado:'registrada',valor:'2026-09-15',valor_confirmacion:'2026-09-15'}}return r}});await pintar(page);await page.click('[data-etapa1-hito="control_terceros_con_acta"]');await page.click('#etapa1ModalConfirmarBtn');await page.waitForTimeout(600);const e=await estado(page);expect(e.etapa2).toBe('si');expect(e.avisoActa).toBe(false)});
 test('E1-23 · F1 · la tarjeta de saldo remanente resuelve y abre el modal',async({page})=>{await setup(page,{fecha_acta_inicio:'2026-09-01'});expect(await page.locator('#etapa1Panel2 [data-etapa1-hito="finalizada_saldo_remanente"]').count()).toBe(1);await page.evaluate(()=>{document.getElementById('etapa1Panel1').classList.remove('active');document.getElementById('etapa1Panel2').classList.add('active')});await page.click('#etapa1Panel2 [data-etapa1-hito="finalizada_saldo_remanente"]');await expect(page.locator('#etapa1ModalConfirmar')).toBeVisible()});
 test('E1-24 · F2a · fecha de acta sin evento: 1° Etapa finalizada por evidencia histórica',async({page})=>{await setup(page,{fecha_acta_inicio:'2025-06-30'});const e=await estado(page);expect(e.estadoActual).toContain('evidencia histórica');expect(e.avance).toBe('0 / 8');expect(e.visuales.find(v=>v.codigo===ACTA).clase).toContain('etapa1-pendiente')});
-test('E1-25 · F2b · estado legacy de ejecución sin evento: mismo criterio',async({page})=>{await setup(page,{estado_coi:'OBRA/SERVICIO EN EJECUCIÓN'});const e=await estado(page);expect(e.estadoActual).toContain('evidencia histórica');expect(e.etapa2).toBe('si')});
+test('E1-25 · F2b · estado legacy de ejecución sin evento: muestra el estado vigente canónico',async({page})=>{await setup(page,{estado_coi:'OBRA/SERVICIO EN EJECUCIÓN'});const e=await estado(page);expect(e.estadoActual).toContain('SERVICIO EN EJECUCIÓN');expect(e.etapa2).toBe('si')});
 test('E1-26 · F2 · con evento real el hito 8 sí figura COMPLETADO y sin etiqueta legacy',async({page})=>{await setup(page,{historial:[EVENTO(ACTA,'2026-09-05T10:00:00Z')],fecha_acta_inicio:'2026-09-05'});const e=await estado(page);expect(e.estadoActual).toBe('1° Etapa finalizada');expect(e.visuales.find(v=>v.codigo===ACTA).clase).toContain('etapa1-completado')});
 
 async function instalarActaRpc(page,estadoActa){await page.evaluate(({estadoActa})=>{window.__E1_ESTADO_ACTA__=estadoActa;const base=window.__COI_SUPABASE_CLIENT__.rpc;window.__COI_SUPABASE_CLIENT__.rpc=async(n,a)=>{const r=await base(n,a);if(n==='coi_confirmar_etapa_circuito_v2'&&r.data)r.data.acta_inicio={estado:window.__E1_ESTADO_ACTA__,valor:'2026-03-10',valor_confirmacion:'2026-09-15'};return r}},{estadoActa})}
@@ -205,13 +205,19 @@ test('E1-39 · producción · 2° Etapa conserva fecha propia al avanzar ejecuci
     wrap.innerHTML=window.__COI_ETAPA1_RENDER__(window.__E1__.orden);
     const meta=codigo=>wrap.querySelector(`#etapa1Panel2 [data-etapa1-hito="${codigo}"] .etapa1-meta`)?.textContent||'';
     const fechas=Object.fromEntries(hist.map(x=>[x.campo_modificado,x.fecha_efectiva||'']));
+    const tarjeta=codigo=>wrap.querySelector(`#etapa1Panel2 [data-etapa1-hito="${codigo}"]`);
     return{
       localWrites,
       rpcV3:window.__E1__.rpc.filter(x=>x.nombre==='coi_confirmar_etapa_circuito_v3').length,
       fechas,
       ejecucion:meta('ejecucion'),
       finalizada:meta('finalizada'),
-      cierre:meta('finalizada_actas')
+      cierre:meta('finalizada_actas'),
+      claseEjecucion:tarjeta('ejecucion')?.className||'',
+      claseFinalizada:tarjeta('finalizada')?.className||'',
+      claseCierre:tarjeta('finalizada_actas')?.className||'',
+      estadoCierre:tarjeta('finalizada_actas')?.querySelector('.etapa1-estado')?.textContent||'',
+      estadoActual:wrap.querySelector('#etapa1EstadoActual')?.textContent||''
     };
   },{oc:OC});
   expect(r.localWrites).toBe(0);
@@ -222,6 +228,11 @@ test('E1-39 · producción · 2° Etapa conserva fecha propia al avanzar ejecuci
   expect(r.ejecucion).toContain('Fecha efectiva: 10/09/2026');
   expect(r.finalizada).toContain('Fecha efectiva: 20/09/2026');
   expect(r.cierre).toContain('Fecha efectiva: 24/09/2026');
+  expect(r.claseEjecucion).toContain('etapa1-completado');
+  expect(r.claseFinalizada).toContain('etapa1-completado');
+  expect(r.claseCierre).toContain('etapa1-actual');
+  expect(r.estadoCierre).toContain('EN CURSO');
+  expect(r.estadoActual).toContain('FINALIZADO CON ACTA PROVISORIA Y DEFINITIVA');
 });
 
 test('E1-40 · 2° Etapa reconstruye fecha desde traza histórica Cambio de estado contractual',async({page})=>{

@@ -192,6 +192,72 @@ test('Estado contractual tiene filtro canónico con etapas de 1° y 2° etapa', 
   expect(filtro).toContain('(!contractual||contractualActual===contractual)');
 });
 
+test('el filtro Estado contractual repinta la tabla real al cambiar la selección', async ({ page }) => {
+  await page.goto('/index.html');
+  await page.waitForFunction(() => typeof window.renderOrdenes === 'function', null, { timeout: 20000 });
+
+  // Fixture determinístico: este test valida renderer + listener + filtro, no la
+  // disponibilidad de una sesión Supabase ni el contenido productivo del día.
+  await page.evaluate(() => {
+    if(window.__COI_ORDERS_STARTUP_GATE__ && typeof window.__COI_ORDERS_STARTUP_GATE__ === 'object'){
+      window.__COI_ORDERS_STARTUP_GATE__.allowRender=()=>true;
+    }
+    window.__COI_H06_ORDENES__=null;
+    window.filasOrdenesBase=()=>[
+      {
+        idObra:'OBRA-FILTRO-CONTRACTUAL',
+        nro_oc:'4530999001',
+        tipo:'Obra',
+        tipoTrabajo:'Obra civil',
+        estacion:'PLAZA CONSTITUCION',
+        proveedor:'PROVEEDOR TEST A',
+        estado_documental:'OBRA/SERVICIO EN EJECUCIÓN',
+        estado_coi:'En ejecución',
+        monto_total:1000
+      },
+      {
+        idServicio:'SERV-FILTRO-CONTRACTUAL',
+        nro_oc:'4530999002',
+        tipo:'Servicio',
+        tipoTrabajo:'Mantenimiento preventivo',
+        estacion:'TEMPERLEY',
+        proveedor:'PROVEEDOR TEST B',
+        estado_documental:'PLIEGO CON OC',
+        estado_coi:'En ejecución',
+        monto_total:2000
+      }
+    ];
+    window.mostrarVista && window.mostrarVista('vistaOrdenes');
+    window.renderOrdenes();
+  });
+
+  await page.waitForFunction(() => {
+    const select=document.getElementById('ordenesFiltroContractual');
+    const celdas=[...document.querySelectorAll('#ordenesTbody tr .col-contractual')];
+    return !!select && select.options.length>2 && celdas.length===2;
+  }, null, { timeout: 10000 });
+
+  const antes=await page.locator('#ordenesTbody tr .col-contractual').allTextContents();
+  expect(antes).toHaveLength(2);
+
+  const elegido=await page.evaluate(() => {
+    const select=document.getElementById('ordenesFiltroContractual');
+    const estados=[...document.querySelectorAll('#ordenesTbody tr .col-contractual')]
+      .map(td=>td.textContent.trim()).filter(Boolean);
+    return estados.find(v=>[...select.options].some(o=>o.value===v)) || '';
+  });
+  expect(elegido).not.toBe('');
+
+  await page.selectOption('#ordenesFiltroContractual',{value:elegido});
+  await page.waitForFunction((wanted) => {
+    const celdas=[...document.querySelectorAll('#ordenesTbody tr .col-contractual')];
+    return celdas.length===1 && celdas[0].textContent.trim()===wanted;
+  }, elegido, { timeout: 10000 });
+
+  const estados=await page.locator('#ordenesTbody tr .col-contractual').allTextContents();
+  expect(estados).toEqual([elegido]);
+});
+
 test('el dato UM se conserva en el modelo, el filtro y la exportación CSV', () => {
   expect(SOURCE).toContain('<label for="ordenesFiltroUM">UM vinculada</label>');
   expect(SOURCE).toContain("opt('ordenesFiltroUM',base.map(r=>r.um),'UM vinculada')");
