@@ -251,4 +251,35 @@ test('E1-40 · 2° Etapa reconstruye fecha desde traza histórica Cambio de esta
   const meta=await page.locator('#etapa1Panel2 [data-etapa1-hito="finalizada"] .etapa1-meta').textContent();
   expect(meta).toContain('Fecha efectiva: 20/09/2026');
   expect(meta).toContain(EMAIL);
+  expect((await estado(page)).avance).toBe('1 / 8');
+});
+
+test('E1-41 · estado vigente muestra fecha inmediata, 1/8, días y elimina Usuario del resumen',async({page})=>{
+  await setup(page,{
+    fecha_acta_inicio:'2026-02-23',
+    estado_coi:'OBRA/SERVICIO FINALIZADA',
+    historial:[],
+    ordenExtra:{fecha_ultimo_control:'2026-09-24'}
+  });
+  const card=page.locator('#etapa1Panel2 [data-etapa1-hito="finalizada"]');
+  await expect(card.locator('.etapa1-estado')).toContainText('EN CURSO');
+  await expect(card.locator('.etapa1-meta')).toContainText('24/09/2026');
+  await expect(card.locator('.etapa1-dias')).toContainText('Días en estado:');
+  expect((await estado(page)).avance).toBe('1 / 8');
+  expect(await page.locator('#etapa1UltimoUsuario').count()).toBe(0);
+  await expect(page.locator('#etapa1DiasEstado')).not.toHaveText('—');
+});
+
+test('E1-42 · 2° Etapa conserva los días transcurridos entre estados confirmados',async({page})=>{
+  await setup(page,{
+    fecha_acta_inicio:'2026-09-01',
+    estado_coi:'OBRA/SERVICIO FINALIZADA',
+    historial:[
+      EVENTO('ejecucion','2026-09-10T10:00:00Z'),
+      EVENTO('finalizada','2026-09-20T10:00:00Z')
+    ]
+  });
+  await expect(page.locator('#etapa1Panel2 [data-etapa1-hito="ejecucion"] .etapa1-dias')).toContainText('Días en estado: 10');
+  await expect(page.locator('#etapa1Panel2 [data-etapa1-hito="finalizada"] .etapa1-dias')).toContainText('Días en estado:');
+  expect((await estado(page)).avance).toBe('2 / 8');
 });
