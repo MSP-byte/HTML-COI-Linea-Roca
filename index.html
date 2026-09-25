@@ -34840,7 +34840,8 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
   }
   function metaFechaEtapa(ev){
     if(!ev)return 'Sin confirmación registrada';
-    return 'Fecha efectiva: '+fechaEventoUI(ev)+' · '+(texto(ev.usuario_email)||'—');
+    const prefijo=ev&&ev.__coiEstadoFallback?'Fecha registrada: ':'Fecha efectiva: ';
+    return prefijo+fechaEventoUI(ev);
   }
 
   // ------------------------------------------------------------ historial
@@ -34894,6 +34895,35 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
       mapa.set(cod, canonica || rows[0]);
     });
     return mapa;
+  }
+
+  // Última traza real de un estado contractual. Para el estado vigente se usa
+  // la última entrada (incluido un reingreso), no la primera fecha histórica.
+  function ultimaTrazaContractual(historial, codigo) {
+    const buscado=texto(codigo);
+    const filas=(historial||[])
+      .filter(esTrazaConfirmacionContractual)
+      .filter((ev)=>!buscado||codigoEtapaDesdeEvento(ev)===buscado)
+      .slice()
+      .sort((a,b)=>{
+        const d=new Date(a.fecha_evento||0)-new Date(b.fecha_evento||0);
+        if(d)return d;
+        const ac=fold(a&&a.tipo_evento)===fold('Circuito administrativo')?1:0;
+        const bc=fold(b&&b.tipo_evento)===fold('Circuito administrativo')?1:0;
+        if(ac!==bc)return ac-bc;
+        return texto(a&&a.id).localeCompare(texto(b&&b.id));
+      });
+    return filas.length?filas[filas.length-1]:null;
+  }
+
+  // Fallback exclusivamente para OCs legacy cuyo estado_documental ya estaba
+  // confirmado antes de existir la traza contractual completa. No escribe nada:
+  // usa fecha_ultimo_control sólo para no perder la fecha que ya guarda la OC.
+  function eventoEstadoLegacy(orden) {
+    const raw=texto(orden&&(orden.fecha_ultimo_control||orden.fechaUltimoControl||
+      (orden._supabaseRaw&&(orden._supabaseRaw.fecha_ultimo_control||orden._supabaseRaw.fechaUltimoControl))));
+    if(!raw)return null;
+    return {fecha_evento:raw,fecha_efectiva:diaBuenosAires(raw),__coiEstadoFallback:true};
   }
 
   function eventosPorCodigo(historial, tipo) {
@@ -34971,6 +35001,13 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     const estadoCrudo = orden && (orden.estado_documental || orden.estadoDocumental ||
       orden.estado_coi || orden.estadoCOI || orden.estado);
     const etapaVigente = resolverEtapaCanonica(estadoCrudo);
+    const ultimaTrazaGlobal = ultimaTrazaContractual(historial, '');
+    const ultimaActualizacionGlobal = ultimaTrazaGlobal
+      ? {etapa:etapaPorCodigo(codigoEtapaDesdeEvento(ultimaTrazaGlobal)),ev:ultimaTrazaGlobal}
+      : null;
+    const eventoVigente = etapaVigente
+      ? (ultimaTrazaContractual(historial, etapaVigente.codigo) || eventoEstadoLegacy(orden))
+      : null;
     const legacyEjecucion =
       Boolean(etapaVigente && CODIGOS_POST_ACTA.indexOf(etapaVigente.codigo) >= 0) ||
       CODIGOS_ETAPA2.some((c) => porCodigo.has(c));
@@ -35024,9 +35061,15 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
       ultimo: ultimo,
       hitoActual: hitoActual,
       ultimaActualizacion: ultimaActualizacion,
+      ultimaActualizacionGlobal: ultimaActualizacionGlobal ||
+        (eventoVigente ? {etapa:etapaVigente,ev:eventoVigente} : null),
       etapaVigente: etapaVigente,
-      // X/8 cuenta hitos CONTRACTUALES registrados. La transversal no entra.
+      eventoVigente: eventoVigente,
+      // X/8 sigue representando los 8 hitos contractuales. Para una OC legacy
+      // sin traza de etapa 1 pero con estado vigente confirmado, la UI refleja
+      // ese primer estado conocido como 1/8 en vez de mostrar un 0 engañoso.
       registradosCount: registrados.length,
+      registradosCountVisible: registrados.length || (etapaVigente && etapaVigente.codigo !== CODIGO_TRANSVERSAL && (eventoVigente || CODIGOS_POST_ACTA.indexOf(etapaVigente.codigo) >= 0) ? 1 : 0),
       total: hitos.length,
       etapa1Finalizada: etapa1Finalizada,
       hito8Registrado: hito8Registrado,
@@ -35084,6 +35127,37 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     return hastaDia-desdeDia;
   }
 
+  // Duración del estado vigente: se toma desde la última transición real.
+  // Cuando se confirma el estado siguiente, la duración anterior queda fijada
+  // por la diferencia entre las fechas efectivas persistidas en historial.
+  function diasEstadoVigente(estado) {
+    if(!estado||!estado.etapaVigente||!estado.eventoVigente)return null;
+    // El cierre definitivo termina el cronómetro contractual.
+    if(estado.etapaVigente.codigo==='finalizada_actas')return 0;
+    return diasEntre(fechaCalculoEvento(estado.eventoVigente),null);
+  }
+
+  function eventoParaTarjeta(estado,codigo) {
+    if(estado&&estado.etapaVigente&&estado.etapaVigente.codigo===codigo)
+      return estado.eventoVigente||estado.porCodigo.get(codigo)||null;
+    return estado&&estado.porCodigo?estado.porCodigo.get(codigo)||null:null;
+  }
+
+  function diasDeEtapa2(estado,etapa,ev) {
+    if(!ev)return null;
+    if(estado.etapaVigente&&estado.etapaVigente.codigo===etapa.codigo)
+      return diasEstadoVigente(estado);
+    const lista=etapasEtapa2(estado.orden);
+    const indice=lista.findIndex((item)=>item.codigo===etapa.codigo);
+    if(indice<0)return null;
+    for(let i=indice+1;i<lista.length;i+=1){
+      const siguiente=estado.porCodigo.get(lista[i].codigo);
+      if(!siguiente)continue;
+      return diasEntre(fechaCalculoEvento(ev),fechaCalculoEvento(siguiente));
+    }
+    return null;
+  }
+
   // ------------------------------------------------------------ render
   function filaHito(estado, etapa, indice) {
     const ev = estado.porCodigo.get(etapa.codigo) || null;
@@ -35117,6 +35191,10 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     // Dias en estado: contra el HITO ACTUAL, no contra la ultima carga
     // retrospectiva, y solo mientras la etapa 1 siga abierta.
     const dias = ult && !estado.etapa1Finalizada ? diasDeHito(estado, ult) : null;
+    const ultimaActLegacy = ultimaAct ? fechaHora(ultimaAct.ev.fecha_evento) : '—';
+    const ultimaActResumen = estado.ultimaActualizacionGlobal || ultimaAct;
+    const diasVigente = diasEstadoVigente(estado);
+    const diasResumen = diasVigente == null ? dias : diasVigente;
     /* A) sin hitos y sin evidencia  -> Sin iniciar
        B) ultimo 1-7                  -> su nombre
        C/D) hito 8 registrado         -> 1° Etapa finalizada
@@ -35155,12 +35233,12 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
         '<div><span>Estado actual</span><b id="etapa1EstadoActual">' +
           esc(estadoActual) + '</b></div>' +
         '<div><span>Última actualización</span><b id="etapa1UltimaAct">' +
-          esc(ultimaAct ? fechaHora(ultimaAct.ev.fecha_evento) : '—') + '</b></div>' +
-        '<div><span>Usuario</span><b id="etapa1UltimoUsuario">' +
-          esc(ultimaAct ? (texto(ultimaAct.ev.usuario_email) || '—') : '—') + '</b></div>' +
-        '<div><span>Días en estado</span><b>' + (dias == null ? '—' : dias) + '</b></div>' +
+          esc(ultimaActResumen ? fechaHora(ultimaActResumen.ev.fecha_evento) : ultimaActLegacy) + '</b></div>' +
+        '<div><span>Días en estado</span><b id="etapa1DiasEstado">' +
+          (diasResumen == null ? '—' : diasResumen) + '</b></div>' +
         '<div><span>Hitos registrados</span><b id="etapa1Avance">' +
-          estado.registradosCount + ' / ' + estado.total + '</b></div>' +
+          (estado.registradosCountVisible == null ? estado.registradosCount : estado.registradosCountVisible) +
+          ' / ' + estado.total + '</b></div>' +
       '</div>' +
       // X/8 son hitos con registro, no avance de obra. Conviene decirlo donde
       // se lee, no solo en la documentacion.
@@ -35188,16 +35266,18 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     const lista = etapasEtapa2(estado.orden);
     const bloqueada = !estado.etapa2Habilitada;
     const items = lista.map((et) => {
-      const ev = estado.porCodigo.get(et.codigo) || null;
+      const ev = eventoParaTarjeta(estado,et.codigo);
       const vigente = Boolean(estado.etapaVigente && estado.etapaVigente.codigo === et.codigo);
       const visual = vigente ? 'actual' : (ev ? 'completado' : 'pendiente');
       const etiqueta = vigente ? 'EN CURSO' : (ev ? 'COMPLETADO' : 'PENDIENTE');
+      const diasEstado=diasDeEtapa2(estado,et,ev);
       return '<button type="button" class="etapa1-hito etapa1-' + visual + '"' +
         ' data-etapa1-hito="' + esc(et.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '"' +
         (bloqueada ? ' disabled' : '') + '>' +
         '<span class="etapa1-cuerpo"><span class="etapa1-nombre">' + esc(nombreEtapaPorTipo(et,estado.orden)) + '</span>' +
         '<span class="etapa1-estado">' + etiqueta + '</span>' +
         '<span class="etapa1-meta">' + esc(metaFechaEtapa(ev)) + '</span>' +
+        '<span class="etapa1-dias">Días en estado: ' + (diasEstado == null ? '—' : diasEstado) + '</span>' +
         '</span></button>';
     }).join('');
     return '<div class="etapa1-panel" id="etapa1Panel2" data-etapa1-habilitada="' + (bloqueada ? 'no' : 'si') + '">' +
