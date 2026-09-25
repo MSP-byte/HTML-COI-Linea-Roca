@@ -240,11 +240,16 @@ async function main() {
   // G · la transversal no cuenta en X/8 ni entra al pipeline secuencial.
   check(codigo.indexOf("const CODIGO_TRANSVERSAL = 'cancelada_suspendida';") >= 0,
     'cancelada/suspendida tiene que estar clasificada como transversal');
-  check(/registradosCount: registrados\.length/.test(codigo),
-    'X/8 se cuenta sobre los hitos contractuales registrados');
+  check(codigo.indexOf('const codigosResumen = new Set([...porCodigo.keys()].filter((codigo)=>codigo!==CODIGO_TRANSVERSAL));') >= 0,
+    'X/8 tiene que considerar los estados contractuales confirmados y excluir la transversal');
+  check(/registradosCountEtapa1: registrados\.length/.test(codigo) &&
+        /registradosCount: registradosCountResumen/.test(codigo),
+    'se conserva el conteo puro de 1° Etapa y el resumen usa el indicador reconciliado');
+  check(/Math\.min\(hitos\.length, codigosResumen\.size\)/.test(codigo),
+    'el resumen X/8 no puede superar los ocho hitos');
   const cuerpoEstado = codigo.slice(codigo.indexOf('function estadoPipeline'), codigo.indexOf('function visualDe'));
   check(/const registrados = hitos/.test(cuerpoEstado),
-    'el conteo tiene que partir de los hitos de la etapa 1, no de todas las etapas');
+    'las tarjetas de 1° Etapa siguen derivándose solo de sus ocho hitos, sin autocompletar faltantes');
   check(/function bloqueTransversal/.test(codigo),
     'la transversal se renderiza fuera del pipeline secuencial');
 
@@ -290,11 +295,26 @@ async function main() {
     'la ultima actualizacion si es por fecha de evento');
   const cuerpoResumen = codigo.slice(codigo.indexOf('function resumen(estado)'), codigo.indexOf('function bloqueTransversal'));
   check(/const ult = estado\.hitoActual;/.test(cuerpoResumen),
-    'el estado actual del resumen es el hito mas avanzado');
-  check(/ultimaAct \? fechaHora\(ultimaAct\.ev\.fecha_evento\)/.test(cuerpoResumen),
-    'la fecha de ultima actualizacion sale del evento mas reciente');
-  check(/dias = ult && !estado\.etapa1Finalizada \? diasDeHito\(estado, ult\)/.test(cuerpoResumen),
-    'los dias en estado reutilizan la fecha efectiva y lógica del hito actual');
+    'el estado actual del resumen conserva el hito contractual mas avanzado');
+  check(/const ultimaEv = estado\.eventoVigente/.test(cuerpoResumen),
+    'el resumen tiene que priorizar el evento del estado vigente');
+  check(/ultimaEv \? fechaEventoUI\(ultimaEv\)/.test(cuerpoResumen),
+    'la fecha de ultima actualizacion usa la fecha efectiva persistida');
+  check(/const dias = ultimaEv \? diasEntre\(fechaCalculoEvento\(ultimaEv\), null\) : null;/.test(cuerpoResumen),
+    'los dias en estado se calculan también para la 2° Etapa desde la fecha efectiva persistida');
+  check(!/etapa1UltimoUsuario/.test(cuerpoResumen),
+    'el resumen contractual no debe mostrar el campo Usuario');
+
+  // F3b · fecha y duración del estado vigente también funcionan antes de que
+  // termine la lectura asíncrona del historial, usando la fila remota como fallback visual.
+  check(/function ultimaTrazaEtapa\(historial, codigo\)/.test(codigo),
+    'hace falta resolver la última traza contractual del estado vigente');
+  check(/fecha_ultimo_control/.test(cuerpoEstado) && /eventoVigenteHistorial/.test(cuerpoEstado),
+    'el estado vigente puede usar fecha_ultimo_control de la fila Supabase solo como fallback visual');
+  check(/function diasDeEtapa2\(estado, etapa, evento\)/.test(codigo),
+    'la 2° Etapa debe conservar y mostrar los días entre estados');
+  check(codigo.indexOf('<span class="etapa1-dias">Días en estado: ') >= 0,
+    'cada tarjeta de 2° Etapa debe exponer su duración');
 
   // F4 · el banner transversal solo si es el estado VIGENTE.
   check(/const transversalVigente = Boolean\(etapaVigente && etapaVigente\.codigo === CODIGO_TRANSVERSAL\);/.test(codigo),
