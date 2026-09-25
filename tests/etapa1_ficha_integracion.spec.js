@@ -44,8 +44,8 @@ async function preparar(page, opciones = {}) {
       idObra: 'OBRA-' + oc, id_obra: 'OBRA-' + oc,
       tipo: c.tipo, descripcion: c.tipo + ' E1', proveedor: 'PROVEEDOR E1',
       estacion: 'Plaza Constitución',
-      estado_coi: c.estado_coi, estado_documental: c.estado_coi,
-      estadoDocumental: c.estado_coi,
+      estado_coi: c.estado_coi, estado_documental: c.estado_documental || c.estado_coi,
+      estadoDocumental: c.estado_documental || c.estado_coi,
       fecha_acta_inicio: c.fecha_acta_inicio,
       monto_total: 1000, moneda: 'ARS'
     };
@@ -277,25 +277,33 @@ test('E1F-8 · la 2° Etapa no se habilita sin hito 8 real', async ({ page }) =>
   const d = await diagnostico(page);
   expect(d.pipelines).toBe(1);
   expect(d.etapa2Habilitada).toBe('no');
-  expect(d.avance).toBe('1 / 8');
+  expect(d.avance).toBe('1 / 10');
 });
 
+/* MODIFICADO (modelo de 10 hitos lógicos).
+   ANTES: esperaba «1 / 8»: una OC legacy sin NINGÚN evento en
+   coi_historial_oc contaba el estado vigente como un hito registrado
+   («registradosCountVisible») para no mostrar un 0.
+   AHORA: «0 / 10». X/10 cuenta hitos lógicos con evidencia REAL en
+   coi_historial_oc; estado_documental y fecha_acta_inicio sin traza no son
+   evidencia de hito. Contar 1 era justamente inventar un hito, lo que el
+   propio título de este test prohíbe. La 2° Etapa sigue habilitada. */
 test('E1F-9 · OC histórica con fecha de acta abre la 2° Etapa sin inventar hitos', async ({ page }) => {
   await abrirPorNavegacion(page, { fecha_acta_inicio: '2025-06-30', estado_coi: 'OBRA/SERVICIO EN EJECUCIÓN' });
   const d = await diagnostico(page);
   expect(d.pipelines).toBe(1);
   expect(d.etapa2Habilitada).toBe('si');
-  expect(d.avance).toBe('1 / 8');
+  expect(d.avance).toBe('0 / 10');
 });
 
-test('E1F-10 · el estado transversal no cuenta en X/8', async ({ page }) => {
+test('E1F-10 · el estado transversal no cuenta en X/10', async ({ page }) => {
   await abrirPorNavegacion(page, {
     estado_coi: 'OBRA/SERVICIO CANCELADA O SUSPENDIDA',
     historial: [EVENTO('cancelada_suspendida', '2026-09-01T10:00:00Z')]
   });
   const d = await diagnostico(page);
   expect(d.transversal).toBe(1);
-  expect(d.avance).toBe('0 / 8');
+  expect(d.avance).toBe('0 / 10');
   expect(d.hitos).toBe(8);
 });
 
@@ -340,13 +348,13 @@ test('E1F-13 · el cambio 1° Etapa → 2° Etapa muestra el panel de ejecución
 
 test('E1F-14 · confirmar un hito persiste por la RPC canónica y repinta en la Ficha', async ({ page }) => {
   await abrirPorNavegacion(page);
-  expect((await diagnostico(page)).avance).toBe('0 / 8');
+  expect((await diagnostico(page)).avance).toBe('0 / 10');
   await page.click(PANEL + ' [data-etapa1-hito="pliegos_preparacion"]');
   await expect(page.locator('#etapa1ModalConfirmar')).toBeVisible();
   await page.fill('#etapa1ModalObs', 'Pliego enviado a revisión');
   await page.click('#etapa1ModalConfirmarBtn');
   await expect(page.locator('#etapa1ModalConfirmar')).toHaveCount(0);
-  await expect(page.locator(PANEL + ' #etapa1Avance')).toHaveText('1 / 8');
+  await expect(page.locator(PANEL + ' #etapa1Avance')).toHaveText('1 / 10');
   const rpc = await page.evaluate(() => window.__FIX__.rpc.filter(r => r.nombre === 'coi_confirmar_etapa_circuito_v3'));
   expect(rpc).toHaveLength(1);
   expect(rpc[0].args.p_codigo).toBe('pliegos_preparacion');
@@ -360,13 +368,13 @@ test('E1F-15 · tras recargar, el deep-link reconstruye el estado desde el histo
     historial: [EVENTO('pliegos_preparacion', '2026-09-01T10:00:00Z'),
       EVENTO('pliegos_terminado_sin_solped', '2026-09-03T10:00:00Z')]
   });
-  expect((await diagnostico(page)).avance).toBe('2 / 8');
+  expect((await diagnostico(page)).avance).toBe('2 / 10');
   await page.goto('/index.html#ficha-oc/' + OC + '/contractual', { waitUntil: 'domcontentloaded' });
   await page.locator(PANEL + '.active').waitFor({ state: 'attached', timeout: 20000 });
   await page.locator(PIPELINE).waitFor({ state: 'attached', timeout: 15000 });
   const d = await diagnostico(page);
   expect(d.pipelines).toBe(1);
-  expect(d.avance).toBe('2 / 8');
+  expect(d.avance).toBe('2 / 10');
 });
 
 /* ------------------------------------------- casos de verificación pedidos */
@@ -402,7 +410,7 @@ test('E1F-16 · caso 1 · OC histórica reconstruye su historial de Etapa 1 sin 
   });
   const d = await diagnostico(page);
   expect(d.pipelines).toBe(1);
-  expect(d.avance).toBe('5 / 8');                 // no se reinicia a 0 / 8
+  expect(d.avance).toBe('5 / 10');                 // no se reinicia a 0 / 8
   expect(d.estadoActual).not.toBe('Sin iniciar');
 
   const c = await clases(page);
@@ -418,7 +426,7 @@ test('E1F-16 · caso 1 · OC histórica reconstruye su historial de Etapa 1 sin 
   // Reabrir por deep-link tampoco reinicia el avance acumulado.
   await page.goto('/index.html#ficha-oc/' + OC + '/contractual', { waitUntil: 'domcontentloaded' });
   await page.locator(PIPELINE).waitFor({ state: 'attached', timeout: 20000 });
-  expect((await diagnostico(page)).avance).toBe('5 / 8');
+  expect((await diagnostico(page)).avance).toBe('5 / 10');
 });
 
 /* CASO 2 — sin hito 8 real: la 2° Etapa se ve, pero bloqueada. */
@@ -434,7 +442,7 @@ test('E1F-17 · caso 2 · sin hito 8 real la 2° Etapa está visible y bloqueada
     ]
   });
   const d = await diagnostico(page);
-  expect(d.avance).toBe('7 / 8');
+  expect(d.avance).toBe('7 / 10');
   expect((await clases(page))[ACTA]).toContain('etapa1-pendiente');
 
   // Visible: el selector existe y se puede abrir el panel.
@@ -485,8 +493,8 @@ for (const codigo of ETAPA2) {
   });
 }
 
-/* CASO 4 — cancelada_suspendida es transversal y no integra el X/8. */
-test('E1F-19 · caso 4 · cancelada_suspendida queda transversal y fuera del X/8', async ({ page }) => {
+/* CASO 4 — cancelada_suspendida es transversal y no integra el X/10. */
+test('E1F-19 · caso 4 · cancelada_suspendida queda transversal y fuera del X/10', async ({ page }) => {
   await abrirPorNavegacion(page, {
     estado_coi: 'OBRA/SERVICIO CANCELADA O SUSPENDIDA',
     historial: [
@@ -497,7 +505,7 @@ test('E1F-19 · caso 4 · cancelada_suspendida queda transversal y fuera del X/8
   });
   const d = await diagnostico(page);
   // Tres hitos secuenciales registrados; la transversal NO suma.
-  expect(d.avance).toBe('3 / 8');
+  expect(d.avance).toBe('3 / 10');
   expect(d.hitos).toBe(8);
 
   const secuencia = await page.evaluate(() => Array.from(
@@ -570,6 +578,11 @@ test('E1F-24 · reingreso histórico propone hoy y edición vigente conserva fec
 });
 
 
+/* MODIFICADO (fixture). El test ya declaraba estado_documental H2, pero
+   preparar() ignoraba esa opción y dejaba el estado en H1: un dato imposible
+   (el writer v3 escribe estado_documental en cada transición). Con la máquina
+   de estados, H1 figuraba vigente y medía contra HOY. Ahora preparar() respeta
+   estado_documental; la aserción original (0 días) no cambia. */
 test('E1F-25 · mismo día administrativo mixto calcula 0 días', async ({ page }) => {
   const h1=EVENTO('pliegos_preparacion','2026-09-10T10:00:00Z');
   const h2=EVENTO('pliegos_terminado_sin_solped','2026-09-10T22:00:00Z'); h2.fecha_efectiva='2026-09-10';

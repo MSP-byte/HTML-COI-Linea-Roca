@@ -5,7 +5,11 @@ const html=fs.readFileSync('index.html','utf8');
 const sql=fs.readFileSync('supabase/migrations/202609170001_etapa1_fecha_rpc_v3_hardening.sql','utf8');
 assert(html.includes("timeZone:'America/Argentina/Buenos_Aires'"),'fallback legacy debe usar Buenos Aires');
 assert(html.includes('ordinalDiaBuenosAires'),'días deben calcularse por día calendario');
-assert(html.includes('diasDeHito(estado, ult)'),'resumen debe compartir lógica de tarjeta');
+/* MODIFICADO (modelo de 10 hitos). ANTES: exigía `diasDeHito(estado, ult)`
+   en el resumen (días contra el hito 1-8 más avanzado). AHORA: el resumen es
+   global y la tarjeta vigente y el resumen comparten la MISMA fuente:
+   estado.diasVigente (HOY - fecha efectiva del último ingreso real). */
+assert(html.includes('const diasResumen = diasEstadoVigente(estado);') && html.includes('return estado.diasVigente;'),'resumen debe compartir lógica de tarjeta');
 assert(html.includes('confirmacionVigente'),'reingreso debe distinguir edición vigente');
 assert(!sql.includes('coi_confirmar_etapa_circuito_v2(p_orden_id'),'v3 no debe delegar en v2');
 assert(sql.includes('EDITAR_FECHA_EFECTIVA_CIRCUITO'),'edición idempotente debe auditarse');
@@ -16,7 +20,10 @@ assert(sql.includes('v_fecha date := p_fecha_efectiva'),'fecha omitida no debe c
 assert(sql.includes('v_idempotente and p_fecha_efectiva is null'),'reapertura idempotente sin fecha no debe reconciliar Acta');
 assert(sql.includes("v_conflicto.motivo,'')))='conflicto'"),'resolución de conflicto debe depender del último marcador persistido');
 assert(html.includes('!etapaCanonica && estado.hitoActual'),'hitoActual sólo es fallback sin estado canónico');
-assert(html.includes('const desdeDia=ordinalDiaBuenosAires'),'orden entre hitos debe comparar días administrativos');
+/* MODIFICADO (T18). ANTES: `const desdeDia=ordinalDiaBuenosAires` en la
+   comparación hito N / N+1. AHORA: la secuencia de transiciones y sus
+   duraciones se ordenan y miden por día administrativo BA. */
+assert(html.includes('const da = ordinalDiaBuenosAires(a.dia), db = ordinalDiaBuenosAires(b.dia);'),'orden entre hitos debe comparar días administrativos');
 assert(html.includes('function fusionarHistorialCircuitoConfirmado') && html.includes('const ids=new Set(confirmadas.map') && html.includes('fusionarHistorialCircuitoConfirmado(nro,result.data?.historial)') && html.includes('window.__COI_CIRCUITO_CACHE_MERGE__=fusionarHistorialCircuitoConfirmado') && html.includes('window.__COI_CIRCUITO_CACHE_MERGE__(nro,rows)'), 'ambos writers contractuales deben converger en el merge canónico por id');
 assert(sql.includes("translate(upper(trim(coalesce(v_current,'')))"),'estado vigente legacy debe normalizarse antes de decidir edición/reingreso');
 assert(html.includes('const eventoVigente=confirmacionVigente'),'edición vigente debe resolver la última confirmación del código');

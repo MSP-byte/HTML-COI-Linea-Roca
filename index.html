@@ -20314,29 +20314,77 @@ const ESTADO_FINALIZADA_SALDO_REMANENTE={codigo:'finalizada_saldo_remanente',nom
 /* Export explícito: es un binding lexical global; los módulos posteriores que
    integran la Ficha lo consumen también desde window sin duplicar la definición. */
 window.ESTADO_FINALIZADA_SALDO_REMANENTE=ESTADO_FINALIZADA_SALDO_REMANENTE;
-const CIRCUITO_CACHE_KEY='coi_circuito_historial_cache_v1';
+/* CACHE UNICA del historial contractual, por N° OC canonico.
+   Es solo una optimizacion en memoria: la llena cargarHistorialCircuitoOC con
+   la lectura completa de coi_historial_oc y la complementa
+   fusionarHistorialCircuitoConfirmado con las filas que Supabase acaba de
+   confirmar. No se persiste en almacenamiento del navegador: tras un F5 el
+   circuito se reconstruye exclusivamente desde Supabase. */
 const historialCircuitoCache=new Map();
-window.__COI_INVALIDAR_HISTORIAL_CIRCUITO__=()=>{historialCircuitoCache.clear();};
+/* Generacion por OC: una lectura iniciada ANTES de una confirmacion no puede
+   pisar la cache con un snapshot previo a esa confirmacion. */
+const generacionHistorialCircuito=new Map();
+function avanzarGeneracionHistorial(clave){const g=(generacionHistorialCircuito.get(clave)||0)+1;generacionHistorialCircuito.set(clave,g);return g;}
+window.__COI_INVALIDAR_HISTORIAL_CIRCUITO__=()=>{historialCircuitoCache.clear();generacionHistorialCircuito.clear();};
 let guardandoEtapaCircuito=false;
 let eventosCircuitoAdministrativoInicializados=false;
 let etapaCircuitoModalActual=null;
 
-try{
-  const saved=JSON.parse(sessionStorage.getItem(CIRCUITO_CACHE_KEY)||'{}');
-  Object.entries(saved&&typeof saved==='object'?saved:{}).forEach(([nro,rows])=>{
-    if(Array.isArray(rows))historialCircuitoCache.set(normOC(nro),rows);
-  });
-}catch(error){}
-
 function obtenerEtapasCircuitoOC(){return CIRCUITO_ADMINISTRATIVO_ETAPAS.map(etapa=>({...etapa}));}
-function nroOCCircuito(orden){return normOC(field(orden,'nro_oc','numeroOC','oc','OC_NRO','ocNro'));}
+/* N° OC CANONICO del circuito. Unico resolver de clave para lecturas,
+   escrituras, cache y render. Prioriza el nro_oc persistido por Supabase
+   (_supabaseRaw.nro_oc), que es exactamente la clave que el trigger
+   coi_historial_enforce_order graba en coi_historial_oc; despues los alias
+   locales. Un objeto que solo trae nro_oc resuelve igual que uno que trae
+   numeroOC u oc. */
+function nroOCCircuito(orden){
+  if(orden==null)return'';
+  if(typeof orden!=='object')return normOC(orden);
+  const item=orden.item&&typeof orden.item==='object'?orden.item:orden;
+  const raw=item._supabaseRaw&&typeof item._supabaseRaw==='object'?item._supabaseRaw:null;
+  return normOC((raw&&clean(raw.nro_oc))||field(item,'nro_oc','numeroOC','oc','OC_NRO','ocNro')||(raw&&field(raw,'numeroOC','oc')));
+}
+/* Clave de busqueda por referencia textual: acepta N° OC puro, «OC-4530…» o
+   el idObra. La coincidencia es EXACTA, nunca por subcadena. */
+function clavesReferenciaCircuito(ref){
+  const base=normOC(ref);
+  if(!base)return[];
+  const sinPrefijo=base.replace(/^OC[-_]*/i,'');
+  return [...new Set([base,sinPrefijo].filter(Boolean))];
+}
+function coincideOrdenCircuito(orden,claves){
+  if(!orden||typeof orden!=='object'||!claves.length)return false;
+  const item=orden.item&&typeof orden.item==='object'?orden.item:orden;
+  const candidatas=[nroOCCircuito(item),normOC(field(item,'idObra','idOC','id_obra','idServicio'))].filter(Boolean);
+  return candidatas.some(c=>claves.includes(c)||claves.includes(c.replace(/^OC[-_]*/i,'')));
+}
+/* Resolver CANONICO de la OC del circuito contractual. Lo usan el writer, la
+   lectura del historial y el pipeline de la Ficha: no hay otro. Devuelve el
+   item vivo del catalogo (el mismo objeto que renderiza la Ficha) y nunca
+   una coincidencia parcial. */
+function resolverOrdenCircuito(ref){
+  if(ref&&typeof ref==='object')return ref.item&&typeof ref.item==='object'?ref.item:ref;
+  const claves=clavesReferenciaCircuito(ref||currentOCKeyFromGlobals());
+  if(!claves.length)return null;
+  try{
+    if(typeof window.obtenerOC==='function'){
+      for(const clave of [clean(ref),...claves].filter(Boolean)){
+        const f=window.obtenerOC(clave);
+        const item=f&&typeof f==='object'?(f.item&&typeof f.item==='object'?f.item:f):null;
+        if(item&&coincideOrdenCircuito(item,claves))return item;
+      }
+    }
+  }catch(e){}
+  const fuentes=[];
+  try{if(typeof window.todasLasOC==='function')(window.todasLasOC()||[]).forEach(r=>fuentes.push(r?.item||r));}catch(e){}
+  try{if(typeof estaciones!=='undefined'&&Array.isArray(estaciones))estaciones.forEach(est=>[...(est.obras||[]),...(est.servicios||[])].forEach(o=>fuentes.push(o)));}catch(e){}
+  try{if(Array.isArray(window.__coiExecutiveRows))window.__coiExecutiveRows.forEach(o=>fuentes.push(o));}catch(e){}
+  return fuentes.find(o=>coincideOrdenCircuito(o,claves))||null;
+}
 function ordenIdCircuito(orden){return field(orden,'id','supabaseId','orden_id')||null;}
 function clienteCircuito(){return typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;}
 function esEventoConfirmacionCircuito(evento){return clean(evento?.tipo_evento)==='Circuito administrativo';}
 function esEventoObservacionCircuito(evento){return clean(evento?.tipo_evento)==='Observación circuito administrativo';}
-function guardarCacheCircuito(){
-  try{sessionStorage.setItem(CIRCUITO_CACHE_KEY,JSON.stringify(Object.fromEntries(historialCircuitoCache)));}catch(error){}
-}
 function detalleErrorCircuito(error){
   const message=clean(error?.message||error?.details||error);
   if(clean(error?.code)==='42501'||/row-level security|permission denied/i.test(message))return 'Supabase rechazó la operación por permisos/RLS.';
@@ -20398,22 +20446,26 @@ async function resolverOrdenIdCircuito(client,resolved,nro){
   if(result.data?.length!==1||!esUUIDCircuito(result.data[0].id))throw new Error('No se pudo resolver un UUID único para la OC.');
   return result.data[0].id;
 }
+/* Incorpora a la cache las filas que Supabase acaba de CONFIRMAR (payload
+   del RPC). Reemplaza por id, nunca duplica ni borra: una reconfirmacion
+   idempotente devuelve la misma fila y deja la cache identica. Invalida las
+   lecturas en vuelo iniciadas antes, que traerian un snapshot previo. */
 function fusionarHistorialCircuitoConfirmado(nro,rows=[]){
-  const clave=normOC(nro);
+  const clave=nroOCCircuito(nro);
   const confirmadas=Array.isArray(rows)?rows.filter(Boolean):[];
   const actual=historialCircuitoCache.get(clave)||[];
-  if(!confirmadas.length)return actual.slice();
+  if(!clave||!confirmadas.length)return actual.slice();
   const ids=new Set(confirmadas.map(row=>row&&row.id).filter(Boolean));
   const merged=[...actual.filter(item=>!item?.id||!ids.has(item.id)),...confirmadas];
   historialCircuitoCache.set(clave,merged);
-  guardarCacheCircuito();
+  avanzarGeneracionHistorial(clave);
   return merged.slice();
 }
 async function actualizarEstadoDocumentalDesdePasoContractual(ocNro,paso,options={}){
   const stage=typeof paso==='string'?CIRCUITO_ADMINISTRATIVO_ETAPAS.find(item=>item.codigo===paso)||CIRCUITO_ADMINISTRATIVO_ETAPAS.find(item=>normalizarTextoEstado(item.nombre)===normalizarTextoEstado(paso)):paso;
   const estado=estadoContractualNormalizado(stage);
   const nro=normOC(ocNro||currentOCKeyFromGlobals());
-  const resolved=resolverOrdenActual(nro)||resolverOrdenActual(currentOCKeyFromGlobals());
+  const resolved=resolverOrdenCircuito(nro)||resolverOrdenCircuito(currentOCKeyFromGlobals());
   if(!nro||!stage||!estado)throw new Error('No se pudo identificar la OC o el estado contractual.');
   if(options.skipSupabase===true)throw new Error('El circuito contractual requiere confirmación de Supabase.');
   const {client}=await validarEscrituraCircuito();
@@ -20451,20 +20503,38 @@ function agruparHistorialCircuitoPorEtapa(historial=[]){
   Object.values(groups).forEach(rows=>rows.sort((a,b)=>new Date(a.fecha_evento||0)-new Date(b.fecha_evento||0)));
   return groups;
 }
+/* Lectura COMPLETA y canonica del historial de una OC. Siempre por el N° OC
+   canonico (nroOCCircuito), nunca por una clave vacia. Pagina de a 1000 para
+   no perder los eventos mas recientes de una OC con historial largo. */
+const PAGINA_HISTORIAL_CIRCUITO=1000;
 async function cargarHistorialCircuitoOC(orden){
-  const resolved=resolverOrdenActual(orden);
-  const nro=nroOCCircuito(resolved||orden);
+  const resolved=resolverOrdenCircuito(orden);
+  const nro=nroOCCircuito(resolved)||nroOCCircuito(orden);
   if(!nro)return[];
   const fallback=historialCircuitoCache.get(nro)||[];
   let user=null;
   try{user=await getUsuarioActualR12();}catch(error){}
   const client=clienteCircuito();
-  if(!client||!user||!navigator.onLine)return fallback;
-  const result=await client.from('coi_historial_oc').select('*').eq('nro_oc',nro).order('fecha_evento',{ascending:true}).limit(1000);
-  if(result.error)throw new Error(detalleErrorCircuito(result.error));
-  const rows=result.data||[];
-  historialCircuitoCache.set(nro,rows);guardarCacheCircuito();
-  return rows;
+  if(!client||!user||!navigator.onLine)return fallback.slice();
+  const generacion=avanzarGeneracionHistorial(nro);
+  const rows=[];
+  for(let pagina=0;pagina<50;pagina+=1){
+    const desde=pagina*PAGINA_HISTORIAL_CIRCUITO;
+    const result=await client.from('coi_historial_oc').select('*').eq('nro_oc',nro)
+      .order('fecha_evento',{ascending:true}).order('id',{ascending:true})
+      .range(desde,desde+PAGINA_HISTORIAL_CIRCUITO-1);
+    if(result.error)throw new Error(detalleErrorCircuito(result.error));
+    const lote=Array.isArray(result.data)?result.data:[];
+    rows.push(...lote);
+    if(lote.length<PAGINA_HISTORIAL_CIRCUITO)break;
+  }
+  const vistos=new Set();
+  const unicas=rows.filter(row=>{const id=row&&row.id;if(!id)return true;if(vistos.has(id))return false;vistos.add(id);return true;});
+  // Si mientras se leia hubo una confirmacion u otra lectura mas nueva, este
+  // snapshot ya es viejo: no se aplica.
+  if(generacionHistorialCircuito.get(nro)!==generacion)return(historialCircuitoCache.get(nro)||unicas).slice();
+  historialCircuitoCache.set(nro,unicas);
+  return unicas.slice();
 }
 function obtenerEstadoVisualEtapa(etapa,historial=[],estadoActual=''){
   const confirmations=(historial||[]).filter(esEventoConfirmacionCircuito).sort((a,b)=>new Date(a.fecha_evento||0)-new Date(b.fecha_evento||0));
@@ -20476,7 +20546,7 @@ function obtenerEstadoVisualEtapa(etapa,historial=[],estadoActual=''){
   return'pendiente';
 }
 function renderCircuitoAdministrativoOC(orden){
-  const resolved=resolverOrdenActual(orden)||orden||{};
+  const resolved=resolverOrdenCircuito(orden)||orden||{};
   const nro=nroOCCircuito(resolved);
   const history=historialCircuitoCache.get(nro)||[];
   const grouped=agruparHistorialCircuitoPorEtapa(history);
@@ -20499,7 +20569,7 @@ function renderCircuitoAdministrativoOC(orden){
   return `<div id="circuitoAdministrativoOCR18" data-circuito-oc="${esc(nro)}"><div class="muted">Cada confirmación y observación queda registrada en Supabase con fecha, hora y usuario.</div><div id="circuitoAdministrativoStatusR18"></div><div class="circuito-etapas-grid">${cards}</div>${canWrite?'':'<div class="circuito-lectura-aviso">Modo lectura: inicie sesión con un rol autorizado para confirmar etapas o agregar observaciones.</div>'}</div>`;
 }
 async function refrescarCircuitoAdministrativoOC(orden){
-  const resolved=resolverOrdenActual(orden)||orden;
+  const resolved=resolverOrdenCircuito(orden)||orden;
   if(!resolved)return;
   try{await cargarHistorialCircuitoOC(resolved);}catch(error){console.warn('COI: historial de circuito no disponible.',error);}
   const host=$('circuitoAdministrativoOCR18');
@@ -20519,7 +20589,7 @@ async function refrescarModulosCircuito(reference){
 }
 async function confirmarEtapaCircuitoOC(orden,etapa){
   if(guardandoEtapaCircuito)return;
-  const resolved=resolverOrdenActual(orden)||resolverOrdenActual(currentOCKeyFromGlobals());
+  const resolved=resolverOrdenCircuito(orden)||resolverOrdenCircuito(currentOCKeyFromGlobals());
   const stage=typeof etapa==='string'?CIRCUITO_ADMINISTRATIVO_ETAPAS.find(item=>item.codigo===etapa)||CIRCUITO_ADMINISTRATIVO_ETAPAS.find(item=>Array.isArray(item.legacyCodigos)&&item.legacyCodigos.includes(etapa)):etapa;
   const nro=nroOCCircuito(resolved);
   if(!resolved||!nro||!stage){mostrarErrorCircuito('No se pudo identificar la OC o la etapa.');return;}
@@ -20540,7 +20610,7 @@ async function confirmarEtapaCircuitoOC(orden,etapa){
 }
 
 function renderHistorialEtapaCircuitoOC(orden,etapa,historial=[]){
-  const resolved=resolverOrdenActual(orden)||orden||{};
+  const resolved=resolverOrdenCircuito(orden)||orden||{};
   const grouped=agruparHistorialCircuitoPorEtapa(historial);
   const events=grouped[etapa.codigo]||[];
   const confirmation=events.find(esEventoConfirmacionCircuito);
@@ -20556,7 +20626,7 @@ function renderHistorialEtapaCircuitoOC(orden,etapa,historial=[]){
     ${confirmation&&canWrite?`<div class="circuito-observacion-form"><label for="circuitoNuevaObservacionR18"><b>Nueva observación</b></label><textarea id="circuitoNuevaObservacionR18" maxlength="3000" placeholder="Escriba una observación de 3 a 3000 caracteres"></textarea><div id="circuitoModalStatusR18"></div><div class="circuito-observacion-actions"><button type="button" data-circuito-cerrar>Cerrar</button><button type="button" class="primary" data-circuito-guardar-observacion>Guardar observación</button></div></div>`:`<div class="circuito-lectura-aviso">${confirmation?'Modo lectura: no posee permisos para agregar observaciones.':'Confirme la etapa antes de agregar observaciones.'}</div>`}</div>`;
 }
 async function abrirHistorialEtapaCircuitoOC(orden,etapa){
-  const resolved=resolverOrdenActual(orden)||orden;
+  const resolved=resolverOrdenCircuito(orden)||orden;
   const stage=typeof etapa==='string'?CIRCUITO_ADMINISTRATIVO_ETAPAS.find(item=>item.codigo===etapa):etapa;
   if(!resolved||!stage)return;
   cerrarModalHistorialEtapa();
@@ -20574,7 +20644,7 @@ function cerrarModalHistorialEtapa(){
   $('modalHistorialEtapaCircuitoR18')?.remove();etapaCircuitoModalActual=null;
 }
 async function agregarObservacionEtapaCircuitoOC(orden,etapa,observacion){
-  const resolved=resolverOrdenActual(orden)||orden;
+  const resolved=resolverOrdenCircuito(orden)||orden;
   const stage=typeof etapa==='string'?CIRCUITO_ADMINISTRATIVO_ETAPAS.find(item=>item.codigo===etapa):etapa;
   const nro=nroOCCircuito(resolved),text=clean(observacion);
   if(!resolved||!nro||!stage)throw new Error('No se pudo identificar la OC o la etapa.');
@@ -20586,8 +20656,9 @@ async function agregarObservacionEtapaCircuitoOC(orden,etapa,observacion){
   const payload={orden_id:ordenIdCircuito(resolved),nro_oc:nro,tipo_evento:'Observación circuito administrativo',campo_modificado:stage.codigo,valor_anterior:'',valor_nuevo:text,motivo:text,usuario_email:user.email||null,creado_por:user.id||null,fecha_evento:new Date().toISOString()};
   const result=await client.from('coi_historial_oc').insert(payload).select();
   if(result.error)throw new Error(detalleErrorCircuito(result.error));
-  const cache=historialCircuitoCache.get(nro)||history;
-  historialCircuitoCache.set(nro,[...cache,...(result.data?.length?result.data:[payload])]);guardarCacheCircuito();
+  if(!historialCircuitoCache.has(nro))historialCircuitoCache.set(nro,history.slice());
+  // Solo filas devueltas por Supabase; la relectura siguiente trae el resto.
+  if(result.data?.length)fusionarHistorialCircuitoConfirmado(nro,result.data);
   await refrescarCircuitoAdministrativoOC(resolved);
   return result.data?.[0]||payload;
 }
@@ -20598,7 +20669,7 @@ function inicializarEventosCircuitoAdministrativo(){
     const stageButton=event.target.closest('[data-circuito-etapa]');
     if(stageButton){
       const stage=CIRCUITO_ADMINISTRATIVO_ETAPAS.find(item=>item.codigo===stageButton.dataset.circuitoEtapa);
-      const order=resolverOrdenActual(stageButton.dataset.circuitoOc||currentOCKeyFromGlobals());
+      const order=resolverOrdenCircuito(stageButton.dataset.circuitoOc||currentOCKeyFromGlobals());
       if(stageButton.dataset.circuitoConfirmada==='true'){
         if(usuarioTienePermisoEdicion()){
           actualizarEstadoDocumentalDesdePasoContractual(normOC(stageButton.dataset.circuitoOc||currentOCKeyFromGlobals()),stage,{allowLocalFallback:false})
@@ -20626,6 +20697,7 @@ function inicializarEventosCircuitoAdministrativo(){
 
 window.CIRCUITO_ADMINISTRATIVO_ETAPAS=CIRCUITO_ADMINISTRATIVO_ETAPAS;
 window.nroOCCircuito=nroOCCircuito;
+window.resolverOrdenCircuito=resolverOrdenCircuito;
 window.obtenerEtapasCircuitoOC=obtenerEtapasCircuitoOC;
 window.cargarHistorialCircuitoOC=cargarHistorialCircuitoOC;
 window.agruparHistorialCircuitoPorEtapa=agruparHistorialCircuitoPorEtapa;
@@ -20643,7 +20715,7 @@ window.refrescarCircuitoAdministrativoOC=refrescarCircuitoAdministrativoOC;
 /* Lectura de la cache canonica del circuito. La llena cargarHistorialCircuitoOC
    desde coi_historial_oc; esto solo la expone para que el pipeline de 1° Etapa
    no tenga que abrir una segunda fuente de historial. */
-window.__COI_CIRCUITO_CACHE_GET__=(nro)=>historialCircuitoCache.get(normOC(nro))||historialCircuitoCache.get(nro)||[];
+window.__COI_CIRCUITO_CACHE_GET__=(nro)=>(historialCircuitoCache.get(nroOCCircuito(nro))||[]).slice();
 window.__COI_CIRCUITO_CACHE_MERGE__=fusionarHistorialCircuitoConfirmado;
 
 
@@ -23529,6 +23601,13 @@ color:#fff;
     if(ref&&typeof ref==='object')return ref.item||ref;
     const key=currentKey(ref);
     if(!key)return null;
+    // Resolver canonico y exacto del circuito contractual.
+    try{
+      if(typeof window.resolverOrdenCircuito==='function'){
+        const o=window.resolverOrdenCircuito(key);
+        if(o)return o.item||o;
+      }
+    }catch(e){}
     try{
       if(typeof window.resolverOrdenActual==='function'){
         const o=window.resolverOrdenActual(key);
@@ -23603,9 +23682,11 @@ color:#fff;
     setMany(oc,CT_STATUS_FIELDS,estado);
     return{fecha:iso,estado};
   }
-  function setEstadoDocumentalLocal(oc,estado){
+  function setEstadoDocumentalLocal(oc,estado,fechaServidor){
     setMany(oc,ESTADO_DOC_FIELDS,estado);
-    oc.fechaUltimoControl=new Date().toISOString();
+    // Con respuesta del servidor se usa SU fecha_ultimo_control: el reloj del
+    // navegador no puede reescribir un dato que Supabase no cambio.
+    oc.fechaUltimoControl=clean(fechaServidor)||new Date().toISOString();
     oc.fecha_ultimo_control=oc.fechaUltimoControl;
     if(normText(estado)==='OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE'){
       oc.certificableConSaldo=true;
@@ -23706,7 +23787,7 @@ color:#fff;
     const result=await c.rpc('coi_confirmar_etapa_circuito_v3',{p_orden_id:orderId,p_codigo:stage.codigo,p_observacion:clean(options.observacion)||null,p_fecha_efectiva:clean(options.fechaEfectiva)||null});
     if(result.error)throw result.error;
     if(!result.data?.orden?.id||clean(result.data.orden.id)!==clean(orderId))throw new Error('Supabase no confirmó la actualización del circuito.');
-    setEstadoDocumentalLocal(oc,result.data.nombre||estado);
+    setEstadoDocumentalLocal(oc,result.data.nombre||estado,result.data.orden.fecha_ultimo_control);
     if(result.data.orden&&oc._supabaseRaw&&typeof oc._supabaseRaw==='object')Object.assign(oc._supabaseRaw,result.data.orden);
     try{if(result.data.orden&&typeof window.mergeRows==='function')window.mergeRows([result.data.orden]);}catch(e){}
     updateEstadoDOM(result.data.nombre||estado);
@@ -34669,6 +34750,32 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
       (orden._supabaseRaw && (orden._supabaseRaw.nro_oc || orden._supabaseRaw.numeroOC || orden._supabaseRaw.oc)));
     return texto(raw);
   }
+
+  /* Ultima OC montada por N° OC. NO es una fuente de datos: es la referencia
+     al MISMO objeto que la Ficha le paso al pipeline, para que una
+     confirmacion nunca tenga que repintar con un objeto vacio si el catalogo
+     todavia no expone la OC. */
+  const ordenesMontadas = new Map();
+
+  /* Resolver de OC del pipeline. Delega en el resolver CANONICO del circuito
+     (window.resolverOrdenCircuito, exacto) y solo si no existe cae en el
+     generico. Antes se llamaba a window.resolverOrdenActual, que en
+     produccion NO esta exportado: ordenDe() devolvia null, la reconciliacion
+     armaba un objeto {} sin nro_oc y el repintado mostraba el circuito vacio. */
+  function resolverOrdenPipeline(ref) {
+    if (ref && typeof ref === 'object') return ref.item || ref;
+    const clave = texto(ref);
+    if (!clave) return null;
+    for (const nombre of ['resolverOrdenCircuito', 'resolverOrdenActual']) {
+      try {
+        if (typeof window[nombre] !== 'function') continue;
+        const r = window[nombre](clave);
+        const item = r && typeof r === 'object' ? (r.item || r) : null;
+        if (item) return item;
+      } catch (e) {}
+    }
+    return ordenesMontadas.get(clave) || null;
+  }
   /* El objeto que llega al pipeline no siempre conserva el tipo: seg\u00fan por qu\u00e9
      camino se haya resuelto y qu\u00e9 normalizador lo haya tocado, puede llegar
      sin `tipo` y sin `_supabaseRaw`. Cuando eso pasa, la etiqueta ca\u00eda al
@@ -34690,8 +34797,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
       }
     }catch(e){}
     try{
-      const resuelto=typeof window.resolverOrdenActual==='function'?window.resolverOrdenActual(nro):null;
-      const it=resuelto&&(resuelto.item||resuelto);
+      const it=resolverOrdenPipeline(nro);
       if(it&&it!==orden)return texto(it.tipo||(it._supabaseRaw&&it._supabaseRaw.tipo));
     }catch(e){}
     return '';
@@ -34857,6 +34963,10 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
   }
 
   // ------------------------------------------------------------ historial
+  /* Lectura de la cache UNICA del circuito (historialCircuitoCache), siempre
+     por el N° OC canonico. No hay segunda cache ni almacenamiento del
+     navegador: la cache la llena cargarHistorialCircuitoOC desde
+     coi_historial_oc y Supabase sigue siendo la unica autoridad. */
   function confirmaciones(nro) {
     let historial = [];
     try { historial = (window.__COI_HISTORIAL_CIRCUITO__ && window.__COI_HISTORIAL_CIRCUITO__(nro)) || []; } catch (e) {}
@@ -34885,6 +34995,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     const tipo = fold(ev && ev.tipo_evento);
     return tipo === fold('Circuito administrativo') || tipo === fold('Cambio de estado contractual');
   }
+  const esConfirmacionCanonica = (ev) => fold(ev && ev.tipo_evento) === fold('Circuito administrativo');
 
   // Primera confirmacion de cada codigo. La PRIMERA, no la ultima: un
   // reingreso a una etapa ya recorrida no puede mover la fecha en que se
@@ -34928,12 +35039,13 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     return filas.length?filas[filas.length-1]:null;
   }
 
-  // Fallback exclusivamente para OCs legacy cuyo estado_documental ya estaba
-  // confirmado antes de existir la traza contractual completa. No escribe nada:
-  // usa fecha_ultimo_control sólo para no perder la fecha que ya guarda la OC.
+  // Fallback exclusivamente VISUAL para OCs legacy cuyo estado_documental ya
+  // estaba confirmado antes de existir la traza contractual. Muestra la
+  // fecha_ultimo_control que Supabase ya guarda, rotulada como «Fecha
+  // registrada». No es evidencia de hito: no suma X/10 ni genera duracion.
   function eventoEstadoLegacy(orden) {
-    const raw=texto(orden&&(orden.fecha_ultimo_control||orden.fechaUltimoControl||
-      (orden._supabaseRaw&&(orden._supabaseRaw.fecha_ultimo_control||orden._supabaseRaw.fechaUltimoControl))));
+    const raw=texto(orden&&((orden._supabaseRaw&&(orden._supabaseRaw.fecha_ultimo_control||orden._supabaseRaw.fechaUltimoControl))||
+      orden.fecha_ultimo_control||orden.fechaUltimoControl));
     if(!raw)return null;
     return {fecha_evento:raw,fecha_efectiva:diaBuenosAires(raw),__coiEstadoFallback:true};
   }
@@ -34958,10 +35070,9 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     return {valor:texto(ultimo.valor_anterior),confirmacion:texto(ultimo.valor_nuevo),persistido:true};
   }
 
-  // Dias corridos. Para un hito con otro posterior registrado, la diferencia
-  // entre ambos; para el ultimo, contra ahora. Si no hay timestamp valido de
-  // un lado, se devuelve null y la UI muestra «—»: no se inventa duracion
-  // para tapar un hueco de informacion.
+  // Dias corridos entre dos dias administrativos BA. Si falta un extremo o la
+  // diferencia es negativa se devuelve null y la UI muestra «—»: no se
+  // inventa duracion para tapar un hueco de informacion.
   function diasEntre(desde, hasta) {
     const a=ordinalDiaBuenosAires(desde);
     const b=ordinalDiaBuenosAires(hasta||hoyBuenosAires());
@@ -34970,58 +35081,152 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     return dias<0?null:dias;
   }
 
-  /* Estado del pipeline. Todo se deriva del historial remoto y de
-     fecha_acta_inicio. No hay ninguna lectura de almacenamiento del navegador:
-     Supabase es la unica autoridad. */
+  /* ------------------------------------------------------------ 10 HITOS
+
+     MODELO LOGICO. El circuito tiene 10 hitos logicos; las tarjetas son una
+     presentacion y hay mas tarjetas que hitos:
+
+       H1..H8  los 8 primeros codigos de la configuracion (1° Etapa)
+       H9      ejecucion
+       H10     CIERRE: finalizada | finalizada_actas | finalizada_saldo_remanente
+               (tres tarjetas, un solo hito logico)
+       —       cancelada_suspendida: ESTADO TRANSVERSAL, fuera de los 10 hitos
+
+     «Hitos registrados X / 10» = cantidad de hitos logicos DISTINTOS con al
+     menos una transicion real en coi_historial_oc. No es posicion ordinal, ni
+     cantidad de eventos, ni de clicks, ni de tarjetas. No se completan hitos
+     salteados ni se infieren hitos desde estado_documental o fecha de acta. */
+  const TOTAL_HITOS_LOGICOS = 10;
+  const HITO_LOGICO_ETAPA2 = { ejecucion: 9, finalizada: 10, finalizada_actas: 10, finalizada_saldo_remanente: 10 };
+  function hitoLogicoDe(codigo) {
+    const c = texto(codigo);
+    if (!c || c === CODIGO_TRANSVERSAL) return null;
+    const i = hitosEtapa1().findIndex((h) => h.codigo === c);
+    if (i >= 0) return i + 1;
+    return HITO_LOGICO_ETAPA2[c] || null;
+  }
+
+  /* TRANSICIONES reales de la maquina de estados, derivadas SOLO del
+     historial persistido. Cada confirmacion nueva o reingreso del writer v3
+     escribe la fila canonica «Circuito administrativo» y su espejo «Cambio de
+     estado contractual» en la misma transaccion: el espejo se descarta cuando
+     existe la canonica del mismo codigo a pocos segundos, asi una transicion
+     no se cuenta dos veces. Un espejo sin canonica (writers legacy) si es una
+     transicion. Una reconfirmacion idempotente no escribe filas: no hay
+     transicion nueva.
+
+     Orden: dia efectivo (fecha_efectiva, o el dia BA de fecha_evento para
+     filas previas a la columna), luego fecha_evento, luego id. Determinista:
+     el mismo historial produce siempre la misma secuencia. */
+  const VENTANA_ESPEJO_MS = 5000;
+  const msEvento = (ev) => { const t = new Date((ev && ev.fecha_evento) || 0).getTime(); return isNaN(t) ? 0 : t; };
+  function transicionesContractuales(historial) {
+    const trazas = (historial || []).filter(esTrazaConfirmacionContractual)
+      .map((ev) => ({ ev: ev, codigo: codigoEtapaDesdeEvento(ev) }))
+      .filter((x) => x.codigo);
+    const canonicas = trazas.filter((x) => esConfirmacionCanonica(x.ev));
+    const espejoRedundante = (x) => canonicas.some((c) =>
+      c.codigo === x.codigo && Math.abs(msEvento(c.ev) - msEvento(x.ev)) <= VENTANA_ESPEJO_MS);
+    const vistos = new Set();
+    return trazas
+      .filter((x) => esConfirmacionCanonica(x.ev) || !espejoRedundante(x))
+      .filter((x) => { const id = texto(x.ev && x.ev.id); if (!id) return true; if (vistos.has(id)) return false; vistos.add(id); return true; })
+      .map((x) => ({ codigo: x.codigo, hito: hitoLogicoDe(x.codigo), ev: x.ev, dia: fechaCalculoEvento(x.ev) }))
+      .sort((a, b) => {
+        const da = ordinalDiaBuenosAires(a.dia), db = ordinalDiaBuenosAires(b.dia);
+        if (da !== db) return (da == null ? Infinity : da) - (db == null ? Infinity : db);
+        const d = msEvento(a.ev) - msEvento(b.ev);
+        if (d) return d;
+        return texto(a.ev && a.ev.id).localeCompare(texto(b.ev && b.ev.id));
+      });
+  }
+
+  /* SEGMENTOS: cada transicion abre un periodo que termina en la transicion
+     siguiente. Su duracion queda CONGELADA = dia efectivo siguiente - dia
+     efectivo propio. Los hitos salteados no tienen segmento: no se inventa
+     duracion para lo que nunca ocurrio. Un reingreso abre un segmento nuevo y
+     conserva los anteriores. El ultimo segmento queda abierto. */
+  function segmentosDe(transiciones) {
+    return (transiciones || []).map((t, i, lista) => {
+      const siguiente = lista[i + 1] || null;
+      return {
+        codigo: t.codigo, hito: t.hito, ev: t.ev, desde: t.dia,
+        hasta: siguiente ? siguiente.dia : null,
+        abierto: !siguiente,
+        dias: siguiente ? diasEntre(t.dia, siguiente.dia) : null
+      };
+    });
+  }
+
+  /* Estado del pipeline. Todo se deriva del historial remoto, de
+     estado_documental y de fecha_acta_inicio confirmados por Supabase. No hay
+     ninguna lectura de almacenamiento del navegador: Supabase es la unica
+     autoridad y el mismo conjunto de datos produce siempre el mismo estado. */
   function estadoPipeline(orden) {
     const nro = nroOrdenPipeline(orden);
     const historial = confirmaciones(nro);
     const porCodigo = confirmacionPorCodigo(historial);
     const observacionesPorCodigo = eventosPorCodigo(historial, 'Observación circuito administrativo');
     const hitos = hitosEtapa1();
+    const transiciones = transicionesContractuales(historial);
+    const segmentos = segmentosDe(transiciones);
 
-    /* Dos cosas distintas que antes se confundian en una sola:
-
-         HITO ACTUAL         el de mayor INDICE CONTRACTUAL confirmado
-         ULTIMA ACTUALIZACION el evento mas reciente por fecha
-
-       Un expediente historico se carga desordenado: si el hito 5 se confirmo el
-       10 y el hito 3 se carga retrospectivamente el 15, el estado sigue siendo
-       el 5. Ordenar por fecha hacia retroceder el pipeline al hito 3. */
+    /* 1° Etapa: HITO ACTUAL = mayor INDICE CONTRACTUAL confirmado entre H1-H8.
+       Un expediente historico se carga desordenado: si el hito 5 se confirmo
+       el 10 y el hito 3 se carga retrospectivamente el 15, el hito mas
+       avanzado sigue siendo el 5. */
     const registrados = hitos
       .map((h, i) => ({ etapa: h, indice: i, ev: porCodigo.get(h.codigo) || null }))
       .filter((x) => x.ev);
     // Orden CONTRACTUAL, no cronologico.
     registrados.sort((a, b) => a.indice - b.indice);
     const hitoActual = registrados.length ? registrados[registrados.length - 1] : null;
-    // La ultima actualizacion si es por fecha: refleja quien toco algo por
-    // ultima vez, aunque haya sido un backfill.
+    // La ultima actualizacion de la 1° Etapa si es por fecha.
     const ultimaActualizacion = registrados.slice()
       .sort((a, b) => new Date(a.ev.fecha_evento || 0) - new Date(b.ev.fecha_evento || 0))
       .pop() || null;
     const ultimo = hitoActual;
 
+    // X / 10: hitos logicos distintos con transicion real.
+    const hitosLogicos = new Set(transiciones.map((t) => t.hito).filter(Boolean));
+    const registradosCount = hitosLogicos.size;
+    const hitosOrdenados = Array.from(hitosLogicos).sort((a, b) => a - b);
+    const hitosSinRegistrar = hitosOrdenados.length > 1 &&
+      hitosOrdenados.length < hitosOrdenados[hitosOrdenados.length - 1] - hitosOrdenados[0] + 1;
+
     const actaEvento = porCodigo.get(CODIGO_ACTA) || null;
     const actaFecha = texto(orden && (orden.fecha_acta_inicio || orden.fechaActaInicio || orden.actaInicio || orden.fechaInicio ||
       (orden._supabaseRaw && (orden._supabaseRaw.fecha_acta_inicio || orden._supabaseRaw.fechaActaInicio || orden._supabaseRaw.actaInicio || orden._supabaseRaw.fechaInicio))));
 
-    // Evidencia legacy de ejecucion: una OC historica ya iniciada no puede
-    // quedar con la etapa 2 bloqueada solo porque nadie registro el hito.
+    /* ESTADO VIGENTE de la maquina: el estado_documental confirmado por
+       Supabase (el writer v3 lo escribe en cada transicion). Solo si no
+       resuelve contra el catalogo —dato legacy libre— se toma el hito logico
+       mas avanzado con transicion real. */
     const estadoCrudo = orden && (orden.estado_documental || orden.estadoDocumental ||
       orden.estado_coi || orden.estadoCOI || orden.estado);
     const etapaVigente = resolverEtapaCanonica(estadoCrudo);
-    const ultimaTrazaGlobal = ultimaTrazaContractual(historial, '');
-    const ultimaActualizacionGlobal = ultimaTrazaGlobal
-      ? {etapa:etapaPorCodigo(codigoEtapaDesdeEvento(ultimaTrazaGlobal)),ev:ultimaTrazaGlobal}
-      : null;
+    const masAvanzada = transiciones.filter((t) => t.hito)
+      .reduce((m, t) => (!m || t.hito >= m.hito ? t : m), null);
+    const soloTransversal = !masAvanzada ? transiciones.filter((t) => t.codigo === CODIGO_TRANSVERSAL).pop() || null : null;
+    const etapaEstado = etapaVigente ||
+      (masAvanzada ? etapaPorCodigo(masAvanzada.codigo) : (soloTransversal ? etapaPorCodigo(soloTransversal.codigo) : null));
+    // Ultimo INGRESO REAL al estado vigente (incluido un reingreso).
+    const entradasVigente = etapaEstado ? segmentos.filter((s) => s.codigo === etapaEstado.codigo) : [];
+    const entradaVigente = entradasVigente.length ? entradasVigente[entradasVigente.length - 1] : null;
     const eventoVigente = etapaVigente
-      ? (ultimaTrazaContractual(historial, etapaVigente.codigo) || eventoEstadoLegacy(orden))
+      ? ((entradaVigente && entradaVigente.ev) || ultimaTrazaContractual(historial, etapaVigente.codigo) || eventoEstadoLegacy(orden))
+      : (entradaVigente ? entradaVigente.ev : null);
+    const diasVigente = entradaVigente ? diasEntre(entradaVigente.desde, null) : null;
+
+    const ultimaTrazaGlobal = transiciones.slice().sort((a, b) => msEvento(a.ev) - msEvento(b.ev)).pop() || null;
+    const ultimaActualizacionGlobal = ultimaTrazaGlobal
+      ? {etapa:etapaPorCodigo(ultimaTrazaGlobal.codigo),ev:ultimaTrazaGlobal.ev}
       : null;
     const legacyEjecucion =
       Boolean(etapaVigente && CODIGOS_POST_ACTA.indexOf(etapaVigente.codigo) >= 0) ||
       CODIGOS_ETAPA2.some((c) => porCodigo.has(c));
 
-    /* Dos cosas distintas, otra vez:
+    /* Dos cosas distintas:
 
          hito8Registrado    existe un EVENTO real del hito 8 en el historial
          etapa1Finalizada   la gestion contractual termino, por el evento O por
@@ -35065,21 +35270,24 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
       porCodigo: porCodigo,
       observacionesPorCodigo: observacionesPorCodigo,
       historial: historial,
+      transiciones: transiciones,
+      segmentos: segmentos,
       actaConflicto: conflictoActaDesdeHistorial(historial),
       registrados: registrados,
       ultimo: ultimo,
       hitoActual: hitoActual,
       ultimaActualizacion: ultimaActualizacion,
-      ultimaActualizacionGlobal: ultimaActualizacionGlobal ||
-        (eventoVigente ? {etapa:etapaVigente,ev:eventoVigente} : null),
+      ultimaActualizacionGlobal: ultimaActualizacionGlobal,
       etapaVigente: etapaVigente,
+      etapaEstado: etapaEstado,
+      estadoDesdeHistorial: Boolean(etapaEstado && !etapaVigente),
+      entradaVigente: entradaVigente,
       eventoVigente: eventoVigente,
-      // X/8 sigue representando los 8 hitos contractuales. Para una OC legacy
-      // sin traza de etapa 1 pero con estado vigente confirmado, la UI refleja
-      // ese primer estado conocido como 1/8 en vez de mostrar un 0 engañoso.
-      registradosCount: registrados.length,
-      registradosCountVisible: registrados.length || (etapaVigente && etapaVigente.codigo !== CODIGO_TRANSVERSAL && (eventoVigente || CODIGOS_POST_ACTA.indexOf(etapaVigente.codigo) >= 0) ? 1 : 0),
-      total: hitos.length,
+      diasVigente: diasVigente,
+      hitosLogicos: hitosOrdenados,
+      registradosCount: registradosCount,
+      hitosSinRegistrar: hitosSinRegistrar,
+      total: TOTAL_HITOS_LOGICOS,
       etapa1Finalizada: etapa1Finalizada,
       hito8Registrado: hito8Registrado,
       etapa1FinalizadaLegacy: etapa1FinalizadaLegacy,
@@ -35108,83 +35316,70 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     return esActual ? 'actual' : 'completado';
   }
 
-  /* Duracion en ORDEN CONTRACTUAL 1->8, no «el proximo evento cronologico».
-     Para el hito N se mide contra el hito N+1 y solo si ese existe y su
-     timestamp es posterior. Si el inmediato siguiente falta —hueco— o llego con
-     una fecha anterior por un backfill incoherente, se devuelve null y la UI
-     muestra «—»: atravesar el hueco fabricaria una duracion que nadie midio. */
+  /* Duracion de una tarjeta, derivada de los SEGMENTOS:
+       - estado vigente: HOY - dia efectivo del ultimo ingreso real;
+       - estado ya dejado: suma de sus segmentos cerrados (duracion congelada);
+       - hito sin transicion (salteado): null -> «—».
+     El mismo historial produce siempre el mismo numero. */
+  function diasDeCodigo(estado, codigo) {
+    if (estado.etapaEstado && estado.etapaEstado.codigo === codigo && estado.entradaVigente) return estado.diasVigente;
+    const propios = (estado.segmentos || []).filter((s) => s.codigo === codigo && !s.abierto && s.dias != null);
+    if (!propios.length) return null;
+    return propios.reduce((total, s) => total + s.dias, 0);
+  }
+  function ingresosDeCodigo(estado, codigo) {
+    return (estado.segmentos || []).filter((s) => s.codigo === codigo).length;
+  }
   function diasDeHito(estado, x) {
     if (!x.ev) return null;
-    const indice = estado.hitos.findIndex((h) => h.codigo === x.etapa.codigo);
-    const siguienteEtapa = indice >= 0 ? estado.hitos[indice + 1] : null;
-    const siguienteEv = siguienteEtapa ? estado.porCodigo.get(siguienteEtapa.codigo) : null;
-
-    if (!siguienteEv) {
-      // El hito 8 cierra la etapa 1: no sigue acumulando dias contra NOW.
-      if (x.etapa.codigo === CODIGO_ACTA) return null;
-      // Ultimo hito contractual confirmado y etapa abierta: corre contra ahora.
-      const esActual = estado.hitoActual && estado.hitoActual.etapa.codigo === x.etapa.codigo;
-      if (esActual && !estado.etapa1Finalizada) return diasEntre(fechaCalculoEvento(x.ev), null);
-      // Hueco: el inmediato siguiente no esta registrado.
-      return null;
-    }
-    const desdeDia=ordinalDiaBuenosAires(fechaCalculoEvento(x.ev));
-    const hastaDia=ordinalDiaBuenosAires(fechaCalculoEvento(siguienteEv));
-    if(desdeDia==null||hastaDia==null)return null;
-    // Backfill incoherente: el siguiente quedó con día administrativo anterior.
-    if(hastaDia<desdeDia)return null;
-    return hastaDia-desdeDia;
+    return diasDeCodigo(estado, x.etapa.codigo);
   }
 
-  // Duración del estado vigente: se toma desde la última transición real.
-  // Cuando se confirma el estado siguiente, la duración anterior queda fijada
-  // por la diferencia entre las fechas efectivas persistidas en historial.
+  // Duración del estado vigente: se toma desde el último ingreso real.
   function diasEstadoVigente(estado) {
-    if(!estado||!estado.etapaVigente||!estado.eventoVigente)return null;
-    // El cierre definitivo termina el cronómetro contractual.
-    if(estado.etapaVigente.codigo==='finalizada_actas')return 0;
-    return diasEntre(fechaCalculoEvento(estado.eventoVigente),null);
+    return estado ? estado.diasVigente : null;
   }
 
+  // La tarjeta del estado vigente muestra su ULTIMO ingreso; las demas, el
+  // primero (un reingreso no mueve la fecha en que se alcanzo por primera vez).
   function eventoParaTarjeta(estado,codigo) {
     if(estado&&estado.etapaVigente&&estado.etapaVigente.codigo===codigo)
       return estado.eventoVigente||estado.porCodigo.get(codigo)||null;
+    if(estado&&estado.etapaEstado&&estado.etapaEstado.codigo===codigo&&estado.entradaVigente)
+      return estado.entradaVigente.ev;
     return estado&&estado.porCodigo?estado.porCodigo.get(codigo)||null:null;
   }
 
   function diasDeEtapa2(estado,etapa,ev) {
-    if(!ev)return null;
-    if(estado.etapaVigente&&estado.etapaVigente.codigo===etapa.codigo)
-      return diasEstadoVigente(estado);
-    const lista=etapasEtapa2(estado.orden);
-    const indice=lista.findIndex((item)=>item.codigo===etapa.codigo);
-    if(indice<0)return null;
-    for(let i=indice+1;i<lista.length;i+=1){
-      const siguiente=estado.porCodigo.get(lista[i].codigo);
-      if(!siguiente)continue;
-      return diasEntre(fechaCalculoEvento(ev),fechaCalculoEvento(siguiente));
-    }
-    return null;
+    if(!ev||ev.__coiEstadoFallback)return null;
+    return diasDeCodigo(estado,etapa.codigo);
   }
 
   // ------------------------------------------------------------ render
+  const etiquetaHito = (codigo) => { const h = hitoLogicoDe(codigo); return h ? 'H' + h : ''; };
+  function extrasTarjeta(estado, codigo) {
+    const n = ingresosDeCodigo(estado, codigo);
+    return n > 1 ? '<span class="etapa1-ingresos">Ingresos registrados: ' + n + '</span>' : '';
+  }
   function filaHito(estado, etapa, indice) {
-    const ev = estado.porCodigo.get(etapa.codigo) || null;
-    const x = { etapa: etapa, ev: ev };
+    const ev = eventoParaTarjeta(estado, etapa.codigo);
+    const x = { etapa: etapa, ev: ev && !ev.__coiEstadoFallback ? ev : null };
     const visual = visualDe(estado, x);
     const dias = diasDeHito(estado, x);
     const seguimientos = estado.observacionesPorCodigo.get(etapa.codigo) || [];
-    const obsInicial = texto(ev && ev.motivo);
+    const obsInicial = texto(x.ev && x.ev.motivo);
     const obsCount = seguimientos.length + (obsInicial ? 1 : 0);
     const etiqueta = { pendiente: 'PENDIENTE', actual: 'EN CURSO', completado: 'COMPLETADO' }[visual];
     return '<button type="button" class="etapa1-hito etapa1-' + visual + '"' +
-      ' data-etapa1-hito="' + esc(etapa.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '">' +
-      '<span class="etapa1-num">' + (indice + 1) + '</span>' +
+      ' data-etapa1-hito="' + esc(etapa.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '"' +
+      ' data-etapa1-logico="H' + (indice + 1) + '">' +
+      '<span class="etapa1-num">H' + (indice + 1) + '</span>' +
       '<span class="etapa1-cuerpo">' +
         '<span class="etapa1-nombre">' + esc(etapa.nombre) + '</span>' +
         '<span class="etapa1-estado">' + etiqueta + '</span>' +
-        '<span class="etapa1-meta">' + esc(metaFechaEtapa(ev)) + '</span>' +
+        '<span class="etapa1-meta">' + esc(metaFechaEtapa(x.ev)) + '</span>' +
         '<span class="etapa1-dias">Días en etapa: ' + (dias == null ? '—' : dias) + '</span>' +
+        extrasTarjeta(estado, etapa.codigo) +
         (obsCount ? '<span class="etapa1-obs" data-etapa1-historial="' + esc(etapa.codigo) + '" role="button" tabindex="0" title="Abrir historial y observaciones">Observaciones: ' + obsCount + '</span>' : '') +
       '</span></button>';
   }
@@ -35194,28 +35389,29 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
   // interfaz no puede dejar caer.
   const conflictoActa = new Map();
 
+  /* RESUMEN GLOBAL del circuito completo (1° y 2° Etapa), visible con
+     cualquiera de las dos pestañas:
+
+       ESTADO ACTUAL         estado contractual vigente real
+       ULTIMA ACTUALIZACION  fecha/hora (fecha_evento) de la ultima transicion
+       DIAS EN ESTADO        HOY - fecha_efectiva del ultimo ingreso al vigente
+       HITOS REGISTRADOS     hitos logicos distintos con evidencia, X / 10 */
   function resumen(estado) {
     const ult = estado.hitoActual;
-    const ultimaAct = estado.ultimaActualizacion;
-    // Dias en estado: contra el HITO ACTUAL, no contra la ultima carga
-    // retrospectiva, y solo mientras la etapa 1 siga abierta.
-    const dias = ult && !estado.etapa1Finalizada ? diasDeHito(estado, ult) : null;
-    const ultimaActLegacy = ultimaAct ? fechaHora(ultimaAct.ev.fecha_evento) : '—';
-    const ultimaActResumen = estado.ultimaActualizacionGlobal || ultimaAct;
-    const diasVigente = diasEstadoVigente(estado);
-    const diasResumen = diasVigente == null ? dias : diasVigente;
-    /* A) sin hitos y sin evidencia  -> Sin iniciar
-       B) ultimo 1-7                  -> su nombre
-       C/D) hito 8 registrado         -> 1° Etapa finalizada
-       E) evidencia historica          -> 1° Etapa finalizada — evidencia histórica
-          (fecha de acta cargada, o estado legacy posterior al acta, sin que
-          nadie haya registrado el hito en el pipeline) */
+    const ultimaActResumen = estado.ultimaActualizacionGlobal;
+    const diasResumen = diasEstadoVigente(estado);
+    /* A) sin transiciones y sin evidencia -> Sin iniciar
+       B) estado vigente resuelto          -> su nombre (por tipo de OC)
+       C/D) hito 8 como hito mas avanzado  -> 1° Etapa finalizada
+       E) evidencia historica sin traza    -> 1° Etapa finalizada — evidencia histórica */
     const vigente = estado.etapaVigente;
-    const estadoActual = vigente
-      ? nombreEtapaPorTipo(vigente, estado.orden)
-      : (estado.etapa1Finalizada
-          ? (estado.etapa1FinalizadaLegacy ? '1° Etapa finalizada — evidencia histórica' : '1° Etapa finalizada')
-          : (ult ? ult.etapa.nombre : 'Sin iniciar'));
+    const desdeHistorial = estado.etapaEstado && !vigente ? estado.etapaEstado : null;
+    let estadoActual;
+    if (vigente) estadoActual = nombreEtapaPorTipo(vigente, estado.orden);
+    else if (desdeHistorial && desdeHistorial.codigo !== CODIGO_ACTA) estadoActual = nombreEtapaPorTipo(desdeHistorial, estado.orden);
+    else if (estado.etapa1Finalizada)
+      estadoActual = estado.etapa1FinalizadaLegacy ? '1° Etapa finalizada — evidencia histórica' : '1° Etapa finalizada';
+    else estadoActual = ult ? ult.etapa.nombre : 'Sin iniciar';
     const aviso = estado.actaPendienteConciliacion
       ? '<p class="etapa1-aviso" id="etapa1AvisoActa">Fecha de Acta de Inicio pendiente de conciliación.</p>'
       : '';
@@ -35230,6 +35426,10 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
         'Se preservó el dato contractual existente' +
         (conflicto.valor ? ' (' + esc(conflicto.valor) + ')' : '') + '.</p>'
       : '';
+    // Salto de hitos: se advierte, no se bloquea ni se completa nada.
+    const avisoSalto = estado.hitosSinRegistrar
+      ? '<p class="etapa1-aviso" id="etapa1AvisoHitosSinRegistrar">Existen hitos intermedios sin registrar.</p>'
+      : '';
     // E/F) la situacion transversal se muestra en el encabezado, sin alterar
     // el estado derivado del pipeline.
     const transversal = estado.transversalTexto
@@ -35237,98 +35437,130 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
         esc(estado.transversalTexto) + '</p>'
       : '';
     return '<div class="etapa1-resumen" id="etapa1Resumen">' +
-      '<h4>1° ETAPA — GESTIÓN CONTRACTUAL</h4>' +
+      '<h4>RESUMEN DEL CIRCUITO · 1° Y 2° ETAPA</h4>' +
       '<div class="etapa1-resumen-grid">' +
         '<div><span>Estado actual</span><b id="etapa1EstadoActual">' +
           esc(estadoActual) + '</b></div>' +
         '<div><span>Última actualización</span><b id="etapa1UltimaAct">' +
-          esc(ultimaActResumen ? fechaHora(ultimaActResumen.ev.fecha_evento) : ultimaActLegacy) + '</b></div>' +
+          esc(ultimaActResumen ? fechaHora(ultimaActResumen.ev.fecha_evento) : '—') + '</b></div>' +
         '<div><span>Días en estado</span><b id="etapa1DiasEstado">' +
           (diasResumen == null ? '—' : diasResumen) + '</b></div>' +
         '<div><span>Hitos registrados</span><b id="etapa1Avance">' +
-          (estado.registradosCountVisible == null ? estado.registradosCount : estado.registradosCountVisible) +
-          ' / ' + estado.total + '</b></div>' +
+          estado.registradosCount + ' / ' + estado.total + '</b></div>' +
       '</div>' +
-      // X/8 son hitos con registro, no avance de obra. Conviene decirlo donde
-      // se lee, no solo en la documentacion.
-      '<p class="muted etapa1-nota">Hitos con registro administrativo. No representa avance de obra.</p>' +
-      aviso + avisoConflicto + transversal + '</div>';
+      // X/10 son hitos logicos con registro, no avance de obra. Conviene
+      // decirlo donde se lee, no solo en la documentacion.
+      '<p class="muted etapa1-nota">Hitos lógicos (H1–H10) con registro administrativo en Supabase. No representa avance de obra.</p>' +
+      aviso + avisoConflicto + avisoSalto + transversal + '</div>';
+  }
+
+  function estadoEtapa1Texto(estado) {
+    if (estado.hito8Registrado) return 'Finalizada (Hito 8 registrado)';
+    if (estado.etapa1FinalizadaLegacy) return 'Finalizada por evidencia histórica / datos previos al pipeline';
+    if (estado.registrados.length) return 'En curso';
+    return 'Sin iniciar';
   }
 
   function bloqueTransversal(estado) {
     const et = etapaTransversal();
     if (!et) return '';
     const ev = estado.transversal;
+    const vigente = Boolean(estado.etapaEstado && estado.etapaEstado.codigo === et.codigo);
+    const dias = ev ? diasDeCodigo(estado, et.codigo) : null;
     return '<div class="etapa1-transversal" id="etapa1Transversal">' +
       '<h4>Estado transversal</h4>' +
       '<p class="muted">Una contratación puede cancelarse o suspenderse antes o después del Acta de Inicio. ' +
-      'No forma parte del avance secuencial.</p>' +
+      'No forma parte de los 10 hitos ni suma al contador.</p>' +
       '<button type="button" class="etapa1-hito etapa1-' + (ev ? 'completado' : 'pendiente') + '"' +
-      ' data-etapa1-hito="' + esc(et.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '">' +
+      ' data-etapa1-hito="' + esc(et.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '" data-etapa1-logico="">' +
       '<span class="etapa1-cuerpo"><span class="etapa1-nombre">' + esc(nombreEtapaPorTipo(et,estado.orden)) + '</span>' +
-      '<span class="etapa1-estado">' + (ev ? esc(estado.transversalTexto) : 'SIN REGISTRO') + '</span>' +
+      '<span class="etapa1-estado">' + (ev ? esc(estado.transversalTexto || (vigente ? 'VIGENTE' : 'REGISTRADA (superada)')) : 'SIN REGISTRO') + '</span>' +
       '<span class="etapa1-meta">' + (ev ? esc(metaFechaEtapa(ev)) : 'Registrable en cualquier momento') + '</span>' +
+      (ev ? '<span class="etapa1-dias">Días en estado: ' + (dias == null ? '—' : dias) + '</span>' : '') +
+      (ev ? extrasTarjeta(estado, et.codigo) : '') +
       '</span></button></div>';
   }
 
-  function bloqueEtapa2(estado) {
+  function bloqueEtapa2(estado, activa) {
     const lista = etapasEtapa2(estado.orden);
     const bloqueada = !estado.etapa2Habilitada;
+    const cierreRegistrado = estado.hitosLogicos.indexOf(10) >= 0;
     const items = lista.map((et) => {
       const ev = eventoParaTarjeta(estado,et.codigo);
-      const vigente = Boolean(estado.etapaVigente && estado.etapaVigente.codigo === et.codigo);
-      const visual = vigente ? 'actual' : (ev ? 'completado' : 'pendiente');
-      const etiqueta = vigente ? 'EN CURSO' : (ev ? 'COMPLETADO' : 'PENDIENTE');
+      const vigente = Boolean(estado.etapaEstado && estado.etapaEstado.codigo === et.codigo);
+      const real = ev && !ev.__coiEstadoFallback;
+      const visual = vigente ? 'actual' : (real ? 'completado' : 'pendiente');
+      const etiqueta = vigente ? 'EN CURSO' : (real ? 'COMPLETADO' : 'PENDIENTE');
       const diasEstado=diasDeEtapa2(estado,et,ev);
+      const logico = etiquetaHito(et.codigo);
       return '<button type="button" class="etapa1-hito etapa1-' + visual + '"' +
         ' data-etapa1-hito="' + esc(et.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '"' +
+        ' data-etapa1-logico="' + esc(logico) + '"' +
         (bloqueada ? ' disabled' : '') + '>' +
+        '<span class="etapa1-num">' + esc(logico) + '</span>' +
         '<span class="etapa1-cuerpo"><span class="etapa1-nombre">' + esc(nombreEtapaPorTipo(et,estado.orden)) + '</span>' +
         '<span class="etapa1-estado">' + etiqueta + '</span>' +
         '<span class="etapa1-meta">' + esc(metaFechaEtapa(ev)) + '</span>' +
         '<span class="etapa1-dias">Días en estado: ' + (diasEstado == null ? '—' : diasEstado) + '</span>' +
+        extrasTarjeta(estado, et.codigo) +
         '</span></button>';
     }).join('');
-    return '<div class="etapa1-panel" id="etapa1Panel2" data-etapa1-habilitada="' + (bloqueada ? 'no' : 'si') + '">' +
+    return '<div class="etapa1-panel' + (activa ? ' active' : '') + '" id="etapa1Panel2" data-etapa1-habilitada="' + (bloqueada ? 'no' : 'si') + '">' +
       '<h4>2° ETAPA — EJECUCIÓN Y CIERRE</h4>' +
+      '<p class="muted etapa1-nota">H9 ejecución · H10 cierre. Las variantes de cierre son situaciones del mismo Hito 10' +
+        (cierreRegistrado ? ' (H10 registrado: cambiar la modalidad de cierre agrega una transición, no un hito).' : '.') + '</p>' +
       (bloqueada ? '<p class="etapa1-bloqueada" id="etapa1Etapa2Bloqueada">La 2° Etapa se habilita al registrar el Acta de Inicio.</p>' : '') +
       '<div class="etapa1-grid">' + items + '</div></div>';
   }
 
+  const esUUIDPipeline = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(texto(v));
+  // Identidad estable de la OC: su UUID de Supabase; si el objeto no lo trae,
+  // el N° OC canonico. Nunca un id local de otro tipo.
   function identidadOrden(orden) {
-    const raw=orden&&((orden._supabaseRaw&&orden._supabaseRaw.id)||orden.supabaseId||orden.orden_id||orden.id);
-    return texto(raw)||texto(orden&&(orden.nro_oc||orden.numeroOC||orden.oc));
+    if (!orden || typeof orden !== 'object') return '';
+    const candidatos = [orden._supabaseRaw && orden._supabaseRaw.id, orden.supabaseId, orden.orden_id, orden.id];
+    const uuid = candidatos.map(texto).find(esUUIDPipeline);
+    return uuid || texto(nroOrdenPipeline(orden));
   }
+  // Pestaña activa por OC: estado de interfaz en memoria, no dato contractual.
+  // Un repintado (confirmacion, relectura) no puede devolver al usuario a la
+  // 1° Etapa si estaba trabajando en la 2°.
+  const pestanaActiva = new Map();
   function render(orden) {
     const estado = estadoPipeline(orden);
     const identidad=identidadOrden(orden);
+    if (estado.nro && orden && typeof orden === 'object') ordenesMontadas.set(estado.nro, orden);
     // La 2° Etapa SIEMPRE es visible: bloqueada muestra el candado y el motivo,
     // nunca se oculta el selector.
     const bloqueada = !estado.etapa2Habilitada;
-    return '<div id="etapa1PipelineContractual" data-etapa1-oc="' + esc(estado.nro) + '" data-etapa1-orden-id="' + esc(identidad) + '">' +
+    const tab2 = pestanaActiva.get(estado.nro) === 'etapa1Panel2';
+    return '<div id="etapa1PipelineContractual" data-etapa1-oc="' + esc(estado.nro) + '" data-etapa1-orden-id="' + esc(identidad) + '"' +
+      ' data-etapa1-hitos-registrados="' + estado.registradosCount + '">' +
       '<h4 class="etapa1-titulo" id="etapa1Titulo">SEGUIMIENTO CONTRACTUAL Y EJECUCIÓN</h4>' +
+      resumen(estado) +
       '<nav class="etapa1-tabs" role="tablist">' +
-        '<button type="button" id="etapa1Tab1" data-etapa1-tab="etapa1Panel1" class="active">1° ETAPA · CONTRACTUAL</button>' +
-        '<button type="button" id="etapa1Tab2" data-etapa1-tab="etapa1Panel2"' +
+        '<button type="button" id="etapa1Tab1" data-etapa1-tab="etapa1Panel1"' + (tab2 ? '' : ' class="active"') + '>1° ETAPA · CONTRACTUAL</button>' +
+        '<button type="button" id="etapa1Tab2" data-etapa1-tab="etapa1Panel2"' + (tab2 ? ' class="active"' : '') +
           (bloqueada ? ' data-etapa1-bloqueada="si"' : '') + '>2° ETAPA · EJECUCIÓN Y CIERRE' +
           (bloqueada ? ' <span class="etapa1-candado" aria-label="bloqueada">🔒</span>' : '') + '</button>' +
       '</nav>' +
-      '<div class="etapa1-panel active" id="etapa1Panel1">' +
-        resumen(estado) +
+      '<div class="etapa1-panel' + (tab2 ? '' : ' active') + '" id="etapa1Panel1">' +
+        '<h4>1° ETAPA — GESTIÓN CONTRACTUAL · H1–H8</h4>' +
+        '<p class="etapa1-estado-etapa" id="etapa1EstadoEtapa1">1° Etapa: ' + esc(estadoEtapa1Texto(estado)) + '</p>' +
         '<div class="etapa1-grid" id="etapa1Pipeline">' +
           estado.hitos.map((et, i) => filaHito(estado, et, i)).join('') +
         '</div>' +
         bloqueTransversal(estado) +
       '</div>' +
-      bloqueEtapa2(estado) +
+      bloqueEtapa2(estado, tab2) +
     '</div>';
   }
 
   /* ------------------------------------------------------------ historial
      Adapter de LECTURA sobre la cache canonica del circuito. No es una
-     segunda fuente: `historialCircuitoCache` la llena cargarHistorialCircuitoOC
-     desde coi_historial_oc, y esa sigue siendo la autoridad. Aca solo se lee. */
-  const historialLocal = new Map();
+     segunda fuente ni una segunda cache: `historialCircuitoCache` la llena
+     cargarHistorialCircuitoOC desde coi_historial_oc, y esa sigue siendo la
+     autoridad. Aca solo se lee. */
   function leerHistorial(nro) {
     const clave = texto(nro);
     if (!clave) return [];
@@ -35338,19 +35570,16 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
         if (Array.isArray(filas)) return filas;
       }
     } catch (e) {}
-    return historialLocal.get(clave) || [];
+    return [];
   }
   window.__COI_HISTORIAL_CIRCUITO__ = leerHistorial;
 
-  // Trae el historial por el camino canonico y repinta. Supabase manda: si la
+  // Relee el historial por el camino canonico y repinta. Supabase manda: si la
   // lectura falla, no se inventa contenido, se conserva lo ultimo confirmado.
   async function sincronizarHistorial(orden) {
     const identidad=identidadOrden(orden);
     try {
-      if (typeof window.cargarHistorialCircuitoOC !== 'function') return;
-      const filas = await window.cargarHistorialCircuitoOC(orden);
-      const nro = nroOrdenPipeline(orden);
-      if (nro && Array.isArray(filas)) historialLocal.set(nro, filas);
+      if (typeof window.cargarHistorialCircuitoOC === 'function') await window.cargarHistorialCircuitoOC(orden);
     } catch (e) { /* se conserva lo ya confirmado */ }
     repintar(orden, identidad);
   }
@@ -35359,13 +35588,14 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
      optimista: es justamente lo contrario, se usa el dato YA confirmado por el
      servidor en vez del objeto local, que puede estar stale.
 
-     Sin esto, tras confirmar el hito 8 la UI repintaba con una OC cuyo
-     fecha_acta_inicio todavia era null y mostraba «pendiente de conciliacion»
-     un segundo despues de que el servidor la hubiera registrado. */
+     SIEMPRE sobre la OC real (la del catalogo o la que la Ficha monto). Sin
+     OC base no se fabrica un objeto nuevo: un {} sin nro_oc es exactamente lo
+     que vaciaba el circuito tras reconfirmar un hito. */
   function reconciliarOrden(orden, confirmada) {
-    if (!confirmada || typeof confirmada !== 'object') return orden;
-    const destino = orden && typeof orden === 'object' ? orden : {};
-    ['fecha_acta_inicio', 'estado_documental', 'estado_coi'].forEach((campo) => {
+    const destino = orden && typeof orden === 'object' ? orden : null;
+    if (!destino) return null;
+    if (!confirmada || typeof confirmada !== 'object') return destino;
+    ['fecha_acta_inicio', 'estado_documental', 'estado_coi', 'fecha_ultimo_control'].forEach((campo) => {
       if (Object.prototype.hasOwnProperty.call(confirmada, campo)) {
         destino[campo] = confirmada[campo];
         if (destino._supabaseRaw && typeof destino._supabaseRaw === 'object') {
@@ -35379,15 +35609,25 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     if (Object.prototype.hasOwnProperty.call(confirmada, 'estado_documental')) {
       destino.estadoDocumental = confirmada.estado_documental;
     }
+    if (Object.prototype.hasOwnProperty.call(confirmada, 'estado_coi')) {
+      destino.estadoCOI = confirmada.estado_coi;
+    }
+    if (Object.prototype.hasOwnProperty.call(confirmada, 'fecha_ultimo_control')) {
+      destino.fechaUltimoControl = confirmada.fecha_ultimo_control;
+    }
     return destino;
   }
 
   function repintar(orden, identidadEsperada) {
     const host = $('etapa1PipelineContractual');
-    if (!host || !host.parentNode) return false;
+    if (!host || !host.parentNode || !orden || typeof orden !== 'object') return false;
     const esperada=texto(identidadEsperada||identidadOrden(orden));
     const montada=texto(host.getAttribute('data-etapa1-orden-id'));
     if (esperada && montada && esperada!==montada) return false;
+    // Nunca se repinta con una OC distinta de la montada ni sin N° OC.
+    const nroMontado=texto(host.getAttribute('data-etapa1-oc'));
+    const nroNuevo=nroOrdenPipeline(orden);
+    if (!nroNuevo || (nroMontado && nroMontado!==nroNuevo)) return false;
     const cont = document.createElement('div');
     cont.innerHTML = render(orden);
     host.parentNode.replaceChild(cont.firstElementChild, host);
@@ -35404,8 +35644,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     ? window.renderChecksDocumentales : null;
   function checksEtapa1(item) {
     try {
-      const resuelto = (typeof window.resolverOrdenActual === 'function'
-        ? window.resolverOrdenActual(item) : null) || item;
+      const resuelto = resolverOrdenPipeline(item) || item;
       if (!resuelto) return baseChecks ? baseChecks(item) : '';
       setTimeout(() => { sincronizarHistorial(resuelto); }, 0);
       return render(resuelto);
@@ -35422,8 +35661,9 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
   let guardando = false;
   let modalActual = null;
 
+  // Siempre por el resolver canonico: nunca null si la Ficha monto la OC.
   function ordenDe(nro) {
-    try { return (typeof window.resolverOrdenActual === 'function' && window.resolverOrdenActual(nro)) || null; }
+    try { return resolverOrdenPipeline(nro); }
     catch (e) { return null; }
   }
 
@@ -35447,7 +35687,13 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     const orden = ordenDe(nro);
     const etapa = etapaPorCodigo(codigo);
     if (!etapa) return;
-    const estado = estadoPipeline(orden || {});
+    // Sin OC resuelta no hay modal: calcular el estado sobre {} producia una
+    // fecha por defecto falsa (hoy) que pisaba la fecha efectiva persistida.
+    if (!orden) {
+      try { if (typeof window.toast === 'function') window.toast('No se pudo identificar la OC ' + texto(nro) + ' en el catálogo cargado.', 'error'); } catch (e) {}
+      return;
+    }
+    const estado = estadoPipeline(orden);
     const eventoExistente = estado.porCodigo.get(codigo) || null;
     const etapaCanonica=estado.etapaVigente||null;
     const confirmacionVigente = Boolean(eventoExistente && (
@@ -35467,12 +35713,19 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
         })[0] || eventoExistente
       : eventoExistente;
     const fechaDefault = confirmacionVigente ? (fechaInputEvento(eventoVigente) || hoyBuenosAires()) : hoyBuenosAires();
-    // Advertencia por salto: hitos contractuales anteriores sin registro. La
-    // transversal no participa de la secuencia, asi que no dispara aviso.
-    const indice = estado.hitos.findIndex((h) => h.codigo === codigo);
-    const faltantes = indice > 0
-      ? estado.hitos.slice(0, indice).filter((h) => !estado.porCodigo.has(h.codigo)).length
-      : 0;
+    // Advertencia por salto: hitos LOGICOS anteriores sin registro (H1..H9
+    // para el cierre). La transversal no participa de la secuencia, asi que
+    // no dispara aviso. Se advierte, nunca se bloquea ni se autocompleta.
+    const hitoObjetivo = hitoLogicoDe(codigo);
+    let faltantes = 0;
+    for (let h = 1; hitoObjetivo && h < hitoObjetivo; h += 1) {
+      if (estado.hitosLogicos.indexOf(h) < 0) faltantes += 1;
+    }
+    // Reconfirmar el estado vigente es idempotente: no crea una transicion.
+    const reconfirmacion = Boolean(confirmacionVigente && etapaCanonica && etapaCanonica.codigo === codigo);
+    // Cambiar de variante de cierre con el H10 ya registrado: transicion nueva,
+    // mismo hito logico.
+    const varianteCierre = hitoObjetivo === 10 && !reconfirmacion && estado.hitosLogicos.indexOf(10) >= 0;
     const usuario = await usuarioActual();
 
     cerrarModal();
@@ -35495,6 +35748,10 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
         (faltantes ? '<p class="etapa1-modal-aviso" id="etapa1ModalAvisoSalto">' +
           'Existen hitos anteriores sin registrar. La confirmación no completará ' +
           'automáticamente esos pasos.</p>' : '') +
+        (reconfirmacion ? '<p class="etapa1-nota" id="etapa1ModalReconfirmacion">Es el estado vigente: ' +
+          'reconfirmarlo con la misma fecha no genera una nueva transición ni suma hitos.</p>' : '') +
+        (varianteCierre ? '<p class="etapa1-nota" id="etapa1ModalVarianteCierre">El Hito 10 (cierre) ya está registrado: ' +
+          'se registrará el cambio de modalidad de cierre, sin sumar un hito.</p>' : '') +
         '<label for="etapa1ModalObs">Observación (opcional)</label>' +
         '<textarea id="etapa1ModalObs" rows="3"></textarea>' +
         '<p class="etapa1-modal-error" id="etapa1ModalError" hidden></p>' +
@@ -35563,22 +35820,27 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
         contexto.nro, contexto.etapa, { observacion: observacion, fechaEfectiva: fechaEfectiva, allowLocalFallback: false }
       );
       const resultId=identidadOrden(resultado && resultado.orden);
-      if (contexto.identidad && resultId && contexto.identidad!==resultId)
+      // La identidad solo se compara UUID contra UUID: un N° OC local frente al
+      // UUID del servidor no es una OC distinta.
+      if (esUUIDPipeline(contexto.identidad) && contexto.identidad && resultId && contexto.identidad!==resultId)
         throw new Error('Supabase confirmó una OC distinta de la operación iniciada.');
       avisarActaInicio(resultado, contexto);
-      const baseOrden=ordenDe(contexto.nro)||contexto.orden;
+      // Siempre la OC REAL: catalogo, la del modal o la que la Ficha monto.
+      const baseOrden=ordenDe(contexto.nro)||contexto.orden||ordenesMontadas.get(contexto.nro)||null;
       const orden=reconciliarOrden(baseOrden, resultado&&resultado.orden);
       // La respuesta ya confirmada por Supabase alimenta el historial canónico
-      // antes del repaint. Fecha efectiva y X/8 cambian sin F5 y sin escritura local.
+      // antes del repaint. Fecha efectiva y X/10 cambian sin F5 y sin escritura local.
       try{
         if(typeof window.__COI_CIRCUITO_CACHE_MERGE__==='function')
           window.__COI_CIRCUITO_CACHE_MERGE__(contexto.nro,resultado&&resultado.historial);
       }catch(e){}
-      repintar(orden,contexto.identidad);
+      if (orden) repintar(orden,contexto.identidad);
       // Cerrar solo si sigue siendo EL MISMO modal. Cancel/Escape u otra OC no
       // pueden hacer que una respuesta tardía opere sobre el modal nuevo.
       if (modalActual && modalActual.token===contexto.token) cerrarModal();
-      await sincronizarHistorial(orden);
+      // Relectura canonica: lo que queda en pantalla es exactamente lo que un
+      // F5 reconstruiria desde Supabase.
+      if (orden) await sincronizarHistorial(orden);
     } catch (error) {
       if (modalActual && modalActual.token===contexto.token) mostrarErrorModal((error && error.message) || String(error));
       else { try { if (typeof window.toast==='function') window.toast((error&&error.message)||String(error),'error'); } catch (e) {} }
@@ -35597,6 +35859,9 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     if (tab) {
       ev.preventDefault();
       const destino = tab.getAttribute('data-etapa1-tab');
+      const host = tab.closest('#etapa1PipelineContractual');
+      const nroTab = host ? texto(host.getAttribute('data-etapa1-oc')) : '';
+      if (nroTab) pestanaActiva.set(nroTab, destino);
       document.querySelectorAll('[data-etapa1-tab]').forEach((b) => b.classList.toggle('active', b === tab));
       ['etapa1Panel1', 'etapa1Panel2'].forEach((id) => {
         const panel = $(id);
@@ -35648,6 +35913,8 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
   window.__COI_ETAPA1_ETAPA_POR_CODIGO__ = etapaPorCodigo;
   window.__COI_ETAPA1_CONFLICTO_ACTA__ = conflictoActa;
   window.__COI_ETAPA1_SINCRONIZAR__ = sincronizarHistorial;
+  window.__COI_ETAPA1_HITO_LOGICO__ = hitoLogicoDe;
+  window.__COI_ETAPA1_TRANSICIONES__ = transicionesContractuales;
 })();
 </script>
 

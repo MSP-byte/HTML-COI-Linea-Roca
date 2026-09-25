@@ -763,3 +763,24 @@ existiendo como módulo aparte.
 Si hiciera falta una tabla tabular de próximas certificaciones dentro del
 Calendario COI, conviene agregarla como subpestaña propia en vez de volver a
 mezclar proyecciones con hechos en el mismo panel.
+
+## KI-036 — Reconfirmar un hito vaciaba el Seguimiento Contractual
+Estado: RESUELTO (rama `fix/contractual-10-milestones-state-machine`).
+
+Síntoma (OC 4530009514): tras reconfirmar OBRA/SERVICIO FINALIZADA la Ficha
+mostraba «Última actualización —», «Días en estado —», «1/8» y todas las
+tarjetas «Sin confirmación registrada». Un F5 lo corregía.
+
+Causa raíz: el pipeline resolvía la OC con `window.resolverOrdenActual`, que en
+producción **no está exportado** (vive dentro del IIFE r12). `ordenDe()` daba
+`null`, `reconciliarOrden(null, …)` fabricaba un `{}` con cuatro campos de
+estado y sin `nro_oc`, y `repintar()` pintaba con ese objeto: historial leído con
+clave vacía. Además, sin OC el modal proponía **hoy** como fecha por defecto, de
+modo que una reconfirmación otro día sobrescribía la fecha efectiva del hito
+vigente. Los tests previos no lo detectaban porque todos mockeaban
+`resolverOrdenActual`, `__COI_CIRCUITO_CACHE_GET__` y `cargarHistorialCircuitoOC`.
+
+Corrección: resolver canónico exacto `resolverOrdenCircuito` exportado y usado
+por writer, lectura y pipeline; una sola caché en memoria; la reconciliación
+nunca fabrica objetos. Fijado por `tests/contractual_10_hitos.spec.js`, que
+corre el camino real con un port 1:1 de la RPC v3.
