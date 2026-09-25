@@ -5,7 +5,7 @@ const html=fs.readFileSync('index.html','utf8');
 const sql=fs.readFileSync('supabase/migrations/202609170001_etapa1_fecha_rpc_v3_hardening.sql','utf8');
 assert(html.includes("timeZone:'America/Argentina/Buenos_Aires'"),'fallback legacy debe usar Buenos Aires');
 assert(html.includes('ordinalDiaBuenosAires'),'días deben calcularse por día calendario');
-assert(html.includes('diasDeHito(estado, ult)'),'resumen debe compartir lógica de tarjeta');
+assert(html.includes('const dias = ultimaEv ? diasEntre(fechaCalculoEvento(ultimaEv), null) : null;') && html.includes('function diasDeEtapa2(estado, etapa, evento)'),'resumen y 2° Etapa deben usar la fecha efectiva persistida para días en estado');
 assert(html.includes('confirmacionVigente'),'reingreso debe distinguir edición vigente');
 assert(!sql.includes('coi_confirmar_etapa_circuito_v2(p_orden_id'),'v3 no debe delegar en v2');
 assert(sql.includes('EDITAR_FECHA_EFECTIVA_CIRCUITO'),'edición idempotente debe auditarse');
