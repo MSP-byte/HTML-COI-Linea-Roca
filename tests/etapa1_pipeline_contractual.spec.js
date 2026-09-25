@@ -252,3 +252,32 @@ test('E1-40 · 2° Etapa reconstruye fecha desde traza histórica Cambio de esta
   expect(meta).toContain('Fecha efectiva: 20/09/2026');
   expect(meta).not.toContain(EMAIL);
 });
+
+
+test('E1-41 · nro_oc puro conserva la clave canónica y muestra fecha de 2° Etapa',async({page})=>{
+  const ev=EVENTO('finalizada','2026-09-25T12:00:00-03:00');
+  ev.fecha_efectiva='2026-09-25';
+  await preparar(page,{fecha_acta_inicio:'2026-02-23',estado_coi:'OBRA/SERVICIO FINALIZADA',historial:[ev]});
+  await abrir(page);
+  const r=await page.evaluate(({oc})=>{
+    delete window.__E1__.orden.numeroOC;
+    delete window.__E1__.orden.oc;
+    window.nroOCCircuito=undefined;
+    window.__COI_CIRCUITO_CACHE_GET__=(nro)=>String(nro||'')===oc?window.__E1__.historial:[];
+    const wrap=document.createElement('div');
+    wrap.innerHTML=window.__COI_ETAPA1_RENDER__(window.__E1__.orden);
+    const card=wrap.querySelector('#etapa1Panel2 [data-etapa1-hito="finalizada"]');
+    return{
+      meta:card?.querySelector('.etapa1-meta')?.textContent||'',
+      estado:card?.querySelector('.etapa1-estado')?.textContent||'',
+      dias:card?.querySelector('.etapa1-dias')?.textContent||'',
+      avance:wrap.querySelector('#etapa1Avance')?.textContent||'',
+      ultima:wrap.querySelector('#etapa1UltimaAct')?.textContent||''
+    };
+  },{oc:OC});
+  expect(r.meta).toContain('Fecha efectiva: 25/09/2026');
+  expect(r.estado).toContain('EN CURSO');
+  expect(r.dias).not.toContain('—');
+  expect(r.avance).toBe('1 / 8');
+  expect(r.ultima).not.toBe('—');
+});
