@@ -20625,6 +20625,7 @@ function inicializarEventosCircuitoAdministrativo(){
 }
 
 window.CIRCUITO_ADMINISTRATIVO_ETAPAS=CIRCUITO_ADMINISTRATIVO_ETAPAS;
+window.nroOCCircuito=nroOCCircuito;
 window.obtenerEtapasCircuitoOC=obtenerEtapasCircuitoOC;
 window.cargarHistorialCircuitoOC=cargarHistorialCircuitoOC;
 window.agruparHistorialCircuitoPorEtapa=agruparHistorialCircuitoPorEtapa;
@@ -34657,6 +34658,17 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
   const MS_DIA = 86400000;
 
   const texto = (v) => String(v == null ? '' : v).trim();
+  function nroOrdenPipeline(orden) {
+    try {
+      if (typeof window.nroOCCircuito === 'function') {
+        const canonico = texto(window.nroOCCircuito(orden));
+        if (canonico) return canonico;
+      }
+    } catch (e) {}
+    const raw = orden && (orden.nro_oc || orden.numeroOC || orden.oc || orden.OC_NRO || orden.ocNro ||
+      (orden._supabaseRaw && (orden._supabaseRaw.nro_oc || orden._supabaseRaw.numeroOC || orden._supabaseRaw.oc)));
+    return texto(raw);
+  }
   /* El objeto que llega al pipeline no siempre conserva el tipo: seg\u00fan por qu\u00e9
      camino se haya resuelto y qu\u00e9 normalizador lo haya tocado, puede llegar
      sin `tipo` y sin `_supabaseRaw`. Cuando eso pasa, la etiqueta ca\u00eda al
@@ -34962,10 +34974,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
      fecha_acta_inicio. No hay ninguna lectura de almacenamiento del navegador:
      Supabase es la unica autoridad. */
   function estadoPipeline(orden) {
-    const nro = (function () {
-      try { return texto(window.nroOCCircuito ? window.nroOCCircuito(orden) : (orden && (orden.numeroOC || orden.oc))); }
-      catch (e) { return ''; }
-    })();
+    const nro = nroOrdenPipeline(orden);
     const historial = confirmaciones(nro);
     const porCodigo = confirmacionPorCodigo(historial);
     const observacionesPorCodigo = eventosPorCodigo(historial, 'Observación circuito administrativo');
@@ -35340,7 +35349,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     try {
       if (typeof window.cargarHistorialCircuitoOC !== 'function') return;
       const filas = await window.cargarHistorialCircuitoOC(orden);
-      const nro = texto(window.nroOCCircuito ? window.nroOCCircuito(orden) : '');
+      const nro = nroOrdenPipeline(orden);
       if (nro && Array.isArray(filas)) historialLocal.set(nro, filas);
     } catch (e) { /* se conserva lo ya confirmado */ }
     repintar(orden, identidad);
