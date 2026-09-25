@@ -35069,7 +35069,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
       // sin traza de etapa 1 pero con estado vigente confirmado, la UI refleja
       // ese primer estado conocido como 1/8 en vez de mostrar un 0 engañoso.
       registradosCount: registrados.length,
-      registradosCountVisible: registrados.length || (etapaVigente ? 1 : 0),
+      registradosCountVisible: registrados.length || (etapaVigente && etapaVigente.codigo !== CODIGO_TRANSVERSAL ? 1 : 0),
       total: hitos.length,
       etapa1Finalizada: etapa1Finalizada,
       hito8Registrado: hito8Registrado,

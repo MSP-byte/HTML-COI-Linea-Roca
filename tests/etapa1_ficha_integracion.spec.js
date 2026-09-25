@@ -285,7 +285,7 @@ test('E1F-9 · OC histórica con fecha de acta abre la 2° Etapa sin inventar hi
   const d = await diagnostico(page);
   expect(d.pipelines).toBe(1);
   expect(d.etapa2Habilitada).toBe('si');
-  expect(d.avance).toBe('0 / 8');
+  expect(d.avance).toBe('1 / 8');
 });
 
 test('E1F-10 · el estado transversal no cuenta en X/8', async ({ page }) => {
@@ -410,9 +410,9 @@ test('E1F-16 · caso 1 · OC histórica reconstruye su historial de Etapa 1 sin 
   expect(c[H5]).toContain('etapa1-actual');
   [H6, H7, ACTA].forEach(h => expect(c[h]).toContain('etapa1-pendiente'));
 
-  // El historial trae fecha y usuario reales, no placeholders.
+  // El resumen conserva la fecha real; el usuario queda sólo en auditoría Supabase.
   await expect(page.locator(PANEL + ' #etapa1UltimaAct')).not.toHaveText('—');
-  await expect(page.locator(PANEL + ' #etapa1UltimoUsuario')).toHaveText(EMAIL);
+  await expect(page.locator(PANEL + ' #etapa1UltimoUsuario')).toHaveCount(0);
   await expect(page.locator(PANEL + ' [data-etapa1-hito="' + H1 + '"] .etapa1-meta')).toContainText('03/03/2025');
 
   // Reabrir por deep-link tampoco reinicia el avance acumulado.

@@ -250,5 +250,5 @@ test('E1-40 · 2° Etapa reconstruye fecha desde traza histórica Cambio de esta
   await setup(page,{fecha_acta_inicio:'2026-09-01',estado_coi:'OBRA/SERVICIO FINALIZADA',historial:[legacy]});
   const meta=await page.locator('#etapa1Panel2 [data-etapa1-hito="finalizada"] .etapa1-meta').textContent();
   expect(meta).toContain('Fecha efectiva: 20/09/2026');
-  expect(meta).toContain(EMAIL);
+  expect(meta).not.toContain(EMAIL);
 });
