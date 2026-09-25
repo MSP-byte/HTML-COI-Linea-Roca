@@ -135,3 +135,59 @@ ofrece volver a Órdenes; no deja pantalla en blanco ni redirige en silencio.
 Timeline también tiene ruta persistente (`#timeline`). Una ruta incompleta
 `#ficha-um` sin identificador no reutiliza la UM anterior: limpia la identidad y
 vuelve al inventario `#um`.
+
+## Seguimiento contractual y ejecución — máquina de estados de 10 hitos
+
+Supabase es la fuente única de verdad: `coi_ordenes.estado_documental` (estado
+vigente) y `coi_historial_oc` (transiciones). Todo lo que muestra la Ficha se
+**deriva**; no existen campos `hitos_registrados` ni `dias_en_estado`.
+
+### Hitos lógicos
+
+| Hito | Código(s) | Etapa visual |
+|---|---|---|
+| H1 | `pliegos_preparacion` | 1° Etapa |
+| H2 | `pliegos_terminado_sin_solped` | 1° Etapa |
+| H3 | `solped_sin_expediente` | 1° Etapa |
+| H4 | `pliego_con_oc` | 1° Etapa |
+| H5 | `pliego_con_expediente` | 1° Etapa |
+| H6 | `oc_sin_control_terceros` | 1° Etapa |
+| H7 | `control_terceros_sin_acta` | 1° Etapa |
+| H8 | `control_terceros_con_acta` | 1° Etapa (cierra la 1° Etapa) |
+| H9 | `ejecucion` | 2° Etapa |
+| H10 | `finalizada` · `finalizada_actas` · `finalizada_saldo_remanente` | 2° Etapa |
+| — | `cancelada_suspendida` | Estado **transversal** |
+
+Hay más tarjetas que hitos: H10 tiene tres tarjetas (variantes de cierre) y la
+transversal tiene la suya. Cambiar de variante de cierre (FINALIZADA →
+FINALIZADA CON ACTAS) registra una transición real pero **no** suma un hito.
+
+### Transiciones
+
+Cada confirmación nueva o reingreso del writer `coi_confirmar_etapa_circuito_v3`
+escribe una fila `Circuito administrativo` (y su espejo `Cambio de estado
+contractual`, que no cuenta dos veces). Una reconfirmación del estado vigente es
+**idempotente**: no escribe filas, no cambia `fecha_ultimo_control` y, con la
+misma fecha, no cambia nada observable.
+
+Los hitos pueden saltarse (H2 → H5 → H9 → H10). No se completan los salteados;
+la Ficha advierte «Existen hitos intermedios sin registrar.» sin bloquear.
+
+### Contadores derivados
+
+- **Hitos registrados X / 10**: hitos lógicos distintos con al menos una
+  transición real en `coi_historial_oc`. No es posición, ni eventos, ni clicks,
+  ni tarjetas. `estado_documental` o `fecha_acta_inicio` sin traza no cuentan.
+  La transversal no cuenta. Es global: no se reinicia en la 2° Etapa.
+- **Estado actual**: `estado_documental` resuelto contra el catálogo; solo si es
+  texto legacy no resoluble, el hito lógico más avanzado con transición.
+- **Última actualización**: `fecha_evento` de la última transición real.
+- **Días en estado**: HOY − `fecha_efectiva` del **último ingreso real** al
+  estado vigente (un reingreso reinicia el conteo; el período anterior se
+  conserva).
+- **Duración de un estado ya dejado**: congelada = fecha efectiva de la
+  transición real siguiente − fecha efectiva propia. Los hitos salteados no
+  tienen duración.
+
+`fecha_efectiva` es la fecha contractual; `fecha_evento` es auditoría técnica.
+Las duraciones se calculan por día administrativo de Buenos Aires.

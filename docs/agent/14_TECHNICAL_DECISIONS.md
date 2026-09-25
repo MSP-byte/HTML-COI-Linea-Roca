@@ -1614,3 +1614,28 @@ pendiente declarada en `tests/fixtures/production_schema_contract.json`.
 
 Fijado por `tests/check_modalidad_certificacion.js` sobre PGlite con todas las
 migraciones aplicadas.
+
+## TD-076 — El circuito contractual es una máquina de estados de 10 hitos lógicos
+
+Contexto. La Ficha contaba «X / 8» sobre los hitos de la 1° Etapa, mezclaba el
+estado del pipeline con evidencia legacy («1/8» sin eventos), medía duraciones
+solo contra el hito contractual N+1 y tenía dos cachés del historial
+(`historialCircuitoCache`, persistida en sessionStorage, y `historialLocal`).
+
+Decisión.
+- 10 hitos lógicos (H1–H8, H9 ejecución, H10 cierre con tres variantes);
+  `cancelada_suspendida` transversal. Ver `04_FUNCTIONAL_RULES.md`.
+- X/10, estado actual, última actualización, días en estado y duraciones se
+  **derivan** de `coi_historial_oc` + `estado_documental`. Sin columnas nuevas,
+  sin SQL, sin cambios de RPC/RLS.
+- Un único resolver de OC (`resolverOrdenCircuito`, exacto, exportado) y un
+  único resolver de clave (`nroOCCircuito`, prioriza `_supabaseRaw.nro_oc`).
+- Una única caché en memoria (`historialCircuitoCache`). La lectura es completa
+  (paginada) y protegida por generación contra snapshots viejos; la caché ya no
+  se persiste en el navegador.
+- El resumen del circuito es global y visible en ambas pestañas; la pestaña
+  activa sobrevive a los repintados.
+
+Backend. No se tocó. `coi_confirmar_etapa_circuito_v3` ya es idempotente para
+la reconfirmación del estado vigente y crea filas nuevas para los reingresos: la
+causa raíz era del frontend.

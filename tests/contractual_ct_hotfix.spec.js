@@ -239,7 +239,7 @@ test('la representación E1 reemplaza las 12 etapas legacy por 8 hitos contractu
   });
   await expect(page.locator('#etapa1HotfixFixture #etapa1Pipeline [data-etapa1-hito]')).toHaveCount(8);
   await expect(page.locator('#etapa1HotfixFixture [data-circuito-etapa]')).toHaveCount(0);
-  await expect(page.locator('#etapa1HotfixFixture #etapa1Avance')).toHaveText('0 / 8');
+  await expect(page.locator('#etapa1HotfixFixture #etapa1Avance')).toHaveText('0 / 10');
 });
 
 test('Control de Terceros lee _supabaseRaw y deriva estado si Supabase devuelve estado null', async ({ browser }) => {

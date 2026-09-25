@@ -237,11 +237,26 @@ async function main() {
   check(codigo.indexOf("const CODIGO_ACTA = 'control_terceros_con_acta';") >= 0,
     'el hito 8 es el acta de inicio');
 
-  // G · la transversal no cuenta en X/8 ni entra al pipeline secuencial.
+  // G · la transversal no cuenta en X/10 ni entra al pipeline secuencial.
   check(codigo.indexOf("const CODIGO_TRANSVERSAL = 'cancelada_suspendida';") >= 0,
     'cancelada/suspendida tiene que estar clasificada como transversal');
-  check(/registradosCount: registrados\.length/.test(codigo),
-    'X/8 se cuenta sobre los hitos contractuales registrados');
+  /* MODIFICADO (modelo de 10 hitos lógicos).
+     ANTES: exigía `registradosCount: registrados.length`, es decir X/8 sobre
+     los hitos 1-8, y ejecución/cierre no contaban.
+     AHORA: X/10 = hitos LÓGICOS distintos (H1-H10) con transición real;
+     finalizada / finalizada_actas / finalizada_saldo_remanente son un solo
+     H10 y la transversal no tiene hito lógico. */
+  check(/const TOTAL_HITOS_LOGICOS = 10;/.test(codigo),
+    'el circuito tiene 10 hitos logicos');
+  check(/finalizada: 10, finalizada_actas: 10, finalizada_saldo_remanente: 10/.test(codigo),
+    'las tres variantes de cierre mapean al mismo H10');
+  check(/if \(!c \|\| c === CODIGO_TRANSVERSAL\) return null;/.test(codigo),
+    'la transversal no tiene hito logico');
+  check(/const hitosLogicos = new Set\(transiciones\.map\(\(t\) => t\.hito\)\.filter\(Boolean\)\);/.test(codigo) &&
+        /registradosCount: registradosCount/.test(codigo),
+    'X/10 cuenta hitos logicos DISTINTOS con transicion real, no eventos ni tarjetas');
+  check(!/registradosCountVisible/.test(codigo),
+    'no puede volver el conteo «visible» que sumaba un hito sin evidencia');
   const cuerpoEstado = codigo.slice(codigo.indexOf('function estadoPipeline'), codigo.indexOf('function visualDe'));
   check(/const registrados = hitos/.test(cuerpoEstado),
     'el conteo tiene que partir de los hitos de la etapa 1, no de todas las etapas');
@@ -255,16 +270,24 @@ async function main() {
   check((cuerpoVisual.match(/'actual'/g) || []).length === 1,
     'visualDe no puede tener dos retornos actual para la misma condicion');
 
-  // Dias en etapa: orden CONTRACTUAL, y nunca se fabrica duracion sobre un hueco.
-  const cuerpoDias = codigo.slice(codigo.indexOf('function diasDeHito'), codigo.indexOf('function filaHito'));
-  check(/const siguienteEtapa = indice >= 0 \? estado\.hitos\[indice \+ 1\] : null;/.test(cuerpoDias),
-    'la duracion se mide contra el hito contractual N+1, no contra el proximo evento cronologico');
-  check(/if \(!siguienteEv\)/.test(cuerpoDias),
-    'si falta el hito inmediato siguiente no hay duracion que mostrar');
-  check(/if\s*\(hastaDia\s*<\s*desdeDia\)\s*return null;/.test(cuerpoDias),
-    'un backfill con día administrativo anterior no puede producir una duración');
-  check(/if \(x\.etapa\.codigo === CODIGO_ACTA\) return null;/.test(cuerpoDias),
-    'cerrada la etapa 1, el hito 8 no puede seguir acumulando dias contra NOW');
+  /* MODIFICADO (T18 · duraciones con saltos).
+     ANTES: la duración del hito N se medía solo contra el hito contractual
+     N+1; si N+1 faltaba (salto) no había duración, y el hito 8 nunca
+     acumulaba días aunque fuera el estado vigente.
+     AHORA: cada transición real abre un SEGMENTO que se congela en la
+     transición real siguiente (H4 01/09 → H9 10/09 = 9 días aunque se hayan
+     saltado H5-H8). Los hitos salteados no tienen segmento: no se inventa
+     duración. El estado vigente mide HOY - fecha efectiva del último ingreso. */
+  check(/function segmentosDe\(transiciones\)/.test(codigo) &&
+        /dias: siguiente \? diasEntre\(t\.dia, siguiente\.dia\) : null/.test(codigo),
+    'la duracion de un estado queda congelada en la transicion real siguiente');
+  const cuerpoDias = codigo.slice(codigo.indexOf('function diasDeCodigo'), codigo.indexOf('function ingresosDeCodigo'));
+  check(/return estado\.diasVigente;/.test(cuerpoDias),
+    'el estado vigente mide desde su ultimo ingreso real');
+  check(/if \(!propios\.length\) return null;/.test(cuerpoDias),
+    'un hito salteado no tiene duracion');
+  check(/const diasVigente = entradaVigente \? diasEntre\(entradaVigente\.desde, null\) : null;/.test(codigo),
+    'dias en estado = HOY - fecha efectiva del ultimo ingreso al estado vigente');
   check(/return\s+dias\s*<\s*0\s*\?\s*null\s*:\s*dias;/.test(codigo),
     'una diferencia invalida devuelve null, no un numero inventado');
 
@@ -291,10 +314,15 @@ async function main() {
   const cuerpoResumen = codigo.slice(codigo.indexOf('function resumen(estado)'), codigo.indexOf('function bloqueTransversal'));
   check(/const ult = estado\.hitoActual;/.test(cuerpoResumen),
     'el estado actual del resumen es el hito mas avanzado');
-  check(/ultimaAct \? fechaHora\(ultimaAct\.ev\.fecha_evento\)/.test(cuerpoResumen),
-    'la fecha de ultima actualizacion sale del evento mas reciente');
-  check(/dias = ult && !estado\.etapa1Finalizada \? diasDeHito\(estado, ult\)/.test(cuerpoResumen),
-    'los dias en estado reutilizan la fecha efectiva y lógica del hito actual');
+  /* MODIFICADO (resumen GLOBAL del circuito).
+     ANTES: el resumen vivía dentro de la 1° Etapa y medía los días contra el
+     hito 1-8 más avanzado, en null una vez finalizada la 1° Etapa.
+     AHORA: resume el circuito completo: última transición real (fecha_evento)
+     y días desde el último ingreso al estado vigente, también en la 2° Etapa. */
+  check(/ultimaActResumen \? fechaHora\(ultimaActResumen\.ev\.fecha_evento\)/.test(cuerpoResumen),
+    'la fecha de ultima actualizacion sale de la ultima transicion real');
+  check(/const diasResumen = diasEstadoVigente\(estado\);/.test(cuerpoResumen),
+    'los dias en estado salen del ultimo ingreso real al estado vigente');
 
   // F4 · el banner transversal solo si es el estado VIGENTE.
   check(/const transversalVigente = Boolean\(etapaVigente && etapaVigente\.codigo === CODIGO_TRANSVERSAL\);/.test(codigo),
@@ -465,8 +493,8 @@ async function main() {
   console.log('1° ETAPA — pipeline contractual y gate de Acta de Inicio.');
   console.log('  Conciliación fecha_acta_inicio : registrada / coincide / conflicto / legacy_sin_fecha');
   console.log('  Caso D (hito ya confirmado)    : no escribe fecha, gate igualmente interpretable');
-  console.log('  Pipeline                       : 8 hitos derivados de la configuración canónica');
-  console.log('  cancelada_suspendida           : transversal, fuera del X/8');
+  console.log('  Pipeline                       : H1-H8 de la configuración canónica + H9/H10 (10 hitos lógicos)');
+  console.log('  cancelada_suspendida           : transversal, fuera del X/10');
   console.log('  Hito 8 confirmado              : COMPLETADO, cierra la 1° Etapa');
   console.log('  Modal                          : previo a la escritura, sin doble submit');
   console.log('  Ficha OC                       : una sola representación del circuito');
