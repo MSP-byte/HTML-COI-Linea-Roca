@@ -280,12 +280,14 @@ test('E1F-8 · la 2° Etapa no se habilita sin hito 8 real', async ({ page }) =>
   expect(d.avance).toBe('1 / 8');
 });
 
-test('E1F-9 · OC histórica con fecha de acta abre la 2° Etapa sin inventar hitos', async ({ page }) => {
+test('E1F-9 · OC histórica con fecha de acta abre la 2° Etapa y reconoce el estado vigente', async ({ page }) => {
   await abrirPorNavegacion(page, { fecha_acta_inicio: '2025-06-30', estado_coi: 'OBRA/SERVICIO EN EJECUCIÓN' });
   const d = await diagnostico(page);
   expect(d.pipelines).toBe(1);
   expect(d.etapa2Habilitada).toBe('si');
-  expect(d.avance).toBe('0 / 8');
+  // EN EJECUCIÓN ya está persistido en la fila canónica: suma 1 al indicador,
+  // sin fabricar una confirmación histórica inexistente.
+  expect(d.avance).toBe('1 / 8');
 });
 
 test('E1F-10 · el estado transversal no cuenta en X/8', async ({ page }) => {
@@ -340,7 +342,9 @@ test('E1F-13 · el cambio 1° Etapa → 2° Etapa muestra el panel de ejecución
 
 test('E1F-14 · confirmar un hito persiste por la RPC canónica y repinta en la Ficha', async ({ page }) => {
   await abrirPorNavegacion(page);
-  expect((await diagnostico(page)).avance).toBe('0 / 8');
+  // El fixture ya trae PLIEGOS EN PREPARACIÓN como estado vigente en la fila
+  // remota; por eso el resumen parte de 1/8 aun antes de cargar su traza.
+  expect((await diagnostico(page)).avance).toBe('1 / 8');
   await page.click(PANEL + ' [data-etapa1-hito="pliegos_preparacion"]');
   await expect(page.locator('#etapa1ModalConfirmar')).toBeVisible();
   await page.fill('#etapa1ModalObs', 'Pliego enviado a revisión');
@@ -410,10 +414,12 @@ test('E1F-16 · caso 1 · OC histórica reconstruye su historial de Etapa 1 sin 
   expect(c[H5]).toContain('etapa1-actual');
   [H6, H7, ACTA].forEach(h => expect(c[h]).toContain('etapa1-pendiente'));
 
-  // El historial trae fecha y usuario reales, no placeholders.
+  // El resumen conserva la fecha real; Usuario fue retirado del resumen por
+  // diseño, pero la auditoría sigue visible en la meta del hito/historial.
   await expect(page.locator(PANEL + ' #etapa1UltimaAct')).not.toHaveText('—');
-  await expect(page.locator(PANEL + ' #etapa1UltimoUsuario')).toHaveText(EMAIL);
+  await expect(page.locator(PANEL + ' #etapa1UltimoUsuario')).toHaveCount(0);
   await expect(page.locator(PANEL + ' [data-etapa1-hito="' + H1 + '"] .etapa1-meta')).toContainText('03/03/2025');
+  await expect(page.locator(PANEL + ' [data-etapa1-hito="' + H1 + '"] .etapa1-meta')).toContainText(EMAIL);
 
   // Reabrir por deep-link tampoco reinicia el avance acumulado.
   await page.goto('/index.html#ficha-oc/' + OC + '/contractual', { waitUntil: 'domcontentloaded' });
