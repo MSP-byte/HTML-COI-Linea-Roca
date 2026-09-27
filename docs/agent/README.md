@@ -5,7 +5,9 @@ El archivo principal es `CLAUDE.md` en la raíz del repo.
 Esta carpeta contiene instrucciones especializadas.
 
 ## Lectura obligatoria de inicio
-`AGENT_STARTUP_CHECKLIST.md` — antes de cualquier tarea, junto con `CLAUDE.md`.
+1. `../../AGENTS.md` — reglas obligatorias para cualquier agente.
+2. `JULES_HANDOFF.md` — documento maestro: arquitectura real, datos, reglas, testing y estado del proyecto.
+3. `AGENT_STARTUP_CHECKLIST.md` — antes de cualquier tarea, junto con `CLAUDE.md`.
 
 ## Orden
 1. Project Overview

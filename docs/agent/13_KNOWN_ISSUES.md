@@ -784,3 +784,70 @@ Corrección: resolver canónico exacto `resolverOrdenCircuito` exportado y usado
 por writer, lectura y pipeline; una sola caché en memoria; la reconciliación
 nunca fabrica objetos. Fijado por `tests/contractual_10_hitos.spec.js`, que
 corre el camino real con un port 1:1 de la RPC v3.
+
+## KI-037 — «Alerta revisada» vive sólo en sessionStorage
+Estado: abierto (detectado en el handoff del 2026-09-27; no se modificó código).
+
+`setAlertaRevisada()` / `getAlertasRevisadas()` guardan la revisión en
+`sessionStorage['coi_alertas_revisadas_v46']`: es por pestaña, se pierde al
+cerrarla y no se comparte entre usuarios ni dispositivos. Sin embargo, H11
+(`202609100001_h11_online_only_review_hardening.sql`) creó
+`public.coi_alertas_revisadas` y las RPC `coi_marcar_alerta_revisada(text)` y
+`coi_listar_alertas_revisadas()`, declaradas **presentes en producción** en
+`production_schema_contract.json › objetos_h11`. El front no las invoca
+(0 referencias en `index.html`).
+
+Impacto: un dato de trabajo del operador no tiene autoridad remota.
+Propuesta: cablear lectura/escritura a las RPC existentes, con Playwright
+(mock) y sin tocar schema. Riesgo bajo-medio (Centro de Alertas tiene varias
+capas de render).
+
+## KI-038 — Las fotos de OC y estación no se persisten en Supabase
+Estado: abierto (detectado en el handoff del 2026-09-27).
+
+`guardarFotoOC()` y el equivalente de estación guardan dataURL en
+`sessionStorage` (`coi_linea_roca_fotos_oc_v20`,
+`coi_linea_roca_fotos_estacion_v19`). No existe tabla, bucket ni RPC de fotos
+y el front no hace ningún `storage.upload`. Tras H11 las fotos duran lo que
+dura la pestaña.
+
+Propuesta: decidir funcionalmente si Fotos sigue siendo un módulo activo. Si
+sí, requiere diseño Supabase (bucket + tabla índice + RLS) con migración
+autorizada; si no, retirarlo de la Ficha como se hizo con OneDrive.
+
+## KI-039 — `check_modalidad_certificacion.js` falla en Windows con CRLF
+Estado: abierto (entorno, no defecto de producto).
+
+Con `core.autocrlf=true` las migraciones se materializan con CRLF y el test
+busca el literal `'control_terceros_estado'\n  ];`. Falla con «el resto de la
+allowlist tiene que quedar igual que la vigente». En CI (Ubuntu, LF) pasa.
+Verificado el 2026-09-27: mismo commit `d3344c7` en un worktree con
+`core.autocrlf=false` → 45/45 controles aprobados y `npm test` completo exit 0.
+
+Mitigación local: `git config core.autocrlf input` y re-checkout, o un
+worktree con `-c core.autocrlf=false`. Mejora posible: normalizar `\r\n` en el
+test (o agregar `.gitattributes` con `*.sql text eol=lf`), en PR propio.
+
+## KI-040 — PR #85: hitos contractuales sobre OCs cerradas, migración fuera de main
+Estado: abierto (decisión del owner pendiente).
+
+La rama `fix/contractual-closed-oc-h10` (PR #85, abierto) agrega
+`supabase/migrations/202609210001_etapa1_closed_oc_compat.sql`, que redefine
+`coi_confirmar_etapa_circuito` (v1) para escribir `estado_documental` e
+historial en OCs ya `Cerrada` sin tocar los campos que H10 hace inmutables.
+Esa migración **no está en main**, y el front actual invoca la **v3**
+(`coi_confirmar_etapa_circuito_v3`), así que el PR así como está no cubre el
+camino vigente.
+
+Pendiente: verificar en STAGING si confirmar un hito sobre una OC cerrada
+falla contra los guards H10 y si la migración se aplicó a mano en algún
+entorno. No mergear ni aplicar sin esa verificación y autorización.
+
+## KI-041 — PRs y ramas remotas huérfanas
+Estado: abierto (higiene del repositorio).
+
+Al 2026-09-27 hay 12 PRs abiertos y ≈110 ramas remotas. El detalle con
+evidencia está en `JULES_HANDOFF.md §30`. Resumen: #106 y #89 están superados
+por #107 y #97; #88 por la línea #91/#94/#98; #3–#41 están 590–1160 commits
+detrás de main. `fix/prox-cert-cerrada-persistida` quedó superada por #83. No
+se cerró ni borró nada: requiere confirmación del owner.

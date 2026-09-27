@@ -1,56 +1,47 @@
 # AGENTS.md — COI Línea Roca
 
-## Estado actual
-El repositorio estable es `MSP-byte/HTML-COI-Linea-Roca` y la rama de referencia es `main`.
+Instrucciones obligatorias para **cualquier** agente de desarrollo (Jules, Claude, Codex u otro).
 
-Baseline funcional validado antes del cierre documental:
-`d3078c30f4c1f2a08e466d5887d463883ed5e2bb`
+## Antes de tocar nada
+1. Leer **`docs/agent/JULES_HANDOFF.md`** (documento maestro: arquitectura, datos, reglas, estado).
+2. Leer `CLAUDE.md` y los documentos de `docs/agent/` que correspondan al tipo de tarea.
+3. Verificar el estado real: `git status`, `git branch --show-current`, `git log -1 --oneline`, `git fetch origin --prune`.
+4. Si hay cambios no relacionados, ramas equivocadas o el estado real contradice la documentación: **detenerse y reportar**.
 
-Consultar `BASELINE_OPERATIVA.md` para el estado funcional consolidado.
+## Arquitectura (no negociable)
+- `index.html` es el único artefacto productivo. HTML/CSS/JS vanilla → Supabase JS v2 → PostgreSQL + Storage.
+- **Supabase es la fuente única de verdad.** `coi_ordenes.id` (UUID) es la identidad técnica maestra.
+- `localStorage` está prohibido en `index.html` (test H11). `sessionStorage` sólo para sesión Auth, preferencias UI y caché secundaria; **nunca** para datos operativos nuevos.
+- No introducir frameworks, bundlers, backend propio ni dependencias nuevas sin necesidad demostrada y autorización.
+- Preservar compatibilidad: no eliminar código "legacy" sin demostrar que está muerto (en `index.html` gana la última declaración; verificá el DOM, no el símbolo).
 
-## Arquitectura obligatoria
-HTML / CSS / JavaScript → Supabase JS v2 → PostgreSQL + Storage.
+## Git y PR
+- **Nunca trabajar directamente sobre `main`.** Una tarea = una rama (`fix/`, `feat/`, `chore/`, `docs/`, `perf/`) = un PR.
+- Rama siempre desde `main` actualizado: `git switch main && git pull --ff-only origin main && git switch -c <rama>`.
+- Sin force push, reset destructivo ni reescritura de historia sin autorización.
+- **No hacer merge sin Quality Gate verde y sin autorización explícita del owner.**
+- Mantener trazabilidad: cada PR explica problema, causa raíz, solución, alcance, tests y qué datos **no** se tocaron.
 
-- Supabase es la fuente única de verdad.
-- `localStorage` puede ser caché, nunca autoridad.
-- `coi_ordenes.id` (UUID) es la identidad técnica maestra.
-- No introducir backend alternativo.
-- No hacer refactors grandes salvo necesidad demostrada.
+## Supabase / datos
+- Sin autorización explícita está prohibido: migraciones sobre remoto, DDL, cambios de RLS/RPC/grants, `DELETE`/`TRUNCATE`/`DROP`, escrituras masivas y borrado de objetos de Storage.
+- Todo cambio de schema es una **migración nueva versionada** en `supabase/migrations/`, idempotente y no destructiva, con test SQL (PGlite) y rollback documentado. Nunca modificar el schema productivo a mano sin migración.
+- No asumir que una migración del repo está aplicada en producción: ver `tests/fixtures/production_schema_contract.json`.
+- Nunca commitear service-role keys, contraseñas ni tokens.
 
-## Flujo de trabajo
-Para cada bug o mejora concreta:
-1. verificar HEAD actual de `main`;
-2. crear rama dedicada;
-3. aplicar cambio mínimo;
-4. ejecutar tests pertinentes;
-5. abrir PR;
-6. exigir Quality Gate y Chromium verdes;
-7. revisar semántica contra contratos reales de Supabase cuando corresponda;
-8. mergear solo con autorización explícita;
-9. hacer smoke posterior cuando el cambio afecte UX crítica.
+## Tests
+- `npm test` + Playwright puntual (desktop **y** mobile cuando el cambio es visual o de navegación) antes de pedir revisión.
+- No esconder fallos, no agregar `skip`/`fixme` para pasar, no reducir cobertura ni debilitar aserciones para que una suite quede verde.
+- Todo bug que llegó a `main` deja un test que lo reproduce de verdad.
+- Un Gate verde no reemplaza la revisión semántica contra el contrato real de Supabase.
 
-## Producción
-GitHub Pages publica desde `main`.
+## Reglas funcionales vigentes (resumen; detalle en `docs/agent/04_FUNCTIONAL_RULES.md`)
+- Circuito contractual: 12 tarjetas + transversal, contadas como **10 hitos lógicos** (TD-076).
+- Cerrar OC (`estado_coi`) y Archivar OC (`estado_registro`) son ejes distintos; cierre inmutable; archivar exige cerrada; desarchivar no reabre.
+- PyC está retirado: no reintroducir `enviada_pyc`, "Marcar enviada a PyC" ni KPIs/alertas/campos PyC.
+- No reintroducir OneDrive ni "Agregar link documental": la documentación vigente es Storage `coi-documentos` + `coi_documentos_oc`.
+- Próxima certificación: un único resolver canónico (`window.__COI_PROXIMA_CERT_INFO__`); una proyección tentativa nunca se presenta como fecha acordada.
 
-Las modificaciones de producto deben hacerse mediante rama y PR. No realizar escrituras de datos, cambios SQL, migraciones, RLS o RPC en Supabase producción sin autorización explícita.
+## Prioridad
+**integridad de datos > funcionamiento correcto > trazabilidad > seguridad > UX > estética**
 
-## Reglas funcionales vigentes
-- Circuito contractual activo: 12 etapas.
-- Control de Terceros: Supabase-first, edición rápida autorizada, readback y fail-closed.
-- PyC fue retirado de la arquitectura operativa activa del frontend.
-- No reintroducir `Marcar enviada a PyC`, etapa `enviada_pyc`, KPIs/alertas/badges PyC ni campos PyC en Editar OC.
-- No reintroducir OneDrive ni `Agregar link documental` en Ficha OC.
-- Supabase Storage y las tablas documentales vigentes son el camino activo.
-- Centro de Alertas no usa los chips legacy Operativas/Documentales/Financieras/Calidad de Datos/Todas.
-- Órdenes permite quitar el filtro heredado del Dashboard y `Limpiar filtros` elimina filtros manuales + Dashboard.
-
-## Validación mínima antes de merge
-- `npm test`
-- Quality Gate de GitHub Actions
-- interacción Chromium
-- `git diff --check`
-- smoke manual cuando corresponda
-
-Un Gate verde no reemplaza una revisión semántica cuando el cambio depende de contratos de Supabase.
-
-Si el estado real contradice este documento, el repositorio real manda y la diferencia debe explicarse.
+Si el estado real contradice este documento, el repositorio real manda y la diferencia debe explicarse y corregirse en la documentación.
