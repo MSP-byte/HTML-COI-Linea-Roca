@@ -64,6 +64,8 @@ Si existen cambios no relacionados, detenerse y reportar.
 
 Leer `docs/agent/AGENT_STARTUP_CHECKLIST.md`.
 
+Documento maestro de arquitectura, datos y estado: `docs/agent/JULES_HANDOFF.md` (reglas comunes a todos los agentes en `AGENTS.md`).
+
 ## Git
 - no desarrollar directamente en `main`;
 - una tarea = una rama específica;
