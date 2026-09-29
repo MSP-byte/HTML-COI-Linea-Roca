@@ -851,3 +851,16 @@ evidencia está en `JULES_HANDOFF.md §30`. Resumen: #106 y #89 están superados
 por #107 y #97; #88 por la línea #91/#94/#98; #3–#41 están 590–1160 commits
 detrás de main. `fix/prox-cert-cerrada-persistida` quedó superada por #83. No
 se cerró ni borró nada: requiere confirmación del owner.
+
+
+## Reconciliación Supabase live — 2026-09-29
+
+La auditoría directa de STAGING y PRODUCCIÓN corrigió supuestos del snapshot histórico:
+
+- **KI-034 — RESUELTO en infraestructura:** `coi_ordenes.modalidad_certificacion` y sus writers de actualización/alta fueron desplegados en STAGING y PRODUCCIÓN mediante las tres migraciones versionadas `202609170003`, `202609170004` y `202609190001`. Las 34 OC históricas de producción quedaron conservadoramente en `SIN_DEFINIR`.
+- Las divergencias UM/ST que el fixture atribuía a producción (ausencia de `orden_id`, FK `CASCADE`, falta de índices únicos/policies restrictivas) **no representan el estado live verificado el 2026-09-29**: esos objetos ya estaban desplegados.
+- **KI-040 / PR #85:** no tratar como migración pendiente automática. Producción expone v1/v2/v3 y el frontend vigente usa `coi_confirmar_etapa_circuito_v3`; cualquier cambio debe validarse contra v3.
+- `tests/fixtures/production_schema_contract.json` queda identificado como **snapshot histórico desactualizado** hasta su regeneración controlada.
+- Permanecen como deuda separada KI-037 (alertas revisadas primarias en sessionStorage) y KI-038 (fotos OC/estación volátiles), que no fueron modificadas por esta reconciliación.
+
+Regla para agentes: ante contradicción entre fixture y una auditoría live autorizada y fechada, reportar la diferencia y actualizar el contrato; no reaplicar migraciones por inferencia.
