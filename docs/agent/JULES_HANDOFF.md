@@ -1,6 +1,6 @@
 # JULES_HANDOFF — Documento maestro para agentes nuevos
 
-> **Estado verificado al 2026-09-27 sobre `main` = `d3344c7`** (Merge PR #109).
+> **Estado documental reconciliado al 2026-09-29.** Handoff integrado en `main` por PR #110 (`93cd1c03`). El estado Supabase indicado abajo fue verificado en vivo el 2026-09-29.
 > Todo lo que sigue se extrajo del código, las migraciones, los tests y el
 > historial Git reales. Si algo de acá contradice el repositorio, **manda el
 > repositorio**: verificá, corregí este documento y dejalo explicado en el PR.
@@ -138,7 +138,7 @@ Fuente: `supabase/migrations/` + `tests/fixtures/production_schema_contract.json
 
 | Tabla | Rol | Notas |
 |---|---|---|
-| `coi_ordenes` | **OC. Entidad maestra.** `id` UUID = identidad técnica; `nro_oc` único funcional (normalizado) | dos ejes de estado: `estado_coi` (operativo) y `estado_registro` (Activo/Archivado); `estado_documental` = hito contractual vigente; `fecha_acta_inicio`, `plazo…`, `fecha_vencimiento`, `proxima_certificacion`, `modalidad_certificacion` (*sólo repo*, KI-034) |
+| `coi_ordenes` | **OC. Entidad maestra.** `id` UUID = identidad técnica; `nro_oc` único funcional (normalizado) | dos ejes de estado: `estado_coi` (operativo) y `estado_registro` (Activo/Archivado); `estado_documental` = hito contractual vigente; `fecha_acta_inicio`, `plazo…`, `fecha_vencimiento`, `proxima_certificacion`, `modalidad_certificacion` (**desplegada en STAGING y PRODUCCIÓN el 2026-09-29**) |
 | `coi_ordenes_estaciones` | OC ↔ estaciones (exactamente una principal) | triggers sync/guard |
 | `coi_posiciones_oc`, `coi_consumos_posicion` | posiciones financieras e imputaciones | RPC `coi_certificar_posiciones_v2`, idempotencia |
 | `coi_certificaciones` | certificaciones **reales** (Obra/Servicio, H17) | historial central en Calendario → Tabla Certificaciones |
@@ -192,17 +192,38 @@ archivar sólo cerrada), `coi_direct_order_update_guard`, `coi_ordenes_number_gu
 `coi_um_version_servidor` / `coi_st_version_servidor` (CAS optimista),
 `coi_posiciones_identity_guard`, `coi_ordenes_estaciones_write_guard`.
 
-### Divergencias repo ↔ PRODUCCIÓN (declaradas en `production_schema_contract.json`)
+### Estado repo ↔ PRODUCCIÓN — reconciliación live 2026-09-29
 
-Lo siguiente **está en el repo y NO en producción**:
-- `coi_ordenes.modalidad_certificacion` (KI-034) → sin ella ningún Servicio proyecta próxima certificación.
-- `coi_servicios_tecnicos_um.orden_id` + FK RESTRICT (H04).
-- FK `unidad_id` RESTRICT (prod: CASCADE), índices únicos canónicos UM/ST, policies y grants acotados de UM/ST, grant de `coi_normalize_order_number` (KI-008…KI-018).
-- Migración de PR #85 `202609210001_etapa1_closed_oc_compat.sql` **ni siquiera está en main** (§30).
+La auditoría live posterior a este handoff demostró que el snapshot
+`tests/fixtures/production_schema_contract.json` estaba atrasado en varios puntos.
+**No usar sus `_divergencias_pendientes` como prueba de estado productivo actual
+hasta regenerarlo.**
 
-⚠️ No existe un mecanismo automático que aplique migraciones. **No asumas que
-lo que está en `supabase/migrations` está aplicado.** Consultá el contrato y
-preguntá.
+Verificado directamente en STAGING y PRODUCCIÓN:
+- `coi_servicios_tecnicos_um.orden_id` ya existe y sus FK relevantes están en `RESTRICT`.
+- Los índices únicos canónicos de UM/ST ya existen.
+- Las policies restrictivas UM/ST ya están desplegadas.
+- No se detectaron duplicados canónicos de UM ni ST en la auditoría.
+- Las RPC contractuales v1/v2/v3 están disponibles; el frontend vigente usa
+  `coi_confirmar_etapa_circuito_v3`.
+- PR #85 no debe tomarse como migración pendiente por defecto: su compatibilidad
+  debe evaluarse contra el contrato v3 vigente.
+
+Divergencia real encontrada y **resuelta el 2026-09-29**:
+- Se aplicaron en STAGING y luego en PRODUCCIÓN, desde los SQL versionados de
+  `main`, las migraciones:
+  `202609170003_modalidad_certificacion.sql`,
+  `202609170004_modalidad_certificacion_writers.sql` y
+  `202609190001_modalidad_certificacion_alta.sql`.
+- Producción quedó con `coi_ordenes.modalidad_certificacion`, default
+  `SIN_DEFINIR`, CHECK de dominio, índice parcial para `MENSUAL` y los tres
+  writers canónicos habilitados.
+- Las 34 OC históricas existentes quedaron en `SIN_DEFINIR`; no se infirió ni
+  forzó `MENSUAL`/`A_DEMANDA`.
+
+⚠️ Sigue sin existir deploy automático de migraciones. Verificar Supabase live
+antes de afirmar una divergencia. El fixture histórico debe regenerarse en una
+tarea específica; no modificar datos productivos para hacerlo.
 
 Ver `03_SUPABASE_DATA_MODEL.md`, `10_SECURITY_DATA_RULES.md`, `supabase/README.md`.
 
