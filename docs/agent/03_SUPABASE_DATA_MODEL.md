@@ -257,3 +257,12 @@ esencial de una UM es con su estación.
 Ambas tablas están vacías en PRODUCCIÓN y STAGING (KI-029). Remoto vacío es un
 estado válido: el módulo lo dice explícitamente y no siembra la demo legada. Ver
 TD-068.
+
+
+## Verificación live 2026-09-29
+
+Este documento debe interpretarse junto con la auditoría live del 2026-09-29. Se verificó que PRODUCCIÓN ya contiene los hardenings UM/ST (incluido `coi_servicios_tecnicos_um.orden_id`, FK relevantes `RESTRICT`, índices únicos canónicos y policies restrictivas) que snapshots anteriores marcaban como pendientes.
+
+Además, el 2026-09-29 se desplegó de forma controlada, primero en STAGING y después en PRODUCCIÓN, el paquete completo de modalidad de certificación versionado en `main`: migraciones `202609170003_modalidad_certificacion.sql`, `202609170004_modalidad_certificacion_writers.sql` y `202609190001_modalidad_certificacion_alta.sql`. El contrato productivo resultante incluye columna, default `SIN_DEFINIR`, CHECK, índice parcial `MENSUAL` y writers canónicos de alta/actualización. Las 34 OC preexistentes conservaron semántica mediante backfill `SIN_DEFINIR`.
+
+Hasta regenerar `tests/fixtures/production_schema_contract.json`, ese archivo es un snapshot histórico y no debe utilizarse como evidencia de divergencias actuales sin contraste live.
