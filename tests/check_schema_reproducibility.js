@@ -343,6 +343,10 @@ async function casoA() {
         check(new RegExp('\\b' + col + '\\b').test(real.def),
           `${esperado.nombre}: no cubre ${col} (${real.def})`);
       }
+      if (esperado.expresion_canonica) {
+        check(/upper\(/i.test(real.def) && /regexp_replace\(/i.test(real.def),
+          `${esperado.nombre}: deberia aplicar normalizacion canonica (${real.def})`);
+      }
       if (esperado.parcial) check(/ WHERE /i.test(real.def), `${esperado.nombre}: deberia ser parcial`);
       if (esperado.predicado_contiene) {
         const normaliza = (x) => String(x).replace(/::text/g, '').replace(/[()]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -409,17 +413,20 @@ async function casoA() {
   }
 
   if (GRANTS_VERIFICADOS.length) {
-    const { rows: grantsVigentes } = await db.query(`
-      select table_name, grantee, privilege_type
-        from information_schema.role_table_grants
-       where table_schema = 'public' and grantee in ('anon', 'authenticated')`);
+    // Se verifican privilegios EFECTIVOS, no solo grants directos: asi tambien
+    // muerden privilegios heredados desde PUBLIC o desde membresias de roles.
+    const PRIVILEGIOS_TABLA = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
     for (const d of GRANTS_VERIFICADOS) {
       for (const rol of Object.keys(d.roles)) {
-        const reales = grantsVigentes.filter((g) => g.table_name === d.tabla && g.grantee === rol)
-          .map((g) => String(g.privilege_type).toUpperCase()).filter((v, i, a) => a.indexOf(v) === i).sort();
+        const { rows } = await db.query(
+          `select p privilegio, has_table_privilege($1, $2, p) permitido
+             from unnest($3::text[]) p order by p`,
+          [rol, 'public.' + d.tabla, PRIVILEGIOS_TABLA]
+        );
+        const reales = rows.filter((r) => r.permitido).map((r) => r.privilegio).sort();
         const esperados = d.roles[rol].slice().sort();
         check(JSON.stringify(reales) === JSON.stringify(esperados),
-          `${d.tabla}: grants vigentes de ${rol} son [${reales.join(', ')}], contrato [${esperados.join(', ')}]`);
+          `${d.tabla}: privilegios efectivos de ${rol} son [${reales.join(', ')}], contrato [${esperados.join(', ')}]`);
       }
     }
   }
