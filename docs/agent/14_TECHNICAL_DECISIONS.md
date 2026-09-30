@@ -1609,8 +1609,7 @@ La modalidad se elige en Editar OC, en la sección de certificaciones.
 Consecuencias. Migración `202609170003_modalidad_certificacion.sql`:
 incremental, no destructiva, con backfill que sólo completa lo vacío y el check
 agregado **después** del backfill para que ninguna fila histórica quede afuera.
-Reaplicarla es NO-OP. No se aplicó en producción: queda como divergencia
-pendiente declarada en `tests/fixtures/production_schema_contract.json`.
+Reaplicarla es NO-OP. El paquete completo (`202609170003`, `202609170004` y `202609190001`) se desplegó primero en STAGING y luego en PRODUCCIÓN el 2026-09-29. Las 34 OC históricas quedaron en `SIN_DEFINIR`; el contrato productivo fue reconciliado en PR #111.
 
 Fijado por `tests/check_modalidad_certificacion.js` sobre PGlite con todas las
 migraciones aplicadas.
