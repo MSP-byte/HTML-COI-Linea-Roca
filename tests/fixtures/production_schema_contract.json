@@ -389,12 +389,13 @@
     "indices_verificados": [
       {
         "nombre": "coi_ordenes_modalidad_certificacion_idx",
-        "unique": false,
-        "columnas": [
-          "modalidad_certificacion"
-        ],
-        "parcial": true,
-        "predicado_contiene": "modalidad_certificacion = 'MENSUAL'"
+        "definicion": "CREATE INDEX coi_ordenes_modalidad_certificacion_idx ON public.coi_ordenes USING btree (modalidad_certificacion) WHERE (modalidad_certificacion = 'MENSUAL'::text)"
+      }
+    ],
+    "checks_verificados": [
+      {
+        "nombre": "coi_ordenes_modalidad_certificacion_check",
+        "definicion": "CHECK (modalidad_certificacion IS NULL OR (modalidad_certificacion = ANY (ARRAY['MENSUAL'::text, 'A_DEMANDA'::text, 'SIN_DEFINIR'::text])))"
       }
     ]
   },
@@ -1290,13 +1291,13 @@
     "indices_verificados": [
       {
         "nombre": "coi_unidades_mantenimiento_codigo_um_canonico_uidx",
-        "unique": true,
-        "columnas": [
-          "codigo_um"
-        ],
-        "expresion_canonica": true,
-        "parcial": true,
-        "predicado_contiene": "codigo_um IS NOT NULL"
+        "definicion": "CREATE UNIQUE INDEX coi_unidades_mantenimiento_codigo_um_canonico_uidx ON public.coi_unidades_mantenimiento USING btree (upper(regexp_replace(codigo_um, '[[:space:]./-]+'::text, ''::text, 'g'::text))) WHERE (codigo_um IS NOT NULL)"
+      }
+    ],
+    "triggers_verificados": [
+      {
+        "nombre": "coi_um_version_servidor",
+        "definicion": "CREATE TRIGGER coi_um_version_servidor BEFORE UPDATE ON coi_unidades_mantenimiento FOR EACH ROW EXECUTE FUNCTION coi_version_servidor()"
       }
     ]
   },
@@ -1440,14 +1441,17 @@
     "indices_verificados": [
       {
         "nombre": "coi_servicios_tecnicos_um_unidad_nro_st_uidx",
-        "unique": true,
-        "columnas": [
-          "unidad_id",
-          "nro_st"
-        ],
-        "expresion_canonica": true,
-        "parcial": true,
-        "predicado_contiene": "unidad_id IS NOT NULL AND nro_st IS NOT NULL"
+        "definicion": "CREATE UNIQUE INDEX coi_servicios_tecnicos_um_unidad_nro_st_uidx ON public.coi_servicios_tecnicos_um USING btree (unidad_id, upper(regexp_replace(nro_st, '[[:space:]./-]+'::text, ''::text, 'g'::text))) WHERE ((unidad_id IS NOT NULL) AND (nro_st IS NOT NULL))"
+      }
+    ],
+    "triggers_verificados": [
+      {
+        "nombre": "coi_st_resolver_nro_oc",
+        "definicion": "CREATE TRIGGER coi_st_resolver_nro_oc BEFORE INSERT OR UPDATE OF nro_oc, orden_id ON coi_servicios_tecnicos_um FOR EACH ROW EXECUTE FUNCTION coi_st_resolver_nro_oc()"
+      },
+      {
+        "nombre": "coi_st_version_servidor",
+        "definicion": "CREATE TRIGGER coi_st_version_servidor BEFORE UPDATE ON coi_servicios_tecnicos_um FOR EACH ROW EXECUTE FUNCTION coi_version_servidor()"
       }
     ]
   },
@@ -1563,11 +1567,27 @@
           "SELECT",
           "UPDATE"
         ]
+      },
+      "privilegios_columna_efectivos": {
+        "anon": [],
+        "authenticated": [
+          "INSERT",
+          "SELECT",
+          "UPDATE"
+        ]
       }
     },
     {
       "tabla": "coi_servicios_tecnicos_um",
       "roles": {
+        "anon": [],
+        "authenticated": [
+          "INSERT",
+          "SELECT",
+          "UPDATE"
+        ]
+      },
+      "privilegios_columna_efectivos": {
         "anon": [],
         "authenticated": [
           "INSERT",
