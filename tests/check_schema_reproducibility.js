@@ -320,8 +320,32 @@ async function casoA() {
       const real = porTabla(tabla).find((x) => x.contype === 'c' && x.conname === esperado.nombre);
       check(Boolean(real), `${tabla}: falta CHECK productivo ${esperado.nombre}`);
       if (real) {
-        const norm = (x) => String(x).replace(/\s+/g, ' ').trim();
-        check(norm(real.def) === norm(esperado.definicion),
+        const normCheck = (x) => {
+          let s = String(x).replace(/\s+/g, ' ').trim();
+          // pg_get_constraintdef puede reinsertar parentesis redundantes al
+          // serializar el mismo arbol booleano. Se eliminan SOLO envolturas
+          // balanceadas que cubren toda la expresion; no se tocan parentesis
+          // internos ni operadores/valores del dominio.
+          const quitaEnvoltura = (expr) => {
+            let y = expr.trim();
+            while (y[0] === '(' && y[y.length - 1] === ')') {
+              let depth = 0, cubreTodo = true;
+              for (let i = 0; i < y.length; i += 1) {
+                if (y[i] === '(') depth += 1;
+                else if (y[i] === ')') depth -= 1;
+                if (depth === 0 && i < y.length - 1) { cubreTodo = false; break; }
+                if (depth < 0) { cubreTodo = false; break; }
+              }
+              if (!cubreTodo || depth !== 0) break;
+              y = y.slice(1, -1).trim();
+            }
+            return y;
+          };
+          const m = s.match(/^CHECK\s*\(([\s\S]*)\)$/i);
+          if (!m) return s;
+          return 'CHECK (' + quitaEnvoltura(m[1]) + ')';
+        };
+        check(normCheck(real.def) === normCheck(esperado.definicion),
           `${esperado.nombre}: definicion distinta del contrato productivo (${real.def})`);
       }
     }
