@@ -343,7 +343,42 @@ async function casoA() {
           };
           const m = s.match(/^CHECK\s*\(([\s\S]*)\)$/i);
           if (!m) return s;
-          return 'CHECK (' + quitaEnvoltura(m[1]) + ')';
+          let body = quitaEnvoltura(m[1]);
+          // PostgreSQL tambien puede envolver operandos atomicos de una
+          // expresion booleana: (col IS NULL) OR (...). Quitamos unicamente
+          // wrappers cuyo interior no contiene AND/OR de nivel superior; asi
+          // no se altera la estructura booleana ni la precedencia.
+          const quitaAtomicos = (expr) => {
+            let out = '', i = 0;
+            while (i < expr.length) {
+              if (expr[i] !== '(') { out += expr[i++]; continue; }
+              let depth = 0, end = -1;
+              for (let j = i; j < expr.length; j += 1) {
+                if (expr[j] === '(') depth += 1;
+                else if (expr[j] === ')') depth -= 1;
+                if (depth === 0) { end = j; break; }
+              }
+              if (end < 0) { out += expr.slice(i); break; }
+              const inner = expr.slice(i + 1, end);
+              let d = 0, booleanoSuperior = false;
+              for (let k = 0; k < inner.length; k += 1) {
+                if (inner[k] === '(') d += 1;
+                else if (inner[k] === ')') d -= 1;
+                if (d === 0 && /^(?:\s+)(?:AND|OR)(?:\s+)/i.test(inner.slice(k))) {
+                  booleanoSuperior = true; break;
+                }
+              }
+              if (!booleanoSuperior && /\b(?:IS\s+(?:NOT\s+)?NULL|=|<>|!=|<|>|<=|>=|=\s*ANY\b)/i.test(inner)) {
+                out += quitaEnvoltura(inner);
+              } else {
+                out += '(' + quitaAtomicos(inner) + ')';
+              }
+              i = end + 1;
+            }
+            return out;
+          };
+          body = quitaAtomicos(body);
+          return 'CHECK (' + body.replace(/\s+/g, ' ').trim() + ')';
         };
         check(normCheck(real.def) === normCheck(esperado.definicion),
           `${esperado.nombre}: definicion distinta del contrato productivo (${real.def})`);
