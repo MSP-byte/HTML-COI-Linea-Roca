@@ -771,10 +771,13 @@ check(!/grant all/i.test(sinComentarios), 'la migracion de rol no puede otorgar 
 check(/coi_current_role\(\) = 'administrador'/.test(sinComentarios),
   'las mutaciones deben exigir el rol administrador');
 
-const policiesPendientes = (contrato._divergencias_pendientes || {}).policies || [];
+const TABLAS_UM_ST = new Set(['coi_unidades_mantenimiento', 'coi_servicios_tecnicos_um']);
+const policiesPendientes = ((contrato._divergencias_pendientes || {}).policies || [])
+  .filter((d) => TABLAS_UM_ST.has(d.tabla));
 check(policiesPendientes.length === 0,
   'las policies UM/ST ya estan desplegadas y no pueden seguir como divergencia pendiente');
-const grantsPendientes = (contrato._divergencias_pendientes || {}).grants || [];
+const grantsPendientes = ((contrato._divergencias_pendientes || {}).grants || [])
+  .filter((d) => TABLAS_UM_ST.has(d.tabla));
 check(grantsPendientes.length === 0,
   'los grants UM/ST ya estan desplegados y no pueden seguir como divergencia pendiente');
 for (const tabla of ['coi_unidades_mantenimiento', 'coi_servicios_tecnicos_um']) {
