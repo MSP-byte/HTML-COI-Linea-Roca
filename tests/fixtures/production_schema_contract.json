@@ -4,7 +4,7 @@
     "_doc": "Desvios DELIBERADOS entre el repositorio y el snapshot productivo que siguen pendientes de despliegue remoto. Los objetos verificados en PRODUCCION/STAGING el 2026-09-29 fueron retirados de las listas pendientes y registrados en _resueltas.",
     "_doc_columnas": "Columnas que el repositorio agrega y produccion todavia no tiene. El bloque «columnas» de cada tabla mas abajo sigue siendo el snapshot productivo: aca se declara lo que el repositorio DEBE producir de mas. check_schema_reproducibility.js verifica que la columna exista realmente tras aplicar las migraciones, con el tipo y la nullability declarados, para que la divergencia quede probada y no solo escrita.",
     "_doc_unique": "Constraints UNIQUE que el repositorio crea y produccion todavia no tiene. El bloque «unique» de cada tabla mas abajo sigue siendo el snapshot productivo: aca se declara lo que el repositorio DEBE producir de mas. check_schema_reproducibility.js verifica que el constraint exista realmente tras aplicar las migraciones, para que la divergencia quede probada y no solo escrita.",
-    "_doc_resueltas": "Divergencias YA aplicadas en remoto. No las verifica check_schema_reproducibility.js: el snapshot productivo de mas abajo ya refleja el valor definitivo. Se conservan como historia de la reconciliacion.",
+    "_doc_resueltas": "Divergencias YA aplicadas en remoto. El snapshot productivo activo refleja el valor definitivo y check_schema_reproducibility.js verifica los invariantes estructurados correspondientes; _resueltas se conserva sólo como historia de la reconciliacion.",
     "columnas": [],
     "fk": [],
     "unique": [],
@@ -110,8 +110,8 @@
       }
     ],
     "_doc_policies": "Policies que el repositorio crea y produccion todavia no tiene. El bloque «policies» de cada tabla mas abajo sigue siendo el snapshot productivo. check_schema_reproducibility.js verifica que estas existan realmente al reproducir el repo (nombre, cmd, roles, permissive, using y with check) y las admite como el UNICO excedente permitido: cualquier otra policy no declarada sigue siendo un fallo.",
-    "_doc_grants": "Grants que el repositorio endurece y produccion todavia no. En produccion anon conserva privilegios amplios sobre ambas tablas y authenticated tiene mas de lo necesario. check_schema_reproducibility.js verifica que tras reproducir el repo los grants sean exactamente los declarados en «repo».",
-    "_doc_grants_funciones": "Grants sobre FUNCIONES que el repositorio concede y produccion todavia no. Mismo criterio que los grants de tabla: check_schema_reproducibility.js verifica que tras reproducir el repo el permiso exista realmente, y que anon siga sin el.",
+    "_doc_grants": "Grants que el repositorio endurece y produccion todavia no. Vacio cuando no hay divergencias; los grants productivos vigentes se declaran en _grants_verificados.",
+    "_doc_grants_funciones": "Grants sobre funciones pendientes de despliegue. Vacio cuando no hay divergencias; los grants productivos vigentes se declaran en _grants_funciones_verificados.",
     "_doc_objetos_h11": "Objetos H11 ya aplicados en STAGING y PRODUCCION el 2026-09-11. Se conserva el registro bajo objetos_h11 por compatibilidad del contrato, pero produccion y repo deben figurar ambos como presente.",
     "objetos_h11": [
       {
@@ -382,9 +382,21 @@
     ],
     "check_columnas": [
       "tipo",
-      "avance_obra_pct"
+      "avance_obra_pct",
+      "modalidad_certificacion"
     ],
-    "rls": true
+    "rls": true,
+    "indices_verificados": [
+      {
+        "nombre": "coi_ordenes_modalidad_certificacion_idx",
+        "unique": false,
+        "columnas": [
+          "modalidad_certificacion"
+        ],
+        "parcial": true,
+        "predicado_contiene": "modalidad_certificacion = 'MENSUAL'"
+      }
+    ]
   },
   "coi_ordenes_estaciones": {
     "columnas": {
@@ -1515,5 +1527,40 @@
       ]
     ],
     "rls": true
-  }
+  },
+  "_grants_verificados": [
+    {
+      "tabla": "coi_unidades_mantenimiento",
+      "roles": {
+        "anon": [],
+        "authenticated": [
+          "INSERT",
+          "SELECT",
+          "UPDATE"
+        ]
+      }
+    },
+    {
+      "tabla": "coi_servicios_tecnicos_um",
+      "roles": {
+        "anon": [],
+        "authenticated": [
+          "INSERT",
+          "SELECT",
+          "UPDATE"
+        ]
+      }
+    }
+  ],
+  "_grants_funciones_verificados": [
+    {
+      "funcion": "coi_normalize_order_number",
+      "roles": {
+        "anon": [],
+        "authenticated": [
+          "EXECUTE"
+        ]
+      }
+    }
+  ]
 }
