@@ -196,8 +196,7 @@ archivar sólo cerrada), `coi_direct_order_update_guard`, `coi_ordenes_number_gu
 
 La auditoría live posterior a este handoff demostró que el snapshot
 `tests/fixtures/production_schema_contract.json` estaba atrasado en varios puntos.
-**No usar sus `_divergencias_pendientes` como prueba de estado productivo actual
-hasta regenerarlo.**
+`tests/fixtures/production_schema_contract.json` fue regenerado en PR #111 con la evidencia live del 2026-09-29 y vuelve a ser el contrato productivo versionado. Sus `_divergencias_pendientes` representan únicamente desvíos que sigan abiertos después de esa reconciliación.
 
 Verificado directamente en STAGING y PRODUCCIÓN:
 - `coi_servicios_tecnicos_um.orden_id` ya existe y sus FK relevantes están en `RESTRICT`.
