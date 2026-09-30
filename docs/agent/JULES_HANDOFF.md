@@ -222,8 +222,7 @@ Divergencia real encontrada y **resuelta el 2026-09-29**:
   forzó `MENSUAL`/`A_DEMANDA`.
 
 ⚠️ Sigue sin existir deploy automático de migraciones. Verificar Supabase live
-antes de afirmar una divergencia. El fixture histórico debe regenerarse en una
-tarea específica; no modificar datos productivos para hacerlo.
+antes de afirmar una divergencia. El fixture productivo fue regenerado en PR #111 con la evidencia live del 2026-09-29; no modificar datos productivos para mantenerlo.
 
 Ver `03_SUPABASE_DATA_MODEL.md`, `10_SECURITY_DATA_RULES.md`, `supabase/README.md`.
 
@@ -368,7 +367,7 @@ de Buenos Aires. Resolver único: `resolverOrdenCircuito`; clave: `nroOCCircuito
   3. si no, **proyección tentativa** (`proyeccionMensualFix`), sólo si el historial de certificaciones cargó OK (fail-closed):
      - base = última certificación real, si no Acta de Inicio;
      - +1 **mes calendario** (recorta a fin de mes);
-     - SERVICIO: sólo si `modalidad_certificacion = 'MENSUAL'` (⚠️ columna no aplicada en prod → hoy **ningún** servicio proyecta);
+     - SERVICIO: sólo si `modalidad_certificacion = 'MENSUAL'`; la columna y sus writers están desplegados en STAGING y PRODUCCIÓN desde 2026-09-29;
      - OBRA: sólo si plazo entre 30 y 120 días;
      - nunca después del vencimiento.
 - Una tentativa se muestra como tal, nunca como fecha acordada (TD-074).
@@ -471,7 +470,7 @@ Estado (sin optimizar todavía; sólo diagnóstico):
 - Administración legacy local (PIN/config/logs) coexistiendo con rol Supabase.
 - Varias funciones de fecha/días con criterios distintos (00:00 vs 12:00).
 - Políticas de Storage y bucket no versionados.
-- Migraciones pendientes de aplicar en producción (§8).
+- Antes de cualquier migración nueva, contrastar repo, contrato y Supabase live (§8); no inferir pendientes desde snapshots viejos.
 - **Documentación desactualizada**: `README.md` (dice "persistencia LocalStorage", versión 60.0.1, RC1), `CHANGELOG.md` (termina en Fase 9), `BASELINE_OPERATIVA.md` (baseline 2026-08-22). Varias constantes `VERSION` en el código (`V58.1R39…`, `V59.2…`, `V60.0…`) sin versión única.
 - Residuos en raíz publicados en Pages: `index_PRE_CONTROL_TERCEROS_FIX.html`, `index_PRE_IMPUTACION_POSICIONES_R383.html` (≈2,3 MB c/u), `TEST_*.log/json`, `VALIDACION_*.log`, `*_FIX.md`. **No** borrar sin autorización (no hay evidencia de uso, tampoco prueba formal de que nadie los consulte).
 - ≈110 ramas remotas; la mayoría ya integradas (§30).
@@ -479,8 +478,8 @@ Estado (sin optimizar todavía; sólo diagnóstico):
 ## 23. Problemas conocidos
 
 Lista completa y viva: **`13_KNOWN_ISSUES.md`** (KI-001…KI-041). Abiertos más relevantes:
-KI-008…KI-018 (UM/ST H04/H05 en prod), KI-030 (cierre sin validar saldo),
-KI-034 (`modalidad_certificacion` fuera de prod), KI-037 (alertas revisadas),
+KI-009, KI-010 y KI-014 (deudas funcionales UM/ST), KI-030 (cierre sin validar saldo),
+KI-037 (alertas revisadas),
 KI-038 (fotos), KI-039 (CRLF), KI-040 (PR #85 / OCs cerradas), KI-041 (PRs y ramas huérfanas).
 
 ## 24. Reglas para futuros agentes
