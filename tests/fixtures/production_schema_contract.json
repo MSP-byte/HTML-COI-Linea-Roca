@@ -1286,6 +1286,18 @@
         "using": "(coi_current_role() = 'administrador'::text)",
         "with_check": "(coi_current_role() = 'administrador'::text)"
       }
+    ],
+    "indices_verificados": [
+      {
+        "nombre": "coi_unidades_mantenimiento_codigo_um_canonico_uidx",
+        "unique": true,
+        "columnas": [
+          "codigo_um"
+        ],
+        "expresion_canonica": true,
+        "parcial": true,
+        "predicado_contiene": "codigo_um IS NOT NULL"
+      }
     ]
   },
   "coi_servicios_tecnicos_um": {
@@ -1423,6 +1435,19 @@
         "permissive": false,
         "using": "(coi_current_role() = 'administrador'::text)",
         "with_check": "(coi_current_role() = 'administrador'::text)"
+      }
+    ],
+    "indices_verificados": [
+      {
+        "nombre": "coi_servicios_tecnicos_um_unidad_nro_st_uidx",
+        "unique": true,
+        "columnas": [
+          "unidad_id",
+          "nro_st"
+        ],
+        "expresion_canonica": true,
+        "parcial": true,
+        "predicado_contiene": "unidad_id IS NOT NULL AND nro_st IS NOT NULL"
       }
     ]
   },
