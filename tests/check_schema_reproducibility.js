@@ -94,6 +94,8 @@ const PENDIENTES_POLICIES = (CONTRATO._divergencias_pendientes || {}).policies |
 const PENDIENTES_GRANTS = (CONTRATO._divergencias_pendientes || {}).grants || [];
 // Grants sobre funciones: mismo criterio que los de tabla.
 const PENDIENTES_GRANTS_FN = (CONTRATO._divergencias_pendientes || {}).grants_funciones || [];
+const GRANTS_VERIFICADOS = CONTRATO._grants_verificados || [];
+const GRANTS_FN_VERIFICADOS = CONTRATO._grants_funciones_verificados || [];
 
 // Columnas que el baseline llego a declarar por inferencia y que NO existen en
 // produccion. El control falla si alguna reaparece.
@@ -327,6 +329,29 @@ async function casoA() {
       join pg_class t on t.oid = ix.indrelid
       join pg_namespace n on n.oid = i.relnamespace
      where n.nspname = 'public'`);
+  // Indices productivos nombrados que no son constraints UNIQUE (por ejemplo,
+  // indices parciales) tambien forman parte del contrato activo.
+  for (const tabla of TABLAS_BASELINE) {
+    for (const esperado of (CONTRATO[tabla].indices_verificados || [])) {
+      const real = indices.find((i) => i.relname === esperado.nombre);
+      check(Boolean(real), `${tabla}: falta indice productivo ${esperado.nombre}`);
+      if (!real) continue;
+      check(real.tabla === tabla, `${esperado.nombre}: esta sobre ${real.tabla}, se esperaba ${tabla}`);
+      check(real.indisunique === Boolean(esperado.unique),
+        `${esperado.nombre}: unique=${real.indisunique}, se esperaba ${Boolean(esperado.unique)}`);
+      for (const col of (esperado.columnas || [])) {
+        check(new RegExp('\\b' + col + '\\b').test(real.def),
+          `${esperado.nombre}: no cubre ${col} (${real.def})`);
+      }
+      if (esperado.parcial) check(/ WHERE /i.test(real.def), `${esperado.nombre}: deberia ser parcial`);
+      if (esperado.predicado_contiene) {
+        const normaliza = (x) => String(x).replace(/::text/g, '').replace(/[()]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+        check(normaliza(real.def).includes(normaliza(esperado.predicado_contiene)),
+          `${esperado.nombre}: predicado distinto del contrato (${real.def})`);
+      }
+    }
+  }
+
   for (const d of PENDIENTES_UNIQUE) {
     const real = indices.find((i) => i.relname === d.indice);
     check(Boolean(real), `${d.tabla}: la divergencia pendiente declara el indice ${d.indice} y el repositorio no lo crea`);
@@ -363,6 +388,39 @@ async function casoA() {
     } else {
       check(!enSnapshot,
         `${d.tabla}: UNIQUE (${d.columnas.join(', ')}) esta en el snapshot productivo y ademas declarado como pendiente`);
+    }
+  }
+
+  // Grants productivos vigentes: el snapshot activo debe conservar y verificar
+  // permisos aunque ya no exista una divergencia pendiente.
+  for (const d of GRANTS_FN_VERIFICADOS) {
+    const { rows } = await db.query(`
+      select has_function_privilege('authenticated', p.oid, 'EXECUTE') auth,
+             has_function_privilege('anon', p.oid, 'EXECUTE') anon
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.proname = $1`, [d.funcion]);
+    check(rows.length === 1, `${d.funcion}: el contrato vigente espera una unica firma y hay ${rows.length}`);
+    if (rows.length) {
+      check(rows[0].auth === ((d.roles.authenticated || []).indexOf('EXECUTE') >= 0),
+        `${d.funcion}: grant authenticated distinto del contrato productivo`);
+      check(rows[0].anon === ((d.roles.anon || []).indexOf('EXECUTE') >= 0),
+        `${d.funcion}: grant anon distinto del contrato productivo`);
+    }
+  }
+
+  if (GRANTS_VERIFICADOS.length) {
+    const { rows: grantsVigentes } = await db.query(`
+      select table_name, grantee, privilege_type
+        from information_schema.role_table_grants
+       where table_schema = 'public' and grantee in ('anon', 'authenticated')`);
+    for (const d of GRANTS_VERIFICADOS) {
+      for (const rol of Object.keys(d.roles)) {
+        const reales = grantsVigentes.filter((g) => g.table_name === d.tabla && g.grantee === rol)
+          .map((g) => String(g.privilege_type).toUpperCase()).filter((v, i, a) => a.indexOf(v) === i).sort();
+        const esperados = d.roles[rol].slice().sort();
+        check(JSON.stringify(reales) === JSON.stringify(esperados),
+          `${d.tabla}: grants vigentes de ${rol} son [${reales.join(', ')}], contrato [${esperados.join(', ')}]`);
+      }
     }
   }
 
