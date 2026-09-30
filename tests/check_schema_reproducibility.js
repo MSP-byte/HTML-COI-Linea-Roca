@@ -316,6 +316,15 @@ async function casoA() {
       const hay = porTabla(tabla).some((c) => c.contype === 'c' && new RegExp('\\b' + col + '\\b').test(c.def));
       check(hay, `${tabla}: falta CHECK sobre ${col}`);
     }
+    for (const esperado of (spec.checks_verificados || [])) {
+      const real = porTabla(tabla).find((x) => x.contype === 'c' && x.conname === esperado.nombre);
+      check(Boolean(real), `${tabla}: falta CHECK productivo ${esperado.nombre}`);
+      if (real) {
+        const norm = (x) => String(x).replace(/\s+/g, ' ').trim();
+        check(norm(real.def) === norm(esperado.definicion),
+          `${esperado.nombre}: definicion distinta del contrato productivo (${real.def})`);
+      }
+    }
   }
 
   // Los UNIQUE declarados como divergencia pendiente tienen que existir en el
@@ -329,30 +338,18 @@ async function casoA() {
       join pg_class t on t.oid = ix.indrelid
       join pg_namespace n on n.oid = i.relnamespace
      where n.nspname = 'public'`);
-  // Indices productivos nombrados que no son constraints UNIQUE (por ejemplo,
-  // indices parciales) tambien forman parte del contrato activo.
+  // Indices productivos nombrados: se compara la definicion COMPLETA normalizada.
+  // No alcanza con buscar tokens o fragmentos de predicado porque un AND false
+  // conservaria esos fragmentos y anularia la garantia de unicidad.
+  const normalizaDDL = (x) => String(x).replace(/\s+/g, ' ').trim();
   for (const tabla of TABLAS_BASELINE) {
     for (const esperado of (CONTRATO[tabla].indices_verificados || [])) {
       const real = indices.find((i) => i.relname === esperado.nombre);
       check(Boolean(real), `${tabla}: falta indice productivo ${esperado.nombre}`);
       if (!real) continue;
       check(real.tabla === tabla, `${esperado.nombre}: esta sobre ${real.tabla}, se esperaba ${tabla}`);
-      check(real.indisunique === Boolean(esperado.unique),
-        `${esperado.nombre}: unique=${real.indisunique}, se esperaba ${Boolean(esperado.unique)}`);
-      for (const col of (esperado.columnas || [])) {
-        check(new RegExp('\\b' + col + '\\b').test(real.def),
-          `${esperado.nombre}: no cubre ${col} (${real.def})`);
-      }
-      if (esperado.expresion_canonica) {
-        check(/upper\(/i.test(real.def) && /regexp_replace\(/i.test(real.def),
-          `${esperado.nombre}: deberia aplicar normalizacion canonica (${real.def})`);
-      }
-      if (esperado.parcial) check(/ WHERE /i.test(real.def), `${esperado.nombre}: deberia ser parcial`);
-      if (esperado.predicado_contiene) {
-        const normaliza = (x) => String(x).replace(/::text/g, '').replace(/[()]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
-        check(normaliza(real.def).includes(normaliza(esperado.predicado_contiene)),
-          `${esperado.nombre}: predicado distinto del contrato (${real.def})`);
-      }
+      check(normalizaDDL(real.def) === normalizaDDL(esperado.definicion),
+        `${esperado.nombre}: definicion distinta del contrato productivo (${real.def})`);
     }
   }
 
@@ -395,6 +392,22 @@ async function casoA() {
     }
   }
 
+  // Triggers productivos activos: nombre y definicion completa.
+  const { rows: triggersActivos } = await db.query(`
+    select c.relname tabla, t.tgname nombre, pg_get_triggerdef(t.oid, true) def
+      from pg_trigger t
+      join pg_class c on c.oid=t.tgrelid
+      join pg_namespace n on n.oid=c.relnamespace
+     where not t.tgisinternal and n.nspname='public'`);
+  for (const tabla of TABLAS_BASELINE) {
+    for (const esperado of (CONTRATO[tabla].triggers_verificados || [])) {
+      const real = triggersActivos.find((t) => t.tabla === tabla && t.nombre === esperado.nombre);
+      check(Boolean(real), `${tabla}: falta trigger productivo ${esperado.nombre}`);
+      if (real) check(normalizaDDL(real.def) === normalizaDDL(esperado.definicion),
+        `${esperado.nombre}: definicion distinta del contrato productivo (${real.def})`);
+    }
+  }
+
   // Grants productivos vigentes: el snapshot activo debe conservar y verificar
   // permisos aunque ya no exista una divergencia pendiente.
   for (const d of GRANTS_FN_VERIFICADOS) {
@@ -427,6 +440,19 @@ async function casoA() {
         const esperados = d.roles[rol].slice().sort();
         check(JSON.stringify(reales) === JSON.stringify(esperados),
           `${d.tabla}: privilegios efectivos de ${rol} son [${reales.join(', ')}], contrato [${esperados.join(', ')}]`);
+
+        // Los grants por columna son independientes de has_table_privilege:
+        // un GRANT SELECT(columna) a PUBLIC no debe quedar invisible.
+        const PRIVILEGIOS_COLUMNA = ['SELECT', 'INSERT', 'UPDATE', 'REFERENCES'];
+        const { rows: cols } = await db.query(`
+          select p privilegio, has_any_column_privilege($1, $2, p) permitido
+            from unnest($3::text[]) p order by p`,
+          [rol, 'public.' + d.tabla, PRIVILEGIOS_COLUMNA]
+        );
+        const realesCol = cols.filter((r) => r.permitido).map((r) => r.privilegio).sort();
+        const esperadosCol = ((d.privilegios_columna_efectivos || {})[rol] || []).slice().sort();
+        check(JSON.stringify(realesCol) === JSON.stringify(esperadosCol),
+          `${d.tabla}: privilegios efectivos por columna de ${rol} son [${realesCol.join(', ')}], contrato [${esperadosCol.join(', ')}]`);
       }
     }
   }
