@@ -1,6 +1,6 @@
 # JULES_HANDOFF — Documento maestro para agentes nuevos
 
-> **Estado verificado al 2026-09-27 sobre `main` = `d3344c7`** (Merge PR #109).
+> **Estado documental reconciliado al 2026-09-29.** Handoff integrado en `main` por PR #110 (`93cd1c03`). El estado Supabase indicado abajo fue verificado en vivo el 2026-09-29.
 > Todo lo que sigue se extrajo del código, las migraciones, los tests y el
 > historial Git reales. Si algo de acá contradice el repositorio, **manda el
 > repositorio**: verificá, corregí este documento y dejalo explicado en el PR.
@@ -138,7 +138,7 @@ Fuente: `supabase/migrations/` + `tests/fixtures/production_schema_contract.json
 
 | Tabla | Rol | Notas |
 |---|---|---|
-| `coi_ordenes` | **OC. Entidad maestra.** `id` UUID = identidad técnica; `nro_oc` único funcional (normalizado) | dos ejes de estado: `estado_coi` (operativo) y `estado_registro` (Activo/Archivado); `estado_documental` = hito contractual vigente; `fecha_acta_inicio`, `plazo…`, `fecha_vencimiento`, `proxima_certificacion`, `modalidad_certificacion` (*sólo repo*, KI-034) |
+| `coi_ordenes` | **OC. Entidad maestra.** `id` UUID = identidad técnica; `nro_oc` único funcional (normalizado) | dos ejes de estado: `estado_coi` (operativo) y `estado_registro` (Activo/Archivado); `estado_documental` = hito contractual vigente; `fecha_acta_inicio`, `plazo…`, `fecha_vencimiento`, `proxima_certificacion`, `modalidad_certificacion` (**desplegada en STAGING y PRODUCCIÓN el 2026-09-29**) |
 | `coi_ordenes_estaciones` | OC ↔ estaciones (exactamente una principal) | triggers sync/guard |
 | `coi_posiciones_oc`, `coi_consumos_posicion` | posiciones financieras e imputaciones | RPC `coi_certificar_posiciones_v2`, idempotencia |
 | `coi_certificaciones` | certificaciones **reales** (Obra/Servicio, H17) | historial central en Calendario → Tabla Certificaciones |
@@ -192,17 +192,36 @@ archivar sólo cerrada), `coi_direct_order_update_guard`, `coi_ordenes_number_gu
 `coi_um_version_servidor` / `coi_st_version_servidor` (CAS optimista),
 `coi_posiciones_identity_guard`, `coi_ordenes_estaciones_write_guard`.
 
-### Divergencias repo ↔ PRODUCCIÓN (declaradas en `production_schema_contract.json`)
+### Estado repo ↔ PRODUCCIÓN — reconciliación live 2026-09-29
 
-Lo siguiente **está en el repo y NO en producción**:
-- `coi_ordenes.modalidad_certificacion` (KI-034) → sin ella ningún Servicio proyecta próxima certificación.
-- `coi_servicios_tecnicos_um.orden_id` + FK RESTRICT (H04).
-- FK `unidad_id` RESTRICT (prod: CASCADE), índices únicos canónicos UM/ST, policies y grants acotados de UM/ST, grant de `coi_normalize_order_number` (KI-008…KI-018).
-- Migración de PR #85 `202609210001_etapa1_closed_oc_compat.sql` **ni siquiera está en main** (§30).
+La auditoría live posterior a este handoff demostró que el snapshot
+`tests/fixtures/production_schema_contract.json` estaba atrasado en varios puntos.
+`tests/fixtures/production_schema_contract.json` fue regenerado en PR #111 con la evidencia live del 2026-09-29 y vuelve a ser el contrato productivo versionado. Sus `_divergencias_pendientes` representan únicamente desvíos que sigan abiertos después de esa reconciliación.
 
-⚠️ No existe un mecanismo automático que aplique migraciones. **No asumas que
-lo que está en `supabase/migrations` está aplicado.** Consultá el contrato y
-preguntá.
+Verificado directamente en STAGING y PRODUCCIÓN:
+- `coi_servicios_tecnicos_um.orden_id` ya existe y sus FK relevantes están en `RESTRICT`.
+- Los índices únicos canónicos de UM/ST ya existen.
+- Las policies restrictivas UM/ST ya están desplegadas.
+- No se detectaron duplicados canónicos de UM ni ST en la auditoría.
+- Las RPC contractuales v1/v2/v3 están disponibles; el frontend vigente usa
+  `coi_confirmar_etapa_circuito_v3`.
+- PR #85 no debe tomarse como migración pendiente por defecto: su compatibilidad
+  debe evaluarse contra el contrato v3 vigente.
+
+Divergencia real encontrada y **resuelta el 2026-09-29**:
+- Se aplicaron en STAGING y luego en PRODUCCIÓN, desde los SQL versionados de
+  `main`, las migraciones:
+  `202609170003_modalidad_certificacion.sql`,
+  `202609170004_modalidad_certificacion_writers.sql` y
+  `202609190001_modalidad_certificacion_alta.sql`.
+- Producción quedó con `coi_ordenes.modalidad_certificacion`, default
+  `SIN_DEFINIR`, CHECK de dominio, índice parcial para `MENSUAL` y los tres
+  writers canónicos habilitados.
+- Las 34 OC históricas existentes quedaron en `SIN_DEFINIR`; no se infirió ni
+  forzó `MENSUAL`/`A_DEMANDA`.
+
+⚠️ Sigue sin existir deploy automático de migraciones. Verificar Supabase live
+antes de afirmar una divergencia. El fixture productivo fue regenerado en PR #111 con la evidencia live del 2026-09-29; no modificar datos productivos para mantenerlo.
 
 Ver `03_SUPABASE_DATA_MODEL.md`, `10_SECURITY_DATA_RULES.md`, `supabase/README.md`.
 
@@ -347,7 +366,7 @@ de Buenos Aires. Resolver único: `resolverOrdenCircuito`; clave: `nroOCCircuito
   3. si no, **proyección tentativa** (`proyeccionMensualFix`), sólo si el historial de certificaciones cargó OK (fail-closed):
      - base = última certificación real, si no Acta de Inicio;
      - +1 **mes calendario** (recorta a fin de mes);
-     - SERVICIO: sólo si `modalidad_certificacion = 'MENSUAL'` (⚠️ columna no aplicada en prod → hoy **ningún** servicio proyecta);
+     - SERVICIO: sólo si `modalidad_certificacion = 'MENSUAL'`; la columna y sus writers están desplegados en STAGING y PRODUCCIÓN desde 2026-09-29;
      - OBRA: sólo si plazo entre 30 y 120 días;
      - nunca después del vencimiento.
 - Una tentativa se muestra como tal, nunca como fecha acordada (TD-074).
@@ -450,7 +469,7 @@ Estado (sin optimizar todavía; sólo diagnóstico):
 - Administración legacy local (PIN/config/logs) coexistiendo con rol Supabase.
 - Varias funciones de fecha/días con criterios distintos (00:00 vs 12:00).
 - Políticas de Storage y bucket no versionados.
-- Migraciones pendientes de aplicar en producción (§8).
+- Antes de cualquier migración nueva, contrastar repo, contrato y Supabase live (§8); no inferir pendientes desde snapshots viejos.
 - **Documentación desactualizada**: `README.md` (dice "persistencia LocalStorage", versión 60.0.1, RC1), `CHANGELOG.md` (termina en Fase 9), `BASELINE_OPERATIVA.md` (baseline 2026-08-22). Varias constantes `VERSION` en el código (`V58.1R39…`, `V59.2…`, `V60.0…`) sin versión única.
 - Residuos en raíz publicados en Pages: `index_PRE_CONTROL_TERCEROS_FIX.html`, `index_PRE_IMPUTACION_POSICIONES_R383.html` (≈2,3 MB c/u), `TEST_*.log/json`, `VALIDACION_*.log`, `*_FIX.md`. **No** borrar sin autorización (no hay evidencia de uso, tampoco prueba formal de que nadie los consulte).
 - ≈110 ramas remotas; la mayoría ya integradas (§30).
@@ -458,8 +477,8 @@ Estado (sin optimizar todavía; sólo diagnóstico):
 ## 23. Problemas conocidos
 
 Lista completa y viva: **`13_KNOWN_ISSUES.md`** (KI-001…KI-041). Abiertos más relevantes:
-KI-008…KI-018 (UM/ST H04/H05 en prod), KI-030 (cierre sin validar saldo),
-KI-034 (`modalidad_certificacion` fuera de prod), KI-037 (alertas revisadas),
+KI-009, KI-010 y KI-014 (deudas funcionales UM/ST), KI-030 (cierre sin validar saldo),
+KI-037 (alertas revisadas),
 KI-038 (fotos), KI-039 (CRLF), KI-040 (PR #85 / OCs cerradas), KI-041 (PRs y ramas huérfanas).
 
 ## 24. Reglas para futuros agentes

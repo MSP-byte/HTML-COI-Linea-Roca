@@ -60,25 +60,23 @@ const bloque = (id) => {
 const COLS_UM = columnasBaseline('coi_unidades_mantenimiento');
 const COLS_ST = columnasBaseline('coi_servicios_tecnicos_um');
 
-// El baseline y el snapshot productivo tienen que decir lo mismo: si divergen,
-// cualquier conclusion de este control seria sobre un esquema inventado.
+// El baseline es el punto de partida; migraciones posteriores pueden agregar
+// columnas que ya forman parte del contrato productivo reconciliado.
+const COLUMNAS_POST_BASELINE = {
+  coi_unidades_mantenimiento: [],
+  coi_servicios_tecnicos_um: ['orden_id']
+};
 for (const [tabla, cols] of [['coi_unidades_mantenimiento', COLS_UM], ['coi_servicios_tecnicos_um', COLS_ST]]) {
   const delContrato = Object.keys(contrato[tabla].columnas).sort();
+  const esperadas = cols.concat(COLUMNAS_POST_BASELINE[tabla] || []).sort();
   check(
-    JSON.stringify(cols.slice().sort()) === JSON.stringify(delContrato),
-    `${tabla}: el baseline declara [${cols.sort().join(', ')}] y el contrato productivo [${delContrato.join(', ')}]`
+    JSON.stringify(esperadas) === JSON.stringify(delContrato),
+    `${tabla}: baseline+migraciones declara [${esperadas.join(', ')}] y el contrato productivo [${delContrato.join(', ')}]`
   );
 }
 
-// A las columnas del baseline se suman las que una migracion posterior agrega y
-// produccion todavia no tiene: estan declaradas —y verificadas contra la base
-// real— en «_divergencias_pendientes.columnas». La capa las lee legitimamente,
-// y comparar solo contra el baseline la acusaria de pedir una columna inexistente.
-const columnasPendientes = (tabla) =>
-  ((contrato._divergencias_pendientes || {}).columnas || [])
-    .filter((d) => d.tabla === tabla)
-    .map((d) => d.columna);
-const columnasVigentes = (tabla, base) => base.concat(columnasPendientes(tabla));
+// La capa debe leer el esquema VIGENTE de produccion, no solo el baseline.
+const columnasVigentes = (tabla) => Object.keys(contrato[tabla].columnas);
 
 // Nombres que NO existen y que resultaban tentadores: el control existe porque
 // la primera version del guard de integridad uso «tipo» y fallaba en el INSERT.
@@ -98,8 +96,8 @@ function camposDeclarados(nombre) {
   return m[1].split(',').map((s) => s.trim());
 }
 for (const [constante, cols, tabla] of [
-  ['CAMPOS_UM', columnasVigentes('coi_unidades_mantenimiento', COLS_UM), 'coi_unidades_mantenimiento'],
-  ['CAMPOS_ST', columnasVigentes('coi_servicios_tecnicos_um', COLS_ST), 'coi_servicios_tecnicos_um']
+  ['CAMPOS_UM', columnasVigentes('coi_unidades_mantenimiento'), 'coi_unidades_mantenimiento'],
+  ['CAMPOS_ST', columnasVigentes('coi_servicios_tecnicos_um'), 'coi_servicios_tecnicos_um']
 ]) {
   const pedidos = camposDeclarados(constante);
   const sobran = pedidos.filter((c) => !cols.includes(c));
@@ -119,7 +117,7 @@ function clavesDeObjeto(marca) {
 }
 const escritasST = clavesDeObjeto('      fila: {');
 check(escritasST.length >= 8, `se esperaban las columnas del insert de ST y se leyeron ${escritasST.length}`);
-const COLS_ST_VIGENTES = columnasVigentes('coi_servicios_tecnicos_um', COLS_ST);
+const COLS_ST_VIGENTES = columnasVigentes('coi_servicios_tecnicos_um');
 for (const c of escritasST) {
   check(COLS_ST_VIGENTES.includes(c), `el insert de ST escribe ${c}, que no es columna de coi_servicios_tecnicos_um`);
 }
@@ -479,13 +477,11 @@ check(/COI_UM_CODIGO_DUPLICADO_CANONICO/.test(migracionUM),
   'la migracion debe abortar explicitamente ante duplicados canonicos');
 check(!/drop\s+constraint/i.test(migracionUM.replace(/--[^\n]*/g, '')),
   'el UNIQUE literal del baseline no se puede eliminar');
-const umCanonico = ((contrato._divergencias_pendientes || {}).unique || [])
-  .find((d) => d.tabla === 'coi_unidades_mantenimiento');
-check(Boolean(umCanonico), 'la divergencia del indice canonico de UM debe estar declarada');
-check(umCanonico.indice === 'coi_unidades_mantenimiento_codigo_um_canonico_uidx',
-  'la divergencia debe nombrar el indice tal como lo crea la migracion');
-check(umCanonico.produccion === 'ausente' && umCanonico.repo === 'presente',
-  'la divergencia de UM debe declarar produccion ausente y repo presente');
+const resueltasContrato = ((contrato._divergencias_pendientes || {})._resueltas || []);
+const umCanonico = resueltasContrato.find((d) => d.objeto === 'coi_unidades_mantenimiento_codigo_um_canonico_uidx');
+check(Boolean(umCanonico), 'el indice canonico de UM desplegado debe quedar registrado en _resueltas');
+check(umCanonico.produccion === 'presente' && umCanonico.repo === 'presente',
+  'el indice canonico de UM debe figurar presente en repo y produccion');
 
 
 // ------------------------------------------- 5e) tercera ronda de review
@@ -612,24 +608,15 @@ check(/COI_ST_OC_HUERFANAS_PREEXISTENTES/.test(sinComentariosOC),
 for (const destructivo of [/\btruncate\b/i, /\bdrop\s+table\b/i, /\bdelete\s+from\b/i, /\bgrant\b/i]) {
   check(!destructivo.test(sinComentariosOC), `la migracion ST/OC no puede contener: ${destructivo}`);
 }
-// Y la divergencia queda declarada como FK nueva, no como cambio de accion.
-const fkPendientes = (contrato._divergencias_pendientes || {}).fk || [];
-const fkOC = fkPendientes.find((d) => d.tabla === 'coi_servicios_tecnicos_um' && d.columna === 'orden_id');
-check(Boolean(fkOC), 'la FK de orden_id debe declararse como divergencia pendiente');
-check(fkOC.produccion === 'sin FK', 'produccion todavia no tiene esa FK: hay que decirlo asi');
-check(fkOC.destino === 'coi_ordenes(id)', 'la divergencia debe declarar el destino real de la FK');
-check(fkOC.on_delete === 'RESTRICT',
-  'la divergencia debe declarar las acciones reales de la FK');
-check(!(contrato.coi_servicios_tecnicos_um.fk || []).some((f) => f[0] === 'orden_id'),
-  'el snapshot productivo no puede incluir una FK que todavia no se aplico');
-// Y la columna nueva tambien queda declarada: produccion no la tiene.
-const colOC = ((contrato._divergencias_pendientes || {}).columnas || [])
-  .find((d) => d.tabla === 'coi_servicios_tecnicos_um' && d.columna === 'orden_id');
-check(Boolean(colOC), 'la columna orden_id debe declararse como divergencia pendiente');
-check(colOC.produccion === 'ausente' && colOC.tipo === 'uuid' && colOC.nn === false,
-  'la divergencia debe declarar que orden_id es uuid nullable y que produccion no la tiene');
-check(!Object.prototype.hasOwnProperty.call(contrato.coi_servicios_tecnicos_um.columnas, 'orden_id'),
-  'el snapshot productivo no puede incluir una columna que todavia no se aplico');
+// El contrato productivo reconciliado ya contiene la identidad tecnica ST -> OC.
+const fkOC = (contrato.coi_servicios_tecnicos_um.fk || [])
+  .find((d) => d[0] === 'orden_id');
+check(Boolean(fkOC), 'el contrato productivo debe incluir la FK de orden_id');
+check(fkOC[1] === 'coi_ordenes' && fkOC[2] === 'RESTRICT',
+  'orden_id debe referenciar coi_ordenes con ON DELETE RESTRICT');
+const colOC = contrato.coi_servicios_tecnicos_um.columnas.orden_id;
+check(Boolean(colOC) && colOC.tipo === 'uuid' && colOC.nn === false,
+  'orden_id debe figurar como uuid nullable en el contrato productivo');
 
 
 // ------------------------------------------- 5g) quinta ronda de review
@@ -662,9 +649,9 @@ check(
 check(!/to anon/i.test(sinComentariosGrant), 'anon no puede recibir el permiso');
 check(!/create\s+or\s+replace\s+function/i.test(sinComentariosGrant),
   'la migracion no puede redefinir la funcion: solo concede el permiso');
-const grantsFn = (contrato._divergencias_pendientes || {}).grants_funciones || [];
-check(grantsFn.some((d) => d.funcion.indexOf('coi_normalize_order_number') === 0),
-  'el grant debe declararse como divergencia pendiente');
+check(resueltasContrato.some((d) => d.objeto === 'coi_normalize_order_number(text) grant' &&
+  d.produccion === 'presente'),
+  'el grant desplegado de coi_normalize_order_number debe quedar registrado en _resueltas');
 
 
 // ------------------------------------------- 5h) sexta ronda de review
@@ -717,10 +704,11 @@ check(!/@coiroca.com/.test(codigoCapa),
 const migracion = fs.readFileSync('supabase/migrations/202608300003_h05_um_delete_guard.sql', 'utf8');
 check(/on delete restrict/i.test(migracion), 'la migracion H05 debe dejar la FK en RESTRICT');
 const pendientes = (contrato._divergencias_pendientes || {}).fk || [];
-const h05 = pendientes.find((d) => d.tabla === 'coi_servicios_tecnicos_um' && d.columna === 'unidad_id');
-check(Boolean(h05), 'la divergencia pendiente H05 debe estar declarada en el contrato productivo');
-check(h05.produccion === 'CASCADE' && h05.repo === 'RESTRICT',
-  'la divergencia H05 debe declarar produccion CASCADE y repo RESTRICT');
+check(!pendientes.some((d) => d.tabla === 'coi_servicios_tecnicos_um' && d.columna === 'unidad_id'),
+  'H05 ya esta desplegado: unidad_id no puede seguir pendiente');
+check((contrato.coi_servicios_tecnicos_um.fk || []).some((f) =>
+  f[0] === 'unidad_id' && f[1] === 'coi_unidades_mantenimiento' && f[2] === 'RESTRICT'),
+  'el contrato productivo debe reflejar unidad_id ON DELETE RESTRICT');
 const resueltas = (contrato._divergencias_pendientes || {})._resueltas || [];
 check(
   !pendientes.some((d) => d.tabla === 'coi_observaciones_oc'),
@@ -757,16 +745,11 @@ for (const destructivo of [/\btruncate\b/i, /\bdelete\s+from\b/i, /\bupdate\s+pu
   check(!destructivo.test(migracionH04), `la migracion H04 no puede contener: ${destructivo}`);
 }
 const uniquePendientes = (contrato._divergencias_pendientes || {}).unique || [];
-const h04 = uniquePendientes.find((d) => d.tabla === 'coi_servicios_tecnicos_um');
-check(Boolean(h04), 'la divergencia pendiente H04 debe estar declarada en el contrato productivo');
-check(h04.produccion === 'ausente' && h04.repo === 'presente',
-  'la divergencia H04 debe declarar produccion ausente y repo presente');
-check(
-  !(contrato.coi_servicios_tecnicos_um.unique || []).length,
-  'el snapshot productivo de coi_servicios_tecnicos_um no tiene UNIQUE: no debe declararse como si lo tuviera'
-);
-check(h04.indice === 'coi_servicios_tecnicos_um_unidad_nro_st_uidx',
-  'la divergencia H04 debe nombrar el indice tal como lo crea la migracion');
+check(!uniquePendientes.some((d) => d.tabla === 'coi_servicios_tecnicos_um'),
+  'el indice H04 ya esta desplegado y no puede seguir declarado como pendiente');
+const h04 = resueltasContrato.find((d) => d.objeto === 'coi_servicios_tecnicos_um_unidad_nro_st_uidx');
+check(Boolean(h04) && h04.produccion === 'presente' && h04.repo === 'presente',
+  'el indice H04 desplegado debe quedar registrado en _resueltas');
 
 // El rol administrador tambien tiene que existir en PostgreSQL: una restriccion
 // que solo vive en JavaScript no es una restriccion.
@@ -788,23 +771,20 @@ check(!/grant all/i.test(sinComentarios), 'la migracion de rol no puede otorgar 
 check(/coi_current_role\(\) = 'administrador'/.test(sinComentarios),
   'las mutaciones deben exigir el rol administrador');
 
-const policiesPendientes = (contrato._divergencias_pendientes || {}).policies || [];
-check(policiesPendientes.length === 6,
-  `se esperaban 6 policies pendientes declaradas y hay ${policiesPendientes.length}`);
-check(policiesPendientes.every((d) => d.permissive === false),
-  'las policies pendientes son RESTRICTIVE: estrechan, no amplian');
-const grantsPendientes = (contrato._divergencias_pendientes || {}).grants || [];
-check(grantsPendientes.length === 2, 'faltan las divergencias de grants de UM y ST');
-check(grantsPendientes.every((d) => d.repo.anon.length === 0),
-  'el repo no debe dejarle ningun privilegio a anon');
-check(grantsPendientes.every((d) =>
-  JSON.stringify(d.repo.authenticated.slice().sort()) === JSON.stringify(['INSERT', 'SELECT', 'UPDATE'])),
-  'authenticated debe quedar declarado con exactamente SELECT/INSERT/UPDATE');
-// Y el snapshot productivo NO puede haber sido tocado: sigue siendo la foto real.
+const TABLAS_UM_ST = new Set(['coi_unidades_mantenimiento', 'coi_servicios_tecnicos_um']);
+const policiesPendientes = ((contrato._divergencias_pendientes || {}).policies || [])
+  .filter((d) => TABLAS_UM_ST.has(d.tabla));
+check(policiesPendientes.length === 0,
+  'las policies UM/ST ya estan desplegadas y no pueden seguir como divergencia pendiente');
+const grantsPendientes = ((contrato._divergencias_pendientes || {}).grants || [])
+  .filter((d) => TABLAS_UM_ST.has(d.tabla));
+check(grantsPendientes.length === 0,
+  'los grants UM/ST ya estan desplegados y no pueden seguir como divergencia pendiente');
 for (const tabla of ['coi_unidades_mantenimiento', 'coi_servicios_tecnicos_um']) {
-  const nombres = (contrato[tabla].policies || []).map((x) => x.nombre);
-  check(nombres.every((n) => n.indexOf('_guard') < 0),
-    `${tabla}: el snapshot productivo no puede incluir las policies que todavia no se aplicaron`);
+  const guards = (contrato[tabla].policies || []).filter((x) => x.nombre.indexOf('_guard') >= 0);
+  check(guards.length === 3, `${tabla}: el contrato productivo debe incluir sus 3 policies restrictivas`);
+  check(guards.every((x) => x.permissive === false),
+    `${tabla}: las policies _guard productivas deben ser RESTRICTIVE`);
 }
 
 // ------------------------------------------- 5i) octava ronda de review

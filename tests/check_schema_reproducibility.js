@@ -94,6 +94,8 @@ const PENDIENTES_POLICIES = (CONTRATO._divergencias_pendientes || {}).policies |
 const PENDIENTES_GRANTS = (CONTRATO._divergencias_pendientes || {}).grants || [];
 // Grants sobre funciones: mismo criterio que los de tabla.
 const PENDIENTES_GRANTS_FN = (CONTRATO._divergencias_pendientes || {}).grants_funciones || [];
+const GRANTS_VERIFICADOS = CONTRATO._grants_verificados || [];
+const GRANTS_FN_VERIFICADOS = CONTRATO._grants_funciones_verificados || [];
 
 // Columnas que el baseline llego a declarar por inferencia y que NO existen en
 // produccion. El control falla si alguna reaparece.
@@ -314,6 +316,74 @@ async function casoA() {
       const hay = porTabla(tabla).some((c) => c.contype === 'c' && new RegExp('\\b' + col + '\\b').test(c.def));
       check(hay, `${tabla}: falta CHECK sobre ${col}`);
     }
+    for (const esperado of (spec.checks_verificados || [])) {
+      const real = porTabla(tabla).find((x) => x.contype === 'c' && x.conname === esperado.nombre);
+      check(Boolean(real), `${tabla}: falta CHECK productivo ${esperado.nombre}`);
+      if (real) {
+        const normCheck = (x) => {
+          let s = String(x).replace(/\s+/g, ' ').trim();
+          // pg_get_constraintdef puede reinsertar parentesis redundantes al
+          // serializar el mismo arbol booleano. Se eliminan SOLO envolturas
+          // balanceadas que cubren toda la expresion; no se tocan parentesis
+          // internos ni operadores/valores del dominio.
+          const quitaEnvoltura = (expr) => {
+            let y = expr.trim();
+            while (y[0] === '(' && y[y.length - 1] === ')') {
+              let depth = 0, cubreTodo = true;
+              for (let i = 0; i < y.length; i += 1) {
+                if (y[i] === '(') depth += 1;
+                else if (y[i] === ')') depth -= 1;
+                if (depth === 0 && i < y.length - 1) { cubreTodo = false; break; }
+                if (depth < 0) { cubreTodo = false; break; }
+              }
+              if (!cubreTodo || depth !== 0) break;
+              y = y.slice(1, -1).trim();
+            }
+            return y;
+          };
+          const m = s.match(/^CHECK\s*\(([\s\S]*)\)$/i);
+          if (!m) return s;
+          let body = quitaEnvoltura(m[1]);
+          // PostgreSQL tambien puede envolver operandos atomicos de una
+          // expresion booleana: (col IS NULL) OR (...). Quitamos unicamente
+          // wrappers cuyo interior no contiene AND/OR de nivel superior; asi
+          // no se altera la estructura booleana ni la precedencia.
+          const quitaAtomicos = (expr) => {
+            let out = '', i = 0;
+            while (i < expr.length) {
+              if (expr[i] !== '(') { out += expr[i++]; continue; }
+              let depth = 0, end = -1;
+              for (let j = i; j < expr.length; j += 1) {
+                if (expr[j] === '(') depth += 1;
+                else if (expr[j] === ')') depth -= 1;
+                if (depth === 0) { end = j; break; }
+              }
+              if (end < 0) { out += expr.slice(i); break; }
+              const inner = expr.slice(i + 1, end);
+              let d = 0, booleanoSuperior = false;
+              for (let k = 0; k < inner.length; k += 1) {
+                if (inner[k] === '(') d += 1;
+                else if (inner[k] === ')') d -= 1;
+                if (d === 0 && /^(?:\s+)(?:AND|OR)(?:\s+)/i.test(inner.slice(k))) {
+                  booleanoSuperior = true; break;
+                }
+              }
+              if (!booleanoSuperior && /\b(?:IS\s+(?:NOT\s+)?NULL|=|<>|!=|<|>|<=|>=|=\s*ANY\b)/i.test(inner)) {
+                out += quitaEnvoltura(inner);
+              } else {
+                out += '(' + quitaAtomicos(inner) + ')';
+              }
+              i = end + 1;
+            }
+            return out;
+          };
+          body = quitaAtomicos(body);
+          return 'CHECK (' + body.replace(/\s+/g, ' ').trim() + ')';
+        };
+        check(normCheck(real.def) === normCheck(esperado.definicion),
+          `${esperado.nombre}: definicion distinta del contrato productivo (${real.def})`);
+      }
+    }
   }
 
   // Los UNIQUE declarados como divergencia pendiente tienen que existir en el
@@ -327,6 +397,21 @@ async function casoA() {
       join pg_class t on t.oid = ix.indrelid
       join pg_namespace n on n.oid = i.relnamespace
      where n.nspname = 'public'`);
+  // Indices productivos nombrados: se compara la definicion COMPLETA normalizada.
+  // No alcanza con buscar tokens o fragmentos de predicado porque un AND false
+  // conservaria esos fragmentos y anularia la garantia de unicidad.
+  const normalizaDDL = (x) => String(x).replace(/\s+/g, ' ').trim();
+  for (const tabla of TABLAS_BASELINE) {
+    for (const esperado of (CONTRATO[tabla].indices_verificados || [])) {
+      const real = indices.find((i) => i.relname === esperado.nombre);
+      check(Boolean(real), `${tabla}: falta indice productivo ${esperado.nombre}`);
+      if (!real) continue;
+      check(real.tabla === tabla, `${esperado.nombre}: esta sobre ${real.tabla}, se esperaba ${tabla}`);
+      check(normalizaDDL(real.def) === normalizaDDL(esperado.definicion),
+        `${esperado.nombre}: definicion distinta del contrato productivo (${real.def})`);
+    }
+  }
+
   for (const d of PENDIENTES_UNIQUE) {
     const real = indices.find((i) => i.relname === d.indice);
     check(Boolean(real), `${d.tabla}: la divergencia pendiente declara el indice ${d.indice} y el repositorio no lo crea`);
@@ -363,6 +448,71 @@ async function casoA() {
     } else {
       check(!enSnapshot,
         `${d.tabla}: UNIQUE (${d.columnas.join(', ')}) esta en el snapshot productivo y ademas declarado como pendiente`);
+    }
+  }
+
+  // Triggers productivos activos: nombre y definicion completa.
+  const { rows: triggersActivos } = await db.query(`
+    select c.relname tabla, t.tgname nombre, pg_get_triggerdef(t.oid, true) def
+      from pg_trigger t
+      join pg_class c on c.oid=t.tgrelid
+      join pg_namespace n on n.oid=c.relnamespace
+     where not t.tgisinternal and n.nspname='public'`);
+  for (const tabla of TABLAS_BASELINE) {
+    for (const esperado of (CONTRATO[tabla].triggers_verificados || [])) {
+      const real = triggersActivos.find((t) => t.tabla === tabla && t.nombre === esperado.nombre);
+      check(Boolean(real), `${tabla}: falta trigger productivo ${esperado.nombre}`);
+      if (real) check(normalizaDDL(real.def) === normalizaDDL(esperado.definicion),
+        `${esperado.nombre}: definicion distinta del contrato productivo (${real.def})`);
+    }
+  }
+
+  // Grants productivos vigentes: el snapshot activo debe conservar y verificar
+  // permisos aunque ya no exista una divergencia pendiente.
+  for (const d of GRANTS_FN_VERIFICADOS) {
+    const { rows } = await db.query(`
+      select has_function_privilege('authenticated', p.oid, 'EXECUTE') auth,
+             has_function_privilege('anon', p.oid, 'EXECUTE') anon
+        from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.proname = $1`, [d.funcion]);
+    check(rows.length === 1, `${d.funcion}: el contrato vigente espera una unica firma y hay ${rows.length}`);
+    if (rows.length) {
+      check(rows[0].auth === ((d.roles.authenticated || []).indexOf('EXECUTE') >= 0),
+        `${d.funcion}: grant authenticated distinto del contrato productivo`);
+      check(rows[0].anon === ((d.roles.anon || []).indexOf('EXECUTE') >= 0),
+        `${d.funcion}: grant anon distinto del contrato productivo`);
+    }
+  }
+
+  if (GRANTS_VERIFICADOS.length) {
+    // Se verifican privilegios EFECTIVOS, no solo grants directos: asi tambien
+    // muerden privilegios heredados desde PUBLIC o desde membresias de roles.
+    const PRIVILEGIOS_TABLA = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
+    for (const d of GRANTS_VERIFICADOS) {
+      for (const rol of Object.keys(d.roles)) {
+        const { rows } = await db.query(
+          `select p privilegio, has_table_privilege($1, $2, p) permitido
+             from unnest($3::text[]) p order by p`,
+          [rol, 'public.' + d.tabla, PRIVILEGIOS_TABLA]
+        );
+        const reales = rows.filter((r) => r.permitido).map((r) => r.privilegio).sort();
+        const esperados = d.roles[rol].slice().sort();
+        check(JSON.stringify(reales) === JSON.stringify(esperados),
+          `${d.tabla}: privilegios efectivos de ${rol} son [${reales.join(', ')}], contrato [${esperados.join(', ')}]`);
+
+        // Los grants por columna son independientes de has_table_privilege:
+        // un GRANT SELECT(columna) a PUBLIC no debe quedar invisible.
+        const PRIVILEGIOS_COLUMNA = ['SELECT', 'INSERT', 'UPDATE', 'REFERENCES'];
+        const { rows: cols } = await db.query(`
+          select p privilegio, has_any_column_privilege($1, $2, p) permitido
+            from unnest($3::text[]) p order by p`,
+          [rol, 'public.' + d.tabla, PRIVILEGIOS_COLUMNA]
+        );
+        const realesCol = cols.filter((r) => r.permitido).map((r) => r.privilegio).sort();
+        const esperadosCol = ((d.privilegios_columna_efectivos || {})[rol] || []).slice().sort();
+        check(JSON.stringify(realesCol) === JSON.stringify(esperadosCol),
+          `${d.tabla}: privilegios efectivos por columna de ${rol} son [${realesCol.join(', ')}], contrato [${esperadosCol.join(', ')}]`);
+      }
     }
   }
 
