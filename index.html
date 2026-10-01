@@ -36535,4 +36535,49 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
   };
 })();
 </script>
+
+<!-- COI_PASSWORD_SECURITY_V1 -->
+<style>
+#coiPwdBtn{position:fixed;right:22px;bottom:22px;z-index:99990;border:0;border-radius:10px;padding:11px 15px;background:#1f4e79;color:#fff;font:600 13px system-ui;box-shadow:0 4px 18px #0003;cursor:pointer}
+#coiPwdModal{position:fixed;inset:0;z-index:99999;background:#0008;display:none;align-items:center;justify-content:center;padding:20px}
+#coiPwdModal.open{display:flex}
+#coiPwdBox{width:min(440px,100%);background:#fff;color:#1f2937;border-radius:14px;padding:22px;box-shadow:0 18px 60px #0005;font-family:system-ui}
+#coiPwdBox h3{margin:0 0 6px;font-size:20px} #coiPwdBox p{margin:0 0 16px;color:#64748b;font-size:13px}
+#coiPwdBox label{display:block;font-size:12px;font-weight:700;margin:12px 0 5px}
+#coiPwdBox input{width:100%;box-sizing:border-box;padding:10px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px}
+#coiPwdActions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+#coiPwdActions button{border:0;border-radius:8px;padding:9px 13px;cursor:pointer;font-weight:700}
+#coiPwdCancel{background:#e2e8f0;color:#334155} #coiPwdSave{background:#1f4e79;color:#fff}
+#coiPwdMsg{margin-top:12px;font-size:13px;min-height:18px}
+</style>
+<button id="coiPwdBtn" type="button">Seguridad · Cambiar contraseña</button>
+<div id="coiPwdModal" role="dialog" aria-modal="true" aria-labelledby="coiPwdTitle">
+  <div id="coiPwdBox">
+    <h3 id="coiPwdTitle">Cambiar contraseña</h3>
+    <p>La contraseña se actualiza directamente en Supabase Auth. No se guarda en el HTML ni en localStorage.</p>
+    <label for="coiPwdCurrent">Contraseña actual</label><input id="coiPwdCurrent" type="password" autocomplete="current-password">
+    <label for="coiPwdNew">Nueva contraseña</label><input id="coiPwdNew" type="password" autocomplete="new-password">
+    <label for="coiPwdConfirm">Confirmar nueva contraseña</label><input id="coiPwdConfirm" type="password" autocomplete="new-password">
+    <div id="coiPwdMsg"></div>
+    <div id="coiPwdActions"><button id="coiPwdCancel" type="button">Cancelar</button><button id="coiPwdSave" type="button">Actualizar contraseña</button></div>
+  </div>
+</div>
+<script>
+(()=>{const PROJECT='ooepgbzqlpjrtpaoqawc',URL='https://ooepgbzqlpjrtpaoqawc.supabase.co',KEY='sb_publishable_jsbYq_s9RO6Dq9TrfRAYtA_5mq7kWSs';
+const $=id=>document.getElementById(id), modal=$('coiPwdModal'), msg=$('coiPwdMsg');
+const token=()=>{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i)||'';if(k.includes(PROJECT)&&k.includes('auth-token')){try{const v=JSON.parse(localStorage.getItem(k));return v?.access_token||v?.currentSession?.access_token||v?.session?.access_token||null}catch{}}}return null};
+const close=()=>{modal.classList.remove('open');$('coiPwdCurrent').value=$('coiPwdNew').value=$('coiPwdConfirm').value='';msg.textContent=''};
+$('coiPwdBtn').addEventListener('click',()=>modal.classList.add('open'));$('coiPwdCancel').addEventListener('click',close);
+modal.addEventListener('click',e=>{if(e.target===modal)close()});
+$('coiPwdSave').addEventListener('click',async()=>{const current=$('coiPwdCurrent').value,n=$('coiPwdNew').value,c=$('coiPwdConfirm').value;
+  msg.style.color='#b91c1c'; if(!current||!n||!c){msg.textContent='Complete los tres campos.';return} if(n.length<8){msg.textContent='La nueva contraseña debe tener al menos 8 caracteres.';return} if(n!==c){msg.textContent='Las nuevas contraseñas no coinciden.';return} if(current===n){msg.textContent='La nueva contraseña debe ser diferente de la actual.';return}
+  const access=token();if(!access){msg.textContent='No se encontró una sesión activa. Cierre sesión e ingrese nuevamente.';return}
+  const b=$('coiPwdSave');b.disabled=true;msg.style.color='#475569';msg.textContent='Actualizando…';
+  try{const res=await fetch(URL+'/auth/v1/user',{method:'PUT',headers:{'Content-Type':'application/json','apikey':KEY,'Authorization':'Bearer '+access},body:JSON.stringify({current_password:current,password:n})});const data=await res.json().catch(()=>({}));
+    if(!res.ok)throw new Error(data?.msg||data?.message||data?.error_description||'No se pudo actualizar la contraseña.');
+    msg.style.color='#15803d';msg.textContent='Contraseña actualizada correctamente.';$('coiPwdCurrent').value=$('coiPwdNew').value=$('coiPwdConfirm').value='';setTimeout(close,1800);
+  }catch(e){msg.style.color='#b91c1c';msg.textContent=e.message||'Error al actualizar la contraseña.'}finally{b.disabled=false}
+});})();
+</script>
+
 </body></html>
