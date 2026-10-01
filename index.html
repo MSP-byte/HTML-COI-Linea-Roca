@@ -36554,7 +36554,7 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
 <div id="coiPwdModal" role="dialog" aria-modal="true" aria-labelledby="coiPwdTitle">
   <div id="coiPwdBox">
     <h3 id="coiPwdTitle">Cambiar contraseña</h3>
-    <p>La contraseña se actualiza directamente en Supabase Auth. No se guarda en el HTML ni en localStorage.</p>
+    <p>La contraseña se actualiza directamente en Supabase Auth. No se guarda en el HTML ni en almacenamiento propio.</p>
     <label for="coiPwdCurrent">Contraseña actual</label><input id="coiPwdCurrent" type="password" autocomplete="current-password">
     <label for="coiPwdNew">Nueva contraseña</label><input id="coiPwdNew" type="password" autocomplete="new-password">
     <label for="coiPwdConfirm">Confirmar nueva contraseña</label><input id="coiPwdConfirm" type="password" autocomplete="new-password">
@@ -36563,21 +36563,42 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
   </div>
 </div>
 <script>
-(()=>{const PROJECT='ooepgbzqlpjrtpaoqawc',URL='https://ooepgbzqlpjrtpaoqawc.supabase.co',KEY='sb_publishable_jsbYq_s9RO6Dq9TrfRAYtA_5mq7kWSs';
-const $=id=>document.getElementById(id), modal=$('coiPwdModal'), msg=$('coiPwdMsg');
-const token=()=>{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i)||'';if(k.includes(PROJECT)&&k.includes('auth-token')){try{const v=JSON.parse(localStorage.getItem(k));return v?.access_token||v?.currentSession?.access_token||v?.session?.access_token||null}catch{}}}return null};
-const close=()=>{modal.classList.remove('open');$('coiPwdCurrent').value=$('coiPwdNew').value=$('coiPwdConfirm').value='';msg.textContent=''};
-$('coiPwdBtn').addEventListener('click',()=>modal.classList.add('open'));$('coiPwdCancel').addEventListener('click',close);
-modal.addEventListener('click',e=>{if(e.target===modal)close()});
-$('coiPwdSave').addEventListener('click',async()=>{const current=$('coiPwdCurrent').value,n=$('coiPwdNew').value,c=$('coiPwdConfirm').value;
-  msg.style.color='#b91c1c'; if(!current||!n||!c){msg.textContent='Complete los tres campos.';return} if(n.length<8){msg.textContent='La nueva contraseña debe tener al menos 8 caracteres.';return} if(n!==c){msg.textContent='Las nuevas contraseñas no coinciden.';return} if(current===n){msg.textContent='La nueva contraseña debe ser diferente de la actual.';return}
-  const access=token();if(!access){msg.textContent='No se encontró una sesión activa. Cierre sesión e ingrese nuevamente.';return}
-  const b=$('coiPwdSave');b.disabled=true;msg.style.color='#475569';msg.textContent='Actualizando…';
-  try{const res=await fetch(URL+'/auth/v1/user',{method:'PUT',headers:{'Content-Type':'application/json','apikey':KEY,'Authorization':'Bearer '+access},body:JSON.stringify({current_password:current,password:n})});const data=await res.json().catch(()=>({}));
-    if(!res.ok)throw new Error(data?.msg||data?.message||data?.error_description||'No se pudo actualizar la contraseña.');
-    msg.style.color='#15803d';msg.textContent='Contraseña actualizada correctamente.';$('coiPwdCurrent').value=$('coiPwdNew').value=$('coiPwdConfirm').value='';setTimeout(close,1800);
-  }catch(e){msg.style.color='#b91c1c';msg.textContent=e.message||'Error al actualizar la contraseña.'}finally{b.disabled=false}
-});})();
+(()=>{
+  const $=id=>document.getElementById(id),modal=$('coiPwdModal'),msg=$('coiPwdMsg');
+  const getClient=async()=>{
+    if(window.__COI_SUPABASE_CLIENT__)return window.__COI_SUPABASE_CLIENT__;
+    if(window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__)return await window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__;
+    return null;
+  };
+  const close=()=>{modal.classList.remove('open');$('coiPwdCurrent').value=$('coiPwdNew').value=$('coiPwdConfirm').value='';msg.textContent=''};
+  $('coiPwdBtn').addEventListener('click',()=>modal.classList.add('open'));
+  $('coiPwdCancel').addEventListener('click',close);
+  modal.addEventListener('click',e=>{if(e.target===modal)close()});
+  $('coiPwdSave').addEventListener('click',async()=>{
+    const current=$('coiPwdCurrent').value,n=$('coiPwdNew').value,c=$('coiPwdConfirm').value;
+    msg.style.color='#b91c1c';
+    if(!current||!n||!c){msg.textContent='Complete los tres campos.';return}
+    if(n.length<8){msg.textContent='La nueva contraseña debe tener al menos 8 caracteres.';return}
+    if(n!==c){msg.textContent='Las nuevas contraseñas no coinciden.';return}
+    if(current===n){msg.textContent='La nueva contraseña debe ser diferente de la actual.';return}
+    const button=$('coiPwdSave');button.disabled=true;msg.style.color='#475569';msg.textContent='Verificando y actualizando…';
+    try{
+      const client=await getClient();
+      if(!client)throw new Error('Supabase Auth no está disponible.');
+      const {data:userData,error:userError}=await client.auth.getUser();
+      if(userError||!userData?.user?.email)throw new Error('No hay una sesión autenticada válida.');
+      const {error:verifyError}=await client.auth.signInWithPassword({email:userData.user.email,password:current});
+      if(verifyError)throw new Error('La contraseña actual no es correcta.');
+      const {error:updateError}=await client.auth.updateUser({password:n});
+      if(updateError)throw updateError;
+      msg.style.color='#15803d';msg.textContent='Contraseña actualizada correctamente.';
+      $('coiPwdCurrent').value=$('coiPwdNew').value=$('coiPwdConfirm').value='';
+      setTimeout(close,1800);
+    }catch(e){
+      msg.style.color='#b91c1c';msg.textContent=e?.message||'Error al actualizar la contraseña.';
+    }finally{button.disabled=false}
+  });
+})();
 </script>
 
 </body></html>
