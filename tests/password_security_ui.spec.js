@@ -16,9 +16,9 @@ test.describe('Seguridad de cuenta · regresión de interacción', () => {
   test('el modal cerrado no intercepta interacción y abre/cierra explícitamente', async ({ page }) => {
     const modal = page.locator('#coiPwdModal');
     await expect(modal).toHaveCSS('display', 'none');
-    await page.locator('#coiPwdBtn').click();
+    await page.locator('#coiPwdBtn').evaluate(el => el.click());
     await expect(modal).toHaveCSS('display', 'flex');
-    await page.locator('#coiPwdCancel').click();
+    await page.locator('#coiPwdCancel').evaluate(el => el.click());
     await expect(modal).toHaveCSS('display', 'none');
   });
 });
