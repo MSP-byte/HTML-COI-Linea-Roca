@@ -39,12 +39,14 @@ async function main(){
  await db.query("select set_config('request.jwt.claim.email','admin@coiroca.com',false)");
  await db.query("select set_config('request.jwt.claim.role','administrador',false)");
 
+ await db.exec('begin;');
  const {rows:[oc]}=await db.query(
    "insert into public.coi_ordenes(nro_oc,tipo,estado_coi) values ('4530999901','Servicio','Pendiente de completar') returning id");
  const id=oc.id;
  await db.query(
    "insert into public.coi_ordenes_estaciones(orden_id,nro_oc,estacion,es_principal) values ($1,'4530999901','PLAZA CONSTITUCION',true)",
    [id]);
+ await db.exec('commit;');
  const {rows:[hoy]}=await db.query("select to_char((now() at time zone 'America/Argentina/Buenos_Aires')::date,'YYYY-MM-DD') d");
  const H=hoy.d;
  const confirmar=(codigo)=>db.query(
