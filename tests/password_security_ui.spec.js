@@ -145,6 +145,38 @@ test.describe('Seguridad de cuenta · regresión de interacción', () => {
     await expect(page.locator('#coiPwdMsg')).toContainText('Contraseña actualizada correctamente');
   });
 
+
+  test('un timer de éxito anterior no puede cerrar ni limpiar un modal reabierto', async ({ page }) => {
+    await prepareAuthenticatedV2(page);
+    await page.evaluate(() => {
+      window.__COI_SUPABASE_CLIENT__ = {
+        auth: {
+          getSession: async () => ({ data: { session: { user: { id: 'u-test', email: 'usuario@test.local' } } }, error: null }),
+          reauthenticate: async () => ({ error: null }),
+          updateUser: async () => ({ data: { user: { id: 'u-test' } }, error: null })
+        }
+      };
+    });
+
+    await page.locator('#coiPwdBtn').click();
+    await page.locator('#coiPwdNew').fill('Nueva-4567');
+    await page.locator('#coiPwdConfirm').fill('Nueva-4567');
+    await page.locator('#coiPwdSave').click();
+    await page.locator('#coiPwdNonce').fill('123456');
+    await page.locator('#coiPwdSave').click();
+    await expect(page.locator('#coiPwdMsg')).toContainText('Contraseña actualizada correctamente');
+
+    await page.locator('#coiPwdCancel').click();
+    await page.locator('#coiPwdBtn').click();
+    await page.locator('#coiPwdNew').fill('Otra-8901');
+    await page.locator('#coiPwdConfirm').fill('Otra-8901');
+
+    await page.waitForTimeout(2100);
+    await expect(page.locator('#coiPwdModal')).toHaveCSS('display', 'flex');
+    await expect(page.locator('#coiPwdNew')).toHaveValue('Otra-8901');
+    await expect(page.locator('#coiPwdConfirm')).toHaveValue('Otra-8901');
+  });
+
   test('un cambio de UID cierra el modal y descarta contraseña y nonce del usuario anterior', async ({ page }) => {
     await prepareAuthenticatedV2(page);
     await page.locator('#coiPwdBtn').click();
