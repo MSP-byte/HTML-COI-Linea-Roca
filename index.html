@@ -36583,11 +36583,12 @@ body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar #coiPwdBtn::before{content:
   const cancelBtn=$('coiPwdCancel'),saveBtn=$('coiPwdSave');
   if(!btn||!modal||!box||!msg||!newInput||!confirmInput||!nonceWrap||!nonceInput||!cancelBtn||!saveBtn)return;
 
-  let pending=false,previousFocus=null,authUid=null,nonceSent=false,flagClearTimer=null,flowGeneration=0;
+  let pending=false,previousFocus=null,authUid=null,nonceSent=false,flagClearTimer=null,successCloseTimer=null,flowGeneration=0;
 
   const getClient=async()=>window.__COI_SUPABASE_CLIENT__||(window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__?await window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__:null);
   const setMessage=(value,kind='info')=>{const palette={error:'#b91c1c',success:'#15803d',info:'#475569'};msg.style.color=palette[kind]||palette.info;msg.setAttribute('role',kind==='error'?'alert':'status');msg.setAttribute('aria-live',kind==='error'?'assertive':'polite');msg.textContent=value||''};
   const clearFlag=()=>{if(flagClearTimer){clearTimeout(flagClearTimer);flagClearTimer=null}window.__COI_PASSWORD_UPDATE_IN_FLIGHT__=false};
+  const clearSuccessClose=()=>{if(successCloseTimer){clearTimeout(successCloseTimer);successCloseTimer=null}};
   const reset=()=>{newInput.value='';confirmInput.value='';nonceInput.value='';nonceSent=false;nonceWrap.hidden=true;saveBtn.textContent='Enviar código de seguridad'};
   const setBusy=value=>{pending=!!value;saveBtn.disabled=pending;cancelBtn.disabled=pending;modal.setAttribute('aria-busy',pending?'true':'false')};
   const isMobile=()=>window.matchMedia?.('(max-width:760px)')?.matches===true;
@@ -36608,6 +36609,7 @@ body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar #coiPwdBtn::before{content:
 
   const close=(force=false)=>{
     if(pending&&!force)return false;
+    clearSuccessClose();
     modal.classList.remove('open');reset();setMessage('');
     const target=previousFocus&&document.contains(previousFocus)?previousFocus:btn;previousFocus=null;
     if(target&&!target.hidden)requestAnimationFrame(()=>target.focus());
@@ -36634,7 +36636,7 @@ body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar #coiPwdBtn::before{content:
     mount();
   };
 
-  const open=()=>{if(!authUid)return;mount();previousFocus=document.activeElement instanceof HTMLElement?document.activeElement:null;modal.classList.add('open');setMessage('');requestAnimationFrame(()=>newInput.focus())};
+  const open=()=>{if(!authUid)return;clearSuccessClose();mount();previousFocus=document.activeElement instanceof HTMLElement?document.activeElement:null;modal.classList.add('open');setMessage('');requestAnimationFrame(()=>newInput.focus())};
   const humanize=error=>{const code=String(error?.code||'').toLowerCase(),detail=String(error?.message||'').trim(),fold=detail.toLowerCase();if(code.includes('weak_password')||/weak password|password should be at least|password is too short/.test(fold))return detail||'La nueva contraseña no cumple la política de seguridad.';if(/rate limit|too many requests|429/.test(fold))return 'Supabase limitó temporalmente los intentos. Espere unos minutos y vuelva a intentar.';if(/fetch|network|offline|timeout|failed to fetch/.test(fold))return 'No se pudo contactar a Supabase Auth. Verifique la conexión y vuelva a intentar.';return detail||'No se pudo actualizar la contraseña.'};
   const stale=(generation,uid)=>generation!==flowGeneration||uid!==authUid;
 
@@ -36691,7 +36693,7 @@ body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar #coiPwdBtn::before{content:
       if(stale(generation,uid))return;
       if(updateError)throw updateError;
 
-      reset();setMessage('Contraseña actualizada correctamente.','success');setTimeout(()=>{if(!stale(generation,uid))close(true)},1800);
+      reset();setMessage('Contraseña actualizada correctamente.','success');clearSuccessClose();successCloseTimer=setTimeout(()=>{successCloseTimer=null;if(!stale(generation,uid))close(true)},1800);
     }catch(error){
       if(!stale(generation,uid))setMessage(humanize(error),'error');
     }finally{
