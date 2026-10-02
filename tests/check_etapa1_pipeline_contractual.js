@@ -329,8 +329,8 @@ async function main() {
     'el banner de cancelacion depende del estado vigente, no del historial');
   check(/if \(transversalVigente\) \{/.test(codigo),
     'una cancelacion superada no puede seguir mostrandose como condicion actual');
-  check(/const transversal = ultimaConfirmacion\(historial, CODIGO_TRANSVERSAL\) \|\| null;/.test(codigo),
-    'el evento historico de cancelacion conserva la confirmacion transversal mas reciente');
+  check(/const transversal = ultimaConfirmacion\(historialActivo, CODIGO_TRANSVERSAL\) \|\| null;/.test(codigo),
+    'la transversal usa sólo confirmaciones activas, no registros desmarcados');
 
   // F5 · el repaint usa la fila confirmada por el servidor.
   check(/function reconciliarOrden\(orden, confirmada\)/.test(codigo),
@@ -354,8 +354,8 @@ async function main() {
   // Gate: habilitado por evento, por fecha canonica o por evidencia legacy.
   // El gate sigue exactamente a la finalizacion de la etapa 1, que ya
   // contempla el evento, la fecha canonica y la evidencia legacy post-acta.
-  check(/const etapa2Habilitada = etapa1Finalizada;/.test(codigo),
-    'una OC historica ya iniciada no puede quedar con la etapa 2 bloqueada');
+  check(/const etapa2Habilitada = hito8Registrado \|\| evidenciaLegacyEtapa1;/.test(codigo),
+    'una OC histórica con Acta sigue habilitando ejecución sin forzar el cierre visual de la 1° Etapa');
   check(codigo.indexOf('La 2° Etapa se habilita al registrar el Acta de Inicio.') >= 0,
     'la etapa 2 bloqueada tiene que decir por que');
   // La 2° Etapa SIEMPRE se ve: bloqueada lleva candado en el selector, no se oculta.
@@ -456,10 +456,12 @@ async function main() {
   // hito8Registrado != etapa1Finalizada.
   check(/const hito8Registrado = Boolean\(actaEvento\);/.test(codigo),
     'el hito 8 registrado depende de un evento REAL');
-  check(/const etapa1Finalizada = hito8Registrado \|\| Boolean\(actaFecha\) \|\| legacyEjecucion;/.test(codigo),
-    'la etapa 1 puede estar finalizada por evidencia historica');
-  check(/const etapa1FinalizadaLegacy = etapa1Finalizada && !hito8Registrado;/.test(codigo),
-    'hay que distinguir la finalizacion por evidencia historica');
+  check(/const circuitoGestionado = \(historial \|\| \[\]\)\.some/.test(codigo),
+    'la evidencia histórica no puede pisar un circuito que ya se gestiona manualmente');
+  check(/const etapa1FinalizadaLegacy = !circuitoGestionado && evidenciaLegacyEtapa1;/.test(codigo),
+    'la finalización legacy sólo aplica si nunca se gestionó el pipeline');
+  check(/const etapa1Finalizada = hito8Registrado \|\| etapa1FinalizadaLegacy;/.test(codigo),
+    'el cierre visual de la 1° Etapa depende del H8 real o de legado sin pipeline');
   check(codigo.indexOf("'1° Etapa finalizada — evidencia histórica'") >= 0,
     'la finalizacion sin evento tiene que decirse como evidencia historica');
   check(/const actaPendienteConciliacion = hito8Registrado && !actaFecha;/.test(codigo),
@@ -486,6 +488,19 @@ async function main() {
   const cuerpoAvisar = codigo.slice(codigo.indexOf('function avisarActaInicio'), codigo.indexOf('async function confirmar()'));
   check(cuerpoAvisar.indexOf('conflictoActa.set') < cuerpoAvisar.indexOf("aviso('La OC ya tenía"),
     'el conflicto se registra ANTES de intentar el toast');
+
+  // Desmarcado auditable: nunca DELETE, siempre RPC + historial activo derivado.
+  check(/const TIPO_ANULACION_CIRCUITO = 'Anulación circuito administrativo';/.test(codigo),
+    'el pipeline reconoce el evento canónico de anulación');
+  check(/function historialContractualVigente\(historial\)/.test(codigo) &&
+        /idsAnulados/.test(codigo),
+    'las tarjetas y duraciones deben excluir confirmaciones anuladas');
+  check(/data-etapa1-desmarcar/.test(codigo) && /abrirModalAnular/.test(codigo),
+    'todo hito activo debe ofrecer desmarcado con confirmación');
+  check(html.indexOf("client.rpc('coi_anular_etapa_circuito_v1'") >= 0,
+    'el desmarcado debe escribir por RPC Supabase');
+  check(!/delete\s+from\s+public\.coi_historial_oc/i.test(html),
+    'el frontend nunca borra historial contractual');
 
   // Sin onclick inline.
   check(!/onclick=/.test(capa), 'la capa no puede usar onclick inline');

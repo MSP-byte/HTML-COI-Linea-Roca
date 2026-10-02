@@ -18,11 +18,11 @@ async function preparar(page,opciones={}){
   const orden=Object.assign({id:ordenId,nro_oc:oc,numeroOC:oc,oc,id_obra:'OBRA-'+oc,tipo:'Servicio',descripcion:'Servicio E1',proveedor:'PROVEEDOR E1',estacion:'PLAZA CONSTITUCION',estado_coi:c.estado_coi,estado_documental:c.estado_coi,fecha_acta_inicio:c.fecha_acta_inicio,monto_total:1000,moneda:'ARS'},c.ordenExtra||{});
   window.__E1__={rpc:[],historial:c.historial.slice(),orden};
   function consulta(tabla){const datos=()=>tabla==='coi_ordenes'?[orden]:tabla==='coi_historial_oc'?window.__E1__.historial:[];const api={select(){return api},order(){return api},limit(){return api},range(){return api},in(){return api},is(){return api},ilike(){return api},gt(){return api},eq(){return api},single:async()=>({data:datos()[0]||null,error:null}),then(res,rej){return Promise.resolve({data:datos().map(x=>Object.assign({},x)),error:null}).then(res,rej)}};return api}
-  const fake={from:t=>consulta(t),rpc:async(nombre,args)=>{window.__E1__.rpc.push({nombre,args:JSON.parse(JSON.stringify(args||{}))});if(nombre==='coi_current_role')return{data:'administrador',error:null};if(!['coi_confirmar_etapa_circuito_v2','coi_confirmar_etapa_circuito_v3'].includes(nombre))return{data:null,error:null};if(c.demoraRpc)await new Promise(r=>setTimeout(r,c.demoraRpc));if(c.fallaRpc)return{data:null,error:{code:'42501',message:'fixture E1: escritura rechazada'}};const codigo=args.p_codigo;const ev={id:'ev-'+codigo+'-'+Date.now(),orden_id:ordenId,nro_oc:oc,tipo_evento:'Circuito administrativo',campo_modificado:codigo,fecha_evento:new Date().toISOString(),fecha_efectiva:args.p_fecha_efectiva||null,usuario_email:email,motivo:args.p_observacion||null};window.__E1__.historial.push(ev);return{data:{orden,historial:[ev],codigo,nombre:codigo,ya_confirmada:false},error:null}},auth:{getSession:async()=>({data:{session:{user:{id:uid,email}}},error:null}),getUser:async()=>({data:{user:{id:uid,email}},error:null}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})}};
+  const fake={from:t=>consulta(t),rpc:async(nombre,args)=>{window.__E1__.rpc.push({nombre,args:JSON.parse(JSON.stringify(args||{}))});if(nombre==='coi_current_role')return{data:'administrador',error:null};if(nombre==='coi_anular_etapa_circuito_v1'){const codigo=args.p_codigo;const anulada=id=>window.__E1__.historial.some(x=>x&&x.tipo_evento==='Anulación circuito administrativo'&&x.valor_anterior===id);const targets=window.__E1__.historial.filter(x=>x&&x.tipo_evento==='Circuito administrativo'&&x.campo_modificado===codigo&&!anulada(x.id));const anulaciones=targets.map((h,i)=>({id:'an-'+codigo+'-'+Date.now()+'-'+i,orden_id:ordenId,nro_oc:oc,tipo_evento:'Anulación circuito administrativo',campo_modificado:codigo,valor_anterior:h.id,valor_nuevo:codigo,fecha_evento:new Date().toISOString(),fecha_efectiva:new Date().toISOString().slice(0,10),usuario_email:email,motivo:args.p_motivo||null}));window.__E1__.historial.push(...anulaciones);const activas=window.__E1__.historial.filter(x=>x&&x.tipo_evento==='Circuito administrativo'&&!anulada(x.id)).sort((a,b)=>new Date(a.fecha_evento||0)-new Date(b.fecha_evento||0));const previa=activas[activas.length-1]||null;orden.estado_documental=previa?previa.campo_modificado:null;orden.estado_coi=previa?previa.campo_modificado:'Pendiente de completar';return{data:{orden:Object.assign({},orden),historial:anulaciones,codigo,ya_anulada:targets.length===0,anuladas:targets.length},error:null}}if(!['coi_confirmar_etapa_circuito_v2','coi_confirmar_etapa_circuito_v3'].includes(nombre))return{data:null,error:null};if(c.demoraRpc)await new Promise(r=>setTimeout(r,c.demoraRpc));if(c.fallaRpc)return{data:null,error:{code:'42501',message:'fixture E1: escritura rechazada'}};const codigo=args.p_codigo;const ev={id:'ev-'+codigo+'-'+Date.now(),orden_id:ordenId,nro_oc:oc,tipo_evento:'Circuito administrativo',campo_modificado:codigo,fecha_evento:new Date().toISOString(),fecha_efectiva:args.p_fecha_efectiva||null,usuario_email:email,motivo:args.p_observacion||null};window.__E1__.historial.push(ev);return{data:{orden,historial:[ev],codigo,nombre:codigo,ya_confirmada:false},error:null}},auth:{getSession:async()=>({data:{session:{user:{id:uid,email}}},error:null}),getUser:async()=>({data:{user:{id:uid,email}},error:null}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}})}};
   window.__COI_SUPABASE_CLIENT__=fake;window.getSupabaseClient=()=>fake;window.initSupabase=async()=>fake;window.getUsuarioActual=async()=>({id:uid,email});window.getUsuarioActualR12=async()=>({id:uid,email});window.esAutorizacionAdministrativaSupabaseV60=()=>true;
  },{c,uid:UID,email:EMAIL,oc:OC,ordenId:ORDEN_ID});
 }
-async function abrir(page){await page.goto('/index.html',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>typeof window.__COI_ETAPA1_RENDER__==='function',null,{timeout:20000});await page.evaluate(()=>{window.actualizarEstadoDocumentalDesdePasoContractual=async(_nro,paso,options={})=>{const codigo=typeof paso==='string'?paso:paso.codigo;const r=await window.__COI_SUPABASE_CLIENT__.rpc('coi_confirmar_etapa_circuito_v2',{p_orden_id:window.__E1__.orden.id,p_codigo:codigo,p_observacion:(options&&options.observacion)||null});if(r.error)throw r.error;return{nro_oc:window.__E1__.orden.nro_oc,estado:codigo,synced:true,...r.data};};});}
+async function abrir(page){await page.goto('/index.html',{waitUntil:'domcontentloaded'});await page.waitForFunction(()=>typeof window.__COI_ETAPA1_RENDER__==='function',null,{timeout:20000});await page.evaluate(()=>{window.actualizarEstadoDocumentalDesdePasoContractual=async(_nro,paso,options={})=>{const codigo=typeof paso==='string'?paso:paso.codigo;const r=await window.__COI_SUPABASE_CLIENT__.rpc('coi_confirmar_etapa_circuito_v2',{p_orden_id:window.__E1__.orden.id,p_codigo:codigo,p_observacion:(options&&options.observacion)||null,p_fecha_efectiva:(options&&options.fechaEfectiva)||null});if(r.error)throw r.error;return{nro_oc:window.__E1__.orden.nro_oc,estado:codigo,synced:true,...r.data};};});}
 async function pintar(page){await page.evaluate(({oc})=>{
  // El renderer aislado usa exactamente las dos dependencias que en la Ficha
  // real proveen el circuito: resolver de OC y cache canonica de historial.
@@ -286,4 +286,35 @@ test('E1-41 · nro_oc puro conserva la clave canónica y muestra fecha de 2° Et
   expect(r.dias).not.toContain('—');
   expect(r.avance).toBe('1 / 10');
   expect(r.ultima).not.toBe('—');
+});
+
+
+test('E1-42 · Acta histórica habilita ejecución pero no pisa H1 manual activo',async({page})=>{
+  const h1=EVENTO('pliegos_preparacion','2026-09-24T10:00:00Z');
+  h1.fecha_efectiva='2026-09-24';
+  await setup(page,{estado_coi:'PLIEGOS EN PREPARACIÓN',fecha_acta_inicio:'2026-03-05',historial:[h1]});
+  const e=await estado(page);
+  expect(e.estadoActual).toContain('PLIEGOS EN PREPARACIÓN');
+  expect(e.etapa2).toBe('si');
+  expect(await page.locator('#etapa1EstadoEtapa1').textContent()).toContain('En curso');
+  expect(e.estadoActual).not.toContain('evidencia histórica');
+});
+
+test('E1-43 · desmarcar H1 conserva auditoría y una nueva H1 arranca en 0 días',async({page})=>{
+  const h1=EVENTO('pliegos_preparacion','2026-09-24T10:00:00Z');
+  h1.fecha_efectiva='2026-09-24';
+  await setup(page,{estado_coi:'PLIEGOS EN PREPARACIÓN',historial:[h1]});
+  await page.click('[data-etapa1-desmarcar="pliegos_preparacion"]');
+  await expect(page.locator('#etapa1ModalAnular')).toBeVisible();
+  await page.click('#etapa1ModalAnularConfirmarBtn');
+  await page.waitForTimeout(500);
+  expect((await estado(page)).avance).toBe('0 / 10');
+  expect(await page.locator('[data-etapa1-hito="pliegos_preparacion"] .etapa1-estado').textContent()).toContain('PENDIENTE');
+  expect(await page.evaluate(()=>window.__E1__.historial.filter(x=>x.tipo_evento==='Anulación circuito administrativo').length)).toBe(1);
+
+  await page.click('[data-etapa1-hito="pliegos_preparacion"]');
+  await page.click('#etapa1ModalConfirmarBtn');
+  await page.waitForTimeout(500);
+  expect((await estado(page)).avance).toBe('1 / 10');
+  expect(await page.locator('[data-etapa1-hito="pliegos_preparacion"] .etapa1-dias').textContent()).toContain('Días en etapa: 0');
 });

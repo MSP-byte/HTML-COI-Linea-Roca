@@ -170,6 +170,26 @@ contractual`, que no cuenta dos veces). Una reconfirmación del estado vigente e
 **idempotente**: no escribe filas, no cambia `fecha_ultimo_control` y, con la
 misma fecha, no cambia nada observable.
 
+### Desmarcar / corregir un hito
+
+Cualquier tarjeta con registro activo puede **desmarcarse**. La acción no borra
+filas: la RPC `coi_anular_etapa_circuito_v1` agrega eventos
+`Anulación circuito administrativo` que referencian las confirmaciones
+anuladas. Si un hito tuvo reingresos, se desmarcan todos sus ingresos activos
+para que la tarjeta vuelva realmente a PENDIENTE; las confirmaciones originales
+quedan disponibles para auditoría.
+
+Al desmarcar el estado vigente, `estado_documental` vuelve a la última
+transición contractual que siga activa. Si no queda ninguna, queda sin estado
+documental y el estado visible vuelve a `Pendiente de completar`. Volver a
+confirmar el hito crea un nuevo ingreso con su propia `fecha_efectiva`; si se
+confirma hoy, **Días en etapa = 0**.
+
+Una Fecha de Acta de Inicio histórica sigue habilitando la 2° Etapa como
+evidencia contractual, pero ya no fuerza visualmente «1° Etapa finalizada» si
+el operador empezó a gestionar H1–H8 en el pipeline. En ese caso mandan los
+hitos activos del historial.
+
 Los hitos pueden saltarse (H2 → H5 → H9 → H10). No se completan los salteados;
 la Ficha advierte «Existen hitos intermedios sin registrar.» sin bloquear.
 

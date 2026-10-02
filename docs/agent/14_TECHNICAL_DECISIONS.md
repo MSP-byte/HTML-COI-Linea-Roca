@@ -1638,3 +1638,37 @@ Decisión.
 Backend. No se tocó. `coi_confirmar_etapa_circuito_v3` ya es idempotente para
 la reconfirmación del estado vigente y crea filas nuevas para los reingresos: la
 causa raíz era del frontend.
+
+
+## TD-077 — Desmarcado contractual auditable y evidencia legacy no dominante
+
+Fecha: 2026-10-02.
+
+Contexto. Un hito confirmado por error no podía volver a PENDIENTE. Reconfirmar
+H1 era idempotente, por lo que una confirmación histórica del 24/09 seguía
+gobernando la fecha y el 02/10 mostraba 8 días aun cuando el operador intentara
+reiniciar el seguimiento desde otra PC. Además, una `fecha_acta_inicio`
+histórica podía rotular toda la 1° Etapa como finalizada aunque ya existieran
+hitos manuales nuevos.
+
+Decisión.
+- Se agrega `coi_anular_etapa_circuito_v1`: no hace DELETE; registra
+  `Anulación circuito administrativo` por cada ingreso activo del hito.
+- El evento de anulación referencia por UUID a la confirmación anulada mediante
+  `valor_anterior`. El historial original permanece append-only.
+- El frontend deriva un «historial contractual activo» excluyendo confirmaciones
+  anuladas y sus filas espejo `Cambio de estado contractual`.
+- Desmarcar un hito con varios reingresos anula todos sus ingresos activos para
+  que la tarjeta vuelva a PENDIENTE de forma inequívoca.
+- Si se desmarca el estado vigente, el snapshot vuelve a la última transición
+  aún activa; si no queda ninguna, `estado_documental = NULL` y
+  `estado_coi = 'Pendiente de completar'`.
+- Reconfirmar después del desmarcado crea un ingreso nuevo. Su duración parte de
+  su `fecha_efectiva`; una confirmación del día muestra 0 días.
+- `fecha_acta_inicio` legacy conserva el gate de la 2° Etapa, pero sólo
+  rotula «finalizada por evidencia histórica» cuando nunca se gestionó el
+  pipeline manual.
+
+Integridad: Supabase sigue siendo la única autoridad; no se agrega tabla ni
+estado local, y el desmarcado queda auditado en `coi_historial_oc` y
+`coi_operaciones_auditoria`.
