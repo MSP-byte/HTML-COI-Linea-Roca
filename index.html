@@ -36536,11 +36536,11 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
 })();
 </script>
 
-<!-- COI_PASSWORD_SECURITY_V5 -->
+<!-- COI_PASSWORD_SECURITY_V6 -->
 <style>
 #coiPwdBtn{position:static;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:8px 10px;background:rgba(255,255,255,.08);color:inherit;font:800 11px system-ui;cursor:pointer;white-space:nowrap}
 #coiPwdBtn:hover{background:rgba(255,255,255,.14)}
-#coiPwdBtn[hidden],#coiPwdNonceWrap[hidden]{display:none!important}
+#coiPwdBtn[hidden]{display:none!important}
 #coiPwdModal{position:fixed;inset:0;z-index:99999;background:#0008;display:none;align-items:center;justify-content:center;padding:20px;overflow:auto}
 #coiPwdModal.open{display:flex}
 #coiPwdBox{width:min(440px,100%);max-height:calc(100vh - 40px);overflow:auto;background:#fff;color:#1f2937;border-radius:14px;padding:22px;box-shadow:0 18px 60px #0005;font-family:system-ui}
@@ -36564,32 +36564,29 @@ body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar #coiPwdBtn::before{content:
 <div id="coiPwdModal" role="dialog" aria-modal="true" aria-labelledby="coiPwdTitle" aria-describedby="coiPwdHelp">
   <div id="coiPwdBox">
     <h3 id="coiPwdTitle">Cambiar contraseña</h3>
-    <p id="coiPwdHelp">Por seguridad, Supabase envía un código de reautenticación antes de modificar la contraseña. La sesión operativa actual no se reemplaza.</p>
+    <p id="coiPwdHelp">Ingresá tu contraseña actual y elegí una nueva. El cambio se valida directamente con Supabase Auth y no envía códigos por email.</p>
+    <label for="coiPwdCurrent">Contraseña actual</label><input id="coiPwdCurrent" type="password" autocomplete="current-password">
     <label for="coiPwdNew">Nueva contraseña</label><input id="coiPwdNew" type="password" autocomplete="new-password">
     <label for="coiPwdConfirm">Confirmar nueva contraseña</label><input id="coiPwdConfirm" type="password" autocomplete="new-password">
-    <div id="coiPwdNonceWrap" hidden>
-      <label for="coiPwdNonce">Código de reautenticación</label>
-      <input id="coiPwdNonce" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12">
-    </div>
     <div id="coiPwdMsg" role="status" aria-live="polite" aria-atomic="true"></div>
-    <div id="coiPwdActions"><button id="coiPwdCancel" type="button">Cancelar</button><button id="coiPwdSave" type="button">Enviar código de seguridad</button></div>
+    <div id="coiPwdActions"><button id="coiPwdCancel" type="button">Cancelar</button><button id="coiPwdSave" type="button">Actualizar contraseña</button></div>
   </div>
 </div>
 <script>
 (()=>{
   const $=id=>document.getElementById(id);
   const btn=$('coiPwdBtn'),modal=$('coiPwdModal'),box=$('coiPwdBox'),msg=$('coiPwdMsg');
-  const newInput=$('coiPwdNew'),confirmInput=$('coiPwdConfirm'),nonceWrap=$('coiPwdNonceWrap'),nonceInput=$('coiPwdNonce');
+  const currentInput=$('coiPwdCurrent'),newInput=$('coiPwdNew'),confirmInput=$('coiPwdConfirm');
   const cancelBtn=$('coiPwdCancel'),saveBtn=$('coiPwdSave');
-  if(!btn||!modal||!box||!msg||!newInput||!confirmInput||!nonceWrap||!nonceInput||!cancelBtn||!saveBtn)return;
+  if(!btn||!modal||!box||!msg||!currentInput||!newInput||!confirmInput||!cancelBtn||!saveBtn)return;
 
-  let pending=false,previousFocus=null,authUid=null,nonceSent=false,flagClearTimer=null,successCloseTimer=null,flowGeneration=0;
+  let pending=false,previousFocus=null,authUid=null,flagClearTimer=null,successCloseTimer=null,flowGeneration=0;
 
   const getClient=async()=>window.__COI_SUPABASE_CLIENT__||(window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__?await window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__:null);
   const setMessage=(value,kind='info')=>{const palette={error:'#b91c1c',success:'#15803d',info:'#475569'};msg.style.color=palette[kind]||palette.info;msg.setAttribute('role',kind==='error'?'alert':'status');msg.setAttribute('aria-live',kind==='error'?'assertive':'polite');msg.textContent=value||''};
   const clearFlag=()=>{if(flagClearTimer){clearTimeout(flagClearTimer);flagClearTimer=null}window.__COI_PASSWORD_UPDATE_IN_FLIGHT__=false};
   const clearSuccessClose=()=>{if(successCloseTimer){clearTimeout(successCloseTimer);successCloseTimer=null}};
-  const reset=()=>{newInput.value='';confirmInput.value='';nonceInput.value='';nonceSent=false;nonceWrap.hidden=true;saveBtn.textContent='Enviar código de seguridad'};
+  const reset=()=>{currentInput.value='';newInput.value='';confirmInput.value=''};
   const setBusy=value=>{pending=!!value;saveBtn.disabled=pending;cancelBtn.disabled=pending;modal.setAttribute('aria-busy',pending?'true':'false')};
   const isMobile=()=>window.matchMedia?.('(max-width:760px)')?.matches===true;
 
@@ -36636,8 +36633,16 @@ body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar #coiPwdBtn::before{content:
     mount();
   };
 
-  const open=()=>{if(!authUid)return;clearSuccessClose();mount();previousFocus=document.activeElement instanceof HTMLElement?document.activeElement:null;modal.classList.add('open');setMessage('');requestAnimationFrame(()=>newInput.focus())};
-  const humanize=error=>{const code=String(error?.code||'').toLowerCase(),detail=String(error?.message||'').trim(),fold=detail.toLowerCase();if(code.includes('weak_password')||/weak password|password should be at least|password is too short/.test(fold))return detail||'La nueva contraseña no cumple la política de seguridad.';if(/rate limit|too many requests|429/.test(fold))return 'Supabase limitó temporalmente los intentos. Espere unos minutos y vuelva a intentar.';if(/fetch|network|offline|timeout|failed to fetch/.test(fold))return 'No se pudo contactar a Supabase Auth. Verifique la conexión y vuelva a intentar.';return detail||'No se pudo actualizar la contraseña.'};
+  const open=()=>{if(!authUid)return;clearSuccessClose();mount();previousFocus=document.activeElement instanceof HTMLElement?document.activeElement:null;modal.classList.add('open');setMessage('');requestAnimationFrame(()=>currentInput.focus())};
+  const humanize=error=>{
+    const code=String(error?.code||'').toLowerCase(),detail=String(error?.message||'').trim(),fold=detail.toLowerCase();
+    if(code.includes('weak_password')||/weak password|password should be at least|password is too short/.test(fold))return detail||'La nueva contraseña no cumple la política de seguridad.';
+    if(/current password|current_password|invalid password|invalid credentials|wrong password/.test(fold))return 'La contraseña actual no es correcta.';
+    if(/reauth|nonce|recently logged|session.*24|aal/.test(fold))return 'Supabase exige una sesión reciente para este cambio. Cerrá sesión, volvé a ingresar y repetí la operación; este flujo no envía códigos por email.';
+    if(/rate limit|too many requests|429/.test(fold))return 'Supabase limitó temporalmente los intentos. Espere unos minutos y vuelva a intentar.';
+    if(/fetch|network|offline|timeout|failed to fetch/.test(fold))return 'No se pudo contactar a Supabase Auth. Verifique la conexión y vuelva a intentar.';
+    return detail||'No se pudo actualizar la contraseña.';
+  };
   const stale=(generation,uid)=>generation!==flowGeneration||uid!==authUid;
 
   btn.addEventListener('click',open);
@@ -36654,10 +36659,11 @@ body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar #coiPwdBtn::before{content:
   });
 
   saveBtn.addEventListener('click',async()=>{
-    const next=newInput.value,confirm=confirmInput.value,nonce=nonceInput.value.trim();
-    if(!next||!confirm){setMessage('Complete la nueva contraseña y su confirmación.','error');return}
+    const current=currentInput.value,next=newInput.value,confirm=confirmInput.value;
+    if(!current||!next||!confirm){setMessage('Complete la contraseña actual, la nueva y su confirmación.','error');return}
     if(next.length<8){setMessage('La nueva contraseña debe tener al menos 8 caracteres.','error');return}
     if(next!==confirm){setMessage('Las nuevas contraseñas no coinciden.','error');return}
+    if(current===next){setMessage('La nueva contraseña debe ser diferente de la actual.','error');return}
 
     const generation=flowGeneration,uid=authUid;
     setBusy(true);
@@ -36673,23 +36679,12 @@ body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar #coiPwdBtn::before{content:
       const currentUid=sessionData?.session?.user?.id||null;
       if(!currentUid||currentUid!==uid)throw new Error('La sesión cambió. Abra nuevamente el cambio de contraseña.');
 
-      if(!nonceSent){
-        setMessage('Solicitando código de seguridad…','info');
-        const {error}=await client.auth.reauthenticate();
-        if(stale(generation,uid))return;
-        if(error)throw error;
-        nonceSent=true;nonceWrap.hidden=false;saveBtn.textContent='Confirmar y actualizar';
-        setMessage('Código enviado. Ingresalo para confirmar el cambio.','info');requestAnimationFrame(()=>nonceInput.focus());return;
-      }
-
-      if(!nonce){setMessage('Ingresá el código de reautenticación enviado por Supabase.','error');nonceInput.focus();return}
-
       if(flagClearTimer){clearTimeout(flagClearTimer);flagClearTimer=null}
       window.__COI_PASSWORD_UPDATE_IN_FLIGHT__=true;
       updateStarted=true;
-      setMessage('Validando código y actualizando…','info');
+      setMessage('Validando contraseña actual y actualizando…','info');
 
-      const {error:updateError}=await client.auth.updateUser({password:next,nonce});
+      const {error:updateError}=await client.auth.updateUser({password:next,currentPassword:current});
       if(stale(generation,uid))return;
       if(updateError)throw updateError;
 
@@ -36729,7 +36724,7 @@ body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar #coiPwdBtn::before{content:
     }catch(error){syncAuth(null)}
   })();
 
-  window.COI_PASSWORD_SECURITY={version:'V5',open,close,mount,syncAuth,invalidateFlow};
+  window.COI_PASSWORD_SECURITY={version:'V6',open,close,mount,syncAuth,invalidateFlow};
 })();
 </script>
 
