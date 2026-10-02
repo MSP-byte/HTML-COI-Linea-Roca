@@ -36536,221 +36536,81 @@ body.coi-v2-ready .cert-hist-items{color:var(--v2-muted)}
 })();
 </script>
 
-<!-- COI_PASSWORD_SECURITY_V2 -->
+<!-- COI_PASSWORD_SECURITY_V3 -->
 <style>
-#coiPwdBtn{position:static;display:block;margin:10px 0 0;border:0;border-radius:10px;padding:11px 15px;background:#1f4e79;color:#fff;font:600 13px system-ui;box-shadow:0 4px 18px #0003;cursor:pointer}
-#coiPwdBtn[hidden]{display:none!important}
+#coiPwdBtn{position:static;display:inline-flex;align-items:center;justify-content:center;margin:0;border-radius:999px!important;padding:8px 11px!important;font-size:11px!important;font-weight:800;cursor:pointer}
+#coiPwdBtn[hidden],#coiPwdNonceWrap[hidden]{display:none!important}
 #coiPwdModal{position:fixed;inset:0;z-index:99999;background:#0008;display:none;align-items:center;justify-content:center;padding:20px;overflow:auto}
 #coiPwdModal.open{display:flex}
 #coiPwdBox{width:min(440px,100%);max-height:calc(100vh - 40px);overflow:auto;background:#fff;color:#1f2937;border-radius:14px;padding:22px;box-shadow:0 18px 60px #0005;font-family:system-ui}
-#coiPwdBox h3{margin:0 0 6px;font-size:20px} #coiPwdBox p{margin:0 0 16px;color:#64748b;font-size:13px}
+#coiPwdBox h3{margin:0 0 6px;font-size:20px}#coiPwdBox p{margin:0 0 16px;color:#64748b;font-size:13px}
 #coiPwdBox label{display:block;font-size:12px;font-weight:700;margin:12px 0 5px}
 #coiPwdBox input{width:100%;box-sizing:border-box;padding:10px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px}
-#coiPwdActions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
-#coiPwdActions button{border:0;border-radius:8px;padding:9px 13px;cursor:pointer;font-weight:700}
-#coiPwdActions button:disabled{cursor:not-allowed;opacity:.65}
-#coiPwdCancel{background:#e2e8f0;color:#334155} #coiPwdSave{background:#1f4e79;color:#fff}
+#coiPwdActions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}#coiPwdActions button{border:0;border-radius:8px;padding:9px 13px;cursor:pointer;font-weight:700}
+#coiPwdActions button:disabled{cursor:not-allowed;opacity:.65}#coiPwdCancel{background:#e2e8f0;color:#334155}#coiPwdSave{background:#1f4e79;color:#fff}
 #coiPwdMsg{margin-top:12px;font-size:13px;min-height:18px}
-.coi-password-actions{margin:14px 0 4px}
 @media(max-height:620px){#coiPwdModal{align-items:flex-start}#coiPwdBox{max-height:none;margin:auto 0}}
+@media(max-width:720px){#coiPwdBtn{width:100%}}
 </style>
-<button id="coiPwdBtn" type="button" hidden>Seguridad · Cambiar contraseña</button>
+<button id="coiPwdBtn" class="supabase-action" type="button" hidden>Seguridad · Cambiar contraseña</button>
 <div id="coiPwdModal" role="dialog" aria-modal="true" aria-labelledby="coiPwdTitle" aria-describedby="coiPwdHelp">
   <div id="coiPwdBox">
     <h3 id="coiPwdTitle">Cambiar contraseña</h3>
-    <p id="coiPwdHelp">La contraseña se actualiza directamente en Supabase Auth. No se guarda en el HTML ni en almacenamiento propio.</p>
-    <label for="coiPwdCurrent">Contraseña actual</label><input id="coiPwdCurrent" type="password" autocomplete="current-password">
+    <p id="coiPwdHelp">Por seguridad, Supabase envía un código de reautenticación antes de modificar la contraseña. La sesión operativa actual no se reemplaza.</p>
     <label for="coiPwdNew">Nueva contraseña</label><input id="coiPwdNew" type="password" autocomplete="new-password">
     <label for="coiPwdConfirm">Confirmar nueva contraseña</label><input id="coiPwdConfirm" type="password" autocomplete="new-password">
+    <div id="coiPwdNonceWrap" hidden>
+      <label for="coiPwdNonce">Código de reautenticación</label>
+      <input id="coiPwdNonce" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12">
+    </div>
     <div id="coiPwdMsg" role="status" aria-live="polite" aria-atomic="true"></div>
-    <div id="coiPwdActions"><button id="coiPwdCancel" type="button">Cancelar</button><button id="coiPwdSave" type="button">Actualizar contraseña</button></div>
+    <div id="coiPwdActions"><button id="coiPwdCancel" type="button">Cancelar</button><button id="coiPwdSave" type="button">Enviar código de seguridad</button></div>
   </div>
 </div>
 <script>
 (()=>{
   const $=id=>document.getElementById(id);
   const btn=$('coiPwdBtn'),modal=$('coiPwdModal'),box=$('coiPwdBox'),msg=$('coiPwdMsg');
-  const currentInput=$('coiPwdCurrent'),newInput=$('coiPwdNew'),confirmInput=$('coiPwdConfirm');
+  const newInput=$('coiPwdNew'),confirmInput=$('coiPwdConfirm'),nonceWrap=$('coiPwdNonceWrap'),nonceInput=$('coiPwdNonce');
   const cancelBtn=$('coiPwdCancel'),saveBtn=$('coiPwdSave');
-  if(!btn||!modal||!box||!msg||!currentInput||!newInput||!confirmInput||!cancelBtn||!saveBtn)return;
-
-  let pending=false;
-  let previousFocus=null;
-  let authUid=null;
-
-  const getClient=async()=>{
-    if(window.__COI_SUPABASE_CLIENT__)return window.__COI_SUPABASE_CLIENT__;
-    if(window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__)return await window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__;
-    return null;
-  };
-
-  const setMessage=(text,kind='info')=>{
-    const palette={error:'#b91c1c',success:'#15803d',info:'#475569'};
-    msg.style.color=palette[kind]||palette.info;
-    msg.setAttribute('role',kind==='error'?'alert':'status');
-    msg.setAttribute('aria-live',kind==='error'?'assertive':'polite');
-    msg.textContent=text||'';
-  };
-
-  const clearFields=()=>{
-    currentInput.value='';
-    newInput.value='';
-    confirmInput.value='';
-  };
-
-  const setBusy=value=>{
-    pending=!!value;
-    saveBtn.disabled=pending;
-    cancelBtn.disabled=pending;
-    modal.setAttribute('aria-busy',pending?'true':'false');
-  };
-
-  const mountButton=()=>{
-    const panel=document.querySelector('#adminTabUsuarios .admin-panel');
-    if(!panel){btn.hidden=true;return false;}
-    let actions=panel.querySelector('.coi-password-actions');
-    if(!actions){
-      actions=document.createElement('div');
-      actions.className='admin-actions coi-password-actions';
-      const table=panel.querySelector('.table-wrap');
-      panel.insertBefore(actions,table||null);
-    }
-    if(btn.parentElement!==actions)actions.appendChild(btn);
-    btn.hidden=false;
-    return true;
-  };
-
-  const open=()=>{
-    mountButton();
-    previousFocus=document.activeElement instanceof HTMLElement?document.activeElement:null;
-    modal.classList.add('open');
-    setMessage('');
-    requestAnimationFrame(()=>currentInput.focus());
-  };
-
-  const close=(force=false)=>{
-    if(pending&&!force)return false;
-    modal.classList.remove('open');
-    clearFields();
-    setMessage('');
-    const target=previousFocus&&document.contains(previousFocus)?previousFocus:btn;
-    previousFocus=null;
-    if(target&&!target.hidden)requestAnimationFrame(()=>target.focus());
-    return true;
-  };
-
-  const humanizeError=error=>{
-    const code=String(error?.code||'').toLowerCase();
-    const detail=String(error?.message||'').trim();
-    const fold=detail.toLowerCase();
-    if(code.includes('invalid_credentials')||(/current password/.test(fold)&&/(invalid|incorrect|wrong)/.test(fold))){
-      return 'La contraseña actual no es correcta.';
-    }
-    if(code.includes('same_password')||/same password|different from the old password|same as the old password/.test(fold)){
-      return 'La nueva contraseña debe ser diferente de la actual.';
-    }
-    if(code.includes('weak_password')||/weak password|password should be at least|password is too short/.test(fold)){
-      return detail||'La nueva contraseña no cumple la política de seguridad.';
-    }
-    if(/rate limit|too many requests|429/.test(fold)){
-      return 'Supabase limitó temporalmente los intentos. Espere unos minutos y vuelva a intentar.';
-    }
-    if(/fetch|network|offline|timeout|failed to fetch/.test(fold)){
-      return 'No se pudo contactar a Supabase Auth. Verifique la conexión y vuelva a intentar.';
-    }
-    return detail||'No se pudo actualizar la contraseña.';
-  };
-
-  const wrapAdminRenderer=()=>{
-    if(typeof window.renderAdminUsuarios!=='function'||window.renderAdminUsuarios.__coiPwdWrapped)return;
-    const base=window.renderAdminUsuarios;
-    const wrapped=function(){
-      const result=base.apply(this,arguments);
-      mountButton();
-      return result;
-    };
-    wrapped.__coiPwdWrapped=true;
-    wrapped.__coiPwdBase=base;
-    window.renderAdminUsuarios=wrapped;
-  };
-
-  btn.addEventListener('click',open);
-  cancelBtn.addEventListener('click',()=>close());
-  modal.addEventListener('click',event=>{if(event.target===modal)close();});
-  modal.addEventListener('keydown',event=>{
-    if(event.key==='Escape'){event.preventDefault();close();return;}
-    if(event.key!=='Tab')return;
-    const focusables=[...modal.querySelectorAll('input,button,[href],[tabindex]:not([tabindex="-1"])')]
-      .filter(el=>!el.disabled&&el.getAttribute('aria-hidden')!=='true'&&el.offsetParent!==null);
-    if(!focusables.length){event.preventDefault();box.focus();return;}
-    const first=focusables[0],last=focusables[focusables.length-1];
-    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}
-    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
-  });
-
+  if(!btn||!modal||!box||!msg||!newInput||!confirmInput||!nonceWrap||!nonceInput||!cancelBtn||!saveBtn)return;
+  let pending=false,previousFocus=null,authUid=null,nonceSent=false;
+  const getClient=async()=>window.__COI_SUPABASE_CLIENT__||(window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__?await window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__:null);
+  const setMessage=(value,kind='info')=>{const palette={error:'#b91c1c',success:'#15803d',info:'#475569'};msg.style.color=palette[kind]||palette.info;msg.setAttribute('role',kind==='error'?'alert':'status');msg.setAttribute('aria-live',kind==='error'?'assertive':'polite');msg.textContent=value||''};
+  const reset=()=>{newInput.value='';confirmInput.value='';nonceInput.value='';nonceSent=false;nonceWrap.hidden=true;saveBtn.textContent='Enviar código de seguridad'};
+  const setBusy=value=>{pending=!!value;saveBtn.disabled=pending;cancelBtn.disabled=pending;modal.setAttribute('aria-busy',pending?'true':'false')};
+  const mount=()=>{const host=$('supabaseStatusCluster');if(!host){btn.hidden=true;return false}const logout=$('btnSupabaseLogout');if(btn.parentElement!==host)host.insertBefore(btn,logout||null);btn.hidden=!authUid;return true};
+  const close=(force=false)=>{if(pending&&!force)return false;modal.classList.remove('open');reset();setMessage('');const target=previousFocus&&document.contains(previousFocus)?previousFocus:btn;previousFocus=null;if(target&&!target.hidden)requestAnimationFrame(()=>target.focus());return true};
+  const syncAuth=session=>{authUid=session?.user?.id||null;if(!authUid){window.__COI_PASSWORD_UPDATE_IN_FLIGHT__=false;setBusy(false);close(true)}mount()};
+  const open=()=>{if(!authUid)return;mount();previousFocus=document.activeElement instanceof HTMLElement?document.activeElement:null;modal.classList.add('open');setMessage('');requestAnimationFrame(()=>newInput.focus())};
+  const humanize=error=>{const code=String(error?.code||'').toLowerCase(),detail=String(error?.message||'').trim(),fold=detail.toLowerCase();if(code.includes('weak_password')||/weak password|password should be at least|password is too short/.test(fold))return detail||'La nueva contraseña no cumple la política de seguridad.';if(/rate limit|too many requests|429/.test(fold))return 'Supabase limitó temporalmente los intentos. Espere unos minutos y vuelva a intentar.';if(/fetch|network|offline|timeout|failed to fetch/.test(fold))return 'No se pudo contactar a Supabase Auth. Verifique la conexión y vuelva a intentar.';return detail||'No se pudo actualizar la contraseña.'};
+  btn.addEventListener('click',open);cancelBtn.addEventListener('click',()=>close());modal.addEventListener('click',event=>{if(event.target===modal)close()});
+  modal.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();close();return}if(event.key!=='Tab')return;const list=[...modal.querySelectorAll('input,button,[href],[tabindex]:not([tabindex="-1"])')].filter(el=>!el.disabled&&el.offsetParent!==null);if(!list.length)return;const first=list[0],last=list[list.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}});
   saveBtn.addEventListener('click',async()=>{
-    const current=currentInput.value;
-    const next=newInput.value;
-    const confirm=confirmInput.value;
-    setMessage('', 'info');
-    if(!current||!next||!confirm){setMessage('Complete los tres campos.','error');return;}
-    if(next.length<8){setMessage('La nueva contraseña debe tener al menos 8 caracteres.','error');return;}
-    if(next!==confirm){setMessage('Las nuevas contraseñas no coinciden.','error');return;}
-    if(current===next){setMessage('La nueva contraseña debe ser diferente de la actual.','error');return;}
-
+    const next=newInput.value,confirm=confirmInput.value,nonce=nonceInput.value.trim();
+    if(!next||!confirm){setMessage('Complete la nueva contraseña y su confirmación.','error');return}
+    if(next.length<8){setMessage('La nueva contraseña debe tener al menos 8 caracteres.','error');return}
+    if(next!==confirm){setMessage('Las nuevas contraseñas no coinciden.','error');return}
     setBusy(true);
-    setMessage('Verificando y actualizando…','info');
-    window.__COI_PASSWORD_UPDATE_IN_FLIGHT__=true;
     try{
-      const client=await getClient();
-      if(!client?.auth)throw new Error('Supabase Auth no está disponible.');
-      const {data:sessionData,error:sessionError}=await client.auth.getSession();
-      if(sessionError)throw sessionError;
-      if(!sessionData?.session?.user)throw new Error('No hay una sesión autenticada válida.');
-
-      const {error:updateError}=await client.auth.updateUser({
-        password:next,
-        currentPassword:current
-      });
-      if(updateError)throw updateError;
-
-      clearFields();
-      setMessage('Contraseña actualizada correctamente.','success');
-      setTimeout(()=>close(true),1800);
-    }catch(error){
-      setMessage(humanizeError(error),'error');
-    }finally{
-      setBusy(false);
-      setTimeout(()=>{window.__COI_PASSWORD_UPDATE_IN_FLIGHT__=false;},2200);
-    }
+      const client=await getClient();if(!client?.auth)throw new Error('Supabase Auth no está disponible.');
+      const {data:sessionData,error:sessionError}=await client.auth.getSession();if(sessionError)throw sessionError;if(!sessionData?.session?.user)throw new Error('No hay una sesión autenticada válida.');
+      if(!nonceSent){
+        setMessage('Solicitando código de seguridad…','info');
+        const {error}=await client.auth.reauthenticate();if(error)throw error;
+        nonceSent=true;nonceWrap.hidden=false;saveBtn.textContent='Confirmar y actualizar';setMessage('Código enviado. Ingresalo para confirmar el cambio.','info');requestAnimationFrame(()=>nonceInput.focus());return;
+      }
+      if(!nonce){setMessage('Ingresá el código de reautenticación enviado por Supabase.','error');nonceInput.focus();return}
+      window.__COI_PASSWORD_UPDATE_IN_FLIGHT__=true;setMessage('Validando código y actualizando…','info');
+      const {error:updateError}=await client.auth.updateUser({password:next,nonce});if(updateError)throw updateError;
+      reset();setMessage('Contraseña actualizada correctamente.','success');setTimeout(()=>close(true),1800);
+    }catch(error){setMessage(humanize(error),'error')}
+    finally{setBusy(false);setTimeout(()=>{window.__COI_PASSWORD_UPDATE_IN_FLIGHT__=false},2200)}
   });
-
-  const bindAuthCleanup=async()=>{
-    try{
-      const client=await getClient();
-      if(!client?.auth)return;
-      const {data}=await client.auth.getSession();
-      authUid=data?.session?.user?.id||null;
-      client.auth.onAuthStateChange((event,session)=>{
-        const nextUid=session?.user?.id||null;
-        if(event==='SIGNED_OUT'||(authUid&&nextUid&&nextUid!==authUid)){
-          window.__COI_PASSWORD_UPDATE_IN_FLIGHT__=false;
-          setBusy(false);
-          close(true);
-        }
-        authUid=nextUid;
-      });
-    }catch(error){}
-  };
-
-  wrapAdminRenderer();
-  mountButton();
-  const adminView=$('vistaAdministracionSistema');
-  if(adminView){
-    new MutationObserver(()=>{wrapAdminRenderer();mountButton();})
-      .observe(adminView,{childList:true,subtree:true});
-  }
-  bindAuthCleanup();
+  window.addEventListener('coi:supabase-auth',event=>{const ev=event.detail?.event,session=event.detail?.session||null;if(ev==='SIGNED_OUT')syncAuth(null);else if(session?.user)syncAuth(session)});
+  const header=document.querySelector('.header-actions');if(header)new MutationObserver(()=>mount()).observe(header,{childList:true});
+  (async()=>{try{const client=await getClient();if(!client?.auth)return;const {data}=await client.auth.getSession();syncAuth(data?.session||null)}catch(error){syncAuth(null)}})();
+  window.COI_PASSWORD_SECURITY={version:'V3',open,close,mount,syncAuth};
 })();
 </script>
 
