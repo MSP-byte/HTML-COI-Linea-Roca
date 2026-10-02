@@ -6,7 +6,7 @@ test.describe('Seguridad de cuenta · regresión de interacción', () => {
     await page.goto('/index.html', { waitUntil: 'domcontentloaded' });
   });
 
-  async function prepareAuthenticatedShell(page) {
+  async function prepareAuthenticatedV2(page) {
     await page.addStyleTag({
       content: [
         '#coiAuthGateH14{display:none!important}',
@@ -16,38 +16,29 @@ test.describe('Seguridad de cuenta · regresión de interacción', () => {
     });
     await page.evaluate(() => {
       document.body.classList.remove('coi-h14-locked');
-      let host = document.getElementById('supabaseStatusCluster');
-      if (!host) {
-        host = document.createElement('div');
-        host.id = 'supabaseStatusCluster';
-        host.className = 'supabase-status-cluster';
-        (document.querySelector('.header-actions') || document.body).appendChild(host);
+      document.body.classList.add('coi-v2-ready');
+      if (!document.getElementById('coiV2Sidebar')) {
+        const sidebar = document.createElement('aside');
+        sidebar.id = 'coiV2Sidebar';
+        sidebar.className = 'coi-v2-sidebar';
+        sidebar.innerHTML = '<div class="coi-v2-sidebar-footer"></div>';
+        document.body.prepend(sidebar);
       }
-      let logout = document.getElementById('btnSupabaseLogout');
-      if (!logout) {
-        logout = document.createElement('button');
-        logout.id = 'btnSupabaseLogout';
-        logout.type = 'button';
-        logout.textContent = 'Logout';
-        host.appendChild(logout);
-      }
-      window.dispatchEvent(new CustomEvent('coi:supabase-auth', {
-        detail: { event: 'SIGNED_IN', session: { user: { id: 'u-test', email: 'usuario@test.local' } } }
-      }));
+      window.COI_PASSWORD_SECURITY?.syncAuth?.({ user: { id: 'u-test', email: 'usuario@test.local' } });
     });
     await expect(page.locator('#coiPwdBtn')).toBeVisible();
   }
 
-  test('la acción queda disponible para cualquier usuario autenticado fuera de Administración', async ({ page }) => {
-    await prepareAuthenticatedShell(page);
+  test('la acción queda visible para cualquier autenticado dentro del shell V2', async ({ page }) => {
+    await prepareAuthenticatedV2(page);
     const button = page.locator('#coiPwdBtn');
     await expect(button).toHaveCSS('position', 'static');
-    await expect(page.locator('#supabaseStatusCluster #coiPwdBtn')).toHaveCount(1);
-    await expect(page.locator('#vistaAdministracionSistema #coiPwdBtn')).toHaveCount(0);
+    await expect(page.locator('#coiV2Sidebar .coi-v2-sidebar-footer #coiPwdBtn')).toHaveCount(1);
+    await expect(button).toBeVisible();
   });
 
   test('no intercepta con pointer real el área operativa inferior derecha cuando el modal está cerrado', async ({ page }) => {
-    await prepareAuthenticatedShell(page);
+    await prepareAuthenticatedV2(page);
     await page.evaluate(() => {
       const probe = document.createElement('button');
       probe.id = 'coiPwdHitProbe';
@@ -70,7 +61,7 @@ test.describe('Seguridad de cuenta · regresión de interacción', () => {
   });
 
   test('abre y cierra el modal con clicks reales y foco correcto', async ({ page }) => {
-    await prepareAuthenticatedShell(page);
+    await prepareAuthenticatedV2(page);
     const modal = page.locator('#coiPwdModal');
     await expect(modal).toHaveCSS('display', 'none');
     await page.locator('#coiPwdBtn').click();
@@ -81,7 +72,7 @@ test.describe('Seguridad de cuenta · regresión de interacción', () => {
   });
 
   test('reauthenticate envía código y updateUser usa nonce sin reemplazar la sesión', async ({ page }) => {
-    await prepareAuthenticatedShell(page);
+    await prepareAuthenticatedV2(page);
     await page.evaluate(() => {
       window.__coiReauthCalls = 0;
       window.__coiPwdUpdateArgs = null;
@@ -124,16 +115,30 @@ test.describe('Seguridad de cuenta · regresión de interacción', () => {
     await expect(page.locator('#coiPwdMsg')).toContainText('Contraseña actualizada correctamente');
   });
 
-  test('una actualización pendiente no puede cerrarse desde cancelar ni desde el backdrop', async ({ page }) => {
-    await prepareAuthenticatedShell(page);
+  test('un cambio de UID cierra el modal y descarta contraseña y nonce del usuario anterior', async ({ page }) => {
+    await prepareAuthenticatedV2(page);
+    await page.locator('#coiPwdBtn').click();
+    await page.locator('#coiPwdNew').fill('Temporal-123');
+    await page.locator('#coiPwdConfirm').fill('Temporal-123');
     await page.evaluate(() => {
+      window.COI_PASSWORD_SECURITY.syncAuth({ user: { id: 'u-otro', email: 'otro@test.local' } });
+    });
+
+    await expect(page.locator('#coiPwdModal')).toHaveCSS('display', 'none');
+    await expect(page.locator('#coiPwdNew')).toHaveValue('');
+    await expect(page.locator('#coiPwdConfirm')).toHaveValue('');
+    await expect(page.locator('#coiPwdNonceWrap')).toBeHidden();
+  });
+
+  test('el flag de protección permanece activo durante updateUser aunque la reautenticación haya ocurrido recién', async ({ page }) => {
+    await prepareAuthenticatedV2(page);
+    await page.evaluate(() => {
+      window.__coiPwdResolve = null;
       window.__COI_SUPABASE_CLIENT__ = {
         auth: {
           getSession: async () => ({ data: { session: { user: { id: 'u-test', email: 'usuario@test.local' } } }, error: null }),
           reauthenticate: async () => ({ error: null }),
-          updateUser: () => new Promise(resolve => {
-            window.__coiResolvePasswordUpdate = () => resolve({ data: {}, error: null });
-          })
+          updateUser: () => new Promise(resolve => { window.__coiPwdResolve = resolve; })
         }
       };
     });
@@ -146,10 +151,13 @@ test.describe('Seguridad de cuenta · regresión de interacción', () => {
     await page.locator('#coiPwdSave').click();
 
     await expect(page.locator('#coiPwdCancel')).toBeDisabled();
+    await page.waitForTimeout(2400);
+    expect(await page.evaluate(() => window.__COI_PASSWORD_UPDATE_IN_FLIGHT__)).toBe(true);
     await page.locator('#coiPwdModal').click({ position: { x: 4, y: 4 } });
     await expect(page.locator('#coiPwdModal')).toHaveCSS('display', 'flex');
 
-    await page.evaluate(() => window.__coiResolvePasswordUpdate());
+    await page.evaluate(() => window.__coiPwdResolve({ data: {}, error: null }));
     await expect(page.locator('#coiPwdMsg')).toContainText('Contraseña actualizada correctamente');
+    await expect.poll(() => page.evaluate(() => window.__COI_PASSWORD_UPDATE_IN_FLIGHT__)).toBe(false);
   });
 });
