@@ -8,9 +8,36 @@
     "columnas": [],
     "fk": [],
     "unique": [],
-    "policies": [],
+    "policies": [
+      {
+        "tabla": "coi_historial_oc",
+        "nombre": "coi_historial_anulacion_rpc_only_v1",
+        "cmd": "INSERT",
+        "roles": [
+          "authenticated"
+        ],
+        "permissive": false,
+        "using": null,
+        "with_check": "(lower(btrim(tipo_evento)) <> 'anulación circuito administrativo'::text)",
+        "produccion": "ausente",
+        "repo": "presente",
+        "migracion": "202610020001_contractual_unmark.sql"
+      }
+    ],
     "grants": [],
-    "grants_funciones": [],
+    "grants_funciones": [
+      {
+        "funcion": "coi_anular_etapa_circuito_v1(uuid,text,text)",
+        "produccion": "ausente",
+        "repo": {
+          "authenticated": [
+            "EXECUTE"
+          ],
+          "anon": []
+        },
+        "migracion": "202610020001_contractual_unmark.sql"
+      }
+    ],
     "_resueltas": [
       {
         "tabla": "coi_observaciones_oc",
