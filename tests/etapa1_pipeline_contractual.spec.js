@@ -356,3 +356,13 @@ test('E1-47 · fallback R18 no revive una confirmación anulada',async({page})=>
   expect(result.confirmed).toBe('false');
   expect(result.txt).toContain('Pendiente');
 });
+
+
+test('E1-48 · anulación directa de transición legacy-only la quita del historial activo',async({page})=>{
+  const legacy={id:'legacy-only-h2',orden_id:ORDEN_ID,nro_oc:OC,tipo_evento:'Cambio de estado contractual',campo_modificado:'estado_documental',valor_nuevo:'PLIEGOS TERMINADO SIN SOLPED',fecha_evento:'2026-09-20T10:00:00Z',fecha_efectiva:'2026-09-20',usuario_email:EMAIL};
+  const anul={id:'an-legacy-h2',orden_id:ORDEN_ID,nro_oc:OC,tipo_evento:'Anulación circuito administrativo',campo_modificado:'pliegos_terminado_sin_solped',valor_anterior:'legacy-only-h2',valor_nuevo:'PLIEGOS TERMINADO SIN SOLPED',fecha_evento:'2026-09-21T10:00:00Z',fecha_efectiva:'2026-09-21',usuario_email:EMAIL};
+  await setup(page,{historial:[legacy,anul],estado_coi:'Pendiente de completar'});
+  const e=await estado(page);
+  expect(e.avance).toBe('0 / 10');
+  expect(await page.locator('#e1Host [data-etapa1-hito="pliegos_terminado_sin_solped"] .etapa1-estado').textContent()).toContain('PENDIENTE');
+});

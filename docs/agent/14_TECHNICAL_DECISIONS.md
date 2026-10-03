@@ -1693,3 +1693,16 @@ El review del PR #115 endureció la decisión original sin cambiar su semántica
   `tests/fixtures/production_schema_contract.json` hasta desplegar
   `202610020001_contractual_unmark.sql`.
 - Rollback: ver `docs/agent/ROLLBACK_202610020001_contractual_unmark.md`.
+
+
+### TD-077 · segundo hardening de revisión
+
+Las anulaciones pueden referenciar una confirmación canónica o una transición
+legacy-only `Cambio de estado contractual`. Una fila legacy que es espejo de
+una canónica no se duplica como objetivo. La policy INSERT normaliza diacríticos
+y permanece instalada durante un rollback de la RPC.
+
+Además, `coi_confirmar_etapa_circuito_v3` se redefine en la migración de
+desmarcado para que `v_seen`, la edición idempotente y el gate de H8 sólo
+consideren confirmaciones canónicas activas. Un H8 anulado sin
+`fecha_acta_inicio` ya no habilita H9/H10 por llamada directa.

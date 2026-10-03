@@ -18,7 +18,7 @@
         ],
         "permissive": false,
         "using": null,
-        "with_check": "(lower(btrim(tipo_evento)) <> 'anulación circuito administrativo'::text)",
+        "with_check": "(translate(lower(btrim(tipo_evento)), 'áéíóúüñ'::text, 'aeiouun'::text) <> 'anulacion circuito administrativo'::text)",
         "produccion": "ausente",
         "repo": "presente",
         "migracion": "202610020001_contractual_unmark.sql"

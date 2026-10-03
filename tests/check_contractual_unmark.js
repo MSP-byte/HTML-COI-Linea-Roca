@@ -100,6 +100,20 @@ async function main(){
  const legacyRestaurado=await db.query("select estado_documental from public.coi_ordenes where id=$1",[idLegacy]);
  check(legacyRestaurado.rows[0].estado_documental==='PLIEGOS TERMINADO SIN SOLPED','la anulación restaura una transición legacy activa');
 
+ // B2 · una transición legacy-only también puede ser el hito a desmarcar.
+ const idLegacyOnly=await nuevaOC(db,'4530999905');
+ await db.query(
+   `insert into public.coi_historial_oc(
+      orden_id,nro_oc,tipo_evento,campo_modificado,valor_nuevo,motivo,fecha_evento,fecha_efectiva
+    ) values (
+      $1,'4530999905','Cambio de estado contractual','estado_documental',
+      'PLIEGOS TERMINADO SIN SOLPED','legacy-only',clock_timestamp()-interval '1 day',(current_date-1)
+    )`,[idLegacyOnly]);
+ const legacyOnlyRes=(await anular(idLegacyOnly,'pliegos_terminado_sin_solped')).rows[0].r;
+ check(legacyOnlyRes.anuladas===1&&!legacyOnlyRes.ya_anulada,'un hito legacy-only se puede desmarcar');
+ const legacyOnlyState=await db.query("select estado_documental from public.coi_ordenes where id=$1",[idLegacyOnly]);
+ check(legacyOnlyState.rows[0].estado_documental===null,'el legacy-only desmarcado deja de gobernar el snapshot');
+
  // C · cierre operativo inmutable: desmarcar no reabre ni rompe el guard H10.
  const idClosed=await nuevaOC(db,'4530999903',true);
  await db.query(
@@ -131,9 +145,25 @@ async function main(){
  const directo=await fallo(()=>db.query(
    "insert into public.coi_historial_oc(orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo) values ($1,'4530999904','Anulación circuito administrativo','pliegos_preparacion','00000000-0000-4000-8000-000000000000','PLIEGOS EN PREPARACIÓN')",[idAcl]));
  check(Boolean(directo)&&/row-level security|policy/i.test(directo),'la anulación directa debe ser rechazada por RLS');
+ const directoSinAcento=await fallo(()=>db.query(
+   "insert into public.coi_historial_oc(orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo) values ($1,'4530999904','Anulacion circuito administrativo','pliegos_preparacion','00000000-0000-4000-8000-000000000001','PLIEGOS EN PREPARACIÓN')",[idAcl]));
+ check(Boolean(directoSinAcento)&&/row-level security|policy/i.test(directoSinAcento),'la variante sin acento también debe ser rechazada por RLS');
  const porRpc=await db.query("select public.coi_anular_etapa_circuito_v1($1,'pliegos_preparacion','vía RPC') r",[idAcl]);
  check(porRpc.rows[0].r.anuladas===1,'authenticated sí puede anular por la RPC controlada');
  await db.exec('reset role');
+
+ // F · un H8 anulado sin fecha de Acta no habilita ejecución por RPC.
+ const idGate=await nuevaOC(db,'4530999906');
+ await db.query(
+   `insert into public.coi_historial_oc(
+      orden_id,nro_oc,tipo_evento,campo_modificado,valor_nuevo,motivo,fecha_efectiva
+    ) values (
+      $1,'4530999906','Circuito administrativo','control_terceros_con_acta',
+      'PLIEGO CON OC Y CONTROL DE 3º CON ACTA DE INICIO','histórico sin fecha','2026-09-20'
+    )`,[idGate]);
+ await anular(idGate,'control_terceros_con_acta');
+ const gateError=await fallo(()=>confirmar(idGate,'ejecucion'));
+ check(Boolean(gateError)&&/COI_ACTA_INICIO_REQUIRED/.test(gateError),'H8 anulado sin fecha de Acta no habilita H9');
 
  const acl=await db.query(`
    select coalesce(has_function_privilege('authenticated',p.oid,'EXECUTE'),false) auth_exec,

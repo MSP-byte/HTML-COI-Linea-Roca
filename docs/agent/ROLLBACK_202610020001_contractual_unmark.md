@@ -33,9 +33,9 @@ revoke all on function public.coi_anular_etapa_circuito_v1(uuid,text,text)
 
 drop function if exists public.coi_anular_etapa_circuito_v1(uuid,text,text);
 
-drop policy if exists coi_historial_anulacion_rpc_only_v1
-  on public.coi_historial_oc;
-
+-- La policy restrictiva se conserva deliberadamente aunque se quite la RPC:
+-- así ningún cliente puede fabricar anulaciones directas sin snapshot/auditoría.
+-- NO ejecutar DROP POLICY coi_historial_anulacion_rpc_only_v1.
 commit;
 ```
 
@@ -47,7 +47,7 @@ oculta la acción de desmarcado.
 
 - `to_regprocedure('public.coi_anular_etapa_circuito_v1(uuid,text,text)')`
   debe devolver NULL;
-- no debe existir la policy `coi_historial_anulacion_rpc_only_v1`;
+- debe seguir existiendo la policy restrictiva `coi_historial_anulacion_rpc_only_v1`;
 - los hitos ya anulados deben seguir proyectándose como no vigentes;
 - **DESMARCAR HITO** no debe mostrarse;
 - confirmar hitos por `coi_confirmar_etapa_circuito_v3` y agregar
@@ -55,7 +55,7 @@ oculta la acción de desmarcado.
 
 ## Reaplicación
 
-La migración es idempotente: para restaurar la función, la policy y el grant se
+La migración es idempotente: para restaurar la función y el grant (la policy de seguridad permanece instalada) se
 puede volver a ejecutar el SQL versionado
 `202610020001_contractual_unmark.sql`, primero en STAGING y luego en
 PRODUCCIÓN con autorización explícita.

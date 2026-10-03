@@ -35236,7 +35236,11 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     if (!idsAnulados.size) return lista.slice();
     const canonicasAnuladas = lista.filter((ev) => esConfirmacionCanonica(ev) && idsAnulados.has(texto(ev && ev.id)));
     return lista.filter((ev) => {
-      if (esConfirmacionCanonica(ev) && idsAnulados.has(texto(ev && ev.id))) return false;
+      const idEvento = texto(ev && ev.id);
+      if (idsAnulados.has(idEvento) && (
+        esConfirmacionCanonica(ev) ||
+        fold(ev && ev.tipo_evento) === fold('Cambio de estado contractual')
+      )) return false;
       if (fold(ev && ev.tipo_evento) === fold('Cambio de estado contractual')) {
         const codigo = codigoEtapaDesdeEvento(ev);
         const espejoAnulado = canonicasAnuladas.some((c) =>
