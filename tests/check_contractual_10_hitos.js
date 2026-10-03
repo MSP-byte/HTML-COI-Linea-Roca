@@ -74,8 +74,11 @@ check(/for \(const nombre of \['resolverOrdenCircuito', 'resolverOrdenActual'\]\
   'el resolver canónico tiene prioridad sobre el genérico');
 check(/const destino = orden && typeof orden === 'object' \? orden : null;\s*if \(!destino\) return null;/.test(pipeline),
   'la reconciliación nunca fabrica un objeto vacío sin nro_oc');
-check(/if \(!nroNuevo \|\| \(nroMontado && nroMontado!==nroNuevo\)\) return false;/.test(pipeline),
+check(/if\(!nroNuevo\)return false;/.test(pipeline) &&
+      /if\(nroMontado&&nroMontado!==nroNuevo\)return false;/.test(pipeline),
   'nunca se repinta sin N° OC ni con otra OC');
+check(/document\.querySelectorAll\('\[id="etapa1PipelineContractual"\]'\)/.test(pipeline),
+  'el repintado cubre todas las representaciones montadas de la misma OC');
 check(/if \(!orden\) \{/.test(pipeline.slice(pipeline.indexOf('async function abrirModal'))),
   'sin OC resuelta no se abre el modal con una fecha por defecto falsa');
 check(/const TOTAL_HITOS_LOGICOS = 10;/.test(pipeline), 'el contador es global sobre 10 hitos lógicos');
