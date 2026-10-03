@@ -1672,3 +1672,24 @@ Decisión.
 Integridad: Supabase sigue siendo la única autoridad; no se agrega tabla ni
 estado local, y el desmarcado queda auditado en `coi_historial_oc` y
 `coi_operaciones_auditoria`.
+
+
+### Hardening posterior de TD-077 — review PR #115
+
+El review del PR #115 endureció la decisión original sin cambiar su semántica:
+
+- `estado_coi = 'Cerrada'` se preserva al anular; sólo retrocede
+  `estado_documental`.
+- La restauración admite una traza legacy `Cambio de estado contractual` si es
+  la última transición activa.
+- El fallback R18 y el pipeline E1 comparten la misma proyección de historial
+  activo; una confirmación anulada no reaparece por compatibilidad legacy.
+- Una policy RESTRICTIVE bloquea INSERT directo de
+  `Anulación circuito administrativo`; sólo la RPC SECURITY DEFINER puede
+  producir esos eventos con snapshot y auditoría coherentes.
+- La UI aplica schema-first runtime: permisos + ausencia de edición integral +
+  prueba de disponibilidad de RPC antes de renderizar DESMARCAR.
+- La divergencia repo/PRODUCCIÓN queda declarada en
+  `tests/fixtures/production_schema_contract.json` hasta desplegar
+  `202610020001_contractual_unmark.sql`.
+- Rollback: ver `docs/agent/ROLLBACK_202610020001_contractual_unmark.md`.
