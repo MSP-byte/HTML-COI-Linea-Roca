@@ -20487,7 +20487,41 @@ async function actualizarEstadoDocumentalDesdePasoContractual(ocNro,paso,options
   return {nro_oc:nro,estado,synced:true,...result.data};
 }
 
+let estadoAnulacionCircuitoRPC='desconocido';
+let promesaAnulacionCircuitoRPC=null;
+function errorRPCAnulacionAusente(error){
+  const code=clean(error?.code).toUpperCase();
+  const message=clean(error?.message||error?.details||error?.hint||error);
+  return code==='PGRST202'||/could not find[^\n]*coi_anular_etapa_circuito_v1/i.test(message)||
+    /coi_anular_etapa_circuito_v1[^\n]*(does not exist|schema cache)/i.test(message);
+}
+function anulacionCircuitoDisponible(){return estadoAnulacionCircuitoRPC==='disponible';}
+async function probarDisponibilidadAnulacionCircuito(){
+  if(anulacionCircuitoDisponible())return true;
+  if(estadoAnulacionCircuitoRPC==='ausente')return false;
+  if(promesaAnulacionCircuitoRPC)return promesaAnulacionCircuitoRPC;
+  if(!usuarioTienePermisoEdicion()||!navigator.onLine)return false;
+  const client=clienteCircuito();
+  if(!client)return false;
+  promesaAnulacionCircuitoRPC=(async()=>{
+    try{
+      const result=await client.rpc('coi_anular_etapa_circuito_v1',{
+        p_orden_id:null,p_codigo:'pliegos_preparacion',p_motivo:'__COI_CAPABILITY_PROBE__'
+      });
+      estadoAnulacionCircuitoRPC=result?.error&&errorRPCAnulacionAusente(result.error)?'ausente':'disponible';
+    }catch(error){
+      estadoAnulacionCircuitoRPC=errorRPCAnulacionAusente(error)?'ausente':'desconocido';
+    }finally{promesaAnulacionCircuitoRPC=null;}
+    return anulacionCircuitoDisponible();
+  })();
+  return promesaAnulacionCircuitoRPC;
+}
+window.__COI_CIRCUITO_ANULACION_DISPONIBLE__=anulacionCircuitoDisponible;
+window.__COI_CIRCUITO_ANULACION_PROBAR__=probarDisponibilidadAnulacionCircuito;
+
 async function anularEtapaCircuitoContractual(ocNro,paso,motivo=''){
+  if(window.APP_STATE?.editingOC)throw new Error('Guarde o cancele la edición integral antes de desmarcar un hito.');
+  if(!(await probarDisponibilidadAnulacionCircuito()))throw new Error('El desmarcado contractual aún no está desplegado en Supabase.');
   let stage=typeof paso==='string'
     ? CIRCUITO_ADMINISTRATIVO_ETAPAS.find(item=>item.codigo===paso)||
       CIRCUITO_ADMINISTRATIVO_ETAPAS.find(item=>normalizarTextoEstado(item.nombre)===normalizarTextoEstado(paso))
@@ -20532,6 +20566,34 @@ function agruparHistorialCircuitoPorEtapa(historial=[]){
   Object.values(groups).forEach(rows=>rows.sort((a,b)=>new Date(a.fecha_evento||0)-new Date(b.fecha_evento||0)));
   return groups;
 }
+/* Proyección canónica de historial ACTIVO, compartida por E1 y el fallback R18.
+   La anulación conserva la fila original y la referencia por UUID. También se
+   retira el espejo legacy de la misma transición para que no reviva el hito. */
+function historialCircuitoActivo(historial=[]){
+  const lista=Array.isArray(historial)?historial:[];
+  const tipoNorm=(v)=>normalizarTextoEstado(v);
+  const anulaciones=lista.filter(ev=>tipoNorm(ev?.tipo_evento)==='ANULACION CIRCUITO ADMINISTRATIVO');
+  const idsAnulados=new Set(anulaciones.map(ev=>clean(ev?.valor_anterior)).filter(Boolean));
+  if(!idsAnulados.size)return lista.slice();
+  const canonicasAnuladas=lista.filter(ev=>esEventoConfirmacionCircuito(ev)&&idsAnulados.has(clean(ev?.id)));
+  const ms=(ev)=>{const n=new Date(ev?.fecha_evento||0).getTime();return Number.isFinite(n)?n:0;};
+  const codigoEvento=(ev)=>{
+    const directo=codigoEtapaCircuitoDesdeCampo(ev?.campo_modificado);
+    if(CIRCUITO_ADMINISTRATIVO_ETAPAS.some(et=>et.codigo===directo))return directo;
+    const porValor=obtenerPasoContractualDesdeEstadoDocumental(ev?.valor_nuevo);
+    return porValor?.codigo||'';
+  };
+  return lista.filter(ev=>{
+    if(esEventoConfirmacionCircuito(ev)&&idsAnulados.has(clean(ev?.id)))return false;
+    if(tipoNorm(ev?.tipo_evento)==='CAMBIO DE ESTADO CONTRACTUAL'){
+      const codigo=codigoEvento(ev);
+      const espejoAnulado=canonicasAnuladas.some(c=>codigoEvento(c)===codigo&&Math.abs(ms(c)-ms(ev))<=5000);
+      if(espejoAnulado)return false;
+    }
+    return true;
+  });
+}
+window.__COI_CIRCUITO_HISTORIAL_ACTIVO__=historialCircuitoActivo;
 /* Lectura COMPLETA y canonica del historial de una OC. Siempre por el N° OC
    canonico (nroOCCircuito), nunca por una clave vacia. Pagina de a 1000 para
    no perder los eventos mas recientes de una OC con historial largo. */
@@ -20577,7 +20639,7 @@ function obtenerEstadoVisualEtapa(etapa,historial=[],estadoActual=''){
 function renderCircuitoAdministrativoOC(orden){
   const resolved=resolverOrdenCircuito(orden)||orden||{};
   const nro=nroOCCircuito(resolved);
-  const history=historialCircuitoCache.get(nro)||[];
+  const history=historialCircuitoActivo(historialCircuitoCache.get(nro)||[]);
   const grouped=agruparHistorialCircuitoPorEtapa(history);
   const currentState=field(resolved,'estado_documental','estadoDocumental','ESTADO_DOCUMENTAL','estado_doc','estadoDoc','estado_coi','estadoCOI','estado');
   const canWrite=usuarioTienePermisoEdicion();
@@ -20640,13 +20702,15 @@ async function confirmarEtapaCircuitoOC(orden,etapa){
 
 function renderHistorialEtapaCircuitoOC(orden,etapa,historial=[]){
   const resolved=resolverOrdenCircuito(orden)||orden||{};
-  const grouped=agruparHistorialCircuitoPorEtapa(historial);
-  const events=grouped[etapa.codigo]||[];
-  const confirmation=events.find(esEventoConfirmacionCircuito);
+  const activeGrouped=agruparHistorialCircuitoPorEtapa(historialCircuitoActivo(historial));
+  const allGrouped=agruparHistorialCircuitoPorEtapa(historial);
+  const activeEvents=activeGrouped[etapa.codigo]||[];
+  const allEvents=allGrouped[etapa.codigo]||[];
+  const confirmation=activeEvents.find(esEventoConfirmacionCircuito);
   const confirmed=Boolean(confirmation);
   const observations=[];
   if(clean(confirmation?.motivo))observations.push({...confirmation,valor_nuevo:confirmation.motivo,_initial:true});
-  events.filter(esEventoObservacionCircuito).forEach(evento=>observations.push(evento));
+  allEvents.filter(esEventoObservacionCircuito).forEach(evento=>observations.push(evento));
   const canWrite=usuarioTienePermisoEdicion();
   const traceability=confirmation?`<div><b>Primera confirmación:</b> ${formatearFechaHoraCOI(confirmation.fecha_evento)}<br><b>Usuario:</b> ${esc(confirmation.usuario_email||'—')}</div>`:'<div><b>Primera confirmación:</b> —<br><b>Usuario:</b> —</div>';
   return `<div class="circuito-historial-head"><div><h3>Historial de etapa — ${esc(etapa.nombre)}</h3><p>OC ${esc(nroOCCircuito(resolved))} · Estado: ${confirmed?'Confirmada':'Pendiente'}</p></div><button type="button" class="circuito-historial-cerrar" data-circuito-cerrar>✕</button></div>
@@ -20681,7 +20745,8 @@ async function agregarObservacionEtapaCircuitoOC(orden,etapa,observacion){
   if(text.length>3000)throw new Error('La observación no puede superar 3000 caracteres.');
   const {user,client}=await validarEscrituraCircuito();
   const history=await cargarHistorialCircuitoOC(resolved);
-  if(!(agruparHistorialCircuitoPorEtapa(history)[stage.codigo]||[]).some(esEventoConfirmacionCircuito))throw new Error('La etapa debe estar confirmada antes de agregar observaciones.');
+  const historyActivo=historialCircuitoActivo(history);
+  if(!(agruparHistorialCircuitoPorEtapa(historyActivo)[stage.codigo]||[]).some(esEventoConfirmacionCircuito))throw new Error('La etapa debe estar confirmada antes de agregar observaciones.');
   const payload={orden_id:ordenIdCircuito(resolved),nro_oc:nro,tipo_evento:'Observación circuito administrativo',campo_modificado:stage.codigo,valor_anterior:'',valor_nuevo:text,motivo:text,usuario_email:user.email||null,creado_por:user.id||null,fecha_evento:new Date().toISOString()};
   const result=await client.from('coi_historial_oc').insert(payload).select();
   if(result.error)throw new Error(detalleErrorCircuito(result.error));
@@ -35162,6 +35227,10 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     return fold(ev && ev.tipo_evento) === fold(TIPO_ANULACION_CIRCUITO);
   }
   function historialContractualVigente(historial) {
+    try {
+      if (typeof window.__COI_CIRCUITO_HISTORIAL_ACTIVO__ === 'function')
+        return window.__COI_CIRCUITO_HISTORIAL_ACTIVO__(historial);
+    } catch (e) {}
     const lista = Array.isArray(historial) ? historial : [];
     const idsAnulados = new Set(lista.filter(esAnulacionCircuito).map((ev) => texto(ev && ev.valor_anterior)).filter(Boolean));
     if (!idsAnulados.size) return lista.slice();
@@ -35426,7 +35495,10 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     return n > 1 ? '<span class="etapa1-ingresos">Ingresos registrados: ' + n + '</span>' : '';
   }
   function accionDesmarcar(estado, codigo, tieneRegistro) {
-    if (!tieneRegistro) return '';
+    const puedeEditar = typeof window.usuarioTienePermisoEdicion === 'function' && window.usuarioTienePermisoEdicion();
+    const rpcDisponible = typeof window.__COI_CIRCUITO_ANULACION_DISPONIBLE__ === 'function' &&
+      window.__COI_CIRCUITO_ANULACION_DISPONIBLE__();
+    if (!tieneRegistro || !puedeEditar || !rpcDisponible || window.APP_STATE?.editingOC) return '';
     return '<button type="button" class="etapa1-desmarcar" data-etapa1-desmarcar="' + esc(codigo) +
       '" data-etapa1-oc="' + esc(estado.nro) + '" title="Desmarcar este hito sin borrar la auditoría">DESMARCAR HITO</button>';
   }
@@ -35656,6 +35728,10 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     try {
       if (typeof window.cargarHistorialCircuitoOC === 'function') await window.cargarHistorialCircuitoOC(orden);
     } catch (e) { /* se conserva lo ya confirmado */ }
+    try {
+      if (typeof window.__COI_CIRCUITO_ANULACION_PROBAR__ === 'function')
+        await window.__COI_CIRCUITO_ANULACION_PROBAR__();
+    } catch (e) { /* la acción queda oculta si no pudo verificarse */ }
     repintar(orden, identidad);
   }
 
@@ -35767,6 +35843,18 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
   }
 
   async function abrirModalAnular(codigo, nro) {
+    if (window.APP_STATE?.editingOC) {
+      try { if (typeof window.toast === 'function') window.toast('Guarde o cancele la edición integral antes de desmarcar un hito.', 'warning'); } catch (e) {}
+      return;
+    }
+    if (!(typeof window.usuarioTienePermisoEdicion === 'function' && window.usuarioTienePermisoEdicion())) {
+      try { if (typeof window.toast === 'function') window.toast('Modo lectura: no posee permisos para desmarcar hitos.', 'warning'); } catch (e) {}
+      return;
+    }
+    if (!(typeof window.__COI_CIRCUITO_ANULACION_PROBAR__ === 'function' && await window.__COI_CIRCUITO_ANULACION_PROBAR__())) {
+      try { if (typeof window.toast === 'function') window.toast('El desmarcado contractual aún no está desplegado en Supabase.', 'warning'); } catch (e) {}
+      return;
+    }
     const orden = ordenDe(nro);
     const etapa = etapaPorCodigo(codigo);
     if (!orden || !etapa) return;
@@ -35813,6 +35901,18 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
 
   async function confirmarAnulacion() {
     if (anulando || !modalAnulacion) return;
+    if (window.APP_STATE?.editingOC) {
+      mostrarErrorModalAnulacion('Guarde o cancele la edición integral antes de desmarcar un hito.');
+      return;
+    }
+    if (!(typeof window.usuarioTienePermisoEdicion === 'function' && window.usuarioTienePermisoEdicion())) {
+      mostrarErrorModalAnulacion('Modo lectura: no posee permisos para desmarcar hitos.');
+      return;
+    }
+    if (!(typeof window.__COI_CIRCUITO_ANULACION_PROBAR__ === 'function' && await window.__COI_CIRCUITO_ANULACION_PROBAR__())) {
+      mostrarErrorModalAnulacion('El desmarcado contractual aún no está desplegado en Supabase.');
+      return;
+    }
     const contexto = Object.freeze({
       token: modalAnulacion.token, codigo: modalAnulacion.codigo, nro: modalAnulacion.nro,
       orden: modalAnulacion.orden, etapa: modalAnulacion.etapa, identidad: modalAnulacion.identidad
