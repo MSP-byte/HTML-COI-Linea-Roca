@@ -13,6 +13,7 @@ const DIR='supabase/migrations';
 const UID='11111111-1111-4111-8111-111111111111';
 let ok=0;
 const check=(v,m)=>{assert.ok(v,m);ok++;};
+const fallo=async(fn)=>{try{await fn();return null}catch(e){return String(e.message||e)}};
 
 const PLATAFORMA=[
  'create role anon nologin;',
@@ -27,6 +28,24 @@ const PLATAFORMA=[
  '$fn$;'
 ].join('\n');
 
+async function nuevaOC(db,nro,cerrada=false){
+ await db.exec('begin;');
+ try{
+   const {rows:[oc]}=cerrada
+     ? await db.query(
+       `insert into public.coi_ordenes(
+          nro_oc,tipo,estado_coi,fecha_cierre_operativo,observacion_cierre
+        ) values ($1,'Servicio','Cerrada','2026-10-02','Cierre de prueba') returning id`,[nro])
+     : await db.query(
+       "insert into public.coi_ordenes(nro_oc,tipo,estado_coi) values ($1,'Servicio','Pendiente de completar') returning id",[nro]);
+   await db.query(
+     'insert into public.coi_ordenes_estaciones(orden_id,nro_oc,estacion,es_principal) values ($1,$2,$3,true)',
+     [oc.id,nro,'PLAZA CONSTITUCION']);
+   await db.exec('commit;');
+   return oc.id;
+ }catch(e){try{await db.exec('rollback')}catch(_){}throw e}
+}
+
 async function main(){
  const db=new PGlite({extensions:{pgcrypto:PGCRYPTO}});
  await db.exec(PLATAFORMA);
@@ -39,63 +58,93 @@ async function main(){
  await db.query("select set_config('request.jwt.claim.email','admin@coiroca.com',false)");
  await db.query("select set_config('request.jwt.claim.role','administrador',false)");
 
- await db.exec('begin;');
- const {rows:[oc]}=await db.query(
-   "insert into public.coi_ordenes(nro_oc,tipo,estado_coi) values ('4530999901','Servicio','Pendiente de completar') returning id");
- const id=oc.id;
- await db.query(
-   "insert into public.coi_ordenes_estaciones(orden_id,nro_oc,estacion,es_principal) values ($1,'4530999901','PLAZA CONSTITUCION',true)",
-   [id]);
- await db.exec('commit;');
  const {rows:[hoy]}=await db.query("select to_char((now() at time zone 'America/Argentina/Buenos_Aires')::date,'YYYY-MM-DD') d");
  const H=hoy.d;
- const confirmar=(codigo)=>db.query(
+ const confirmar=(id,codigo)=>db.query(
    'select public.coi_confirmar_etapa_circuito_v3($1,$2,null,$3::date) r',[id,codigo,H]);
- const anular=(codigo)=>db.query(
+ const anular=(id,codigo)=>db.query(
    "select public.coi_anular_etapa_circuito_v1($1,$2,'corrección de prueba') r",[id,codigo]);
 
- await confirmar('pliegos_preparacion');
- await confirmar('pliegos_terminado_sin_solped');
- await confirmar('pliegos_preparacion');
-
+ // A · múltiples reingresos: todos quedan anulados y una nueva H1 reinicia.
+ const id=await nuevaOC(db,'4530999901');
+ await confirmar(id,'pliegos_preparacion');
+ await confirmar(id,'pliegos_terminado_sin_solped');
+ await confirmar(id,'pliegos_preparacion');
  const antes=await db.query(
    "select count(*)::int n from public.coi_historial_oc h where orden_id=$1 and tipo_evento='Circuito administrativo' and campo_modificado='pliegos_preparacion'",[id]);
  check(antes.rows[0].n===2,'el reingreso H1 debe dejar dos confirmaciones auditables');
 
- const r1=(await anular('pliegos_preparacion')).rows[0].r;
- check(r1.anuladas===2,'desmarcar H1 debe anular todos sus ingresos activos');
- check(r1.ya_anulada===false,'la primera anulación no es idempotente');
-
- const estado1=await db.query("select estado_documental,estado_coi from public.coi_ordenes where id=$1",[id]);
+ const r1=(await anular(id,'pliegos_preparacion')).rows[0].r;
+ check(r1.anuladas===2&&!r1.ya_anulada,'desmarcar H1 anula todos sus ingresos activos');
+ const estado1=await db.query("select estado_documental from public.coi_ordenes where id=$1",[id]);
  check(estado1.rows[0].estado_documental==='PLIEGOS TERMINADO SIN SOLPED','al quitar H1 debe restaurarse H2');
  const activasH1=await db.query(
    "select count(*)::int n from public.coi_historial_oc h where h.orden_id=$1 and h.tipo_evento='Circuito administrativo' and h.campo_modificado='pliegos_preparacion' and not exists (select 1 from public.coi_historial_oc a where a.orden_id=h.orden_id and a.tipo_evento='Anulación circuito administrativo' and a.valor_anterior=h.id::text)",[id]);
  check(activasH1.rows[0].n===0,'H1 no puede seguir activo después de desmarcar');
- const anulaciones=await db.query(
-   "select count(*)::int n from public.coi_historial_oc where orden_id=$1 and tipo_evento='Anulación circuito administrativo' and campo_modificado='pliegos_preparacion'",[id]);
- check(anulaciones.rows[0].n===2,'la auditoría debe conservar una anulación por ingreso H1');
 
- const r2=(await confirmar('pliegos_preparacion')).rows[0].r;
+ const r2=(await confirmar(id,'pliegos_preparacion')).rows[0].r;
  const filaNueva=(r2.historial||[]).find(x=>x.tipo_evento==='Circuito administrativo');
- check(Boolean(filaNueva),'reconfirmar H1 debe crear una transición nueva');
- check(String(filaNueva.fecha_efectiva).slice(0,10)===H,'la nueva H1 debe iniciar en la fecha efectiva elegida');
+ check(Boolean(filaNueva)&&String(filaNueva.fecha_efectiva).slice(0,10)===H,'reconfirmar H1 crea un ingreso nuevo con fecha efectiva propia');
 
- await anular('pliegos_preparacion');
- await anular('pliegos_terminado_sin_solped');
+ // B · predecessor legacy: al anular la canónica más nueva no se pierde el estado migrado.
+ const idLegacy=await nuevaOC(db,'4530999902');
+ await db.query(
+   `insert into public.coi_historial_oc(
+      orden_id,nro_oc,tipo_evento,campo_modificado,valor_nuevo,motivo,fecha_evento,fecha_efectiva
+    ) values (
+      $1,'4530999902','Cambio de estado contractual','estado_documental',
+      'PLIEGOS TERMINADO SIN SOLPED','legacy',clock_timestamp()-interval '2 days',(current_date-2)
+    )`,[idLegacy]);
+ await confirmar(idLegacy,'solped_sin_expediente');
+ await anular(idLegacy,'solped_sin_expediente');
+ const legacyRestaurado=await db.query("select estado_documental from public.coi_ordenes where id=$1",[idLegacy]);
+ check(legacyRestaurado.rows[0].estado_documental==='PLIEGOS TERMINADO SIN SOLPED','la anulación restaura una transición legacy activa');
+
+ // C · cierre operativo inmutable: desmarcar no reabre ni rompe el guard H10.
+ const idClosed=await nuevaOC(db,'4530999903',true);
+ await db.query(
+   `insert into public.coi_historial_oc(
+      orden_id,nro_oc,tipo_evento,campo_modificado,valor_nuevo,motivo,fecha_efectiva
+    ) values (
+      $1,'4530999903','Circuito administrativo','pliegos_preparacion',
+      'PLIEGOS EN PREPARACIÓN','histórico','2026-09-24'
+    )`,[idClosed]);
+ const closedRes=(await anular(idClosed,'pliegos_preparacion')).rows[0].r;
+ check(closedRes.anuladas===1,'una OC cerrada también puede corregir su traza contractual');
+ const closed=await db.query("select estado_coi,estado_documental from public.coi_ordenes where id=$1",[idClosed]);
+ check(closed.rows[0].estado_coi==='Cerrada','desmarcar jamás reabre una OC cerrada');
+ check(closed.rows[0].estado_documental===null,'el eje documental sí puede quedar sin hito activo');
+
+ // D · sin hitos activos vuelve a Pendiente de completar; segunda anulación es idempotente.
+ await anular(id,'pliegos_preparacion');
+ await anular(id,'pliegos_terminado_sin_solped');
  const vacio=await db.query("select estado_documental,estado_coi from public.coi_ordenes where id=$1",[id]);
- check(vacio.rows[0].estado_documental===null,'sin hitos activos estado_documental debe quedar vacío');
- check(vacio.rows[0].estado_coi==='Pendiente de completar','sin hitos activos el estado visible queda Pendiente de completar');
+ check(vacio.rows[0].estado_documental===null&&vacio.rows[0].estado_coi==='Pendiente de completar','sin hitos activos el snapshot vuelve a pendiente');
+ const idem=(await anular(id,'pliegos_preparacion')).rows[0].r;
+ check(idem.ya_anulada===true&&idem.anuladas===0,'desmarcar otra vez es idempotente');
 
- const idem=(await anular('pliegos_preparacion')).rows[0].r;
- check(idem.ya_anulada===true&&idem.anuladas===0,'desmarcar otra vez debe ser idempotente');
+ // E · seguridad: authenticated no puede fabricar anulaciones por INSERT directo,
+ // pero sí puede invocar la RPC SECURITY DEFINER.
+ const idAcl=await nuevaOC(db,'4530999904');
+ await confirmar(idAcl,'pliegos_preparacion');
+ await db.exec('set role authenticated');
+ const directo=await fallo(()=>db.query(
+   "insert into public.coi_historial_oc(orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo) values ($1,'4530999904','Anulación circuito administrativo','pliegos_preparacion','00000000-0000-4000-8000-000000000000','PLIEGOS EN PREPARACIÓN')",[idAcl]));
+ check(Boolean(directo)&&/row-level security|policy/i.test(directo),'la anulación directa debe ser rechazada por RLS');
+ const porRpc=await db.query("select public.coi_anular_etapa_circuito_v1($1,'pliegos_preparacion','vía RPC') r",[idAcl]);
+ check(porRpc.rows[0].r.anuladas===1,'authenticated sí puede anular por la RPC controlada');
+ await db.exec('reset role');
 
  const acl=await db.query(`
    select coalesce(has_function_privilege('authenticated',p.oid,'EXECUTE'),false) auth_exec,
           coalesce(has_function_privilege('anon',p.oid,'EXECUTE'),false) anon_exec
      from pg_proc p join pg_namespace n on n.oid=p.pronamespace
     where n.nspname='public' and p.proname='coi_anular_etapa_circuito_v1'`);
- check(acl.rows.length===1&&acl.rows[0].auth_exec===true,'authenticated debe ejecutar la RPC controlada');
- check(acl.rows[0].anon_exec===false,'anon no puede ejecutar la RPC');
+ check(acl.rows.length===1&&acl.rows[0].auth_exec===true&&acl.rows[0].anon_exec===false,'ACL de RPC: authenticated sí, anon no');
+
+ const pol=await db.query(
+   "select permissive,cmd,roles::text,with_check from pg_policies where schemaname='public' and tablename='coi_historial_oc' and policyname='coi_historial_anulacion_rpc_only_v1'");
+ check(pol.rows.length===1&&String(pol.rows[0].permissive).toUpperCase().startsWith('RESTRICTIVE'),'existe policy restrictiva para anulaciones');
 
  console.log(`Contractual unmark: ${ok} controles aprobados; 0 fallidos.`);
 }
