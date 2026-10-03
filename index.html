@@ -35493,11 +35493,13 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
   function diasDeCodigo(estado, codigo) {
     const segmentosCodigo=(estado.segmentos||[]).filter((s)=>s.codigo===codigo);
     const abierto=segmentosCodigo.slice().reverse().find((s)=>s.abierto);
-    // La última transición real abre el estado aunque el snapshot de
-    // coi_ordenes todavía esté stale durante el repaint inmediato. La fecha
-    // efectiva del segmento manda: si empezó hoy, el resultado es 0.
-    if(abierto)return diasEntre(abierto.desde,null);
-    if (estado.etapaEstado && estado.etapaEstado.codigo === codigo && estado.entradaVigente) return estado.diasVigente;
+    const esEstadoVigente=Boolean(estado&&estado.etapaEstado&&estado.etapaEstado.codigo===codigo);
+    // Sólo el estado contractual vigente puede acumular "hoy - inicio".
+    // Un backfill o una fecha efectiva invertida puede quedar como último
+    // segmento en el orden cronológico, pero no por eso vuelve a ser actual.
+    // Si el estado vigente empezó hoy, diasEntre() devuelve exactamente 0.
+    if(abierto&&esEstadoVigente)return diasEntre(abierto.desde,null);
+    if(esEstadoVigente&&estado.entradaVigente)return estado.diasVigente;
     const propios = segmentosCodigo.filter((s) => !s.abierto && s.dias != null);
     if (!propios.length) return null;
     return propios.reduce((total, s) => total + s.dias, 0);
@@ -35812,19 +35814,37 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
   }
 
   function repintar(orden, identidadEsperada) {
-    const host = $('etapa1PipelineContractual');
-    if (!host || !host.parentNode || !orden || typeof orden !== 'object') return false;
+    if (!orden || typeof orden !== 'object') return false;
     const esperada=texto(identidadEsperada||identidadOrden(orden));
-    const montada=texto(host.getAttribute('data-etapa1-orden-id'));
-    if (esperada && montada && esperada!==montada) return false;
-    // Nunca se repinta con una OC distinta de la montada ni sin N° OC.
-    const nroMontado=texto(host.getAttribute('data-etapa1-oc'));
     const nroNuevo=nroOrdenPipeline(orden);
-    if (!nroNuevo || (nroMontado && nroMontado!==nroNuevo)) return false;
-    const cont = document.createElement('div');
-    cont.innerHTML = render(orden);
-    host.parentNode.replaceChild(cont.firstElementChild, host);
-    return true;
+    if(!nroNuevo)return false;
+
+    // El HTML histórico puede mantener temporalmente una copia oculta del
+    // pipeline mientras otra vista monta la Ficha. getElementById() sólo
+    // devolvería una de ellas y dejaría la otra stale. Se actualizan TODAS
+    // las representaciones de la misma OC/identidad, nunca las de otra OC.
+    const hosts=Array.from(document.querySelectorAll('[id="etapa1PipelineContractual"]'))
+      .filter((host)=>{
+        if(!host||!host.parentNode)return false;
+        const nroMontado=texto(host.getAttribute('data-etapa1-oc'));
+        const montada=texto(host.getAttribute('data-etapa1-orden-id'));
+        if(nroMontado&&nroMontado!==nroNuevo)return false;
+        if(esperada&&montada&&esperada!==montada)return false;
+        return true;
+      });
+    if(!hosts.length)return false;
+
+    let actualizados=0;
+    hosts.forEach((host)=>{
+      if(!host.parentNode)return;
+      const cont=document.createElement('div');
+      cont.innerHTML=render(orden);
+      const nuevo=cont.firstElementChild;
+      if(!nuevo)return;
+      host.parentNode.replaceChild(nuevo,host);
+      actualizados+=1;
+    });
+    return actualizados>0;
   }
 
   /* ------------------------------------------------------------ montaje

@@ -1732,3 +1732,19 @@ comparar el tipo de evento autoritativo. Por lo tanto quedan bloqueadas también
 variantes equivalentes como doble espacio, tabulaciones o `Anulación` en forma
 Unicode descompuesta. La semántica del frontend y la barrera RLS no pueden
 divergir por diferencias puramente tipográficas.
+
+
+### TD-077 · duración vigente y repintado multihost
+
+La duración abierta deja de inferirse por la mera existencia del último
+segmento cronológico. Sólo el **estado contractual vigente** puede acumular
+`hoy - fecha_efectiva`. Esto evita que una carga retrospectiva o una fecha
+invertida conviertan un hito viejo en un falso estado abierto. Para el hito
+vigente confirmado hoy, el resultado sigue siendo exactamente **0 días**.
+
+El repintado del pipeline ya no depende de `getElementById` cuando el DOM
+mantiene temporalmente más de una representación de la misma OC (por ejemplo,
+una vista oculta y la Ficha activa). Se reemplazan todas las instancias cuyo
+N° OC e identidad coinciden, sin tocar representaciones de otras OCs. Así una
+confirmación/desmarcado no deja una tarjeta stale aunque haya dos hosts
+transitorios durante navegación o pruebas.

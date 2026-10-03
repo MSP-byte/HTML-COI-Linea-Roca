@@ -374,3 +374,32 @@ test('E1-49 · un segmento abierto con fecha efectiva de hoy muestra 0 aunque el
   await setup(page,{estado_coi:'Pendiente de completar',historial:[ev]});
   expect(await page.locator('#e1Host [data-etapa1-hito="pliegos_preparacion"] .etapa1-dias').textContent()).toContain('Días en etapa: 0');
 });
+
+
+test('E1-50 · repintar actualiza todas las representaciones montadas de la misma OC',async({page})=>{
+  const hoy=await page.evaluate(()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()));
+  await setup(page,{estado_coi:'Pendiente de completar'});
+  await page.evaluate(({oc})=>{
+    const extra=document.createElement('div');
+    extra.id='e1HostDuplicado';
+    extra.innerHTML=window.__COI_ETAPA1_RENDER__(window.__E1__.orden);
+    document.body.appendChild(extra);
+  },{oc:OC});
+  expect(await page.locator('[id="etapa1PipelineContractual"]').count()).toBeGreaterThanOrEqual(2);
+
+  await page.click('#e1Host [data-etapa1-hito="pliegos_preparacion"]');
+  await page.fill('#etapa1ModalFecha',hoy);
+  await page.click('#etapa1ModalConfirmarBtn');
+  await page.waitForTimeout(500);
+
+  const estados=await page.locator('[id="etapa1PipelineContractual"] [data-etapa1-hito="pliegos_preparacion"] .etapa1-dias').allTextContents();
+  expect(estados.length).toBeGreaterThanOrEqual(2);
+  for(const txt of estados)expect(txt).toContain('Días en etapa: 0');
+});
+
+test('E1-51 · un segmento cronológicamente abierto pero no vigente no acumula días hasta hoy',async({page})=>{
+  const h3=EVENTO('solped_sin_expediente','2026-09-10T10:00:00Z');
+  const h4=EVENTO('pliego_con_oc','2026-09-01T10:00:00Z');
+  await setup(page,{estado_coi:'PLIEGO CON OC',historial:[h3,h4]});
+  expect(await page.locator('#e1Host [data-etapa1-hito="solped_sin_expediente"] .etapa1-dias').textContent()).toContain('—');
+});
