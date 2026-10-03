@@ -35299,9 +35299,10 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     const evidenciaLegacyEtapa1 = Boolean(actaFecha) || legacyEjecucion;
     // La evidencia historica mantiene abierto el gate de ejecución, pero NO
     // pisa un circuito que el operador ya empezó a gestionar manualmente.
-    const circuitoGestionado = (historial || []).some((ev) =>
-      esTrazaConfirmacionContractual(ev) || esAnulacionCircuito(ev));
-    const etapa1FinalizadaLegacy = !circuitoGestionado && evidenciaLegacyEtapa1;
+    const codigosGestionEtapa1 = new Set(hitos.map((h) => h.codigo));
+    const circuitoGestionadoEtapa1 = (historialActivo || []).some((ev) =>
+      esTrazaConfirmacionContractual(ev) && codigosGestionEtapa1.has(codigoEtapaDesdeEvento(ev)));
+    const etapa1FinalizadaLegacy = !circuitoGestionadoEtapa1 && evidenciaLegacyEtapa1;
     const etapa1Finalizada = hito8Registrado || etapa1FinalizadaLegacy;
     const etapa2Habilitada = hito8Registrado || evidenciaLegacyEtapa1;
     // Hito 8 confirmado pero sin fecha canonica: el gate vale, la fecha queda

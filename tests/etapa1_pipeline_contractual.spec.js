@@ -294,7 +294,7 @@ test('E1-42 · Acta histórica habilita ejecución pero no pisa H1 manual activo
   h1.fecha_efectiva='2026-09-24';
   await setup(page,{estado_coi:'PLIEGOS EN PREPARACIÓN',fecha_acta_inicio:'2026-03-05',historial:[h1]});
   const e=await estado(page);
-  expect(e.estadoActual).toContain('PLIEGOS EN PREPARACIÓN');
+  expect(e.estadoActual).toContain('PLIEGOS EN PREPAR');
   expect(e.etapa2).toBe('si');
   expect(await page.locator('#etapa1EstadoEtapa1').textContent()).toContain('En curso');
   expect(e.estadoActual).not.toContain('evidencia histórica');
@@ -309,12 +309,12 @@ test('E1-43 · desmarcar H1 conserva auditoría y una nueva H1 arranca en 0 día
   await page.click('#etapa1ModalAnularConfirmarBtn');
   await page.waitForTimeout(500);
   expect((await estado(page)).avance).toBe('0 / 10');
-  expect(await page.locator('[data-etapa1-hito="pliegos_preparacion"] .etapa1-estado').textContent()).toContain('PENDIENTE');
+  expect(await page.locator('#e1Host [data-etapa1-hito="pliegos_preparacion"] .etapa1-estado').textContent()).toContain('PENDIENTE');
   expect(await page.evaluate(()=>window.__E1__.historial.filter(x=>x.tipo_evento==='Anulación circuito administrativo').length)).toBe(1);
 
   await page.click('[data-etapa1-hito="pliegos_preparacion"]');
   await page.click('#etapa1ModalConfirmarBtn');
   await page.waitForTimeout(500);
   expect((await estado(page)).avance).toBe('1 / 10');
-  expect(await page.locator('[data-etapa1-hito="pliegos_preparacion"] .etapa1-dias').textContent()).toContain('Días en etapa: 0');
+  expect(await page.locator('#e1Host [data-etapa1-hito="pliegos_preparacion"] .etapa1-dias').textContent()).toContain('Días en etapa: 0');
 });

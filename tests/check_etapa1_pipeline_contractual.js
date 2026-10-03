@@ -456,10 +456,10 @@ async function main() {
   // hito8Registrado != etapa1Finalizada.
   check(/const hito8Registrado = Boolean\(actaEvento\);/.test(codigo),
     'el hito 8 registrado depende de un evento REAL');
-  check(/const circuitoGestionado = \(historial \|\| \[\]\)\.some/.test(codigo),
-    'la evidencia histórica no puede pisar un circuito que ya se gestiona manualmente');
-  check(/const etapa1FinalizadaLegacy = !circuitoGestionado && evidenciaLegacyEtapa1;/.test(codigo),
-    'la finalización legacy sólo aplica si nunca se gestionó el pipeline');
+  check(/const circuitoGestionadoEtapa1 = \(historialActivo \|\| \[\]\)\.some/.test(codigo),
+    'la evidencia histórica no puede pisar H1–H8 cuando ya se gestionan manualmente');
+  check(/const etapa1FinalizadaLegacy = !circuitoGestionadoEtapa1 && evidenciaLegacyEtapa1;/.test(codigo),
+    'la finalización legacy sólo cede ante gestión real de la 1° Etapa');
   check(/const etapa1Finalizada = hito8Registrado \|\| etapa1FinalizadaLegacy;/.test(codigo),
     'el cierre visual de la 1° Etapa depende del H8 real o de legado sin pipeline');
   check(codigo.indexOf("'1° Etapa finalizada — evidencia histórica'") >= 0,
