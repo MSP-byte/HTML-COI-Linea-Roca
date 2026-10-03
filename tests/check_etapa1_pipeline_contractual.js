@@ -493,12 +493,19 @@ async function main() {
   check(/const TIPO_ANULACION_CIRCUITO = 'Anulación circuito administrativo';/.test(codigo),
     'el pipeline reconoce el evento canónico de anulación');
   check(/function historialContractualVigente\(historial\)/.test(codigo) &&
-        /idsAnulados/.test(codigo),
-    'las tarjetas y duraciones deben excluir confirmaciones anuladas');
+        /__COI_CIRCUITO_HISTORIAL_ACTIVO__/.test(codigo),
+    'pipeline y fallback deben compartir la proyección canónica de historial activo');
   check(/data-etapa1-desmarcar/.test(codigo) && /abrirModalAnular/.test(codigo),
     'todo hito activo debe ofrecer desmarcado con confirmación');
   check(html.indexOf("client.rpc('coi_anular_etapa_circuito_v1'") >= 0,
     'el desmarcado debe escribir por RPC Supabase');
+  check(/__COI_CIRCUITO_ANULACION_PROBAR__/.test(codigo) &&
+        /__COI_CIRCUITO_ANULACION_DISPONIBLE__/.test(codigo),
+    'la UI debe ocultar la acción hasta verificar que la RPC esté desplegada');
+  check(/usuarioTienePermisoEdicion/.test(codigo) && /APP_STATE\?\.editingOC/.test(codigo),
+    'desmarcar respeta permisos y la edición integral pendiente');
+  check(/historialCircuitoActivo\(historialCircuitoCache\.get\(nro\)\|\|\[\]\)/.test(html),
+    'el fallback R18 también excluye confirmaciones anuladas');
   check(!/delete\s+from\s+public\.coi_historial_oc/i.test(html),
     'el frontend nunca borra historial contractual');
 
