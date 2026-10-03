@@ -1723,3 +1723,12 @@ repaint inmediato.
 La proyección compartida de historial activo excluye también una transición
 legacy-only `Cambio de estado contractual` cuando una anulación referencia su
 UUID directamente. E1 y el fallback R18 quedan alineados.
+
+
+### TD-077 · normalización de seguridad del evento de anulación
+
+La policy restrictiva normaliza Unicode a NFC y elimina whitespace antes de
+comparar el tipo de evento autoritativo. Por lo tanto quedan bloqueadas también
+variantes equivalentes como doble espacio, tabulaciones o `Anulación` en forma
+Unicode descompuesta. La semántica del frontend y la barrera RLS no pueden
+divergir por diferencias puramente tipográficas.

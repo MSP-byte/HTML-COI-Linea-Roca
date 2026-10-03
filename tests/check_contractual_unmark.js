@@ -148,6 +148,13 @@ async function main(){
  const directoSinAcento=await fallo(()=>db.query(
    "insert into public.coi_historial_oc(orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo) values ($1,'4530999904','Anulacion circuito administrativo','pliegos_preparacion','00000000-0000-4000-8000-000000000001','PLIEGOS EN PREPARACIÓN')",[idAcl]));
  check(Boolean(directoSinAcento)&&/row-level security|policy/i.test(directoSinAcento),'la variante sin acento también debe ser rechazada por RLS');
+ const directoEspacios=await fallo(()=>db.query(
+   "insert into public.coi_historial_oc(orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo) values ($1,'4530999904','Anulación  circuito   administrativo','pliegos_preparacion','00000000-0000-4000-8000-000000000002','PLIEGOS EN PREPARACIÓN')",[idAcl]));
+ check(Boolean(directoEspacios)&&/row-level security|policy/i.test(directoEspacios),'la variante con espacios repetidos también debe ser rechazada por RLS');
+ const directoDescompuesto=await fallo(()=>db.query(
+   "insert into public.coi_historial_oc(orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo) values ($1,'4530999904',$2,'pliegos_preparacion','00000000-0000-4000-8000-000000000003','PLIEGOS EN PREPARACIÓN')",
+   [idAcl,'Anulacio\u0301n circuito administrativo']));
+ check(Boolean(directoDescompuesto)&&/row-level security|policy/i.test(directoDescompuesto),'la variante Unicode descompuesta también debe ser rechazada por RLS');
  const porRpc=await db.query("select public.coi_anular_etapa_circuito_v1($1,'pliegos_preparacion','vía RPC') r",[idAcl]);
  check(porRpc.rows[0].r.anuladas===1,'authenticated sí puede anular por la RPC controlada');
  await db.exec('reset role');

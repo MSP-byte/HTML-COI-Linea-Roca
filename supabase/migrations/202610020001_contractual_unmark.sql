@@ -7,8 +7,10 @@ drop policy if exists coi_historial_anulacion_rpc_only_v1 on public.coi_historia
 create policy coi_historial_anulacion_rpc_only_v1 on public.coi_historial_oc as restrictive
 for insert to authenticated
 with check (
-  translate(lower(btrim(tipo_evento)), 'áéíóúüñ', 'aeiouun')
-    <> 'anulacion circuito administrativo'
+  regexp_replace(
+    translate(lower(normalize(btrim(tipo_evento), NFC)), 'áéíóúüñ', 'aeiouun'),
+    '[[:space:]]+', '', 'g'
+  ) <> 'anulacioncircuitoadministrativo'
 );
 
 create or replace function public.coi_anular_etapa_circuito_v1(
