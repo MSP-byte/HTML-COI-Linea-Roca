@@ -96,15 +96,27 @@ begin
          or
          (
            h.tipo_evento = 'Cambio de estado contractual'
-           and translate(upper(trim(coalesce(h.valor_nuevo,''))),'ÁÉÍÓÚÜÑº°','AEIOUUNOO')
-             = translate(upper(trim(v_nombre)),'ÁÉÍÓÚÜÑº°','AEIOUUNOO')
+           and regexp_replace(
+                  translate(upper(normalize(trim(coalesce(h.valor_nuevo,'')), NFC)), 'ÁÉÍÓÚÜÑº°', 'AEIOUUNOO'),
+                  '[[:space:]                 　﻿]+', '', 'g'
+                )
+             = regexp_replace(
+                  translate(upper(normalize(trim(coalesce(v_nombre,'')), NFC)), 'ÁÉÍÓÚÜÑº°', 'AEIOUUNOO'),
+                  '[[:space:]                 　﻿]+', '', 'g'
+                )
            and not exists (
              select 1
                from public.coi_historial_oc c
               where c.orden_id = h.orden_id
                 and c.tipo_evento = 'Circuito administrativo'
-                and translate(upper(trim(coalesce(c.valor_nuevo,''))),'ÁÉÍÓÚÜÑº°','AEIOUUNOO')
-                  = translate(upper(trim(coalesce(h.valor_nuevo,''))),'ÁÉÍÓÚÜÑº°','AEIOUUNOO')
+                and regexp_replace(
+                  translate(upper(normalize(trim(coalesce(c.valor_nuevo,'')), NFC)), 'ÁÉÍÓÚÜÑº°', 'AEIOUUNOO'),
+                  '[[:space:]                 　﻿]+', '', 'g'
+                )
+                  = regexp_replace(
+                  translate(upper(normalize(trim(coalesce(h.valor_nuevo,'')), NFC)), 'ÁÉÍÓÚÜÑº°', 'AEIOUUNOO'),
+                  '[[:space:]                 　﻿]+', '', 'g'
+                )
                 and abs(extract(epoch from (c.fecha_evento - h.fecha_evento))) <= 5
            )
          )
@@ -169,7 +181,14 @@ begin
               and a.valor_anterior = c.id::text
             where c.orden_id = h.orden_id
               and c.tipo_evento = 'Circuito administrativo'
-              and lower(trim(coalesce(c.valor_nuevo,''))) = lower(trim(coalesce(h.valor_nuevo,'')))
+              and regexp_replace(
+                  translate(upper(normalize(trim(coalesce(c.valor_nuevo,'')), NFC)), 'ÁÉÍÓÚÜÑº°', 'AEIOUUNOO'),
+                  '[[:space:]                 　﻿]+', '', 'g'
+                )
+                = regexp_replace(
+                  translate(upper(normalize(trim(coalesce(h.valor_nuevo,'')), NFC)), 'ÁÉÍÓÚÜÑº°', 'AEIOUUNOO'),
+                  '[[:space:]                 　﻿]+', '', 'g'
+                )
               and abs(extract(epoch from (c.fecha_evento - h.fecha_evento))) <= 5
          )
        )

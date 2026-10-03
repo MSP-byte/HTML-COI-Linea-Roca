@@ -1759,3 +1759,14 @@ MEDIUM MATHEMATICAL SPACE, IDEOGRAPHIC SPACE y BOM. De este modo una variante
 visual como «Anulación circuito administrativo» no puede atravesar las policies
 permisivas y luego ser interpretada por el frontend como una anulación válida.
 El test SQL cubre cada código Unicode de ese conjunto.
+
+
+### TD-077 · espejo legacy con normalización equivalente
+
+La detección de un espejo `Cambio de estado contractual` usa una única
+semántica de equivalencia en los dos puntos críticos de la RPC: selección del
+hito a anular y reconstrucción del predecesor activo. Se normalizan NFC,
+mayúsculas, tildes/ñ, símbolos de grado y todo el conjunto de whitespace que
+también reconoce el frontend. Por lo tanto, variantes históricas como
+`PLIEGOS EN PREPARACIÓN`, `PLIEGOS EN PREPARACION` o espacios repetidos
+representan la misma transición y un espejo no puede revivir un hito anulado.

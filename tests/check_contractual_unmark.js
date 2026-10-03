@@ -114,6 +114,23 @@ async function main(){
  const legacyOnlyState=await db.query("select estado_documental from public.coi_ordenes where id=$1",[idLegacyOnly]);
  check(legacyOnlyState.rows[0].estado_documental===null,'el legacy-only desmarcado deja de gobernar el snapshot');
 
+ // B3 · espejo legacy normalizado: una fila histórica equivalente por acentos,
+ // grado o whitespace NO puede revivir el hito que acaba de anularse.
+ const idMirror=await nuevaOC(db,'4530999907');
+ await db.query(
+   `insert into public.coi_historial_oc(
+      orden_id,nro_oc,tipo_evento,campo_modificado,valor_nuevo,motivo,fecha_evento,fecha_efectiva
+    ) values
+      ($1,'4530999907','Circuito administrativo','pliegos_preparacion',
+       'PLIEGOS EN PREPARACIÓN','canónica',clock_timestamp(),'2026-09-24'),
+      ($1,'4530999907','Cambio de estado contractual','estado_documental',
+       'PLIEGOS  EN PREPARACION','espejo legacy sin acento',clock_timestamp(),'2026-09-24')`,[idMirror]);
+ const mirrorRes=(await anular(idMirror,'pliegos_preparacion')).rows[0].r;
+ check(mirrorRes.anuladas===1,'el espejo legacy equivalente no se anula dos veces');
+ const mirrorState=await db.query("select estado_documental,estado_coi from public.coi_ordenes where id=$1",[idMirror]);
+ check(mirrorState.rows[0].estado_documental===null&&mirrorState.rows[0].estado_coi==='Pendiente de completar',
+   'el espejo legacy normalizado no puede restaurar un hito anulado');
+
  // C · cierre operativo inmutable: desmarcar no reabre ni rompe el guard H10.
  const idClosed=await nuevaOC(db,'4530999903',true);
  await db.query(
