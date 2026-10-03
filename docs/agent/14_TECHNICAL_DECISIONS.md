@@ -1770,3 +1770,19 @@ mayúsculas, tildes/ñ, símbolos de grado y todo el conjunto de whitespace que
 también reconoce el frontend. Por lo tanto, variantes históricas como
 `PLIEGOS EN PREPARACIÓN`, `PLIEGOS EN PREPARACION` o espacios repetidos
 representan la misma transición y un espejo no puede revivir un hito anulado.
+
+
+### TD-077 · procedencia de Fecha de Acta y equivalencia Unicode completa
+
+La confirmación H8 que encuentra `fecha_acta_inicio = NULL` deja una marca
+append-only `Conciliación Acta de Inicio / registrada_por_hito_8`. Al
+desmarcar H8, la RPC sólo limpia la fecha cuando el valor actual coincide con
+esa marca y no existe una conciliación posterior. Fechas preexistentes, legacy
+o editadas después se preservan. La reversión también deja su propio evento
+`revertida_por_anulacion_hito_8` y queda reflejada en la auditoría de la RPC.
+
+La policy RESTRICTIVE normaliza el tipo de evento a NFD y elimina todo el rango
+Unicode U+0300–U+036F antes de comparar, además del conjunto de whitespace ya
+cubierto. Esto alinea la barrera SQL con la normalización del frontend y evita
+variantes visualmente equivalentes que intenten fabricar anulaciones fuera del
+writer controlado.

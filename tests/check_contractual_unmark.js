@@ -172,6 +172,11 @@ async function main(){
    "insert into public.coi_historial_oc(orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo) values ($1,'4530999904',$2,'pliegos_preparacion','00000000-0000-4000-8000-000000000003','PLIEGOS EN PREPARACIÓN')",
    [idAcl,'Anulacio\u0301n circuito administrativo']));
  check(Boolean(directoDescompuesto)&&/row-level security|policy/i.test(directoDescompuesto),'la variante Unicode descompuesta también debe ser rechazada por RLS');
+ const directoCombiningIgnorable=await fallo(()=>db.query(
+   "insert into public.coi_historial_oc(orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo) values ($1,'4530999904',$2,'pliegos_preparacion','00000000-0000-4000-8000-000000000004','PLIEGOS EN PREPARACIÓN')",
+   [idAcl,'Anulacio\u034Fn circuito administrativo']));
+ check(Boolean(directoCombiningIgnorable)&&/row-level security|policy/i.test(directoCombiningIgnorable),
+   'U+034F dentro del tipo de anulación también debe ser rechazado por RLS');
  const espaciosUnicode=[
    '\u00A0','\u1680','\u2000','\u2001','\u2002','\u2003','\u2004','\u2005','\u2006','\u2007',
    '\u2008','\u2009','\u200A','\u2028','\u2029','\u202F','\u205F','\u3000','\uFEFF'
@@ -199,6 +204,45 @@ async function main(){
  await anular(idGate,'control_terceros_con_acta');
  const gateError=await fallo(()=>confirmar(idGate,'ejecucion'));
  check(Boolean(gateError)&&/COI_ACTA_INICIO_REQUIRED/.test(gateError),'H8 anulado sin fecha de Acta no habilita H9');
+
+ // G · si v3 creó la fecha de Acta exclusivamente al confirmar H8, desmarcar H8
+ // revierte esa fecha y el gate vuelve a quedar cerrado.
+ const idActaDerivada=await nuevaOC(db,'4530999908');
+ await confirmar(idActaDerivada,'control_terceros_con_acta');
+ const actaCreada=await db.query(
+   "select fecha_acta_inicio from public.coi_ordenes where id=$1",[idActaDerivada]);
+ check(String(actaCreada.rows[0].fecha_acta_inicio).slice(0,10)===H,'H8 crea la fecha de Acta cuando estaba vacía');
+ const marker=await db.query(
+   "select count(*)::int n from public.coi_historial_oc where orden_id=$1 and tipo_evento='Conciliación Acta de Inicio' and motivo='registrada_por_hito_8'",[idActaDerivada]);
+ check(marker.rows[0].n===1,'la fecha creada por H8 queda marcada con procedencia auditable');
+ const unmarkActa=(await anular(idActaDerivada,'control_terceros_con_acta')).rows[0].r;
+ check(unmarkActa.orden.fecha_acta_inicio===null,'desmarcar H8 revierte la fecha que H8 había creado');
+ const gateDerivado=await fallo(()=>confirmar(idActaDerivada,'ejecucion'));
+ check(Boolean(gateDerivado)&&/COI_ACTA_INICIO_REQUIRED/.test(gateDerivado),'la fecha derivada anulada no sigue habilitando H9');
+
+ // H · una fecha existente antes de H8 no pertenece al hito y nunca se borra.
+ const idActaPrevia=await nuevaOC(db,'4530999909');
+ await db.query("update public.coi_ordenes set fecha_acta_inicio='2026-09-01' where id=$1",[idActaPrevia]);
+ await db.query(
+   "select public.coi_confirmar_etapa_circuito_v3($1,'control_terceros_con_acta',null,'2026-09-01'::date) r",[idActaPrevia]);
+ await anular(idActaPrevia,'control_terceros_con_acta');
+ const actaPrevia=await db.query("select fecha_acta_inicio from public.coi_ordenes where id=$1",[idActaPrevia]);
+ check(String(actaPrevia.rows[0].fecha_acta_inicio).slice(0,10)==='2026-09-01','desmarcar H8 preserva una fecha de Acta preexistente');
+
+ // I · si la fecha derivada fue modificada después, la edición posterior gana.
+ const idActaEditada=await nuevaOC(db,'4530999910');
+ await confirmar(idActaEditada,'control_terceros_con_acta');
+ await db.query(
+   `insert into public.coi_historial_oc(
+      orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,motivo,fecha_efectiva
+    ) values (
+      $1,'4530999910','Conciliación Acta de Inicio','fecha_acta_inicio',$2,'2026-09-30',
+      'edicion_posterior_independiente','2026-09-30'
+    )`,[idActaEditada,H]);
+ await db.query("update public.coi_ordenes set fecha_acta_inicio='2026-09-30' where id=$1",[idActaEditada]);
+ await anular(idActaEditada,'control_terceros_con_acta');
+ const actaEditada=await db.query("select fecha_acta_inicio from public.coi_ordenes where id=$1",[idActaEditada]);
+ check(String(actaEditada.rows[0].fecha_acta_inicio).slice(0,10)==='2026-09-30','una edición posterior de la fecha de Acta se preserva');
 
  const acl=await db.query(`
    select coalesce(has_function_privilege('authenticated',p.oid,'EXECUTE'),false) auth_exec,

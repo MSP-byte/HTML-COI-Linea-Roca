@@ -8,7 +8,12 @@ create policy coi_historial_anulacion_rpc_only_v1 on public.coi_historial_oc as 
 for insert to authenticated
 with check (
   regexp_replace(
-    translate(lower(normalize(btrim(tipo_evento), NFC)), 'áéíóúüñ', 'aeiouun'),
+    lower(
+      regexp_replace(
+        normalize(btrim(tipo_evento), NFD),
+        '[̀-ͯ]', '', 'g'
+      )
+    ),
     '[[:space:]                 　﻿]+', '', 'g'
   ) <> 'anulacioncircuitoadministrativo'
 );
@@ -30,12 +35,15 @@ declare
   v_target public.coi_historial_oc%rowtype;
   v_prev public.coi_historial_oc%rowtype;
   v_event public.coi_historial_oc%rowtype;
+  v_acta_marker public.coi_historial_oc%rowtype;
+  v_acta_event public.coi_historial_oc%rowtype;
   v_codigo text := lower(trim(coalesce(p_codigo, '')));
   v_nombre text;
   v_hoy date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
   v_historial jsonb := '[]'::jsonb;
   v_anuladas integer := 0;
   v_cerrada boolean := false;
+  v_acta_revertida boolean := false;
 begin
   v_role := public.coi_assert_role(array[
     'administrador','jefatura','editor','planificacion','control','supervisor'
@@ -146,6 +154,48 @@ begin
     );
   end if;
 
+  -- H8 puede haber creado fecha_acta_inicio al confirmar una OC que no tenía
+  -- Acta. Si el operador desmarca ESE H8, se revierte sólo esa fecha derivada.
+  -- Una fecha preexistente/legacy o una conciliación posterior se preserva.
+  if v_codigo='control_terceros_con_acta' and v_order.fecha_acta_inicio is not null then
+    select h.* into v_acta_marker
+      from public.coi_historial_oc h
+     where h.orden_id=p_orden_id
+       and h.tipo_evento='Conciliación Acta de Inicio'
+       and h.campo_modificado='fecha_acta_inicio'
+       and h.motivo='registrada_por_hito_8'
+       and h.valor_anterior is null
+       and h.valor_nuevo=v_order.fecha_acta_inicio::text
+     order by h.fecha_evento desc,h.id desc
+     limit 1;
+
+    if found and not exists (
+      select 1
+        from public.coi_historial_oc x
+       where x.orden_id=p_orden_id
+         and x.tipo_evento='Conciliación Acta de Inicio'
+         and x.campo_modificado='fecha_acta_inicio'
+         and (x.fecha_evento,x.id)>(v_acta_marker.fecha_evento,v_acta_marker.id)
+    ) then
+      update public.coi_ordenes
+         set fecha_acta_inicio=null
+       where id=p_orden_id;
+
+      insert into public.coi_historial_oc(
+        orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,
+        motivo,usuario_email,creado_por,fecha_efectiva
+      ) values (
+        p_orden_id,v_order.nro_oc,'Conciliación Acta de Inicio','fecha_acta_inicio',
+        v_order.fecha_acta_inicio::text,null,'revertida_por_anulacion_hito_8',
+        nullif(auth.jwt()->>'email',''),auth.uid(),v_hoy
+      )
+      returning * into v_acta_event;
+
+      v_historial:=v_historial||jsonb_build_array(to_jsonb(v_acta_event));
+      v_acta_revertida:=true;
+    end if;
+  end if;
+
   -- Última transición contractual activa: canónica o legacy.
   -- Un espejo legacy asociado a una canónica anulada tampoco puede revivirla.
   select h.* into v_prev
@@ -219,7 +269,8 @@ begin
       'anuladas',v_anuladas,
       'motivo',nullif(trim(coalesce(p_motivo,'')),''),
       'estado_restaurado',v_after.estado_documental,
-      'estado_operativo_preservado',v_cerrada
+      'estado_operativo_preservado',v_cerrada,
+      'fecha_acta_inicio_revertida',v_acta_revertida
     )
   );
 
@@ -471,6 +522,19 @@ begin
       v_result := jsonb_set(
         v_result,'{acta_inicio}',
         jsonb_build_object('estado','registrada','valor',v_fecha,'valor_confirmacion',v_fecha),true
+      );
+
+      insert into public.coi_historial_oc(
+        orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,
+        motivo,usuario_email,creado_por,fecha_efectiva
+      ) values (
+        p_orden_id,v_order.nro_oc,'Conciliación Acta de Inicio','fecha_acta_inicio',
+        null,v_fecha::text,'registrada_por_hito_8',
+        nullif(auth.jwt()->>'email',''),auth.uid(),v_fecha
+      ) returning * into v_conflicto;
+      v_result:=jsonb_set(
+        v_result,'{historial}',
+        coalesce(v_result->'historial','[]'::jsonb)||jsonb_build_array(to_jsonb(v_conflicto)),true
       );
 
       select * into v_after from public.coi_ordenes where id=p_orden_id;
