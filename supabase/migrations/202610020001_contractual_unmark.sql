@@ -1,4 +1,14 @@
+-- COI Línea Roca · desmarcado contractual auditable
+-- Rollback operativo documentado en docs/agent/ROLLBACK_202610020001_contractual_unmark.md.
+-- La migración es aditiva: no borra historial ni modifica filas existentes.
 begin;
+
+drop policy if exists coi_historial_anulacion_rpc_only_v1 on public.coi_historial_oc;
+create policy coi_historial_anulacion_rpc_only_v1 on public.coi_historial_oc as restrictive
+for insert to authenticated
+with check (
+  lower(btrim(tipo_evento)) <> 'anulación circuito administrativo'
+);
 
 create or replace function public.coi_anular_etapa_circuito_v1(
   p_orden_id uuid,
@@ -22,6 +32,7 @@ declare
   v_hoy date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
   v_historial jsonb := '[]'::jsonb;
   v_anuladas integer := 0;
+  v_cerrada boolean := false;
 begin
   v_role := public.coi_assert_role(array[
     'administrador','jefatura','editor','planificacion','control','supervisor'
@@ -61,6 +72,7 @@ begin
   if not found then
     raise exception using errcode='P0002', message='COI_ORDER_NOT_FOUND';
   end if;
+  v_cerrada := lower(trim(coalesce(v_order.estado_coi,''))) = 'cerrada';
 
   for v_target in
     select h.*
@@ -100,23 +112,49 @@ begin
     );
   end if;
 
+  -- Última transición contractual activa: canónica o legacy.
+  -- Un espejo legacy asociado a una canónica anulada tampoco puede revivirla.
   select h.* into v_prev
     from public.coi_historial_oc h
    where h.orden_id = p_orden_id
-     and h.tipo_evento = 'Circuito administrativo'
-     and not exists (
-       select 1
-         from public.coi_historial_oc a
-        where a.orden_id = p_orden_id
-          and a.tipo_evento = 'Anulación circuito administrativo'
-          and a.valor_anterior = h.id::text
+     and (
+       (
+         h.tipo_evento = 'Circuito administrativo'
+         and not exists (
+           select 1
+             from public.coi_historial_oc a
+            where a.orden_id = p_orden_id
+              and a.tipo_evento = 'Anulación circuito administrativo'
+              and a.valor_anterior = h.id::text
+         )
+       )
+       or
+       (
+         h.tipo_evento = 'Cambio de estado contractual'
+         and not exists (
+           select 1
+             from public.coi_historial_oc c
+             join public.coi_historial_oc a
+               on a.orden_id = c.orden_id
+              and a.tipo_evento = 'Anulación circuito administrativo'
+              and a.valor_anterior = c.id::text
+            where c.orden_id = h.orden_id
+              and c.tipo_evento = 'Circuito administrativo'
+              and lower(trim(coalesce(c.valor_nuevo,''))) = lower(trim(coalesce(h.valor_nuevo,'')))
+              and abs(extract(epoch from (c.fecha_evento - h.fecha_evento))) <= 5
+         )
+       )
      )
    order by h.fecha_evento desc, h.id desc
    limit 1;
 
   update public.coi_ordenes
      set estado_documental = case when v_prev.id is null then null else v_prev.valor_nuevo end,
-         estado_coi = case when v_prev.id is null then 'Pendiente de completar' else v_prev.valor_nuevo end,
+         estado_coi = case
+           when v_cerrada then v_order.estado_coi
+           when v_prev.id is null then 'Pendiente de completar'
+           else v_prev.valor_nuevo
+         end,
          fecha_ultimo_control = clock_timestamp()
    where id = p_orden_id
    returning * into v_after;
@@ -132,7 +170,8 @@ begin
       'codigo',v_codigo,
       'anuladas',v_anuladas,
       'motivo',nullif(trim(coalesce(p_motivo,'')),''),
-      'estado_restaurado',v_after.estado_documental
+      'estado_restaurado',v_after.estado_documental,
+      'estado_operativo_preservado',v_cerrada
     )
   );
 
@@ -147,6 +186,6 @@ revoke all on function public.coi_anular_etapa_circuito_v1(uuid,text,text) from 
 grant execute on function public.coi_anular_etapa_circuito_v1(uuid,text,text) to authenticated;
 
 comment on function public.coi_anular_etapa_circuito_v1(uuid,text,text) is
-  'Desmarca de forma auditable todos los ingresos activos de un hito contractual sin borrar historial; restaura el último estado contractual activo.';
+  'Desmarca de forma auditable todos los ingresos activos de un hito contractual, restaura el último estado contractual activo y preserva el cierre operativo inmutable.';
 
 commit;
