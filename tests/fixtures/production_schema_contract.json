@@ -18,7 +18,7 @@
         ],
         "permissive": false,
         "using": null,
-        "with_check": "(regexp_replace(translate(lower(normalize(btrim(tipo_evento), NFC)), 'áéíóúüñ'::text, 'aeiouun'::text, '[[:space:]]+'::text, ''::text, 'g'::text) <> 'anulacioncircuitoadministrativo'::text)",
+        "with_check": "(regexp_replace(translate(lower(normalize(btrim(tipo_evento), NFC)), 'áéíóúüñ'::text, 'aeiouun'::text, '[[:space:]                 　﻿]+'::text, ''::text, 'g'::text) <> 'anulacioncircuitoadministrativo'::text)",
         "produccion": "ausente",
         "repo": "presente",
         "migracion": "202610020001_contractual_unmark.sql"

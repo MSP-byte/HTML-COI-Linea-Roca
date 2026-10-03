@@ -9,7 +9,7 @@ for insert to authenticated
 with check (
   regexp_replace(
     translate(lower(normalize(btrim(tipo_evento), NFC)), 'áéíóúüñ', 'aeiouun'),
-    '[[:space:]]+', '', 'g'
+    '[[:space:]                 　﻿]+', '', 'g'
   ) <> 'anulacioncircuitoadministrativo'
 );
 

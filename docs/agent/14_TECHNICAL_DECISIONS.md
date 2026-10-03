@@ -1748,3 +1748,14 @@ una vista oculta y la Ficha activa). Se reemplazan todas las instancias cuyo
 N° OC e identidad coinciden, sin tocar representaciones de otras OCs. Así una
 confirmación/desmarcado no deja una tarjeta stale aunque haya dos hosts
 transitorios durante navegación o pruebas.
+
+
+### TD-077 · whitespace Unicode en el guard de anulación
+
+La policy RESTRICTIVE que reserva las anulaciones para la RPC normaliza el mismo
+conjunto de whitespace que JavaScript reconoce con `\s`: ASCII/POSIX más
+NBSP, OGHAM SPACE MARK, U+2000–U+200A, LINE/PARAGRAPH SEPARATOR, NARROW NBSP,
+MEDIUM MATHEMATICAL SPACE, IDEOGRAPHIC SPACE y BOM. De este modo una variante
+visual como «Anulación circuito administrativo» no puede atravesar las policies
+permisivas y luego ser interpretada por el frontend como una anulación válida.
+El test SQL cubre cada código Unicode de ese conjunto.
