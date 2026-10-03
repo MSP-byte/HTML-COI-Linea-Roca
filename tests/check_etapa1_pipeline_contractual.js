@@ -502,6 +502,11 @@ async function main() {
   check(/__COI_CIRCUITO_ANULACION_PROBAR__/.test(codigo) &&
         /__COI_CIRCUITO_ANULACION_DISPONIBLE__/.test(codigo),
     'la UI debe ocultar la acción hasta verificar que la RPC esté desplegada');
+  check(/function descubrirRPCAnulacionSinMutar\(client\)/.test(html) &&
+        /application\/openapi\+json/.test(html),
+    'la capacidad de desmarcado se descubre por lectura OpenAPI');
+  check(html.indexOf('__COI_CAPABILITY_PROBE__') < 0,
+    'verificar disponibilidad nunca puede ejecutar la RPC de desmarcado como probe');
   check(/usuarioTienePermisoEdicion/.test(codigo) && /APP_STATE\?\.editingOC/.test(codigo),
     'desmarcar respeta permisos y la edición integral pendiente');
   check(/historialCircuitoActivo\(historialCircuitoCache\.get\(nro\)\|\|\[\]\)/.test(html),

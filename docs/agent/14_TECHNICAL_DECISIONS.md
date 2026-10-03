@@ -1706,3 +1706,20 @@ Además, `coi_confirmar_etapa_circuito_v3` se redefine en la migración de
 desmarcado para que `v_seen`, la edición idempotente y el gate de H8 sólo
 consideren confirmaciones canónicas activas. Un H8 anulado sin
 `fecha_acta_inicio` ya no habilita H9/H10 por llamada directa.
+
+
+### TD-077 · cierre de Gate 2026-10-03
+
+La detección de disponibilidad de `coi_anular_etapa_circuito_v1` pasa a ser
+**read-only**: se consulta el OpenAPI de PostgREST y nunca se invoca el writer
+con parámetros ficticios. Así, abrir o cancelar una edición contractual no
+genera ninguna llamada de escritura.
+
+La duración del estado abierto se deriva del último segmento contractual real,
+no de que el snapshot de `coi_ordenes` ya haya terminado de reconciliarse. Una
+confirmación con `fecha_efectiva = hoy` muestra **0 días** incluso durante el
+repaint inmediato.
+
+La proyección compartida de historial activo excluye también una transición
+legacy-only `Cambio de estado contractual` cuando una anulación referencia su
+UUID directamente. E1 y el fallback R18 quedan alineados.

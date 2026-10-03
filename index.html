@@ -20489,13 +20489,40 @@ async function actualizarEstadoDocumentalDesdePasoContractual(ocNro,paso,options
 
 let estadoAnulacionCircuitoRPC='desconocido';
 let promesaAnulacionCircuitoRPC=null;
-function errorRPCAnulacionAusente(error){
-  const code=clean(error?.code).toUpperCase();
-  const message=clean(error?.message||error?.details||error?.hint||error);
-  return code==='PGRST202'||/could not find[^\n]*coi_anular_etapa_circuito_v1/i.test(message)||
-    /coi_anular_etapa_circuito_v1[^\n]*(does not exist|schema cache)/i.test(message);
-}
 function anulacionCircuitoDisponible(){return estadoAnulacionCircuitoRPC==='disponible';}
+async function descubrirRPCAnulacionSinMutar(client){
+  const nombre='coi_anular_etapa_circuito_v1';
+  // Hook de transporte: útil para clientes embebidos/tests y, sobre todo,
+  // permite resolver capacidad sin ejecutar el writer.
+  if(client&&typeof client.__coiHasRpc==='function'){
+    const disponible=await client.__coiHasRpc(nombre);
+    return disponible===true?true:disponible===false?false:null;
+  }
+  const cfg=window.__COI_SUPABASE_CONFIG__||window.SUPABASE_CONFIG||{};
+  if(!cfg.url||!cfg.key||typeof fetch!=='function')return null;
+  let token=cfg.key;
+  try{
+    const sesion=await client?.auth?.getSession?.();
+    token=sesion?.data?.session?.access_token||token;
+  }catch(e){}
+  try{
+    const response=await fetch(String(cfg.url).replace(/\/$/,'')+'/rest/v1/',{
+      method:'GET',
+      headers:{
+        apikey:cfg.key,
+        Authorization:'Bearer '+token,
+        Accept:'application/openapi+json'
+      },
+      cache:'no-store'
+    });
+    if(!response.ok)return null;
+    const schema=await response.json();
+    const paths=schema&&schema.paths&&typeof schema.paths==='object'?schema.paths:{};
+    return Boolean(paths['/rpc/'+nombre]);
+  }catch(error){
+    return null;
+  }
+}
 async function probarDisponibilidadAnulacionCircuito(){
   if(anulacionCircuitoDisponible())return true;
   if(estadoAnulacionCircuitoRPC==='ausente')return false;
@@ -20505,12 +20532,12 @@ async function probarDisponibilidadAnulacionCircuito(){
   if(!client)return false;
   promesaAnulacionCircuitoRPC=(async()=>{
     try{
-      const result=await client.rpc('coi_anular_etapa_circuito_v1',{
-        p_orden_id:null,p_codigo:'pliegos_preparacion',p_motivo:'__COI_CAPABILITY_PROBE__'
-      });
-      estadoAnulacionCircuitoRPC=result?.error&&errorRPCAnulacionAusente(result.error)?'ausente':'disponible';
+      const disponible=await descubrirRPCAnulacionSinMutar(client);
+      if(disponible===true)estadoAnulacionCircuitoRPC='disponible';
+      else if(disponible===false)estadoAnulacionCircuitoRPC='ausente';
+      else estadoAnulacionCircuitoRPC='desconocido';
     }catch(error){
-      estadoAnulacionCircuitoRPC=errorRPCAnulacionAusente(error)?'ausente':'desconocido';
+      estadoAnulacionCircuitoRPC='desconocido';
     }finally{promesaAnulacionCircuitoRPC=null;}
     return anulacionCircuitoDisponible();
   })();
@@ -20584,8 +20611,13 @@ function historialCircuitoActivo(historial=[]){
     return porValor?.codigo||'';
   };
   return lista.filter(ev=>{
-    if(esEventoConfirmacionCircuito(ev)&&idsAnulados.has(clean(ev?.id)))return false;
-    if(tipoNorm(ev?.tipo_evento)==='CAMBIO DE ESTADO CONTRACTUAL'){
+    const idEvento=clean(ev?.id);
+    const tipoEvento=tipoNorm(ev?.tipo_evento);
+    if(idsAnulados.has(idEvento)&&(
+      esEventoConfirmacionCircuito(ev)||
+      tipoEvento==='CAMBIO DE ESTADO CONTRACTUAL'
+    ))return false;
+    if(tipoEvento==='CAMBIO DE ESTADO CONTRACTUAL'){
       const codigo=codigoEvento(ev);
       const espejoAnulado=canonicasAnuladas.some(c=>codigoEvento(c)===codigo&&Math.abs(ms(c)-ms(ev))<=5000);
       if(espejoAnulado)return false;
@@ -35459,8 +35491,14 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
        - hito sin transicion (salteado): null -> «—».
      El mismo historial produce siempre el mismo numero. */
   function diasDeCodigo(estado, codigo) {
+    const segmentosCodigo=(estado.segmentos||[]).filter((s)=>s.codigo===codigo);
+    const abierto=segmentosCodigo.slice().reverse().find((s)=>s.abierto);
+    // La última transición real abre el estado aunque el snapshot de
+    // coi_ordenes todavía esté stale durante el repaint inmediato. La fecha
+    // efectiva del segmento manda: si empezó hoy, el resultado es 0.
+    if(abierto)return diasEntre(abierto.desde,null);
     if (estado.etapaEstado && estado.etapaEstado.codigo === codigo && estado.entradaVigente) return estado.diasVigente;
-    const propios = (estado.segmentos || []).filter((s) => s.codigo === codigo && !s.abierto && s.dias != null);
+    const propios = segmentosCodigo.filter((s) => !s.abierto && s.dias != null);
     if (!propios.length) return null;
     return propios.reduce((total, s) => total + s.dias, 0);
   }
