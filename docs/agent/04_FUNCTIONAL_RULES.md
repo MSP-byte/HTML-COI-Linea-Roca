@@ -180,10 +180,19 @@ para que la tarjeta vuelva realmente a PENDIENTE; las confirmaciones originales
 quedan disponibles para auditoría.
 
 Al desmarcar el estado vigente, `estado_documental` vuelve a la última
-transición contractual que siga activa. Si no queda ninguna, queda sin estado
-documental y el estado visible vuelve a `Pendiente de completar`. Volver a
-confirmar el hito crea un nuevo ingreso con su propia `fecha_efectiva`; si se
-confirma hoy, **Días en etapa = 0**.
+transición contractual que siga activa, incluyendo trazas legacy
+`Cambio de estado contractual` cuando no existe la confirmación canónica. Si
+no queda ninguna, queda sin estado documental y —salvo que la OC esté cerrada—
+el estado visible vuelve a `Pendiente de completar`. Una OC con
+`estado_coi = 'Cerrada'` conserva ese cierre operativo inmutable: desmarcar
+jamás la reabre. Volver a confirmar el hito crea un nuevo ingreso con su propia
+`fecha_efectiva`; si se confirma hoy, **Días en etapa = 0**.
+
+La acción **DESMARCAR HITO** se muestra sólo a roles con permiso de edición,
+fuera del modo de edición integral y únicamente después de verificar en runtime
+que la RPC `coi_anular_etapa_circuito_v1` existe en el schema remoto. Esto
+permite un despliegue schema-first: si GitHub Pages se actualizara antes que
+Supabase, la acción queda oculta en lugar de ofrecer un botón roto.
 
 Una Fecha de Acta de Inicio histórica sigue habilitando la 2° Etapa como
 evidencia contractual, pero ya no fuerza visualmente «1° Etapa finalizada» si
