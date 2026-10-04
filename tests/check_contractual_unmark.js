@@ -260,7 +260,7 @@ async function main(){
  const idActaEditada=await nuevaOC(db,'4530999910');
  await confirmar(idActaEditada,'control_terceros_con_acta');
  await db.query(
-   "select public.coi_actualizar_orden_integral($1,jsonb_build_object('fecha_acta_inicio',$2)) r",
+   "select public.coi_actualizar_orden_integral($1,jsonb_build_object('fecha_acta_inicio',$2::text)) r",
    [idActaEditada,X]);
  await anular(idActaEditada,'control_terceros_con_acta');
  const actaEditada=await db.query(
@@ -274,10 +274,10 @@ async function main(){
  const idActaRatificada=await nuevaOC(db,'4530999912');
  await confirmar(idActaRatificada,'control_terceros_con_acta');
  await db.query(
-   "select public.coi_actualizar_orden_integral($1,jsonb_build_object('fecha_acta_inicio',$2)) r",
+   "select public.coi_actualizar_orden_integral($1,jsonb_build_object('fecha_acta_inicio',$2::text)) r",
    [idActaRatificada,X]);
  await db.query(
-   "select public.coi_actualizar_orden_integral($1,jsonb_build_object('fecha_acta_inicio',$2)) r",
+   "select public.coi_actualizar_orden_integral($1,jsonb_build_object('fecha_acta_inicio',$2::text)) r",
    [idActaRatificada,H]);
  const auditoriasActa=await db.query(
    `select count(*)::int n
