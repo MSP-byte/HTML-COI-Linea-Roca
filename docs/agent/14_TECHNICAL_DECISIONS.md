@@ -1638,3 +1638,188 @@ Decisión.
 Backend. No se tocó. `coi_confirmar_etapa_circuito_v3` ya es idempotente para
 la reconfirmación del estado vigente y crea filas nuevas para los reingresos: la
 causa raíz era del frontend.
+
+
+## TD-077 — Desmarcado contractual auditable y evidencia legacy no dominante
+
+Fecha: 2026-10-02.
+
+Contexto. Un hito confirmado por error no podía volver a PENDIENTE. Reconfirmar
+H1 era idempotente, por lo que una confirmación histórica del 24/09 seguía
+gobernando la fecha y el 02/10 mostraba 8 días aun cuando el operador intentara
+reiniciar el seguimiento desde otra PC. Además, una `fecha_acta_inicio`
+histórica podía rotular toda la 1° Etapa como finalizada aunque ya existieran
+hitos manuales nuevos.
+
+Decisión.
+- Se agrega `coi_anular_etapa_circuito_v1`: no hace DELETE; registra
+  `Anulación circuito administrativo` por cada ingreso activo del hito.
+- El evento de anulación referencia por UUID a la confirmación anulada mediante
+  `valor_anterior`. El historial original permanece append-only.
+- El frontend deriva un «historial contractual activo» excluyendo confirmaciones
+  anuladas y sus filas espejo `Cambio de estado contractual`.
+- Desmarcar un hito con varios reingresos anula todos sus ingresos activos para
+  que la tarjeta vuelva a PENDIENTE de forma inequívoca.
+- Si se desmarca el estado vigente, el snapshot vuelve a la última transición
+  aún activa; si no queda ninguna, `estado_documental = NULL` y
+  `estado_coi = 'Pendiente de completar'`.
+- Reconfirmar después del desmarcado crea un ingreso nuevo. Su duración parte de
+  su `fecha_efectiva`; una confirmación del día muestra 0 días.
+- `fecha_acta_inicio` legacy conserva el gate de la 2° Etapa, pero sólo
+  rotula «finalizada por evidencia histórica» cuando nunca se gestionó el
+  pipeline manual.
+
+Integridad: Supabase sigue siendo la única autoridad; no se agrega tabla ni
+estado local, y el desmarcado queda auditado en `coi_historial_oc` y
+`coi_operaciones_auditoria`.
+
+
+### Hardening posterior de TD-077 — review PR #115
+
+El review del PR #115 endureció la decisión original sin cambiar su semántica:
+
+- `estado_coi = 'Cerrada'` se preserva al anular; sólo retrocede
+  `estado_documental`.
+- La restauración admite una traza legacy `Cambio de estado contractual` si es
+  la última transición activa.
+- El fallback R18 y el pipeline E1 comparten la misma proyección de historial
+  activo; una confirmación anulada no reaparece por compatibilidad legacy.
+- Una policy RESTRICTIVE bloquea INSERT directo de
+  `Anulación circuito administrativo`; sólo la RPC SECURITY DEFINER puede
+  producir esos eventos con snapshot y auditoría coherentes.
+- La UI aplica schema-first runtime: permisos + ausencia de edición integral +
+  prueba de disponibilidad de RPC antes de renderizar DESMARCAR.
+- La divergencia repo/PRODUCCIÓN queda declarada en
+  `tests/fixtures/production_schema_contract.json` hasta desplegar
+  `202610020001_contractual_unmark.sql`.
+- Rollback: ver `docs/agent/ROLLBACK_202610020001_contractual_unmark.md`.
+
+
+### TD-077 · segundo hardening de revisión
+
+Las anulaciones pueden referenciar una confirmación canónica o una transición
+legacy-only `Cambio de estado contractual`. Una fila legacy que es espejo de
+una canónica no se duplica como objetivo. La policy INSERT normaliza diacríticos
+y permanece instalada durante un rollback de la RPC.
+
+Además, `coi_confirmar_etapa_circuito_v3` se redefine en la migración de
+desmarcado para que `v_seen`, la edición idempotente y el gate de H8 sólo
+consideren confirmaciones canónicas activas. Un H8 anulado sin
+`fecha_acta_inicio` ya no habilita H9/H10 por llamada directa.
+
+
+### TD-077 · cierre de Gate 2026-10-03
+
+La detección de disponibilidad de `coi_anular_etapa_circuito_v1` pasa a ser
+**read-only**: se consulta el OpenAPI de PostgREST y nunca se invoca el writer
+con parámetros ficticios. Así, abrir o cancelar una edición contractual no
+genera ninguna llamada de escritura.
+
+La duración del estado abierto se deriva del último segmento contractual real,
+no de que el snapshot de `coi_ordenes` ya haya terminado de reconciliarse. Una
+confirmación con `fecha_efectiva = hoy` muestra **0 días** incluso durante el
+repaint inmediato.
+
+La proyección compartida de historial activo excluye también una transición
+legacy-only `Cambio de estado contractual` cuando una anulación referencia su
+UUID directamente. E1 y el fallback R18 quedan alineados.
+
+
+### TD-077 · normalización de seguridad del evento de anulación
+
+La policy restrictiva normaliza Unicode a NFC y elimina whitespace antes de
+comparar el tipo de evento autoritativo. Por lo tanto quedan bloqueadas también
+variantes equivalentes como doble espacio, tabulaciones o `Anulación` en forma
+Unicode descompuesta. La semántica del frontend y la barrera RLS no pueden
+divergir por diferencias puramente tipográficas.
+
+
+### TD-077 · duración vigente y repintado multihost
+
+La duración abierta deja de inferirse por la mera existencia del último
+segmento cronológico. Sólo el **estado contractual vigente** puede acumular
+`hoy - fecha_efectiva`. Esto evita que una carga retrospectiva o una fecha
+invertida conviertan un hito viejo en un falso estado abierto. Para el hito
+vigente confirmado hoy, el resultado sigue siendo exactamente **0 días**.
+
+El repintado del pipeline ya no depende de `getElementById` cuando el DOM
+mantiene temporalmente más de una representación de la misma OC (por ejemplo,
+una vista oculta y la Ficha activa). Se reemplazan todas las instancias cuyo
+N° OC e identidad coinciden, sin tocar representaciones de otras OCs. Así una
+confirmación/desmarcado no deja una tarjeta stale aunque haya dos hosts
+transitorios durante navegación o pruebas.
+
+
+### TD-077 · whitespace Unicode en el guard de anulación
+
+La policy RESTRICTIVE que reserva las anulaciones para la RPC normaliza el mismo
+conjunto de whitespace que JavaScript reconoce con `\s`: ASCII/POSIX más
+NBSP, OGHAM SPACE MARK, U+2000–U+200A, LINE/PARAGRAPH SEPARATOR, NARROW NBSP,
+MEDIUM MATHEMATICAL SPACE, IDEOGRAPHIC SPACE y BOM. De este modo una variante
+visual como «Anulación circuito administrativo» no puede atravesar las policies
+permisivas y luego ser interpretada por el frontend como una anulación válida.
+El test SQL cubre cada código Unicode de ese conjunto.
+
+
+### TD-077 · espejo legacy con normalización equivalente
+
+La detección de un espejo `Cambio de estado contractual` usa una única
+semántica de equivalencia en los dos puntos críticos de la RPC: selección del
+hito a anular y reconstrucción del predecesor activo. Se normalizan NFC,
+mayúsculas, tildes/ñ, símbolos de grado y todo el conjunto de whitespace que
+también reconoce el frontend. Por lo tanto, variantes históricas como
+`PLIEGOS EN PREPARACIÓN`, `PLIEGOS EN PREPARACION` o espacios repetidos
+representan la misma transición y un espejo no puede revivir un hito anulado.
+
+
+### TD-077 · procedencia de Fecha de Acta y equivalencia Unicode completa
+
+La confirmación H8 que encuentra `fecha_acta_inicio = NULL` deja una marca
+append-only `Conciliación Acta de Inicio / registrada_por_hito_8`. Al
+desmarcar H8, la RPC sólo limpia la fecha cuando el valor actual coincide con
+esa marca y no existe una conciliación posterior. Fechas preexistentes, legacy
+o editadas después se preservan. La reversión también deja su propio evento
+`revertida_por_anulacion_hito_8` y queda reflejada en la auditoría de la RPC.
+
+La policy RESTRICTIVE normaliza el tipo de evento a NFD y elimina todo el rango
+Unicode U+0300–U+036F antes de comparar, además del conjunto de whitespace ya
+cubierto. Esto alinea la barrera SQL con la normalización del frontend y evita
+variantes visualmente equivalentes que intenten fabricar anulaciones fuera del
+writer controlado.
+
+
+### TD-077 · cierre de conflictos H8 y procedencia RPC-only
+
+Los eventos autoritativos `Anulación circuito administrativo` y
+`Conciliación Acta de Inicio` quedan reservados a writers SECURITY DEFINER:
+un rol autenticado no puede fabricarlos mediante INSERT directo.
+
+Si H8 dejó una conciliación con motivo `conflicto` contra una Fecha de Acta
+preexistente, al desmarcar H8 la RPC conserva la fecha contractual y agrega una
+fila append-only `hito_8_anulado`. La UI elimina además cualquier copia
+efímera del conflicto en memoria. Así, ni una recarga ni el repaint inmediato
+pueden revivir una advertencia que ya no corresponde.
+
+
+### TD-077 · autoridad de la edición integral sobre Fecha de Acta
+
+La procedencia `registrada_por_hito_8` deja de autorizar una reversión si,
+después de esa marca, `coi_actualizar_orden_integral` intervino
+`fecha_acta_inicio`. La auditoría `ACTUALIZAR_ORDEN_INTEGRAL` y su
+`contexto.campos` son la evidencia autoritativa. La regla cubre también
+`D → X → D`: aunque el valor final vuelva a coincidir con el creado por H8,
+la intervención humana posterior rompe la procedencia automática y el
+desmarcado no puede borrar la fecha.
+
+
+### TD-077 · cierre de concurrencia e identidad del desmarcado
+
+El modal captura el conjunto exacto de UUIDs de ingresos activos y
+desduplicados. La RPC lo compara bajo lock mediante
+`p_eventos_esperados`; cualquier diferencia produce
+`COI_CIRCUIT_STALE_TARGET` y revierte la transacción completa.
+
+La resolución del UUID ya no acepta como fallback una OC distinta a la pedida:
+N° OC y UUID deben reconciliarse antes del writer. Además, tanto
+`ACTUALIZAR_ORDEN_INTEGRAL` como `ACTUALIZAR_ORDEN_DIRECTO_COMPAT` rompen
+la procedencia automática de H8 sobre `fecha_acta_inicio`.

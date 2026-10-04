@@ -20439,12 +20439,18 @@ function asignarEstadoDocumentalLocal(orden,estado,now){
 }
 function esUUIDCircuito(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(value));}
 async function resolverOrdenIdCircuito(client,resolved,nro){
+  const esperado=normOC(nro);
   const candidate=ordenIdCircuito(resolved);
-  if(esUUIDCircuito(candidate))return candidate;
-  const result=await client.from('coi_ordenes').select('id,nro_oc').eq('nro_oc',nro).limit(2);
+  const nroResolved=normOC(nroOCCircuito(resolved));
+  if(esUUIDCircuito(candidate)&&nroResolved===esperado)return candidate;
+  const result=await client.from('coi_ordenes').select('id,nro_oc').eq('nro_oc',esperado).limit(2);
   if(result.error)throw new Error(detalleErrorCircuito(result.error));
-  if(result.data?.length!==1||!esUUIDCircuito(result.data[0].id))throw new Error('No se pudo resolver un UUID único para la OC.');
-  return result.data[0].id;
+  const row=result.data?.length===1?result.data[0]:null;
+  if(!row||!esUUIDCircuito(row.id)||normOC(row.nro_oc)!==esperado)
+    throw new Error('No se pudo resolver un UUID único para la OC solicitada.');
+  if(esUUIDCircuito(candidate)&&candidate!==row.id)
+    throw new Error('La identidad local de la OC no coincide con Supabase. Recargue antes de continuar.');
+  return row.id;
 }
 /* Incorpora a la cache las filas que Supabase acaba de CONFIRMAR (payload
    del RPC). Reemplaza por id, nunca duplica ni borra: una reconfirmacion
@@ -20487,6 +20493,100 @@ async function actualizarEstadoDocumentalDesdePasoContractual(ocNro,paso,options
   return {nro_oc:nro,estado,synced:true,...result.data};
 }
 
+let estadoAnulacionCircuitoRPC='desconocido';
+let promesaAnulacionCircuitoRPC=null;
+function anulacionCircuitoDisponible(){return estadoAnulacionCircuitoRPC==='disponible';}
+async function descubrirRPCAnulacionSinMutar(client){
+  const nombre='coi_anular_etapa_circuito_v1';
+  // Hook de transporte: útil para clientes embebidos/tests y, sobre todo,
+  // permite resolver capacidad sin ejecutar el writer.
+  if(client&&typeof client.__coiHasRpc==='function'){
+    const disponible=await client.__coiHasRpc(nombre);
+    return disponible===true?true:disponible===false?false:null;
+  }
+  const cfg=window.__COI_SUPABASE_CONFIG__||window.SUPABASE_CONFIG||{};
+  if(!cfg.url||!cfg.key||typeof fetch!=='function')return null;
+  let token=cfg.key;
+  try{
+    const sesion=await client?.auth?.getSession?.();
+    token=sesion?.data?.session?.access_token||token;
+  }catch(e){}
+  try{
+    const response=await fetch(String(cfg.url).replace(/\/$/,'')+'/rest/v1/',{
+      method:'GET',
+      headers:{
+        apikey:cfg.key,
+        Authorization:'Bearer '+token,
+        Accept:'application/openapi+json'
+      },
+      cache:'no-store'
+    });
+    if(!response.ok)return null;
+    const schema=await response.json();
+    const paths=schema&&schema.paths&&typeof schema.paths==='object'?schema.paths:{};
+    return Boolean(paths['/rpc/'+nombre]);
+  }catch(error){
+    return null;
+  }
+}
+async function probarDisponibilidadAnulacionCircuito(){
+  if(anulacionCircuitoDisponible())return true;
+  if(estadoAnulacionCircuitoRPC==='ausente')return false;
+  if(promesaAnulacionCircuitoRPC)return promesaAnulacionCircuitoRPC;
+  if(!usuarioTienePermisoEdicion()||!navigator.onLine)return false;
+  const client=clienteCircuito();
+  if(!client)return false;
+  promesaAnulacionCircuitoRPC=(async()=>{
+    try{
+      const disponible=await descubrirRPCAnulacionSinMutar(client);
+      if(disponible===true)estadoAnulacionCircuitoRPC='disponible';
+      else if(disponible===false)estadoAnulacionCircuitoRPC='ausente';
+      else estadoAnulacionCircuitoRPC='desconocido';
+    }catch(error){
+      estadoAnulacionCircuitoRPC='desconocido';
+    }finally{promesaAnulacionCircuitoRPC=null;}
+    return anulacionCircuitoDisponible();
+  })();
+  return promesaAnulacionCircuitoRPC;
+}
+window.__COI_CIRCUITO_ANULACION_DISPONIBLE__=anulacionCircuitoDisponible;
+window.__COI_CIRCUITO_ANULACION_PROBAR__=probarDisponibilidadAnulacionCircuito;
+
+async function anularEtapaCircuitoContractual(ocNro,paso,motivo='',eventosEsperados=[]){
+  if(window.APP_STATE?.editingOC)throw new Error('Guarde o cancele la edición integral antes de desmarcar un hito.');
+  if(!(await probarDisponibilidadAnulacionCircuito()))throw new Error('El desmarcado contractual aún no está desplegado en Supabase.');
+  let stage=typeof paso==='string'
+    ? CIRCUITO_ADMINISTRATIVO_ETAPAS.find(item=>item.codigo===paso)||
+      CIRCUITO_ADMINISTRATIVO_ETAPAS.find(item=>normalizarTextoEstado(item.nombre)===normalizarTextoEstado(paso))
+    : paso;
+  if(!stage&&typeof window.__COI_ETAPA1_ETAPA_POR_CODIGO__==='function'){
+    try{stage=window.__COI_ETAPA1_ETAPA_POR_CODIGO__(paso);}catch(e){}
+  }
+  const estado=stage?(estadoContractualNormalizado(stage)||clean(stage.nombre)||clean(stage.codigo)):'';
+  const nro=normOC(ocNro||currentOCKeyFromGlobals());
+  const resolved=resolverOrdenCircuito(nro);
+  if(!nro||!stage||!clean(stage.codigo))throw new Error('No se pudo identificar la OC o el hito contractual.');
+  if(!resolved)throw new Error('La OC objetivo ya no está disponible en el catálogo cargado. Recargue antes de desmarcar.');
+  const {client}=await validarEscrituraCircuito();
+  const ordenId=await resolverOrdenIdCircuito(client,resolved,nro);
+  const esperados=Array.isArray(eventosEsperados)?eventosEsperados.map(clean).filter(Boolean).sort():[];
+  if(!esperados.length)throw new Error('El hito cambió o no tiene ingresos activos. Recargue antes de desmarcar.');
+  const result=await client.rpc('coi_anular_etapa_circuito_v1',{
+    p_orden_id:ordenId,
+    p_codigo:stage.codigo,
+    p_motivo:clean(motivo)||null,
+    p_eventos_esperados:esperados
+  });
+  if(result.error)throw new Error(detalleErrorCircuito(result.error));
+  if(!result.data?.orden)throw new Error('Supabase no confirmó el desmarcado del hito.');
+  if(result.data?.orden&&typeof mergeRows==='function')try{mergeRows([result.data.orden]);}catch(e){}
+  fusionarHistorialCircuitoConfirmado(nro,result.data?.historial);
+  await refrescarModulosCircuito(nro);
+  toast(result.data.ya_anulada?'El hito ya estaba desmarcado.':`Hito desmarcado: ${estado||stage.codigo}`,'ok');
+  return {nro_oc:nro,estado,synced:true,...result.data};
+}
+window.anularEtapaCircuitoContractual=anularEtapaCircuitoContractual;
+
 
 function formatearFechaHoraCOI(fecha){
   if(!fecha)return'—';
@@ -20503,6 +20603,39 @@ function agruparHistorialCircuitoPorEtapa(historial=[]){
   Object.values(groups).forEach(rows=>rows.sort((a,b)=>new Date(a.fecha_evento||0)-new Date(b.fecha_evento||0)));
   return groups;
 }
+/* Proyección canónica de historial ACTIVO, compartida por E1 y el fallback R18.
+   La anulación conserva la fila original y la referencia por UUID. También se
+   retira el espejo legacy de la misma transición para que no reviva el hito. */
+function historialCircuitoActivo(historial=[]){
+  const lista=Array.isArray(historial)?historial:[];
+  const tipoNorm=(v)=>normalizarTextoEstado(v);
+  const anulaciones=lista.filter(ev=>tipoNorm(ev?.tipo_evento)==='ANULACION CIRCUITO ADMINISTRATIVO');
+  const idsAnulados=new Set(anulaciones.map(ev=>clean(ev?.valor_anterior)).filter(Boolean));
+  if(!idsAnulados.size)return lista.slice();
+  const canonicasAnuladas=lista.filter(ev=>esEventoConfirmacionCircuito(ev)&&idsAnulados.has(clean(ev?.id)));
+  const ms=(ev)=>{const n=new Date(ev?.fecha_evento||0).getTime();return Number.isFinite(n)?n:0;};
+  const codigoEvento=(ev)=>{
+    const directo=codigoEtapaCircuitoDesdeCampo(ev?.campo_modificado);
+    if(CIRCUITO_ADMINISTRATIVO_ETAPAS.some(et=>et.codigo===directo))return directo;
+    const porValor=obtenerPasoContractualDesdeEstadoDocumental(ev?.valor_nuevo);
+    return porValor?.codigo||'';
+  };
+  return lista.filter(ev=>{
+    const idEvento=clean(ev?.id);
+    const tipoEvento=tipoNorm(ev?.tipo_evento);
+    if(idsAnulados.has(idEvento)&&(
+      esEventoConfirmacionCircuito(ev)||
+      tipoEvento==='CAMBIO DE ESTADO CONTRACTUAL'
+    ))return false;
+    if(tipoEvento==='CAMBIO DE ESTADO CONTRACTUAL'){
+      const codigo=codigoEvento(ev);
+      const espejoAnulado=canonicasAnuladas.some(c=>codigoEvento(c)===codigo&&Math.abs(ms(c)-ms(ev))<=5000);
+      if(espejoAnulado)return false;
+    }
+    return true;
+  });
+}
+window.__COI_CIRCUITO_HISTORIAL_ACTIVO__=historialCircuitoActivo;
 /* Lectura COMPLETA y canonica del historial de una OC. Siempre por el N° OC
    canonico (nroOCCircuito), nunca por una clave vacia. Pagina de a 1000 para
    no perder los eventos mas recientes de una OC con historial largo. */
@@ -20548,7 +20681,7 @@ function obtenerEstadoVisualEtapa(etapa,historial=[],estadoActual=''){
 function renderCircuitoAdministrativoOC(orden){
   const resolved=resolverOrdenCircuito(orden)||orden||{};
   const nro=nroOCCircuito(resolved);
-  const history=historialCircuitoCache.get(nro)||[];
+  const history=historialCircuitoActivo(historialCircuitoCache.get(nro)||[]);
   const grouped=agruparHistorialCircuitoPorEtapa(history);
   const currentState=field(resolved,'estado_documental','estadoDocumental','ESTADO_DOCUMENTAL','estado_doc','estadoDoc','estado_coi','estadoCOI','estado');
   const canWrite=usuarioTienePermisoEdicion();
@@ -20611,13 +20744,15 @@ async function confirmarEtapaCircuitoOC(orden,etapa){
 
 function renderHistorialEtapaCircuitoOC(orden,etapa,historial=[]){
   const resolved=resolverOrdenCircuito(orden)||orden||{};
-  const grouped=agruparHistorialCircuitoPorEtapa(historial);
-  const events=grouped[etapa.codigo]||[];
-  const confirmation=events.find(esEventoConfirmacionCircuito);
+  const activeGrouped=agruparHistorialCircuitoPorEtapa(historialCircuitoActivo(historial));
+  const allGrouped=agruparHistorialCircuitoPorEtapa(historial);
+  const activeEvents=activeGrouped[etapa.codigo]||[];
+  const allEvents=allGrouped[etapa.codigo]||[];
+  const confirmation=activeEvents.find(esEventoConfirmacionCircuito);
   const confirmed=Boolean(confirmation);
   const observations=[];
   if(clean(confirmation?.motivo))observations.push({...confirmation,valor_nuevo:confirmation.motivo,_initial:true});
-  events.filter(esEventoObservacionCircuito).forEach(evento=>observations.push(evento));
+  allEvents.filter(esEventoObservacionCircuito).forEach(evento=>observations.push(evento));
   const canWrite=usuarioTienePermisoEdicion();
   const traceability=confirmation?`<div><b>Primera confirmación:</b> ${formatearFechaHoraCOI(confirmation.fecha_evento)}<br><b>Usuario:</b> ${esc(confirmation.usuario_email||'—')}</div>`:'<div><b>Primera confirmación:</b> —<br><b>Usuario:</b> —</div>';
   return `<div class="circuito-historial-head"><div><h3>Historial de etapa — ${esc(etapa.nombre)}</h3><p>OC ${esc(nroOCCircuito(resolved))} · Estado: ${confirmed?'Confirmada':'Pendiente'}</p></div><button type="button" class="circuito-historial-cerrar" data-circuito-cerrar>✕</button></div>
@@ -20652,7 +20787,8 @@ async function agregarObservacionEtapaCircuitoOC(orden,etapa,observacion){
   if(text.length>3000)throw new Error('La observación no puede superar 3000 caracteres.');
   const {user,client}=await validarEscrituraCircuito();
   const history=await cargarHistorialCircuitoOC(resolved);
-  if(!(agruparHistorialCircuitoPorEtapa(history)[stage.codigo]||[]).some(esEventoConfirmacionCircuito))throw new Error('La etapa debe estar confirmada antes de agregar observaciones.');
+  const historyActivo=historialCircuitoActivo(history);
+  if(!(agruparHistorialCircuitoPorEtapa(historyActivo)[stage.codigo]||[]).some(esEventoConfirmacionCircuito))throw new Error('La etapa debe estar confirmada antes de agregar observaciones.');
   const payload={orden_id:ordenIdCircuito(resolved),nro_oc:nro,tipo_evento:'Observación circuito administrativo',campo_modificado:stage.codigo,valor_anterior:'',valor_nuevo:text,motivo:text,usuario_email:user.email||null,creado_por:user.id||null,fecha_evento:new Date().toISOString()};
   const result=await client.from('coi_historial_oc').insert(payload).select();
   if(result.error)throw new Error(detalleErrorCircuito(result.error));
@@ -34589,6 +34725,10 @@ padding:8px 14px;font-size:.82rem;font-weight:600;letter-spacing:.02em;cursor:po
 .etapa1-conflicto{background:#fdeeee;border:1px solid #e2b3b3;color:#8a3535}
 /* Grilla fluida: sin ancho fijo no hay scroll horizontal en notebook. */
 .etapa1-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.etapa1-hito-wrap{display:flex;flex-direction:column;gap:6px;min-width:0}
+.etapa1-desmarcar{align-self:flex-end;border:1px solid #e2b3b3;background:#fff7f7;color:#8a3535;border-radius:8px;
+padding:5px 9px;font:700 .68rem system-ui;cursor:pointer;letter-spacing:.03em}
+.etapa1-desmarcar:hover,.etapa1-desmarcar:focus-visible{background:#fdeeee;border-color:#c77a7a}
 .etapa1-hito{display:flex;gap:10px;align-items:flex-start;text-align:left;width:100%;
 border:1px solid #d9e2ea;background:#fff;border-radius:10px;padding:10px 12px;cursor:pointer;font:inherit}
 .etapa1-hito:hover,.etapa1-hito:focus-visible{border-color:#9ec4dd;box-shadow:0 2px 10px rgba(31,78,121,.08)}
@@ -34654,6 +34794,10 @@ body.coi-v2-ready #etapa1PipelineContractual .etapa1-nota{color:var(--v2-muted)}
 body.coi-v2-ready #etapa1PipelineContractual .etapa1-resumen-grid b,
 body.coi-v2-ready #etapa1PipelineContractual .etapa1-nombre{color:var(--v2-text)}
 body.coi-v2-ready #etapa1PipelineContractual .etapa1-obs{color:var(--v2-accent-2)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-desmarcar{background:rgba(242,102,119,.10);
+border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-desmarcar:hover,
+body.coi-v2-ready #etapa1PipelineContractual .etapa1-desmarcar:focus-visible{background:rgba(242,102,119,.18)}
 body.coi-v2-ready #etapa1PipelineContractual .etapa1-hito{background:var(--v2-surface);
 border-color:var(--v2-border);color:var(--v2-text)}
 body.coi-v2-ready #etapa1PipelineContractual .etapa1-hito:hover,
@@ -34735,6 +34879,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
 
   const CODIGO_ACTA = 'control_terceros_con_acta';
   const CODIGO_TRANSVERSAL = 'cancelada_suspendida';
+  const TIPO_ANULACION_CIRCUITO = 'Anulación circuito administrativo';
   const CODIGOS_ETAPA2 = ['ejecucion', 'finalizada', 'finalizada_actas', 'finalizada_saldo_remanente'];
   const MS_DIA = 86400000;
 
@@ -35120,6 +35265,33 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
      el mismo historial produce siempre la misma secuencia. */
   const VENTANA_ESPEJO_MS = 5000;
   const msEvento = (ev) => { const t = new Date((ev && ev.fecha_evento) || 0).getTime(); return isNaN(t) ? 0 : t; };
+  function esAnulacionCircuito(ev) {
+    return fold(ev && ev.tipo_evento) === fold(TIPO_ANULACION_CIRCUITO);
+  }
+  function historialContractualVigente(historial) {
+    try {
+      if (typeof window.__COI_CIRCUITO_HISTORIAL_ACTIVO__ === 'function')
+        return window.__COI_CIRCUITO_HISTORIAL_ACTIVO__(historial);
+    } catch (e) {}
+    const lista = Array.isArray(historial) ? historial : [];
+    const idsAnulados = new Set(lista.filter(esAnulacionCircuito).map((ev) => texto(ev && ev.valor_anterior)).filter(Boolean));
+    if (!idsAnulados.size) return lista.slice();
+    const canonicasAnuladas = lista.filter((ev) => esConfirmacionCanonica(ev) && idsAnulados.has(texto(ev && ev.id)));
+    return lista.filter((ev) => {
+      const idEvento = texto(ev && ev.id);
+      if (idsAnulados.has(idEvento) && (
+        esConfirmacionCanonica(ev) ||
+        fold(ev && ev.tipo_evento) === fold('Cambio de estado contractual')
+      )) return false;
+      if (fold(ev && ev.tipo_evento) === fold('Cambio de estado contractual')) {
+        const codigo = codigoEtapaDesdeEvento(ev);
+        const espejoAnulado = canonicasAnuladas.some((c) =>
+          codigoEtapaDesdeEvento(c) === codigo && Math.abs(msEvento(c) - msEvento(ev)) <= VENTANA_ESPEJO_MS);
+        if (espejoAnulado) return false;
+      }
+      return true;
+    });
+  }
   function transicionesContractuales(historial) {
     const trazas = (historial || []).filter(esTrazaConfirmacionContractual)
       .map((ev) => ({ ev: ev, codigo: codigoEtapaDesdeEvento(ev) }))
@@ -35165,10 +35337,11 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
   function estadoPipeline(orden) {
     const nro = nroOrdenPipeline(orden);
     const historial = confirmaciones(nro);
-    const porCodigo = confirmacionPorCodigo(historial);
+    const historialActivo = historialContractualVigente(historial);
+    const porCodigo = confirmacionPorCodigo(historialActivo);
     const observacionesPorCodigo = eventosPorCodigo(historial, 'Observación circuito administrativo');
     const hitos = hitosEtapa1();
-    const transiciones = transicionesContractuales(historial);
+    const transiciones = transicionesContractuales(historialActivo);
     const segmentos = segmentosDe(transiciones);
 
     /* 1° Etapa: HITO ACTUAL = mayor INDICE CONTRACTUAL confirmado entre H1-H8.
@@ -35214,7 +35387,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     const entradasVigente = etapaEstado ? segmentos.filter((s) => s.codigo === etapaEstado.codigo) : [];
     const entradaVigente = entradasVigente.length ? entradasVigente[entradasVigente.length - 1] : null;
     const eventoVigente = etapaVigente
-      ? ((entradaVigente && entradaVigente.ev) || ultimaTrazaContractual(historial, etapaVigente.codigo) || eventoEstadoLegacy(orden))
+      ? ((entradaVigente && entradaVigente.ev) || ultimaTrazaContractual(historialActivo, etapaVigente.codigo) || eventoEstadoLegacy(orden))
       : (entradaVigente ? entradaVigente.ev : null);
     const diasVigente = entradaVigente ? diasEntre(entradaVigente.desde, null) : null;
 
@@ -35238,10 +35411,15 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
        es un hecho— pero el hito 8 NO se marca como confirmado: no se inventa un
        evento que nadie genero. */
     const hito8Registrado = Boolean(actaEvento);
-    const etapa1Finalizada = hito8Registrado || Boolean(actaFecha) || legacyEjecucion;
-    // Finalizada por evidencia historica, sin evento propio.
-    const etapa1FinalizadaLegacy = etapa1Finalizada && !hito8Registrado;
-    const etapa2Habilitada = etapa1Finalizada;
+    const evidenciaLegacyEtapa1 = Boolean(actaFecha) || legacyEjecucion;
+    // La evidencia historica mantiene abierto el gate de ejecución, pero NO
+    // pisa un circuito que el operador ya empezó a gestionar manualmente.
+    const codigosGestionEtapa1 = new Set(hitos.map((h) => h.codigo));
+    const circuitoGestionadoEtapa1 = (historialActivo || []).some((ev) =>
+      esTrazaConfirmacionContractual(ev) && codigosGestionEtapa1.has(codigoEtapaDesdeEvento(ev)));
+    const etapa1FinalizadaLegacy = !circuitoGestionadoEtapa1 && evidenciaLegacyEtapa1;
+    const etapa1Finalizada = hito8Registrado || etapa1FinalizadaLegacy;
+    const etapa2Habilitada = hito8Registrado || evidenciaLegacyEtapa1;
     // Hito 8 confirmado pero sin fecha canonica: el gate vale, la fecha queda
     // pendiente. No se infiere de ninguna columna de auditoria.
     const actaPendienteConciliacion = hito8Registrado && !actaFecha;
@@ -35251,7 +35429,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
        suspendida; si despues se reingreso a otra etapa, la condicion ya no
        esta vigente. El banner se muestra solo cuando el estado contractual
        VIGENTE, resuelto canonicamente, es cancelada_suspendida. */
-    const transversal = ultimaConfirmacion(historial, CODIGO_TRANSVERSAL) || null;
+    const transversal = ultimaConfirmacion(historialActivo, CODIGO_TRANSVERSAL) || null;
     const transversalVigente = Boolean(etapaVigente && etapaVigente.codigo === CODIGO_TRANSVERSAL);
     let transversalTexto = '';
     if (transversalVigente) {
@@ -35270,6 +35448,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
       porCodigo: porCodigo,
       observacionesPorCodigo: observacionesPorCodigo,
       historial: historial,
+      historialActivo: historialActivo,
       transiciones: transiciones,
       segmentos: segmentos,
       actaConflicto: conflictoActaDesdeHistorial(historial),
@@ -35322,8 +35501,16 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
        - hito sin transicion (salteado): null -> «—».
      El mismo historial produce siempre el mismo numero. */
   function diasDeCodigo(estado, codigo) {
-    if (estado.etapaEstado && estado.etapaEstado.codigo === codigo && estado.entradaVigente) return estado.diasVigente;
-    const propios = (estado.segmentos || []).filter((s) => s.codigo === codigo && !s.abierto && s.dias != null);
+    const segmentosCodigo=(estado.segmentos||[]).filter((s)=>s.codigo===codigo);
+    const abierto=segmentosCodigo.slice().reverse().find((s)=>s.abierto);
+    const esEstadoVigente=Boolean(estado&&estado.etapaEstado&&estado.etapaEstado.codigo===codigo);
+    // Sólo el estado contractual vigente puede acumular "hoy - inicio".
+    // Un backfill o una fecha efectiva invertida puede quedar como último
+    // segmento en el orden cronológico, pero no por eso vuelve a ser actual.
+    // Si el estado vigente empezó hoy, diasEntre() devuelve exactamente 0.
+    if(abierto&&esEstadoVigente)return diasEntre(abierto.desde,null);
+    if(esEstadoVigente&&estado.entradaVigente)return estado.diasVigente;
+    const propios = segmentosCodigo.filter((s) => !s.abierto && s.dias != null);
     if (!propios.length) return null;
     return propios.reduce((total, s) => total + s.dias, 0);
   }
@@ -35361,6 +35548,17 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     const n = ingresosDeCodigo(estado, codigo);
     return n > 1 ? '<span class="etapa1-ingresos">Ingresos registrados: ' + n + '</span>' : '';
   }
+  function accionDesmarcar(estado, codigo, tieneRegistro) {
+    const puedeEditar = typeof window.usuarioTienePermisoEdicion === 'function' && window.usuarioTienePermisoEdicion();
+    const rpcDisponible = typeof window.__COI_CIRCUITO_ANULACION_DISPONIBLE__ === 'function' &&
+      window.__COI_CIRCUITO_ANULACION_DISPONIBLE__();
+    if (!tieneRegistro || !puedeEditar || !rpcDisponible || window.APP_STATE?.editingOC) return '';
+    return '<button type="button" class="etapa1-desmarcar" data-etapa1-desmarcar="' + esc(codigo) +
+      '" data-etapa1-oc="' + esc(estado.nro) + '" title="Desmarcar este hito sin borrar la auditoría">DESMARCAR HITO</button>';
+  }
+  function envolverHito(estado, codigo, tarjeta, tieneRegistro) {
+    return '<div class="etapa1-hito-wrap">' + tarjeta + accionDesmarcar(estado, codigo, tieneRegistro) + '</div>';
+  }
   function filaHito(estado, etapa, indice) {
     const ev = eventoParaTarjeta(estado, etapa.codigo);
     const x = { etapa: etapa, ev: ev && !ev.__coiEstadoFallback ? ev : null };
@@ -35370,7 +35568,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     const obsInicial = texto(x.ev && x.ev.motivo);
     const obsCount = seguimientos.length + (obsInicial ? 1 : 0);
     const etiqueta = { pendiente: 'PENDIENTE', actual: 'EN CURSO', completado: 'COMPLETADO' }[visual];
-    return '<button type="button" class="etapa1-hito etapa1-' + visual + '"' +
+    const tarjeta = '<button type="button" class="etapa1-hito etapa1-' + visual + '"' +
       ' data-etapa1-hito="' + esc(etapa.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '"' +
       ' data-etapa1-logico="H' + (indice + 1) + '">' +
       '<span class="etapa1-num">H' + (indice + 1) + '</span>' +
@@ -35382,6 +35580,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
         extrasTarjeta(estado, etapa.codigo) +
         (obsCount ? '<span class="etapa1-obs" data-etapa1-historial="' + esc(etapa.codigo) + '" role="button" tabindex="0" title="Abrir historial y observaciones">Observaciones: ' + obsCount + '</span>' : '') +
       '</span></button>';
+    return envolverHito(estado, etapa.codigo, tarjeta, Boolean(x.ev));
   }
 
   // Conflictos de fecha de acta detectados en esta sesion, por OC. No es una
@@ -35467,18 +35666,19 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     const ev = estado.transversal;
     const vigente = Boolean(estado.etapaEstado && estado.etapaEstado.codigo === et.codigo);
     const dias = ev ? diasDeCodigo(estado, et.codigo) : null;
-    return '<div class="etapa1-transversal" id="etapa1Transversal">' +
-      '<h4>Estado transversal</h4>' +
-      '<p class="muted">Una contratación puede cancelarse o suspenderse antes o después del Acta de Inicio. ' +
-      'No forma parte de los 10 hitos ni suma al contador.</p>' +
-      '<button type="button" class="etapa1-hito etapa1-' + (ev ? 'completado' : 'pendiente') + '"' +
+    const tarjeta = '<button type="button" class="etapa1-hito etapa1-' + (ev ? 'completado' : 'pendiente') + '"' +
       ' data-etapa1-hito="' + esc(et.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '" data-etapa1-logico="">' +
       '<span class="etapa1-cuerpo"><span class="etapa1-nombre">' + esc(nombreEtapaPorTipo(et,estado.orden)) + '</span>' +
       '<span class="etapa1-estado">' + (ev ? esc(estado.transversalTexto || (vigente ? 'VIGENTE' : 'REGISTRADA (superada)')) : 'SIN REGISTRO') + '</span>' +
       '<span class="etapa1-meta">' + (ev ? esc(metaFechaEtapa(ev)) : 'Registrable en cualquier momento') + '</span>' +
       (ev ? '<span class="etapa1-dias">Días en estado: ' + (dias == null ? '—' : dias) + '</span>' : '') +
       (ev ? extrasTarjeta(estado, et.codigo) : '') +
-      '</span></button></div>';
+      '</span></button>';
+    return '<div class="etapa1-transversal" id="etapa1Transversal">' +
+      '<h4>Estado transversal</h4>' +
+      '<p class="muted">Una contratación puede cancelarse o suspenderse antes o después del Acta de Inicio. ' +
+      'No forma parte de los 10 hitos ni suma al contador.</p>' +
+      envolverHito(estado, et.codigo, tarjeta, Boolean(ev)) + '</div>';
   }
 
   function bloqueEtapa2(estado, activa) {
@@ -35493,7 +35693,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
       const etiqueta = vigente ? 'EN CURSO' : (real ? 'COMPLETADO' : 'PENDIENTE');
       const diasEstado=diasDeEtapa2(estado,et,ev);
       const logico = etiquetaHito(et.codigo);
-      return '<button type="button" class="etapa1-hito etapa1-' + visual + '"' +
+      const tarjeta = '<button type="button" class="etapa1-hito etapa1-' + visual + '"' +
         ' data-etapa1-hito="' + esc(et.codigo) + '" data-etapa1-oc="' + esc(estado.nro) + '"' +
         ' data-etapa1-logico="' + esc(logico) + '"' +
         (bloqueada ? ' disabled' : '') + '>' +
@@ -35504,6 +35704,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
         '<span class="etapa1-dias">Días en estado: ' + (diasEstado == null ? '—' : diasEstado) + '</span>' +
         extrasTarjeta(estado, et.codigo) +
         '</span></button>';
+      return envolverHito(estado, et.codigo, tarjeta, Boolean(real));
     }).join('');
     return '<div class="etapa1-panel' + (activa ? ' active' : '') + '" id="etapa1Panel2" data-etapa1-habilitada="' + (bloqueada ? 'no' : 'si') + '">' +
       '<h4>2° ETAPA — EJECUCIÓN Y CIERRE</h4>' +
@@ -35581,6 +35782,10 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     try {
       if (typeof window.cargarHistorialCircuitoOC === 'function') await window.cargarHistorialCircuitoOC(orden);
     } catch (e) { /* se conserva lo ya confirmado */ }
+    try {
+      if (typeof window.__COI_CIRCUITO_ANULACION_PROBAR__ === 'function')
+        await window.__COI_CIRCUITO_ANULACION_PROBAR__();
+    } catch (e) { /* la acción queda oculta si no pudo verificarse */ }
     repintar(orden, identidad);
   }
 
@@ -35619,19 +35824,37 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
   }
 
   function repintar(orden, identidadEsperada) {
-    const host = $('etapa1PipelineContractual');
-    if (!host || !host.parentNode || !orden || typeof orden !== 'object') return false;
+    if (!orden || typeof orden !== 'object') return false;
     const esperada=texto(identidadEsperada||identidadOrden(orden));
-    const montada=texto(host.getAttribute('data-etapa1-orden-id'));
-    if (esperada && montada && esperada!==montada) return false;
-    // Nunca se repinta con una OC distinta de la montada ni sin N° OC.
-    const nroMontado=texto(host.getAttribute('data-etapa1-oc'));
     const nroNuevo=nroOrdenPipeline(orden);
-    if (!nroNuevo || (nroMontado && nroMontado!==nroNuevo)) return false;
-    const cont = document.createElement('div');
-    cont.innerHTML = render(orden);
-    host.parentNode.replaceChild(cont.firstElementChild, host);
-    return true;
+    if(!nroNuevo)return false;
+
+    // El HTML histórico puede mantener temporalmente una copia oculta del
+    // pipeline mientras otra vista monta la Ficha. getElementById() sólo
+    // devolvería una de ellas y dejaría la otra stale. Se actualizan TODAS
+    // las representaciones de la misma OC/identidad, nunca las de otra OC.
+    const hosts=Array.from(document.querySelectorAll('[id="etapa1PipelineContractual"]'))
+      .filter((host)=>{
+        if(!host||!host.parentNode)return false;
+        const nroMontado=texto(host.getAttribute('data-etapa1-oc'));
+        const montada=texto(host.getAttribute('data-etapa1-orden-id'));
+        if(nroMontado&&nroMontado!==nroNuevo)return false;
+        if(esperada&&montada&&esperada!==montada)return false;
+        return true;
+      });
+    if(!hosts.length)return false;
+
+    let actualizados=0;
+    hosts.forEach((host)=>{
+      if(!host.parentNode)return;
+      const cont=document.createElement('div');
+      cont.innerHTML=render(orden);
+      const nuevo=cont.firstElementChild;
+      if(!nuevo)return;
+      host.parentNode.replaceChild(nuevo,host);
+      actualizados+=1;
+    });
+    return actualizados>0;
   }
 
   /* ------------------------------------------------------------ montaje
@@ -35660,6 +35883,8 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
   /* ------------------------------------------------------------ modal */
   let guardando = false;
   let modalActual = null;
+  let anulando = false;
+  let modalAnulacion = null;
 
   // Siempre por el resolver canonico: nunca null si la Ficha monto la OC.
   function ordenDe(nro) {
@@ -35683,6 +35908,131 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     modalActual = null;
   }
 
+  function cerrarModalAnulacion() {
+    const m = $('etapa1ModalAnular');
+    if (m && m.parentNode) m.parentNode.removeChild(m);
+    modalAnulacion = null;
+  }
+
+  async function abrirModalAnular(codigo, nro) {
+    if (window.APP_STATE?.editingOC) {
+      try { if (typeof window.toast === 'function') window.toast('Guarde o cancele la edición integral antes de desmarcar un hito.', 'warning'); } catch (e) {}
+      return;
+    }
+    if (!(typeof window.usuarioTienePermisoEdicion === 'function' && window.usuarioTienePermisoEdicion())) {
+      try { if (typeof window.toast === 'function') window.toast('Modo lectura: no posee permisos para desmarcar hitos.', 'warning'); } catch (e) {}
+      return;
+    }
+    if (!(typeof window.__COI_CIRCUITO_ANULACION_PROBAR__ === 'function' && await window.__COI_CIRCUITO_ANULACION_PROBAR__())) {
+      try { if (typeof window.toast === 'function') window.toast('El desmarcado contractual aún no está desplegado en Supabase.', 'warning'); } catch (e) {}
+      return;
+    }
+    const orden = ordenDe(nro);
+    const etapa = etapaPorCodigo(codigo);
+    if (!orden || !etapa) return;
+    const estado = estadoPipeline(orden);
+    const ev = eventoParaTarjeta(estado, codigo);
+    if (!ev || ev.__coiEstadoFallback) {
+      try { if (typeof window.toast === 'function') window.toast('Ese hito no tiene un registro activo para desmarcar.', 'warn'); } catch (e) {}
+      return;
+    }
+    cerrarModalAnulacion();
+    const overlay = document.createElement('div');
+    overlay.id = 'etapa1ModalAnular';
+    overlay.className = 'etapa1-modal-overlay';
+    overlay.innerHTML =
+      '<div class="etapa1-modal" role="dialog" aria-modal="true" aria-labelledby="etapa1ModalAnularTitulo">' +
+        '<h3 id="etapa1ModalAnularTitulo">Desmarcar hito contractual</h3>' +
+        '<dl class="etapa1-modal-datos">' +
+          '<dt>OC</dt><dd>' + esc(estado.nro || nro) + '</dd>' +
+          '<dt>Hito</dt><dd>' + esc(nombreEtapaPorTipo(etapa, orden)) + '</dd>' +
+          '<dt>Fecha activa</dt><dd>' + esc(fechaEventoUI(ev)) + '</dd>' +
+        '</dl>' +
+        '<p class="etapa1-modal-aviso">Se desmarcarán todos los ingresos activos de este hito. ' +
+          'No se borra el historial: Supabase conserva la confirmación original y registra la anulación para auditoría.</p>' +
+        '<label for="etapa1ModalAnularMotivo">Motivo (opcional)</label>' +
+        '<textarea id="etapa1ModalAnularMotivo" rows="3" placeholder="Ej.: carga errónea, reconstrucción histórica, corrección de etapa"></textarea>' +
+        '<p class="etapa1-modal-error" id="etapa1ModalAnularError" hidden></p>' +
+        '<div class="etapa1-modal-acciones">' +
+          '<button type="button" id="etapa1ModalAnularCancelar">CANCELAR</button>' +
+          '<button type="button" id="etapa1ModalAnularConfirmarBtn" class="primary">DESMARCAR HITO</button>' +
+        '</div></div>';
+    document.body.appendChild(overlay);
+    const eventosEsperados=(estado.transiciones||[])
+      .filter((t)=>t&&t.codigo===codigo&&t.ev&&texto(t.ev.id))
+      .map((t)=>texto(t.ev.id))
+      .filter((id,index,all)=>all.indexOf(id)===index)
+      .sort();
+    if(!eventosEsperados.length){
+      if(overlay.parentNode)overlay.parentNode.removeChild(overlay);
+      try { if (typeof window.toast === 'function') window.toast('El hito cambió mientras se abría la confirmación. Recargue y vuelva a intentar.', 'warn'); } catch (e) {}
+      return;
+    }
+    modalAnulacion = {
+      token: String(Date.now()) + ':' + Math.random().toString(36).slice(2),
+      codigo: codigo, nro: estado.nro || nro, orden: orden, etapa: etapa,
+      identidad: identidadOrden(orden), eventosEsperados: eventosEsperados
+    };
+  }
+
+  function mostrarErrorModalAnulacion(mensaje) {
+    const box = $('etapa1ModalAnularError');
+    if (!box) return;
+    box.hidden = false;
+    box.textContent = texto(mensaje) || 'No se pudo desmarcar el hito.';
+  }
+
+  async function confirmarAnulacion() {
+    if (anulando || !modalAnulacion) return;
+    if (window.APP_STATE?.editingOC) {
+      mostrarErrorModalAnulacion('Guarde o cancele la edición integral antes de desmarcar un hito.');
+      return;
+    }
+    if (!(typeof window.usuarioTienePermisoEdicion === 'function' && window.usuarioTienePermisoEdicion())) {
+      mostrarErrorModalAnulacion('Modo lectura: no posee permisos para desmarcar hitos.');
+      return;
+    }
+    if (!(typeof window.__COI_CIRCUITO_ANULACION_PROBAR__ === 'function' && await window.__COI_CIRCUITO_ANULACION_PROBAR__())) {
+      mostrarErrorModalAnulacion('El desmarcado contractual aún no está desplegado en Supabase.');
+      return;
+    }
+    const contexto = Object.freeze({
+      token: modalAnulacion.token, codigo: modalAnulacion.codigo, nro: modalAnulacion.nro,
+      orden: modalAnulacion.orden, etapa: modalAnulacion.etapa, identidad: modalAnulacion.identidad,
+      eventosEsperados: Array.isArray(modalAnulacion.eventosEsperados)?modalAnulacion.eventosEsperados.slice():[]
+    });
+    const btn = $('etapa1ModalAnularConfirmarBtn');
+    const motivo = texto($('etapa1ModalAnularMotivo') && $('etapa1ModalAnularMotivo').value);
+    anulando = true;
+    if (btn) btn.disabled = true;
+    try {
+      if (typeof window.anularEtapaCircuitoContractual !== 'function')
+        throw new Error('El desmarcado contractual no está disponible.');
+      const resultado = await window.anularEtapaCircuitoContractual(
+        contexto.nro, contexto.etapa, motivo, contexto.eventosEsperados
+      );
+      const resultId = identidadOrden(resultado && resultado.orden);
+      if (esUUIDPipeline(contexto.identidad) && contexto.identidad && resultId && contexto.identidad !== resultId)
+        throw new Error('Supabase confirmó una OC distinta de la operación iniciada.');
+      // El conflicto de Acta pertenece a una confirmación H8 activa. Tras un
+      // desmarcado exitoso, la RPC lo cierra en historial y esta copia efímera
+      // tampoco puede revivirlo durante el repaint inmediato.
+      if (contexto.codigo === CODIGO_ACTA) conflictoActa.delete(contexto.nro);
+      const baseOrden = ordenDe(contexto.nro) || contexto.orden || ordenesMontadas.get(contexto.nro) || null;
+      const orden = reconciliarOrden(baseOrden, resultado && resultado.orden);
+      if (orden) repintar(orden, contexto.identidad);
+      if (modalAnulacion && modalAnulacion.token === contexto.token) cerrarModalAnulacion();
+      if (orden) await sincronizarHistorial(orden);
+    } catch (error) {
+      if (modalAnulacion && modalAnulacion.token === contexto.token)
+        mostrarErrorModalAnulacion((error && error.message) || String(error));
+      else { try { if (typeof window.toast === 'function') window.toast((error && error.message) || String(error), 'error'); } catch (e) {} }
+    } finally {
+      anulando = false;
+      if (btn && btn.isConnected) btn.disabled = false;
+    }
+  }
+
   async function abrirModal(codigo, nro) {
     const orden = ordenDe(nro);
     const etapa = etapaPorCodigo(codigo);
@@ -35704,7 +36054,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     // Si la etapa fue recorrida, dejada y luego reingresada, la edición vigente
     // debe cargar la ÚLTIMA confirmación, que es la misma fila que v3 actualiza.
     const eventoVigente=confirmacionVigente
-      ? (estado.historial||[]).filter((ev)=>
+      ? (estado.historialActivo||estado.historial||[]).filter((ev)=>
           fold(ev&&ev.tipo_evento)===fold('Circuito administrativo') &&
           texto(ev&&ev.campo_modificado)===codigo
         ).slice().sort((a,b)=>{
@@ -35870,6 +36220,13 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
       return;
     }
 
+    const desmarcar = t.closest('[data-etapa1-desmarcar]');
+    if (desmarcar && !desmarcar.disabled) {
+      ev.preventDefault(); ev.stopPropagation();
+      abrirModalAnular(desmarcar.getAttribute('data-etapa1-desmarcar'), desmarcar.getAttribute('data-etapa1-oc'));
+      return;
+    }
+
     const obsHist = t.closest('[data-etapa1-historial]');
     if (obsHist) {
       ev.preventDefault(); ev.stopPropagation();
@@ -35898,10 +36255,22 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     if (t.closest('#etapa1ModalConfirmarBtn')) {
       ev.preventDefault();
       confirmar();
+      return;
+    }
+    if (t.closest('#etapa1ModalAnularCancelar')) {
+      ev.preventDefault();
+      cerrarModalAnulacion();
+      return;
+    }
+    if (t.closest('#etapa1ModalAnularConfirmarBtn')) {
+      ev.preventDefault();
+      confirmarAnulacion();
     }
   });
   document.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Escape' && $('etapa1ModalConfirmar')) cerrarModal();
+    if (ev.key !== 'Escape') return;
+    if ($('etapa1ModalConfirmar')) cerrarModal();
+    if ($('etapa1ModalAnular')) cerrarModalAnulacion();
   });
 
   window.__COI_ETAPA1_ESTADO__ = estadoPipeline;
@@ -35915,6 +36284,7 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
   window.__COI_ETAPA1_SINCRONIZAR__ = sincronizarHistorial;
   window.__COI_ETAPA1_HITO_LOGICO__ = hitoLogicoDe;
   window.__COI_ETAPA1_TRANSICIONES__ = transicionesContractuales;
+  window.__COI_ETAPA1_HISTORIAL_ACTIVO__ = historialContractualVigente;
 })();
 </script>
 

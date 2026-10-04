@@ -10,7 +10,7 @@ assert(e1.includes('modalActual.token===contexto.token'),'respuesta async valida
 assert(e1.includes("orden.actaInicio")&&e1.includes("orden.fechaInicio"),'aliases Acta legacy cubiertos');
 assert(e1.includes("Observación circuito administrativo"),'observaciones posteriores integradas');
 assert(e1.includes("Conciliación Acta de Inicio"),'conflicto Acta se reconstruye desde historial');
-assert(e1.includes('ultimaConfirmacion(historial, CODIGO_TRANSVERSAL)'),'transversal usa último evento');
+assert(e1.includes('ultimaConfirmacion(historialActivo, CODIGO_TRANSVERSAL)'),'transversal usa el último evento contractual activo');
 assert(html.includes('window.ESTADO_FINALIZADA_SALDO_REMANENTE=ESTADO_FINALIZADA_SALDO_REMANENTE'),'saldo remanente exportado explícitamente');
 assert(/replace\(\/\[º°\]\//.test(e1)||e1.includes('normalizarTextoEstado'),'normalización º/° canónica');
 assert(sql.includes("v_codigo in ('ejecucion','finalizada','finalizada_actas','finalizada_saldo_remanente')"),'gate server-side cubre etapa 2');

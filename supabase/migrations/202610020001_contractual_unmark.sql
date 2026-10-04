@@ -1,0 +1,760 @@
+-- COI Línea Roca · desmarcado contractual auditable
+-- Rollback operativo documentado en docs/agent/ROLLBACK_202610020001_contractual_unmark.md.
+-- La migración es aditiva: no borra historial ni modifica filas existentes.
+begin;
+
+drop policy if exists coi_historial_anulacion_rpc_only_v1 on public.coi_historial_oc;
+create policy coi_historial_anulacion_rpc_only_v1 on public.coi_historial_oc as restrictive
+for insert to authenticated
+with check (
+  regexp_replace(
+    lower(
+      regexp_replace(
+        normalize(btrim(tipo_evento), NFD),
+        '[̀-ͯ]', '', 'g'
+      )
+    ),
+    '[[:space:]                 　﻿]+', '', 'g'
+  ) not in (
+    'anulacioncircuitoadministrativo',
+    'conciliacionactadeinicio'
+  )
+);
+
+create or replace function public.coi_anular_etapa_circuito_v1(
+  p_orden_id uuid,
+  p_codigo text,
+  p_motivo text default null,
+  p_eventos_esperados uuid[] default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_role text;
+  v_order public.coi_ordenes%rowtype;
+  v_after public.coi_ordenes%rowtype;
+  v_target public.coi_historial_oc%rowtype;
+  v_prev public.coi_historial_oc%rowtype;
+  v_event public.coi_historial_oc%rowtype;
+  v_acta_marker public.coi_historial_oc%rowtype;
+  v_acta_event public.coi_historial_oc%rowtype;
+  v_codigo text := lower(trim(coalesce(p_codigo, '')));
+  v_nombre text;
+  v_hoy date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
+  v_historial jsonb := '[]'::jsonb;
+  v_target_ids uuid[] := '{}'::uuid[];
+  v_anuladas integer := 0;
+  v_cerrada boolean := false;
+  v_acta_revertida boolean := false;
+begin
+  v_role := public.coi_assert_role(array[
+    'administrador','jefatura','editor','planificacion','control','supervisor'
+  ]);
+
+  if p_orden_id is null then
+    raise exception using errcode='22023', message='COI_INVALID_ORDER_ID';
+  end if;
+  if length(coalesce(p_motivo,'')) > 3000 then
+    raise exception using errcode='22001', message='COI_CIRCUIT_UNMARK_REASON_TOO_LONG';
+  end if;
+
+  v_nombre := case v_codigo
+    when 'pliegos_preparacion' then 'PLIEGOS EN PREPARACIÓN'
+    when 'pliegos_terminado_sin_solped' then 'PLIEGOS TERMINADO SIN SOLPED'
+    when 'solped_sin_expediente' then 'PLIEGO CON SOLPED SIN EXPTE'
+    when 'pliego_con_oc' then 'PLIEGO CON OC'
+    when 'pliego_con_expediente' then 'PLIEGO CON EXPTE'
+    when 'oc_sin_control_terceros' then 'PLIEGO CON EXPTE Y CON OC EMITIDA, PERO SIN CONTROL DE 3'
+    when 'control_terceros_sin_acta' then 'PLIEGO CON OC CON CONTROL DE 3º SIN ACTA DE INICIO'
+    when 'control_terceros_con_acta' then 'PLIEGO CON OC Y CONTROL DE 3º CON ACTA DE INICIO'
+    when 'ejecucion' then 'OBRA/SERVICIO EN EJECUCIÓN'
+    when 'cancelada_suspendida' then 'OBRA/SERVICIO CANCELADA O SUSPENDIDA'
+    when 'finalizada' then 'OBRA/SERVICIO FINALIZADA'
+    when 'finalizada_actas' then 'OBRA/SERV. FINALIZADA CON ACTA PROVISORIA Y DEFINITIVA'
+    when 'finalizada_saldo_remanente' then 'OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE'
+    else null
+  end;
+  if v_nombre is null then
+    raise exception using errcode='22023', message='COI_UNKNOWN_CIRCUIT_STAGE', detail=v_codigo;
+  end if;
+
+  select * into v_order
+    from public.coi_ordenes
+   where id = p_orden_id
+   for update;
+  if not found then
+    raise exception using errcode='P0002', message='COI_ORDER_NOT_FOUND';
+  end if;
+  v_cerrada := lower(trim(coalesce(v_order.estado_coi,''))) = 'cerrada';
+
+  for v_target in
+    select h.*
+      from public.coi_historial_oc h
+     where h.orden_id = p_orden_id
+       and not exists (
+         select 1
+           from public.coi_historial_oc a
+          where a.orden_id = p_orden_id
+            and a.tipo_evento = 'Anulación circuito administrativo'
+            and a.valor_anterior = h.id::text
+       )
+       and (
+         (
+           h.tipo_evento = 'Circuito administrativo'
+           and h.campo_modificado = v_codigo
+         )
+         or
+         (
+           h.tipo_evento = 'Cambio de estado contractual'
+           and regexp_replace(
+                  translate(upper(normalize(trim(coalesce(h.valor_nuevo,'')), NFC)), 'ÁÉÍÓÚÜÑº°', 'AEIOUUNOO'),
+                  '[[:space:]                 　﻿]+', '', 'g'
+                )
+             = regexp_replace(
+                  translate(upper(normalize(trim(coalesce(v_nombre,'')), NFC)), 'ÁÉÍÓÚÜÑº°', 'AEIOUUNOO'),
+                  '[[:space:]                 　﻿]+', '', 'g'
+                )
+           and not exists (
+             select 1
+               from public.coi_historial_oc c
+              where c.orden_id = h.orden_id
+                and c.tipo_evento = 'Circuito administrativo'
+                and regexp_replace(
+                  translate(upper(normalize(trim(coalesce(c.valor_nuevo,'')), NFC)), 'ÁÉÍÓÚÜÑº°', 'AEIOUUNOO'),
+                  '[[:space:]                 　﻿]+', '', 'g'
+                )
+                  = regexp_replace(
+                  translate(upper(normalize(trim(coalesce(h.valor_nuevo,'')), NFC)), 'ÁÉÍÓÚÜÑº°', 'AEIOUUNOO'),
+                  '[[:space:]                 　﻿]+', '', 'g'
+                )
+                and abs(extract(epoch from (c.fecha_evento - h.fecha_evento))) <= 5
+           )
+         )
+       )
+     order by h.fecha_evento, h.id
+     for update
+  loop
+    insert into public.coi_historial_oc(
+      orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,
+      motivo,usuario_email,creado_por,fecha_efectiva
+    ) values (
+      p_orden_id,v_order.nro_oc,'Anulación circuito administrativo',v_codigo,
+      v_target.id::text,v_nombre,
+      coalesce(nullif(trim(coalesce(p_motivo,'')),''),'Hito desmarcado por el operador'),
+      nullif(auth.jwt()->>'email',''),auth.uid(),v_hoy
+    )
+    returning * into v_event;
+
+    v_historial := v_historial || jsonb_build_array(to_jsonb(v_event));
+    v_target_ids := array_append(v_target_ids, v_target.id);
+    v_anuladas := v_anuladas + 1;
+  end loop;
+
+  if p_eventos_esperados is null
+     or array(select distinct x from unnest(coalesce(p_eventos_esperados,'{}'::uuid[])) x order by x)
+        is distinct from
+        array(select distinct x from unnest(v_target_ids) x order by x) then
+    raise exception using
+      errcode='40001',
+      message='COI_CIRCUIT_STALE_TARGET',
+      detail='El hito cambió desde que se abrió la confirmación. Recargue y vuelva a intentar.';
+  end if;
+
+  if v_anuladas = 0 then
+    return jsonb_build_object(
+      'orden',to_jsonb(v_order),'historial','[]'::jsonb,
+      'codigo',v_codigo,'nombre',v_nombre,'ya_anulada',true,'anuladas',0
+    );
+  end if;
+
+  -- H8 puede haber creado fecha_acta_inicio al confirmar una OC que no tenía
+  -- Acta. Si el operador desmarca ESE H8, se revierte sólo esa fecha derivada.
+  -- Una fecha preexistente/legacy, una conciliación posterior o cualquier
+  -- edición integral posterior de fecha_acta_inicio se preserva.
+  if v_codigo='control_terceros_con_acta' and v_order.fecha_acta_inicio is not null then
+    select h.* into v_acta_marker
+      from public.coi_historial_oc h
+     where h.orden_id=p_orden_id
+       and h.tipo_evento='Conciliación Acta de Inicio'
+       and h.campo_modificado='fecha_acta_inicio'
+       and h.motivo='registrada_por_hito_8'
+       and h.valor_anterior is null
+       and h.valor_nuevo=v_order.fecha_acta_inicio::text
+     order by h.fecha_evento desc,h.id desc
+     limit 1;
+
+    if found
+       and not exists (
+         select 1
+           from public.coi_historial_oc x
+          where x.orden_id=p_orden_id
+            and x.tipo_evento='Conciliación Acta de Inicio'
+            and x.campo_modificado='fecha_acta_inicio'
+            and (x.fecha_evento,x.id)>(v_acta_marker.fecha_evento,v_acta_marker.id)
+       )
+       and not exists (
+         -- La edición integral es también autoridad sobre fecha_acta_inicio.
+         -- Incluso D -> X -> D rompe la procedencia del H8: el valor final
+         -- puede coincidir, pero ya fue ratificado/modificado por el operador.
+         select 1
+           from public.coi_operaciones_auditoria a
+          where a.entidad='coi_ordenes'
+            and a.registro_id=p_orden_id::text
+            and a.accion in ('ACTUALIZAR_ORDEN_INTEGRAL','ACTUALIZAR_ORDEN_DIRECTO_COMPAT')
+            and a.fecha_hora>v_acta_marker.fecha_evento
+            and (
+              coalesce(a.contexto->'campos','[]'::jsonb) ? 'fecha_acta_inicio'
+              or (
+                coalesce(a.datos_anteriores,'{}'::jsonb) ? 'fecha_acta_inicio'
+                and coalesce(a.datos_nuevos,'{}'::jsonb) ? 'fecha_acta_inicio'
+                and a.datos_anteriores->'fecha_acta_inicio'
+                    is distinct from a.datos_nuevos->'fecha_acta_inicio'
+              )
+            )
+       ) then
+      update public.coi_ordenes
+         set fecha_acta_inicio=null
+       where id=p_orden_id;
+
+      insert into public.coi_historial_oc(
+        orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,
+        motivo,usuario_email,creado_por,fecha_efectiva
+      ) values (
+        p_orden_id,v_order.nro_oc,'Conciliación Acta de Inicio','fecha_acta_inicio',
+        v_order.fecha_acta_inicio::text,null,'revertida_por_anulacion_hito_8',
+        nullif(auth.jwt()->>'email',''),auth.uid(),v_hoy
+      )
+      returning * into v_acta_event;
+
+      v_historial:=v_historial||jsonb_build_array(to_jsonb(v_acta_event));
+      v_acta_revertida:=true;
+    end if;
+  end if;
+
+  -- Si H8 había dejado un conflicto contra una Fecha de Acta preexistente,
+  -- al desmarcar todos los ingresos activos de H8 ese conflicto deja de tener
+  -- objeto. Se cierra append-only; nunca se borra la evidencia original.
+  if v_codigo='control_terceros_con_acta' and not v_acta_revertida then
+    select h.* into v_acta_marker
+      from public.coi_historial_oc h
+     where h.orden_id=p_orden_id
+       and h.tipo_evento='Conciliación Acta de Inicio'
+       and h.campo_modificado='fecha_acta_inicio'
+     order by h.fecha_evento desc,h.id desc
+     limit 1;
+
+    if found and lower(trim(coalesce(v_acta_marker.motivo,'')))='conflicto' then
+      insert into public.coi_historial_oc(
+        orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,
+        motivo,usuario_email,creado_por,fecha_efectiva
+      ) values (
+        p_orden_id,v_order.nro_oc,'Conciliación Acta de Inicio','fecha_acta_inicio',
+        v_acta_marker.valor_nuevo,v_order.fecha_acta_inicio::text,'hito_8_anulado',
+        nullif(auth.jwt()->>'email',''),auth.uid(),v_hoy
+      )
+      returning * into v_acta_event;
+      v_historial:=v_historial||jsonb_build_array(to_jsonb(v_acta_event));
+    end if;
+  end if;
+
+  -- Última transición contractual activa: canónica o legacy.
+  -- Un espejo legacy asociado a una canónica anulada tampoco puede revivirla.
+  select h.* into v_prev
+    from public.coi_historial_oc h
+   where h.orden_id = p_orden_id
+     and (
+       (
+         h.tipo_evento = 'Circuito administrativo'
+         and not exists (
+           select 1
+             from public.coi_historial_oc a
+            where a.orden_id = p_orden_id
+              and a.tipo_evento = 'Anulación circuito administrativo'
+              and a.valor_anterior = h.id::text
+         )
+       )
+       or
+       (
+         h.tipo_evento = 'Cambio de estado contractual'
+         and not exists (
+           select 1
+             from public.coi_historial_oc direct_a
+            where direct_a.orden_id = h.orden_id
+              and direct_a.tipo_evento = 'Anulación circuito administrativo'
+              and direct_a.valor_anterior = h.id::text
+         )
+         and not exists (
+           select 1
+             from public.coi_historial_oc c
+             join public.coi_historial_oc a
+               on a.orden_id = c.orden_id
+              and a.tipo_evento = 'Anulación circuito administrativo'
+              and a.valor_anterior = c.id::text
+            where c.orden_id = h.orden_id
+              and c.tipo_evento = 'Circuito administrativo'
+              and regexp_replace(
+                  translate(upper(normalize(trim(coalesce(c.valor_nuevo,'')), NFC)), 'ÁÉÍÓÚÜÑº°', 'AEIOUUNOO'),
+                  '[[:space:]                 　﻿]+', '', 'g'
+                )
+                = regexp_replace(
+                  translate(upper(normalize(trim(coalesce(h.valor_nuevo,'')), NFC)), 'ÁÉÍÓÚÜÑº°', 'AEIOUUNOO'),
+                  '[[:space:]                 　﻿]+', '', 'g'
+                )
+              and abs(extract(epoch from (c.fecha_evento - h.fecha_evento))) <= 5
+         )
+       )
+     )
+   order by h.fecha_evento desc, h.id desc
+   limit 1;
+
+  update public.coi_ordenes
+     set estado_documental = case when v_prev.id is null then null else v_prev.valor_nuevo end,
+         estado_coi = case
+           when v_cerrada then v_order.estado_coi
+           when v_prev.id is null then 'Pendiente de completar'
+           else v_prev.valor_nuevo
+         end,
+         fecha_ultimo_control = clock_timestamp()
+   where id = p_orden_id
+   returning * into v_after;
+
+  insert into public.coi_operaciones_auditoria(
+    usuario_id,usuario_email,rol,accion,entidad,registro_id,nro_oc,
+    datos_anteriores,datos_nuevos,contexto
+  ) values (
+    auth.uid(),nullif(auth.jwt()->>'email',''),v_role,
+    'ANULAR_ETAPA_CIRCUITO','coi_ordenes',p_orden_id::text,v_order.nro_oc,
+    to_jsonb(v_order),to_jsonb(v_after),
+    jsonb_build_object(
+      'codigo',v_codigo,
+      'anuladas',v_anuladas,
+      'motivo',nullif(trim(coalesce(p_motivo,'')),''),
+      'estado_restaurado',v_after.estado_documental,
+      'estado_operativo_preservado',v_cerrada,
+      'fecha_acta_inicio_revertida',v_acta_revertida
+    )
+  );
+
+  return jsonb_build_object(
+    'orden',to_jsonb(v_after),'historial',v_historial,
+    'codigo',v_codigo,'nombre',v_nombre,'ya_anulada',false,'anuladas',v_anuladas
+  );
+end;
+$$;
+
+-- V3 comparte la misma semántica de historial activo: una confirmación
+-- anulada no cuenta para idempotencia ni para habilitar H9/H10.
+create or replace function public.coi_confirmar_etapa_circuito_v3(
+  p_orden_id uuid,
+  p_codigo text,
+  p_observacion text default null,
+  p_fecha_efectiva date default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_role text;
+  v_order public.coi_ordenes%rowtype;
+  v_after public.coi_ordenes%rowtype;
+  v_codigo text := lower(trim(coalesce(p_codigo,'')));
+  v_nombre text;
+  v_current text;
+  v_seen boolean;
+  v_seen_historico boolean;
+  v_cerrada boolean := false;
+  v_gate_seen boolean;
+  v_gate_legacy boolean;
+  v_hoy date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
+  v_fecha date := p_fecha_efectiva;
+  v_idempotente boolean := false;
+  v_result jsonb;
+  v_history jsonb := '[]'::jsonb;
+  v_event public.coi_historial_oc%rowtype;
+  v_event_before date;
+  v_conflicto public.coi_historial_oc%rowtype;
+begin
+  v_role := public.coi_assert_role(array[
+    'administrador','jefatura','editor','planificacion','control','supervisor'
+  ]);
+
+  if p_orden_id is null then
+    raise exception using errcode='22023',message='COI_INVALID_ORDER_ID';
+  end if;
+  if length(coalesce(p_observacion,'')) > 3000 then
+    raise exception using errcode='22001',message='COI_CIRCUIT_OBSERVATION_TOO_LONG';
+  end if;
+  if p_fecha_efectiva is not null and p_fecha_efectiva > v_hoy then
+    raise exception using errcode='22007',message='COI_EFFECTIVE_DATE_FUTURE',detail=p_fecha_efectiva::text;
+  end if;
+
+  v_nombre := case v_codigo
+    when 'pliegos_preparacion' then 'PLIEGOS EN PREPARACIÓN'
+    when 'pliegos_terminado_sin_solped' then 'PLIEGOS TERMINADO SIN SOLPED'
+    when 'solped_sin_expediente' then 'PLIEGO CON SOLPED SIN EXPTE'
+    when 'pliego_con_oc' then 'PLIEGO CON OC'
+    when 'pliego_con_expediente' then 'PLIEGO CON EXPTE'
+    when 'oc_sin_control_terceros' then 'PLIEGO CON EXPTE Y CON OC EMITIDA, PERO SIN CONTROL DE 3'
+    when 'control_terceros_sin_acta' then 'PLIEGO CON OC CON CONTROL DE 3º SIN ACTA DE INICIO'
+    when 'control_terceros_con_acta' then 'PLIEGO CON OC Y CONTROL DE 3º CON ACTA DE INICIO'
+    when 'ejecucion' then 'OBRA/SERVICIO EN EJECUCIÓN'
+    when 'cancelada_suspendida' then 'OBRA/SERVICIO CANCELADA O SUSPENDIDA'
+    when 'finalizada' then 'OBRA/SERVICIO FINALIZADA'
+    when 'finalizada_actas' then 'OBRA/SERV. FINALIZADA CON ACTA PROVISORIA Y DEFINITIVA'
+    when 'finalizada_saldo_remanente' then 'OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE'
+    else null
+  end;
+  if v_nombre is null then
+    raise exception using errcode='22023',message='COI_UNKNOWN_CIRCUIT_STAGE',detail=v_codigo;
+  end if;
+
+  select * into v_order
+    from public.coi_ordenes
+   where id=p_orden_id
+   for update;
+  if not found then
+    raise exception using errcode='P0002',message='COI_ORDER_NOT_FOUND';
+  end if;
+
+  if v_codigo='finalizada_saldo_remanente'
+     and upper(trim(coalesce(v_order.tipo,'')))='OBRA' then
+    raise exception using errcode='23514',message='COI_STAGE_NOT_APPLICABLE_TO_TYPE',detail='finalizada_saldo_remanente:OBRA';
+  end if;
+
+  v_cerrada := lower(trim(coalesce(v_order.estado_coi,'')))='cerrada';
+  -- En una OC cerrada, estado_coi pertenece al eje operativo y es inmutable.
+  -- El circuito contractual trabaja exclusivamente sobre estado_documental.
+  v_current := case
+    when v_cerrada then v_order.estado_documental
+    else coalesce(v_order.estado_documental,v_order.estado_coi)
+  end;
+
+  select exists(
+    select 1 from public.coi_historial_oc h
+     where h.orden_id=p_orden_id
+       and h.tipo_evento='Circuito administrativo'
+       and h.campo_modificado=v_codigo
+       and not exists (
+         select 1 from public.coi_historial_oc a
+          where a.orden_id=h.orden_id
+            and a.tipo_evento='Anulación circuito administrativo'
+            and a.valor_anterior=h.id::text
+       )
+  ) into v_seen;
+
+  select exists(
+    select 1 from public.coi_historial_oc h
+     where h.orden_id=p_orden_id
+       and h.tipo_evento='Circuito administrativo'
+       and h.campo_modificado=v_codigo
+  ) into v_seen_historico;
+
+  if v_codigo in ('ejecucion','finalizada','finalizada_actas','finalizada_saldo_remanente') then
+    select exists(
+      select 1 from public.coi_historial_oc h
+       where h.orden_id=p_orden_id
+         and h.tipo_evento='Circuito administrativo'
+         and h.campo_modificado='control_terceros_con_acta'
+         and not exists (
+           select 1 from public.coi_historial_oc a
+            where a.orden_id=h.orden_id
+              and a.tipo_evento='Anulación circuito administrativo'
+              and a.valor_anterior=h.id::text
+         )
+    ) into v_gate_seen;
+    v_gate_legacy := upper(trim(coalesce(v_current,''))) in (
+      'PLIEGO CON OC Y CONTROL DE 3º CON ACTA DE INICIO',
+      'PLIEGO CON OC Y CONTROL DE 3° CON ACTA DE INICIO',
+      'OBRA/SERVICIO EN EJECUCIÓN','OBRA/SERVICIO EN EJECUCION',
+      'OBRA/SERVICIO FINALIZADA',
+      'OBRA/SERV. FINALIZADA CON ACTA PROVISORIA Y DEFINITIVA',
+      'OBRA/SERVICIO FINALIZADA PERO CON SALDO REMANENTE'
+    );
+    if v_order.fecha_acta_inicio is null and not v_gate_seen and not v_gate_legacy then
+      raise exception using errcode='23514',message='COI_ACTA_INICIO_REQUIRED',detail=v_codigo;
+    end if;
+  end if;
+
+  -- Edición idempotente de la confirmación vigente: cambia fecha_efectiva,
+  -- pero fecha_evento permanece como evidencia inmutable de registración.
+  if translate(upper(trim(coalesce(v_current,''))),'ÁÉÍÓÚÜÑº°','AEIOUUNOO')
+     = translate(upper(trim(v_nombre)),'ÁÉÍÓÚÜÑº°','AEIOUUNOO')
+     and v_seen then
+    select * into v_event
+      from public.coi_historial_oc h
+     where h.orden_id=p_orden_id
+       and h.tipo_evento='Circuito administrativo'
+       and h.campo_modificado=v_codigo
+       and not exists (
+         select 1 from public.coi_historial_oc a
+          where a.orden_id=h.orden_id
+            and a.tipo_evento='Anulación circuito administrativo'
+            and a.valor_anterior=h.id::text
+       )
+     order by h.fecha_evento desc,h.id desc
+     limit 1
+     for update;
+
+    v_idempotente := true;
+    v_event_before := v_event.fecha_efectiva;
+    v_fecha := coalesce(
+      p_fecha_efectiva,
+      v_event.fecha_efectiva,
+      (v_event.fecha_evento at time zone 'America/Argentina/Buenos_Aires')::date,
+      v_hoy
+    );
+    -- Sin fecha explícita, una reapertura de la etapa vigente es idempotente:
+    -- no reescribe historia ni inventa una nueva fecha administrativa.
+    if p_fecha_efectiva is not null then
+      update public.coi_historial_oc
+         set fecha_efectiva=v_fecha
+       where id=v_event.id
+       returning * into v_event;
+    end if;
+
+    v_history := jsonb_build_array(to_jsonb(v_event));
+    v_result := jsonb_build_object(
+      'orden',to_jsonb(v_order),'historial',v_history,
+      'codigo',v_codigo,'nombre',v_nombre,'ya_confirmada',true
+    );
+
+    if p_fecha_efectiva is not null and v_event_before is distinct from v_fecha then
+      insert into public.coi_operaciones_auditoria(
+        usuario_id,usuario_email,rol,accion,entidad,registro_id,nro_oc,
+        datos_anteriores,datos_nuevos,contexto
+      ) values (
+        auth.uid(),nullif(auth.jwt()->>'email',''),v_role,
+        'EDITAR_FECHA_EFECTIVA_CIRCUITO','coi_historial_oc',v_event.id::text,v_order.nro_oc,
+        jsonb_build_object('fecha_efectiva',v_event_before),
+        jsonb_build_object('fecha_efectiva',v_fecha),
+        jsonb_build_object('codigo',v_codigo)
+      );
+    end if;
+  else
+    -- Sólo una confirmación nueva o un reingreso sin fecha explícita toma hoy.
+    v_fecha := coalesce(p_fecha_efectiva,v_hoy);
+
+    if v_cerrada then
+      -- H10: una OC cerrada no puede reabrirse ni cambiar estado_coi. El
+      -- circuito contractual sigue siendo corregible sobre estado_documental,
+      -- conservando fecha/observación de cierre y todo el eje operativo.
+      update public.coi_ordenes o
+         set estado_documental=v_nombre,
+             fecha_ultimo_control=clock_timestamp(),
+             responsable_coi=coalesce(nullif(o.responsable_coi,''),nullif(auth.jwt()->>'email','')),
+             certificable_con_saldo=case
+               when v_codigo='finalizada_saldo_remanente' then true
+               else o.certificable_con_saldo
+             end
+       where o.id=p_orden_id
+       returning * into v_after;
+
+      with inserted as (
+        insert into public.coi_historial_oc(
+          orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,
+          motivo,usuario_email,creado_por,fecha_efectiva
+        ) values
+        (p_orden_id,v_order.nro_oc,'Circuito administrativo',v_codigo,v_current,v_nombre,
+         coalesce(
+           nullif(trim(coalesce(p_observacion,'')),''),
+           case when v_seen_historico then 'Reingreso a etapa previamente recorrida'
+                else null end
+         ),
+         nullif(auth.jwt()->>'email',''),auth.uid(),v_fecha),
+        (p_orden_id,v_order.nro_oc,'Cambio de estado contractual','estado_documental',v_current,v_nombre,
+         case when v_seen_historico then 'Reingreso contractual: '||v_nombre
+              else 'Selección de etapa contractual: '||v_nombre end,
+         nullif(auth.jwt()->>'email',''),auth.uid(),v_fecha)
+        returning *
+      )
+      select coalesce(jsonb_agg(to_jsonb(inserted.*) order by inserted.fecha_evento,inserted.id),'[]'::jsonb)
+        into v_history
+        from inserted;
+
+      v_result := jsonb_build_object(
+        'orden',to_jsonb(v_after),'historial',v_history,
+        'codigo',v_codigo,'nombre',v_nombre,'ya_confirmada',false
+      );
+
+      if v_seen_historico then
+        insert into public.coi_operaciones_auditoria(
+          usuario_id,usuario_email,rol,accion,entidad,registro_id,nro_oc,
+          datos_anteriores,datos_nuevos,contexto
+        ) values (
+          auth.uid(),nullif(auth.jwt()->>'email',''),v_role,'REINGRESAR_ETAPA_CIRCUITO',
+          'coi_ordenes',p_orden_id::text,v_order.nro_oc,to_jsonb(v_order),to_jsonb(v_after),
+          jsonb_build_object(
+            'codigo',v_codigo,'fecha_efectiva',v_fecha,
+            'estado_operativo_preservado',true
+          )
+        );
+      end if;
+    else
+      -- v3 usa directamente el writer base. No delega en v2 y por lo tanto
+      -- nunca ejecuta una conciliación de Acta contra la fecha de hoy.
+      v_result := public.coi_confirmar_etapa_circuito(p_orden_id,v_codigo,p_observacion);
+
+      if coalesce((v_result->>'ya_confirmada')::boolean,false) then
+        -- Reingreso a una etapa ya recorrida: evento nuevo, con su propia fecha efectiva.
+        with inserted as (
+          insert into public.coi_historial_oc(
+            orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,
+            motivo,usuario_email,creado_por,fecha_efectiva
+          ) values
+          (p_orden_id,v_order.nro_oc,'Circuito administrativo',v_codigo,v_current,v_nombre,
+           coalesce(nullif(trim(coalesce(p_observacion,'')),''),'Reingreso a etapa previamente recorrida'),
+           nullif(auth.jwt()->>'email',''),auth.uid(),v_fecha),
+          (p_orden_id,v_order.nro_oc,'Cambio de estado contractual','estado_documental',v_current,v_nombre,
+           'Reingreso contractual: '||v_nombre,nullif(auth.jwt()->>'email',''),auth.uid(),v_fecha)
+          returning *
+        )
+        select coalesce(jsonb_agg(to_jsonb(inserted.*) order by inserted.fecha_evento,inserted.id),'[]'::jsonb)
+          into v_history
+          from inserted;
+
+        insert into public.coi_operaciones_auditoria(
+          usuario_id,usuario_email,rol,accion,entidad,registro_id,nro_oc,
+          datos_anteriores,datos_nuevos,contexto
+        ) values (
+          auth.uid(),nullif(auth.jwt()->>'email',''),v_role,'REINGRESAR_ETAPA_CIRCUITO',
+          'coi_ordenes',p_orden_id::text,v_order.nro_oc,to_jsonb(v_order),v_result->'orden',
+          jsonb_build_object('codigo',v_codigo,'fecha_efectiva',v_fecha)
+        );
+        v_result := jsonb_set(v_result,'{historial}',v_history,true);
+        v_result := jsonb_set(v_result,'{ya_confirmada}','false'::jsonb,true);
+      else
+        -- Primera confirmación: completa fecha_efectiva sólo en las filas creadas
+        -- por esta llamada, sin tocar fecha_evento.
+        update public.coi_historial_oc h
+           set fecha_efectiva=v_fecha
+         where h.id in (
+           select nullif(x->>'id','')::uuid
+             from jsonb_array_elements(coalesce(v_result->'historial','[]'::jsonb)) x
+            where nullif(x->>'id','') is not null
+         );
+
+        select coalesce(jsonb_agg(to_jsonb(h) order by h.fecha_evento,h.id),'[]'::jsonb)
+          into v_history
+          from public.coi_historial_oc h
+         where h.id in (
+           select nullif(x->>'id','')::uuid
+             from jsonb_array_elements(coalesce(v_result->'historial','[]'::jsonb)) x
+            where nullif(x->>'id','') is not null
+         );
+        v_result := jsonb_set(v_result,'{historial}',coalesce(v_history,'[]'::jsonb),true);
+      end if;
+    end if;
+  end if;
+
+  -- Hito 8: la fecha seleccionada gobierna la conciliación del Acta.
+  if v_codigo='control_terceros_con_acta' and not (v_idempotente and p_fecha_efectiva is null) then
+    if v_order.fecha_acta_inicio is null then
+      update public.coi_ordenes
+         set fecha_acta_inicio=v_fecha
+       where id=p_orden_id;
+      v_result := jsonb_set(
+        v_result,'{acta_inicio}',
+        jsonb_build_object('estado','registrada','valor',v_fecha,'valor_confirmacion',v_fecha),true
+      );
+
+      insert into public.coi_historial_oc(
+        orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,
+        motivo,usuario_email,creado_por,fecha_efectiva
+      ) values (
+        p_orden_id,v_order.nro_oc,'Conciliación Acta de Inicio','fecha_acta_inicio',
+        null,v_fecha::text,'registrada_por_hito_8',
+        nullif(auth.jwt()->>'email',''),auth.uid(),v_fecha
+      ) returning * into v_conflicto;
+      v_result:=jsonb_set(
+        v_result,'{historial}',
+        coalesce(v_result->'historial','[]'::jsonb)||jsonb_build_array(to_jsonb(v_conflicto)),true
+      );
+
+      select * into v_after from public.coi_ordenes where id=p_orden_id;
+      insert into public.coi_operaciones_auditoria(
+        usuario_id,usuario_email,rol,accion,entidad,registro_id,nro_oc,
+        datos_anteriores,datos_nuevos,contexto
+      ) values (
+        auth.uid(),nullif(auth.jwt()->>'email',''),v_role,'REGISTRAR_FECHA_ACTA_INICIO_ETAPA1',
+        'coi_ordenes',p_orden_id::text,v_order.nro_oc,to_jsonb(v_order),to_jsonb(v_after),
+        jsonb_build_object('codigo',v_codigo,'origen','confirmacion_hito_8','fecha_efectiva',v_fecha)
+      );
+    elsif v_order.fecha_acta_inicio=v_fecha then
+      -- Si existía un conflicto previo, persistir explícitamente su resolución
+      -- para que una recarga reconstruya el estado correcto desde historial.
+      select * into v_conflicto
+        from public.coi_historial_oc h
+       where h.orden_id=p_orden_id
+         and h.tipo_evento='Conciliación Acta de Inicio'
+         and h.campo_modificado='fecha_acta_inicio'
+       order by h.fecha_evento desc,h.id desc
+       limit 1;
+      if found and lower(trim(coalesce(v_conflicto.motivo,'')))='conflicto' then
+        insert into public.coi_historial_oc(
+          orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,
+          motivo,usuario_email,creado_por,fecha_efectiva
+        ) values (
+          p_orden_id,v_order.nro_oc,'Conciliación Acta de Inicio','fecha_acta_inicio',
+          v_order.fecha_acta_inicio::text,v_fecha::text,'coincide',
+          nullif(auth.jwt()->>'email',''),auth.uid(),v_fecha
+        ) returning * into v_conflicto;
+        v_result := jsonb_set(
+          v_result,'{historial}',coalesce(v_result->'historial','[]'::jsonb)||jsonb_build_array(to_jsonb(v_conflicto)),true
+        );
+      end if;
+      v_result := jsonb_set(
+        v_result,'{acta_inicio}',
+        jsonb_build_object('estado','coincide','valor',v_order.fecha_acta_inicio,'valor_confirmacion',v_fecha),true
+      );
+    else
+      insert into public.coi_historial_oc(
+        orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,
+        motivo,usuario_email,creado_por,fecha_efectiva
+      ) values (
+        p_orden_id,v_order.nro_oc,'Conciliación Acta de Inicio','fecha_acta_inicio',
+        v_order.fecha_acta_inicio::text,v_fecha::text,'conflicto',
+        nullif(auth.jwt()->>'email',''),auth.uid(),v_fecha
+      ) returning * into v_conflicto;
+      v_result := jsonb_set(
+        v_result,'{historial}',coalesce(v_result->'historial','[]'::jsonb)||jsonb_build_array(to_jsonb(v_conflicto)),true
+      );
+      v_result := jsonb_set(
+        v_result,'{acta_inicio}',
+        jsonb_build_object('estado','conflicto','valor',v_order.fecha_acta_inicio,'valor_confirmacion',v_fecha),true
+      );
+    end if;
+  end if;
+
+  select * into v_after from public.coi_ordenes where id=p_orden_id;
+  v_result := jsonb_set(v_result,'{orden}',to_jsonb(v_after),true);
+  v_result := jsonb_set(v_result,'{fecha_efectiva}',to_jsonb(v_fecha),true);
+
+  insert into public.coi_operaciones_auditoria(
+    usuario_id,usuario_email,rol,accion,entidad,registro_id,nro_oc,
+    datos_anteriores,datos_nuevos,contexto
+  ) values (
+    auth.uid(),nullif(auth.jwt()->>'email',''),v_role,
+    'CONFIRMAR_ETAPA_CIRCUITO_V3','coi_ordenes',p_orden_id::text,v_order.nro_oc,
+    to_jsonb(v_order),to_jsonb(v_after),
+    jsonb_build_object(
+      'codigo',v_codigo,'fecha_efectiva',v_fecha,'version_rpc','v3',
+      'estado_operativo_preservado',v_cerrada
+    )
+  );
+
+  return v_result;
+end;
+$$;
+
+revoke all on function public.coi_anular_etapa_circuito_v1(uuid,text,text,uuid[]) from public, anon, authenticated;
+grant execute on function public.coi_anular_etapa_circuito_v1(uuid,text,text,uuid[]) to authenticated;
+
+comment on function public.coi_anular_etapa_circuito_v1(uuid,text,text,uuid[]) is
+  'Desmarca de forma auditable todos los ingresos activos de un hito contractual, restaura el último estado contractual activo y preserva el cierre operativo inmutable.';
+
+commit;
