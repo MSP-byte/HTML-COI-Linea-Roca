@@ -62,8 +62,45 @@ async function main(){
  const H=hoy.d;
  const confirmar=(id,codigo)=>db.query(
    'select public.coi_confirmar_etapa_circuito_v3($1,$2,null,$3::date) r',[id,codigo,H]);
- const anular=(id,codigo)=>db.query(
-   "select public.coi_anular_etapa_circuito_v1($1,$2,'corrección de prueba') r",[id,codigo]);
+ const NOMBRE={
+   pliegos_preparacion:'PLIEGOS EN PREPARACIÓN',
+   pliegos_terminado_sin_solped:'PLIEGOS TERMINADO SIN SOLPED',
+   solped_sin_expediente:'PLIEGO CON SOLPED SIN EXPTE',
+   control_terceros_con_acta:'PLIEGO CON OC Y CONTROL DE 3º CON ACTA DE INICIO'
+ };
+ const eventosActivos=async(id,codigo)=>{
+   const nombre=NOMBRE[codigo]||'';
+   const {rows}=await db.query(`
+     select h.id
+       from public.coi_historial_oc h
+      where h.orden_id=$1
+        and not exists (
+          select 1 from public.coi_historial_oc a
+           where a.orden_id=h.orden_id
+             and a.tipo_evento='Anulación circuito administrativo'
+             and a.valor_anterior=h.id::text
+        )
+        and (
+          (h.tipo_evento='Circuito administrativo' and h.campo_modificado=$2)
+          or
+          (h.tipo_evento='Cambio de estado contractual' and h.valor_nuevo=$3
+           and not exists (
+             select 1 from public.coi_historial_oc c
+              where c.orden_id=h.orden_id
+                and c.tipo_evento='Circuito administrativo'
+                and c.valor_nuevo=h.valor_nuevo
+                and abs(extract(epoch from (c.fecha_evento-h.fecha_evento)))<=5
+           ))
+        )
+      order by h.fecha_evento,h.id`,[id,codigo,nombre]);
+   return rows.map(r=>r.id);
+ };
+ const anular=async(id,codigo)=>{
+   const esperados=await eventosActivos(id,codigo);
+   return db.query(
+     "select public.coi_anular_etapa_circuito_v1($1,$2,'corrección de prueba',$3::uuid[]) r",
+     [id,codigo,esperados]);
+ };
 
  // A · múltiples reingresos: todos quedan anulados y una nueva H1 reinicia.
  const id=await nuevaOC(db,'4530999901');
@@ -209,7 +246,10 @@ async function main(){
      [idAcl,tipo,'00000000-0000-4000-8000-'+String(i+10).padStart(12,'0')]));
    check(Boolean(err)&&/row-level security|policy/i.test(err),'la variante con whitespace Unicode U+'+espaciosUnicode[i].codePointAt(0).toString(16).toUpperCase()+' debe ser rechazada por RLS');
  }
- const porRpc=await db.query("select public.coi_anular_etapa_circuito_v1($1,'pliegos_preparacion','vía RPC') r",[idAcl]);
+ const esperadosAcl=await eventosActivos(idAcl,'pliegos_preparacion');
+ const porRpc=await db.query(
+   "select public.coi_anular_etapa_circuito_v1($1,'pliegos_preparacion','vía RPC',$2::uuid[]) r",
+   [idAcl,esperadosAcl]);
  check(porRpc.rows[0].r.anuladas===1,'authenticated sí puede anular por la RPC controlada');
  await db.exec('reset role');
 
@@ -315,6 +355,33 @@ async function main(){
    [idActaConflicto]);
  check(conflictoDespues.rows[0].motivo==='hito_8_anulado',
    'desmarcar H8 cierra el conflicto de Acta con una fila append-only');
+
+ // K · el writer directo de compatibilidad también rompe la procedencia H8.
+ const idActaCompat=await nuevaOC(db,'4530999913');
+ await confirmar(idActaCompat,'control_terceros_con_acta');
+ await db.query("update public.coi_ordenes set fecha_acta_inicio=$2::date where id=$1",[idActaCompat,X]);
+ await db.query("update public.coi_ordenes set fecha_acta_inicio=$2::date where id=$1",[idActaCompat,H]);
+ const auditCompat=await db.query(
+   "select count(*)::int n from public.coi_operaciones_auditoria where entidad='coi_ordenes' and registro_id=$1::text and accion='ACTUALIZAR_ORDEN_DIRECTO_COMPAT'",
+   [idActaCompat]);
+ check(auditCompat.rows[0].n>=2,'el writer directo compat audita D -> X -> D');
+ await anular(idActaCompat,'control_terceros_con_acta');
+ const actaCompat=await db.query("select to_char(fecha_acta_inicio,'YYYY-MM-DD') fecha_acta_inicio from public.coi_ordenes where id=$1",[idActaCompat]);
+ check(actaCompat.rows[0].fecha_acta_inicio===H,'D -> X -> D por writer directo compat preserva la fecha ratificada');
+
+ // L · optimistic concurrency: una reconfirmación posterior invalida el modal viejo.
+ const idStale=await nuevaOC(db,'4530999914');
+ await confirmar(idStale,'pliegos_preparacion');
+ const esperadosStale=await eventosActivos(idStale,'pliegos_preparacion');
+ await confirmar(idStale,'solped_sin_expediente');
+ await confirmar(idStale,'pliegos_preparacion');
+ const staleError=await fallo(()=>db.query(
+   "select public.coi_anular_etapa_circuito_v1($1,'pliegos_preparacion','modal viejo',$2::uuid[]) r",
+   [idStale,esperadosStale]));
+ check(Boolean(staleError)&&/COI_CIRCUIT_STALE_TARGET/.test(staleError),
+   'un modal viejo no puede anular un reingreso creado después');
+ const staleActivas=await eventosActivos(idStale,'pliegos_preparacion');
+ check(staleActivas.length===2,'el rechazo por concurrencia no anula ningún ingreso activo');
 
  const acl=await db.query(`
    select coalesce(has_function_privilege('authenticated',p.oid,'EXECUTE'),false) auth_exec,

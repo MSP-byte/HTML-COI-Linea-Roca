@@ -28,10 +28,10 @@ Ejecutar primero en STAGING y validar; luego en PRODUCCIÓN sólo con autorizaci
 ```sql
 begin;
 
-revoke all on function public.coi_anular_etapa_circuito_v1(uuid,text,text)
+revoke all on function public.coi_anular_etapa_circuito_v1(uuid,text,text,uuid[])
   from public, anon, authenticated;
 
-drop function if exists public.coi_anular_etapa_circuito_v1(uuid,text,text);
+drop function if exists public.coi_anular_etapa_circuito_v1(uuid,text,text,uuid[]);
 
 -- La policy restrictiva se conserva deliberadamente aunque se quite la RPC:
 -- así ningún cliente puede fabricar anulaciones directas sin snapshot/auditoría.
@@ -45,7 +45,7 @@ oculta la acción de desmarcado.
 
 ## Validación posterior
 
-- `to_regprocedure('public.coi_anular_etapa_circuito_v1(uuid,text,text)')`
+- `to_regprocedure('public.coi_anular_etapa_circuito_v1(uuid,text,text,uuid[])')`
   debe devolver NULL;
 - debe seguir existiendo la policy restrictiva `coi_historial_anulacion_rpc_only_v1`;
 - los hitos ya anulados deben seguir proyectándose como no vigentes;

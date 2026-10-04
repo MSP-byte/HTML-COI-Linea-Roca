@@ -24,7 +24,8 @@ with check (
 create or replace function public.coi_anular_etapa_circuito_v1(
   p_orden_id uuid,
   p_codigo text,
-  p_motivo text default null
+  p_motivo text default null,
+  p_eventos_esperados uuid[] default null
 )
 returns jsonb
 language plpgsql
@@ -44,6 +45,7 @@ declare
   v_nombre text;
   v_hoy date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
   v_historial jsonb := '[]'::jsonb;
+  v_target_ids uuid[] := '{}'::uuid[];
   v_anuladas integer := 0;
   v_cerrada boolean := false;
   v_acta_revertida boolean := false;
@@ -147,8 +149,19 @@ begin
     returning * into v_event;
 
     v_historial := v_historial || jsonb_build_array(to_jsonb(v_event));
+    v_target_ids := array_append(v_target_ids, v_target.id);
     v_anuladas := v_anuladas + 1;
   end loop;
+
+  if p_eventos_esperados is null
+     or array(select distinct x from unnest(coalesce(p_eventos_esperados,'{}'::uuid[])) x order by x)
+        is distinct from
+        array(select distinct x from unnest(v_target_ids) x order by x) then
+    raise exception using
+      errcode='40001',
+      message='COI_CIRCUIT_STALE_TARGET',
+      detail='El hito cambió desde que se abrió la confirmación. Recargue y vuelva a intentar.';
+  end if;
 
   if v_anuladas = 0 then
     return jsonb_build_object(
@@ -190,7 +203,7 @@ begin
            from public.coi_operaciones_auditoria a
           where a.entidad='coi_ordenes'
             and a.registro_id=p_orden_id::text
-            and a.accion='ACTUALIZAR_ORDEN_INTEGRAL'
+            and a.accion in ('ACTUALIZAR_ORDEN_INTEGRAL','ACTUALIZAR_ORDEN_DIRECTO_COMPAT')
             and a.fecha_hora>v_acta_marker.fecha_evento
             and (
               coalesce(a.contexto->'campos','[]'::jsonb) ? 'fecha_acta_inicio'
@@ -738,10 +751,10 @@ begin
 end;
 $$;
 
-revoke all on function public.coi_anular_etapa_circuito_v1(uuid,text,text) from public, anon, authenticated;
-grant execute on function public.coi_anular_etapa_circuito_v1(uuid,text,text) to authenticated;
+revoke all on function public.coi_anular_etapa_circuito_v1(uuid,text,text,uuid[]) from public, anon, authenticated;
+grant execute on function public.coi_anular_etapa_circuito_v1(uuid,text,text,uuid[]) to authenticated;
 
-comment on function public.coi_anular_etapa_circuito_v1(uuid,text,text) is
+comment on function public.coi_anular_etapa_circuito_v1(uuid,text,text,uuid[]) is
   'Desmarca de forma auditable todos los ingresos activos de un hito contractual, restaura el último estado contractual activo y preserva el cierre operativo inmutable.';
 
 commit;

@@ -27,7 +27,7 @@
     "grants": [],
     "grants_funciones": [
       {
-        "funcion": "coi_anular_etapa_circuito_v1(uuid,text,text)",
+        "funcion": "coi_anular_etapa_circuito_v1(uuid,text,text,uuid[])",
         "produccion": "ausente",
         "repo": {
           "authenticated": [

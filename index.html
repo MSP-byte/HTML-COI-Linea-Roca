@@ -20439,12 +20439,18 @@ function asignarEstadoDocumentalLocal(orden,estado,now){
 }
 function esUUIDCircuito(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(clean(value));}
 async function resolverOrdenIdCircuito(client,resolved,nro){
+  const esperado=normOC(nro);
   const candidate=ordenIdCircuito(resolved);
-  if(esUUIDCircuito(candidate))return candidate;
-  const result=await client.from('coi_ordenes').select('id,nro_oc').eq('nro_oc',nro).limit(2);
+  const nroResolved=normOC(nroOCCircuito(resolved));
+  if(esUUIDCircuito(candidate)&&nroResolved===esperado)return candidate;
+  const result=await client.from('coi_ordenes').select('id,nro_oc').eq('nro_oc',esperado).limit(2);
   if(result.error)throw new Error(detalleErrorCircuito(result.error));
-  if(result.data?.length!==1||!esUUIDCircuito(result.data[0].id))throw new Error('No se pudo resolver un UUID único para la OC.');
-  return result.data[0].id;
+  const row=result.data?.length===1?result.data[0]:null;
+  if(!row||!esUUIDCircuito(row.id)||normOC(row.nro_oc)!==esperado)
+    throw new Error('No se pudo resolver un UUID único para la OC solicitada.');
+  if(esUUIDCircuito(candidate)&&candidate!==row.id)
+    throw new Error('La identidad local de la OC no coincide con Supabase. Recargue antes de continuar.');
+  return row.id;
 }
 /* Incorpora a la cache las filas que Supabase acaba de CONFIRMAR (payload
    del RPC). Reemplaza por id, nunca duplica ni borra: una reconfirmacion
@@ -20546,7 +20552,7 @@ async function probarDisponibilidadAnulacionCircuito(){
 window.__COI_CIRCUITO_ANULACION_DISPONIBLE__=anulacionCircuitoDisponible;
 window.__COI_CIRCUITO_ANULACION_PROBAR__=probarDisponibilidadAnulacionCircuito;
 
-async function anularEtapaCircuitoContractual(ocNro,paso,motivo=''){
+async function anularEtapaCircuitoContractual(ocNro,paso,motivo='',eventosEsperados=[]){
   if(window.APP_STATE?.editingOC)throw new Error('Guarde o cancele la edición integral antes de desmarcar un hito.');
   if(!(await probarDisponibilidadAnulacionCircuito()))throw new Error('El desmarcado contractual aún no está desplegado en Supabase.');
   let stage=typeof paso==='string'
@@ -20558,14 +20564,18 @@ async function anularEtapaCircuitoContractual(ocNro,paso,motivo=''){
   }
   const estado=stage?(estadoContractualNormalizado(stage)||clean(stage.nombre)||clean(stage.codigo)):'';
   const nro=normOC(ocNro||currentOCKeyFromGlobals());
-  const resolved=resolverOrdenCircuito(nro)||resolverOrdenCircuito(currentOCKeyFromGlobals());
+  const resolved=resolverOrdenCircuito(nro);
   if(!nro||!stage||!clean(stage.codigo))throw new Error('No se pudo identificar la OC o el hito contractual.');
+  if(!resolved)throw new Error('La OC objetivo ya no está disponible en el catálogo cargado. Recargue antes de desmarcar.');
   const {client}=await validarEscrituraCircuito();
   const ordenId=await resolverOrdenIdCircuito(client,resolved,nro);
+  const esperados=Array.isArray(eventosEsperados)?eventosEsperados.map(clean).filter(Boolean).sort():[];
+  if(!esperados.length)throw new Error('El hito cambió o no tiene ingresos activos. Recargue antes de desmarcar.');
   const result=await client.rpc('coi_anular_etapa_circuito_v1',{
     p_orden_id:ordenId,
     p_codigo:stage.codigo,
-    p_motivo:clean(motivo)||null
+    p_motivo:clean(motivo)||null,
+    p_eventos_esperados:esperados
   });
   if(result.error)throw new Error(detalleErrorCircuito(result.error));
   if(!result.data?.orden)throw new Error('Supabase no confirmó el desmarcado del hito.');
@@ -35948,9 +35958,20 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
           '<button type="button" id="etapa1ModalAnularConfirmarBtn" class="primary">DESMARCAR HITO</button>' +
         '</div></div>';
     document.body.appendChild(overlay);
+    const eventosEsperados=(estado.transiciones||[])
+      .filter((t)=>t&&t.codigo===codigo&&t.ev&&texto(t.ev.id))
+      .map((t)=>texto(t.ev.id))
+      .filter((id,index,all)=>all.indexOf(id)===index)
+      .sort();
+    if(!eventosEsperados.length){
+      if(overlay.parentNode)overlay.parentNode.removeChild(overlay);
+      try { if (typeof window.toast === 'function') window.toast('El hito cambió mientras se abría la confirmación. Recargue y vuelva a intentar.', 'warn'); } catch (e) {}
+      return;
+    }
     modalAnulacion = {
       token: String(Date.now()) + ':' + Math.random().toString(36).slice(2),
-      codigo: codigo, nro: estado.nro || nro, orden: orden, etapa: etapa, identidad: identidadOrden(orden)
+      codigo: codigo, nro: estado.nro || nro, orden: orden, etapa: etapa,
+      identidad: identidadOrden(orden), eventosEsperados: eventosEsperados
     };
   }
 
@@ -35977,7 +35998,8 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     }
     const contexto = Object.freeze({
       token: modalAnulacion.token, codigo: modalAnulacion.codigo, nro: modalAnulacion.nro,
-      orden: modalAnulacion.orden, etapa: modalAnulacion.etapa, identidad: modalAnulacion.identidad
+      orden: modalAnulacion.orden, etapa: modalAnulacion.etapa, identidad: modalAnulacion.identidad,
+      eventosEsperados: Array.isArray(modalAnulacion.eventosEsperados)?modalAnulacion.eventosEsperados.slice():[]
     });
     const btn = $('etapa1ModalAnularConfirmarBtn');
     const motivo = texto($('etapa1ModalAnularMotivo') && $('etapa1ModalAnularMotivo').value);
@@ -35986,7 +36008,9 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
     try {
       if (typeof window.anularEtapaCircuitoContractual !== 'function')
         throw new Error('El desmarcado contractual no está disponible.');
-      const resultado = await window.anularEtapaCircuitoContractual(contexto.nro, contexto.etapa, motivo);
+      const resultado = await window.anularEtapaCircuitoContractual(
+        contexto.nro, contexto.etapa, motivo, contexto.eventosEsperados
+      );
       const resultId = identidadOrden(resultado && resultado.orden);
       if (esUUIDPipeline(contexto.identidad) && contexto.identidad && resultId && contexto.identidad !== resultId)
         throw new Error('Supabase confirmó una OC distinta de la operación iniciada.');

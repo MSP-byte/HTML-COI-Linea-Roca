@@ -1810,3 +1810,16 @@ después de esa marca, `coi_actualizar_orden_integral` intervino
 `D → X → D`: aunque el valor final vuelva a coincidir con el creado por H8,
 la intervención humana posterior rompe la procedencia automática y el
 desmarcado no puede borrar la fecha.
+
+
+### TD-077 · cierre de concurrencia e identidad del desmarcado
+
+El modal captura el conjunto exacto de UUIDs de ingresos activos y
+desduplicados. La RPC lo compara bajo lock mediante
+`p_eventos_esperados`; cualquier diferencia produce
+`COI_CIRCUIT_STALE_TARGET` y revierte la transacción completa.
+
+La resolución del UUID ya no acepta como fallback una OC distinta a la pedida:
+N° OC y UUID deben reconciliarse antes del writer. Además, tanto
+`ACTUALIZAR_ORDEN_INTEGRAL` como `ACTUALIZAR_ORDEN_DIRECTO_COMPAT` rompen
+la procedencia automática de H8 sobre `fecha_acta_inicio`.
