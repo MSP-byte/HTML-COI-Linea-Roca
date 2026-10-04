@@ -210,13 +210,15 @@ async function main(){
  const idActaDerivada=await nuevaOC(db,'4530999908');
  await confirmar(idActaDerivada,'control_terceros_con_acta');
  const actaCreada=await db.query(
-   "select fecha_acta_inicio from public.coi_ordenes where id=$1",[idActaDerivada]);
- check(String(actaCreada.rows[0].fecha_acta_inicio).slice(0,10)===H,'H8 crea la fecha de Acta cuando estaba vacía');
+   "select to_char(fecha_acta_inicio,'YYYY-MM-DD') fecha_acta_inicio from public.coi_ordenes where id=$1",[idActaDerivada]);
+ check(actaCreada.rows[0].fecha_acta_inicio===H,'H8 crea la fecha de Acta cuando estaba vacía');
  const marker=await db.query(
    "select count(*)::int n from public.coi_historial_oc where orden_id=$1 and tipo_evento='Conciliación Acta de Inicio' and motivo='registrada_por_hito_8'",[idActaDerivada]);
  check(marker.rows[0].n===1,'la fecha creada por H8 queda marcada con procedencia auditable');
  const unmarkActa=(await anular(idActaDerivada,'control_terceros_con_acta')).rows[0].r;
  check(unmarkActa.orden.fecha_acta_inicio===null,'desmarcar H8 revierte la fecha que H8 había creado');
+ const actaRevertidaDB=await db.query("select fecha_acta_inicio from public.coi_ordenes where id=$1",[idActaDerivada]);
+ check(actaRevertidaDB.rows[0].fecha_acta_inicio===null,'la reversión H8 también queda persistida en la OC');
  const gateDerivado=await fallo(()=>confirmar(idActaDerivada,'ejecucion'));
  check(Boolean(gateDerivado)&&/COI_ACTA_INICIO_REQUIRED/.test(gateDerivado),'la fecha derivada anulada no sigue habilitando H9');
 
@@ -226,8 +228,8 @@ async function main(){
  await db.query(
    "select public.coi_confirmar_etapa_circuito_v3($1,'control_terceros_con_acta',null,'2026-09-01'::date) r",[idActaPrevia]);
  await anular(idActaPrevia,'control_terceros_con_acta');
- const actaPrevia=await db.query("select fecha_acta_inicio from public.coi_ordenes where id=$1",[idActaPrevia]);
- check(String(actaPrevia.rows[0].fecha_acta_inicio).slice(0,10)==='2026-09-01','desmarcar H8 preserva una fecha de Acta preexistente');
+ const actaPrevia=await db.query("select to_char(fecha_acta_inicio,'YYYY-MM-DD') fecha_acta_inicio from public.coi_ordenes where id=$1",[idActaPrevia]);
+ check(actaPrevia.rows[0].fecha_acta_inicio==='2026-09-01','desmarcar H8 preserva una fecha de Acta preexistente');
 
  // I · si la fecha derivada fue modificada después, la edición posterior gana.
  const idActaEditada=await nuevaOC(db,'4530999910');
@@ -241,8 +243,8 @@ async function main(){
     )`,[idActaEditada,H]);
  await db.query("update public.coi_ordenes set fecha_acta_inicio='2026-09-30' where id=$1",[idActaEditada]);
  await anular(idActaEditada,'control_terceros_con_acta');
- const actaEditada=await db.query("select fecha_acta_inicio from public.coi_ordenes where id=$1",[idActaEditada]);
- check(String(actaEditada.rows[0].fecha_acta_inicio).slice(0,10)==='2026-09-30','una edición posterior de la fecha de Acta se preserva');
+ const actaEditada=await db.query("select to_char(fecha_acta_inicio,'YYYY-MM-DD') fecha_acta_inicio from public.coi_ordenes where id=$1",[idActaEditada]);
+ check(actaEditada.rows[0].fecha_acta_inicio==='2026-09-30','una edición posterior de la fecha de Acta se preserva');
 
  const acl=await db.query(`
    select coalesce(has_function_privilege('authenticated',p.oid,'EXECUTE'),false) auth_exec,
