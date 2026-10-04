@@ -252,20 +252,49 @@ async function main(){
  const actaPrevia=await db.query("select to_char(fecha_acta_inicio,'YYYY-MM-DD') fecha_acta_inicio from public.coi_ordenes where id=$1",[idActaPrevia]);
  check(actaPrevia.rows[0].fecha_acta_inicio==='2026-09-01','desmarcar H8 preserva una fecha de Acta preexistente');
 
- // I · si la fecha derivada fue modificada después, la edición posterior gana.
+ // I · la edición integral real rompe la procedencia H8.
+ // No se simula una conciliación: se usa el writer productivo de la Ficha.
+ const {rows:[altFecha]}=await db.query(
+   "select to_char(((now() at time zone 'America/Argentina/Buenos_Aires')::date - 1),'YYYY-MM-DD') d");
+ const X=altFecha.d;
  const idActaEditada=await nuevaOC(db,'4530999910');
  await confirmar(idActaEditada,'control_terceros_con_acta');
  await db.query(
-   `insert into public.coi_historial_oc(
-      orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,motivo,fecha_efectiva
-    ) values (
-      $1,'4530999910','Conciliación Acta de Inicio','fecha_acta_inicio',$2,'2026-09-30',
-      'edicion_posterior_independiente','2026-09-30'
-    )`,[idActaEditada,H]);
- await db.query("update public.coi_ordenes set fecha_acta_inicio='2026-09-30' where id=$1",[idActaEditada]);
+   "select public.coi_actualizar_orden_integral($1,jsonb_build_object('fecha_acta_inicio',$2)) r",
+   [idActaEditada,X]);
  await anular(idActaEditada,'control_terceros_con_acta');
- const actaEditada=await db.query("select to_char(fecha_acta_inicio,'YYYY-MM-DD') fecha_acta_inicio from public.coi_ordenes where id=$1",[idActaEditada]);
- check(actaEditada.rows[0].fecha_acta_inicio==='2026-09-30','una edición posterior de la fecha de Acta se preserva');
+ const actaEditada=await db.query(
+   "select to_char(fecha_acta_inicio,'YYYY-MM-DD') fecha_acta_inicio from public.coi_ordenes where id=$1",
+   [idActaEditada]);
+ check(actaEditada.rows[0].fecha_acta_inicio===X,
+   'una edición integral posterior de la fecha de Acta se preserva al desmarcar H8');
+
+ // I2 · caso crítico D -> X -> D: aunque el valor final vuelva a coincidir con
+ // el creado por H8, la intervención integral posterior conserva autoridad.
+ const idActaRatificada=await nuevaOC(db,'4530999912');
+ await confirmar(idActaRatificada,'control_terceros_con_acta');
+ await db.query(
+   "select public.coi_actualizar_orden_integral($1,jsonb_build_object('fecha_acta_inicio',$2)) r",
+   [idActaRatificada,X]);
+ await db.query(
+   "select public.coi_actualizar_orden_integral($1,jsonb_build_object('fecha_acta_inicio',$2)) r",
+   [idActaRatificada,H]);
+ const auditoriasActa=await db.query(
+   `select count(*)::int n
+      from public.coi_operaciones_auditoria
+     where entidad='coi_ordenes'
+       and registro_id=$1::text
+       and accion='ACTUALIZAR_ORDEN_INTEGRAL'
+       and coalesce(contexto->'campos','[]'::jsonb) ? 'fecha_acta_inicio'`,
+   [idActaRatificada]);
+ check(auditoriasActa.rows[0].n>=2,
+   'el writer integral audita las dos intervenciones sobre fecha_acta_inicio');
+ await anular(idActaRatificada,'control_terceros_con_acta');
+ const actaRatificada=await db.query(
+   "select to_char(fecha_acta_inicio,'YYYY-MM-DD') fecha_acta_inicio from public.coi_ordenes where id=$1",
+   [idActaRatificada]);
+ check(actaRatificada.rows[0].fecha_acta_inicio===H,
+   'D -> X -> D por edición integral no permite que el desmarcado H8 borre la fecha ratificada');
 
  // J · un conflicto de Acta asociado a H8 deja de estar vigente al desmarcar H8.
  const idActaConflicto=await nuevaOC(db,'4530999911');

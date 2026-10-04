@@ -159,7 +159,8 @@ begin
 
   -- H8 puede haber creado fecha_acta_inicio al confirmar una OC que no tenía
   -- Acta. Si el operador desmarca ESE H8, se revierte sólo esa fecha derivada.
-  -- Una fecha preexistente/legacy o una conciliación posterior se preserva.
+  -- Una fecha preexistente/legacy, una conciliación posterior o cualquier
+  -- edición integral posterior de fecha_acta_inicio se preserva.
   if v_codigo='control_terceros_con_acta' and v_order.fecha_acta_inicio is not null then
     select h.* into v_acta_marker
       from public.coi_historial_oc h
@@ -172,14 +173,35 @@ begin
      order by h.fecha_evento desc,h.id desc
      limit 1;
 
-    if found and not exists (
-      select 1
-        from public.coi_historial_oc x
-       where x.orden_id=p_orden_id
-         and x.tipo_evento='Conciliación Acta de Inicio'
-         and x.campo_modificado='fecha_acta_inicio'
-         and (x.fecha_evento,x.id)>(v_acta_marker.fecha_evento,v_acta_marker.id)
-    ) then
+    if found
+       and not exists (
+         select 1
+           from public.coi_historial_oc x
+          where x.orden_id=p_orden_id
+            and x.tipo_evento='Conciliación Acta de Inicio'
+            and x.campo_modificado='fecha_acta_inicio'
+            and (x.fecha_evento,x.id)>(v_acta_marker.fecha_evento,v_acta_marker.id)
+       )
+       and not exists (
+         -- La edición integral es también autoridad sobre fecha_acta_inicio.
+         -- Incluso D -> X -> D rompe la procedencia del H8: el valor final
+         -- puede coincidir, pero ya fue ratificado/modificado por el operador.
+         select 1
+           from public.coi_operaciones_auditoria a
+          where a.entidad='coi_ordenes'
+            and a.registro_id=p_orden_id::text
+            and a.accion='ACTUALIZAR_ORDEN_INTEGRAL'
+            and a.fecha_hora>v_acta_marker.fecha_evento
+            and (
+              coalesce(a.contexto->'campos','[]'::jsonb) ? 'fecha_acta_inicio'
+              or (
+                coalesce(a.datos_anteriores,'{}'::jsonb) ? 'fecha_acta_inicio'
+                and coalesce(a.datos_nuevos,'{}'::jsonb) ? 'fecha_acta_inicio'
+                and a.datos_anteriores->'fecha_acta_inicio'
+                    is distinct from a.datos_nuevos->'fecha_acta_inicio'
+              )
+            )
+       ) then
       update public.coi_ordenes
          set fecha_acta_inicio=null
        where id=p_orden_id;

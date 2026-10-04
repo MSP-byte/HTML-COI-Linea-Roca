@@ -1799,3 +1799,14 @@ preexistente, al desmarcar H8 la RPC conserva la fecha contractual y agrega una
 fila append-only `hito_8_anulado`. La UI elimina además cualquier copia
 efímera del conflicto en memoria. Así, ni una recarga ni el repaint inmediato
 pueden revivir una advertencia que ya no corresponde.
+
+
+### TD-077 · autoridad de la edición integral sobre Fecha de Acta
+
+La procedencia `registrada_por_hito_8` deja de autorizar una reversión si,
+después de esa marca, `coi_actualizar_orden_integral` intervino
+`fecha_acta_inicio`. La auditoría `ACTUALIZAR_ORDEN_INTEGRAL` y su
+`contexto.campos` son la evidencia autoritativa. La regla cubre también
+`D → X → D`: aunque el valor final vuelva a coincidir con el creado por H8,
+la intervención humana posterior rompe la procedencia automática y el
+desmarcado no puede borrar la fecha.
