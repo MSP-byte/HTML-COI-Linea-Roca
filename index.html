@@ -35990,6 +35990,10 @@ border-color:rgba(242,102,119,.42);color:var(--v2-danger)}
       const resultId = identidadOrden(resultado && resultado.orden);
       if (esUUIDPipeline(contexto.identidad) && contexto.identidad && resultId && contexto.identidad !== resultId)
         throw new Error('Supabase confirmó una OC distinta de la operación iniciada.');
+      // El conflicto de Acta pertenece a una confirmación H8 activa. Tras un
+      // desmarcado exitoso, la RPC lo cierra en historial y esta copia efímera
+      // tampoco puede revivirlo durante el repaint inmediato.
+      if (contexto.codigo === CODIGO_ACTA) conflictoActa.delete(contexto.nro);
       const baseOrden = ordenDe(contexto.nro) || contexto.orden || ordenesMontadas.get(contexto.nro) || null;
       const orden = reconciliarOrden(baseOrden, resultado && resultado.orden);
       if (orden) repintar(orden, contexto.identidad);

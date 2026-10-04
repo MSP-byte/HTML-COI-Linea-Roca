@@ -15,7 +15,10 @@ with check (
       )
     ),
     '[[:space:]                 　﻿]+', '', 'g'
-  ) <> 'anulacioncircuitoadministrativo'
+  ) not in (
+    'anulacioncircuitoadministrativo',
+    'conciliacionactadeinicio'
+  )
 );
 
 create or replace function public.coi_anular_etapa_circuito_v1(
@@ -193,6 +196,32 @@ begin
 
       v_historial:=v_historial||jsonb_build_array(to_jsonb(v_acta_event));
       v_acta_revertida:=true;
+    end if;
+  end if;
+
+  -- Si H8 había dejado un conflicto contra una Fecha de Acta preexistente,
+  -- al desmarcar todos los ingresos activos de H8 ese conflicto deja de tener
+  -- objeto. Se cierra append-only; nunca se borra la evidencia original.
+  if v_codigo='control_terceros_con_acta' and not v_acta_revertida then
+    select h.* into v_acta_marker
+      from public.coi_historial_oc h
+     where h.orden_id=p_orden_id
+       and h.tipo_evento='Conciliación Acta de Inicio'
+       and h.campo_modificado='fecha_acta_inicio'
+     order by h.fecha_evento desc,h.id desc
+     limit 1;
+
+    if found and lower(trim(coalesce(v_acta_marker.motivo,'')))='conflicto' then
+      insert into public.coi_historial_oc(
+        orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,
+        motivo,usuario_email,creado_por,fecha_efectiva
+      ) values (
+        p_orden_id,v_order.nro_oc,'Conciliación Acta de Inicio','fecha_acta_inicio',
+        v_acta_marker.valor_nuevo,v_order.fecha_acta_inicio::text,'hito_8_anulado',
+        nullif(auth.jwt()->>'email',''),auth.uid(),v_hoy
+      )
+      returning * into v_acta_event;
+      v_historial:=v_historial||jsonb_build_array(to_jsonb(v_acta_event));
     end if;
   end if;
 

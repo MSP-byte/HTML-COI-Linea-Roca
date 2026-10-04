@@ -193,6 +193,11 @@ async function main(){
    [idAcl,'Anulacio\u034Fn circuito administrativo']));
  check(Boolean(directoCombiningIgnorable)&&/row-level security|policy/i.test(directoCombiningIgnorable),
    'U+034F dentro del tipo de anulación también debe ser rechazado por RLS');
+ const directoConciliacion=await fallo(()=>db.query(
+   "insert into public.coi_historial_oc(orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,motivo) values ($1,'4530999904','Conciliación Acta de Inicio','fecha_acta_inicio',null,'2026-10-03','registrada_por_hito_8')",
+   [idAcl]));
+ check(Boolean(directoConciliacion)&&/row-level security|policy/i.test(directoConciliacion),
+   'Conciliación Acta de Inicio sólo puede ser creada por RPC SECURITY DEFINER');
  const espaciosUnicode=[
    '\u00A0','\u1680','\u2000','\u2001','\u2002','\u2003','\u2004','\u2005','\u2006','\u2007',
    '\u2008','\u2009','\u200A','\u2028','\u2029','\u202F','\u205F','\u3000','\uFEFF'
@@ -261,6 +266,26 @@ async function main(){
  await anular(idActaEditada,'control_terceros_con_acta');
  const actaEditada=await db.query("select to_char(fecha_acta_inicio,'YYYY-MM-DD') fecha_acta_inicio from public.coi_ordenes where id=$1",[idActaEditada]);
  check(actaEditada.rows[0].fecha_acta_inicio==='2026-09-30','una edición posterior de la fecha de Acta se preserva');
+
+ // J · un conflicto de Acta asociado a H8 deja de estar vigente al desmarcar H8.
+ const idActaConflicto=await nuevaOC(db,'4530999911');
+ await db.query("update public.coi_ordenes set fecha_acta_inicio='2026-09-01' where id=$1",[idActaConflicto]);
+ const fechaConflicto='2026-09-15';
+ await db.query(
+   "select public.coi_confirmar_etapa_circuito_v3($1,'control_terceros_con_acta',null,$2::date) r",
+   [idActaConflicto,fechaConflicto]);
+ const conflictoAntes=await db.query(
+   "select motivo from public.coi_historial_oc where orden_id=$1 and tipo_evento='Conciliación Acta de Inicio' order by fecha_evento desc,id desc limit 1",
+   [idActaConflicto]);
+ check(conflictoAntes.rows[0].motivo==='conflicto','H8 con fecha distinta deja conflicto persistido');
+ const resConflicto=(await anular(idActaConflicto,'control_terceros_con_acta')).rows[0].r;
+ check(resConflicto.orden.fecha_acta_inicio && String(resConflicto.orden.fecha_acta_inicio).slice(0,10)==='2026-09-01',
+   'desmarcar H8 preserva el Acta contractual preexistente');
+ const conflictoDespues=await db.query(
+   "select motivo,valor_nuevo from public.coi_historial_oc where orden_id=$1 and tipo_evento='Conciliación Acta de Inicio' order by fecha_evento desc,id desc limit 1",
+   [idActaConflicto]);
+ check(conflictoDespues.rows[0].motivo==='hito_8_anulado',
+   'desmarcar H8 cierra el conflicto de Acta con una fila append-only');
 
  const acl=await db.query(`
    select coalesce(has_function_privilege('authenticated',p.oid,'EXECUTE'),false) auth_exec,

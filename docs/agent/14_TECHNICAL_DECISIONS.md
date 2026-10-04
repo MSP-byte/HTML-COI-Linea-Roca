@@ -1786,3 +1786,16 @@ Unicode U+0300–U+036F antes de comparar, además del conjunto de whitespace ya
 cubierto. Esto alinea la barrera SQL con la normalización del frontend y evita
 variantes visualmente equivalentes que intenten fabricar anulaciones fuera del
 writer controlado.
+
+
+### TD-077 · cierre de conflictos H8 y procedencia RPC-only
+
+Los eventos autoritativos `Anulación circuito administrativo` y
+`Conciliación Acta de Inicio` quedan reservados a writers SECURITY DEFINER:
+un rol autenticado no puede fabricarlos mediante INSERT directo.
+
+Si H8 dejó una conciliación con motivo `conflicto` contra una Fecha de Acta
+preexistente, al desmarcar H8 la RPC conserva la fecha contractual y agrega una
+fila append-only `hito_8_anulado`. La UI elimina además cualquier copia
+efímera del conflicto en memoria. Así, ni una recarga ni el repaint inmediato
+pueden revivir una advertencia que ya no corresponde.
