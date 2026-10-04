@@ -146,6 +146,22 @@ async function main(){
  check(closed.rows[0].estado_coi==='Cerrada','desmarcar jamás reabre una OC cerrada');
  check(closed.rows[0].estado_documental===null,'el eje documental sí puede quedar sin hito activo');
 
+ // C2 · una corrección documental sobre OC cerrada también puede reconfirmarse.
+ // El eje operativo de H10 (Cerrada + fecha/observación de cierre) es inmutable.
+ const closedReconfirm=(await confirmar(idClosed,'pliegos_preparacion')).rows[0].r;
+ check(closedReconfirm.ya_confirmada===false,'reconfirmar un hito anulado crea un nuevo ingreso activo');
+ const closedAfterReconfirm=await db.query(
+   "select estado_coi,estado_documental,to_char(fecha_cierre_operativo,'YYYY-MM-DD') fecha_cierre_operativo,observacion_cierre from public.coi_ordenes where id=$1",
+   [idClosed]);
+ check(closedAfterReconfirm.rows[0].estado_coi==='Cerrada','reconfirmar un hito contractual no reabre una OC cerrada');
+ check(closedAfterReconfirm.rows[0].estado_documental==='PLIEGOS EN PREPARACIÓN','reconfirmar restaura sólo el eje documental');
+ check(closedAfterReconfirm.rows[0].fecha_cierre_operativo==='2026-10-02','reconfirmar preserva la fecha de cierre operativo');
+ check(closedAfterReconfirm.rows[0].observacion_cierre==='Cierre de prueba','reconfirmar preserva la observación de cierre');
+ const closedActive=await db.query(
+   "select count(*)::int n from public.coi_historial_oc h where h.orden_id=$1 and h.tipo_evento='Circuito administrativo' and h.campo_modificado='pliegos_preparacion' and not exists (select 1 from public.coi_historial_oc a where a.orden_id=h.orden_id and a.tipo_evento='Anulación circuito administrativo' and a.valor_anterior=h.id::text)",
+   [idClosed]);
+ check(closedActive.rows[0].n===1,'la OC cerrada queda con un único ingreso H1 activo tras reconfirmar');
+
  // D · sin hitos activos vuelve a Pendiente de completar; segunda anulación es idempotente.
  await anular(id,'pliegos_preparacion');
  await anular(id,'pliegos_terminado_sin_solped');

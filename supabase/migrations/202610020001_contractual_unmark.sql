@@ -302,6 +302,8 @@ declare
   v_nombre text;
   v_current text;
   v_seen boolean;
+  v_seen_historico boolean;
+  v_cerrada boolean := false;
   v_gate_seen boolean;
   v_gate_legacy boolean;
   v_hoy date := (now() at time zone 'America/Argentina/Buenos_Aires')::date;
@@ -360,7 +362,14 @@ begin
     raise exception using errcode='23514',message='COI_STAGE_NOT_APPLICABLE_TO_TYPE',detail='finalizada_saldo_remanente:OBRA';
   end if;
 
-  v_current := coalesce(v_order.estado_documental,v_order.estado_coi);
+  v_cerrada := lower(trim(coalesce(v_order.estado_coi,'')))='cerrada';
+  -- En una OC cerrada, estado_coi pertenece al eje operativo y es inmutable.
+  -- El circuito contractual trabaja exclusivamente sobre estado_documental.
+  v_current := case
+    when v_cerrada then v_order.estado_documental
+    else coalesce(v_order.estado_documental,v_order.estado_coi)
+  end;
+
   select exists(
     select 1 from public.coi_historial_oc h
      where h.orden_id=p_orden_id
@@ -373,6 +382,13 @@ begin
             and a.valor_anterior=h.id::text
        )
   ) into v_seen;
+
+  select exists(
+    select 1 from public.coi_historial_oc h
+     where h.orden_id=p_orden_id
+       and h.tipo_evento='Circuito administrativo'
+       and h.campo_modificado=v_codigo
+  ) into v_seen_historico;
 
   if v_codigo in ('ejecucion','finalizada','finalizada_actas','finalizada_saldo_remanente') then
     select exists(
@@ -458,58 +474,116 @@ begin
   else
     -- Sólo una confirmación nueva o un reingreso sin fecha explícita toma hoy.
     v_fecha := coalesce(p_fecha_efectiva,v_hoy);
-    -- v3 usa directamente el writer base. No delega en v2 y por lo tanto
-    -- nunca ejecuta una conciliación de Acta contra la fecha de hoy.
-    v_result := public.coi_confirmar_etapa_circuito(p_orden_id,v_codigo,p_observacion);
 
-    if coalesce((v_result->>'ya_confirmada')::boolean,false) then
-      -- Reingreso a una etapa ya recorrida: evento nuevo, con su propia fecha efectiva.
+    if v_cerrada then
+      -- H10: una OC cerrada no puede reabrirse ni cambiar estado_coi. El
+      -- circuito contractual sigue siendo corregible sobre estado_documental,
+      -- conservando fecha/observación de cierre y todo el eje operativo.
+      update public.coi_ordenes o
+         set estado_documental=v_nombre,
+             fecha_ultimo_control=clock_timestamp(),
+             responsable_coi=coalesce(nullif(o.responsable_coi,''),nullif(auth.jwt()->>'email','')),
+             certificable_con_saldo=case
+               when v_codigo='finalizada_saldo_remanente' then true
+               else o.certificable_con_saldo
+             end
+       where o.id=p_orden_id
+       returning * into v_after;
+
       with inserted as (
         insert into public.coi_historial_oc(
           orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,
           motivo,usuario_email,creado_por,fecha_efectiva
         ) values
         (p_orden_id,v_order.nro_oc,'Circuito administrativo',v_codigo,v_current,v_nombre,
-         coalesce(nullif(trim(coalesce(p_observacion,'')),''),'Reingreso a etapa previamente recorrida'),
+         coalesce(
+           nullif(trim(coalesce(p_observacion,'')),''),
+           case when v_seen_historico then 'Reingreso a etapa previamente recorrida'
+                else null end
+         ),
          nullif(auth.jwt()->>'email',''),auth.uid(),v_fecha),
         (p_orden_id,v_order.nro_oc,'Cambio de estado contractual','estado_documental',v_current,v_nombre,
-         'Reingreso contractual: '||v_nombre,nullif(auth.jwt()->>'email',''),auth.uid(),v_fecha)
+         case when v_seen_historico then 'Reingreso contractual: '||v_nombre
+              else 'Selección de etapa contractual: '||v_nombre end,
+         nullif(auth.jwt()->>'email',''),auth.uid(),v_fecha)
         returning *
       )
       select coalesce(jsonb_agg(to_jsonb(inserted.*) order by inserted.fecha_evento,inserted.id),'[]'::jsonb)
         into v_history
         from inserted;
 
-      insert into public.coi_operaciones_auditoria(
-        usuario_id,usuario_email,rol,accion,entidad,registro_id,nro_oc,
-        datos_anteriores,datos_nuevos,contexto
-      ) values (
-        auth.uid(),nullif(auth.jwt()->>'email',''),v_role,'REINGRESAR_ETAPA_CIRCUITO',
-        'coi_ordenes',p_orden_id::text,v_order.nro_oc,to_jsonb(v_order),v_result->'orden',
-        jsonb_build_object('codigo',v_codigo,'fecha_efectiva',v_fecha)
+      v_result := jsonb_build_object(
+        'orden',to_jsonb(v_after),'historial',v_history,
+        'codigo',v_codigo,'nombre',v_nombre,'ya_confirmada',false
       );
-      v_result := jsonb_set(v_result,'{historial}',v_history,true);
-      v_result := jsonb_set(v_result,'{ya_confirmada}','false'::jsonb,true);
-    else
-      -- Primera confirmación: completa fecha_efectiva sólo en las filas creadas
-      -- por esta llamada, sin tocar fecha_evento.
-      update public.coi_historial_oc h
-         set fecha_efectiva=v_fecha
-       where h.id in (
-         select nullif(x->>'id','')::uuid
-           from jsonb_array_elements(coalesce(v_result->'historial','[]'::jsonb)) x
-          where nullif(x->>'id','') is not null
-       );
 
-      select coalesce(jsonb_agg(to_jsonb(h) order by h.fecha_evento,h.id),'[]'::jsonb)
-        into v_history
-        from public.coi_historial_oc h
-       where h.id in (
-         select nullif(x->>'id','')::uuid
-           from jsonb_array_elements(coalesce(v_result->'historial','[]'::jsonb)) x
-          where nullif(x->>'id','') is not null
-       );
-      v_result := jsonb_set(v_result,'{historial}',coalesce(v_history,'[]'::jsonb),true);
+      if v_seen_historico then
+        insert into public.coi_operaciones_auditoria(
+          usuario_id,usuario_email,rol,accion,entidad,registro_id,nro_oc,
+          datos_anteriores,datos_nuevos,contexto
+        ) values (
+          auth.uid(),nullif(auth.jwt()->>'email',''),v_role,'REINGRESAR_ETAPA_CIRCUITO',
+          'coi_ordenes',p_orden_id::text,v_order.nro_oc,to_jsonb(v_order),to_jsonb(v_after),
+          jsonb_build_object(
+            'codigo',v_codigo,'fecha_efectiva',v_fecha,
+            'estado_operativo_preservado',true
+          )
+        );
+      end if;
+    else
+      -- v3 usa directamente el writer base. No delega en v2 y por lo tanto
+      -- nunca ejecuta una conciliación de Acta contra la fecha de hoy.
+      v_result := public.coi_confirmar_etapa_circuito(p_orden_id,v_codigo,p_observacion);
+
+      if coalesce((v_result->>'ya_confirmada')::boolean,false) then
+        -- Reingreso a una etapa ya recorrida: evento nuevo, con su propia fecha efectiva.
+        with inserted as (
+          insert into public.coi_historial_oc(
+            orden_id,nro_oc,tipo_evento,campo_modificado,valor_anterior,valor_nuevo,
+            motivo,usuario_email,creado_por,fecha_efectiva
+          ) values
+          (p_orden_id,v_order.nro_oc,'Circuito administrativo',v_codigo,v_current,v_nombre,
+           coalesce(nullif(trim(coalesce(p_observacion,'')),''),'Reingreso a etapa previamente recorrida'),
+           nullif(auth.jwt()->>'email',''),auth.uid(),v_fecha),
+          (p_orden_id,v_order.nro_oc,'Cambio de estado contractual','estado_documental',v_current,v_nombre,
+           'Reingreso contractual: '||v_nombre,nullif(auth.jwt()->>'email',''),auth.uid(),v_fecha)
+          returning *
+        )
+        select coalesce(jsonb_agg(to_jsonb(inserted.*) order by inserted.fecha_evento,inserted.id),'[]'::jsonb)
+          into v_history
+          from inserted;
+
+        insert into public.coi_operaciones_auditoria(
+          usuario_id,usuario_email,rol,accion,entidad,registro_id,nro_oc,
+          datos_anteriores,datos_nuevos,contexto
+        ) values (
+          auth.uid(),nullif(auth.jwt()->>'email',''),v_role,'REINGRESAR_ETAPA_CIRCUITO',
+          'coi_ordenes',p_orden_id::text,v_order.nro_oc,to_jsonb(v_order),v_result->'orden',
+          jsonb_build_object('codigo',v_codigo,'fecha_efectiva',v_fecha)
+        );
+        v_result := jsonb_set(v_result,'{historial}',v_history,true);
+        v_result := jsonb_set(v_result,'{ya_confirmada}','false'::jsonb,true);
+      else
+        -- Primera confirmación: completa fecha_efectiva sólo en las filas creadas
+        -- por esta llamada, sin tocar fecha_evento.
+        update public.coi_historial_oc h
+           set fecha_efectiva=v_fecha
+         where h.id in (
+           select nullif(x->>'id','')::uuid
+             from jsonb_array_elements(coalesce(v_result->'historial','[]'::jsonb)) x
+            where nullif(x->>'id','') is not null
+         );
+
+        select coalesce(jsonb_agg(to_jsonb(h) order by h.fecha_evento,h.id),'[]'::jsonb)
+          into v_history
+          from public.coi_historial_oc h
+         where h.id in (
+           select nullif(x->>'id','')::uuid
+             from jsonb_array_elements(coalesce(v_result->'historial','[]'::jsonb)) x
+            where nullif(x->>'id','') is not null
+         );
+        v_result := jsonb_set(v_result,'{historial}',coalesce(v_history,'[]'::jsonb),true);
+      end if;
     end if;
   end if;
 
@@ -603,7 +677,10 @@ begin
     auth.uid(),nullif(auth.jwt()->>'email',''),v_role,
     'CONFIRMAR_ETAPA_CIRCUITO_V3','coi_ordenes',p_orden_id::text,v_order.nro_oc,
     to_jsonb(v_order),to_jsonb(v_after),
-    jsonb_build_object('codigo',v_codigo,'fecha_efectiva',v_fecha,'version_rpc','v3')
+    jsonb_build_object(
+      'codigo',v_codigo,'fecha_efectiva',v_fecha,'version_rpc','v3',
+      'estado_operativo_preservado',v_cerrada
+    )
   );
 
   return v_result;
