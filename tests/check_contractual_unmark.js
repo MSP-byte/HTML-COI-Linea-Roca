@@ -359,8 +359,12 @@ async function main(){
  // K · el writer directo de compatibilidad también rompe la procedencia H8.
  const idActaCompat=await nuevaOC(db,'4530999913');
  await confirmar(idActaCompat,'control_terceros_con_acta');
+ // El trigger de compatibilidad sólo representa escrituras PostgREST cuando
+ // current_user=authenticated; reproducimos ese camino real, no un UPDATE del owner.
+ await db.exec('set role authenticated');
  await db.query("update public.coi_ordenes set fecha_acta_inicio=$2::date where id=$1",[idActaCompat,X]);
  await db.query("update public.coi_ordenes set fecha_acta_inicio=$2::date where id=$1",[idActaCompat,H]);
+ await db.exec('reset role');
  const auditCompat=await db.query(
    "select count(*)::int n from public.coi_operaciones_auditoria where entidad='coi_ordenes' and registro_id=$1::text and accion='ACTUALIZAR_ORDEN_DIRECTO_COMPAT'",
    [idActaCompat]);
