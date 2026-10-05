@@ -59,11 +59,17 @@ check(!migraciones.some((m) => /h09/i.test(m)),
 // ============ 1) el modulo es alcanzable desde la navegacion real
 // La .module-nav legada esta oculta entera en la UI vigente: la navegacion real
 // es la barra V2, y el inventario no figuraba en ella.
-check(html.indexOf("{id:'btnUnidadesMantenimiento',view:'vistaUnidadesMantenimiento',label:'UM / Servicios Técnicos',icon:'map'},") >= 0,
-  'el modulo UM tiene que figurar en la navegacion V2, que es la real');
 const navV2 = html.slice(html.indexOf('  const NAV=['), html.indexOf('  let lastView='));
+check(navV2.indexOf("id:'btnUnidadesMantenimiento'") >= 0,
+  'el modulo UM tiene que figurar en la navegacion V2, que es la real');
 check(navV2.indexOf("section:'Gestión'") >= 0 && navV2.indexOf('btnUnidadesMantenimiento') > navV2.indexOf("section:'Gestión'"),
-  'el inventario de la red va en Gestion, junto a la Red');
+  'el inventario UM tiene que permanecer dentro de Gestion');
+check(navV2.indexOf('btnRed') > navV2.indexOf("section:'Operación'") &&
+      navV2.indexOf('btnRed') < navV2.indexOf("section:'Gestión'"),
+  'Red Linea Roca tiene que figurar dentro de Operacion');
+check(navV2.indexOf('btnCentroAlertas') > navV2.indexOf("section:'Gestión'") &&
+      navV2.indexOf('btnCentroAlertas') < navV2.indexOf("section:'Sistema'"),
+  'Centro de alertas tiene que figurar al final de Gestion, antes de Sistema');
 
 const capaUM = bloque('coi-h09-um-red-inventario');
 const codigoUM = sinComentarios(capaUM);
