@@ -6,7 +6,7 @@ const ORDER_NUMBER = '4530099888';
 // (`language sql`, `stable`, un select sobre profiles): la capa H04/H05 la usa
 // para decidir la autoridad de la UI. No persiste nada, de modo que no puede
 // contar como escritura en las aserciones de «no muta ni persiste».
-const RPC_DE_LECTURA = ['coi_current_role'];
+const RPC_DE_LECTURA = ['coi_current_role', 'coi_contractual_capabilities_v1'];
 
 const OLD_DATE = '2026-08-31';
 const NEW_DATE = '2027-10-15';
