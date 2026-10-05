@@ -12,6 +12,7 @@ const least = read('20261005231823_security_least_privilege_20261005.sql');
 const surface = read('20261005231826_security_function_surface_20261005.sql');
 const defaults = read('20261005231828_secure_function_defaults_20261005.sql');
 const legacy = read('20261005232108_security_close_legacy_audit_rpc_20261005.sql');
+const restoreTrigger = read('20261005232739_security_restore_trigger_helper_execute_20261005.sql');
 
 must(least, /revoke\s+truncate\s*,\s*references\s*,\s*trigger[\s\S]*?from\s+authenticated/i,
   'authenticated debe perder TRUNCATE/REFERENCES/TRIGGER');
@@ -34,7 +35,11 @@ must(defaults, /alter\s+default\s+privileges[\s\S]*?revoke\s+execute\s+on\s+func
 
 must(legacy, /coi_record_direct_order_update\(jsonb,jsonb\)[\s\S]*?from\s+public\s*,\s*anon\s*,\s*authenticated/i,
   'RPC legacy de auditoría no debe ser ejecutable por clientes');
-must(legacy, /grant\s+execute[\s\S]*?coi_record_direct_order_update\(jsonb,jsonb\)[\s\S]*?to\s+service_role/i,
-  'RPC legacy debe quedar disponible sólo para service_role');
+must(legacy, /revoke\s+all[\s\S]*?coi_record_direct_order_update\(jsonb,jsonb\)[\s\S]*?from\s+public\s*,\s*anon\s*,\s*authenticated/i,
+  'la migración intermedia debe cerrar la superficie cliente antes de reconciliar el contrato');
+must(restoreTrigger, /revoke\s+all[\s\S]*?coi_record_direct_order_update\(jsonb,jsonb\)[\s\S]*?from\s+public\s*,\s*anon/i,
+  'helper de trigger debe seguir cerrado a public/anon');
+must(restoreTrigger, /grant\s+execute[\s\S]*?coi_record_direct_order_update\(jsonb,jsonb\)[\s\S]*?to\s+authenticated/i,
+  'authenticated necesita EXECUTE para completar el trigger de auditoría');
 
 console.log('✅ Security hardening 2026-10-05 contract OK');
