@@ -45,9 +45,15 @@ Auditoría realizada contra STAGING y PRODUCCIÓN:
 Convierte coi_assert_role(text[]) a SECURITY INVOKER, preserva search_path fijo,
 cierra public/anon y mantiene EXECUTE para authenticated.
 
+### 202610050004_secure_function_defaults.sql
+
+Cambia los privilegios por defecto de funciones nuevas creadas por postgres en
+public: public/anon/authenticated ya no reciben EXECUTE automáticamente. Cada
+RPC nueva deberá habilitarse mediante GRANT explícito.
+
 ## Validación STAGING
 
-Aplicadas ambas migraciones en STAGING.
+Aplicadas las tres migraciones en STAGING.
 
 Resultados:
 
@@ -58,6 +64,8 @@ Resultados:
   EXECUTE;
 - una prueba con identidad administrador confirmó que coi_assert_role sigue
   devolviendo el rol correcto;
+- los defaults de funciones nuevas quedaron cerrados a public/anon/authenticated,
+  conservando ejecución para postgres/service_role;
 - el Security Advisor redujo la superficie SECURITY DEFINER expuesta. Los
   findings restantes requieren clasificación función por función, no un revoke
   masivo.
