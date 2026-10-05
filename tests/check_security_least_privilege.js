@@ -8,6 +8,8 @@ const migrationPath = path.join(__dirname, '..', 'supabase', 'migrations', migra
 const functionMigrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '202610050003_security_function_surface.sql');
 const sql = fs.readFileSync(migrationPath, 'utf8');
 const functionSql = fs.readFileSync(functionMigrationPath, 'utf8');
+const defaultsMigrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '202610050004_secure_function_defaults.sql');
+const defaultsSql = fs.readFileSync(defaultsMigrationPath, 'utf8');
 
 function check(ok, label) {
   if (!ok) {
@@ -66,5 +68,9 @@ must(/^begin;/mi, 'falta BEGIN en migración de funciones', functionSql);
 must(/commit;\s*$/i, 'falta COMMIT final en migración de funciones', functionSql);
 check(!/service_role|password\s*=|secret\s*=/i.test(sql), 'la migración no debe contener secretos');
 check(!/service_role|password\s*=|secret\s*=/i.test(functionSql), 'la migración de funciones no debe contener secretos');
+
+must(/alter\s+default\s+privileges\s+for\s+role\s+postgres\s+in\s+schema\s+public[\s\S]*?revoke\s+execute\s+on\s+functions\s+from\s+public\s*,\s*anon\s*,\s*authenticated/i,
+  'las funciones nuevas deben nacer cerradas a roles cliente', defaultsSql);
+check(!/service_role|password\s*=|secret\s*=/i.test(defaultsSql), 'la migración de defaults no debe contener secretos');
 
 console.log('✅ Security least privilege OK · grants estructurales cerrados, RPC-only deny-all y superficie SECURITY DEFINER reducida');
