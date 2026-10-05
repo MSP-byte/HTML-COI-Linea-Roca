@@ -1823,3 +1823,16 @@ La resolución del UUID ya no acepta como fallback una OC distinta a la pedida:
 N° OC y UUID deben reconciliarse antes del writer. Además, tanto
 `ACTUALIZAR_ORDEN_INTEGRAL` como `ACTUALIZAR_ORDEN_DIRECTO_COMPAT` rompen
 la procedencia automática de H8 sobre `fecha_acta_inicio`.
+
+
+### TD-078 · capability probe contractual no mutante
+
+Fecha: 2026-10-05.
+
+El botón DESMARCAR HITO ya no depende de consultar OpenAPI mediante GET /rest/v1/.
+En producción ese endpoint responde HTTP 401 aun con una sesión válida y ocultaba
+la acción aunque la RPC de desmarcado estuviera desplegada.
+
+Se incorpora public.coi_contractual_capabilities_v1(), una RPC STABLE de solo
+lectura que informa si la firma productiva de desmarcado está instalada. No
+ejecuta writers ni modifica datos. Sólo authenticated puede ejecutarla.

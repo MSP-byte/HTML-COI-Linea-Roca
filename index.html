@@ -20498,33 +20498,23 @@ let promesaAnulacionCircuitoRPC=null;
 function anulacionCircuitoDisponible(){return estadoAnulacionCircuitoRPC==='disponible';}
 async function descubrirRPCAnulacionSinMutar(client){
   const nombre='coi_anular_etapa_circuito_v1';
-  // Hook de transporte: útil para clientes embebidos/tests y, sobre todo,
-  // permite resolver capacidad sin ejecutar el writer.
   if(client&&typeof client.__coiHasRpc==='function'){
     const disponible=await client.__coiHasRpc(nombre);
     return disponible===true?true:disponible===false?false:null;
   }
-  const cfg=window.__COI_SUPABASE_CONFIG__||window.SUPABASE_CONFIG||{};
-  if(!cfg.url||!cfg.key||typeof fetch!=='function')return null;
-  let token=cfg.key;
+  // El endpoint OpenAPI /rest/v1/ responde 401 en producción y producía un
+  // falso negativo. Esta RPC de solo lectura confirma la capacidad sin
+  // ejecutar ningún writer ni mutar datos.
+  if(!client||typeof client.rpc!=='function')return null;
   try{
-    const sesion=await client?.auth?.getSession?.();
-    token=sesion?.data?.session?.access_token||token;
-  }catch(e){}
-  try{
-    const response=await fetch(String(cfg.url).replace(/\/$/,'')+'/rest/v1/',{
-      method:'GET',
-      headers:{
-        apikey:cfg.key,
-        Authorization:'Bearer '+token,
-        Accept:'application/openapi+json'
-      },
-      cache:'no-store'
-    });
-    if(!response.ok)return null;
-    const schema=await response.json();
-    const paths=schema&&schema.paths&&typeof schema.paths==='object'?schema.paths:{};
-    return Boolean(paths['/rpc/'+nombre]);
+    const result=await client.rpc('coi_contractual_capabilities_v1',{});
+    if(result?.error){
+      const code=clean(result.error?.code).toUpperCase();
+      const message=clean(result.error?.message||result.error?.details||result.error?.hint||result.error);
+      if(code==='PGRST202'||/coi_contractual_capabilities_v1[^\n]*(does not exist|schema cache|could not find)/i.test(message))return false;
+      return null;
+    }
+    return Boolean(result?.data&&result.data.anular_etapa_circuito_v1===true);
   }catch(error){
     return null;
   }
