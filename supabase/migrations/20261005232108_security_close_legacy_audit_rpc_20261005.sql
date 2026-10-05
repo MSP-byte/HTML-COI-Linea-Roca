@@ -10,8 +10,9 @@ begin
   if to_regprocedure('public.coi_record_direct_order_update(jsonb,jsonb)') is not null then
     revoke all on function public.coi_record_direct_order_update(jsonb,jsonb)
       from public, anon, authenticated;
-    grant execute on function public.coi_record_direct_order_update(jsonb,jsonb)
-      to service_role;
+    if exists (select 1 from pg_roles where rolname = 'service_role') then
+      execute 'grant execute on function public.coi_record_direct_order_update(jsonb,jsonb) to service_role';
+    end if;
   end if;
 end $$;
 
