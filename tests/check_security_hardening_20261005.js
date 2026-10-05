@@ -14,6 +14,7 @@ const defaults = read('20261005231828_secure_function_defaults_20261005.sql');
 const legacy = read('20261005232108_security_close_legacy_audit_rpc_20261005.sql');
 const restoreTrigger = read('20261005232739_security_restore_trigger_helper_execute_20261005.sql');
 const storage = read('20261005232832_security_storage_profile_guard_20261005.sql');
+const privateAudit = read('20261005234000_security_private_direct_update_audit_helper_20261005.sql');
 
 must(least, /revoke\s+truncate\s*,\s*references\s*,\s*trigger[\s\S]*?from\s+authenticated/i,
   'authenticated debe perder TRUNCATE/REFERENCES/TRIGGER');
@@ -47,5 +48,10 @@ must(storage, /create\s+policy\s+coi_documentos_storage_select_guard[\s\S]*?as\s
   'Storage documental debe tener guard RESTRICTIVE');
 must(storage, /bucket_id\s*=\s*'coi-documentos'[\s\S]*?public\.coi_current_role\(\)\s+is\s+not\s+null/i,
   'Storage documental debe exigir bucket correcto y perfil COI activo');
+
+must(privateAudit, /alter\s+function\s+public\.coi_direct_order_update_audit\(\)\s+security\s+definer/i,
+  'el trigger wrapper de auditoría debe ejecutar como definer');
+must(privateAudit, /revoke\s+all[\s\S]*?coi_record_direct_order_update\(jsonb,jsonb\)[\s\S]*?from\s+public\s*,\s*anon\s*,\s*authenticated/i,
+  'el helper interno de auditoría no debe ser RPC ejecutable por clientes');
 
 console.log('✅ Security hardening 2026-10-05 contract OK');
