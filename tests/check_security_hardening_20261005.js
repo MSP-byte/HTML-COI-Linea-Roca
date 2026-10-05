@@ -13,6 +13,7 @@ const surface = read('20261005231826_security_function_surface_20261005.sql');
 const defaults = read('20261005231828_secure_function_defaults_20261005.sql');
 const legacy = read('20261005232108_security_close_legacy_audit_rpc_20261005.sql');
 const restoreTrigger = read('20261005232739_security_restore_trigger_helper_execute_20261005.sql');
+const storage = read('20261005232832_security_storage_profile_guard_20261005.sql');
 
 must(least, /revoke\s+truncate\s*,\s*references\s*,\s*trigger[\s\S]*?from\s+authenticated/i,
   'authenticated debe perder TRUNCATE/REFERENCES/TRIGGER');
@@ -41,5 +42,10 @@ must(restoreTrigger, /revoke\s+all[\s\S]*?coi_record_direct_order_update\(jsonb,
   'helper de trigger debe seguir cerrado a public/anon');
 must(restoreTrigger, /grant\s+execute[\s\S]*?coi_record_direct_order_update\(jsonb,jsonb\)[\s\S]*?to\s+authenticated/i,
   'authenticated necesita EXECUTE para completar el trigger de auditoría');
+
+must(storage, /create\s+policy\s+coi_documentos_storage_select_guard[\s\S]*?as\s+restrictive/i,
+  'Storage documental debe tener guard RESTRICTIVE');
+must(storage, /bucket_id\s*=\s*'coi-documentos'[\s\S]*?public\.coi_current_role\(\)\s+is\s+not\s+null/i,
+  'Storage documental debe exigir bucket correcto y perfil COI activo');
 
 console.log('✅ Security hardening 2026-10-05 contract OK');
