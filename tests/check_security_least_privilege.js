@@ -5,8 +5,8 @@ const path = require('path');
 
 const migrationName = '202610050002_security_least_privilege.sql';
 const migrationPath = path.join(__dirname, '..', 'supabase', 'migrations', migrationName);
-const sql = fs.readFileSync(migrationPath, 'utf8');
 const functionMigrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '202610050003_security_function_surface.sql');
+const sql = fs.readFileSync(migrationPath, 'utf8');
 const functionSql = fs.readFileSync(functionMigrationPath, 'utf8');
 
 function check(ok, label) {
@@ -16,8 +16,8 @@ function check(ok, label) {
   }
 }
 
-function must(re, label) {
-  check(re.test(sql), label);
+function must(re, label, source = sql) {
+  check(re.test(source), label);
 }
 
 must(/revoke\s+truncate\s*,\s*references\s*,\s*trigger\s+on\s+table[\s\S]*?from\s+authenticated/i,
@@ -49,17 +49,22 @@ must(/revoke\s+all\s+on\s+function\s+public\.coi_contractual_capabilities_v1\(\)
 must(/grant\s+execute\s+on\s+function\s+public\.coi_contractual_capabilities_v1\(\)\s+to\s+authenticated/i,
   'authenticated debe poder consultar capabilities');
 
+must(/alter\s+function\s+public\.coi_assert_role\(text\[\]\)\s+security\s+invoker/i,
+  'coi_assert_role debe dejar de ser SECURITY DEFINER', functionSql);
+
+must(/revoke\s+all\s+on\s+function\s+public\.coi_assert_role\(text\[\]\)\s+from\s+public\s*,\s*anon/i,
+  'coi_assert_role debe permanecer cerrado a public/anon', functionSql);
+
+must(/grant\s+execute\s+on\s+function\s+public\.coi_assert_role\(text\[\]\)\s+to\s+authenticated/i,
+  'authenticated debe conservar el helper de validación de rol', functionSql);
+
 check((sql.match(/\$\$/g) || []).length % 2 === 0, 'delimitadores $$ desbalanceados');
+check((functionSql.match(/\$\$/g) || []).length % 2 === 0, 'delimitadores $$ desbalanceados en funciones');
 must(/^begin;/mi, 'falta BEGIN');
 must(/commit;\s*$/i, 'falta COMMIT final');
-check(!/service_role|password\\s*=|secret\\s*=/i.test(sql), 'la migración no debe contener secretos');
+must(/^begin;/mi, 'falta BEGIN en migración de funciones', functionSql);
+must(/commit;\s*$/i, 'falta COMMIT final en migración de funciones', functionSql);
+check(!/service_role|password\s*=|secret\s*=/i.test(sql), 'la migración no debe contener secretos');
+check(!/service_role|password\s*=|secret\s*=/i.test(functionSql), 'la migración de funciones no debe contener secretos');
 
-check(/alter\\s+function\\s+public\\.coi_assert_role\\(text\\[\\]\\)\\s+security\\s+invoker/i.test(functionSql),
-  'coi_assert_role debe dejar de ser SECURITY DEFINER');
-check(/revoke\\s+all\\s+on\\s+function\\s+public\\.coi_assert_role\\(text\\[\\]\\)\\s+from\\s+public\\s*,\\s*anon/i.test(functionSql),
-  'coi_assert_role debe permanecer cerrado a public/anon');
-check(/grant\\s+execute\\s+on\\s+function\\s+public\\.coi_assert_role\\(text\\[\\]\\)\\s+to\\s+authenticated/i.test(functionSql),
-  'authenticated debe conservar el helper de validación de rol');
-check(!/service_role|password\\s*=|secret\\s*=/i.test(functionSql), 'la migración de funciones no debe contener secretos');
-
-console.log('✅ Security least privilege OK · grants estructurales cerrados, backups/RPC-only deny-all y capabilities invoker');
+console.log('✅ Security least privilege OK · grants estructurales cerrados, RPC-only deny-all y superficie SECURITY DEFINER reducida');
