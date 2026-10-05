@@ -49,9 +49,15 @@ must(storage, /create\s+policy\s+coi_documentos_storage_select_guard[\s\S]*?as\s
 must(storage, /bucket_id\s*=\s*'coi-documentos'[\s\S]*?public\.coi_current_role\(\)\s+is\s+not\s+null/i,
   'Storage documental debe exigir bucket correcto y perfil COI activo');
 
-must(privateAudit, /alter\s+function\s+public\.coi_direct_order_update_audit\(\)\s+security\s+definer/i,
-  'el trigger wrapper de auditoría debe ejecutar como definer');
-must(privateAudit, /revoke\s+all[\s\S]*?coi_record_direct_order_update\(jsonb,jsonb\)[\s\S]*?from\s+public\s*,\s*anon\s*,\s*authenticated/i,
-  'el helper interno de auditoría no debe ser RPC ejecutable por clientes');
+must(privateAudit, /create\s+schema\s+if\s+not\s+exists\s+coi_private/i,
+  'debe existir un schema privado para helpers no expuestos');
+must(privateAudit, /create\s+or\s+replace\s+function\s+coi_private\.record_direct_order_update/i,
+  'el writer de auditoría debe vivir en el schema privado');
+must(privateAudit, /create\s+or\s+replace\s+function\s+public\.coi_direct_order_update_audit\(\)[\s\S]*?security\s+invoker/i,
+  'el trigger wrapper debe conservar SECURITY INVOKER');
+must(privateAudit, /current_user\s*=\s*'authenticated'[\s\S]*?coi_private\.record_direct_order_update/i,
+  'el trigger debe conservar la semántica de auditoría del writer directo');
+must(privateAudit, /revoke\s+all[\s\S]*?public\.coi_record_direct_order_update\(jsonb,jsonb\)[\s\S]*?from\s+public\s*,\s*anon\s*,\s*authenticated/i,
+  'la firma pública histórica no debe seguir expuesta a clientes');
 
 console.log('✅ Security hardening 2026-10-05 contract OK');
