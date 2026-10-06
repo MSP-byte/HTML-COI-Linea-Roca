@@ -24,7 +24,8 @@ const dup = sql.match(/create or replace function public\.coi_resolver_oc_duplic
 assert.ok(dup,'No se encontró RPC de duplicados');
 assert.doesNotMatch(dup,/delete\s+from\s+public\.coi_ordenes/i,'Resolver duplicado no debe borrar la OC');
 assert.match(sql,/revoke all on function public\.coi_resolver_oc_duplicada[\s\S]*?from public, anon/);
-assert.match(sql,/grant execute on function public\.coi_resolver_oc_duplicada[\s\S]*?to authenticated/);\nassert.match(sql,/rolname='service_role'/);
+assert.match(sql,/grant execute on function public\.coi_resolver_oc_duplicada[\s\S]*?to authenticated/);
+assert.match(sql,/rolname='service_role'/);
 
 assert.match(html,/COI_ADMIN_ECONOMICO_DUPLICADOS_20261006/);
 assert.match(html,/coiAdminEconomicPanel/);
