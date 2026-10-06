@@ -152,9 +152,9 @@ async function main() {
        and d.defaclobjtype='f'`);
   assert.equal(q.rows.length, 1, 'debe existir default ACL de funciones para postgres/public');
   const defaultAcl = q.rows[0].acl;
-  assert.doesNotMatch(defaultAcl, /(^|[,\\{])=X\\//, 'PUBLIC no debe tener EXECUTE por defecto');
-  assert.doesNotMatch(defaultAcl, /anon=X\\//, 'anon no debe tener EXECUTE por defecto');
-  assert.doesNotMatch(defaultAcl, /authenticated=X\\//, 'authenticated no debe tener EXECUTE por defecto');
+  assert.equal(defaultAcl.includes('=X/'), false, 'PUBLIC no debe tener EXECUTE por defecto');
+  assert.equal(defaultAcl.includes('anon=X/'), false, 'anon no debe tener EXECUTE por defecto');
+  assert.equal(defaultAcl.includes('authenticated=X/'), false, 'authenticated no debe tener EXECUTE por defecto');
 
   console.log(`✅ Security hardening catalog OK · ${files.length} migraciones aplicadas y privilegios efectivos verificados`);
   await db.close();
