@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; connect-src 'self' https://ooepgbzqlpjrtpaoqawc.supabase.co wss://ooepgbzqlpjrtpaoqawc.supabase.co; img-src 'self' data: blob: https://ooepgbzqlpjrtpaoqawc.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'; worker-src 'self' blob:; manifest-src 'self'">
 <title>Plano Interactivo de Obras y Servicios – Línea Roca</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://ooepgbzqlpjrtpaoqawc.supabase.co" crossorigin>
@@ -2418,7 +2420,7 @@ html[data-coi-orders-state="error"] .coi-orders-startup-card{border-color:#efccc
       <div class="um-kpis"><div class="um-kpi"><b id="umKTotal">0</b><span>Total UM</span></div><div class="um-kpi"><b id="umKAsc">0</b><span>Ascensores</span></div><div class="um-kpi"><b id="umKEsc">0</b><span>Escaleras mecánicas</span></div><div class="um-kpi"><b id="umKActivas">0</b><span>UM activas</span></div><div class="um-kpi"><b id="umKFuera">0</b><span>Fuera de servicio</span></div><div class="um-kpi"><b id="umKSinFoto">0</b><span>Sin foto</span></div></div>
       <div class="um-toolbar"><input id="umBuscar" type="search" placeholder="Buscar UM, estación, ubicación, proveedor, OC u observaciones..."><select id="umFiltroTipo"><option value="">Tipo UM</option></select><select id="umFiltroEstacion"><option value="">Estación</option></select><select id="umFiltroEstado"><option value="">Estado operativo</option></select><select id="umFiltroCriticidad"><option value="">Criticidad</option></select><select id="umFiltroProveedor"><option value="">Proveedor actual</option></select><button type="button" id="btnLimpiarUM">Limpiar</button><button type="button" id="btnExportUMCSV" class="primary">Exportar UM CSV</button></div>
       <div class="table-wrap"><table class="coi-table"><thead><tr><th>ID UM</th><th>Tipo</th><th>Estación</th><th>Sector</th><th>Ubicación técnica</th><th>Estado</th><th>Criticidad</th><th>Proveedor</th><th>OC actual</th><th>Ficha</th></tr></thead><tbody id="umTbody"></tbody></table></div>
-      <section class="view-card" style="margin:18px 0 0"><div class="view-head"><h2>Carga manual de UM</h2><div class="muted">Crear o editar unidad de mantenimiento fija.</div></div><div class="view-body"><div class="um-actions"><button type="button" id="btnNuevaUM" class="primary">Nueva UM</button><button type="button" id="btnGuardarUM" class="primary">Guardar / Actualizar UM</button></div><div id="umFormMsg" class="notice">Complete los campos obligatorios: idUM, tipoUM, estación, ubicación técnica y estado operativo.</div><div class="um-form"><div><label>ID UM *</label><input id="um_idUM" placeholder="ASC-001"></div><div><label>Tipo UM *</label><select id="um_tipoUM"><option value="">Seleccionar</option><option>Ascensor</option><option>Escalera mecánica</option><option>Otro</option></select></div><div><label>Estación *</label><select id="um_estacion"><option value="">Estación</option></select></div><div><label>Estado operativo *</label><select id="um_estadoOperativo"><option value="">Seleccionar</option><option>Activo</option><option>Fuera de servicio</option><option>En mantenimiento</option><option>Sin datos</option><option>Baja</option></select></div><div><label>Sector</label><input id="um_sector"></div><div><label>Ubicación técnica *</label><input id="um_ubicacionTecnica"></div><div><label>Criticidad</label><select id="um_criticidad"><option>Media</option><option>Alta</option><option>Baja</option></select></div><div><label>Proveedor actual</label><input id="um_proveedorActual"></div><div><label>OC actual</label><input id="um_ocActual"></div><div class="full"><label>Descripción</label><textarea id="um_descripcion"></textarea></div><div class="full"><label>Fotos UM (base64 o rutas)</label><input id="um_fotoArchivo" type="file" accept="image/*"><textarea id="um_fotos" placeholder="img/um/ASC-001/01.jpg\nimg/um/ASC-001/02.jpg"></textarea></div><div class="full"><label>Observaciones</label><textarea id="um_observaciones"></textarea></div></div></div></section>
+      <section class="view-card" style="margin:18px 0 0"><div class="view-head"><h2>Carga manual de UM</h2><div class="muted">Crear o editar unidad de mantenimiento fija.</div></div><div class="view-body"><div class="um-actions"><button type="button" id="btnNuevaUM" class="primary">Nueva UM</button><button type="button" id="btnGuardarUM" class="primary">Guardar / Actualizar UM</button></div><div id="umFormMsg" class="notice">Complete los campos obligatorios: idUM, tipoUM, estación, ubicación técnica y estado operativo.</div><div class="um-form"><div><label>ID UM *</label><input id="um_idUM" placeholder="ASC-001"></div><div><label>Tipo UM *</label><select id="um_tipoUM"><option value="">Seleccionar</option><option>Ascensor</option><option>Escalera mecánica</option><option>Otro</option></select></div><div><label>Estación *</label><select id="um_estacion"><option value="">Estación</option></select></div><div><label>Estado operativo *</label><select id="um_estadoOperativo"><option value="">Seleccionar</option><option>Activo</option><option>Fuera de servicio</option><option>En mantenimiento</option><option>Sin datos</option><option>Baja</option></select></div><div><label>Sector</label><input id="um_sector"></div><div><label>Ubicación técnica *</label><input id="um_ubicacionTecnica"></div><div><label>Criticidad</label><select id="um_criticidad"><option>Media</option><option>Alta</option><option>Baja</option></select></div><div><label>Proveedor actual</label><input id="um_proveedorActual"></div><div><label>OC actual</label><input id="um_ocActual"></div><div class="full"><label>Descripción</label><textarea id="um_descripcion"></textarea></div><div class="full"><label>Fotos UM (base64 o rutas)</label><input id="um_fotoArchivo" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><textarea id="um_fotos" placeholder="img/um/ASC-001/01.jpg\nimg/um/ASC-001/02.jpg"></textarea></div><div class="full"><label>Observaciones</label><textarea id="um_observaciones"></textarea></div></div></div></section>
     </div>
   </section>
 </section>
@@ -2622,10 +2624,10 @@ function renderFotoEstacion(estacion,conAcciones=true){
   const nombre=foto.nombre||foto.estacion?.nombre||estacion?.nombre||'Estación';
   const id=foto.id||foto.estacion?.idEstacion||normalizarIdEstacion(nombre);
   const acciones=foto.src?`<div class="station-photo-actions"><button type="button" class="btn-cargar-foto-estacion">Cargar foto</button><button type="button" class="btn-eliminar-foto-estacion">Eliminar foto</button></div>`:`<div class="station-photo-actions"><button type="button" class="btn-cargar-foto-estacion">Cargar foto</button></div>`;
-  if(foto.src){
-    return `<div class="station-photo-box" data-estacion-foto="${esc(nombre)}" data-id-estacion="${esc(id)}"><div class="station-photo-preview has-photo"><img src="${esc(foto.src)}" alt="Foto de estación ${esc(nombre)}" data-foto-estacion-img="true" data-foto-origen="${esc(foto.origen)}"></div>${conAcciones?acciones:""}<input type="file" class="station-photo-input" accept="image/*" hidden></div>`;
+  if(foto.src&&coiImageSrcValida(foto.src)){
+    return `<div class="station-photo-box" data-estacion-foto="${esc(nombre)}" data-id-estacion="${esc(id)}"><div class="station-photo-preview has-photo"><img src="${esc(foto.src)}" alt="Foto de estación ${esc(nombre)}" data-foto-estacion-img="true" data-foto-origen="${esc(foto.origen)}"></div>${conAcciones?acciones:""}<input type="file" class="station-photo-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden></div>`;
   }
-  return `<div class="station-photo-box" data-estacion-foto="${esc(nombre)}" data-id-estacion="${esc(id)}">${renderPlaceholderFotoEstacion(nombre)}${conAcciones?acciones:""}<input type="file" class="station-photo-input" accept="image/*" hidden></div>`;
+  return `<div class="station-photo-box" data-estacion-foto="${esc(nombre)}" data-id-estacion="${esc(id)}">${renderPlaceholderFotoEstacion(nombre)}${conAcciones?acciones:""}<input type="file" class="station-photo-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden></div>`;
 }
 function renderFotoEstacionMaestra(valor,conAcciones=true){return renderFotoEstacion(valor,conAcciones);}
 function fallbackFotoEstacionMaestra(img){
@@ -2879,7 +2881,7 @@ function showTip(e,s){
   $('tip').style.display='block';
   $('tip').style.left=e.clientX+14+'px';
   $('tip').style.top=e.clientY+14+'px';
-  $('tip').innerHTML=`<b>${s.nombre}</b><br>Obras activas/asociadas: ${obrasActivas}<br>Servicios activos/asociados: ${serviciosActivos}<br>Estado general: <b>${color==='bad'?'Demorado/vencido':color==='warn'?'Próximo a vencer':color==='done'?'Finalizado/certificado':'En plazo'}</b>`;
+  $('tip').innerHTML=`<b>${esc(s.nombre)}</b><br>Obras activas/asociadas: ${obrasActivas}<br>Servicios activos/asociados: ${serviciosActivos}<br>Estado general: <b>${color==='bad'?'Demorado/vencido':color==='warn'?'Próximo a vencer':color==='done'?'Finalizado/certificado':'En plazo'}</b>`;
 }
 function hideTip(){ $('tip').style.display='none'; }
 
@@ -3296,9 +3298,20 @@ function esc(v){
 }
 function coiURLHTTPValida(value){
   try{
-    const url=new URL(String(value??'').trim(),window.location.href);
+    const raw=String(value??'').trim();
+    if(!/^https?:\/\//i.test(raw))return false;
+    const url=new URL(raw);
     return ['http:','https:'].includes(url.protocol);
   }catch(error){return false;}
+}
+const COI_IMAGE_MIME_ALLOWED=new Set(['image/png','image/jpeg','image/webp','image/gif']);
+const COI_IMAGE_MAX_BYTES=8*1024*1024;
+function coiArchivoImagenPermitido(file){
+  return Boolean(file&&COI_IMAGE_MIME_ALLOWED.has(String(file.type||'').toLowerCase())&&Number(file.size||0)>0&&Number(file.size||0)<=COI_IMAGE_MAX_BYTES);
+}
+function coiImageSrcValida(value){
+  const raw=String(value??'').trim();
+  return /^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(raw)||coiURLHTTPValida(raw);
 }
 function coiCSVCell(value){
   let text=String(value??'');
@@ -3809,7 +3822,7 @@ function selectStation(s){
     <div class="station-summary">
       <div class="station-photo">${fotoEstacion(s)}</div>
       <div class="station-info">
-        <div>${items.length ? items.map(i=>`<span class="badge"><i class="dot ${claseEstado(i)}"></i>${i.tipo} · ${i.estado}</span>`).join('') : '<span class="badge">Sin intervenciones cargadas</span>'}</div>
+        <div>${items.length ? items.map(i=>`<span class="badge"><i class="dot ${claseEstado(i)}"></i>${esc(i.tipo)} · ${esc(i.estado)}</span>`).join('') : '<span class="badge">Sin intervenciones cargadas</span>'}</div>
         <div class="quick-stats">
           <div class="quick-stat"><b>${obras.length}</b><span>Obras</span></div>
           <div class="quick-stat"><b>${servicios.length}</b><span>Servicios UM</span></div>
@@ -4295,12 +4308,12 @@ function eliminarFotoEstacion(estacionNombre){
 }
 function fotoEstacion(s){
   const preview=s.foto
-    ? `<img src="${s.foto}" alt="Foto de estación ${esc(s.nombre)}">`
+    ? `<img src="${esc(s.foto)}" alt="Foto de estación ${esc(s.nombre)}">`
     : `<div>Foto principal de estación<br><span class="muted">${esc(s.nombre)}</span></div>`;
   return `
     <div class="station-photo-box" data-estacion-foto="${esc(s.nombre)}">
       <div class="station-photo-preview">${preview}</div>
-      <input type="file" class="station-photo-input" accept="image/*" hidden>
+      <input type="file" class="station-photo-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
       <div class="station-photo-actions">
         <button type="button" class="btn-cargar-foto-estacion">Cargar foto</button>
         <button type="button" class="btn-eliminar-foto-estacion">Eliminar foto</button>
@@ -4334,7 +4347,7 @@ function initFotosEstacion(){
     const box=input.closest('.station-photo-box');
     const nombre=box?.dataset.estacionFoto || estacionFotoActiva;
     const file=input.files[0];
-    if(!file.type.startsWith('image/')){
+    if(!coiArchivoImagenPermitido(file)){
       alert('Seleccione un archivo de imagen.');
       return;
     }
@@ -4393,7 +4406,7 @@ function fotoPrincipalOC(item){
   const preview=foto?.url ? `<img src="${esc(foto.url)}" alt="Foto OC ${esc(item.idObra)}">` : `<div>Foto principal de OC<br><span class="muted">${esc(item.idObra)}</span></div>`;
   return `<div class="oc-photo-box" data-oc-foto="${esc(item.idObra)}">
     <div class="oc-photo-preview">${preview}</div>
-    <input type="file" class="oc-photo-input" accept="image/*" hidden>
+    <input type="file" class="oc-photo-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
     <div class="oc-photo-actions">
       <button type="button" class="btn-cargar-foto-oc">Cargar foto</button>
       <button type="button" class="btn-eliminar-foto-oc">Eliminar foto</button>
@@ -4438,7 +4451,7 @@ function initFotoYChecksOC(){
     if(input && input.files && input.files[0]){
       const id=input.closest('.oc-photo-box')?.dataset.ocFoto;
       const file=input.files[0];
-      if(!file.type.startsWith('image/')) return alert('Seleccione un archivo de imagen.');
+      if(!coiArchivoImagenPermitido(file)) return alert('Seleccione un archivo de imagen.');
       const reader=new FileReader();
       reader.onload=()=>{guardarFotoOC(id,reader.result);renderFichaOC(id);};
       reader.readAsDataURL(file);
@@ -5875,7 +5888,7 @@ function filtrarUM(){const q=($('umBuscar')?.value||'').toLowerCase().trim(),tip
 function renderUnidadesMantenimiento(){cargarFiltrosUM();const rows=filtrarUM();if($('umKTotal'))$('umKTotal').textContent=unidadesMantenimiento.length;if($('umKAsc'))$('umKAsc').textContent=unidadesMantenimiento.filter(u=>u.tipoUM==='Ascensor').length;if($('umKEsc'))$('umKEsc').textContent=unidadesMantenimiento.filter(u=>u.tipoUM==='Escalera mecánica').length;if($('umKActivas'))$('umKActivas').textContent=unidadesMantenimiento.filter(u=>u.estadoOperativo==='Activo').length;if($('umKFuera'))$('umKFuera').textContent=unidadesMantenimiento.filter(u=>u.estadoOperativo==='Fuera de servicio').length;if($('umKSinFoto'))$('umKSinFoto').textContent=unidadesMantenimiento.filter(u=>!u.fotos||!u.fotos.length).length;if($('umTbody'))$('umTbody').innerHTML=rows.map(u=>`<tr class="row-clickable" data-open-um="${esc(u.idUM)}"><td><b>${esc(u.idUM)}</b></td><td>${esc(u.tipoUM)}</td><td>${esc(u.estacion)}</td><td>${esc(u.sector||'—')}</td><td>${esc(u.ubicacionTecnica)}</td><td>${badgeUMEstado(u.estadoOperativo)}</td><td>${esc(u.criticidad||'—')}</td><td>${esc(u.proveedorActual||'—')}</td><td>${esc(u.ocActual||'—')}</td><td><button type="button" class="btn-open-um" data-open-um="${esc(u.idUM)}">Ver ficha UM</button></td></tr>`).join('')||'<tr><td colspan="10">Sin UM para los filtros seleccionados.</td></tr>';}
 function limpiarFormUM(){['um_idUM','um_sector','um_ubicacionTecnica','um_descripcion','um_proveedorActual','um_ocActual','um_observaciones','um_fotos','um_fotoArchivo'].forEach(id=>{if($(id))$(id).value='';});if($('um_tipoUM'))$('um_tipoUM').value='';if($('um_estacion'))$('um_estacion').value='';if($('um_estadoOperativo'))$('um_estadoOperativo').value='';if($('um_criticidad'))$('um_criticidad').value='Media';if($('umFormMsg'))$('umFormMsg').textContent='Formulario limpio. Complete los campos obligatorios.';}
 function leerFormUM(){const fotos=($('um_fotos')?.value||'').split(/[\n,]+/).map(x=>x.trim()).filter(Boolean);return{idUM:($('um_idUM')?.value||'').trim().toUpperCase(),tipoUM:$('um_tipoUM')?.value||'',estacion:$('um_estacion')?.value||'',sector:($('um_sector')?.value||'').trim(),ubicacionTecnica:($('um_ubicacionTecnica')?.value||'').trim(),descripcion:($('um_descripcion')?.value||'').trim(),estadoOperativo:$('um_estadoOperativo')?.value||'',criticidad:$('um_criticidad')?.value||'Media',proveedorActual:($('um_proveedorActual')?.value||'').trim(),ocActual:($('um_ocActual')?.value||'').trim(),observaciones:($('um_observaciones')?.value||'').trim(),fotos,historialMantenimiento:[]};}
-function leerArchivoUMBase64(file){return new Promise((resolve,reject)=>{if(!file){resolve('');return;}const reader=new FileReader();reader.onload=()=>resolve(reader.result||'');reader.onerror=()=>reject(reader.error||new Error('No se pudo leer la foto UM.'));reader.readAsDataURL(file);});}
+function leerArchivoUMBase64(file){return new Promise((resolve,reject)=>{if(!file){resolve('');return;}if(!coiArchivoImagenPermitido(file)){reject(new Error('Imagen UM no permitida: use PNG/JPEG/WebP/GIF de hasta 8 MB.'));return;}const reader=new FileReader();reader.onload=()=>resolve(reader.result||'');reader.onerror=()=>reject(reader.error||new Error('No se pudo leer la foto UM.'));reader.readAsDataURL(file);});}
 async function guardarFormUM(){const u=leerFormUM(),faltan=[];if(!u.idUM)faltan.push('idUM');if(!u.tipoUM)faltan.push('tipoUM');if(!u.estacion)faltan.push('estación');if(!u.ubicacionTecnica)faltan.push('ubicación técnica');if(!u.estadoOperativo)faltan.push('estado operativo');if(faltan.length){if($('umFormMsg'))$('umFormMsg').textContent='Faltan campos obligatorios: '+faltan.join(', ');return;}const idx=unidadesMantenimiento.findIndex(x=>x.idUM===u.idUM);const anterior=idx>=0?unidadesMantenimiento[idx]:null;try{/* V32 estabilizacion: foto individual UM opcional se guarda como base64 dentro del arreglo fotos existente. */const fotoBase64=await leerArchivoUMBase64($('um_fotoArchivo')?.files?.[0]);if(fotoBase64)u.fotos.push(fotoBase64);}catch(e){if($('umFormMsg'))$('umFormMsg').textContent='No se pudo leer la foto seleccionada.';return;}if(anterior&&!u.fotos.length)u.fotos=anterior.fotos||[];if(idx>=0){u.historialMantenimiento=anterior.historialMantenimiento||[];unidadesMantenimiento[idx]={...anterior,...u};if($('umFormMsg'))$('umFormMsg').textContent='UM actualizada: '+u.idUM;}else{unidadesMantenimiento.push(u);if($('umFormMsg'))$('umFormMsg').textContent='UM creada: '+u.idUM;}if($('um_fotoArchivo'))$('um_fotoArchivo').value='';guardarUM();renderUnidadesMantenimiento();}
 function cargarFormUM(idUM){const u=unidadesMantenimiento.find(x=>x.idUM===idUM);if(!u)return;mostrarVista('vistaUnidadesMantenimiento');['idUM','tipoUM','estacion','sector','ubicacionTecnica','descripcion','estadoOperativo','criticidad','proveedorActual','ocActual','observaciones'].forEach(k=>{const el=$('um_'+k);if(el)el.value=u[k]||'';});if($('um_fotos'))$('um_fotos').value=(u.fotos||[]).join('\n');if($('um_fotoArchivo'))$('um_fotoArchivo').value='';if($('umFormMsg'))$('umFormMsg').textContent='UM cargada para edición: '+u.idUM;}
 function abrirFichaUM(idUM){vistaAnteriorUM=document.querySelector('.view.active')?.id||'vistaUnidadesMantenimiento';umActualId=idUM;mostrarVista('vistaFichaUM');renderFichaUM(idUM);}
@@ -5932,7 +5945,7 @@ function descripcionEstacionCOI(estacion){
 }
 function fotoFichaEstacionCOI(estacion){
   const foto=estacion.foto || (estacion.fotoUrl&&estacion.fotoUrl!==PLACEHOLDER_ESTACION?estacion.fotoUrl:'');
-  if(foto)return `<div class="station-photo-box"><div class="station-photo-preview"><img src="${esc(foto)}" alt="Foto de estación ${esc(estacion.nombre)}"></div></div>`;
+  if(foto&&coiImageSrcValida(foto))return `<div class="station-photo-box"><div class="station-photo-preview"><img src="${esc(foto)}" alt="Foto de estación ${esc(estacion.nombre)}"></div></div>`;
   return typeof fotoEstacion==='function'?fotoEstacion(estacion):`<div class="station-photo-box"><div class="station-photo-preview">Foto principal de estación<br><span class="muted">${esc(estacion.nombre)}</span></div></div>`;
 }
 function renderOCVigentesEstacionCOI(items,tipo){
@@ -6800,11 +6813,11 @@ const _guardarUMV57Base=guardarUM;
 guardarUM=function(){migrarImagenUMV57();_guardarUMV57Base();};
 function renderBloqueImagenUM(um){
   const img=um?.imagenUM||um?.fotoUM||um?.imagen||'';
-  return `<section class="um-image-card" id="umImageCard"><div class="um-image-preview">${img?`<img src="${esc(img)}" alt="Imagen de la UM ${esc(um.idUM)}">`:'<div class="um-image-placeholder">Sin imagen cargada para esta UM</div>'}</div><div><h3>IMAGEN DE LA UM</h3><p class="muted">Imagen local guardada en el navegador mediante sessionStorage.</p><div class="um-image-actions"><input type="file" id="inputImagenUM" accept="image/*"><button type="button" id="btnCargarImagenUM">Cargar imagen</button><button type="button" id="btnQuitarImagenUM" class="btn-danger-soft">Quitar imagen</button></div></div></section>`;
+  return `<section class="um-image-card" id="umImageCard"><div class="um-image-preview">${img?`<img src="${esc(img)}" alt="Imagen de la UM ${esc(um.idUM)}">`:'<div class="um-image-placeholder">Sin imagen cargada para esta UM</div>'}</div><div><h3>IMAGEN DE LA UM</h3><p class="muted">Imagen local guardada en el navegador mediante sessionStorage.</p><div class="um-image-actions"><input type="file" id="inputImagenUM" accept="image/png,image/jpeg,image/webp,image/gif"><button type="button" id="btnCargarImagenUM">Cargar imagen</button><button type="button" id="btnQuitarImagenUM" class="btn-danger-soft">Quitar imagen</button></div></div></section>`;
 }
 function cargarImagenUM(idUM,file){
   if(!file)return;
-  const u=unidadesMantenimiento.find(x=>x.idUM===idUM);if(!u)return;
+  if(!coiArchivoImagenPermitido(file)){alert('Imagen no permitida. Use PNG/JPEG/WebP/GIF de hasta 8 MB.');return;} const u=unidadesMantenimiento.find(x=>x.idUM===idUM);if(!u)return;
   const reader=new FileReader();
   reader.onload=()=>{u.imagenUM=String(reader.result||'');guardarUM();renderFichaUM(idUM);};
   reader.onerror=()=>alert('No se pudo leer la imagen seleccionada.');
@@ -6917,7 +6930,7 @@ function renderFotosEvidenciaOC(oc){
     ${typeof fotoPrincipalOC==='function'?fotoPrincipalOC(oc):''}
     <div class="gallery-toolbar">
       <div><b>Fotos cargadas: ${fotos.length}</b><div class="muted">Imagenes locales guardadas en este navegador.</div></div>
-      <div><button type="button" class="primary" data-v59-add-fotos-oc="${key}">Cargar fotos</button><input type="file" accept="image/*" multiple data-v59-input-fotos-oc="${key}" hidden></div>
+      <div><button type="button" class="primary" data-v59-add-fotos-oc="${key}">Cargar fotos</button><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple data-v59-input-fotos-oc="${key}" hidden></div>
     </div>
     ${fotos.length?`<div class="gallery-grid">${fotos.map(f=>`<article class="gallery-card"><img class="gallery-img" src="${esc(f.dataUrl||f.url||'')}" alt="${esc(f.nombre||'Foto OC')}"><div class="gallery-meta"><b>${esc(f.nombre||'Foto')}</b><span>${v59FmtFechaHora(f.fechaCarga||f.fecha||'')}</span></div><div class="gallery-actions"><button type="button" class="btn-danger-soft" data-v59-del-foto-oc="${key}" data-foto-id="${esc(f.idFoto)}">Eliminar</button></div></article>`).join('')}</div>`:'<div class="oc-empty">Sin fotos cargadas.</div>'}`;
 }
@@ -7033,7 +7046,7 @@ async function cargarFotosOC(idObra,files){
   const found=v59BuscarOC(idObra), oc=found?.item||found;
   if(!oc||!files?.length)return;
   normalizarOC(oc);
-  for(const file of Array.from(files).filter(f=>f&&f.type&&f.type.startsWith('image/'))){
+  for(const file of Array.from(files).filter(f=>f&&f.type&&coiArchivoImagenPermitido(f))){
     const dataUrl=await v59ImagenADataUrl(file);
     if(dataUrl)oc.fotosEvidencia.push({idFoto:'FOTO-OC-'+Date.now()+'-'+Math.random().toString(16).slice(2,8),nombre:file.name,fechaCarga:v59Now(),dataUrl,descripcion:''});
   }
@@ -7114,7 +7127,7 @@ function renderFotosUM(um){
   const key=esc(um.idUM||'');
   const fotos=v59SafeArray(um.fotosUM);
   return `<section class="um-ficha-card full" id="v59GaleriaUM"><h3>FOTOS / EVIDENCIA UM</h3>
-    <div class="gallery-toolbar"><div><b>Fotos cargadas: ${fotos.length}</b><div class="muted">UM, obra, mantenimiento, servicio tecnico o evidencia.</div></div><div><button type="button" class="primary" data-v59-add-fotos-um="${key}">Cargar fotos UM</button><input type="file" accept="image/*" multiple data-v59-input-fotos-um="${key}" hidden></div></div>
+    <div class="gallery-toolbar"><div><b>Fotos cargadas: ${fotos.length}</b><div class="muted">UM, obra, mantenimiento, servicio tecnico o evidencia.</div></div><div><button type="button" class="primary" data-v59-add-fotos-um="${key}">Cargar fotos UM</button><input type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple data-v59-input-fotos-um="${key}" hidden></div></div>
     ${fotos.length?`<div class="gallery-grid">${fotos.map(f=>`<article class="gallery-card"><img class="gallery-img" src="${esc(f.dataUrl||'')}" alt="${esc(f.nombre||'Foto UM')}"><div class="gallery-meta"><b>${esc(f.nombre||'Foto')}</b><span>${v59FmtFechaHora(f.fechaCarga||'')}</span></div><div class="gallery-actions"><button type="button" class="btn-danger-soft" data-v59-del-foto-um="${key}" data-foto-id="${esc(f.idFoto)}">Eliminar</button></div></article>`).join('')}</div>`:'<div class="oc-empty">Sin fotos UM cargadas.</div>'}</section>`;
 }
 
@@ -7135,7 +7148,7 @@ async function cargarFotosUM(idUM,files){
   const u=unidadesMantenimiento.find(x=>x.idUM===idUM);
   if(!u||!files?.length)return;
   normalizarUM(u);
-  for(const file of Array.from(files).filter(f=>f&&f.type&&f.type.startsWith('image/'))){
+  for(const file of Array.from(files).filter(f=>f&&f.type&&coiArchivoImagenPermitido(f))){
     const dataUrl=await v59ImagenADataUrl(file);
     if(dataUrl)u.fotosUM.push({idFoto:'FOTO-UM-'+Date.now()+'-'+Math.random().toString(16).slice(2,8),nombre:file.name,fechaCarga:v59Now(),dataUrl,descripcion:''});
   }
@@ -9145,7 +9158,7 @@ function init(){
   if(typeof migrarRegistrosAIdEstacion==='function') migrarRegistrosAIdEstacion({guardar:false});
   const ramalEl=$('ramal');
   if(ramalEl && !ramalEl.dataset.inicializado){
-    ramalesDisponibles.forEach(r=>ramalEl.insertAdjacentHTML('beforeend',`<option value="${r}">${r}</option>`));
+    ramalesDisponibles.forEach(r=>ramalEl.insertAdjacentHTML('beforeend',`<option value="${esc(r)}">${esc(r)}</option>`));
     ramalEl.dataset.inicializado='1';
   }
   ['q','estado','tipo','especialidad','ramal','showRings'].forEach(id=>{
@@ -34359,7 +34372,7 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   }
   async function openDocument(doc){
     if(!doc)throw new Error('No hay documento vinculado.');
-    if(text(doc.url_externa)){window.open(doc.url_externa,'_blank','noopener,noreferrer');return;}
+    if(text(doc.url_externa)){const externalUrl=text(doc.url_externa);if(!coiURLHTTPValida(externalUrl))throw new Error('URL externa no válida: solo se permiten enlaces http/https.');window.open(externalUrl,'_blank','noopener,noreferrer');return;}
     const bucket=text(doc.storage_bucket)||'coi-documentos';
     const path=text(doc.storage_path); if(!path)throw new Error('El Acta no tiene ruta de Storage.');
     const c=client(); if(!c)throw new Error('Cliente Supabase no disponible.');
