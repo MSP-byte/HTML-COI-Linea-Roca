@@ -31,3 +31,5 @@ if (html === original) {
 }
 fs.writeFileSync(path, html, 'utf8');
 console.log('Security frontend hardening: CSP y sinks dinámicos endurecidos.');
+
+// Trigger de aplicación: Security Hardening V1.
