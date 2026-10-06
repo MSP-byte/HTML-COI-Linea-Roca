@@ -1,0 +1,33 @@
+name: Apply Security Frontend Hardening
+
+on:
+  push:
+    branches: [security/hardening-v1]
+    paths:
+      - tools/apply_security_frontend_hardening_v1.js
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: security/hardening-v1
+      - name: Aplicar parche reproducible
+        run: node tools/apply_security_frontend_hardening_v1.js
+      - name: Confirmar cambio
+        shell: bash
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "Sin cambios: hardening ya aplicado."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "security: harden CSP and dynamic HTML sinks"
+          git push origin HEAD:security/hardening-v1
