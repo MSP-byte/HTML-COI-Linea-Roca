@@ -1,0 +1,35 @@
+name: Apply admin economic UI patch
+
+on:
+  push:
+    branches:
+      - feat/admin-resumen-economico-duplicados
+    paths:
+      - tools/apply_admin_economico_ui.js
+
+permissions:
+  contents: write
+
+jobs:
+  patch-index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply focused UI module
+        run: node tools/apply_admin_economico_ui.js
+      - name: Commit patched index
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 1
+          fi
+          git commit -m "feat: add admin economic summary and sticky order actions"
+          git push
