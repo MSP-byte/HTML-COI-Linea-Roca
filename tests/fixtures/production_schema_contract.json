@@ -36,6 +36,42 @@
           "anon": []
         },
         "migracion": "202610020001_contractual_unmark.sql"
+      },
+      {
+        "funcion": "coi_direct_order_update_audit()",
+        "produccion": "authenticated EXECUTE",
+        "repo": {
+          "authenticated": [],
+          "anon": []
+        },
+        "migracion": "202610050002_security_hardening_trigger_execute.sql"
+      },
+      {
+        "funcion": "coi_direct_order_update_guard()",
+        "produccion": "authenticated EXECUTE",
+        "repo": {
+          "authenticated": [],
+          "anon": []
+        },
+        "migracion": "202610050002_security_hardening_trigger_execute.sql"
+      },
+      {
+        "funcion": "coi_guard_order_lifecycle_h10()",
+        "produccion": "public/anon/authenticated EXECUTE",
+        "repo": {
+          "authenticated": [],
+          "anon": []
+        },
+        "migracion": "202610050002_security_hardening_trigger_execute.sql"
+      },
+      {
+        "funcion": "coi_version_servidor()",
+        "produccion": "public/anon/authenticated EXECUTE",
+        "repo": {
+          "authenticated": [],
+          "anon": []
+        },
+        "migracion": "202610050002_security_hardening_trigger_execute.sql"
       }
     ],
     "_resueltas": [
@@ -176,6 +212,15 @@
         "migracion": "202609100001_h11_online_only_review_hardening.sql",
         "contrato": "SECURITY DEFINER; devuelve únicamente filas con revisada_por = auth.uid()",
         "aplicada_en_remoto": "2026-09-11"
+      }
+    ],
+    "grants_funciones_legacy_produccion": [
+      {
+        "funcion": "coi_normalizar_posicion_oc()",
+        "produccion": "presente con EXECUTE public/anon/authenticated",
+        "repo": "funcion ausente; no se recrea",
+        "migracion": "202610050002_security_hardening_trigger_execute.sql",
+        "comportamiento": "La migracion dinamica revoca ACL si el objeto legacy existe en el ambiente."
       }
     ]
   },
