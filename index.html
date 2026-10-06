@@ -37118,4 +37118,285 @@ body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar #coiPwdBtn::before{content:
 })();
 </script>
 
+
+<style id="coiAdminEconomicoDuplicados20261006Style">
+#fichaOCBody [data-coi-obra-progress-manual]{display:none!important}
+#coiAdminEconomicPanel{margin:12px 0 14px;padding:12px;border:1px solid #d8e2ef;border-radius:12px;background:#fff}
+#coiAdminEconomicPanel .coi-econ-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+#coiAdminEconomicPanel .coi-econ-head h4{margin:0;color:#123b63;font-size:13px}
+#coiAdminEconomicPanel .coi-econ-head p{margin:3px 0 0;color:#667085;font-size:10px}
+#coiAdminEconomicPanel .coi-econ-grid{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:8px}
+#coiAdminEconomicPanel .coi-econ-kpi{border:1px solid #e2e8f0;border-radius:10px;padding:9px;background:#f8fafc;min-height:66px}
+#coiAdminEconomicPanel .coi-econ-kpi b{display:block;font-size:15px;color:#0f3f68;overflow-wrap:anywhere}
+#coiAdminEconomicPanel .coi-econ-kpi span{display:block;margin-top:4px;font-size:9px;font-weight:800;color:#667085;text-transform:uppercase}
+#coiAdminEconomicPanel .coi-econ-note{margin-top:8px;font-size:10px;color:#667085}
+#coiSelectionActionBar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:100050;display:flex;align-items:center;gap:8px;max-width:min(940px,calc(100vw - 28px));padding:9px 12px;border:1px solid #cbd5e1;border-radius:14px;background:#fff;box-shadow:0 12px 40px #0f172a2e}
+#coiSelectionActionBar[hidden]{display:none}
+#coiSelectionActionBar strong{white-space:nowrap;color:#123b63;font-size:12px}
+#coiSelectionActionBar button{white-space:nowrap}
+#coiSelectionActionBar .danger{border-color:#fecaca;color:#b42318;background:#fff7f7}
+.coi-admin-modal{position:fixed;inset:0;z-index:100200;background:#0f172a99;display:flex;align-items:center;justify-content:center;padding:18px}
+.coi-admin-modal[hidden]{display:none}
+.coi-admin-modal-card{width:min(560px,96vw);background:#fff;border-radius:16px;padding:18px;box-shadow:0 24px 70px #0005}
+.coi-admin-modal-card h3{margin:0 0 6px;color:#123b63}
+.coi-admin-modal-card p{font-size:12px;color:#667085}
+.coi-admin-modal-card label{display:block;margin:11px 0 4px;font-size:11px;font-weight:800;color:#344054}
+.coi-admin-modal-card input,.coi-admin-modal-card textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #cbd5e1;border-radius:9px}
+.coi-admin-modal-card textarea{min-height:78px;resize:vertical}
+.coi-admin-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+.coi-admin-modal-status{min-height:20px;margin-top:8px;font-size:11px;font-weight:700}
+.coi-admin-modal-status.error{color:#b42318}
+.coi-admin-modal-status.ok{color:#067647}
+@media(max-width:900px){
+  #coiAdminEconomicPanel .coi-econ-grid{grid-template-columns:repeat(2,minmax(120px,1fr))}
+  #coiSelectionActionBar{left:12px;right:12px;transform:none;overflow-x:auto;justify-content:flex-start}
+}
+</style>
+<script>
+/* COI_ADMIN_ECONOMICO_DUPLICADOS_20261006
+ * Resumen económico manual administrativo + barra sticky de acciones sobre OCs.
+ * El cálculo por avance es ESTIMADO y no reemplaza posiciones/certificaciones.
+ */
+(function(){
+  'use strict';
+  if(window.COI_ADMIN_ECONOMICO_DUPLICADOS?.version==='20261006')return;
+
+  const text=v=>String(v??'').trim();
+  const fold=v=>text(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  const uuid=v=>/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text(v));
+  const nro=v=>(text(v).match(/\d{9,12}/)||[])[0]||'';
+  const client=()=>typeof window.getSupabaseClient==='function'?window.getSupabaseClient():null;
+  const round2=n=>Math.round((Number(n)+Number.EPSILON)*100)/100;
+
+  function isAdmin(){
+    const role=fold(window.APP_STATE?.role||window.APP_STATE?.perfil?.rol||window.__COI_AUTH_PROFILE__?.rol||'');
+    if(role==='ADMINISTRADOR')return true;
+    try{return typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60()===true;}catch(_){return false;}
+  }
+  function parseMoney(v){
+    let s=text(v).replace(/\s/g,'').replace(/[$€£¥]/g,'');
+    if(!s)return NaN;
+    if(s.includes(',')&&s.includes('.'))s=s.replace(/\./g,'').replace(',','.');
+    else if((s.match(/\./g)||[]).length>1)s=s.replace(/\./g,'');
+    else if(s.includes(','))s=s.replace(',','.');
+    const n=Number(s); return Number.isFinite(n)&&n>=0?n:NaN;
+  }
+  function parsePct(v){
+    const s=text(v).replace(',','.');
+    if(!s)return null;
+    const n=Number(s); return Number.isFinite(n)&&n>=0&&n<=100?n:NaN;
+  }
+  function computeEconomic(row){
+    const amount=Number(row?.monto_total??0);
+    const pct=row?.avance_obra_pct===null||row?.avance_obra_pct===undefined||text(row?.avance_obra_pct)===''?null:Number(row.avance_obra_pct);
+    const executed=pct===null||!Number.isFinite(pct)?null:round2(amount*pct/100);
+    const available=executed===null?null:round2(amount-executed);
+    return {amount:Number.isFinite(amount)?amount:0,pct:Number.isFinite(pct)?pct:null,executed,available};
+  }
+  function fmtMoney(value,currency='ARS'){
+    if(value===null||value===undefined||!Number.isFinite(Number(value)))return '—';
+    try{return new Intl.NumberFormat('es-AR',{style:'currency',currency:text(currency)||'ARS',maximumFractionDigits:2}).format(Number(value));}
+    catch(_){return new Intl.NumberFormat('es-AR',{maximumFractionDigits:2}).format(Number(value))+' '+(text(currency)||'');}
+  }
+  function fmtPct(value){return value===null||value===undefined||!Number.isFinite(Number(value))?'—':new Intl.NumberFormat('es-AR',{maximumFractionDigits:2}).format(Number(value))+'%';}
+  function toast(message,type='info'){
+    if(typeof window.coiToast==='function')return window.coiToast(message,type);
+    if(typeof window.mostrarToast==='function')return window.mostrarToast(message,type);
+    console[type==='error'?'error':'info'](message);
+  }
+  function currentRef(){
+    let h='';
+    try{h=decodeURIComponent(location.hash||'');}catch(_){h=location.hash||'';}
+    return h.match(/#ficha-oc\/([^/]+)/i)?.[1]||'';
+  }
+  function allItems(){
+    try{return (typeof window.todasLasOC==='function'?window.todasLasOC():[]).map(r=>r?.item||r).filter(Boolean);}catch(_){return[];}
+  }
+  function candidateId(item){return text(item?.supabaseId||item?._supabaseRaw?.id||item?.orden_id||item?.id);}
+  function candidateNro(item){return nro(item?.nro_oc||item?.numeroOC||item?.oc||item?.idObra);}
+  function findLocal(ref){
+    if(ref&&typeof ref==='object')return ref.item||ref;
+    const key=text(ref);
+    const number=nro(key);
+    return allItems().find(item=>{
+      try{if(typeof window.v45RegistroKey==='function'&&window.v45RegistroKey(item)===key)return true;}catch(_){}
+      return [candidateId(item),candidateNro(item),text(item?.idObra)].some(v=>v&&v===key)||(number&&candidateNro(item)===number);
+    })||null;
+  }
+  async function loadOrder(ref){
+    const c=client(); if(!c)throw new Error('Cliente Supabase no disponible.');
+    const local=findLocal(ref);
+    const id=candidateId(local);
+    let result;
+    const fields='id,nro_oc,tipo,proveedor,estacion,monto_total,moneda,avance_obra_pct,saldo_remanente,estado_registro';
+    if(uuid(id))result=await c.from('coi_ordenes').select(fields).eq('id',id).limit(1);
+    else{
+      const number=candidateNro(local)||nro(ref); if(!number)throw new Error('No se pudo identificar la OC.');
+      result=await c.from('coi_ordenes').select(fields).eq('nro_oc',number).limit(2);
+    }
+    if(result.error)throw result.error;
+    if(result.data?.length!==1)throw new Error('No se pudo resolver una OC única.');
+    return result.data[0];
+  }
+  async function loadByNro(number){
+    const c=client(); if(!c)throw new Error('Cliente Supabase no disponible.');
+    const n=nro(number); if(!n)throw new Error('Ingresá un N° de OC válido.');
+    const q=await c.from('coi_ordenes').select('id,nro_oc,tipo,proveedor,estacion,monto_total,moneda,avance_obra_pct,saldo_remanente,estado_registro').eq('nro_oc',n).limit(2);
+    if(q.error)throw q.error;
+    if(q.data?.length!==1)throw new Error(q.data?.length?'La OC a conservar no es única.':'La OC a conservar no existe.');
+    return q.data[0];
+  }
+
+  function removeModal(){document.querySelectorAll('.coi-admin-modal').forEach(n=>n.remove());}
+  function modalShell(title,lead){
+    removeModal();
+    const modal=document.createElement('div'); modal.className='coi-admin-modal';
+    modal.innerHTML='<div class="coi-admin-modal-card" role="dialog" aria-modal="true"><h3></h3><p></p><div data-body></div><div class="coi-admin-modal-status" data-status></div><div class="coi-admin-modal-actions"><button type="button" data-cancel>Cancelar</button><button type="button" class="primary" data-confirm>Guardar</button></div></div>';
+    modal.querySelector('h3').textContent=title;
+    modal.querySelector('p').textContent=lead;
+    modal.querySelector('[data-cancel]').addEventListener('click',removeModal);
+    modal.addEventListener('click',e=>{if(e.target===modal)removeModal();});
+    document.body.appendChild(modal);
+    return modal;
+  }
+  async function refreshAll(){
+    try{if(typeof window.recargarDatosDesdeSupabase==='function')await window.recargarDatosDesdeSupabase({silencioso:true});}catch(_){}
+    try{if(typeof window.renderOrdenes==='function')window.renderOrdenes();}catch(_){}
+    schedulePanel();
+    setTimeout(updateActionBar,100);
+  }
+  async function openEconomicEditor(row){
+    if(!isAdmin())throw new Error('Esta operación requiere rol Administrador.');
+    const e=computeEconomic(row);
+    const m=modalShell('Editar monto y avance','Referencia administrativa manual. No reemplaza el detalle real de posiciones ni certificaciones.');
+    m.querySelector('[data-body]').innerHTML='<label>Monto total</label><input data-amount inputmode="decimal"><label>Avance manual (%)</label><input data-pct inputmode="decimal" placeholder="0 a 100"><div style="margin-top:10px;padding:9px;border-radius:9px;background:#f8fafc;font-size:11px" data-preview></div>';
+    const amount=m.querySelector('[data-amount]'), pct=m.querySelector('[data-pct]'), preview=m.querySelector('[data-preview]'), status=m.querySelector('[data-status]'), confirm=m.querySelector('[data-confirm]');
+    amount.value=Number(row.monto_total??0);
+    pct.value=e.pct===null?'':String(e.pct).replace('.',',');
+    const draw=()=>{
+      const a=parseMoney(amount.value),p=parsePct(pct.value);
+      if(Number.isNaN(a)||Number.isNaN(p)){preview.textContent='Revisá los valores ingresados.';return;}
+      const c=computeEconomic({monto_total:a,avance_obra_pct:p});
+      preview.textContent='Ejecutado estimado: '+fmtMoney(c.executed,row.moneda)+' · Disponible estimado: '+fmtMoney(c.available,row.moneda);
+    };
+    amount.addEventListener('input',draw);pct.addEventListener('input',draw);draw();
+    confirm.textContent='Guardar';
+    confirm.addEventListener('click',async()=>{
+      const a=parseMoney(amount.value),p=parsePct(pct.value);
+      if(Number.isNaN(a)){status.textContent='Ingresá un monto válido mayor o igual a 0.';status.className='coi-admin-modal-status error';return;}
+      if(Number.isNaN(p)){status.textContent='El avance debe estar entre 0 y 100.';status.className='coi-admin-modal-status error';return;}
+      confirm.disabled=true;
+      try{
+        const c=client(); if(!c)throw new Error('Cliente Supabase no disponible.');
+        const r=await c.rpc('coi_actualizar_resumen_economico_manual',{p_orden_id:row.id,p_monto_total:a,p_avance_pct:p});
+        if(r.error)throw r.error;
+        status.textContent='Guardado correctamente.';status.className='coi-admin-modal-status ok';
+        toast('Monto y avance manual actualizados.','ok');
+        await refreshAll(); setTimeout(removeModal,250);
+      }catch(error){
+        const msg=/COI_ORDER_AMOUNT_BELOW_CONSUMED/i.test(error?.message||'')?'El monto no puede ser menor al importe ya consumido en posiciones.':(error?.message||'No se pudo guardar.');
+        status.textContent=msg;status.className='coi-admin-modal-status error';confirm.disabled=false;
+      }
+    });
+  }
+
+  function panelHtml(row){
+    const e=computeEconomic(row), admin=isAdmin();
+    return '<div class="coi-econ-head"><div><h4>Resumen económico manual</h4><p>Estimación administrativa independiente del detalle de posiciones/certificaciones.</p></div>'+(admin?'<button type="button" data-econ-edit>Editar monto y avance</button>':'')+'</div>'+
+      '<div class="coi-econ-grid">'+
+      '<div class="coi-econ-kpi"><b>'+fmtMoney(e.amount,row.moneda)+'</b><span>Monto total</span></div>'+
+      '<div class="coi-econ-kpi"><b>'+fmtPct(e.pct)+'</b><span>Avance manual</span></div>'+
+      '<div class="coi-econ-kpi"><b>'+fmtMoney(e.executed,row.moneda)+'</b><span>Monto ejecutado estimado</span></div>'+
+      '<div class="coi-econ-kpi"><b>'+fmtMoney(e.available,row.moneda)+'</b><span>Monto disponible estimado</span></div>'+
+      '<div class="coi-econ-kpi"><b>'+fmtMoney(Number(row.saldo_remanente??0),row.moneda)+'</b><span>Saldo real por posiciones</span></div>'+
+      '</div><div class="coi-econ-note">El disponible estimado = Monto total × (100 − Avance %) / 100. El saldo real sigue dependiendo de las posiciones y consumos cargados.</div>';
+  }
+  async function mountPanel(ref){
+    const body=document.getElementById('fichaOCBody'); if(!body||!body.isConnected)return;
+    const strip=body.querySelector('.oc-kpis'); if(!strip)return;
+    ref=ref||currentRef(); if(!ref)return;
+    let row; try{row=await loadOrder(ref);}catch(_){return;}
+    let panel=body.querySelector('#coiAdminEconomicPanel');
+    if(!panel){panel=document.createElement('section');panel.id='coiAdminEconomicPanel';strip.insertAdjacentElement('afterend',panel);}
+    panel.dataset.orderId=row.id; panel.innerHTML=panelHtml(row);
+    panel.querySelector('[data-econ-edit]')?.addEventListener('click',()=>openEconomicEditor(row).catch(e=>toast(e.message,'error')));
+  }
+  let panelTimer=0;
+  function schedulePanel(ref){clearTimeout(panelTimer);panelTimer=setTimeout(()=>mountPanel(ref),80);}
+
+  function selectedKeys(){return [...document.querySelectorAll('.chk-orden-row:checked')].map(c=>text(c.dataset.ordenKey||c.value)).filter(Boolean);}
+  function selectedLocal(){
+    const keys=selectedKeys(); if(keys.length!==1)return null;
+    return findLocal(keys[0])||keys[0];
+  }
+  function ensureActionBar(){
+    let bar=document.getElementById('coiSelectionActionBar');
+    if(bar)return bar;
+    bar=document.createElement('div');bar.id='coiSelectionActionBar';bar.hidden=true;
+    bar.innerHTML='<strong data-count></strong><button type="button" data-edit>Editar monto/avance</button><button type="button" data-duplicate>Resolver duplicado</button><button type="button" class="danger" data-delete>Borrar OC</button>';
+    document.body.appendChild(bar);
+    bar.querySelector('[data-edit]').addEventListener('click',async()=>{
+      try{const ref=selectedLocal();if(!ref)throw new Error('Seleccioná una sola OC.');await openEconomicEditor(await loadOrder(ref));}catch(e){toast(e.message,'error');}
+    });
+    bar.querySelector('[data-delete]').addEventListener('click',()=>{
+      const original=document.getElementById('btnBorrarSeleccionadas');
+      if(original)original.click(); else toast('No se encontró la acción de borrado seguro.','error');
+    });
+    bar.querySelector('[data-duplicate]').addEventListener('click',async()=>{
+      try{
+        if(!isAdmin())throw new Error('Esta operación requiere rol Administrador.');
+        const ref=selectedLocal(); if(!ref)throw new Error('Seleccioná una sola OC duplicada.');
+        const duplicate=await loadOrder(ref);
+        const m=modalShell('Resolver OC duplicada','La OC seleccionada se archivará con trazabilidad. No se borra su historial.');
+        m.querySelector('[data-body]').innerHTML='<div style="font-size:12px"><b>OC duplicada:</b> '+duplicate.nro_oc+'</div><label>OC correcta a conservar</label><input data-canonical placeholder="Ej. 4530009623"><label>Motivo</label><textarea data-reason placeholder="Motivo de la duplicidad"></textarea>';
+        const confirm=m.querySelector('[data-confirm]'),status=m.querySelector('[data-status]');
+        confirm.textContent='Archivar duplicada';
+        confirm.addEventListener('click',async()=>{
+          confirm.disabled=true;
+          try{
+            const canonical=await loadByNro(m.querySelector('[data-canonical]').value);
+            if(canonical.id===duplicate.id)throw new Error('La OC a conservar debe ser distinta de la duplicada.');
+            const c=client(); if(!c)throw new Error('Cliente Supabase no disponible.');
+            const r=await c.rpc('coi_resolver_oc_duplicada',{p_orden_duplicada_id:duplicate.id,p_orden_canonica_id:canonical.id,p_motivo:text(m.querySelector('[data-reason]').value)||null});
+            if(r.error)throw r.error;
+            status.textContent='Duplicado archivado con trazabilidad.';status.className='coi-admin-modal-status ok';
+            toast('OC duplicada archivada. Se conserva '+canonical.nro_oc+'.','ok');
+            await refreshAll();setTimeout(removeModal,300);
+          }catch(error){status.textContent=error?.message||'No se pudo resolver el duplicado.';status.className='coi-admin-modal-status error';confirm.disabled=false;}
+        });
+      }catch(e){toast(e.message,'error');}
+    });
+    return bar;
+  }
+  function updateActionBar(){
+    const bar=ensureActionBar(),keys=selectedKeys(),admin=isAdmin();
+    bar.hidden=keys.length===0||!admin;
+    if(bar.hidden)return;
+    bar.querySelector('[data-count]').textContent=keys.length+' OC '+(keys.length===1?'seleccionada':'seleccionadas');
+    bar.querySelector('[data-edit]').disabled=keys.length!==1;
+    bar.querySelector('[data-duplicate]').disabled=keys.length!==1;
+    bar.querySelector('[data-delete]').disabled=keys.length===0;
+  }
+
+  document.addEventListener('change',e=>{if(e.target?.matches?.('.chk-orden-row,#chkOrdenesSeleccionarTodas'))setTimeout(updateActionBar,0);},true);
+  document.addEventListener('click',e=>{if(e.target?.closest?.('#btnOrdenes,[data-v2-nav="btnOrdenes"]'))setTimeout(updateActionBar,250);},true);
+  window.addEventListener('hashchange',()=>schedulePanel(currentRef()));
+  if(window.MutationObserver){
+    const ordersBody=document.getElementById('ordenesTbody');
+    if(ordersBody)new MutationObserver(()=>setTimeout(updateActionBar,0)).observe(ordersBody,{childList:true,subtree:true});
+  }
+  const base=window.renderFichaOC;
+  if(typeof base==='function'&&!base._coiAdminEconomico20261006){
+    const wrapped=function(reference){const out=base.apply(this,arguments);schedulePanel(reference);setTimeout(()=>mountPanel(reference),700);return out;};
+    Object.defineProperty(wrapped,'_coiAdminEconomico20261006',{value:true});
+    window.renderFichaOC=wrapped;
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{ensureActionBar();updateActionBar();schedulePanel(currentRef());},{once:true});
+  else{ensureActionBar();updateActionBar();schedulePanel(currentRef());}
+
+  window.COI_ADMIN_ECONOMICO_DUPLICADOS=Object.freeze({
+    version:'20261006',parseMoney,parsePct,computeEconomic,loadOrder,mountPanel,updateActionBar,openEconomicEditor
+  });
+})();
+</script>
 </body></html>
