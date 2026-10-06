@@ -212,14 +212,15 @@
         "migracion": "202609100001_h11_online_only_review_hardening.sql",
         "contrato": "SECURITY DEFINER; devuelve únicamente filas con revisada_por = auth.uid()",
         "aplicada_en_remoto": "2026-09-11"
-      },
+      }
+    ],
+    "grants_funciones_legacy_produccion": [
       {
-        "objeto": "public.coi_normalizar_posicion_oc()",
-        "tipo": "funcion_trigger_legacy_produccion",
+        "funcion": "coi_normalizar_posicion_oc()",
         "produccion": "presente con EXECUTE public/anon/authenticated",
-        "repo": "ausente",
+        "repo": "funcion ausente; no se recrea",
         "migracion": "202610050002_security_hardening_trigger_execute.sql",
-        "nota": "La migracion dinamica revoca ACL si el objeto legacy existe en el ambiente; no se recrea en bases nuevas."
+        "comportamiento": "La migracion dinamica revoca ACL si el objeto legacy existe en el ambiente."
       }
     ]
   },
