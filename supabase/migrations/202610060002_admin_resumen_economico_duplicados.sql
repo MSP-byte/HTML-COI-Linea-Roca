@@ -85,7 +85,14 @@ end;
 $$;
 
 revoke all on function public.coi_actualizar_resumen_economico_manual(uuid,numeric,numeric) from public, anon;
-grant execute on function public.coi_actualizar_resumen_economico_manual(uuid,numeric,numeric) to authenticated, service_role;
+grant execute on function public.coi_actualizar_resumen_economico_manual(uuid,numeric,numeric) to authenticated;
+do $grant_service_role$
+begin
+  if exists (select 1 from pg_roles where rolname='service_role') then
+    execute 'grant execute on function public.coi_actualizar_resumen_economico_manual(uuid,numeric,numeric) to service_role';
+  end if;
+end
+$grant_service_role$;
 
 create or replace function public.coi_resolver_oc_duplicada(
   p_orden_duplicada_id uuid,
@@ -187,6 +194,13 @@ end;
 $$;
 
 revoke all on function public.coi_resolver_oc_duplicada(uuid,uuid,text) from public, anon;
-grant execute on function public.coi_resolver_oc_duplicada(uuid,uuid,text) to authenticated, service_role;
+grant execute on function public.coi_resolver_oc_duplicada(uuid,uuid,text) to authenticated;
+do $grant_service_role$
+begin
+  if exists (select 1 from pg_roles where rolname='service_role') then
+    execute 'grant execute on function public.coi_resolver_oc_duplicada(uuid,uuid,text) to service_role';
+  end if;
+end
+$grant_service_role$;
 
 commit;
