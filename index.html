@@ -37382,7 +37382,8 @@ body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar #coiPwdBtn::before{content:
   document.addEventListener('click',e=>{if(e.target?.closest?.('#btnOrdenes,[data-v2-nav="btnOrdenes"]'))setTimeout(updateActionBar,250);},true);
   window.addEventListener('hashchange',()=>schedulePanel(currentRef()));
   if(window.MutationObserver){
-    new MutationObserver(()=>{schedulePanel(currentRef());updateActionBar();}).observe(document.body,{childList:true,subtree:true});
+    const ordersBody=document.getElementById('ordenesTbody');
+    if(ordersBody)new MutationObserver(()=>setTimeout(updateActionBar,0)).observe(ordersBody,{childList:true,subtree:true});
   }
   const base=window.renderFichaOC;
   if(typeof base==='function'&&!base._coiAdminEconomico20261006){
