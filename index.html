@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; connect-src 'self' https://ooepgbzqlpjrtpaoqawc.supabase.co wss://ooepgbzqlpjrtpaoqawc.supabase.co; img-src 'self' data: blob: https://ooepgbzqlpjrtpaoqawc.supabase.co; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'; worker-src 'self' blob:; manifest-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; connect-src 'self' https://ooepgbzqlpjrtpaoqawc.supabase.co wss://ooepgbzqlpjrtpaoqawc.supabase.co; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'; worker-src 'self' blob:; manifest-src 'self'">
 <title>Plano Interactivo de Obras y Servicios – Línea Roca</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://ooepgbzqlpjrtpaoqawc.supabase.co" crossorigin>
@@ -3311,7 +3311,10 @@ function coiArchivoImagenPermitido(file){
 }
 function coiImageSrcValida(value){
   const raw=String(value??'').trim();
-  return /^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(raw)||coiURLHTTPValida(raw);
+  if(/^data:image\/(?:png|jpeg|webp|gif);base64,/i.test(raw))return true;
+  if(coiURLHTTPValida(raw))return true;
+  if(!raw||/^[a-z][a-z0-9+.-]*:/i.test(raw)||raw.startsWith('//')||raw.includes('..'))return false;
+  return /^(?:\.\/)?(?:assets|img)\//i.test(raw);
 }
 function coiCSVCell(value){
   let text=String(value??'');
