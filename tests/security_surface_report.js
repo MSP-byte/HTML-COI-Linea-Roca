@@ -41,6 +41,20 @@ const insertAdjacentHtml = (html.match(/insertAdjacentHTML\s*\(/g) || []).length
 const localStorageWrites = (html.match(/localStorage\.setItem\s*\(/g) || []).length;
 const csvGuard = /[=+@-].*CSV|CSV.*[=+@-]|formula injection|csv injection/i.test(html);
 
+const lines = html.split(/\r?\n/);
+const sinkContexts = [];
+const dynamicTerms = /observ|proveedor|descripcion|descripci[oó]n|titulo|t[ií]tulo|expediente|estacion|estaci[oó]n|sector|email|nombre|document|remitente|destinatario|accion|acci[oó]n|responsable|motivo|riesgo|estado|nro_oc|tipo_trabajo/i;
+const sanitizerTerms = /escape|sanitize|safeHtml|htmlEscape|escapar|textContent|createTextNode/i;
+for (let i = 0; i < lines.length; i += 1) {
+  const line = lines[i];
+  if ((/\.innerHTML\s*=/.test(line) || /insertAdjacentHTML\s*\(/.test(line)) && dynamicTerms.test(line) && !sanitizerTerms.test(line)) {
+    sinkContexts.push({ line: i + 1, text: line.trim().slice(0, 420) });
+  }
+}
+const externalOrigins = [...new Set((html.match(/https:\/\/[^\s"'<>\\)]+/g) || []).map(value => {
+  try { return new URL(value).origin; } catch { return null; }
+}).filter(Boolean))].sort();
+
 if (!publishable.length && legacyJwt.length) {
   findings.push({
     level: 'MEDIUM',
@@ -75,9 +89,12 @@ const report = {
     innerHTML_assignments: innerHtmlAssignments,
     insertAdjacentHTML_calls: insertAdjacentHtml,
     localStorage_setItem_calls: localStorageWrites,
-    csv_formula_guard_detected: csvGuard
+    csv_formula_guard_detected: csvGuard,
+    suspicious_dynamic_html_sinks: sinkContexts.length,
+    external_origins: externalOrigins
   },
-  findings
+  findings,
+  suspicious_sink_samples: sinkContexts.slice(0, 40)
 };
 
 console.log(JSON.stringify(report, null, 2));
