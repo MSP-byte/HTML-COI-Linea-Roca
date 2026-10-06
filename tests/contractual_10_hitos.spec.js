@@ -361,3 +361,15 @@ test('T18 · duraciones con saltos: H4 9 días, H9 10 días, H5–H8 sin duraci�
   }
   expect(o.aviso).toBe('Existen hitos intermedios sin registrar.');
 });
+
+
+test('T19 · Obra con Acta puede confirmar H10 FINALIZADA directamente sin H9', async ({ page }) => {
+  await abrir(page, { ordenes: [conActa({ tipo: 'Obra' })] });
+  await F.confirmarHito(page, 'finalizada', '2026-09-25');
+  const o = await F.observable(page);
+  expect(o.avance).toBe('1 / 10');
+  expect(o.estadoActual).toBe('OBRA FINALIZADA');
+  expect(tarjeta(o, 'ejecucion').clase).toBe('pendiente');
+  expect(tarjeta(o, 'finalizada').clase).toBe('actual');
+  expect(await canonicas(page, 'finalizada')).toBe(1);
+});

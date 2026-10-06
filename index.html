@@ -34321,7 +34321,15 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   }
   function itemNro(item,reference){return nroFrom(item?.numeroOC||item?.nro_oc||item?.oc||item?.idObra||reference);}
   function looksObra(item,row){return fold(row?.tipo||item?.tipo)==='OBRA';}
-  function canEditOC(body){return [...body.querySelectorAll('button')].some(btn=>fold(btn.textContent)==='EDITAR OC');}
+  function canEditOC(body){
+    const role=fold(window.APP_STATE?.role||window.APP_STATE?.perfil?.rol||'');
+    if(['ADMINISTRADOR','JEFATURA','EDITOR','PLANIFICACION','CONTROL','SUPERVISOR'].includes(role))return true;
+    if(role==='CONSULTA')return false;
+    try{
+      if(typeof window.esAutorizacionAdministrativaSupabaseV60==='function'&&window.esAutorizacionAdministrativaSupabaseV60())return true;
+    }catch(_){}
+    return [...body.querySelectorAll('button')].some(btn=>fold(btn.textContent)==='EDITAR OC');
+  }
 
   async function resolveOrder(reference,item){
     const c=client(); if(!c)throw new Error('Cliente Supabase no disponible.');
@@ -34445,9 +34453,15 @@ function startEditor(card,order){
     if(body.querySelector('[data-coi-obra-progress-manual]'))return;
     const strip=body.querySelector('.oc-kpis'); if(!strip)return;
     const original=[...strip.querySelectorAll('.oc-kpi')].find(card=>[...card.querySelectorAll('span')].some(span=>fold(span.textContent)==='AVANCE DE OBRA'));
-    if(!original)return;
+    const editable=canEditOC(body);
+    if(!original){
+      const manualCard=buildManualCard(order,editable);
+      const anchor=[...strip.querySelectorAll('.oc-kpi')].find(card=>[...card.querySelectorAll('span')].some(span=>fold(span.textContent)==='ULTIMA CERTIFICACION'));
+      if(anchor)anchor.insertAdjacentElement('afterend',manualCard); else strip.appendChild(manualCard);
+      return;
+    }
     const actaCard=buildActaCard(original); original.replaceWith(actaCard);
-    const manualCard=buildManualCard(order,canEditOC(body)); actaCard.insertAdjacentElement('afterend',manualCard);
+    const manualCard=buildManualCard(order,editable); actaCard.insertAdjacentElement('afterend',manualCard);
     try{
       const {cert,doc}=await loadLatestActa(order); if(!actaCard.isConnected)return;
       const value=actaCard.querySelector('[data-coi-obra-acta-value]');
