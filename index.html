@@ -3488,8 +3488,8 @@ function renderCalendarioCOI(){
     const avanceDoc = r.tipo==='Obra' ? `${r.avanceFisico}% avance físico` : r.estadoDocumental;
     return `<tr>
       <td>${pill(sem)}</td><td>${esc(r.oc)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td>
-      <td>${fmtFecha(r.inicio)}</td><td>${fmtFecha(r.ultimaFechaCertificacion)}</td><td>${r.ultimaActa?.numero||'—'}</td>
-      <td>${fmtFecha(r.proximaCertificacion)}</td><td>${r.proximoNroActa||1}</td><td>${esc(avanceDoc)}</td><td>${fmtFecha(r.fin)}</td><td>${esc(sem.texto)}</td>
+      <td>${fmtFecha(r.inicio)}</td><td>${fmtFecha(r.ultimaFechaCertificacion)}</td><td>${esc(r.ultimaActa?.numero||'—')}</td>
+      <td>${fmtFecha(r.proximaCertificacion)}</td><td>${esc(r.proximoNroActa||1)}</td><td>${esc(avanceDoc)}</td><td>${fmtFecha(r.fin)}</td><td>${esc(sem.texto)}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="13">Sin certificaciones para los filtros seleccionados.</td></tr>';
 
