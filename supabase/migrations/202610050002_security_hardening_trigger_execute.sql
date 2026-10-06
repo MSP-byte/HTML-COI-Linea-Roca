@@ -3,6 +3,20 @@
 -- Los triggers continúan ejecutándose por PostgreSQL; no requieren EXECUTE
 -- directo de roles cliente (anon/authenticated).
 -- No modifica datos operativos.
+--
+-- Snapshot ACL productivo previo (2026-10-05) para rollback selectivo:
+--   authenticated: coi_direct_order_update_audit(), coi_direct_order_update_guard()
+--   public+anon+authenticated: coi_guard_order_lifecycle_h10(),
+--     coi_normalizar_posicion_oc(), coi_version_servidor()
+-- El resto de las funciones trigger coi_* ya estaba cerrado a roles cliente.
+--
+-- ROLLBACK SELECTIVO (sólo si una regresión demostrada lo exige):
+--   grant execute on function public.coi_direct_order_update_audit() to authenticated;
+--   grant execute on function public.coi_direct_order_update_guard() to authenticated;
+--   grant execute on function public.coi_guard_order_lifecycle_h10() to public, anon, authenticated;
+--   grant execute on function public.coi_normalizar_posicion_oc() to public, anon, authenticated;
+--   grant execute on function public.coi_version_servidor() to public, anon, authenticated;
+-- No aplicar grants más amplios que este snapshot.
 
 begin;
 
