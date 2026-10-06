@@ -24,7 +24,7 @@
     "security:scan": "node tests/security_surface_report.js"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "0.5.4",
+    "@electric-sql/pglite": "0.5.8",
     "@playwright/test": "1.62.1",
     "css-tree": "3.1.0",
     "html-validate": "11.6.2",
