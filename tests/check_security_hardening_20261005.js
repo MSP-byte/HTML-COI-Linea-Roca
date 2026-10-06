@@ -116,8 +116,7 @@ async function main() {
            has_function_privilege('authenticated', p.oid, 'EXECUTE') auth_exec,
            has_function_privilege('anon', p.oid, 'EXECUTE') anon_exec
       from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-     where n.nspname='public' and p.proname='coi_assert_role'
-       and pg_get_function_identity_arguments(p.oid)='p_allowed text[]'`);
+     where p.oid='public.coi_assert_role(text[])'::regprocedure`);
   assert.equal(q.rows.length, 1, 'debe existir coi_assert_role(text[])');
   assert.equal(q.rows[0].prosecdef, true, 'coi_assert_role debe terminar SECURITY DEFINER');
   assert.equal(q.rows[0].auth_exec, true, 'authenticated debe poder invocar el guard de rol');
