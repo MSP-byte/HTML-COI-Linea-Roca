@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://ooepgbzqlpjrtpaoqawc.supabase.co wss://ooepgbzqlpjrtpaoqawc.supabase.co; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' data: blob:; worker-src 'self' blob:; manifest-src 'self'">
 <title>Plano Interactivo de Obras y Servicios – Línea Roca</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="preconnect" href="https://ooepgbzqlpjrtpaoqawc.supabase.co" crossorigin>
@@ -2879,7 +2880,7 @@ function showTip(e,s){
   $('tip').style.display='block';
   $('tip').style.left=e.clientX+14+'px';
   $('tip').style.top=e.clientY+14+'px';
-  $('tip').innerHTML=`<b>${s.nombre}</b><br>Obras activas/asociadas: ${obrasActivas}<br>Servicios activos/asociados: ${serviciosActivos}<br>Estado general: <b>${color==='bad'?'Demorado/vencido':color==='warn'?'Próximo a vencer':color==='done'?'Finalizado/certificado':'En plazo'}</b>`;
+  $('tip').innerHTML=`<b>${esc(s.nombre)}</b><br>Obras activas/asociadas: ${obrasActivas}<br>Servicios activos/asociados: ${serviciosActivos}<br>Estado general: <b>${color==='bad'?'Demorado/vencido':color==='warn'?'Próximo a vencer':color==='done'?'Finalizado/certificado':'En plazo'}</b>`;
 }
 function hideTip(){ $('tip').style.display='none'; }
 
@@ -3857,7 +3858,7 @@ function renderCalendarioCertificaciones(){
   if($('certTbody')) $('certTbody').innerHTML=rows.map(r=>{
     const sem=semaforoCert(r);
     const avanceDoc=r.tipo==='Obra'?`${r.avanceFisico}% avance físico`:r.estadoDocumental;
-    return `<tr><td>${pill(sem)}</td><td>${esc(r.oc)}<br>${botonFichaOC(r.item)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${fmtFecha(r.inicio)}</td><td>${fmtFecha(r.ultimaFechaCertificacion)}</td><td>${r.ultimaActa?.numero||'—'}</td><td>${fmtFecha(r.proximaCertificacion)}</td><td>${r.proximoNroActa||1}</td><td>${esc(avanceDoc)}</td><td>${fmtFecha(r.fin)}</td><td>${esc(sem.texto)}</td></tr>`;
+    return `<tr><td>${pill(sem)}</td><td>${esc(r.oc)}<br>${botonFichaOC(r.item)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${fmtFecha(r.inicio)}</td><td>${fmtFecha(r.ultimaFechaCertificacion)}</td><td>${esc(r.ultimaActa?.numero||'—')}</td><td>${fmtFecha(r.proximaCertificacion)}</td><td>${esc(r.proximoNroActa||1)}</td><td>${esc(avanceDoc)}</td><td>${fmtFecha(r.fin)}</td><td>${esc(sem.texto)}</td></tr>`;
   }).join('') || '<tr><td colspan="13">Sin certificaciones para los filtros seleccionados.</td></tr>';
   renderKpisV16('cert');
   renderCalendarioOperativoCOI('cert');
@@ -5740,7 +5741,7 @@ function renderTablasCalendarioCOI(){
   const venc=ordenarVencimientos(filasTablaCalendarioCOI('venc'));
   if($('coiVencTbody')) $('coiVencTbody').innerHTML=venc.map(r=>{const sem=semaforoVencimiento(r);return `<tr><td>${pill(sem)}</td><td><b>${r.diasRestantes===null?'—':r.diasRestantes}</b></td><td>${esc(r.oc)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${fmtFecha(r.inicio)}</td><td>${esc(r.plazo||'—')}</td><td>${fmtFecha(r.fin)}</td><td>${esc(r.estado)}</td><td>${botonFichaOC(r.item,'Ficha OC')}</td></tr>`;}).join('')||'<tr><td colspan="11">Sin vencimientos para los filtros seleccionados.</td></tr>';
   const cert=filasTablaCalendarioCOI('cert').sort((a,b)=>(parseFecha(a.proximaCertificacion)||Infinity)-(parseFecha(b.proximaCertificacion)||Infinity));
-  if($('coiCertTbody')) $('coiCertTbody').innerHTML=cert.map(r=>{const sem=semaforoCert(r);const avanceDoc=r.tipo==='Obra'?`${r.avanceFisico}% avance físico`:r.estadoDocumental;return `<tr><td>${pill(sem)}</td><td>${esc(r.oc)}<br>${botonFichaOC(r.item)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${fmtFecha(r.inicio)}</td><td>${fmtFecha(r.ultimaFechaCertificacion)}</td><td>${r.ultimaActa?.numero||'—'}</td><td>${fmtFecha(r.proximaCertificacion)}</td><td>${r.proximoNroActa||1}</td><td>${esc(avanceDoc)}</td><td>${fmtFecha(r.fin)}</td><td>${esc(sem.texto)}</td></tr>`;}).join('')||'<tr><td colspan="13">Sin certificaciones para los filtros seleccionados.</td></tr>';
+  if($('coiCertTbody')) $('coiCertTbody').innerHTML=cert.map(r=>{const sem=semaforoCert(r);const avanceDoc=r.tipo==='Obra'?`${r.avanceFisico}% avance físico`:r.estadoDocumental;return `<tr><td>${pill(sem)}</td><td>${esc(r.oc)}<br>${botonFichaOC(r.item)}</td><td>${esc(r.tipo)}</td><td>${esc(r.estacion)}</td><td>${esc(r.proveedor)}</td><td>${fmtFecha(r.inicio)}</td><td>${fmtFecha(r.ultimaFechaCertificacion)}</td><td>${esc(r.ultimaActa?.numero||'—')}</td><td>${fmtFecha(r.proximaCertificacion)}</td><td>${esc(r.proximoNroActa||1)}</td><td>${esc(avanceDoc)}</td><td>${fmtFecha(r.fin)}</td><td>${esc(sem.texto)}</td></tr>`;}).join('')||'<tr><td colspan="13">Sin certificaciones para los filtros seleccionados.</td></tr>';
 }
 function renderCalendarioCOIUnificado(){
   cargarFiltrosCalendarioCOIUnificado();
