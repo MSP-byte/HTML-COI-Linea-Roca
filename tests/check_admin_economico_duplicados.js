@@ -5,6 +5,14 @@ const fs = require('fs');
 
 const html = fs.readFileSync('index.html','utf8');
 const sql = fs.readFileSync('supabase/migrations/202610060002_admin_resumen_economico_duplicados.sql','utf8');
+const lifecycleSql = fs.readFileSync('supabase/migrations/202610060003_duplicate_resolution_lifecycle.sql','utf8');
+assert.match(lifecycleSql,/Cierre administrativo excepcional por resolución de registro duplicado/);
+assert.match(lifecycleSql,/set estado_coi='Cerrada'/);
+assert.match(lifecycleSql,/fecha_cierre_operativo=current_date/);
+assert.match(lifecycleSql,/set estado_registro='Archivado'/);
+assert.match(lifecycleSql,/cierre_administrativo_excepcional/);
+assert.doesNotMatch(lifecycleSql,/delete\s+from\s+public\.coi_ordenes/i);
+
 
 assert.match(sql,/coi_actualizar_resumen_economico_manual/);
 assert.match(sql,/coi_assert_role\(array\['administrador'\]\)/);
