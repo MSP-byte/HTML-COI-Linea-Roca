@@ -144,7 +144,7 @@ async function main() {
        and policyname='coi_rpc_only_no_client_access'`);
   assert.equal(q.rows[0]?.permissive, 'RESTRICTIVE', 'la tabla RPC-only debe tener policy RESTRICTIVE');
 
-  await db.exec('set role postgres; create function public.coi_security_probe_default() returns integer language sql as $ select 1 $; reset role;');
+  await db.exec('set role postgres; create function public.coi_security_probe_default() returns integer language sql as $probe$ select 1 $probe$; reset role;');
   q = await db.query(`
     select has_function_privilege('anon','public.coi_security_probe_default()','EXECUTE') anon_exec,
            has_function_privilege('authenticated','public.coi_security_probe_default()','EXECUTE') auth_exec`);
