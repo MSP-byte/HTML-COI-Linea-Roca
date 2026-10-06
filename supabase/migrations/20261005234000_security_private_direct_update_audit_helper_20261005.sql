@@ -63,9 +63,15 @@ begin
 end;
 $function$;
 
--- Compatibilidad: la firma pública histórica permanece para que migraciones
--- anteriores sean reproducibles, pero ya no es una RPC cliente.
-revoke all on function public.coi_record_direct_order_update(jsonb,jsonb)
-  from public, anon, authenticated;
+-- Compatibilidad: en algunos entornos la firma pública histórica ya fue
+-- retirada por un hardening previo. Si todavía existe, deja de ser una RPC
+-- cliente; si ya no existe, la migración sigue siendo idempotente.
+do $
+begin
+  if to_regprocedure('public.coi_record_direct_order_update(jsonb,jsonb)') is not null then
+    revoke all on function public.coi_record_direct_order_update(jsonb,jsonb)
+      from public, anon, authenticated;
+  end if;
+end $;
 
 commit;
