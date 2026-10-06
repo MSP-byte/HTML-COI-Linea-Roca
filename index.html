@@ -34186,11 +34186,34 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
   }
 
   function resolveItem(id){
+    // Primero usa el resolver contractual canónico, que ya entiende tanto
+    // "4530009622" como "OC-4530009622" y devuelve la OC real cargada desde
+    // Supabase. Esto evita que el Expediente se monte con un objeto parcial.
+    try{
+      if(typeof window.resolverOrdenCircuito==='function'){
+        const found=window.resolverOrdenCircuito(id);
+        if(found?.item)return found.item;
+        if(found&&typeof found==='object')return found;
+      }
+    }catch(_error){}
+
     try{
       const found=typeof window.obtenerOC==='function'?window.obtenerOC(id):null;
       if(found?.item)return found.item;
       if(found&&typeof found==='object')return found;
     }catch(_error){}
+
+    // Fallback exacto por N° OC para deep-links que llegan sin prefijo OC-.
+    try{
+      const nro=orderNumber(null,id);
+      const all=typeof window.todasLasOC==='function'?window.todasLasOC():[];
+      if(nro&&Array.isArray(all)){
+        const found=all.find(candidate=>orderNumber(candidate,'')===nro);
+        if(found?.item)return found.item;
+        if(found&&typeof found==='object')return found;
+      }
+    }catch(_error){}
+
     return null;
   }
 
@@ -34260,7 +34283,17 @@ throw new Error('El perfil Supabase dejó de estar activo durante la sincronizac
     const wrapped=function(id){
       const item=resolveItem(id);
       if(item)hydrateItem(item,item._supabaseRaw);
-      const result=baseRender.apply(this,arguments);
+
+      // El renderer histórico de la Ficha sigue resolviendo mejor por idObra
+      // ("OC-..."). Para un deep-link por N° OC, traducimos sólo la referencia
+      // de entrada; el hash y la identidad persistida no se modifican.
+      const args=Array.from(arguments);
+      if(item){
+        const canonicalRef=item.idObra||item.idOC||item.numeroOC||item.oc||id;
+        if(canonicalRef)args[0]=canonicalRef;
+      }
+
+      const result=baseRender.apply(this,args);
       if(item)void refreshFromSupabase(id,item);
       return result;
     };
