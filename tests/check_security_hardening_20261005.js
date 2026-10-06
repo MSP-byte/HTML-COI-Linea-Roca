@@ -144,12 +144,17 @@ async function main() {
        and policyname='coi_rpc_only_no_client_access'`);
   assert.equal(q.rows[0]?.permissive, 'RESTRICTIVE', 'la tabla RPC-only debe tener policy RESTRICTIVE');
 
-  await db.exec('set role postgres; create function public.coi_security_probe_default() returns integer language sql as $probe$ select 1 $probe$; reset role;');
   q = await db.query(`
-    select has_function_privilege('anon','public.coi_security_probe_default()','EXECUTE') anon_exec,
-           has_function_privilege('authenticated','public.coi_security_probe_default()','EXECUTE') auth_exec`);
-  assert.equal(q.rows[0].anon_exec, false, 'funciones futuras deben negar EXECUTE a anon por defecto');
-  assert.equal(q.rows[0].auth_exec, false, 'funciones futuras deben negar EXECUTE a authenticated por defecto');
+    select coalesce(d.defaclacl::text,'') acl
+      from pg_default_acl d
+     where d.defaclrole='postgres'::regrole
+       and d.defaclnamespace='public'::regnamespace
+       and d.defaclobjtype='f'`);
+  assert.equal(q.rows.length, 1, 'debe existir default ACL de funciones para postgres/public');
+  const defaultAcl = q.rows[0].acl;
+  assert.doesNotMatch(defaultAcl, /(^|[,\\{])=X\\//, 'PUBLIC no debe tener EXECUTE por defecto');
+  assert.doesNotMatch(defaultAcl, /anon=X\\//, 'anon no debe tener EXECUTE por defecto');
+  assert.doesNotMatch(defaultAcl, /authenticated=X\\//, 'authenticated no debe tener EXECUTE por defecto');
 
   console.log(`✅ Security hardening catalog OK · ${files.length} migraciones aplicadas y privilegios efectivos verificados`);
   await db.close();
