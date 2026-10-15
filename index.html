@@ -37607,7 +37607,7 @@ function render(){
   el('coiV8Found').textContent=state.filtered.length+' resultados de '+rows.length+' registros';
   el('coiV8Export').disabled=rows.length===0;
 }
-function csvEscape(v){const s=text(v);return '"'+s.replace(/"/g,'""')+'"';}
+function csvEscape(v){if(typeof coiCSVCell!=='function')throw new Error('Exportador CSV seguro no disponible.');return coiCSVCell(v);}
 function exportAudit(){
   if(!state.rows.length)return;
   const header=['FILA_EXCEL','NRO_OBRA','LUGAR','DENOMINACION','ESTADO_EXCEL','NRO_OC','CONTRATISTA','COTIZACION','SOLPED','EXPEDIENTE','ACTA_INICIO','CONCILIACION_COI','ESTADO_COI','OBSERVACIONES_CALIDAD'];
