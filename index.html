@@ -37399,4 +37399,264 @@ body.dashboard-focus-mode.coi-v2-ready #coiV2Sidebar #coiPwdBtn::before{content:
   });
 })();
 </script>
+
+<style id="coi-cartera-v8-style">
+.coi-v8-overlay[hidden]{display:none!important}
+.coi-v8-overlay{position:fixed;inset:0;z-index:210000;background:rgba(10,30,48,.58);display:flex;align-items:flex-start;justify-content:center;padding:2vh 2vw;overflow:auto}
+.coi-v8-panel{background:#f7fafc;color:#1b344a;width:min(1280px,100%);min-height:72vh;max-height:96vh;overflow:auto;border-radius:13px;box-shadow:0 24px 80px rgba(0,0,0,.27);border:1px solid #c9dce8;font:14px/1.45 Segoe UI,Arial,sans-serif}
+.coi-v8-panel h2{margin:0 0 4px;font-size:22px;color:#133b56}
+.coi-v8-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;background:#fff;padding:20px 24px;border-bottom:1px solid #dce7ef}
+.coi-v8-muted{font-size:12px;color:#64788a}
+.coi-v8-content{padding:18px 24px}
+.coi-v8-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:12px 0 16px}
+.coi-v8-button{background:#1765a3;border:1px solid #1765a3;color:white;border-radius:8px;cursor:pointer;font:600 13px Segoe UI,Arial,sans-serif;padding:9px 14px}
+.coi-v8-button:focus-visible,.coi-v8-filter:focus-visible{outline:2px solid #1e8bcb;outline-offset:2px}
+.coi-v8-button.secondary{color:#17527a;background:white;border:1px solid #c7d9e8}
+.coi-v8-button:disabled{opacity:.5;cursor:not-allowed}
+.coi-v8-file{max-width:100%;font:13px Segoe UI,Arial,sans-serif}
+.coi-v8-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:14px 0}
+.coi-v8-kpi{background:white;border:1px solid #dce7ef;padding:13px;border-radius:10px}
+.coi-v8-kpi strong{font-size:24px;display:block;color:#154b75}
+.coi-v8-kpi span{font-size:11px;color:#637688}
+.coi-v8-card{background:#fff;border:1px solid #dce7ef;border-radius:10px;margin-top:12px;padding:14px}
+.coi-v8-card h3{margin:0 0 8px;font-size:16px;color:#164464}
+.coi-v8-filters{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0}
+.coi-v8-filter{min-height:36px;padding:7px 10px;border-radius:7px;border:1px solid #bfd1df;background:white;color:#19394e;max-width:100%}
+.coi-v8-filter[type=search]{min-width:min(350px,100%);flex:1}
+.coi-v8-tablewrap{overflow:auto;max-height:51vh;border:1px solid #dce7ef;border-radius:8px;background:white}
+.coi-v8-table{border-collapse:collapse;width:100%;min-width:1000px;font-size:12px}
+.coi-v8-table th{background:#ecf3f8;color:#234d6e;position:sticky;top:0;z-index:1;text-align:left;padding:9px;border-bottom:1px solid #bdd3e2;white-space:nowrap}
+.coi-v8-table td{padding:9px;border-bottom:1px solid #e2ebf1;vertical-align:top}
+.coi-v8-table tr:hover td{background:#f3f9fc}
+.coi-v8-tag{display:inline-block;border-radius:30px;background:#edf1f5;color:#536a79;padding:3px 8px;font-size:11px;font-weight:600;white-space:nowrap}
+.coi-v8-tag.ok{background:#e1f5e9;color:#226a39}
+.coi-v8-tag.bad{background:#fce5e4;color:#9f2d27}
+.coi-v8-tag.warn{background:#fff1ca;color:#87591c}
+.coi-v8-note{background:#fff7e6;border-left:3px solid #d6a02d;padding:10px 12px;margin:10px 0;font-size:12px;color:#5b4b28}
+.coi-v8-error{color:#9d2525;font-weight:650}
+.coi-v8-foot{font-size:11px;color:#64788a;margin-top:12px}
+@media(max-width:850px){.coi-v8-overlay{padding:0}.coi-v8-panel{max-height:100vh;min-height:100vh;border-radius:0}.coi-v8-head{padding:12px 14px}.coi-v8-content{padding:12px}.coi-v8-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+
+<script id="coi-cartera-v8-fase1">
+(function(){
+'use strict';
+if(window.__COI_CARTERA_V8_F1__)return;
+const REL_NS='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const FIELDS=['N° OBRA','PRIORIDAD','LUGAR','DENOMINACIÓN / PLIEGO','ESTADO','TRELLO','N° SEGUIMIENTO','FECHA PRESUPUESTADO','SM','NECESIDAD','FECHA COTIZACIÓN','COTIZACIÓN','SOLPED','FECHA SOLPED','EXPEDIENTE','VISITA','FECHA DICTAMEN TÉCNICO','OC','FECHA OC','CONTROL DE 3°','CONTRATISTA','CUIT','TELÉFONO','ACTA DE INICIO','INSPECTOR','PLAZO DÍAS (PLIEGO)','FINAL PROYECTADO','FINAL REAL','AVANCE ACUMULADO','ÚLTIMO AVANCE','FECHA ÚLTIMO AVANCE','EJECUTADO','OBSERVACIONES','ORDEN COINCIDENCIA BUSCADOR'];
+const state={rows:[],filtered:[],lookup:null,filename:'',error:'',sourceCount:0};
+const el=id=>document.getElementById(id);
+const normalize=v=>String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase().replace(/\s+/g,' ');
+const text=v=>String(v==null?'':v).trim();
+const esc=v=>text(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const u32=(v,p)=>v.getUint32(p,true), u16=(v,p)=>v.getUint16(p,true);
+function parseXml(s,label){const doc=new DOMParser().parseFromString(s,'application/xml');if(doc.getElementsByTagName('parsererror').length)throw new Error('XML inválido en '+label);return doc;}
+function elements(node,name){return Array.from(node.getElementsByTagNameNS('*',name));}
+function localFirst(node,name){return elements(node,name)[0]||null;}
+async function unzipSelected(buffer){
+  const v=new DataView(buffer), bytes=new Uint8Array(buffer), dec=new TextDecoder('utf-8');
+  const min=Math.max(0,bytes.length-65557);let end=-1;
+  for(let p=bytes.length-22;p>=min;p--){if(u32(v,p)===0x06054b50){end=p;break;}}
+  if(end<0)throw new Error('El archivo no contiene un ZIP XLSX válido.');
+  const count=u16(v,end+10), offset=u32(v,end+16);if(count>2500)throw new Error('Demasiadas entradas en el XLSX.');
+  const files=new Map();let p=offset,total=0;
+  for(let i=0;i<count;i++){
+    if(p+46>bytes.length||u32(v,p)!==0x02014b50)throw new Error('Directorio ZIP no válido.');
+    const method=u16(v,p+10), size=u32(v,p+20), rawSize=u32(v,p+24), n=u16(v,p+28), ex=u16(v,p+30), com=u16(v,p+32), local=u32(v,p+42);
+    const name=dec.decode(bytes.subarray(p+46,p+46+n));p+=46+n+ex+com;
+    if(rawSize>30000000||(total+=rawSize)>90000000)throw new Error('Archivo XLSX demasiado grande para prevalidación.');
+    if(!/^(xl\/workbook\.xml|xl\/_rels\/workbook\.xml\.rels|xl\/sharedStrings\.xml|xl\/worksheets\/[^/]+\.xml)$/.test(name))continue;
+    if(method!==0&&method!==8)throw new Error('Compresión ZIP incompatible.');
+    if(local+30>bytes.length||u32(v,local)!==0x04034b50)throw new Error('Entrada ZIP defectuosa.');
+    const dataPos=local+30+u16(v,local+26)+u16(v,local+28);
+    if(dataPos+size>bytes.length)throw new Error('Entrada ZIP incompleta.');
+    let raw;
+    if(method===0)raw=bytes.slice(dataPos,dataPos+size);
+    else{
+      if(!('DecompressionStream' in window))throw new Error('Tu navegador no admite descompresión XLSX local. Actualizá Chrome/Edge.');
+      const stream=new Blob([bytes.slice(dataPos,dataPos+size)]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      raw=new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+    if(raw.length!==rawSize)throw new Error('Tamaño XLSX inconsistente: '+name);
+    files.set(name,dec.decode(raw));
+  }
+  return files;
+}
+function colNumber(ref){const m=/^([A-Z]+)/.exec(ref);if(!m)return -1;let n=0;for(const c of m[1])n=n*26+c.charCodeAt(0)-64;return n-1;}
+function getCellValue(cell,shared){
+  const v=localFirst(cell,'v'),type=cell.getAttribute('t');
+  if(type==='inlineStr'){const n=localFirst(cell,'is');return n?n.textContent:'';}
+  if(!v)return '';
+  if(type==='s'){const i=Number(v.textContent);return Number.isInteger(i)?(shared[i]||''):'';}
+  return v.textContent||'';
+}
+function excelDate(value){
+  const s=text(value);if(!s)return {value:'',error:false};
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)){
+    const d=new Date(s+'T00:00:00Z');return {value:s,error:!Number.isFinite(d.getTime())||d.toISOString().slice(0,10)!==s};
+  }
+  if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){
+    const [dd,mm,yy]=s.split('/').map(Number),d=new Date(Date.UTC(yy,mm-1,dd));
+    return {value:s,error:d.getUTCFullYear()!==yy||d.getUTCMonth()!==mm-1||d.getUTCDate()!==dd};
+  }
+  const serial=Number(s);
+  if(Number.isFinite(serial)&&serial>20000&&serial<80000){
+    const d=new Date(Date.UTC(1899,11,30)+Math.floor(serial)*86400000);
+    return {value:d.toISOString().slice(0,10),error:false};
+  }
+  return {value:s,error:true};
+}
+function parseBaseObras(files){
+  const wbText=files.get('xl/workbook.xml'), relText=files.get('xl/_rels/workbook.xml.rels');
+  if(!wbText||!relText)throw new Error('El XLSX no tiene estructura de libro reconocible.');
+  const wb=parseXml(wbText,'workbook.xml'),rels=parseXml(relText,'workbook.xml.rels');
+  const sheet=elements(wb,'sheet').find(n=>normalize(n.getAttribute('name'))==='BASE_OBRAS');
+  if(!sheet)throw new Error('No se encontró la hoja BASE_OBRAS.');
+  const id=sheet.getAttributeNS(REL_NS,'id')||sheet.getAttribute('r:id');
+  const rel=elements(rels,'Relationship').find(n=>n.getAttribute('Id')===id);
+  if(!rel)throw new Error('No se pudo ubicar la hoja BASE_OBRAS en el XLSX.');
+  const target=text(rel.getAttribute('Target')).replace(/^\//,'');
+  const path=target.startsWith('xl/')?target:'xl/'+target.replace(/^\.\//,'');
+  if(!/^xl\/worksheets\/[^/]+\.xml$/.test(path)||!files.has(path))throw new Error('La ruta de BASE_OBRAS no es válida.');
+  const sharedDoc=files.has('xl/sharedStrings.xml')?parseXml(files.get('xl/sharedStrings.xml'),'sharedStrings.xml'):null;
+  const shared=sharedDoc?elements(sharedDoc,'si').map(n=>n.textContent||''):[];
+  const doc=parseXml(files.get(path),path), sheetData=localFirst(doc,'sheetData');
+  if(!sheetData)throw new Error('La hoja BASE_OBRAS no contiene datos.');
+  const rows=elements(sheetData,'row').map(row=>{
+    const data=new Array(34).fill('');
+    elements(row,'c').forEach(cell=>{const c=colNumber(cell.getAttribute('r')||'');if(c>=0&&c<34)data[c]=getCellValue(cell,shared);});
+    return {number:Number(row.getAttribute('r')),data};
+  });
+  const headers=rows.find(r=>r.number===3);
+  if(!headers||normalize(headers.data[0])!==normalize(FIELDS[0])||normalize(headers.data[3])!==normalize(FIELDS[3])||normalize(headers.data[17])!=='OC')
+    throw new Error('Encabezados de BASE_OBRAS inesperados. Se requiere plantilla V8 con encabezados en fila 3.');
+  return rows.filter(r=>r.number>=4&&r.number<=2000&&(text(r.data[0])||text(r.data[3])||text(r.data[4]))).map(r=>({
+    row:r.number,obra:text(r.data[0]),prioridad:text(r.data[1]),lugar:text(r.data[2]),denominacion:text(r.data[3]),estado:text(r.data[4]),
+    presupuesto:text(r.data[11]),solped:text(r.data[12]),expediente:text(r.data[14]),oc:text(r.data[17]).replace(/\s+/g,''),
+    proveedor:text(r.data[20]),cuit:text(r.data[21]),acta:excelDate(r.data[23]).value,
+    plazo:text(r.data[25]),avance:text(r.data[28]),observaciones:text(r.data[32]),raw:r.data,issues:[],match:'Pendiente', remote:null
+  }));
+}
+function assess(rows){
+  const obs=new Map(), ocs=new Map();
+  rows.forEach(r=>{
+    if(r.obra)obs.set(normalize(r.obra),(obs.get(normalize(r.obra))||0)+1);
+    if(r.oc)ocs.set(r.oc,(ocs.get(r.oc)||0)+1);
+  });
+  rows.forEach(r=>{
+    if(!r.obra)r.issues.push('Sin N.º obra (requiere UUID al migrar)');
+    else if(obs.get(normalize(r.obra))>1)r.issues.push('N.º obra repetido: no es clave única');
+    if(r.oc&&!/^\d{10}$/.test(r.oc))r.issues.push('Formato de OC no válido');
+    if(r.oc&&ocs.get(r.oc)>1)r.issues.push('OC repetida en Excel (revisar alcance)');
+    const dates=[7,10,13,16,18,23,26,27,30];
+    dates.forEach(index=>{const d=excelDate(r.raw[index]);if(d.error)r.issues.push('Fecha inválida: '+FIELDS[index]);});
+    const money=text(r.presupuesto);if(money&&!Number.isFinite(Number(money)))r.issues.push('Cotización no numérica');
+    if(!r.denominacion)r.issues.push('Sin denominación/pliego');
+    r.match=r.oc?'No conciliada':'Sin OC';
+  });
+}
+async function reconcile(rows){
+  const client=window.__COI_SUPABASE_CLIENT__||await Promise.resolve(window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__).catch(()=>null);
+  if(!client)return 'No hay conexión con Supabase. Conciliación remota no realizada.';
+  try{
+    const {data:session,error:authError}=await client.auth.getSession();
+    if(authError||!session?.session)return 'Iniciá sesión para conciliar contra las OC de Supabase.';
+    const {data,error}=await client.from('coi_ordenes').select('nro_oc,estado_coi,id').limit(1000);
+    if(error)throw error;
+    const map=new Map();
+    (data||[]).forEach(x=>{const key=text(x.nro_oc);if(!map.has(key))map.set(key,[]);map.get(key).push(x);});
+    rows.forEach(r=>{
+      if(!r.oc)return;
+      const matches=map.get(r.oc)||[];
+      if(!matches.length){r.match='OC no encontrada';return;}
+      if(matches.length>1){r.match='OC ambigua';r.issues.push('Más de una OC en Supabase');return;}
+      r.remote=matches[0];
+      const xe=normalize(r.estado),se=normalize(matches[0].estado_coi);
+      const excelActive=xe.includes('EJECUCION'),excelEnded=xe.includes('FINALIZADA');
+      const dbClosed=/CERRAD|ARCHIVAD|FINALIZAD|CANCELAD/.test(se);
+      const dbActive=se.includes('EJECUCION');
+      if((excelActive&&dbClosed)||(excelEnded&&dbActive)){r.match='Conflicto de estado';r.issues.push('Estado Excel/COI requiere revisión manual');}
+      else r.match='OC existente';
+    });
+    return 'Conciliación de solo lectura finalizada. No se realizaron escrituras.';
+  }catch(e){
+    rows.forEach(r=>{if(r.oc){r.match='No conciliada';r.remote=null;}});
+    return 'Conciliación remota no disponible: '+text(e.message||e);
+  }
+}
+function tag(cls,label){return '<span class="coi-v8-tag '+cls+'">'+esc(label)+'</span>';}
+function render(){
+  const rows=state.rows;
+  const kpis=el('coiV8Kpis');
+  if(!kpis)return;
+  const figures=[
+    [rows.length,'Intervenciones del Excel'],
+    [rows.filter(r=>!r.oc).length,'Sin OC informada'],
+    [rows.filter(r=>r.match==='OC existente').length,'OC encontradas'],
+    [rows.filter(r=>r.match==='OC no encontrada').length,'OC no encontradas'],
+    [rows.filter(r=>r.issues.length>0).length,'Con observaciones de calidad']
+  ];
+  kpis.innerHTML=figures.map(pair=>'<article class="coi-v8-kpi"><strong>'+pair[0]+'</strong><span>'+esc(pair[1])+'</span></article>').join('');
+  const q=normalize(el('coiV8Search')?.value), filter=text(el('coiV8Status')?.value);
+  state.filtered=rows.filter(r=>(!filter||r.match===filter)&&(!q||normalize([r.obra,r.denominacion,r.lugar,r.oc,r.proveedor,r.estado,r.solped].join(' ')).includes(q)));
+  const body=el('coiV8Rows');
+  body.innerHTML=state.filtered.slice(0,1000).map(r=>{
+    const cls=r.match==='OC existente'?'ok':r.match==='OC no encontrada'||r.match==='Conflicto de estado'||r.match==='OC ambigua'?'bad':'warn';
+    return '<tr><td>'+r.row+'</td><td>'+esc(r.obra||'—')+'</td><td>'+esc(r.lugar||'—')+'</td><td>'+esc(r.denominacion||'—')+'</td><td>'+esc(r.estado||'—')+'</td><td>'+esc(r.oc||'—')+'</td><td>'+esc(r.proveedor||'—')+'</td><td>'+tag(cls,r.match)+'</td><td>'+esc(r.issues.join(' · ')||'Sin observaciones')+'</td></tr>';
+  }).join('')||'<tr><td colspan="9">No hay registros para este filtro.</td></tr>';
+  el('coiV8Found').textContent=state.filtered.length+' resultados de '+rows.length+' registros';
+  el('coiV8Export').disabled=rows.length===0;
+}
+function csvEscape(v){const s=text(v);return '"'+s.replace(/"/g,'""')+'"';}
+function exportAudit(){
+  if(!state.rows.length)return;
+  const header=['FILA_EXCEL','NRO_OBRA','LUGAR','DENOMINACION','ESTADO_EXCEL','NRO_OC','CONTRATISTA','COTIZACION','SOLPED','EXPEDIENTE','ACTA_INICIO','CONCILIACION_COI','ESTADO_COI','OBSERVACIONES_CALIDAD'];
+  const lines=[header.map(csvEscape).join(';')];
+  state.rows.forEach(r=>lines.push([r.row,r.obra,r.lugar,r.denominacion,r.estado,r.oc,r.proveedor,r.presupuesto,r.solped,r.expediente,r.acta,r.match,r.remote?.estado_coi||'',r.issues.join(' | ')].map(csvEscape).join(';')));
+  const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='auditoria_base_obras_v8.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function load(file){
+  state.rows=[];state.filename=file.name;el('coiV8Message').textContent='Leyendo el archivo y validando estructura...';render();
+  try{
+    if(!/\.xlsx$/i.test(file.name))throw new Error('Seleccioná un archivo Excel .xlsx (no .xls ni CSV en esta primera fase).');
+    if(file.size>25000000)throw new Error('Archivo mayor a 25 MB. Revisar antes de importar.');
+    const files=await unzipSelected(await file.arrayBuffer());
+    const rows=parseBaseObras(files);assess(rows);state.rows=rows;render();
+    el('coiV8Message').textContent='Archivo '+file.name+' · '+rows.length+' registros detectados. Conciliando con Supabase...';
+    const message=await reconcile(rows);el('coiV8Message').textContent=message;render();
+  }catch(e){state.rows=[];render();el('coiV8Message').textContent='Error de importación: '+text(e.message||e);}
+}
+function close(){el('coiV8Overlay').hidden=true;state.rows=[];state.filtered=[];state.filename='';state.lookup=null;el('coiV8File').value='';render();}
+function open(){el('coiV8Overlay').hidden=false;el('coiV8Search').focus();}
+function mount(){
+  const nav=el('moduleNav'),orders=el('btnOrdenes');
+  if(!nav||!orders||el('coiV8Overlay'))return;
+  const button=document.createElement('button');button.type='button';button.id='btnCarteraObrasV8';button.textContent='Cartera de Obras';orders.insertAdjacentElement('afterend',button);
+  const wrapper=document.createElement('div');wrapper.id='coiV8Overlay';wrapper.className='coi-v8-overlay';wrapper.hidden=true;
+  wrapper.innerHTML='<section class="coi-v8-panel" role="dialog" aria-modal="true" aria-labelledby="coiV8Title">'+
+    '<header class="coi-v8-head"><div><h2 id="coiV8Title">Cartera de Obras · Fase 1</h2><p class="coi-v8-muted">Importación de consulta y prevalidación de BASE_OBRAS V8. Sin escrituras a Supabase.</p></div><button type="button" id="coiV8Close" class="coi-v8-button secondary" aria-label="Cerrar cartera">Cerrar ×</button></header>'+
+    '<div class="coi-v8-content"><div class="coi-v8-note"><strong>Modo seguro:</strong> los datos del Excel se procesan en el navegador. La consulta a COI es solo lectura. No se crean proyectos ni se actualizan OC, hitos, estados, certificaciones o cierres.</div>'+
+    '<div class="coi-v8-toolbar"><label for="coiV8File"><strong>Excel V8:</strong></label><input class="coi-v8-file" type="file" id="coiV8File" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"><button type="button" id="coiV8Export" class="coi-v8-button secondary" disabled>Exportar auditoría CSV</button></div>'+
+    '<p id="coiV8Message" class="coi-v8-muted" role="status">Seleccioná el archivo OBRAS_LGR_PANEL_V8.xlsx. No se almacenarán los registros cargados.</p>'+
+    '<div id="coiV8Kpis" class="coi-v8-kpis" aria-live="polite"></div>'+
+    '<div class="coi-v8-card"><h3>Conciliación previa a la adjudicación</h3><p class="coi-v8-muted">Una necesidad puede no tener OC. Los hitos H1–H8 permanecen en el circuito contractual existente y no se confirman por tener valores en el Excel. Las OC encontradas se revisan antes de vincular proyectos.</p>'+
+    '<div class="coi-v8-filters"><input id="coiV8Search" type="search" class="coi-v8-filter" placeholder="Buscar obra, ubicación, OC, contratista o SOLPED"><select id="coiV8Status" class="coi-v8-filter"><option value="">Todas las conciliaciones</option><option>Sin OC</option><option>OC existente</option><option>OC no encontrada</option><option>Conflicto de estado</option><option>OC ambigua</option><option>No conciliada</option></select><span id="coiV8Found" class="coi-v8-muted"></span></div>'+
+    '<div class="coi-v8-tablewrap"><table class="coi-v8-table"><thead><tr><th>Fila</th><th>N.º obra</th><th>Lugar</th><th>Denominación / Pliego</th><th>Estado Excel</th><th>N.º OC</th><th>Contratista</th><th>Conciliación</th><th>Calidad del dato</th></tr></thead><tbody id="coiV8Rows"></tbody></table></div></div>'+
+    '<p class="coi-v8-foot">La conciliación indica coincidencias de número de OC, no una vinculación contractual validada. No reemplaza verificación contra SAP, actas ni documentación contractual.</p></div></section>';
+  document.body.appendChild(wrapper);
+  button.addEventListener('click',open);
+  el('coiV8Close').addEventListener('click',close);
+  wrapper.addEventListener('click',e=>{if(e.target===wrapper)close();});
+  el('coiV8File').addEventListener('change',e=>{const f=e.target.files?.[0];if(f)load(f);});
+  el('coiV8Export').addEventListener('click',exportAudit);
+  el('coiV8Search').addEventListener('input',render);
+  el('coiV8Status').addEventListener('change',render);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!wrapper.hidden)close();});
+  render();
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
+window.__COI_CARTERA_V8_F1__=Object.freeze({version:'fase1-20261015',readOnly:true});
+})();
+</script>
 </body></html>
