@@ -37887,7 +37887,7 @@ const catalog=new Map(fuente.filter(x=>normal(x[0])!=='bosque').map(x=>[normal(x
 const fmt=n=>typeof n==='number'?n.toLocaleString('es-AR',{maximumFractionDigits:3}):'Sin informar';
 function ref(name){const key=normal(name);return catalog.get(key)||catalog.get(alias[key])||null;}
 function paint(){const title=document.getElementById('pTitle'),panel=document.getElementById('panel');if(!title||!panel)return;
-const station=title.textContent.trim(),r=ref(station),prior=panel.querySelector('.cv9-rail-info');
+const station=title.textContent.trim().replace(/^Ficha de la Estaci[oó]n\s*[—–:-]\s*/i,''),r=ref(station),prior=panel.querySelector('.cv9-rail-info');
 if(!r){prior?.remove();return;}
 if(prior?.dataset.station===station)return;
 prior?.remove();const el=document.createElement('section');el.className='cv9-rail-info';el.dataset.station=station;
