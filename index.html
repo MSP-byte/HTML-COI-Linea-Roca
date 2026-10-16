@@ -2881,7 +2881,9 @@ function showTip(e,s){
   $('tip').style.display='block';
   $('tip').style.left=e.clientX+14+'px';
   $('tip').style.top=e.clientY+14+'px';
-  $('tip').innerHTML=`<b>${esc(s.nombre)}</b><br>Obras activas/asociadas: ${obrasActivas}<br>Servicios activos/asociados: ${serviciosActivos}<br>Estado general: <b>${color==='bad'?'Demorado/vencido':color==='warn'?'Próximo a vencer':color==='done'?'Finalizado/certificado':'En plazo'}</b>`;
+  const estacionRef=window.COI_REFDATA_ESTACIONES?.findByStation?.(s.nombre);
+  const abreviatura=estacionRef?.codigo||'Pendiente de validación';
+  $('tip').innerHTML=`<b>${esc(s.nombre)}</b><br>Abreviatura: <b>${esc(abreviatura)}</b><br>Obras activas/asociadas: ${obrasActivas}<br>Servicios activos/asociados: ${serviciosActivos}<br>Estado general: <b>${color==='bad'?'Demorado/vencido':color==='warn'?'Próximo a vencer':color==='done'?'Finalizado/certificado':'En plazo'}</b>`;
 }
 function hideTip(){ $('tip').style.display='none'; }
 
@@ -37684,7 +37686,48 @@ function mount(){
   render();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
-window.__COI_CARTERA_V8_F1__=Object.freeze({version:'fase1-20261015',readOnly:true,getRows:()=>state.rows.map(r=>({...r,raw:[...r.raw],issues:[...r.issues]})),importFile:load,openAudit:open});
+
+async function readGenericXlsx(file){
+ if(!file||!/\.xlsx$/i.test(file.name)||file.size>25000000)throw new Error('Seleccioná un Excel .xlsx de hasta 25 MB.');
+ const files=await unzipSelected(await file.arrayBuffer()),wbText=files.get('xl/workbook.xml'),relText=files.get('xl/_rels/workbook.xml.rels');
+ if(!wbText||!relText)throw new Error('Estructura Excel incompleta.');
+ const wb=parseXml(wbText,'workbook.xml'),rels=parseXml(relText,'workbook.xml.rels');
+ const sharedDoc=files.get('xl/sharedStrings.xml')?parseXml(files.get('xl/sharedStrings.xml'),'sharedStrings.xml'):null;
+ const shared=sharedDoc?elements(sharedDoc,'si').map(n=>n.textContent||''):[];
+ const choices=[];
+ for(const sheet of elements(wb,'sheet')){
+  const id=sheet.getAttributeNS(REL_NS,'id')||sheet.getAttribute('r:id');
+  const rel=elements(rels,'Relationship').find(n=>n.getAttribute('Id')===id);
+  if(!rel)continue;
+  const target=text(rel.getAttribute('Target')).replace(/^\//,'');
+  const path=target.startsWith('xl/')?target:'xl/'+target.replace(/^\.\//,'');
+  if(!/^xl\/worksheets\/[^/]+\.xml$/.test(path)||!files.has(path))continue;
+  const doc=parseXml(files.get(path),path),node=localFirst(doc,'sheetData');if(!node)continue;
+  const rows=elements(node,'row').slice(0,6000).map(row=>{
+    const data=new Array(70).fill('');
+    elements(row,'c').forEach(cell=>{const col=colNumber(cell.getAttribute('r')||'');if(col>=0&&col<70)data[col]=getCellValue(cell,shared);});
+    return {number:Number(row.getAttribute('r')),data};
+  });
+  const short=v=>normalize(v).replace(/[^A-Z0-9]/g,'');
+  const candidates=rows.slice(0,30).map((r,i)=>{
+    const names=r.data.map(short);
+    const oc=names.some(v=>/^(OC|NROOC|NUMEROOC|NOC|ORDENDECOMPRA|OCNRO|NROORDENDECOMPRA)$/.test(v));
+    const concepts=names.filter(v=>/^(PROVEEDOR|CONTRATISTA|DESCRIPCION|TIPODESERVICIO|SERVICIO|MONTOOC|ESTACION|OBRA|NOBRA|NROOBRA|EXPEDIENTE)$/.test(v)).length;
+    return {i,score:(oc?10:0)+concepts};
+  }).sort((a,b)=>b.score-a.score);
+  const best=candidates[0];if(!best||best.score<2)continue;
+  const head=rows[best.i].data;
+  const length=Math.max(0,...head.map((h,i)=>text(h)?i+1:0));
+  if(length<2)continue;
+  const items=rows.slice(best.i+1).filter(r=>r.data.some(text)).map(r=>({sourceRow:r.number,cells:r.data.slice(0,length)}));
+  choices.push({sheet:sheet.getAttribute('name'),headers:head.slice(0,length),rows:items,score:best.score});
+ }
+ choices.sort((a,b)=>b.score-a.score);
+ if(!choices.length)throw new Error('No se reconocieron encabezados de OC/Servicios. Revisá el formato del Excel.');
+ return choices[0];
+}
+
+window.__COI_CARTERA_V8_F1__=Object.freeze({version:'fase1-20261015',readOnly:true,getRows:()=>state.rows.map(r=>({...r,raw:[...r.raw],issues:[...r.issues]})),importFile:load,openAudit:open,readSheet:readGenericXlsx});
 })();
 </script>
 
