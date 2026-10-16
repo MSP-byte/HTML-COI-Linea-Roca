@@ -1,0 +1,75 @@
+/* COI V2 · Mantenimiento: diseño aditivo, sin sobrescribir módulos anteriores */
+#vistaMantenimientoV2{
+  --mant-bg:#f4f7fc;--mant-card:#fff;--mant-text:#1d3047;
+  --mant-muted:#63768d;--mant-line:#d9e3ee;--mant-blue:#3e5cc9;--mant-track:#e2eaf4;
+}
+body:not(.coi-v2-light) #vistaMantenimientoV2{
+  --mant-bg:#19263e;--mant-card:#202f48;--mant-text:#ecf3ff;
+  --mant-muted:#b7c8df;--mant-line:#3d506d;--mant-blue:#8fa6ff;--mant-track:#3c4c67;
+}
+#vistaMantenimientoV2 .mant-v2-shell{
+  background:var(--mant-bg)!important;color:var(--mant-text)!important;
+  padding:0!important;border-radius:16px;overflow:hidden;max-width:1600px;margin-inline:auto;
+}
+#vistaMantenimientoV2 .mant-v2-header{
+  background:linear-gradient(110deg,#133a5d,#263c72);color:#fff;
+  padding:26px 30px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:22px;
+}
+#vistaMantenimientoV2 .mant-v2-header h2{font-size:clamp(21px,2.7vw,29px);line-height:1.2;margin:4px 0 9px;color:#fff!important}
+#vistaMantenimientoV2 .mant-v2-header p{font-size:10px;letter-spacing:.12em;font-weight:850;color:#c8ddf2;margin:0}
+#vistaMantenimientoV2 .mant-v2-header span{color:#d1e2f0;font-size:13px}
+#vistaMantenimientoV2 .mant-v2-header-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px}
+#vistaMantenimientoV2 .mant-v2-header-actions button{
+  cursor:pointer;min-height:40px;padding:10px 13px;border-radius:9px;
+  border:1px solid #7599ba;background:#f8fbff;color:#1d4162;font-weight:750;font-size:12px
+}
+#vistaMantenimientoV2 .mant-v2-header-actions button+button{background:transparent;border-color:#9aaecd;color:#fff}
+#vistaMantenimientoV2 button:focus-visible,#coiMantenimientoV2Nav:focus-visible,#vistaMantenimientoV2 input:focus-visible,#vistaMantenimientoV2 select:focus-visible{outline:3px solid #80c1fa;outline-offset:3px}
+#vistaMantenimientoV2 .mant-v2-content{padding:clamp(14px,2.3vw,27px);display:grid;gap:16px}
+#vistaMantenimientoV2 .mant-v2-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
+#vistaMantenimientoV2 .mant-v2-kpi,#vistaMantenimientoV2 .mant-v2-panel{
+  background:var(--mant-card);border:1px solid var(--mant-line);border-radius:13px;color:var(--mant-text);
+  box-shadow:0 4px 14px rgba(14,38,67,.04)
+}
+#vistaMantenimientoV2 .mant-v2-kpi{min-height:98px;padding:18px;display:flex;flex-direction:column;gap:6px}
+#vistaMantenimientoV2 .mant-v2-kpi strong{font-size:29px;font-weight:800;line-height:1;color:var(--mant-text);font-variant-numeric:tabular-nums}
+#vistaMantenimientoV2 .mant-v2-kpi span{font-size:11px;color:var(--mant-muted);font-weight:700}
+#vistaMantenimientoV2 .mant-v2-columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#vistaMantenimientoV2 .mant-v2-panel{padding:19px}
+#vistaMantenimientoV2 .mant-v2-panel h3{color:var(--mant-text)!important;font-size:15px;margin:0 0 13px;line-height:1.4}
+#vistaMantenimientoV2 .mant-v2-muted,#vistaMantenimientoV2 .mant-v2-note{color:var(--mant-muted);font-size:12px;line-height:1.5;margin:0}
+#vistaMantenimientoV2 .mant-v2-note{margin-top:14px}
+#vistaMantenimientoV2 .mant-v2-bar{display:grid;grid-template-columns:minmax(110px,1fr) minmax(80px,1.5fr) 28px;align-items:center;gap:12px;margin:12px 0;font-size:12px}
+#vistaMantenimientoV2 .mant-v2-bar>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--mant-muted)}
+#vistaMantenimientoV2 .mant-v2-bar>b{font-variant-numeric:tabular-nums;font-size:12px;text-align:right}
+#vistaMantenimientoV2 .mant-v2-track{height:8px;background:var(--mant-track);border-radius:999px;overflow:hidden}
+#vistaMantenimientoV2 .mant-v2-track>i{display:block;height:100%;background:linear-gradient(90deg,#4c97e2,#4b59cb);border-radius:inherit}
+#vistaMantenimientoV2 .mant-v2-panel-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+#vistaMantenimientoV2 .mant-v2-panel-head h3{margin-bottom:3px}
+#vistaMantenimientoV2 #mantV2Count{font-size:12px;color:var(--mant-muted);font-weight:750}
+#vistaMantenimientoV2 .mant-v2-filters{display:grid;grid-template-columns:minmax(180px,2fr) repeat(4,minmax(110px,1fr));gap:10px}
+#vistaMantenimientoV2 .mant-v2-filters label{font-size:11px;color:var(--mant-muted);display:flex;flex-direction:column;gap:5px;font-weight:700}
+#vistaMantenimientoV2 .mant-v2-filters input,#vistaMantenimientoV2 .mant-v2-filters select{
+  display:block;width:100%;max-width:100%;box-sizing:border-box;min-width:0;
+  background:var(--mant-card);color:var(--mant-text);border:1px solid var(--mant-line);
+  border-radius:8px;min-height:38px;padding:8px 9px;font-size:12px
+}
+#vistaMantenimientoV2 .mant-v2-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}
+#vistaMantenimientoV2 .mant-v2-order{background:var(--mant-bg);border:1px solid var(--mant-line);border-radius:11px;padding:15px;min-width:0}
+#vistaMantenimientoV2 .mant-v2-order-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+#vistaMantenimientoV2 .mant-v2-num{font-size:11px;letter-spacing:.025em;font-weight:800;color:var(--mant-blue)}
+#vistaMantenimientoV2 .mant-v2-order h3{margin:10px 0 5px;font-size:14px;overflow-wrap:anywhere}
+#vistaMantenimientoV2 .mant-v2-order-meta{display:flex;gap:5px;flex-wrap:wrap;margin:13px 0}
+#vistaMantenimientoV2 .mant-v2-order-meta>span{padding:5px 8px;border-radius:7px;background:var(--mant-card);border:1px solid var(--mant-line);font-size:10px;color:var(--mant-muted);font-weight:650}
+#vistaMantenimientoV2 .mant-v2-stations{font-size:11px;color:var(--mant-muted);line-height:1.5;margin:4px 0 14px;overflow-wrap:anywhere}
+#vistaMantenimientoV2 .mant-v2-open{padding:9px 13px;min-height:38px;border-radius:8px;border:1px solid var(--mant-blue);color:var(--mant-blue);background:var(--mant-card);font-size:12px;font-weight:800;cursor:pointer}
+#vistaMantenimientoV2 .mant-v2-open:hover{filter:brightness(.94)}
+#vistaMantenimientoV2 .mant-v2-pill{padding:4px 8px;border-radius:99px;background:var(--mant-track);color:var(--mant-text);font-size:10px;font-weight:800;white-space:nowrap}
+#vistaMantenimientoV2 .mant-v2-pill.danger{color:#9d312d;background:#ffeded}
+#vistaMantenimientoV2 .mant-v2-pill.warning{color:#805a19;background:#fff4d8}
+#vistaMantenimientoV2 .mant-v2-empty{background:var(--mant-card);border:1px dashed var(--mant-line);padding:28px;border-radius:9px;color:var(--mant-muted);font-size:13px;grid-column:1/-1}
+#vistaMantenimientoV2 .mant-v2-callout{font-size:12px;line-height:1.6;background:var(--mant-card);border-left:3px solid var(--mant-blue);border-radius:8px;padding:14px 16px;color:var(--mant-muted)}
+#vistaMantenimientoV2 .mant-v2-callout strong{color:var(--mant-text)}
+@media(max-width:1100px){#vistaMantenimientoV2 .mant-v2-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#vistaMantenimientoV2 .mant-v2-filters{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){#vistaMantenimientoV2 .mant-v2-columns,#vistaMantenimientoV2 .mant-v2-list{grid-template-columns:1fr}#vistaMantenimientoV2 .mant-v2-filters{grid-template-columns:repeat(2,minmax(0,1fr))}#vistaMantenimientoV2 .mant-v2-header{padding:18px}}
+@media(max-width:470px){#vistaMantenimientoV2 .mant-v2-kpis,#vistaMantenimientoV2 .mant-v2-filters{grid-template-columns:1fr}#vistaMantenimientoV2 .mant-v2-bar{grid-template-columns:minmax(92px,1fr) minmax(60px,1fr) 20px;gap:6px}}
