@@ -8,7 +8,10 @@ test('Cartera V8: boton de navegacion e importacion XLSX local en modo seguro', 
   await expect(page.locator('#coiV2Sidebar [data-v2-nav="btnOrdenes"]')).toHaveCount(1);
   await expect(page.locator('#coiV8V2Nav')).toHaveCount(1);
   await expect(page.locator('#coiV8V2Nav')).toContainText('Cartera de Obras');
+  // La navegación V2 abre la vista permanente; la auditoría XLSX se abre desde ella.
   await page.locator('#coiV8V2Nav').evaluate(button => button.click());
+  await expect(page.locator('#vistaCarteraObrasV8')).toHaveClass(/active/);
+  await page.locator('#cv2Audit').click();
   await expect(page.locator('#coiV8Overlay')).not.toHaveAttribute('hidden');
   await page.locator('#coiV8File').setInputFiles({name:'BASE_OBRAS_PRUEBA.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:sample});
   await expect(page.locator('#coiV8Message')).toContainText(/Conciliaci[oó]n|Inici[aá]|Supabase|conexi[oó]n/i,{timeout:12000});
