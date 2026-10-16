@@ -3863,6 +3863,7 @@ function selectStation(s){
     <div class="gallery-placeholder">Espacio preparado para fotos por OC: antes / durante / después, relevamientos, actas escaneadas, informes técnicos y evidencia de certificación.</div>
     <br><button type="button" class="primary" data-legacy-action="pdf">Exportar ficha a PDF</button>
   `;
+  window.COI_REFDATA_ESTACIONES?.render?.(s);
   document.querySelector('.panel').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
@@ -37761,9 +37762,9 @@ function goToMap(r){
  }
  window.COI_V2?.syncNav?.();return false;
 }
-function bars(pairs,n=8){
- const a=pairs.slice(0,n),max=Math.max(1,...a.map(x=>x[1]));
- return a.length?a.map(([k,v])=>'<div class="cv2-bar" title="'+esc(k)+' · '+v+' registros"><span class="cv2-bar-label">'+esc(k)+'</span><div class="cv2-track" role="meter" aria-label="'+esc(k)+'" aria-valuemin="0" aria-valuemax="'+max+'" aria-valuenow="'+v+'"><div class="cv2-fill" style="width:'+Math.round(100*v/max)+'%"></div></div><b>'+v+'</b></div>').join(''):'<p class="cv2-note">Sin datos</p>';
+function bars(pairs,n=8,kind='estado'){
+ const shown=pairs.slice(0,n),max=Math.max(1,...shown.map(x=>x[1])),total=pairs.reduce((sum,x)=>sum+x[1],0);
+ return shown.length?shown.map(([k,v],i)=>{const pct=total?Math.round(v*100/total):0;return '<div class="cv2-bar cv2-bar--'+kind+'" title="'+esc(k)+' · '+v+' registros"><div class="cv2-bar-top"><span class="cv2-bar-label">'+esc(k)+'</span><span class="cv2-bar-values"><b>'+v+'</b><small>'+pct+'%</small></span></div><div class="cv2-track" role="img" aria-label="'+esc(k)+': '+v+' de '+total+'"><div class="cv2-fill cv2-fill-'+(i%6)+'" style="width:'+Math.round(v*100/max)+'%"></div></div></div>';}).join(''):'<p class="cv2-note">Sin datos para los filtros aplicados.</p>';
 }
 function counts(list,get){
  const m=new Map();list.map(get).filter(Boolean).forEach(v=>m.set(v,(m.get(v)||0)+1));
@@ -37780,8 +37781,8 @@ function render(){
  const kpis=[['Proyectos',list.length],['Con OC',list.filter(r=>r.oc).length],['En ejecución',list.filter(r=>/ejecuci[oó]n/i.test(r.estado)).length],['Finalizados',list.filter(r=>/finalizad/i.test(r.estado)).length],['Con avance',list.filter(r=>pval(r.avance)!==null).length],['Observados',list.filter(r=>r.issues.length).length]];
  $('cv2Kpis').innerHTML=kpis.map(([k,v])=>'<div class="cv2-kpi"><strong>'+v+'</strong><small>'+esc(k)+'</small></div>').join('');
  $('cv2ChartEstado').innerHTML=bars(counts(list,r=>r.estado||'Sin estado'));
- $('cv2ChartProveedor').innerHTML=bars(counts(list,r=>r.proveedor),7);
- $('cv2ChartHitos').innerHTML=bars([['Con cotización',list.filter(r=>r.raw[11]).length],['Con SOLPED',list.filter(r=>r.solped).length],['Con expediente',list.filter(r=>r.expediente).length],['Con OC',list.filter(r=>r.oc).length],['Con acta inicio',list.filter(r=>r.raw[23]).length]],5);
+ $('cv2ChartProveedor').innerHTML=bars(counts(list,r=>r.proveedor),7,'proveedor');
+ $('cv2ChartHitos').innerHTML=bars([['Con cotización',list.filter(r=>r.raw[11]).length],['Con SOLPED',list.filter(r=>r.solped).length],['Con expediente',list.filter(r=>r.expediente).length],['Con OC',list.filter(r=>r.oc).length],['Con acta inicio',list.filter(r=>r.raw[23]).length]],5,'hitos');
  $('cv2Body').innerHTML=buildRows(list.slice(0,1000))||'<tr><td colspan="10">Sin registros: cargá un Excel o modificá los filtros.</td></tr>';
  $('cv2Result').textContent=list.length+' de '+all.length+' registros';
  $('cv2Info').textContent=all.length?all.length+' registros de Excel cargados en esta sesión. Para conservarlos entre aperturas falta habilitar persistencia en Supabase.':'Seleccioná el Excel actualizado. Esta fase solo muestra y audita; todavía no guarda la cartera en Supabase.';
@@ -37791,7 +37792,12 @@ function fillDetail(r){
  detailRow=r.row;$('cv2Detail').hidden=false;
  $('cv2DetailTitle').textContent='Ficha de obra '+(r.obra||'sin Nº')+' · Fila Excel '+r.row;
  const fields=['N° Obra','Prioridad','Lugar','Denominación / Pliego','Estado','Trello','N° Seguimiento','Fecha presupuestada','SM','Necesidad','Fecha cotización','Cotización','SOLPED','Fecha SOLPED','Expediente','Visita','Dictamen técnico','OC','Fecha OC','Control terceros','Contratista','CUIT','Teléfono','Acta inicio','Inspector','Plazo días','Final proyectado','Final real','Avance acumulado','Último avance','Fecha último avance','Ejecutado estimado','Observaciones'];
- $('cv2DetailGrid').innerHTML=fields.map((x,i)=>'<div class="cv2-field" data-group="'+(i<4?'Identificación y ubicación':i<15?'Gestión y contratación':i<24?'Documentación y OC':'Seguimiento y ejecución')+'"><b>'+esc(x)+'</b><span>'+esc(String(r.raw[i]??'').trim()!==''?r.raw[i]:'Sin informar')+'</span></div>').join('');
+ const groups=[['Identificación y ubicación',[0,1,2,3,4,5,6]],['Contratación y estado administrativo',[8,9,11,12,14,15,16,17,19,20,21,22,24]],['Fechas e hitos',[7,10,13,18,23,25,26,27,29,30]],['Avance y observaciones',[28,31,32]]];
+ const present=(v,label)=>{const value=text(v);if(!value)return 'Sin informar';if(/fecha|inicio|final proyectado|final real/i.test(label)&&/^\d{5}(?:\.0+)?$/.test(value)){const n=Number(value);if(n>20000&&n<80000)return new Date(Date.UTC(1899,11,30)+n*86400000).toLocaleDateString('es-AR',{timeZone:'UTC'});}return value;};
+ const field=i=>'<div class="cv2-field"><b>'+esc(fields[i])+'</b><span>'+esc(present(r.raw[i],fields[i]))+'</span></div>';
+ let blocks=groups.map(([title,idx])=>'<section class="cv2-ficha-section"><h4>'+esc(title)+'</h4><div class="cv2-ficha-grid">'+idx.map(field).join('')+'</div></section>').join('');
+ if(r.raw.length>fields.length)blocks+='<section class="cv2-ficha-section"><h4>Información complementaria</h4><div class="cv2-ficha-grid">'+r.raw.slice(fields.length).map((v,i)=>'<div class="cv2-field"><b>Campo Excel '+(fields.length+i+1)+'</b><span>'+esc(v||'Sin informar')+'</span></div>').join('')+'</div></section>';
+ $('cv2DetailGrid').innerHTML=blocks;
  $('cv2Warnings').textContent=r.issues.length?'Revisar: '+r.issues.join(' · '):'Sin observaciones de calidad';
  const link=$('cv2OpenOC');link.hidden=!(r.remote&&r.match==='OC existente');link.dataset.oc=r.oc;
  const mapMatch=resolveMapLocation(r),mapBtn=$('cv2GoMap'),mapNote=$('cv2MapNote');
