@@ -37763,7 +37763,7 @@ function goToMap(r){
 }
 function bars(pairs,n=8){
  const a=pairs.slice(0,n),max=Math.max(1,...a.map(x=>x[1]));
- return a.length?a.map(([k,v])=>'<div class="cv2-bar" title="'+esc(k)+'"><span class="cv2-bar-label">'+esc(k)+'</span><div class="cv2-track"><div class="cv2-fill" style="width:'+Math.round(100*v/max)+'%"></div></div><b>'+v+'</b></div>').join(''):'<p class="cv2-note">Sin datos</p>';
+ return a.length?a.map(([k,v])=>'<div class="cv2-bar" title="'+esc(k)+' · '+v+' registros"><span class="cv2-bar-label">'+esc(k)+'</span><div class="cv2-track" role="meter" aria-label="'+esc(k)+'" aria-valuemin="0" aria-valuemax="'+max+'" aria-valuenow="'+v+'"><div class="cv2-fill" style="width:'+Math.round(100*v/max)+'%"></div></div><b>'+v+'</b></div>').join(''):'<p class="cv2-note">Sin datos</p>';
 }
 function counts(list,get){
  const m=new Map();list.map(get).filter(Boolean).forEach(v=>m.set(v,(m.get(v)||0)+1));
@@ -37791,7 +37791,7 @@ function fillDetail(r){
  detailRow=r.row;$('cv2Detail').hidden=false;
  $('cv2DetailTitle').textContent='Ficha de obra '+(r.obra||'sin Nº')+' · Fila Excel '+r.row;
  const fields=['N° Obra','Prioridad','Lugar','Denominación / Pliego','Estado','Trello','N° Seguimiento','Fecha presupuestada','SM','Necesidad','Fecha cotización','Cotización','SOLPED','Fecha SOLPED','Expediente','Visita','Dictamen técnico','OC','Fecha OC','Control terceros','Contratista','CUIT','Teléfono','Acta inicio','Inspector','Plazo días','Final proyectado','Final real','Avance acumulado','Último avance','Fecha último avance','Ejecutado estimado','Observaciones'];
- $('cv2DetailGrid').innerHTML=fields.map((x,i)=>'<div><b>'+esc(x)+'</b><span>'+esc(r.raw[i]||'Sin informar')+'</span></div>').join('');
+ $('cv2DetailGrid').innerHTML=fields.map((x,i)=>'<div class="cv2-field" data-group="'+(i<4?'Identificación y ubicación':i<15?'Gestión y contratación':i<24?'Documentación y OC':'Seguimiento y ejecución')+'"><b>'+esc(x)+'</b><span>'+esc(r.raw[i]??'Sin informar')+'</span></div>').join('');
  $('cv2Warnings').textContent=r.issues.length?'Revisar: '+r.issues.join(' · '):'Sin observaciones de calidad';
  const link=$('cv2OpenOC');link.hidden=!(r.remote&&r.match==='OC existente');link.dataset.oc=r.oc;
  const mapMatch=resolveMapLocation(r),mapBtn=$('cv2GoMap'),mapNote=$('cv2MapNote');
@@ -37842,6 +37842,63 @@ function mount(){
 }
 window.COI_CARTERA_V8_P2=Object.freeze({version:'p2-20261015',readOnly:true,open,refresh});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
+})();
+</script>
+<style id="cartera-v9-ux-css">
+#vistaCarteraObrasV8{--cv9-surface:#202c45;--cv9-surface2:#2a3853;--cv9-border:#435371;--cv9-text:#f0f5ff;--cv9-muted:#c4d0e1;--cv9-track:#3f4f6b;--cv9-accent:#7a94fa}
+body.coi-v2-light #vistaCarteraObrasV8{--cv9-surface:#ffffff;--cv9-surface2:#f3f7fc;--cv9-border:#cfdaea;--cv9-text:#17283f;--cv9-muted:#52647e;--cv9-track:#dbe5f2;--cv9-accent:#405bc4}
+#vistaCarteraObrasV8 .cv2-kpi,#vistaCarteraObrasV8 .cv2-chart,#vistaCarteraObrasV8 .cv2-tablebox,#vistaCarteraObrasV8 .cv2-ficha{background:var(--cv9-surface)!important;border-color:var(--cv9-border)!important;color:var(--cv9-text)!important;box-shadow:0 6px 20px #07152b10}
+#vistaCarteraObrasV8 .cv2-kpi{padding:18px;border-left:3px solid var(--cv9-accent)!important}
+#vistaCarteraObrasV8 .cv2-kpi strong{font-size:29px;color:var(--cv9-text)!important;letter-spacing:-.6px}
+#vistaCarteraObrasV8 .cv2-kpi small{font-size:13px;color:var(--cv9-muted)!important}
+#vistaCarteraObrasV8 .cv2-charts{gap:16px}#vistaCarteraObrasV8 .cv2-chart{padding:19px}
+#vistaCarteraObrasV8 .cv2-chart h3,#vistaCarteraObrasV8 .cv2-tabletop h3{font-size:16px!important;color:var(--cv9-text)!important}
+#vistaCarteraObrasV8 .cv2-bar{grid-template-columns:minmax(100px,1.2fr) minmax(80px,2fr) 34px;gap:10px;font-size:13px;color:var(--cv9-text);margin:12px 0}
+#vistaCarteraObrasV8 .cv2-bar-label{line-height:1.5}#vistaCarteraObrasV8 .cv2-bar b{text-align:right;font-size:13px}
+#vistaCarteraObrasV8 .cv2-track{height:12px;background:var(--cv9-track);border-radius:20px}
+#vistaCarteraObrasV8 .cv2-fill{border-radius:20px;background:linear-gradient(90deg,#348fdc,var(--cv9-accent))}
+#vistaCarteraObrasV8 .cv2-filters input,#vistaCarteraObrasV8 .cv2-filters select{font-size:14px!important;padding:12px!important;color:var(--cv9-text)!important;background:var(--cv9-surface2)!important;border-color:var(--cv9-border)!important}
+#vistaCarteraObrasV8 .cv2-note,#vistaCarteraObrasV8 .cv2-head p{font-size:13px;color:var(--cv9-muted)!important}
+#vistaCarteraObrasV8 table{font-size:13px;color:var(--cv9-text)}
+#vistaCarteraObrasV8 th{background:var(--cv9-surface2)!important;color:var(--cv9-text)!important;font-size:13px}
+#vistaCarteraObrasV8 td{border-color:var(--cv9-border)!important;line-height:1.5}
+#vistaCarteraObrasV8 tbody tr:hover{background:var(--cv9-surface2)!important}
+#vistaCarteraObrasV8 .cv2-ficha-grid{gap:12px;grid-template-columns:repeat(3,minmax(0,1fr))}
+#vistaCarteraObrasV8 .cv2-ficha-grid .cv2-field{background:var(--cv9-surface2)!important;border:1px solid var(--cv9-border);padding:14px;border-radius:10px}
+#vistaCarteraObrasV8 .cv2-ficha-grid b{font-size:12px;color:var(--cv9-muted)!important;line-height:1.4}
+#vistaCarteraObrasV8 .cv2-ficha-grid span{font-size:14px;color:var(--cv9-text)!important;line-height:1.5}
+body.coi-v2-light #vistaCarteraObrasV8 .cv2-head h2{color:#142541!important}
+#vistaCarteraObrasV8 .cv2-pill{font-size:12px}
+#panel .cv9-rail-info{padding:16px;margin:12px 0;border:1px solid #c4d3e4;border-left:4px solid #5577d9;border-radius:12px;background:var(--cv9-surface2,#f2f6fb);color:var(--cv9-text,#263b52)}
+#panel .cv9-rail-info h3{margin:0 0 12px;font-size:16px;color:inherit}
+#panel .cv9-rail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+#panel .cv9-rail-grid div{display:flex;flex-direction:column;gap:4px}
+#panel .cv9-rail-grid small{font-size:12px;opacity:.75}
+#panel .cv9-rail-grid strong{font-size:14px}
+@media(max-width:800px){#vistaCarteraObrasV8 .cv2-ficha-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#vistaCarteraObrasV8 .cv2-bar{grid-template-columns:minmax(90px,1fr) minmax(55px,1fr) 26px}}
+@media(max-width:480px){#vistaCarteraObrasV8 .cv2-ficha-grid{grid-template-columns:1fr}}
+</style>
+<script id="red-roca-referencias-v9">
+(function(){'use strict';
+const fuente=[["Sarandí","SD",7.769,"Avellaneda",3.934],["Villa Dominico","LLD",9.996,"Avellaneda",2.227],["Wilde","WL",11.399,"Avellaneda",1.403],["Don Bosco","NB",13,"Quilmes",1.601],["Bernal","BN",14.578,"Quilmes",1.578],["Quilmes","QL",17.249,"Quilmes",2.671],["Ezpeleta","ZT",21.23,"Quilmes",3.981],["Berazategui","BZ",23.799,"Berazategui",2.569],["Plátanos","TS",27.765,"Berazategui",3.966],["Hudson","HD",29.52,"Berazategui",1.755],["Pereyra","PY",36.99,"Berazategui",7.47],["Villa Elisa","VE",39.333,"La Plata",2.343],["City Bell","BLL",42.886,"La Plata",3.553],["Gonnet","GT",46.113,"La Plata",3.227],["Ringuelet","RI",47.533,"La Plata",1.42],["Tolosa","OA",50.555,"La Plata",3.022],["La Plata","LP",52.606,"La Plata",2.051],["Plaza C","PC",0,"Cap.Fed.",null],["Yrigoyen",null,2.84,"Cap.Fed.",2.84],["Avellaneda","ALL",3.835,"Avellaneda",0.995],["Gerli",null,6.482,"Avellaneda",2.647],["Lanus",null,9.03,"Lanus",2.548],["R.Escalada","RE",11.212,"Lanus",2.182],["Banfield",null,13.004,"L.de Zamora",1.792],["L.de.Zamora",null,14.998,"L.de Zamora",1.994],["Temperley","TY",16.802,"L.de Zamora",1.804],["Villa España","VÑ",25.883,"Berazategui",null],["Ranelagh","RH",27.448,"Berazategui",1.565],["Sourigues","SS",29.585,"Berazategui",2.137],["Santa Sofia",null,35.248,"F. Varela",null],["Gutiérrez","JG",37.918,"Berazategui",2.67],["Bosque","BQ",33.53,"F. Varela",null],["Zeballos","EZ",30.92,"F. Varela",null],["F. Varela","FV",29.737,"F. Varela",null],["D. Ardigo","IA",26.701,"F. Varela",null],["Claypole","CY",23.35,"Alte. Brown",null],["R. Calzada","LLZ",21.326,"Alte. Brown",null],["J. Marmol","JM",19.28,"Alte. Brown",null],["Turdera","UD",19448,"L.de Zamora",null],["Llavallol","LLV",21667,"L.de Zamora",null],["L.Guillon","LG",23540,"E.Echeverria",null],["Monte Grande","MG",25842,"E.Echeverria",null],["El Jaguel","EJ",29000,"E.Echeverria",null],["Ezeiza","ZZ",32436,"Ezeiza",null],["Adrogue","AD",19117,"Alte.Brown",null],["Burzaco","BO",22044,"Alte.Brown",2.927],["Longchamps","CHP",25931,"Alte.Brown",3.887],["Glew","GW",29182,"Alte.Brown",3.251],["Guernica","GA",32474,"Pte.Peron",3.292],["A.Korn","AK",39485,"San Vicente",7.011]];
+const normal=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const alias={'plazaconstitucion':'plazac','remediosdeescalada':'rescalada','lanus':'lanus','lomasdezamora':'ldezamora','alejandrokorn':'akorn','adrogue':'adrogue','josemarmol':'jmarmol'};
+const catalog=new Map(fuente.filter(x=>normal(x[0])!=='bosque').map(x=>[normal(x[0]),x]));
+const fmt=n=>typeof n==='number'?n.toLocaleString('es-AR',{maximumFractionDigits:3}):'Sin informar';
+function ref(name){const key=normal(name);return catalog.get(key)||catalog.get(alias[key])||null;}
+function paint(){const title=document.getElementById('pTitle'),panel=document.getElementById('panel');if(!title||!panel)return;
+const station=title.textContent.trim(),r=ref(station),prior=panel.querySelector('.cv9-rail-info');
+if(!r){prior?.remove();return;}
+if(prior?.dataset.station===station)return;
+prior?.remove();const el=document.createElement('section');el.className='cv9-rail-info';el.dataset.station=station;
+const cell=(k,v)=>'<div><small>'+k+'</small><strong>'+v+'</strong></div>';
+const km=r[2]>1000?r[2]/1000:r[2];
+el.innerHTML='<h3>Datos ferroviarios de referencia</h3><div class="cv9-rail-grid">'+cell('Abreviatura',r[1]||'Sin informar')+cell('Progresiva','Km '+fmt(km))+cell('Municipio',r[3]||'Sin informar')+cell('Distancia anterior',r[4]===null?'Sin informar':fmt(r[4])+' km')+'</div><p style="font-size:12px;opacity:.8;margin:10px 0 0">Fuente: Abreviaturas Tramos y estaciones.xlsx. Referencia informativa, sin modificar OC ni datos contractuales.</p>';
+panel.prepend(el);
+}
+function init(){const panel=document.getElementById('panel');if(!panel)return;let pending=false;const observer=new MutationObserver(()=>{if(pending)return;pending=true;queueMicrotask(()=>{pending=false;paint();});});observer.observe(panel,{childList:true});const title=document.getElementById('pTitle');if(title)observer.observe(title,{childList:true,characterData:true,subtree:true});paint();}
+window.COI_REFERENCIAS_ESTACIONES=Object.freeze({get:ref,registros:fuente.length,pendientes:['Cañuelas','Chascomús','Monte','Lobos','Haedo'],ambiguos:['Bosque / Bosques']});
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 </script>
 </body></html>
