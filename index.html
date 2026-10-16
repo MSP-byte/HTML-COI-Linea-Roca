@@ -38337,7 +38337,10 @@ body:not(.coi-v2-light) .coi-v3-table-scroll th{background:#344560;color:#ecf4ff
     $('coiV3Mapping').addEventListener('change',e=>{if(!e.target.matches('select[data-v3-field]'))return;state.select[e.target.dataset.v3Field]=Number(e.target.value);state.items=[];state.loaded=false;drawImport();status('Cambió la vinculación de columnas. Volvé a validar antes de aceptar cualquier dato.');});
     $('coiV3RefreshServices').addEventListener('click',refreshServices);
     $('coiV3Services').addEventListener('click',e=>{const btn=e.target.closest('[data-v3-open]');if(btn&&typeof window.abrirFichaOC==='function')window.abrirFichaOC('OC-'+btn.dataset.v3Open);});
-    window.addEventListener('coi:cartera-v8-updated',renderObraFinance);
+    window.addEventListener('coi:cartera-v8-updated',refreshFinancial);
+    document.addEventListener('click',event=>{
+      if(event.target?.closest?.('#coiV8V2Nav, #btnCarteraObrasV8'))setTimeout(refreshFinancial,350);
+    },true);
     $('coiV3Kind').value=state.kind;
     let n=0;const retry=setInterval(()=>{if(mountServicesNav()||++n>25)clearInterval(retry);},250);
     drawImport();
