@@ -38199,8 +38199,8 @@ body:not(.coi-v2-light) .coi-v3-table-scroll th{background:#344560;color:#ecf4ff
     return item;
   }
   function csvCell(v){
-    let s=String(v??'');if(/^[\s]*[=+\-@\t\r]/.test(s))s="'"+s;
-    return '"'+s.replace(/"/g,'""')+'"';
+    if(typeof coiCSVCell!=='function')throw new Error('Exportación CSV segura no disponible.');
+    return coiCSVCell(v);
   }
   function exportAudit(){
     const data=[['FILA','TIPO','OC','PROVEEDOR','DESCRIPCION','ESTACION','MONTO','MONEDA','RESULTADO','DIFERENCIAS']];
