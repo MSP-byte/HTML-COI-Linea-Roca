@@ -37624,10 +37624,10 @@ async function load(file){
     const files=await unzipSelected(await file.arrayBuffer());
     const rows=parseBaseObras(files);assess(rows);state.rows=rows;render();
     el('coiV8Message').textContent='Archivo '+file.name+' · '+rows.length+' registros detectados. Conciliando con Supabase...';
-    const message=await reconcile(rows);el('coiV8Message').textContent=message;render();
+    const message=await reconcile(rows);el('coiV8Message').textContent=message;render();window.dispatchEvent(new CustomEvent('coi:cartera-v8-updated'));
   }catch(e){state.rows=[];render();el('coiV8Message').textContent='Error de importación: '+text(e.message||e);}
 }
-function close(){el('coiV8Overlay').hidden=true;state.rows=[];state.filtered=[];state.filename='';state.lookup=null;el('coiV8File').value='';render();}
+function close(){el('coiV8Overlay').hidden=true;render();}
 function open(){el('coiV8Overlay').hidden=false;el('coiV8Search').focus();}
 function mountVisibleSidebarEntry(){
   // La interfaz COI V2 reemplaza visualmente al antiguo #moduleNav.
@@ -37647,7 +37647,7 @@ function mountVisibleSidebarEntry(){
   const label=document.createElement('span');
   label.className='v2-label';label.textContent='Cartera de Obras';
   entry.appendChild(label);
-  entry.addEventListener('click',event=>{event.stopPropagation();open();});
+  entry.addEventListener('click',event=>{event.stopPropagation();if(window.COI_CARTERA_V8_P2?.open)window.COI_CARTERA_V8_P2.open();else open();});
   orderEntry.insertAdjacentElement('afterend',entry);
   return true;
 }
@@ -37683,7 +37683,142 @@ function mount(){
   render();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
-window.__COI_CARTERA_V8_F1__=Object.freeze({version:'fase1-20261015',readOnly:true});
+window.__COI_CARTERA_V8_F1__=Object.freeze({version:'fase1-20261015',readOnly:true,getRows:()=>state.rows.map(r=>({...r,raw:[...r.raw],issues:[...r.issues]})),importFile:load,openAudit:open});
+})();
+</script>
+
+<style id="cartera-v8-p2-css">
+#vistaCarteraObrasV8 .view-card{padding:0!important;min-height:680px}
+#vistaCarteraObrasV8 .cv2-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:23px;border-bottom:1px solid #3b4967}
+#vistaCarteraObrasV8 .cv2-head h2{color:#f3f6ff!important;margin:0;font-size:24px}
+#vistaCarteraObrasV8 .cv2-head p{margin:5px 0;color:#b3c3dd;font-size:12px}
+#vistaCarteraObrasV8 .cv2-main{padding:22px}
+#vistaCarteraObrasV8 .cv2-actions{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-bottom:14px}
+#vistaCarteraObrasV8 button.cv2-btn{background:#454db4!important;border:1px solid #626aca!important;border-radius:8px!important;color:white!important;font-weight:700;padding:9px 13px;cursor:pointer}
+#vistaCarteraObrasV8 .cv2-file{max-width:320px;font-size:12px}
+#vistaCarteraObrasV8 .cv2-note{font-size:12px;color:#b4c2d8;margin:10px 0}
+#vistaCarteraObrasV8 .cv2-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+#vistaCarteraObrasV8 .cv2-kpi,#vistaCarteraObrasV8 .cv2-chart,#vistaCarteraObrasV8 .cv2-tablebox,#vistaCarteraObrasV8 .cv2-ficha{background:#202a42;border:1px solid #3b4a65;border-radius:12px}
+#vistaCarteraObrasV8 .cv2-kpi{padding:15px}.cv2-kpi strong{display:block;font-size:24px;color:#f5f8ff}.cv2-kpi small{font-size:11px;color:#b6c4d8}
+#vistaCarteraObrasV8 .cv2-charts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
+#vistaCarteraObrasV8 .cv2-chart{padding:14px}
+#vistaCarteraObrasV8 .cv2-chart h3{color:#eef5ff!important;margin:0 0 10px;font-size:14px}
+#vistaCarteraObrasV8 .cv2-bar{display:grid;grid-template-columns:minmax(68px,1fr) minmax(45px,2fr) 28px;gap:8px;align-items:center;margin:8px 0;color:#becbdd;font-size:11px}
+#vistaCarteraObrasV8 .cv2-bar-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#vistaCarteraObrasV8 .cv2-track{height:8px;background:#35435e;border-radius:20px;overflow:hidden}
+#vistaCarteraObrasV8 .cv2-fill{height:100%;background:linear-gradient(90deg,#438fe0,#7476dc)}
+#vistaCarteraObrasV8 .cv2-filters{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0}
+#vistaCarteraObrasV8 .cv2-filters input,#vistaCarteraObrasV8 .cv2-filters select{border-radius:8px;padding:9px 12px;border:1px solid #56627e;background:#283653!important;color:white!important;min-width:130px;flex:1;font-size:12px}
+#vistaCarteraObrasV8 .cv2-filters input{min-width:230px;flex:2}
+#vistaCarteraObrasV8 .cv2-tablebox{overflow:hidden}
+#vistaCarteraObrasV8 .cv2-tabletop{padding:12px 15px;display:flex;justify-content:space-between;gap:14px;align-items:center}
+#vistaCarteraObrasV8 .cv2-tabletop h3{color:#eef5ff!important;margin:0;font-size:15px}
+#vistaCarteraObrasV8 .cv2-scroll{overflow:auto;max-height:540px}
+#vistaCarteraObrasV8 table{width:100%;min-width:1260px;border-collapse:collapse;font-size:12px}
+#vistaCarteraObrasV8 th{position:sticky;top:0;background:#33415d;color:#e6f0ff;padding:12px;text-align:left;z-index:1}
+#vistaCarteraObrasV8 td{border-top:1px solid #34415c;padding:10px;vertical-align:middle}
+#vistaCarteraObrasV8 tbody tr:hover{background:#2a3853}
+#vistaCarteraObrasV8 .cv2-pill{display:inline-block;border-radius:50px;padding:3px 8px;background:#3b4564;color:#f1f4ff;font-size:11px}
+#vistaCarteraObrasV8 .cv2-pill.ok{background:#1f513e;color:#baf4ce}
+#vistaCarteraObrasV8 .cv2-pill.warn{background:#685022;color:#ffe4a5}
+#vistaCarteraObrasV8 .cv2-pill.bad{background:#60303a;color:#ffd1d5}
+#vistaCarteraObrasV8 .cv2-progress{min-width:100px;height:8px;background:#3d4961;border-radius:20px;overflow:hidden}
+#vistaCarteraObrasV8 .cv2-progress i{display:block;height:100%;background:#439fe4}
+#vistaCarteraObrasV8 .cv2-ficha{margin:12px 0;padding:15px}
+#vistaCarteraObrasV8 .cv2-ficha[hidden]{display:none}
+#vistaCarteraObrasV8 .cv2-ficha-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0}
+#vistaCarteraObrasV8 .cv2-ficha-grid div{padding:10px;background:#2a3752;border-radius:8px;overflow-wrap:anywhere}
+#vistaCarteraObrasV8 .cv2-ficha-grid b{display:block;text-transform:uppercase;color:#aebfd6;font-size:10px;margin-bottom:6px}
+#vistaCarteraObrasV8 .cv2-ficha-grid span{font-size:12px}
+body.coi-v2-light #vistaCarteraObrasV8 .cv2-kpi,body.coi-v2-light #vistaCarteraObrasV8 .cv2-chart,body.coi-v2-light #vistaCarteraObrasV8 .cv2-tablebox,body.coi-v2-light #vistaCarteraObrasV8 .cv2-ficha{background:#fff;border-color:#d9e2ed}
+@media(max-width:1120px){#vistaCarteraObrasV8 .cv2-kpis{grid-template-columns:repeat(3,1fr)}#vistaCarteraObrasV8 .cv2-charts{grid-template-columns:1fr 1fr}}
+@media(max-width:720px){#vistaCarteraObrasV8 .cv2-main{padding:12px}#vistaCarteraObrasV8 .cv2-kpis{grid-template-columns:repeat(2,1fr)}#vistaCarteraObrasV8 .cv2-charts{grid-template-columns:1fr}#vistaCarteraObrasV8 .cv2-ficha-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+
+<script id="cartera-v8-p2-script">
+(function(){
+'use strict';
+if(window.COI_CARTERA_V8_P2)return;
+const $=id=>document.getElementById(id);
+const text=v=>String(v??'').trim(), fold=v=>text(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const esc=v=>text(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rows=()=>window.__COI_CARTERA_V8_F1__?.getRows?.()||[];
+const pval=v=>{const s=text(v);if(!s)return null;const n=Number(s.replace('%','').replace(',','.'));return Number.isFinite(n)&&n>=0?Math.min(100,Math.max(0,s.includes('%')?n:n<=1?n*100:n)):null;};
+const state={q:'',estado:'',lugar:'',proveedor:'',soloAvance:false};let detailRow=null;
+const filter=list=>list.filter(r=>(!state.q||fold([r.obra,r.denominacion,r.lugar,r.proveedor,r.oc,r.solped,r.expediente].join(' ')).includes(fold(state.q)))&&(!state.estado||r.estado===state.estado)&&(!state.lugar||r.lugar===state.lugar)&&(!state.proveedor||r.proveedor===state.proveedor)&&(!state.soloAvance||pval(r.avance)!==null));
+function bars(pairs,n=8){
+ const a=pairs.slice(0,n),max=Math.max(1,...a.map(x=>x[1]));
+ return a.length?a.map(([k,v])=>'<div class="cv2-bar" title="'+esc(k)+'"><span class="cv2-bar-label">'+esc(k)+'</span><div class="cv2-track"><div class="cv2-fill" style="width:'+Math.round(100*v/max)+'%"></div></div><b>'+v+'</b></div>').join(''):'<p class="cv2-note">Sin datos</p>';
+}
+function counts(list,get){
+ const m=new Map();list.map(get).filter(Boolean).forEach(v=>m.set(v,(m.get(v)||0)+1));
+ return [...m].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'es'));
+}
+function pill(name,type){return '<span class="cv2-pill '+(type||'')+'">'+esc(name)+'</span>';}
+function progress(r){const p=pval(r.avance);return p===null?'<small>Sin dato</small>':'<b>'+p.toLocaleString('es-AR',{maximumFractionDigits:1})+'%</b><div class="cv2-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+p+'"><i style="width:'+p+'%"></i></div>';}
+function buildRows(list){
+ return list.map(r=>'<tr><td>'+esc(r.obra||'—')+'</td><td>'+esc(r.prioridad||'—')+'</td><td>'+esc(r.lugar||'—')+'</td><td>'+esc(r.denominacion||'—')+'</td><td>'+pill(r.estado||'Sin estado',/finalizada/i.test(r.estado)?'ok':'')+'</td><td>'+esc(r.proveedor||'—')+'</td><td>'+esc(r.oc||'—')+'</td><td>'+progress(r)+'</td><td>'+pill(r.match,/conflicto|no encontrada|ambigua/i.test(r.match)?'bad':r.match==='OC existente'?'ok':'warn')+'</td><td><button class="cv2-btn" data-cv2-row="'+r.row+'" type="button">Ver ficha</button></td></tr>').join('');
+}
+function render(){
+ if(!$('cv2Body'))return;
+ const all=rows(),list=filter(all);
+ const kpis=[['Proyectos',list.length],['Con OC',list.filter(r=>r.oc).length],['En ejecución',list.filter(r=>/ejecuci[oó]n/i.test(r.estado)).length],['Finalizados',list.filter(r=>/finalizad/i.test(r.estado)).length],['Con avance',list.filter(r=>pval(r.avance)!==null).length],['Observados',list.filter(r=>r.issues.length).length]];
+ $('cv2Kpis').innerHTML=kpis.map(([k,v])=>'<div class="cv2-kpi"><strong>'+v+'</strong><small>'+esc(k)+'</small></div>').join('');
+ $('cv2ChartEstado').innerHTML=bars(counts(list,r=>r.estado||'Sin estado'));
+ $('cv2ChartProveedor').innerHTML=bars(counts(list,r=>r.proveedor),7);
+ $('cv2ChartHitos').innerHTML=bars([['Con cotización',list.filter(r=>r.raw[11]).length],['Con SOLPED',list.filter(r=>r.solped).length],['Con expediente',list.filter(r=>r.expediente).length],['Con OC',list.filter(r=>r.oc).length],['Con acta inicio',list.filter(r=>r.raw[23]).length]],5);
+ $('cv2Body').innerHTML=buildRows(list.slice(0,1000))||'<tr><td colspan="10">Sin registros: cargá un Excel o modificá los filtros.</td></tr>';
+ $('cv2Result').textContent=list.length+' de '+all.length+' registros';
+ $('cv2Info').textContent=all.length?all.length+' registros de Excel cargados en esta sesión. Para conservarlos entre aperturas falta habilitar persistencia en Supabase.':'Seleccioná el Excel actualizado. Esta fase solo muestra y audita; todavía no guarda la cartera en Supabase.';
+ const selected=all.find(r=>r.row===detailRow);if(selected)fillDetail(selected);
+}
+function fillDetail(r){
+ detailRow=r.row;$('cv2Detail').hidden=false;
+ $('cv2DetailTitle').textContent='Ficha de obra '+(r.obra||'sin Nº')+' · Fila Excel '+r.row;
+ const fields=['N° Obra','Prioridad','Lugar','Denominación / Pliego','Estado','Trello','N° Seguimiento','Fecha presupuestada','SM','Necesidad','Fecha cotización','Cotización','SOLPED','Fecha SOLPED','Expediente','Visita','Dictamen técnico','OC','Fecha OC','Control terceros','Contratista','CUIT','Teléfono','Acta inicio','Inspector','Plazo días','Final proyectado','Final real','Avance acumulado','Último avance','Fecha último avance','Ejecutado estimado','Observaciones'];
+ $('cv2DetailGrid').innerHTML=fields.map((x,i)=>'<div><b>'+esc(x)+'</b><span>'+esc(r.raw[i]||'Sin informar')+'</span></div>').join('');
+ $('cv2Warnings').textContent=r.issues.length?'Revisar: '+r.issues.join(' · '):'Sin observaciones de calidad';
+ const link=$('cv2OpenOC');link.hidden=!(r.remote&&r.match==='OC existente');link.dataset.oc=r.oc;
+}
+function selectOptions(id,values,selected){
+ $(id).innerHTML='<option value="">Todos</option>'+[...new Set(values.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es')).map(v=>'<option value="'+esc(v)+'"'+(v===selected?' selected':'')+'>'+esc(v)+'</option>').join('');
+}
+function refresh(){
+ const all=rows();selectOptions('cv2Estado',all.map(r=>r.estado),state.estado);selectOptions('cv2Lugar',all.map(r=>r.lugar),state.lugar);selectOptions('cv2Proveedor',all.map(r=>r.proveedor),state.proveedor);render();
+}
+function open(){
+ if(!$('vistaCarteraObrasV8'))return;
+ if(typeof window.mostrarVista==='function')window.mostrarVista('vistaCarteraObrasV8');
+ else{document.querySelectorAll('.view.active').forEach(x=>x.classList.remove('active'));$('vistaCarteraObrasV8').classList.add('active');}
+ window.COI_V2?.syncNav?.();render();
+ const nav=$('coiV8V2Nav');if(nav)nav.classList.add('active');
+}
+function mount(){
+ if($('vistaCarteraObrasV8'))return;
+ const section=document.createElement('section');section.id='vistaCarteraObrasV8';section.className='view';
+ section.innerHTML='<div class="view-card"><header class="cv2-head"><div><h2>Cartera de Obras</h2><p>Seguimiento integral de necesidades, contratación y avances físicos · Línea Roca</p></div><button class="cv2-btn" id="cv2Audit">Auditoría del Excel</button></header><div class="cv2-main">'+
+ '<div class="cv2-actions"><label for="cv2File"><b>Actualizar desde Excel:</b></label><input id="cv2File" class="cv2-file" type="file" accept=".xlsx"><button id="cv2CSV" class="cv2-btn">Exportar auditoría CSV</button></div>'+
+ '<p id="cv2Info" class="cv2-note">Cargá tu Excel V8. No se modifican datos de producción.</p><div id="cv2Kpis" class="cv2-kpis"></div>'+
+ '<div class="cv2-charts"><div class="cv2-chart"><h3>Estados de cartera</h3><div id="cv2ChartEstado"></div></div><div class="cv2-chart"><h3>Ranking por contratista</h3><div id="cv2ChartProveedor"></div></div><div class="cv2-chart"><h3>Madurez de tramitación</h3><div id="cv2ChartHitos"></div></div></div>'+
+ '<div class="cv2-filters"><input id="cv2Search" type="search" placeholder="Buscar obra, OC, estación, SOLPED, expediente o contratista"><select id="cv2Estado"><option value="">Estado</option></select><select id="cv2Lugar"><option value="">Lugar</option></select><select id="cv2Proveedor"><option value="">Contratista</option></select><label style="display:flex;align-items:center;gap:4px;font-size:12px"><input id="cv2SoloAvance" type="checkbox">Con avance</label></div>'+
+ '<div id="cv2Detail" class="cv2-ficha" hidden><div class="cv2-tabletop"><h3 id="cv2DetailTitle">Ficha de obra</h3><button class="cv2-btn" id="cv2CloseDetail">Cerrar ficha</button></div><div id="cv2DetailGrid" class="cv2-ficha-grid"></div><p class="cv2-note" id="cv2Warnings"></p><div class="cv2-actions"><button class="cv2-btn" id="cv2OpenOC" hidden>Ir a OC vinculada</button><button class="cv2-btn" id="cv2GoMap">Abrir Red Roca</button></div><p class="cv2-note">La localización en el mapa requiere validar los códigos de ubicación. No se inventan hotspots.</p></div>'+
+ '<section class="cv2-tablebox"><div class="cv2-tabletop"><h3>Detalle de obras</h3><small id="cv2Result">0 registros</small></div><div class="cv2-scroll"><table><thead><tr><th>Nº obra</th><th>Prioridad</th><th>Lugar</th><th>Denominación</th><th>Estado</th><th>Contratista</th><th>OC</th><th>Avance físico</th><th>Conciliación</th><th>Ficha</th></tr></thead><tbody id="cv2Body"></tbody></table></div></section><p class="cv2-note">Avance declarado según Excel; no equivale a certificación SAP. Estado, presupuesto y contratistas aún no se sincronizan automáticamente.</p></div></div>';
+ const anchor=$('vistaOrdenes');if(anchor?.parentNode)anchor.parentNode.insertBefore(section,anchor);else document.body.appendChild(section);
+ $('cv2File').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;$('cv2Info').textContent='Leyendo Excel y conciliando contra COI...';try{await window.__COI_CARTERA_V8_F1__?.importFile?.(file);}catch(err){$('cv2Info').textContent='Error al importar: '+err.message;}refresh();});
+ $('cv2Audit').addEventListener('click',()=>window.__COI_CARTERA_V8_F1__?.openAudit?.());
+ $('cv2CSV').addEventListener('click',()=>$('coiV8Export')?.click());
+ $('cv2Search').addEventListener('input',e=>{state.q=e.target.value;render();});
+ [['Estado','estado'],['Lugar','lugar'],['Proveedor','proveedor']].forEach(([id,k])=>$('cv2'+id).addEventListener('change',e=>{state[k]=e.target.value;render();}));
+ $('cv2SoloAvance').addEventListener('change',e=>{state.soloAvance=e.target.checked;render();});
+ $('cv2Body').addEventListener('click',e=>{const t=e.target.closest('[data-cv2-row]');if(!t)return;const r=rows().find(x=>x.row===Number(t.dataset.cv2Row));if(r){fillDetail(r);$('cv2Detail').scrollIntoView({block:'start',behavior:'smooth'});}});
+ $('cv2CloseDetail').addEventListener('click',()=>{detailRow=null;$('cv2Detail').hidden=true;});
+ $('cv2OpenOC').addEventListener('click',()=>{const oc=$('cv2OpenOC').dataset.oc,r=rows().find(x=>x.oc===oc);if(r?.remote&&r.match==='OC existente')window.abrirFichaOC?.('OC-'+oc);});
+ $('cv2GoMap').addEventListener('click',()=>{window.mostrarVista?.('vistaRed');window.COI_V2?.syncNav?.();});
+ window.addEventListener('coi:cartera-v8-updated',refresh);
+ refresh();
+}
+window.COI_CARTERA_V8_P2=Object.freeze({version:'p2-20261015',readOnly:true,open,refresh});
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
 })();
 </script>
 </body></html>
