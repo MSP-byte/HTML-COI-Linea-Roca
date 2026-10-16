@@ -37762,8 +37762,8 @@ function goToMap(r){
  }
  window.COI_V2?.syncNav?.();return false;
 }
-function bars(pairs,n=8,kind='estado'){
- const shown=pairs.slice(0,n),max=Math.max(1,...shown.map(x=>x[1])),total=pairs.reduce((sum,x)=>sum+x[1],0);
+function bars(pairs,n=8,kind='estado',denominator=0){
+ const shown=pairs.slice(0,n),max=Math.max(1,...shown.map(x=>x[1])),total=denominator||pairs.reduce((sum,x)=>sum+x[1],0);
  return shown.length?shown.map(([k,v],i)=>{const pct=total?Math.round(v*100/total):0;return '<div class="cv2-bar cv2-bar--'+kind+'" title="'+esc(k)+' · '+v+' registros"><div class="cv2-bar-top"><span class="cv2-bar-label">'+esc(k)+'</span><span class="cv2-bar-values"><b>'+v+'</b><small>'+pct+'%</small></span></div><div class="cv2-track" role="img" aria-label="'+esc(k)+': '+v+' de '+total+'"><div class="cv2-fill cv2-fill-'+(i%6)+'" style="width:'+Math.round(v*100/max)+'%"></div></div></div>';}).join(''):'<p class="cv2-note">Sin datos para los filtros aplicados.</p>';
 }
 function counts(list,get){
@@ -37781,8 +37781,8 @@ function render(){
  const kpis=[['Proyectos',list.length],['Con OC',list.filter(r=>r.oc).length],['En ejecución',list.filter(r=>/ejecuci[oó]n/i.test(r.estado)).length],['Finalizados',list.filter(r=>/finalizad/i.test(r.estado)).length],['Con avance',list.filter(r=>pval(r.avance)!==null).length],['Observados',list.filter(r=>r.issues.length).length]];
  $('cv2Kpis').innerHTML=kpis.map(([k,v])=>'<div class="cv2-kpi"><strong>'+v+'</strong><small>'+esc(k)+'</small></div>').join('');
  $('cv2ChartEstado').innerHTML=bars(counts(list,r=>r.estado||'Sin estado'));
- $('cv2ChartProveedor').innerHTML=bars(counts(list,r=>r.proveedor),7,'proveedor');
- $('cv2ChartHitos').innerHTML=bars([['Con cotización',list.filter(r=>r.raw[11]).length],['Con SOLPED',list.filter(r=>r.solped).length],['Con expediente',list.filter(r=>r.expediente).length],['Con OC',list.filter(r=>r.oc).length],['Con acta inicio',list.filter(r=>r.raw[23]).length]],5,'hitos');
+ $('cv2ChartProveedor').innerHTML=bars(counts(list,r=>r.proveedor),7,'proveedor',list.length);
+ $('cv2ChartHitos').innerHTML=bars([['Con cotización',list.filter(r=>r.raw[11]).length],['Con SOLPED',list.filter(r=>r.solped).length],['Con expediente',list.filter(r=>r.expediente).length],['Con OC',list.filter(r=>r.oc).length],['Con acta inicio',list.filter(r=>r.raw[23]).length]],5,'hitos',list.length);
  $('cv2Body').innerHTML=buildRows(list.slice(0,1000))||'<tr><td colspan="10">Sin registros: cargá un Excel o modificá los filtros.</td></tr>';
  $('cv2Result').textContent=list.length+' de '+all.length+' registros';
  $('cv2Info').textContent=all.length?all.length+' registros de Excel cargados en esta sesión. Para conservarlos entre aperturas falta habilitar persistencia en Supabase.':'Seleccioná el Excel actualizado. Esta fase solo muestra y audita; todavía no guarda la cartera en Supabase.';
