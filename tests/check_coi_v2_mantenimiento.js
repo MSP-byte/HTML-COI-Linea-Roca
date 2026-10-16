@@ -9,14 +9,20 @@ const html = fs.readFileSync(path.join(root,'index.html'),'utf8');
 const js = fs.readFileSync(path.join(root,'assets/coi-v2-mantenimiento.js'),'utf8');
 const css = fs.readFileSync(path.join(root,'assets/coi-v2-mantenimiento.css'),'utf8');
 const carteraCss = fs.readFileSync(path.join(root,'assets/coi-v2-cartera-polish.css'),'utf8');
+const carteraFichaJs = fs.readFileSync(path.join(root,'assets/coi-v2-cartera-ficha.js'),'utf8');
 
 assert.equal((html.match(/src="assets\/coi-v2-mantenimiento\.js"/g)||[]).length,1,'Script V2 debe cargarse una sola vez');
 assert.equal((html.match(/href="assets\/coi-v2-mantenimiento\.css"/g)||[]).length,1,'Estilos V2 deben cargarse una sola vez');
 assert.equal((html.match(/href="assets\/coi-v2-cartera-polish\.css"/g)||[]).length,1,'Estilos Cartera V2 solo una vez');
+assert.equal((html.match(/src="assets\/coi-v2-cartera-ficha\.js"/g)||[]).length,1,'Agrupador Ficha V2 solo una vez');
 assert.ok(html.includes('id="coi-v581r28-contractual-ct-script"'),'No alterar Control de Terceros existente');
 assert.ok(html.includes('id="cartera-v8-p2-script"'),'No eliminar Cartera V8/V9');
 assert.ok(html.includes('id="red-roca-referencias-v9"'),'No eliminar referencias de Red Roca');
 assert.doesNotThrow(()=>new Function(js),'Nuevo script V2 debe ser JS sintácticamente válido');
+assert.doesNotThrow(()=>new Function(carteraFichaJs),'Ficha V2 debe ser sintácticamente válida');
+assert.match(carteraFichaJs,/MutationObserver/,'Agrupación detecta cambios locales en la Ficha');
+assert.match(carteraFichaJs,/observer\.observe\(grid,\{childList:true\}\)/,'Observer solo sobre grilla de Ficha');
+assert.doesNotMatch(carteraFichaJs,/\.from\(|\.update\(|\.insert\(/,'La Ficha agrupada no escribe datos');
 
 const errors=[];
 cssTree.parse(css,{onParseError:err=>errors.push(err.message)});
