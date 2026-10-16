@@ -37629,6 +37629,28 @@ async function load(file){
 }
 function close(){el('coiV8Overlay').hidden=true;state.rows=[];state.filtered=[];state.filename='';state.lookup=null;el('coiV8File').value='';render();}
 function open(){el('coiV8Overlay').hidden=false;el('coiV8Search').focus();}
+function mountVisibleSidebarEntry(){
+  // La interfaz COI V2 reemplaza visualmente al antiguo #moduleNav.
+  // Este acceso es independiente del enrutador de vistas: abre un dialogo temporal.
+  const visibleNav=document.querySelector('#coiV2Sidebar .coi-v2-nav');
+  const orderEntry=visibleNav?.querySelector('[data-v2-nav="btnOrdenes"]');
+  if(!visibleNav||!orderEntry)return false;
+  if(el('coiV8V2Nav'))return true;
+  const entry=document.createElement('button');
+  entry.type='button';
+  entry.id='coiV8V2Nav';
+  entry.className='coi-v2-nav-btn';
+  entry.setAttribute('aria-label','Cartera de Obras');
+  entry.setAttribute('title','Cartera de Obras');
+  const icon=orderEntry.querySelector('svg');
+  if(icon)entry.appendChild(icon.cloneNode(true));
+  const label=document.createElement('span');
+  label.className='v2-label';label.textContent='Cartera de Obras';
+  entry.appendChild(label);
+  entry.addEventListener('click',event=>{event.stopPropagation();open();});
+  orderEntry.insertAdjacentElement('afterend',entry);
+  return true;
+}
 function mount(){
   const nav=el('moduleNav'),orders=el('btnOrdenes');
   if(!nav||!orders||el('coiV8Overlay'))return;
@@ -37653,6 +37675,11 @@ function mount(){
   el('coiV8Search').addEventListener('input',render);
   el('coiV8Status').addEventListener('change',render);
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!wrapper.hidden)close();});
+  // Primer montaje tras la creación del shell V2. Reintenta si éste se inicializa después.
+  if(!mountVisibleSidebarEntry()){
+    let intentos=0;
+    const retry=setInterval(()=>{if(mountVisibleSidebarEntry()||++intentos>=15)clearInterval(retry);},200);
+  }
   render();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
