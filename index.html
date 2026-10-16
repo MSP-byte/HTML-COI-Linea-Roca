@@ -37749,7 +37749,12 @@ const state={q:'',estado:'',lugar:'',proveedor:'',soloAvance:false};let detailRo
 const filter=list=>list.filter(r=>(!state.q||fold([r.obra,r.denominacion,r.lugar,r.proveedor,r.oc,r.solped,r.expediente].join(' ')).includes(fold(state.q)))&&(!state.estado||r.estado===state.estado)&&(!state.lugar||r.lugar===state.lugar)&&(!state.proveedor||r.proveedor===state.proveedor)&&(!state.soloAvance||pval(r.avance)!==null));
 function resolveMapLocation(r){
  const lugar=text(r?.lugar);if(!lugar)return null;
- try{return typeof window.resolverEstacionCatalogo==='function'?(window.resolverEstacionCatalogo(lugar)||null):null;}
+ try{
+  const resolver=window.resolverEstacionCatalogo;if(typeof resolver!=='function')return null;
+  const found=resolver(lugar);if(found)return found;
+  const ref=window.COI_REFDATA_ESTACIONES?.findByCode?.(lugar);if(!ref||fold(ref.nombre)==='bosque')return null;
+  return resolver(fold(ref.nombre)==='plaza c'?'Plaza Constitución':ref.nombre)||null;
+ }
  catch(error){console.warn('[Cartera V8] No se pudo conciliar LUGAR con Red Roca',error);return null;}
 }
 function goToMap(r){
