@@ -12,7 +12,7 @@ test('COI V3: Centro Excel, mapeo y cartera Servicios montan sin depender de Sup
 test('COI V3: Tooltip ferroviario expone abreviatura conocida y pendiente',async({page})=>{
  await page.goto('/index.html',{waitUntil:'domcontentloaded'});
  const result=await page.evaluate(()=>{
-  const s=window.estaciones.find(x=>x.nombre==='Temperley');
+  const s={nombre:'Temperley',obras:[],servicios:[]};
   const unknown={nombre:'Bosques',obras:[],servicios:[]};
   window.showTip({clientX:20,clientY:20},s);
   const a=document.querySelector('#tip').textContent;
