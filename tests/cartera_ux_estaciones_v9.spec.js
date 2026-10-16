@@ -30,3 +30,25 @@ test('Cartera y Red Roca: referencias ferroviarias, contraste y mapa conservados
   });
   await expect(page.locator('#panel .cv9-rail-info')).toHaveCount(0);
 });
+
+test('Red Roca: nombres canónicos abreviados abren fichas con referencias ferroviarias', async ({ page }) => {
+  await page.goto('/index.html', {waitUntil: 'domcontentloaded'});
+  await page.locator('#btnRed').evaluate(el => el.click());
+  const cases = [
+    ['H. Yrigoyen', 'Yrigoyen', 2.84],
+    ['R. de Escalada', 'R.Escalada', 11.212],
+    ['Ardigó', 'D. Ardigo', 26.701],
+    ['Luis Gullón', 'L.Guillon', 23.540]
+  ];
+  for (const [station, sourceName, kilometer] of cases) {
+    // SVG hotspots tienen el nombre exacto en data-nombre, no texto propio.
+    const hotspot = page.locator('#hotspots .station-hotspot[data-nombre="' + station + '"]');
+    await expect(hotspot).toHaveCount(1);
+    await hotspot.dispatchEvent('click');
+    await expect(page.locator('#pTitle')).toContainText(station);
+    await expect(page.locator('#panel .cv9-rail-info')).toContainText('Datos ferroviarios de referencia');
+    const row = await page.evaluate(name => window.COI_REFERENCIAS_ESTACIONES.get(name), station);
+    expect(row?.[0]).toBe(sourceName);
+    expect(row?.[2]).toBe(kilometer);
+  }
+});
