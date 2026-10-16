@@ -37997,4 +37997,45 @@ body:not(.coi-v2-light) #panel .coi-ref-item{background:#2b3954;border-color:#43
 body:not(.coi-v2-light) #panel .coi-ref-item small,body:not(.coi-v2-light) #panel .coi-ref-note,body:not(.coi-v2-light) #panel .coi-ref-origin{color:#bfd0e5}
 @media(max-width:740px){#panel .coi-ref-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
+
+<script id="coi-referencias-estaciones-20261016">
+(function(){
+'use strict';
+if(window.COI_REFDATA_ESTACIONES)return;
+const data="5|Sarandí|SD|7.769|Avellaneda|3.934\n5|Villa Dominico|LLD|9.996|Avellaneda|2.227\n5|Wilde|WL|11.399|Avellaneda|1.403\n5|Don Bosco|NB|13|Quilmes|1.601\n5|Bernal|BN|14.578|Quilmes|1.578\n5|Quilmes|QL|17.249|Quilmes|2.671\n5|Ezpeleta|ZT|21.23|Quilmes|3.981\n5|Berazategui|BZ|23.799|Berazategui|2.569\n15|Plátanos|TS|27.765|Berazategui|3.966\n15|Hudson|HD|29.52|Berazategui|1.755\n15|Pereyra|PY|36.99|Berazategui|7.47\n19|Villa Elisa|VE|39.333|La Plata|2.343\n19|City Bell|BLL|42.886|La Plata|3.553\n19|Gonnet|GT|46.113|La Plata|3.227\n19|Ringuelet|RI|47.533|La Plata|1.42\n19|Tolosa|OA|50.555|La Plata|3.022\n19|La Plata|LP|52.606|La Plata|2.051\n1|Plaza C|PC|0|Cap.Fed.|\n1|Yrigoyen||2.84|Cap.Fed.|2.84\n1|Avellaneda|ALL|3.835|Avellaneda|0.995\n3|Gerli||6.482|Avellaneda|2.647\n3|Lanus||9.03|Lanus|2.548\n3|R.Escalada|RE|11.212|Lanus|2.182\n3|Banfield||13.004|L.de Zamora|1.792\n3|L.de.Zamora||14.998|L.de Zamora|1.994\n3|Temperley|TY|16.802|L.de Zamora|1.804\n13|Villa España|VÑ|25.883|Berazategui|\n13|Ranelagh|RH|27.448|Berazategui|1.565\n13|Sourigues|SS|29.585|Berazategui|2.137\n17|Santa Sofia||35.248|F. Varela|\n17|Gutiérrez|JG|37.918|Berazategui|2.67\n11|Bosque|BQ|33.53|F. Varela|\n11|Zeballos|EZ|30.92|F. Varela|\n11|F. Varela|FV|29.737|F. Varela|\n11|D. Ardigo|IA|26.701|F. Varela|\n11|Claypole|CY|23.35|Alte. Brown|\n11|R. Calzada|LLZ|21.326|Alte. Brown|\n11|J. Marmol|JM|19.28|Alte. Brown|\n7|Turdera|UD|19448|L.de Zamora|\n7|Llavallol|LLV|21667|L.de Zamora|\n7|L.Guillon|LG|23540|E.Echeverria|\n7|Monte Grande|MG|25842|E.Echeverria|\n7|El Jaguel|EJ|29000|E.Echeverria|\n7|Ezeiza|ZZ|32436|Ezeiza|\n9|Adrogue|AD|19117|Alte.Brown|\n9|Burzaco|BO|22044|Alte.Brown|2.927\n9|Longchamps|CHP|25931|Alte.Brown|3.887\n9|Glew|GW|29182|Alte.Brown|3.251\n9|Guernica|GA|32474|Pte.Peron|3.292\n9|A.Korn|AK|39485|San Vicente|7.011";
+const bounds={"1":[0,4.1],"3":[4.1,18.109],"5":[4.1,25],"7":[18.109,33.25],"9":[18.109,39.485],"11":[18,34],"13":[25,34],"15":[25,38.9],"17":[34,48],"19":[38.9,52.606]};
+const fold=v=>String(v||'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ');
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const entries=data.trim().split('\n').map((line,i)=>{
+ const [tramo,nombre,codigo,pk,municipio,distancia]=line.split('|');
+ return Object.freeze({tramo,nombre,codigo,pk:Number(pk),municipio,distancia:distancia?Number(distancia):null,excelRow:i+4});
+});
+const aliases=new Map([['plaza constitucion','plaza c']]);
+// Bosque / Bosques queda pendiente de validación; no se presupone equivalencia.
+const findByStation=value=>{const name=fold(value),matched=entries.filter(e=>fold(e.nombre)===name||fold(e.nombre)===aliases.get(name));return matched.length===1?matched[0]:null;};
+const findByCode=value=>{const code=fold(value),matched=entries.filter(e=>code&&e.codigo&&fold(e.codigo)===code);return matched.length===1?matched[0]:null;};
+const km=v=>new Intl.NumberFormat('es-AR',{minimumFractionDigits:3,maximumFractionDigits:3}).format(Number(v)>1000?Number(v)/1000:Number(v));
+const item=(label,value)=>'<div class="coi-ref-item"><small>'+esc(label)+'</small><strong>'+esc(value)+'</strong></div>';
+function render(station){
+ const panel=document.getElementById('panel');if(!panel)return;
+ panel.querySelectorAll('.coi-ref-card').forEach(n=>n.remove());
+ const name=typeof station==='string'?station:station?.nombre||'',ref=findByStation(name);
+ const card=document.createElement('section');card.className='coi-ref-card';
+ card.setAttribute('aria-label','Datos ferroviarios de referencia');
+ const heading='<div class="coi-ref-head"><h3>Datos ferroviarios de referencia</h3><span class="coi-ref-origin">Fuente: Abreviaturas Tramos y estaciones.xlsx</span></div>';
+ if(ref){
+  const bound=bounds[ref.tramo];
+  card.innerHTML=heading+'<div class="coi-ref-grid">'+item('Abreviatura',ref.codigo||'Sin informar')+
+  item('Progresiva ferroviaria','Km '+km(ref.pk))+item('Municipio',ref.municipio||'Sin informar')+
+  item('Tramo de referencia',ref.tramo)+item('Sector del tramo',bound?'Km '+km(bound[0])+' a '+km(bound[1]):'Sin informar')+
+  item('Distancia a la anterior',ref.distancia===null?'Sin informar':km(ref.distancia)+' km')+
+  '</div><p class="coi-ref-note">Información provista en el Excel, pendiente de homologación. Progresivas superiores a 1000 interpretadas como metros; verificar con infraestructura antes de uso contractual.</p>';
+ }else{
+  card.innerHTML=heading+'<p class="coi-ref-note">No se encontró una coincidencia verificada para '+esc(name)+'. Podés completar o revisar esta estación en la próxima planilla.</p>';
+ }
+ const summary=panel.querySelector('.station-summary');if(summary)summary.insertAdjacentElement('afterend',card);else panel.prepend(card);
+}
+window.COI_REFDATA_ESTACIONES=Object.freeze({version:'referencias-20261016',records:Object.freeze(entries),findByStation,findByCode,render,missing:names=>names.filter(n=>!findByStation(n))});
+})();
+</script>
 </body></html>
