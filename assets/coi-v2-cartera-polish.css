@@ -60,3 +60,16 @@ body:not(.coi-v2-light) #vistaCarteraObrasV8{
  #vistaCarteraObrasV8 .cv2-filters input[type=search]{grid-column:auto}
  #vistaCarteraObrasV8 .cv2-ficha{padding:12px!important}
 }
+
+/* Agrupación semántica: cuatro bloques abiertos por defecto, todos los campos siguen visibles. */
+#vistaCarteraObrasV8 #cv2DetailGrid:has(.cv2-v2-group){display:flex!important;flex-direction:column;gap:15px!important}
+#vistaCarteraObrasV8 .cv2-v2-group{display:block;background:var(--cv2p-card);border:1px solid var(--cv2p-border);border-radius:12px;overflow:hidden}
+#vistaCarteraObrasV8 .cv2-v2-group>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 16px;list-style:none;cursor:pointer;background:var(--cv2p-bg);border-bottom:1px solid transparent}
+#vistaCarteraObrasV8 .cv2-v2-group[open]>summary{border-bottom-color:var(--cv2p-border)}
+#vistaCarteraObrasV8 .cv2-v2-group>summary::-webkit-details-marker{display:none}
+#vistaCarteraObrasV8 .cv2-v2-group>summary:focus-visible{outline:3px solid #7db8ef;outline-offset:-3px}
+#vistaCarteraObrasV8 .cv2-v2-group>summary strong{font-size:13px;font-weight:850;color:var(--cv2p-text);line-height:1.4}
+#vistaCarteraObrasV8 .cv2-v2-group>summary span{font-size:11px;color:var(--cv2p-muted);white-space:nowrap}
+#vistaCarteraObrasV8 .cv2-v2-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:14px}
+@media(max-width:760px){#vistaCarteraObrasV8 .cv2-v2-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){#vistaCarteraObrasV8 .cv2-v2-fields{grid-template-columns:1fr}}
