@@ -42,5 +42,7 @@ test('Cartera V8 fase 2: vista independiente, KPIs, progreso y ficha', async ({p
   await page.locator('#cv2Audit').click();
   await expect(page.locator('#coiV8Overlay')).not.toHaveAttribute('hidden');
   await page.locator('#coiV8Close').click();
-  await expect(page.locator('#cv2Body tr')).toHaveCount(2);
+  // La auditoría no debe restaurar el Excel anterior: la cartera sigue con la última carga.
+  await expect(page.locator('#cv2Body tr')).toHaveCount(1);
+  await expect(page.locator('#cv2Body')).toContainText('Obra actualizada');
 });
