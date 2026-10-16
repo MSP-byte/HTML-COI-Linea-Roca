@@ -17,6 +17,14 @@ test('Cartera V8 fase 2: vista independiente, KPIs, progreso y ficha', async ({p
   await page.locator('#cv2Body [data-cv2-row]').first().click();
   await expect(page.locator('#cv2Detail')).toBeVisible();
   await expect(page.locator('#cv2DetailGrid')).toContainText('Denominación / Pliego');
+  await page.evaluate(()=>{
+    window.resolverEstacionCatalogo=value=>({idEstacion:'EST-TEST',nombre:value||'Estación test'});
+    window.seleccionarEstacionPorId=id=>{window.__cv2SelectedStation=id;return {idEstacion:id,nombre:'Estación test'};};
+  });
+  await page.locator('#cv2GoMap').click();
+  await expect.poll(()=>page.evaluate(()=>window.__cv2SelectedStation||'')).toBe('EST-TEST');
+  await page.evaluate(()=>window.COI_CARTERA_V8_P2.open());
+  await expect(page.locator('#cv2Detail')).toBeVisible();
   await page.locator('#cv2CloseDetail').click();
   await expect(page.locator('#cv2Detail')).toBeHidden();
   await page.locator('#cv2Audit').click();
