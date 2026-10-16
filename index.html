@@ -2883,7 +2883,7 @@ function showTip(e,s){
   $('tip').style.top=e.clientY+14+'px';
   const estacionRef=window.COI_REFDATA_ESTACIONES?.findByStation?.(s.nombre);
   const abreviatura=estacionRef?.codigo||'Pendiente de validación';
-  $('tip').innerHTML=`<b>${esc(s.nombre)}</b><br>Abreviatura: <b>${esc(abreviatura)}</b><br>Obras activas/asociadas: ${obrasActivas}<br>Servicios activos/asociados: ${serviciosActivos}<br>Estado general: <b>${color==='bad'?'Demorado/vencido':color==='warn'?'Próximo a vencer':color==='done'?'Finalizado/certificado':'En plazo'}</b>`;
+  $('tip').innerHTML=`<b>${esc(s.nombre)}</b><br>Obras activas/asociadas: ${obrasActivas}<br>Abreviatura: <b>${esc(abreviatura)}</b><br>Servicios activos/asociados: ${serviciosActivos}<br>Estado general: <b>${color==='bad'?'Demorado/vencido':color==='warn'?'Próximo a vencer':color==='done'?'Finalizado/certificado':'En plazo'}</b>`;
 }
 function hideTip(){ $('tip').style.display='none'; }
 
