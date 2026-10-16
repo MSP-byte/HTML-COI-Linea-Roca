@@ -37746,6 +37746,21 @@ const rows=()=>window.__COI_CARTERA_V8_F1__?.getRows?.()||[];
 const pval=v=>{const s=text(v);if(!s)return null;const n=Number(s.replace('%','').replace(',','.'));return Number.isFinite(n)&&n>=0?Math.min(100,Math.max(0,s.includes('%')?n:n<=1?n*100:n)):null;};
 const state={q:'',estado:'',lugar:'',proveedor:'',soloAvance:false};let detailRow=null;
 const filter=list=>list.filter(r=>(!state.q||fold([r.obra,r.denominacion,r.lugar,r.proveedor,r.oc,r.solped,r.expediente].join(' ')).includes(fold(state.q)))&&(!state.estado||r.estado===state.estado)&&(!state.lugar||r.lugar===state.lugar)&&(!state.proveedor||r.proveedor===state.proveedor)&&(!state.soloAvance||pval(r.avance)!==null));
+function resolveMapLocation(r){
+ const lugar=text(r?.lugar);if(!lugar)return null;
+ try{return typeof window.resolverEstacionCatalogo==='function'?(window.resolverEstacionCatalogo(lugar)||null):null;}
+ catch(error){console.warn('[Cartera V8] No se pudo conciliar LUGAR con Red Roca',error);return null;}
+}
+function goToMap(r){
+ const match=resolveMapLocation(r);
+ if(typeof window.mostrarVista==='function')window.mostrarVista('vistaRed');
+ try{if(typeof window.renderMap==='function')window.renderMap();}catch(error){console.warn('[Cartera V8] No se pudo refrescar Red Roca',error);}
+ if(match?.idEstacion&&typeof window.seleccionarEstacionPorId==='function'){
+   try{const selected=window.seleccionarEstacionPorId(match.idEstacion);if(selected){window.COI_V2?.syncNav?.();return true;}}
+   catch(error){console.warn('[Cartera V8] No se pudo abrir la estación conciliada',error);}
+ }
+ window.COI_V2?.syncNav?.();return false;
+}
 function bars(pairs,n=8){
  const a=pairs.slice(0,n),max=Math.max(1,...a.map(x=>x[1]));
  return a.length?a.map(([k,v])=>'<div class="cv2-bar" title="'+esc(k)+'"><span class="cv2-bar-label">'+esc(k)+'</span><div class="cv2-track"><div class="cv2-fill" style="width:'+Math.round(100*v/max)+'%"></div></div><b>'+v+'</b></div>').join(''):'<p class="cv2-note">Sin datos</p>';
@@ -37779,6 +37794,14 @@ function fillDetail(r){
  $('cv2DetailGrid').innerHTML=fields.map((x,i)=>'<div><b>'+esc(x)+'</b><span>'+esc(r.raw[i]||'Sin informar')+'</span></div>').join('');
  $('cv2Warnings').textContent=r.issues.length?'Revisar: '+r.issues.join(' · '):'Sin observaciones de calidad';
  const link=$('cv2OpenOC');link.hidden=!(r.remote&&r.match==='OC existente');link.dataset.oc=r.oc;
+ const mapMatch=resolveMapLocation(r),mapBtn=$('cv2GoMap'),mapNote=$('cv2MapNote');
+ if(mapBtn){
+   mapBtn.textContent=mapMatch?.nombre?'Ver en Red Roca · '+mapMatch.nombre:'Abrir Red Roca';
+   mapBtn.title=mapMatch?.nombre?'Ubicación conciliada con el catálogo ferroviario: '+mapMatch.nombre:'Abrir la Red Roca sin seleccionar estación';
+ }
+ if(mapNote)mapNote.textContent=mapMatch?.nombre
+   ?'Ubicación conciliada: '+mapMatch.nombre+'. El botón abre directamente su ficha en la Red Roca.'
+   :'LUGAR "'+(r.lugar||'Sin informar')+'" no tiene coincidencia exacta en el catálogo de estaciones. Se abrirá la Red Roca sin inventar una ubicación.';
 }
 function selectOptions(id,values,selected){
  $(id).innerHTML='<option value="">Todos</option>'+[...new Set(values.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es')).map(v=>'<option value="'+esc(v)+'"'+(v===selected?' selected':'')+'>'+esc(v)+'</option>').join('');
@@ -37801,7 +37824,7 @@ function mount(){
  '<p id="cv2Info" class="cv2-note">Cargá tu Excel V8. No se modifican datos de producción.</p><div id="cv2Kpis" class="cv2-kpis"></div>'+
  '<div class="cv2-charts"><div class="cv2-chart"><h3>Estados de cartera</h3><div id="cv2ChartEstado"></div></div><div class="cv2-chart"><h3>Ranking por contratista</h3><div id="cv2ChartProveedor"></div></div><div class="cv2-chart"><h3>Madurez de tramitación</h3><div id="cv2ChartHitos"></div></div></div>'+
  '<div class="cv2-filters"><input id="cv2Search" type="search" placeholder="Buscar obra, OC, estación, SOLPED, expediente o contratista"><select id="cv2Estado"><option value="">Estado</option></select><select id="cv2Lugar"><option value="">Lugar</option></select><select id="cv2Proveedor"><option value="">Contratista</option></select><label style="display:flex;align-items:center;gap:4px;font-size:12px"><input id="cv2SoloAvance" type="checkbox">Con avance</label></div>'+
- '<div id="cv2Detail" class="cv2-ficha" hidden><div class="cv2-tabletop"><h3 id="cv2DetailTitle">Ficha de obra</h3><button class="cv2-btn" id="cv2CloseDetail">Cerrar ficha</button></div><div id="cv2DetailGrid" class="cv2-ficha-grid"></div><p class="cv2-note" id="cv2Warnings"></p><div class="cv2-actions"><button class="cv2-btn" id="cv2OpenOC" hidden>Ir a OC vinculada</button><button class="cv2-btn" id="cv2GoMap">Abrir Red Roca</button></div><p class="cv2-note">La localización en el mapa requiere validar los códigos de ubicación. No se inventan hotspots.</p></div>'+
+ '<div id="cv2Detail" class="cv2-ficha" hidden><div class="cv2-tabletop"><h3 id="cv2DetailTitle">Ficha de obra</h3><button class="cv2-btn" id="cv2CloseDetail">Cerrar ficha</button></div><div id="cv2DetailGrid" class="cv2-ficha-grid"></div><p class="cv2-note" id="cv2Warnings"></p><div class="cv2-actions"><button class="cv2-btn" id="cv2OpenOC" hidden>Ir a OC vinculada</button><button class="cv2-btn" id="cv2GoMap">Abrir Red Roca</button></div><p class="cv2-note" id="cv2MapNote">La ubicación se concilia contra el catálogo ferroviario existente. No se inventan hotspots.</p></div>'+
  '<section class="cv2-tablebox"><div class="cv2-tabletop"><h3>Detalle de obras</h3><small id="cv2Result">0 registros</small></div><div class="cv2-scroll"><table><thead><tr><th>Nº obra</th><th>Prioridad</th><th>Lugar</th><th>Denominación</th><th>Estado</th><th>Contratista</th><th>OC</th><th>Avance físico</th><th>Conciliación</th><th>Ficha</th></tr></thead><tbody id="cv2Body"></tbody></table></div></section><p class="cv2-note">Avance declarado según Excel; no equivale a certificación SAP. Estado, presupuesto y contratistas aún no se sincronizan automáticamente.</p></div></div>';
  const anchor=$('vistaOrdenes');if(anchor?.parentNode)anchor.parentNode.insertBefore(section,anchor);else document.body.appendChild(section);
  $('cv2File').addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file)return;$('cv2Info').textContent='Leyendo Excel y conciliando contra COI...';try{await window.__COI_CARTERA_V8_F1__?.importFile?.(file);}catch(err){$('cv2Info').textContent='Error al importar: '+err.message;}refresh();});
@@ -37813,7 +37836,7 @@ function mount(){
  $('cv2Body').addEventListener('click',e=>{const t=e.target.closest('[data-cv2-row]');if(!t)return;const r=rows().find(x=>x.row===Number(t.dataset.cv2Row));if(r){fillDetail(r);$('cv2Detail').scrollIntoView({block:'start',behavior:'smooth'});}});
  $('cv2CloseDetail').addEventListener('click',()=>{detailRow=null;$('cv2Detail').hidden=true;});
  $('cv2OpenOC').addEventListener('click',()=>{const oc=$('cv2OpenOC').dataset.oc,r=rows().find(x=>x.oc===oc);if(r?.remote&&r.match==='OC existente')window.abrirFichaOC?.('OC-'+oc);});
- $('cv2GoMap').addEventListener('click',()=>{window.mostrarVista?.('vistaRed');window.COI_V2?.syncNav?.();});
+ $('cv2GoMap').addEventListener('click',()=>{const r=rows().find(x=>x.row===detailRow);if(!r)return;const matched=goToMap(r);if(!matched)console.info('[Cartera V8] Red Roca abierta sin estación conciliada para LUGAR:',r.lugar||'Sin informar');});
  window.addEventListener('coi:cartera-v8-updated',refresh);
  refresh();
 }
