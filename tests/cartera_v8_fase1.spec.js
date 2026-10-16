@@ -4,7 +4,11 @@ const sample = Buffer.from('UEsDBBQAAAAIAK9sT11RjC3IqQAAAP0AAAAPAAAAeGwvd29ya2Jv
 test('Cartera V8: boton de navegacion e importacion XLSX local en modo seguro', async ({ page }) => {
   await page.goto('/index.html',{waitUntil:'domcontentloaded'});
   await expect(page.locator('#btnCarteraObrasV8')).toHaveCount(1);
-  await page.evaluate(() => document.getElementById('btnCarteraObrasV8').click());
+  // El shell V2 es el menu visible; el antiguo moduleNav no se muestra.
+  await expect(page.locator('#coiV2Sidebar [data-v2-nav="btnOrdenes"]')).toHaveCount(1);
+  await expect(page.locator('#coiV8V2Nav')).toHaveCount(1);
+  await expect(page.locator('#coiV8V2Nav')).toContainText('Cartera de Obras');
+  await page.locator('#coiV8V2Nav').evaluate(button => button.click());
   await expect(page.locator('#coiV8Overlay')).not.toHaveAttribute('hidden');
   await page.locator('#coiV8File').setInputFiles({name:'BASE_OBRAS_PRUEBA.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:sample});
   await expect(page.locator('#coiV8Message')).toContainText(/Conciliaci[oó]n|Inici[aá]|Supabase|conexi[oó]n/i,{timeout:12000});
