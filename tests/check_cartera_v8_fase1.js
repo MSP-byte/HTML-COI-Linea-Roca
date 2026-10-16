@@ -19,7 +19,7 @@ assert.match(src, /select\('nro_oc,estado_coi,id'\)/, 'Debe conciliar por SELECT
 assert.ok(!/\.insert\s*\(|\.update\s*\(|\.delete\s*\(|\.upsert\s*\(|\.rpc\s*\(/.test(src), 'El modulo no debe escribir a Supabase');
 assert.ok(!/localStorage|sessionStorage/.test(src), 'No se persisten datos operativos en browser storage');
 assert.match(src, /document\.createElement\('button'\)/, 'Navegacion integrada al menu');
-assert.match(src, /#coiV2Sidebar \\.coi-v2-nav/, 'El acceso debe insertarse en el sidebar V2 visible');
+assert.ok(src.includes("document.querySelector('#coiV2Sidebar .coi-v2-nav')"), 'El acceso debe insertarse en el sidebar V2 visible');
 assert.match(src, /coiV8V2Nav/, 'Debe existir un acceso independiente en el menu moderno');
 assert.match(src, /orderEntry\.insertAdjacentElement\('afterend',entry\)/, 'El acceso V8 debe colocarse junto a Ordenes');
 assert.match(src, /addEventListener\('change'/, 'Selector de archivo con evento');
