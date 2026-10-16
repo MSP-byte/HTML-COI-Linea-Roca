@@ -38,7 +38,7 @@ test('Red Roca: nombres canónicos abreviados abren fichas con referencias ferro
     ['H. Yrigoyen', 'Yrigoyen', 2.84],
     ['R. de Escalada', 'R.Escalada', 11.212],
     ['Ardigó', 'D. Ardigo', 26.701],
-    ['Luis Gullón', 'L.Guillon', 23.540]
+    ['Luis Gullón', 'L.Guillon', 23540]
   ];
   for (const [station, sourceName, kilometer] of cases) {
     // SVG hotspots tienen el nombre exacto en data-nombre, no texto propio.
