@@ -8,7 +8,7 @@ test('Red Roca: clic sobre hotspot Quilmes abre ficha y referencia ferroviaria',
   const hotspot = page.locator('#hotspots .station-hotspot[data-nombre="Quilmes"]');
   await expect(hotspot).toHaveCount(1);
   await hotspot.dispatchEvent('click');
-  await expect(page.locator('#pTitle')).toHaveText('Quilmes');
+  await expect(page.locator('#pTitle')).toHaveText(/(?:Ficha de la Estación\s*[—–:-]\s*)?Quilmes/);
   await expect(page.locator('#panelEstacion')).toHaveClass(/active/);
   await expect(page.locator('#panel .station-summary')).toHaveCount(1);
   const reference = page.locator('#panel .cv9-rail-info');
@@ -20,7 +20,7 @@ test('Red Roca: clic sobre hotspot Quilmes abre ficha y referencia ferroviaria',
   const bosques = page.locator('#hotspots .station-hotspot[data-nombre="Bosques"]');
   await expect(bosques).toHaveCount(1);
   await bosques.dispatchEvent('click');
-  await expect(page.locator('#pTitle')).toHaveText('Bosques');
+  await expect(page.locator('#pTitle')).toHaveText(/(?:Ficha de la Estación\s*[—–:-]\s*)?Bosques/);
   await expect(page.locator('#panel .cv9-rail-info')).toHaveCount(0);
 });
 
