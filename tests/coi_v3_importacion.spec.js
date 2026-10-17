@@ -6,6 +6,7 @@ test('COI V3: importer and Services module preserve manual Carga',async({page})=
  await expect(page.locator('#vistaCarga')).toHaveCount(1);
  await expect(page.locator('#coiV3Kind option')).toHaveCount(2);
  await expect(page.locator('#coiV3Export')).toBeDisabled();
+ await expect(page.locator('#coiV3PortfolioSave')).toBeDisabled();
  await expect(page.locator('#coiV3Message')).toContainText('Seleccioná un Excel');
 });
 test('COI V3: comparison logic rejects same OC repeated across measurement rows',async({page})=>{
