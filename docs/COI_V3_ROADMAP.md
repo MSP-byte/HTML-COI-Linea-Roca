@@ -10,11 +10,20 @@
 - Conciliación read-only: OC existente con/sin cambios, OC nueva, tipo conflictivo, Excel multifila, OC malformada, faltantes.
 - Cambio de columnas controlado, auditoría CSV y bloqueo si no hay sesión/lectura remota.
 
+## Progreso adicional validado con archivos reales (16/10/2026)
+
+- Obras V8: 117 intervenciones en `BASE_OBRAS`, 17 OC informadas, 10 encontradas en Supabase y 7 ausentes. Se detectaron 29 filas con denominación pero sin número de obra y números repetidos: se requiere homologación del identificador de cartera antes de aceptar todas las filas.
+- Servicios: 16 OC en `BUSCADOR SVICIOS OC` (fila 6 como encabezado), 15 encontradas en Supabase y 1 no encontrada.
+- Hoja `3 - (ACTA MEDICION)`: 246 filas con OC, varias por cada contrato; hoja `2 - (REMITO)`: 73 filas con OC. **No crear OCs desde esas filas**. Se corrigió el lector V3 para elegir explícitamente la hoja BUSCADOR fila 6 o BASE_OBRAS fila 3, con pruebas sintéticas XLSX en Chromium.
+- Migración escrita en `supabase/migrations/202610160001_coi_v3_carteras_importacion.sql`: carteras aisladas, importaciones e ítems, RLS, rol Administrador, control optimista por huella y RPC transaccional. No se modifica `coi_ordenes`, posiciones, certificaciones ni cierres.
+- Interfaz de confirmación de cartera incorporada, deshabilitada mientras el esquema no exista en el servidor o no haya conciliación y sesión autenticada.
+- Intento de aplicación **solo en STAGING** rechazado: PostgreSQL `28P01 password authentication failed for user postgres`, además de la falla anterior de `supabase_read_only_user`. Migración no aplicada ni a STAGING ni a producción.
+
 ## Límites obligatorios del MVP
 
-No se guarda ningún Excel en Supabase ni se actualizan OC. **No es todavía la migración funcional definitiva.** No se tocaron las certificaciones, estados contractuales, cierres ni HES. Se requiere analizar la hoja real de Servicios y el Excel final de Obras para homologar campos e identificar correctamente filas que son períodos, posiciones o avances y no nuevas OC.
+El guardado de carteras V3 existe a nivel de código y utiliza confirmación explícita, pero **permanece deshabilitado hasta validar y aplicar el esquema en STAGING**. No se actualizan OC desde las carteras. **No es todavía la migración funcional definitiva.** No se tocaron las certificaciones, estados contractuales, cierres ni HES. Las dos planillas reales ya se analizaron; siguen pendientes de homologación los identificadores de obras, equivalencias de estados, saldos declarados y vinculación del detalle de actas/remitos.
 
-Supabase STAGING: proyecto `brmrroikctfbtzwfewan` actualmente rechaza la conexión de lectura del conector (`password authentication failed for supabase_read_only_user`). No se debe probar escribiendo en producción.
+Supabase STAGING: proyecto `brmrroikctfbtzwfewan` rechaza tanto la conexión de lectura (`supabase_read_only_user`) como la aplicación de migraciones (`postgres`). No se debe probar escribiendo en producción.
 
 ## Criterio para habilitar persistencia
 
@@ -29,3 +38,14 @@ Supabase STAGING: proyecto `brmrroikctfbtzwfewan` actualmente rechaza la conexi�
 ## Integridad financiera
 
 Los montos mostrados son contractuales de `coi_ordenes`, no certificados ni saldo SAP. El monto de cada OC se incluye una sola vez cuando existe vínculo verificable, y se separan monedas. La conciliación no modifica vínculos.
+
+## Alcance pendiente para declarar COI V3 completo
+
+- Recuperar conexiones PostgreSQL del STAGING y ejecutar migración con rollback probado.
+- Validar en entorno no productivo dos importaciones iguales (idempotencia), actualización legítima, conflictos, roles y revocación de permisos.
+- Homologar claves permanentes de obra y período/posición para la futura carga detallada de actas y remitos.
+- Implementar altas de OC mediante **flujo contractual separado** y confirmado; actualmente las OC ausentes solo quedan referenciadas como pendientes en la cartera.
+- Hacer persistente la carga de cartera al abrir el HTML, sin exigir volver a subir el Excel para consultar datos confirmados.
+- Completar expediente digital 360° sin duplicar fichas ni alterar navegaciones existentes.
+- Verificar la interfaz autenticada con los Excel reales en desktop/móvil y revisar el flujo operativo de cierre, certificados y stock SAP.
+- Ninguna modificación a `main` sin Quality Gate completo y smoke funcional.
