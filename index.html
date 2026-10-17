@@ -2881,7 +2881,9 @@ function showTip(e,s){
   $('tip').style.display='block';
   $('tip').style.left=e.clientX+14+'px';
   $('tip').style.top=e.clientY+14+'px';
-  $('tip').innerHTML=`<b>${esc(s.nombre)}</b><br>Obras activas/asociadas: ${obrasActivas}<br>Servicios activos/asociados: ${serviciosActivos}<br>Estado general: <b>${color==='bad'?'Demorado/vencido':color==='warn'?'Próximo a vencer':color==='done'?'Finalizado/certificado':'En plazo'}</b>`;
+  const estacionRef=window.COI_REFDATA_ESTACIONES?.findByStation?.(s.nombre);
+  const abreviatura=estacionRef?.codigo||'Pendiente de validación';
+  $('tip').innerHTML=`<b>${esc(s.nombre)}</b><br>Obras activas/asociadas: ${obrasActivas}<br>Abreviatura: <b>${esc(abreviatura)}</b><br>Servicios activos/asociados: ${serviciosActivos}<br>Estado general: <b>${color==='bad'?'Demorado/vencido':color==='warn'?'Próximo a vencer':color==='done'?'Finalizado/certificado':'En plazo'}</b>`;
 }
 function hideTip(){ $('tip').style.display='none'; }
 
@@ -37684,7 +37686,81 @@ function mount(){
   render();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
-window.__COI_CARTERA_V8_F1__=Object.freeze({version:'fase1-20261015',readOnly:true,getRows:()=>state.rows.map(r=>({...r,raw:[...r.raw],issues:[...r.issues]})),importFile:load,openAudit:open});
+
+async function readGenericXlsx(file,preferredKind=''){
+ if(!file||!/\.xlsx$/i.test(file.name)||file.size>25000000)throw new Error('Seleccioná un Excel .xlsx de hasta 25 MB.');
+ const files=await unzipSelected(await file.arrayBuffer()),wbText=files.get('xl/workbook.xml'),relText=files.get('xl/_rels/workbook.xml.rels');
+ if(!wbText||!relText)throw new Error('Estructura Excel incompleta.');
+ const wb=parseXml(wbText,'workbook.xml'),rels=parseXml(relText,'workbook.xml.rels');
+ const sharedDoc=files.get('xl/sharedStrings.xml')?parseXml(files.get('xl/sharedStrings.xml'),'sharedStrings.xml'):null;
+ const shared=sharedDoc?elements(sharedDoc,'si').map(n=>n.textContent||''):[];
+ const choices=[];
+ for(const sheet of elements(wb,'sheet')){
+  const sheetCode=normalize(sheet.getAttribute('name')).replace(/[^A-Z0-9]/g,'');
+  const expected=preferredKind==='Servicio'?'BUSCADORSVICIOSOC':preferredKind==='Obra'?'BASEOBRAS':'';
+  if(expected&&sheetCode!==expected)continue;
+  const id=sheet.getAttributeNS(REL_NS,'id')||sheet.getAttribute('r:id');
+  const rel=elements(rels,'Relationship').find(n=>n.getAttribute('Id')===id);
+  if(!rel)continue;
+  const target=text(rel.getAttribute('Target')).replace(/^\//,'');
+  const path=target.startsWith('xl/')?target:'xl/'+target.replace(/^\.\//,'');
+  if(!/^xl\/worksheets\/[^/]+\.xml$/.test(path)||!files.has(path))continue;
+  const doc=parseXml(files.get(path),path),node=localFirst(doc,'sheetData');if(!node)continue;
+  const rows=elements(node,'row').slice(0,6000).map(row=>{
+    const data=new Array(70).fill('');
+    elements(row,'c').forEach(cell=>{const col=colNumber(cell.getAttribute('r')||'');if(col>=0&&col<70)data[col]=getCellValue(cell,shared);});
+    return {number:Number(row.getAttribute('r')),data};
+  });
+  const short=v=>normalize(v).replace(/[^A-Z0-9]/g,'');
+  const candidates=rows.slice(0,30).map((r,i)=>{
+    const names=r.data.map(short);
+    const oc=names.some(v=>/^(OC|OCN|NROOC|NUMEROOC|NOC|ORDENDECOMPRA|OCNRO|NROORDENDECOMPRA)$/.test(v));
+    const concepts=names.filter(v=>/^(PROVEEDOR|CONTRATISTA|DESCRIPCION|TIPODESERVICIO|SERVICIO|MONTOOC|ESTACION|OBRA|NOBRA|NROOBRA|EXPEDIENTE)$/.test(v)).length;
+    return {i,score:(oc?10:0)+concepts};
+  }).sort((a,b)=>b.score-a.score);
+  const desiredNumber=preferredKind==='Servicio'?6:preferredKind==='Obra'?3:0;
+  const best=desiredNumber?candidates.find(c=>rows[c.i].number===desiredNumber):candidates[0];
+  if(!best||best.score<2)continue;
+  const head=rows[best.i].data;
+  const length=Math.max(0,...head.map((h,i)=>text(h)?i+1:0));
+  if(length<2)continue;
+  const items=rows.slice(best.i+1).filter(r=>r.data.some(text)).map(r=>({sourceRow:r.number,cells:r.data.slice(0,length)}));
+  if(items.length>1000)throw new Error('La hoja seleccionada excede 1000 filas; no se importan mediciones como órdenes.');
+  choices.push({sheet:sheet.getAttribute('name'),headers:head.slice(0,length),rows:items,score:best.score});
+ }
+ choices.sort((a,b)=>b.score-a.score);
+ if(!choices.length)throw new Error('No se reconocieron encabezados de OC/Servicios. Revisá el formato del Excel.');
+ return choices[0];
+}
+
+
+/* V3: repoblar Cartera de Obras con el ultimo estado confirmado en Supabase. */
+async function v3HydrateConfirmedPortfolio(records){
+ if(!Array.isArray(records)||!records.length||state.rows.length)return false;
+ const restored=[];
+ for(const record of records){
+  if(record?.fuente!=='obras'||record?.datos?.documento_origen!=='BASE_OBRAS'||!record?.datos?.excel)continue;
+  const cols=record.datos.excel;
+  const keys=new Map(Object.keys(cols).map(k=>[normalize(k),String(cols[k]??'')]));
+  const data=FIELDS.map(label=>keys.get(normalize(label))||'');
+  const row=Number(record.fila_excel);
+  if(!Number.isInteger(row)||row<4)continue;
+  const r={row,obra:text(data[0]),prioridad:text(data[1]),lugar:text(data[2]),denominacion:text(data[3]),estado:text(data[4]),
+     presupuesto:text(data[11]),solped:text(data[12]),expediente:text(data[14]),oc:text(data[17]).replace(/\s+/g,''),
+     proveedor:text(data[20]),cuit:text(data[21]),acta:excelDate(data[23]).value,plazo:text(data[25]),
+     avance:text(data[28]),observaciones:text(data[32]),raw:data,issues:[],match:'Pendiente',remote:null};
+  restored.push(r);
+ }
+ if(!restored.length)return false;
+ state.rows=restored;state.filename='Cartera confirmada en Supabase';state.sourceCount=restored.length;
+ assess(state.rows);render();window.dispatchEvent(new CustomEvent('coi:cartera-v8-updated'));
+ const message=await reconcile(state.rows);
+ const info=el('coiV8Message');if(info)info.textContent='Cartera recuperada desde Supabase: '+restored.length+' registros. '+message;
+ render();window.dispatchEvent(new CustomEvent('coi:cartera-v8-updated'));
+ return true;
+}
+
+window.__COI_CARTERA_V8_F1__=Object.freeze({version:'fase1-20261015',readOnly:true,getRows:()=>state.rows.map(r=>({...r,raw:[...r.raw],issues:[...r.issues]})),hydratePortfolio:v3HydrateConfirmedPortfolio,importFile:load,openAudit:open,readSheet:readGenericXlsx});
 })();
 </script>
 
@@ -38041,6 +38117,389 @@ function render(station){
  const summary=panel.querySelector('.station-summary');if(summary)summary.insertAdjacentElement('afterend',card);else panel.prepend(card);
 }
 window.COI_REFDATA_ESTACIONES=Object.freeze({version:'referencias-20261016',records:Object.freeze(entries),findByStation,findByCode,render,missing:names=>names.filter(n=>!findByStation(n))});
+})();
+</script>
+
+<style id="coi-v3-ui-css">
+#coiV3Import,.coi-v3-finance{margin:14px 18px 24px;padding:22px;background:#fff;color:#223b57;border:1px solid #d1deed;border-radius:16px;box-shadow:0 8px 24px #16345b0c}
+#coiV3Import .coi-v3-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:16px}
+#coiV3Import .coi-v3-eyebrow{font-size:10px;letter-spacing:.12em;color:#455d91;font-weight:800}
+#coiV3Import h2{font-size:23px;margin:6px 0;color:#17385b}
+#coiV3Import p,.coi-v3-finance p{font-size:12px;color:#546781;line-height:1.65}
+#coiV3Import .coi-v3-readonly{border:1px solid #cab9ee;background:#f1ecfb;color:#5f41a4;border-radius:99px;padding:7px 12px;font-weight:700;font-size:10px}
+#coiV3Import .coi-v3-toolbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:#f5f8fd;padding:14px;border-radius:11px;margin-bottom:12px}
+#coiV3Import .coi-v3-toolbar label{display:grid;gap:6px;font-size:12px;font-weight:600;color:#38516c}
+#coiV3Import select,#coiV3Import input,#coiV3Import button,#vistaServiciosV3 button{min-height:36px;padding:7px 10px;border:1px solid #c4d5e8;border-radius:8px;background:#fff;color:#203c60;font-size:12px;max-width:100%}
+#coiV3Import button,#vistaServiciosV3 button{cursor:pointer;font-weight:650}
+#coiV3Import button:disabled{opacity:.55;cursor:not-allowed}
+#coiV3Message[data-kind=error]{color:#ae3434}#coiV3Message[data-kind=ok]{color:#147a58}
+#coiV3Mapping{background:#f7faff;border:1px solid #dde8f4;border-radius:10px;padding:12px;margin-bottom:12px}
+#coiV3Mapping:empty{display:none}
+.coi-v3-mapping{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
+.coi-v3-mapping label{display:grid;gap:5px;font-size:11px;color:#2d4764;font-weight:650}
+.coi-v3-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px;margin:12px 0}
+.coi-v3-stat{display:grid;gap:7px;background:#f6f9fd;border:1px solid #dbe6f3;border-radius:11px;padding:14px;min-width:0}
+.coi-v3-stat strong{font-size:19px;color:#19588a;overflow-wrap:anywhere}.coi-v3-stat span{font-size:11px;color:#566e85}
+.coi-v3-table-scroll{max-height:500px;overflow:auto;border:1px solid #dbe6f3;border-radius:10px}
+.coi-v3-table-scroll table{width:100%;border-collapse:collapse;min-width:810px}
+.coi-v3-table-scroll th{background:#e9f0f8;position:sticky;top:0;text-align:left;color:#31516f;font-size:10px;padding:12px}
+.coi-v3-table-scroll td{font-size:11px;padding:11px;border-bottom:1px solid #e3eaf3;vertical-align:top;color:#2f4a66;overflow-wrap:anywhere}
+.coi-v3-tag{display:inline-block;padding:5px 8px;border-radius:8px;background:#e8ecf8;color:#3a5280;font-weight:700}
+.coi-v3-finance{margin:14px 0}
+.coi-v3-finance h3{font-size:15px;margin:0 0 7px;color:#24557d}
+#vistaServiciosV3 .view-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+#vistaServiciosV3 .view-body{padding:20px}
+body:not(.coi-v2-light) #coiV3Import,body:not(.coi-v2-light) .coi-v3-finance{background:#233049;color:#e8f1ff;border-color:#455776}
+body:not(.coi-v2-light) #coiV3Import h2,body:not(.coi-v2-light) .coi-v3-finance h3{color:#f1f5ff}
+body:not(.coi-v2-light) #coiV3Import p,body:not(.coi-v2-light) .coi-v3-finance p{color:#bfcde0}
+body:not(.coi-v2-light) #coiV3Import .coi-v3-toolbar,body:not(.coi-v2-light) #coiV3Mapping,body:not(.coi-v2-light) .coi-v3-stat{background:#2b3b56;border-color:#4c5e7d}
+body:not(.coi-v2-light) #coiV3Import label,body:not(.coi-v2-light) .coi-v3-stat span{color:#c8d7ec}
+body:not(.coi-v2-light) .coi-v3-stat strong{color:#c9e0ff}
+body:not(.coi-v2-light) .coi-v3-table-scroll td{color:#e0eaff;border-color:#425575}
+body:not(.coi-v2-light) .coi-v3-table-scroll th{background:#344560;color:#ecf4ff}
+@media(max-width:1100px){.coi-v3-mapping{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:700px){#coiV3Import{padding:12px;margin:10px}.coi-v3-mapping{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<script id="coi-v3-core">(function COIV3(){
+  'use strict';
+  if(window.COI_V3)return;
+  const $=id=>document.getElementById(id);
+  const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fold=x=>String(x??'').trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+  const norm=x=>String(x??'').trim();
+  const no=x=>norm(x).replace(/[\s.-]/g,'');
+  const aliases={
+    oc:['OC','OCN','NROOC','NUMEROOC','NOC','ORDENDECOMPRA','OCNRO','NROORDENDECOMPRA'],
+    proveedor:['PROVEEDOR','PROVEED','CONTRATISTA','RAZONSOCIAL','EMPRESA'],
+    descripcion:['DENOMINACIONPLIEGO','DENOMINACION','DESCRIPCION','DESCRIPCIONDELSERVICIO','DESCRIPCIONSERVICIO','TIPODESERVICIO','OBRA','SERVICIO'],
+    estacion:['LUGAR','ESTACION','UBICACION','SECTOR','ESTACIONPRINCIPAL'],
+    monto_total:['MONTOOC','MONTO','MONTOADJUDICADO','IMPORTE','MONTOCONTRATO'],
+    moneda:['MONEDA','DIVISA'],
+    expediente:['EXPEDIENTE','NROEXPEDIENTE'],
+    fecha_acta_inicio:['ACTADEINICIO','FECHAACTAINICIO','FECHAINICIO'],
+    plazo_dias:['PLAZODIASPLIEGO','PLAZOOCDIAS','PLAZODIAS','PLAZO'],
+    tipo:['TIPO','TIPOOC','TIPOCONTRATO']
+  };
+  const fields=['oc','proveedor','descripcion','estacion','monto_total','moneda','expediente','fecha_acta_inicio','plazo_dias','tipo'];
+  const labels={oc:'N.º OC',proveedor:'Contratista / Proveedor',descripcion:'Descripción',estacion:'Ubicación / Estación',monto_total:'Monto contractual',moneda:'Moneda',expediente:'Expediente',fecha_acta_inicio:'Fecha de inicio',plazo_dias:'Plazo (días)',tipo:'Tipo contractual'};
+  const state={kind:'Servicio',file:null,table:null,select:{},items:[],orders:[],loaded:false,remoteError:'',checking:false,excelFileName:'',importStarted:0};
+  const readClient=async()=>{
+    const c=window.__COI_SUPABASE_CLIENT__||await Promise.resolve(window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__).catch(()=>null);
+    if(!c)throw new Error('Cliente Supabase no disponible.');
+    const {data,error}=await c.auth.getSession();
+    if(error||!data?.session)throw new Error('Se necesita una sesión autenticada para conciliar los datos.');
+    return c;
+  };
+  async function fetchOrders(){
+    const c=await readClient(),col='id,nro_oc,tipo,proveedor,descripcion,estacion,expediente,monto_total,moneda,fecha_acta_inicio,plazo_dias,estado_registro,fecha_actualizacion';
+    const out=[];
+    for(let offset=0;offset<100000;offset+=500){
+      const {data,error}=await c.from('coi_ordenes').select(col).order('id',{ascending:true}).range(offset,offset+499);
+      if(error)throw error;
+      out.push(...data||[]);if(!data||data.length<500)break;
+    }
+    return out;
+  }
+  function money(x,cur='ARS'){const n=Number(x);return Number.isFinite(n)?new Intl.NumberFormat('es-AR',{style:'currency',currency:cur==='USD'?'USD':'ARS',maximumFractionDigits:2}).format(n):'—';}
+  function amount(x){
+    const s=norm(x);if(!s)return null;
+    if(/^\d+([.,]\d+)?$/.test(s)&&!(/[,.]/.test(s)&&/[\.,]\d{3}$/.test(s)))return Number(s.replace(',','.'));
+    let v=s.replace(/(?:ARS|USD|\$|\s)/gi,'');
+    if(!/^\d[\d.,]*$/.test(v))return NaN;
+    if(v.includes(',')&&v.includes('.'))v=v.lastIndexOf(',')>v.lastIndexOf('.')?v.replace(/\./g,'').replace(',','.'):v.replace(/,/g,'');
+    else if(v.includes(','))v=v.replace(/\./g,'').replace(',','.');
+    else if(/^\d{1,3}(\.\d{3})+$/.test(v))v=v.replace(/\./g,'');
+    return Number(v);
+  }
+  function date(x){
+    const s=norm(x);if(!s)return '';
+    if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+    if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){const [d,m,y]=s.split('/').map(Number);const z=new Date(Date.UTC(y,m-1,d));return z.getUTCFullYear()===y&&z.getUTCMonth()===m-1&&z.getUTCDate()===d?sprintfDate(y,m,d):null;}
+    if(/^\d{5}(?:\.0+)?$/.test(s)&&Number(s)>20000&&Number(s)<80000)return new Date(Date.UTC(1899,11,30)+Number(s)*86400000).toISOString().slice(0,10);
+    return null;
+  }
+  function sprintfDate(y,m,d){return [String(y),String(m).padStart(2,'0'),String(d).padStart(2,'0')].join('-');}
+  function autopick(headers,field){
+    const candidates=aliases[field]||[];
+    const exact=headers.findIndex(h=>candidates.includes(fold(h)));
+    return exact>=0?exact:-1;
+  }
+  function mapItem(entry){
+    const item={row:entry.sourceRow};
+    fields.forEach(field=>item[field]=state.select[field]===-1?'':norm(entry.cells[state.select[field]]));
+    item.oc=no(item.oc);
+    item.tipo=state.kind;
+    return item;
+  }
+  function csvCell(v){
+    if(typeof coiCSVCell!=='function')throw new Error('Exportación CSV segura no disponible.');
+    return coiCSVCell(v);
+  }
+  function exportAudit(){
+    const data=[['FILA','TIPO','OC','PROVEEDOR','DESCRIPCION','ESTACION','MONTO','MONEDA','RESULTADO','DIFERENCIAS']];
+    for(const r of state.items)data.push([r.row,r.tipo,r.oc,r.proveedor,r.descripcion,r.estacion,r.monto_total,r.moneda,r.outcome,r.differences.join(' | ')]);
+    const blob=new Blob(['\uFEFF'+data.map(r=>r.map(csvCell).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});
+    const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='COI_V3_Conciliacion_'+state.kind+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  function prepare(records){
+    const repeated=new Map();
+    records.forEach(r=>{if(r.oc)repeated.set(r.oc,(repeated.get(r.oc)||0)+1);});
+    const remote=new Map();
+    state.orders.forEach(x=>{const k=no(x.nro_oc);if(!remote.has(k))remote.set(k,[]);remote.get(k).push(x);});
+    return records.map(row=>{
+      const r={...row,outcome:'',differences:[],db:null};
+      if(!r.oc){r.outcome='Sin número OC';r.differences.push('No permite vinculación automática a una OC');return r;}
+      if(!/^\d{10}$/.test(r.oc)){r.outcome='Conflicto';r.differences.push('El número OC debe contener diez dígitos');return r;}
+      if(repeated.get(r.oc)>1){r.outcome='Multifila';r.differences.push('OC repetida en Excel: verificar posiciones, períodos o alcances antes de consolidar');return r;}
+      const matches=remote.get(r.oc)||[];
+      if(matches.length>1){r.outcome='Conflicto';r.differences.push('Existe más de un registro remoto para esta OC');return r;}
+      if(!matches.length){r.outcome='Nueva OC';r.differences.push('No existe en el universo visible de Supabase; requiere alta validada');return r;}
+      r.db=matches[0];
+      if(fold(r.db.tipo)!==fold(r.tipo)){r.outcome='Conflicto';r.differences.push('Tipo contractual distinto a Supabase: '+norm(r.db.tipo));return r;}
+      const fieldsToCompare=['proveedor','descripcion','estacion','expediente','monto_total','moneda','fecha_acta_inicio','plazo_dias'];
+      for(const f of fieldsToCompare){
+        if(state.select[f]===-1||!r[f])continue;
+        let a=r[f],b=r.db[f]??'';
+        if(f==='monto_total'){a=amount(a);b=Number(b||0);if(!Number.isFinite(a)){r.differences.push('Monto no válido: requiere revisión');continue;}if(Math.abs(a-b)>0.005)r.differences.push(labels[f]+': Excel '+a+' / COI '+b);}
+        else if(f==='fecha_acta_inicio'){a=date(a);if(!a){r.differences.push('Fecha Excel inválida');continue;}if(a!==b)r.differences.push(labels[f]+': Excel '+a+' / COI '+b);}
+        else if(f==='plazo_dias'){a=Number(a);if(!Number.isInteger(a)||a<0){r.differences.push('Plazo no válido');continue;}if(a!==Number(b||0))r.differences.push(labels[f]+': Excel '+a+' / COI '+b);}
+        else if(fold(a)!==fold(b))r.differences.push(labels[f]+': Excel '+norm(a)+' / COI '+norm(b));
+      }
+      r.outcome=r.differences.length?'Diferencias':'Sin cambios';
+      return r;
+    });
+  }
+  function status(message,type='info'){
+    const el=$('coiV3Message');if(!el)return;
+    el.textContent=message;el.dataset.kind=type;
+  }
+  function drawImport(){
+    const list=state.items,totals=new Map();
+    for(const r of list)totals.set(r.outcome,(totals.get(r.outcome)||0)+1);
+    if($('coiV3Totals'))$('coiV3Totals').innerHTML=[['Filas',list.length],['Sin cambios',totals.get('Sin cambios')||0],['Diferencias',totals.get('Diferencias')||0],['Nuevas',totals.get('Nueva OC')||0],['Revisar',list.filter(x=>/^(Multifila|Conflicto|Sin número OC)$/.test(x.outcome)).length]].map(([label,n])=>'<div class="coi-v3-stat"><strong>'+n+'</strong><span>'+esc(label)+'</span></div>').join('');
+    if($('coiV3Rows'))$('coiV3Rows').innerHTML=list.slice(0,1500).map(r=>'<tr><td>'+esc(r.row)+'</td><td>'+esc(r.oc||'—')+'</td><td>'+esc(r.proveedor||'—')+'</td><td>'+esc(r.descripcion||'—')+'</td><td><span class="coi-v3-tag">'+esc(r.outcome)+'</span></td><td>'+esc(r.differences.join(' · ')||'Coincide con Supabase')+'</td></tr>').join('')||'<tr><td colspan="6">Importá un Excel para comenzar.</td></tr>';
+    const csv=$('coiV3Export');if(csv)csv.disabled=!list.length;
+    window.dispatchEvent(new CustomEvent('coi:v3-preview-updated'));
+  }
+  function drawMapping(){
+    const wrap=$('coiV3Mapping');if(!wrap||!state.table)return;
+    wrap.innerHTML='<p><strong>Vinculación de columnas</strong> — Hoja '+esc(state.table.sheet)+' · '+state.table.rows.length+' filas. Corregí cualquier columna antes de comparar.</p><div class="coi-v3-mapping">'+fields.map(field=>'<label>'+esc(labels[field])+'<select data-v3-field="'+field+'"><option value="-1">No presente / no modificar</option>'+state.table.headers.map((h,i)=>'<option value="'+i+'"'+(state.select[field]===i?' selected':'')+'>'+esc(h||'Columna '+(i+1))+'</option>').join('')+'</select></label>').join('')+'</div>';
+  }
+  async function reconcile(){
+    if(!state.table)return;
+    const stamp=++state.importStarted;
+    try{
+      const rows=state.table.rows.map(mapItem).filter(r=>r.oc||r.proveedor||r.descripcion);
+      state.items=[];state.loaded=false;drawImport();
+      status('Leyendo registros existentes desde Supabase. Ningún dato será modificado...');
+      const orders=await fetchOrders();if(stamp!==state.importStarted)return;
+      state.orders=orders;state.loaded=true;state.items=prepare(rows);
+      drawImport();status('Conciliación de solo lectura finalizada. Revisá diferencias y conflictos. No se guardó ninguna modificación.','ok');
+    }catch(e){
+      if(stamp!==state.importStarted)return;
+      state.orders=[];state.items=[];state.loaded=false;drawImport();
+      status('Conciliación bloqueada: '+(e.message||e)+'. No se clasifica ninguna OC como nueva sin verificar Supabase.','error');
+    }
+  }
+  async function selectFile(file){
+    if(!file)return;
+    state.file=file;state.table=null;state.items=[];state.select={};state.loaded=false;state.importStarted++;drawImport();
+    status('Leyendo XLSX sin enviar el archivo a servidores...');
+    try{
+      const reader=window.__COI_CARTERA_V8_F1__?.readSheet;
+      if(typeof reader!=='function')throw new Error('Lector Excel del COI no disponible.');
+      const table=await reader(file,state.kind);state.table=table;state.excelFileName=file.name;
+      fields.forEach(field=>state.select[field]=autopick(table.headers,field));
+      drawMapping();
+      if(state.select.oc===-1){status('No se identificó una columna OC. Seleccionala manualmente antes de conciliar.','error');return;}
+      await reconcile();
+    }catch(e){state.table=null;state.items=[];$('coiV3Mapping').textContent='';drawImport();status('Lectura rechazada: '+(e.message||e),'error');}
+  }
+  function renderServices(){
+    const host=$('coiV3Services');if(!host)return;
+    const data=state.orders.filter(r=>fold(r.tipo)==='SERVICIO');
+    const byCur=new Map();
+    data.forEach(r=>{const c=norm(r.moneda)||'ARS';byCur.set(c,(byCur.get(c)||0)+Number(r.monto_total||0));});
+    const metrics=[['Servicios',data.length],['En ejecución',data.filter(r=>/EJECUCI/i.test(r.estado_registro||'')).length],['Proveedores',new Set(data.map(r=>fold(r.proveedor)).filter(Boolean)).size]];
+    host.innerHTML='<div class="coi-v3-stats">'+metrics.map(([l,n])=>'<div class="coi-v3-stat"><strong>'+n+'</strong><span>'+esc(l)+'</span></div>').join('')+[...byCur].map(([c,n])=>'<div class="coi-v3-stat"><strong>'+esc(money(n,c))+'</strong><span>Monto OC ('+esc(c)+')</span></div>').join('')+'</div><div class="coi-v3-table-scroll"><table><thead><tr><th>OC</th><th>Proveedor</th><th>Descripción</th><th>Estación</th><th>Importe</th><th>Estado</th><th>Expediente</th></tr></thead><tbody>'+data.map(r=>'<tr data-v3-oc="'+esc(r.nro_oc)+'"><td><button type="button" data-v3-open="'+esc(r.nro_oc)+'">'+esc(r.nro_oc)+'</button></td><td>'+esc(r.proveedor||'—')+'</td><td>'+esc(r.descripcion||'—')+'</td><td>'+esc(r.estacion||'—')+'</td><td>'+esc(money(r.monto_total,r.moneda))+'</td><td>'+esc(r.estado_registro||'—')+'</td><td>'+esc(r.expediente||'—')+'</td></tr>').join('')+'</tbody></table></div><p>Fuente: OC de Supabase. No suma distintas monedas ni genera certificaciones ficticias.</p>';
+  }
+  async function refreshServices(){
+    const el=$('coiV3Services');if(el)el.textContent='Actualizando servicios desde Supabase...';
+    try{state.orders=await fetchOrders();renderServices();renderObraFinance();}
+    catch(e){if(el)el.textContent='No se pudieron cargar Servicios: '+(e.message||e);}
+  }
+  function renderObraFinance(){
+    const container=$('cv2Kpis'),rows=window.__COI_CARTERA_V8_F1__?.getRows?.()||[];
+    if(!container)return;
+    let host=$('coiV3ObraFinance');
+    if(!host){host=document.createElement('section');host.id='coiV3ObraFinance';host.className='coi-v3-finance';container.insertAdjacentElement('afterend',host);}
+    const byOc=new Map(state.orders.map(r=>[no(r.nro_oc),r]));
+    const linked=[...new Set(rows.map(x=>no(x.oc)).filter(Boolean))].map(oc=>byOc.get(oc)).filter(x=>x&&fold(x.tipo)==='OBRA');
+    const sums=new Map();
+    linked.forEach(r=>{const cur=norm(r.moneda)||'ARS';sums.set(cur,(sums.get(cur)||0)+Number(r.monto_total||0));});
+    host.innerHTML='<h3>Control financiero vinculado a OC</h3><div class="coi-v3-stats"><div class="coi-v3-stat"><strong>'+linked.length+'</strong><span>OC únicas conciliadas (Obra)</span></div>'+([...sums].map(([cur,val])=>'<div class="coi-v3-stat"><strong>'+esc(money(val,cur))+'</strong><span>Importe contractual ('+esc(cur)+')</span></div>').join('')||'<div class="coi-v3-stat"><strong>—</strong><span>Cargá el Excel V8 y conciliá para calcular importes</span></div>')+'</div><p>Importes provenientes exclusivamente de Supabase y OC únicas. No representan certificados, ejecutado ni saldo financiero validado por SAP. Los registros sin OC no se incluyen.</p>';
+  }
+  async function refreshFinancial(){try{state.orders=await fetchOrders();renderObraFinance();}catch(e){const c=$('cv2Kpis');if(c){renderObraFinance();const h=$('coiV3ObraFinance');if(h)h.querySelector('p').textContent='Sin validación remota: '+(e.message||e);}}}
+  function openServices(){
+    if(typeof window.mostrarVista==='function')window.mostrarVista('vistaServiciosV3');
+    else{document.querySelectorAll('.view.active').forEach(x=>x.classList.remove('active'));$('vistaServiciosV3').classList.add('active');}
+    window.COI_V2?.syncNav?.();refreshServices();
+  }
+  function mountServicesNav(){
+    if($('coiV3ServicesNav'))return true;
+    const nav=document.querySelector('#coiV2Sidebar .coi-v2-nav');
+    const anchor=nav?.querySelector('#coiV8V2Nav')||nav?.querySelector('[data-v2-nav="btnOrdenes"]');if(!anchor)return false;
+    const item=document.createElement('button');item.type='button';item.id='coiV3ServicesNav';item.className='coi-v2-nav-btn';item.title='Cartera de Servicios';item.setAttribute('aria-label','Cartera de Servicios');
+    const icon=anchor.querySelector('svg');if(icon)item.appendChild(icon.cloneNode(true));
+    const span=document.createElement('span');span.className='v2-label';span.textContent='Cartera de Servicios';item.appendChild(span);
+    item.addEventListener('click',openServices);anchor.insertAdjacentElement('afterend',item);
+    return true;
+  }
+  function mount(){
+    if($('coiV3Import'))return;
+    const carga=$('vistaCarga'),ordenes=$('vistaOrdenes');if(!carga||!ordenes)return;
+    const box=document.createElement('section');box.id='coiV3Import';box.className='coi-v3-import';
+    box.innerHTML='<div class="coi-v3-heading"><div><span class="coi-v3-eyebrow">COI V3 · CONTROL DE CAMBIOS</span><h2>Centro de importación y conciliación</h2><p>Comparación segura con las OC existentes. Mantenemos la carga manual operativa hasta completar la homologación y pruebas de escritura.</p></div><span class="coi-v3-readonly">PREVISUALIZACIÓN · SIN ESCRITURAS</span></div><div class="coi-v3-toolbar"><label>Origen <select id="coiV3Kind"><option value="Servicio">Servicios</option><option value="Obra">Obras</option></select></label><label>Archivo Excel (.xlsx)<input id="coiV3File" type="file" accept=".xlsx"></label><button type="button" id="coiV3Reconcile">Validar nuevamente</button><button type="button" id="coiV3Export" disabled>Exportar auditoría CSV</button></div><p id="coiV3Message" role="status">Seleccioná un Excel de Servicios u Obras. Nunca se clasificará una OC como nueva sin consultar Supabase.</p><div id="coiV3Mapping"></div><div id="coiV3Totals" class="coi-v3-stats"></div><div class="coi-v3-table-scroll"><table><thead><tr><th>Fila</th><th>OC</th><th>Proveedor</th><th>Descripción</th><th>Resultado</th><th>Detalle de conciliación</th></tr></thead><tbody id="coiV3Rows"><tr><td colspan="6">Todavía no se importó ningún archivo.</td></tr></tbody></table></div><p class="coi-v3-foot">Este paso no reemplaza la documentación contractual, SAP ni el expediente. Los conflictos y registros de varias filas requieren validación antes de habilitar guardado a Supabase.</p>';
+    const main=carga.querySelector('.view-card');if(main)main.insertAdjacentElement('beforebegin',box);else carga.prepend(box);
+    const serv=document.createElement('section');serv.id='vistaServiciosV3';serv.className='view';
+    serv.innerHTML='<div class="view-card"><div class="view-head"><h2>Cartera de Servicios · COI V3</h2><p>Control consolidado de prestaciones y OC de servicios existentes. Sin duplicar información contractual.</p><button type="button" id="coiV3RefreshServices">Actualizar desde Supabase</button></div><div class="view-body" id="coiV3Services">Ingresá a Servicios para visualizar los datos remotos.</div></div>';
+    ordenes.insertAdjacentElement('afterend',serv);
+    $('coiV3Kind').addEventListener('change',e=>{state.kind=e.target.value;if(state.table){state.items=[];state.loaded=false;drawImport();status('Cambiá de archivo o presioná Validar nuevamente para aplicar el nuevo tipo.');}});
+    $('coiV3File').addEventListener('change',e=>selectFile(e.target.files?.[0]));
+    $('coiV3Reconcile').addEventListener('click',()=>state.table?reconcile():status('Primero seleccioná un Excel.'));
+    $('coiV3Export').addEventListener('click',exportAudit);
+    $('coiV3Mapping').addEventListener('change',e=>{if(!e.target.matches('select[data-v3-field]'))return;state.select[e.target.dataset.v3Field]=Number(e.target.value);state.items=[];state.loaded=false;drawImport();status('Cambió la vinculación de columnas. Volvé a validar antes de aceptar cualquier dato.');});
+    $('coiV3RefreshServices').addEventListener('click',refreshServices);
+    $('coiV3Services').addEventListener('click',e=>{const btn=e.target.closest('[data-v3-open]');if(btn&&typeof window.abrirFichaOC==='function')window.abrirFichaOC('OC-'+btn.dataset.v3Open);});
+    window.addEventListener('coi:cartera-v8-updated',refreshFinancial);
+    document.addEventListener('click',event=>{
+      if(event.target?.closest?.('#coiV8V2Nav, #btnCarteraObrasV8'))setTimeout(refreshFinancial,350);
+    },true);
+    $('coiV3Kind').value=state.kind;
+    let n=0;const retry=setInterval(()=>{if(mountServicesNav()||++n>25)clearInterval(retry);},250);
+    drawImport();
+  }
+  window.COI_V3=Object.freeze({version:'3.0-preview',readOnly:true,portfolioSnapshot:()=>({kind:state.kind,file:state.excelFileName,sheet:state.table?.sheet||'',headers:[...(state.table?.headers||[])],rawRows:(state.table?.rows||[]).map(x=>({sourceRow:x.sourceRow,cells:[...x.cells]})),items:state.items.map(x=>({row:x.row,oc:x.oc,outcome:x.outcome,proveedor:x.proveedor,descripcion:x.descripcion,estacion:x.estacion,expediente:x.expediente,fecha_acta_inicio:x.fecha_acta_inicio,plazo_dias:x.plazo_dias}))}),openServices,refreshServices,refreshFinancial,preview:()=>state.items.map(x=>({row:x.row,oc:x.oc,outcome:x.outcome,differences:[...x.differences]})),parseAmount:amount,parseDate:date,prepare:records=>prepare(records)});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
+})();</script>
+
+<style id="coi-v3-safe-save-css">
+#coiV3PortfolioSave{background:#5461ca;color:#fff;border:1px solid #5461ca;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer}
+#coiV3PortfolioSave:disabled{opacity:.45;cursor:not-allowed}
+#coiV3PortfolioStatus{font-size:12px;line-height:1.5;padding:6px 2px;max-width:650px}
+</style>
+<script id="coi-v3-safe-save">
+(function(){
+'use strict';
+if(window.COI_V3_PORTFOLIO_SAVE)return;
+const $=id=>document.getElementById(id);
+const norm=x=>String(x??'').trim(),fold=x=>norm(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+const hash=v=>{let h=2166136261;for(const c of norm(v)){h=Math.imul(h^c.charCodeAt(0),16777619);}return(h>>>0).toString(36)};
+let available=false,ready=false,working=false,candidate=[],filename='',source='',gen=0;
+function status(msg){const el=$('coiV3PortfolioStatus');if(el)el.textContent=msg;}
+function control(){const b=$('coiV3PortfolioSave');if(b)b.disabled=!available||!ready||working||!candidate.length;}
+function build(){
+ const src=window.COI_V3?.portfolioSnapshot?.();
+ if(!src?.items?.length||!src.file||!src.sheet)return {rows:[],kind:''};
+ const kind=src.kind==='Obra'?'obras':'servicios',head=src.headers,byRow=new Map(src.rawRows.map(r=>[r.sourceRow,r]));
+ const idIdx=head.findIndex(v=>['NOBRA','NROOBRA','NUMERODEOBRA'].includes(fold(v)));
+ const keys=new Set(),records=[];
+ for(const x of src.items){
+  const raw=byRow.get(x.row);if(!raw)throw Error('Fila de origen no hallada: '+x.row);
+  if(['Conflicto','Multifila'].includes(x.outcome))throw Error('Existen conflictos de conciliación; no se permite guardar este lote.');
+  if(kind==='servicios'&&!/^\d{10}$/.test(x.oc||''))throw Error('Servicio sin número OC válido (fila '+x.row+').');
+  let id=idIdx>=0?norm(raw.cells[idIdx]):'';
+  const key=kind==='servicios'?'oc:'+x.oc:'obra:'+(fold(id)||'SINNUMERO')+':'+hash(fold(x.descripcion)+'|'+fold(x.estacion));
+  if(keys.has(key))throw Error('Obras sin identidad única; clave repetida: '+key);
+  keys.add(key);
+  const datos={documento_origen:src.sheet,
+   identificacion:{id_obra_excel:id||null,nro_oc:x.oc||null},
+   descripcion:x.descripcion||null,proveedor:x.proveedor||null,estacion:x.estacion||null,
+   expediente:x.expediente||null,acta_inicio:x.fecha_acta_inicio||null,plazo_dias:x.plazo_dias||null,
+   estado_conciliacion:x.outcome,
+   excel:Object.fromEntries(head.map((h,i)=>[norm(h)||'COL_'+(i+1),norm(raw.cells[i])]).filter(z=>z[1]!==''))
+  };
+  if(JSON.stringify(datos).length>30000)throw Error('Registro demasiado extenso en fila '+x.row);
+  records.push({clave_fuente:key,nro_oc:x.oc||null,fila_excel:x.row,datos,huella_esperada:null});
+ }
+ return {rows:records,kind};
+}
+async function client(){
+ const c=window.__COI_SUPABASE_CLIENT__||await Promise.resolve(window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__).catch(()=>null);
+ if(!c)throw Error('Cliente Supabase no disponible');
+ const {data,error}=await c.auth.getSession();
+ if(error||!data?.session)throw Error('Iniciá sesión para guardar cambios');
+ return c;
+}
+async function review(){
+ const token=++gen;available=false;ready=false;candidate=[];control();
+ let v;try{v=build()}catch(e){status('Validación requerida: '+String(e.message||e));return;}
+ if(!v.rows.length){status('Importá y conciliá el Excel antes de confirmar.');return;}
+ status('Verificando control de versiones de la cartera en Supabase...');
+ try{
+  const c=await client();
+  const r=await c.from('coi_v3_cartera').select('clave_fuente,huella').eq('fuente',v.kind).limit(1000);
+  if(token!==gen)return;
+  if(r.error){status('Pendiente: primero hay que validar e instalar la migración V3 en STAGING. No se habilitaron escrituras.');return;}
+  const existing=new Map((r.data||[]).map(x=>[x.clave_fuente,x.huella]));
+  candidate=v.rows.map(x=>({...x,huella_esperada:existing.get(x.clave_fuente)||null}));
+  source=v.kind;filename=window.COI_V3.portfolioSnapshot().file;available=true;ready=true;
+  status('Validación lista: '+candidate.length+' filas de '+source+'. El guardado será atómico, auditado y no modificará contratos ni certificaciones.');
+  control();
+ }catch(e){if(token===gen)status('No se habilitó el guardado: '+String(e.message||e));}
+}
+async function save(){
+ if(!available||!ready||working||!candidate.length)return;
+ if(!window.confirm('¿Confirmás guardar '+candidate.length+' filas de '+source+' en las tablas de carteras V3? No se modificará ninguna OC, cierre, acta, HES, certificación ni posición SAP.'))return;
+ working=true;control();
+ try{
+  const c=await client();
+  const {data,error}=await c.rpc('coi_v3_confirmar_importacion',{p_fuente:source,p_archivo:filename,p_registros:candidate});
+  if(error)throw error;
+  ready=false;available=false;
+  status('Importación confirmada. Lote '+String(data?.lote_id||'')+' · nuevos '+data?.nuevos+' · actualizados '+data?.actualizados+' · sin cambios '+data?.sin_cambios+'.');
+ }catch(e){status('Importación revertida o rechazada: '+String(e.message||e));}
+ finally{working=false;control();}
+}
+function mount(){
+ const toolbar=document.querySelector('#coiV3Import .coi-v3-toolbar');
+ if(!toolbar||$('coiV3PortfolioSave'))return;
+ const btn=document.createElement('button');btn.id='coiV3PortfolioSave';btn.type='button';
+ btn.textContent='Confirmar cartera en Supabase';btn.disabled=true;btn.addEventListener('click',save);
+ const text=document.createElement('span');text.id='coiV3PortfolioStatus';text.setAttribute('role','status');
+ text.textContent='La etapa de lectura y conciliación es obligatoria. La base contractual nunca se sobreescribe desde Excel.';
+ toolbar.append(btn,text);
+ window.addEventListener('coi:v3-preview-updated',review);
+ control();
+}
+window.COI_V3_PORTFOLIO_SAVE=Object.freeze({version:'stage1-safe',readOnlyContracts:true,review});
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
+})();
+</script>
+
+<script id="coi-v3-portfolio-hydration">
+(function(){
+'use strict';
+if(window.COI_V3_HYDRATOR)return;
+let fetching=false,successful=false;
+async function restore(){
+ if(fetching||successful||window.__COI_CARTERA_V8_F1__?.getRows?.()?.length)return;
+ fetching=true;
+ try{
+  const client=window.__COI_SUPABASE_CLIENT__||await Promise.resolve(window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__).catch(()=>null);
+  if(!client)return;
+  const auth=await client.auth.getSession();if(auth.error||!auth.data?.session)return;
+  const result=await client.from('coi_v3_cartera')
+    .select('fuente,fila_excel,datos').eq('fuente','obras').order('actualizado_en',{ascending:false}).limit(1000);
+  if(result.error)return; // La tabla no existe antes de la migracion; Cartera V8 sigue funcionando.
+  successful=!!(await window.__COI_CARTERA_V8_F1__?.hydratePortfolio?.(result.data||[]));
+ }catch(e){console.warn('[COI V3] No se pudo restaurar la cartera confirmada.',e);}
+ finally{fetching=false;}
+}
+document.addEventListener('click',e=>{
+ if(e.target?.closest?.('#coiV8V2Nav,#btnCarteraObrasV8'))setTimeout(restore,0);
+},true);
+window.COI_V3_HYDRATOR=Object.freeze({restore});
 })();
 </script>
 </body></html>
