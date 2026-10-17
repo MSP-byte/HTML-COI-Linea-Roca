@@ -38078,4 +38078,175 @@ function render(station){
 window.COI_REFDATA_ESTACIONES=Object.freeze({version:'referencias-20261016',records:Object.freeze(entries),findByStation,findByCode,render,missing:names=>names.filter(n=>!findByStation(n))});
 })();
 </script>
+
+<style id="coi-v3-css">
+.coi-v3-view{--v3-bg:#fff;--v3-text:#19344e;--v3-border:#d5e0ed;--v3-alt:#f1f5fc;color:var(--v3-text)}
+body:not(.coi-v2-light) .coi-v3-view{--v3-bg:#22304b;--v3-text:#eff5ff;--v3-border:#405577;--v3-alt:#303e5a}
+.coi-v3-view .v3-panel{background:var(--v3-bg);border:1px solid var(--v3-border);border-radius:14px;padding:22px;margin-bottom:16px}
+.coi-v3-view h2{font-size:24px;color:var(--v3-text);margin:0 0 8px}
+.coi-v3-view .v3-muted{font-size:13px;color:var(--v3-text);opacity:.8;line-height:1.5}
+.coi-v3-view .v3-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:18px 0}
+.coi-v3-view button,.coi-v3-view select,.coi-v3-view input{padding:10px;border:1px solid var(--v3-border);border-radius:9px;background:var(--v3-bg);color:var(--v3-text);font:inherit}
+.coi-v3-view button{font-weight:600;cursor:pointer}.coi-v3-view button:disabled{opacity:.45;cursor:not-allowed}
+.coi-v3-view .v3-main{background:#594fd6;color:#fff}
+.coi-v3-view .v3-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:16px 0}
+.coi-v3-view .v3-kpis>div{padding:16px;border:1px solid var(--v3-border);border-radius:11px;background:var(--v3-alt)}
+.coi-v3-view .v3-kpis b{display:block;font-size:25px;color:var(--v3-text)}.coi-v3-view .v3-kpis small{font-size:12px;color:var(--v3-text)}
+.coi-v3-view .v3-scroller{overflow:auto;max-height:570px;border:1px solid var(--v3-border);border-radius:10px}
+.coi-v3-view table{border-collapse:collapse;width:100%;min-width:880px;font-size:12px}
+.coi-v3-view th{position:sticky;top:0;text-align:left;background:var(--v3-alt);color:var(--v3-text);padding:11px;white-space:nowrap}
+.coi-v3-view td{padding:11px;border-top:1px solid var(--v3-border);vertical-align:top;color:var(--v3-text)}
+.coi-v3-view .v3-alert{background:var(--v3-alt);border-left:4px solid #d4a647;padding:12px;font-size:12px;border-radius:6px}
+@media(max-width:900px){.coi-v3-view .v3-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:500px){.coi-v3-view .v3-kpis{grid-template-columns:1fr}.coi-v3-view .v3-panel{padding:13px}}
+</style>
+<script id="coi-v3-app">
+(function(){
+'use strict';
+if(window.COI_V3)return;
+const $=id=>document.getElementById(id),T=v=>String(v??'').trim();
+const norm=v=>T(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ');
+const E=v=>T(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const oc=v=>{const n=T(v).replace(/\.0+$/,'').replace(/\s/g,'');return /^\d{10}$/.test(n)?n:''};
+const date=v=>{const x=T(v);if(/^\d{4}-\d\d-\d\d$/.test(x))return x;if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(x)){const p=x.split('/');return p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0')}const n=Number(x);return Number.isInteger(n)&&n>20000&&n<80000?new Date(Date.UTC(1899,11,30)+n*86400000).toISOString().slice(0,10):''};
+const num=v=>{const s=T(v);if(!s)return null;const n=Number(s);return Number.isFinite(n)?n:null};
+const hash=v=>{let h=2166136261;for(const c of norm(v))h=Math.imul(h^c.charCodeAt(0),16777619);return(h>>>0).toString(36)};
+const state={source:'servicios',rows:[],file:'',ready:false,dbReady:false,services:[],q:'',working:false,history:[]};
+function parseSheets(sheets,source){
+ const rows=sheets[source==='servicios'?'BUSCADOR SVICIOS OC':'BASE_OBRAS'];if(!rows)throw Error('No se encontró la hoja esperada para '+source);
+ const head=rows.find(x=>x.row===(source==='servicios'?6:3));if(!head)throw Error('Encabezados ausentes.');
+ const val=(r,n)=>T(r.values[n]);
+ if(source==='servicios'&&!norm(val(head,2)).includes('oc'))throw Error('Plantilla de Servicios incompatible.');
+ if(source==='obras'&&norm(val(head,17))!=='oc')throw Error('Plantilla Obras V8 incompatible.');
+ const seen=new Set(),out=[];
+ for(const r of rows.filter(x=>x.row>(source==='servicios'?6:3))){
+  const nro=oc(val(r,source==='servicios'?2:17)),name=val(r,source==='servicios'?10:3);
+  if(!name&&!nro)continue;
+  const id=val(r,0),location=val(r,source==='servicios'?11:2);
+  const key=source==='servicios'?'oc:'+nro:'obra:'+(norm(id)||'sin-id')+':'+hash(location+'|'+name);
+  const err=[];
+  if(source==='servicios'&&!nro)err.push('OC inválida o ausente');
+  if(source==='obras'&&!id)err.push('Sin Nº obra; clave derivada, requiere homologación');
+  if(source==='obras'&&!name)err.push('Falta denominación');
+  if(seen.has(key))err.push('Clave duplicada en Excel');
+  seen.add(key);
+  const money=num(val(r,source==='servicios'?3:11));
+  if(val(r,source==='servicios'?3:11)&&money===null)err.push('Importe no numérico');
+  const data=source==='servicios'?{
+   categoria:val(r,1),descripcion:name,estacion:location,proveedor:val(r,12),
+   expediente:val(r,5),saldo_informado_excel:money,plazo_dias:val(r,4),
+   acta_inicio:date(val(r,13)),fecha_fin:date(val(r,14)),ultima_acta:val(r,6),
+   periodo_mes:val(r,7),periodo_inicio:date(val(r,8)),periodo_fin:date(val(r,9)),
+   proxima_certificacion_excel:date(val(r,18)),estado_excel:val(r,17),observaciones:val(r,19)
+  }:{
+   nro_obra_excel:id,denominacion:name,ubicacion:location,contratista:val(r,20),
+   prioridad:val(r,1),estado_excel:val(r,4),cotizacion_excel:money,solped:val(r,12),
+   expediente:val(r,14),acta_inicio:date(val(r,23)),plazo_dias:val(r,25),
+   final_proyectado:date(val(r,26)),avance_excel:val(r,28),
+   ejecutado_excel:val(r,31),observaciones:val(r,32)
+  };
+  out.push({clave_fuente:key,fila_excel:r.row,nro_oc:nro,datos:data,issues:err,accion:'Pendiente',huella_esperada:null});
+ }
+ return out;
+}
+async function client(){
+ const c=window.__COI_SUPABASE_CLIENT__||await Promise.resolve(window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__).catch(()=>null);
+ if(!c)throw Error('Cliente Supabase no disponible');
+ const a=await c.auth.getSession();if(a.error||!a.data?.session)throw Error('Iniciá sesión para conciliar contra Supabase.');
+ return c;
+}
+async function reconcile(){
+ const c=await client(),r=await c.from('coi_ordenes').select('id,nro_oc,tipo,monto_total,moneda,estado_registro').limit(1000);
+ if(r.error)throw r.error;
+ const byOC=new Map();
+ (r.data||[]).forEach(item=>byOC.set(T(item.nro_oc),(byOC.get(T(item.nro_oc))||[]).concat(item)));
+ const old=await c.from('coi_v3_cartera').select('clave_fuente,huella,datos').eq('fuente',state.source).limit(1000);
+ state.dbReady=!old.error;
+ const prior=new Map((old.data||[]).map(item=>[item.clave_fuente,item]));
+ for(const x of state.rows){
+  const matches=byOC.get(x.nro_oc)||[];
+  if(matches.length>1)x.issues.push('OC ambigua en Supabase');
+  if(matches.length===1&&matches[0].tipo!==(state.source==='obras'?'Obra':'Servicio'))x.issues.push('Tipo contractual incompatible');
+  if(x.nro_oc&&!matches.length)x.issues.push('OC no registrada: la cartera quedará sin vínculo contractual');
+  const p=prior.get(x.clave_fuente);
+  x.huella_esperada=p?.huella||null;
+  x.accion=x.issues.some(t=>/ambigua|incompatible|inválida|duplicada|falta denominación|no numérico/i.test(t))?'Bloqueado':p?'Revisar actualización':'Nuevo';
+ }
+ state.ready=true;
+}
+function cards(id,pairs){const host=$(id);if(host)host.innerHTML=pairs.map(([name,n])=>'<div><b>'+E(n)+'</b><small>'+E(name)+'</small></div>').join('')}
+function render(){
+ cards('v3Counters',[['Filas',state.rows.length],['OC informadas',state.rows.filter(x=>x.nro_oc).length],['Nuevos',state.rows.filter(x=>x.accion==='Nuevo').length],['Alertas',state.rows.filter(x=>x.issues.length).length]]);
+ const list=$('v3PreviewRows');if(list)list.innerHTML=state.rows.map(x=>'<tr><td>'+x.fila_excel+'</td><td>'+E(x.nro_oc||'Sin OC')+'</td><td>'+E(x.datos.descripcion||x.datos.denominacion)+'</td><td>'+E(x.clave_fuente)+'</td><td>'+E(x.accion)+'</td><td>'+E(x.issues.join(' · ')||'—')+'</td></tr>').join('')||'<tr><td colspan="6">Seleccioná un Excel para comenzar.</td></tr>';
+ if($('v3Confirm'))$('v3Confirm').disabled=state.working||!state.ready||!state.dbReady||!state.rows.length||state.rows.some(x=>x.accion==='Bloqueado');
+ if($('v3SaveExplain'))$('v3SaveExplain').textContent=state.rows.some(x=>x.accion==='Bloqueado')?'Hay filas bloqueadas. Corregí la planilla antes de confirmar.':!state.dbReady?'La migración de carteras V3 aún no está instalada en Supabase. Solo vista previa disponible.':'Guardado habilitado exclusivamente para carteras, previa confirmación.';
+ renderServices();
+}
+function renderServices(){
+ const arr=state.services.filter(x=>norm(Object.values(x.datos).join(' ')+' '+x.nro_oc).includes(norm(state.q)));
+ cards('v3SvcCounters',[['Servicios',state.services.length],['OC distintas',new Set(state.services.map(x=>x.nro_oc).filter(Boolean)).size],['Actas de inicio informadas',state.services.filter(x=>x.datos.acta_inicio).length],['Próxima cert. informada',state.services.filter(x=>x.datos.proxima_certificacion_excel).length]]);
+ const el=$('v3SvcBody');if(el)el.innerHTML=arr.map(x=>'<tr><td>'+E(x.nro_oc)+'</td><td>'+E(x.datos.categoria)+'</td><td>'+E(x.datos.descripcion)+'</td><td>'+E(x.datos.proveedor)+'</td><td>'+E(x.datos.estacion)+'</td><td>'+E(x.datos.estado_excel)+'</td><td><button data-v3-oc="'+E(x.nro_oc)+'" type="button">Expediente OC</button></td></tr>').join('')||'<tr><td colspan="7">Cargá el Excel de Servicios para consultar la cartera.</td></tr>';
+}
+async function load(file){
+ if(state.working)return;state.working=true;state.ready=false;state.dbReady=false;state.file=file.name;state.rows=[];render();
+ try{
+  $('v3Message').textContent='Procesando XLSX localmente...';
+  const sheets=await window.COI_XLSX_READER_V3.read(file);
+  state.rows=parseSheets(sheets,state.source);
+  if(state.source==='servicios')state.services=state.rows.slice();
+  render();$('v3Message').textContent='Conciliando contra OC existentes...';
+  await reconcile();render();
+  $('v3Message').textContent='Conciliación terminada: '+state.rows.length+' registros. Ningún cambio guardado.';
+ }catch(e){state.ready=false;state.dbReady=false;render();$('v3Message').textContent='Pendiente de validación: '+T(e.message||e);}
+ finally{state.working=false;render();}
+}
+async function confirmSave(){
+ if(state.working||!state.ready||!state.dbReady||state.rows.some(x=>x.accion==='Bloqueado'))return;
+ if(!window.confirm('¿Guardar '+state.rows.length+' registros en la cartera '+state.source+' de Supabase? Las OC, certificaciones, saldos SAP y cierres NO se modificarán.'))return;
+ state.working=true;render();
+ try{
+  const c=await client(),input=state.rows.map(x=>({clave_fuente:x.clave_fuente,fila_excel:x.fila_excel,nro_oc:x.nro_oc,datos:x.datos,huella_esperada:x.huella_esperada}));
+  const result=await c.rpc('coi_v3_confirmar_importacion',{p_fuente:state.source,p_archivo:state.file,p_registros:input});
+  if(result.error)throw result.error;
+  $('v3Message').textContent='Importación confirmada. Lote: '+T(result.data?.lote_id)+' · Nuevos: '+T(result.data?.nuevos)+' · Actualizados: '+T(result.data?.actualizados)+' · Sin cambios: '+T(result.data?.sin_cambios);
+  state.ready=false;state.dbReady=false;
+ }catch(e){$('v3Message').textContent='No se confirmó el lote: '+T(e.message||e);}
+ finally{state.working=false;render();}
+}
+function show(id){
+ if(typeof window.mostrarVista==='function')window.mostrarVista(id);
+ else{document.querySelectorAll('.view.active').forEach(x=>x.classList.remove('active'));$(id)?.classList.add('active');}
+ window.COI_V2?.syncNav?.();
+}
+function addNav(id,label,anchor,go){
+ if($(id))return true;
+ const prev=$(anchor),nav=document.querySelector('#coiV2Sidebar .coi-v2-nav');
+ if(!prev||!nav)return false;
+ const b=document.createElement('button');b.id=id;b.type='button';b.className='coi-v2-nav-btn';
+ const icon=prev.querySelector('svg');if(icon)b.appendChild(icon.cloneNode(true));
+ const title=document.createElement('span');title.className='v2-label';title.textContent=label;b.appendChild(title);
+ prev.insertAdjacentElement('afterend',b);b.addEventListener('click',go);return true;
+}
+function mount(){
+ if($('vistaImportacionV3'))return;
+ const imp=document.createElement('section');imp.id='vistaImportacionV3';imp.className='view coi-v3-view';
+ imp.innerHTML='<div class="v3-panel"><h2>Centro de Importación V3</h2><p class="v3-muted">Conciliación profesional de Obras y Servicios contra OC existentes. Sin alterar contratos ni certificaciones.</p><div class="v3-alert">El Excel es origen de novedades; Supabase permanece como fuente única. Importar un archivo no modifica ninguna OC automáticamente.</div><div class="v3-toolbar"><select id="v3Origin"><option value="servicios">Servicios</option><option value="obras">Obras V8</option></select><input id="v3File" type="file" accept=".xlsx"><button id="v3Confirm" class="v3-main" disabled>Confirmar guardado en Supabase</button><button id="v3Emergency">Carga manual de emergencia</button></div><p id="v3Message" class="v3-muted">Seleccioná el archivo Excel.</p><p id="v3SaveExplain" class="v3-muted"></p><div id="v3Counters" class="v3-kpis"></div><div class="v3-scroller"><table><thead><tr><th>Fila</th><th>OC</th><th>Descripción</th><th>Clave conciliada</th><th>Acción</th><th>Observaciones</th></tr></thead><tbody id="v3PreviewRows"></tbody></table></div></div>';
+ const svc=document.createElement('section');svc.id='vistaCarteraServiciosV3';svc.className='view coi-v3-view';
+ svc.innerHTML='<div class="v3-panel"><h2>Cartera de Servicios</h2><p class="v3-muted">Prestaciones y contratos. La planilla de Servicios se consulta sin duplicar actas de medición o remitos como OC.</p><div class="v3-toolbar"><button id="v3ServiceImport">Importar Excel de Servicios</button><input type="search" id="v3SvcFilter" placeholder="Buscar OC, proveedor o estación" style="min-width:310px"></div><div id="v3SvcCounters" class="v3-kpis"></div><div class="v3-scroller"><table><thead><tr><th>OC</th><th>Tipo UM</th><th>Descripción</th><th>Proveedor</th><th>Estación</th><th>Estado Excel</th><th>Expediente</th></tr></thead><tbody id="v3SvcBody"></tbody></table></div></div>';
+ const anchor=$('vistaOrdenes');if(anchor?.parentNode){anchor.parentNode.insertBefore(imp,anchor);anchor.parentNode.insertBefore(svc,anchor)}else document.body.append(imp,svc);
+ $('v3Origin').addEventListener('change',e=>{state.source=e.target.value;state.rows=[];state.file='';state.ready=false;state.dbReady=false;$('v3File').value='';render()});
+ $('v3File').addEventListener('change',e=>{if(e.target.files?.[0])load(e.target.files[0])});
+ $('v3Confirm').addEventListener('click',confirmSave);
+ $('v3Emergency').addEventListener('click',()=>show('vistaCarga'));
+ $('v3ServiceImport').addEventListener('click',()=>{state.source='servicios';$('v3Origin').value='servicios';show('vistaImportacionV3')});
+ $('v3SvcFilter').addEventListener('input',e=>{state.q=e.target.value;renderServices()});
+ $('v3SvcBody').addEventListener('click',e=>{const b=e.target.closest('[data-v3-oc]');if(b)window.abrirFichaOC?.('OC-'+b.dataset.v3Oc)});
+ const sidebar=()=>addNav('coiV3ServicesNav','Cartera de Servicios','coiV8V2Nav',()=>show('vistaCarteraServiciosV3'))&&addNav('coiV3ImportNav','Importación V3','coiV3ServicesNav',()=>show('vistaImportacionV3'));
+ if(!sidebar()){let n=0;const timer=setInterval(()=>{if(sidebar()||++n>40)clearInterval(timer)},300)}
+ render();
+}
+window.COI_V3=Object.freeze({version:'v3-20261016',parseSheets,load,readOnlyContractual:true});
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
+})();
+</script>
 </body></html>
