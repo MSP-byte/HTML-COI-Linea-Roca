@@ -37733,7 +37733,34 @@ async function readGenericXlsx(file,preferredKind=''){
  return choices[0];
 }
 
-window.__COI_CARTERA_V8_F1__=Object.freeze({version:'fase1-20261015',readOnly:true,getRows:()=>state.rows.map(r=>({...r,raw:[...r.raw],issues:[...r.issues]})),importFile:load,openAudit:open,readSheet:readGenericXlsx});
+
+/* V3: repoblar Cartera de Obras con el ultimo estado confirmado en Supabase. */
+async function v3HydrateConfirmedPortfolio(records){
+ if(!Array.isArray(records)||!records.length||state.rows.length)return false;
+ const restored=[];
+ for(const record of records){
+  if(record?.fuente!=='obras'||record?.datos?.documento_origen!=='BASE_OBRAS'||!record?.datos?.excel)continue;
+  const cols=record.datos.excel;
+  const keys=new Map(Object.keys(cols).map(k=>[normalize(k),String(cols[k]??'')]));
+  const data=FIELDS.map(label=>keys.get(normalize(label))||'');
+  const row=Number(record.fila_excel);
+  if(!Number.isInteger(row)||row<4)continue;
+  const r={row,obra:text(data[0]),prioridad:text(data[1]),lugar:text(data[2]),denominacion:text(data[3]),estado:text(data[4]),
+     presupuesto:text(data[11]),solped:text(data[12]),expediente:text(data[14]),oc:text(data[17]).replace(/\s+/g,''),
+     proveedor:text(data[20]),cuit:text(data[21]),acta:excelDate(data[23]).value,plazo:text(data[25]),
+     avance:text(data[28]),observaciones:text(data[32]),raw:data,issues:[],match:'Pendiente',remote:null};
+  restored.push(r);
+ }
+ if(!restored.length)return false;
+ state.rows=restored;state.filename='Cartera confirmada en Supabase';state.sourceCount=restored.length;
+ assess(state.rows);render();window.dispatchEvent(new CustomEvent('coi:cartera-v8-updated'));
+ const message=await reconcile(state.rows);
+ const info=el('coiV8Message');if(info)info.textContent='Cartera recuperada desde Supabase: '+restored.length+' registros. '+message;
+ render();window.dispatchEvent(new CustomEvent('coi:cartera-v8-updated'));
+ return true;
+}
+
+window.__COI_CARTERA_V8_F1__=Object.freeze({version:'fase1-20261015',readOnly:true,getRows:()=>state.rows.map(r=>({...r,raw:[...r.raw],issues:[...r.issues]})),hydratePortfolio:v3HydrateConfirmedPortfolio,importFile:load,openAudit:open,readSheet:readGenericXlsx});
 })();
 </script>
 
@@ -38447,6 +38474,32 @@ function mount(){
 }
 window.COI_V3_PORTFOLIO_SAVE=Object.freeze({version:'stage1-safe',readOnlyContracts:true,review});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
+})();
+</script>
+
+<script id="coi-v3-portfolio-hydration">
+(function(){
+'use strict';
+if(window.COI_V3_HYDRATOR)return;
+let fetching=false,successful=false;
+async function restore(){
+ if(fetching||successful||window.__COI_CARTERA_V8_F1__?.getRows?.()?.length)return;
+ fetching=true;
+ try{
+  const client=window.__COI_SUPABASE_CLIENT__||await Promise.resolve(window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__).catch(()=>null);
+  if(!client)return;
+  const auth=await client.auth.getSession();if(auth.error||!auth.data?.session)return;
+  const result=await client.from('coi_v3_cartera')
+    .select('fuente,fila_excel,datos').eq('fuente','obras').order('actualizado_en',{ascending:false}).limit(1000);
+  if(result.error)return; // La tabla no existe antes de la migracion; Cartera V8 sigue funcionando.
+  successful=!!(await window.__COI_CARTERA_V8_F1__?.hydratePortfolio?.(result.data||[]));
+ }catch(e){console.warn('[COI V3] No se pudo restaurar la cartera confirmada.',e);}
+ finally{fetching=false;}
+}
+document.addEventListener('click',e=>{
+ if(e.target?.closest?.('#coiV8V2Nav,#btnCarteraObrasV8'))setTimeout(restore,0);
+},true);
+window.COI_V3_HYDRATOR=Object.freeze({restore});
 })();
 </script>
 </body></html>
