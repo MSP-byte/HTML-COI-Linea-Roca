@@ -37687,7 +37687,7 @@ function mount(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
 
-async function readGenericXlsx(file){
+async function readGenericXlsx(file,preferredKind=''){
  if(!file||!/\.xlsx$/i.test(file.name)||file.size>25000000)throw new Error('Seleccioná un Excel .xlsx de hasta 25 MB.');
  const files=await unzipSelected(await file.arrayBuffer()),wbText=files.get('xl/workbook.xml'),relText=files.get('xl/_rels/workbook.xml.rels');
  if(!wbText||!relText)throw new Error('Estructura Excel incompleta.');
@@ -37696,6 +37696,9 @@ async function readGenericXlsx(file){
  const shared=sharedDoc?elements(sharedDoc,'si').map(n=>n.textContent||''):[];
  const choices=[];
  for(const sheet of elements(wb,'sheet')){
+  const sheetCode=normalize(sheet.getAttribute('name')).replace(/[^A-Z0-9]/g,'');
+  const expected=preferredKind==='Servicio'?'BUSCADORSVICIOSOC':preferredKind==='Obra'?'BASEOBRAS':'';
+  if(expected&&sheetCode!==expected)continue;
   const id=sheet.getAttributeNS(REL_NS,'id')||sheet.getAttribute('r:id');
   const rel=elements(rels,'Relationship').find(n=>n.getAttribute('Id')===id);
   if(!rel)continue;
@@ -37711,15 +37714,18 @@ async function readGenericXlsx(file){
   const short=v=>normalize(v).replace(/[^A-Z0-9]/g,'');
   const candidates=rows.slice(0,30).map((r,i)=>{
     const names=r.data.map(short);
-    const oc=names.some(v=>/^(OC|NROOC|NUMEROOC|NOC|ORDENDECOMPRA|OCNRO|NROORDENDECOMPRA)$/.test(v));
+    const oc=names.some(v=>/^(OC|OCN|NROOC|NUMEROOC|NOC|ORDENDECOMPRA|OCNRO|NROORDENDECOMPRA)$/.test(v));
     const concepts=names.filter(v=>/^(PROVEEDOR|CONTRATISTA|DESCRIPCION|TIPODESERVICIO|SERVICIO|MONTOOC|ESTACION|OBRA|NOBRA|NROOBRA|EXPEDIENTE)$/.test(v)).length;
     return {i,score:(oc?10:0)+concepts};
   }).sort((a,b)=>b.score-a.score);
-  const best=candidates[0];if(!best||best.score<2)continue;
+  const desiredNumber=preferredKind==='Servicio'?6:preferredKind==='Obra'?3:0;
+  const best=desiredNumber?candidates.find(c=>rows[c.i].number===desiredNumber):candidates[0];
+  if(!best||best.score<2)continue;
   const head=rows[best.i].data;
   const length=Math.max(0,...head.map((h,i)=>text(h)?i+1:0));
   if(length<2)continue;
   const items=rows.slice(best.i+1).filter(r=>r.data.some(text)).map(r=>({sourceRow:r.number,cells:r.data.slice(0,length)}));
+  if(items.length>1000)throw new Error('La hoja seleccionada excede 1000 filas; no se importan mediciones como órdenes.');
   choices.push({sheet:sheet.getAttribute('name'),headers:head.slice(0,length),rows:items,score:best.score});
  }
  choices.sort((a,b)=>b.score-a.score);
@@ -38136,15 +38142,15 @@ body:not(.coi-v2-light) .coi-v3-table-scroll th{background:#344560;color:#ecf4ff
   const norm=x=>String(x??'').trim();
   const no=x=>norm(x).replace(/[\s.-]/g,'');
   const aliases={
-    oc:['OC','NROOC','NUMEROOC','NOC','ORDENDECOMPRA','OCNRO','NROORDENDECOMPRA'],
-    proveedor:['PROVEEDOR','CONTRATISTA','RAZONSOCIAL','EMPRESA'],
-    descripcion:['DENOMINACIONPLIEGO','DENOMINACION','DESCRIPCION','DESCRIPCIONSERVICIO','TIPODESERVICIO','OBRA','SERVICIO'],
+    oc:['OC','OCN','NROOC','NUMEROOC','NOC','ORDENDECOMPRA','OCNRO','NROORDENDECOMPRA'],
+    proveedor:['PROVEEDOR','PROVEED','CONTRATISTA','RAZONSOCIAL','EMPRESA'],
+    descripcion:['DENOMINACIONPLIEGO','DENOMINACION','DESCRIPCION','DESCRIPCIONDELSERVICIO','DESCRIPCIONSERVICIO','TIPODESERVICIO','OBRA','SERVICIO'],
     estacion:['LUGAR','ESTACION','UBICACION','SECTOR','ESTACIONPRINCIPAL'],
     monto_total:['MONTOOC','MONTO','MONTOADJUDICADO','IMPORTE','MONTOCONTRATO'],
     moneda:['MONEDA','DIVISA'],
     expediente:['EXPEDIENTE','NROEXPEDIENTE'],
     fecha_acta_inicio:['ACTADEINICIO','FECHAACTAINICIO','FECHAINICIO'],
-    plazo_dias:['PLAZODIASPLIEGO','PLAZODIAS','PLAZO'],
+    plazo_dias:['PLAZODIASPLIEGO','PLAZOOCDIAS','PLAZODIAS','PLAZO'],
     tipo:['TIPO','TIPOOC','TIPOCONTRATO']
   };
   const fields=['oc','proveedor','descripcion','estacion','monto_total','moneda','expediente','fecha_acta_inicio','plazo_dias','tipo'];
@@ -38274,7 +38280,7 @@ body:not(.coi-v2-light) .coi-v3-table-scroll th{background:#344560;color:#ecf4ff
     try{
       const reader=window.__COI_CARTERA_V8_F1__?.readSheet;
       if(typeof reader!=='function')throw new Error('Lector Excel del COI no disponible.');
-      const table=await reader(file);state.table=table;state.excelFileName=file.name;
+      const table=await reader(file,state.kind);state.table=table;state.excelFileName=file.name;
       fields.forEach(field=>state.select[field]=autopick(table.headers,field));
       drawMapping();
       if(state.select.oc===-1){status('No se identificó una columna OC. Seleccionala manualmente antes de conciliar.','error');return;}
