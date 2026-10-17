@@ -38252,6 +38252,7 @@ body:not(.coi-v2-light) .coi-v3-table-scroll th{background:#344560;color:#ecf4ff
     if($('coiV3Totals'))$('coiV3Totals').innerHTML=[['Filas',list.length],['Sin cambios',totals.get('Sin cambios')||0],['Diferencias',totals.get('Diferencias')||0],['Nuevas',totals.get('Nueva OC')||0],['Revisar',list.filter(x=>/^(Multifila|Conflicto|Sin número OC)$/.test(x.outcome)).length]].map(([label,n])=>'<div class="coi-v3-stat"><strong>'+n+'</strong><span>'+esc(label)+'</span></div>').join('');
     if($('coiV3Rows'))$('coiV3Rows').innerHTML=list.slice(0,1500).map(r=>'<tr><td>'+esc(r.row)+'</td><td>'+esc(r.oc||'—')+'</td><td>'+esc(r.proveedor||'—')+'</td><td>'+esc(r.descripcion||'—')+'</td><td><span class="coi-v3-tag">'+esc(r.outcome)+'</span></td><td>'+esc(r.differences.join(' · ')||'Coincide con Supabase')+'</td></tr>').join('')||'<tr><td colspan="6">Importá un Excel para comenzar.</td></tr>';
     const csv=$('coiV3Export');if(csv)csv.disabled=!list.length;
+    window.dispatchEvent(new CustomEvent('coi:v3-preview-updated'));
   }
   function drawMapping(){
     const wrap=$('coiV3Mapping');if(!wrap||!state.table)return;
@@ -38351,7 +38352,101 @@ body:not(.coi-v2-light) .coi-v3-table-scroll th{background:#344560;color:#ecf4ff
     let n=0;const retry=setInterval(()=>{if(mountServicesNav()||++n>25)clearInterval(retry);},250);
     drawImport();
   }
-  window.COI_V3=Object.freeze({version:'3.0-preview',readOnly:true,openServices,refreshServices,refreshFinancial,preview:()=>state.items.map(x=>({row:x.row,oc:x.oc,outcome:x.outcome,differences:[...x.differences]})),parseAmount:amount,parseDate:date,prepare:records=>prepare(records)});
+  window.COI_V3=Object.freeze({version:'3.0-preview',readOnly:true,portfolioSnapshot:()=>({kind:state.kind,file:state.excelFileName,sheet:state.table?.sheet||'',headers:[...(state.table?.headers||[])],rawRows:(state.table?.rows||[]).map(x=>({sourceRow:x.sourceRow,cells:[...x.cells]})),items:state.items.map(x=>({row:x.row,oc:x.oc,outcome:x.outcome,proveedor:x.proveedor,descripcion:x.descripcion,estacion:x.estacion,expediente:x.expediente,fecha_acta_inicio:x.fecha_acta_inicio,plazo_dias:x.plazo_dias}))}),openServices,refreshServices,refreshFinancial,preview:()=>state.items.map(x=>({row:x.row,oc:x.oc,outcome:x.outcome,differences:[...x.differences]})),parseAmount:amount,parseDate:date,prepare:records=>prepare(records)});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
 })();</script>
+
+<style id="coi-v3-safe-save-css">
+#coiV3PortfolioSave{background:#5461ca;color:#fff;border:1px solid #5461ca;border-radius:8px;padding:9px 14px;font-weight:700;cursor:pointer}
+#coiV3PortfolioSave:disabled{opacity:.45;cursor:not-allowed}
+#coiV3PortfolioStatus{font-size:12px;line-height:1.5;padding:6px 2px;max-width:650px}
+</style>
+<script id="coi-v3-safe-save">
+(function(){
+'use strict';
+if(window.COI_V3_PORTFOLIO_SAVE)return;
+const $=id=>document.getElementById(id);
+const norm=x=>String(x??'').trim(),fold=x=>norm(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+const hash=v=>{let h=2166136261;for(const c of norm(v)){h=Math.imul(h^c.charCodeAt(0),16777619);}return(h>>>0).toString(36)};
+let available=false,ready=false,working=false,candidate=[],filename='',source='',gen=0;
+function status(msg){const el=$('coiV3PortfolioStatus');if(el)el.textContent=msg;}
+function control(){const b=$('coiV3PortfolioSave');if(b)b.disabled=!available||!ready||working||!candidate.length;}
+function build(){
+ const src=window.COI_V3?.portfolioSnapshot?.();
+ if(!src?.items?.length||!src.file||!src.sheet)return {rows:[],kind:''};
+ const kind=src.kind==='Obra'?'obras':'servicios',head=src.headers,byRow=new Map(src.rawRows.map(r=>[r.sourceRow,r]));
+ const idIdx=head.findIndex(v=>['NOBRA','NROOBRA','NUMERODEOBRA'].includes(fold(v)));
+ const keys=new Set(),records=[];
+ for(const x of src.items){
+  const raw=byRow.get(x.row);if(!raw)throw Error('Fila de origen no hallada: '+x.row);
+  if(['Conflicto','Multifila'].includes(x.outcome))throw Error('Existen conflictos de conciliación; no se permite guardar este lote.');
+  if(kind==='servicios'&&!/^\d{10}$/.test(x.oc||''))throw Error('Servicio sin número OC válido (fila '+x.row+').');
+  let id=idIdx>=0?norm(raw.cells[idIdx]):'';
+  const key=kind==='servicios'?'oc:'+x.oc:'obra:'+(fold(id)||'SINNUMERO')+':'+hash(fold(x.descripcion)+'|'+fold(x.estacion));
+  if(keys.has(key))throw Error('Obras sin identidad única; clave repetida: '+key);
+  keys.add(key);
+  const datos={documento_origen:src.sheet,
+   identificacion:{id_obra_excel:id||null,nro_oc:x.oc||null},
+   descripcion:x.descripcion||null,proveedor:x.proveedor||null,estacion:x.estacion||null,
+   expediente:x.expediente||null,acta_inicio:x.fecha_acta_inicio||null,plazo_dias:x.plazo_dias||null,
+   estado_conciliacion:x.outcome,
+   excel:Object.fromEntries(head.map((h,i)=>[norm(h)||'COL_'+(i+1),norm(raw.cells[i])]).filter(z=>z[1]!==''))
+  };
+  if(JSON.stringify(datos).length>30000)throw Error('Registro demasiado extenso en fila '+x.row);
+  records.push({clave_fuente:key,nro_oc:x.oc||null,fila_excel:x.row,datos,huella_esperada:null});
+ }
+ return {rows:records,kind};
+}
+async function client(){
+ const c=window.__COI_SUPABASE_CLIENT__||await Promise.resolve(window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__).catch(()=>null);
+ if(!c)throw Error('Cliente Supabase no disponible');
+ const {data,error}=await c.auth.getSession();
+ if(error||!data?.session)throw Error('Iniciá sesión para guardar cambios');
+ return c;
+}
+async function review(){
+ const token=++gen;available=false;ready=false;candidate=[];control();
+ let v;try{v=build()}catch(e){status('Validación requerida: '+String(e.message||e));return;}
+ if(!v.rows.length){status('Importá y conciliá el Excel antes de confirmar.');return;}
+ status('Verificando control de versiones de la cartera en Supabase...');
+ try{
+  const c=await client();
+  const r=await c.from('coi_v3_cartera').select('clave_fuente,huella').eq('fuente',v.kind).limit(1000);
+  if(token!==gen)return;
+  if(r.error){status('Pendiente: primero hay que validar e instalar la migración V3 en STAGING. No se habilitaron escrituras.');return;}
+  const existing=new Map((r.data||[]).map(x=>[x.clave_fuente,x.huella]));
+  candidate=v.rows.map(x=>({...x,huella_esperada:existing.get(x.clave_fuente)||null}));
+  source=v.kind;filename=window.COI_V3.portfolioSnapshot().file;available=true;ready=true;
+  status('Validación lista: '+candidate.length+' filas de '+source+'. El guardado será atómico, auditado y no modificará contratos ni certificaciones.');
+  control();
+ }catch(e){if(token===gen)status('No se habilitó el guardado: '+String(e.message||e));}
+}
+async function save(){
+ if(!available||!ready||working||!candidate.length)return;
+ if(!window.confirm('¿Confirmás guardar '+candidate.length+' filas de '+source+' en las tablas de carteras V3? No se modificará ninguna OC, cierre, acta, HES, certificación ni posición SAP.'))return;
+ working=true;control();
+ try{
+  const c=await client();
+  const {data,error}=await c.rpc('coi_v3_confirmar_importacion',{p_fuente:source,p_archivo:filename,p_registros:candidate});
+  if(error)throw error;
+  ready=false;available=false;
+  status('Importación confirmada. Lote '+String(data?.lote_id||'')+' · nuevos '+data?.nuevos+' · actualizados '+data?.actualizados+' · sin cambios '+data?.sin_cambios+'.');
+ }catch(e){status('Importación revertida o rechazada: '+String(e.message||e));}
+ finally{working=false;control();}
+}
+function mount(){
+ const toolbar=document.querySelector('#coiV3Import .coi-v3-toolbar');
+ if(!toolbar||$('coiV3PortfolioSave'))return;
+ const btn=document.createElement('button');btn.id='coiV3PortfolioSave';btn.type='button';
+ btn.textContent='Confirmar cartera en Supabase';btn.disabled=true;btn.addEventListener('click',save);
+ const text=document.createElement('span');text.id='coiV3PortfolioStatus';text.setAttribute('role','status');
+ text.textContent='La etapa de lectura y conciliación es obligatoria. La base contractual nunca se sobreescribe desde Excel.';
+ toolbar.append(btn,text);
+ window.addEventListener('coi:v3-preview-updated',review);
+ control();
+}
+window.COI_V3_PORTFOLIO_SAVE=Object.freeze({version:'stage1-safe',readOnlyContracts:true,review});
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
+})();
+</script>
 </body></html>
