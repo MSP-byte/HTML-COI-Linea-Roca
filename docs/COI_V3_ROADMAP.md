@@ -1,5 +1,23 @@
 # COI V3 — Evolución incremental sin regresiones
 
+## Criterio administrativo y QA de BASE_OBRAS V8 (19/10/2026)
+
+Fuente auditada: archivo original `OBRAS_LGR_PANEL_V8(3).xlsx`, SHA-256 `57e4786a08c961f8aa674cdbefc5c4c8ff3a992f8961aa625bd419ebded0ff07`, hoja `BASE_OBRAS`, encabezados fila 3, intervenciones filas 4–120.
+
+- 117 intervenciones con descripción y estado; 29 sin N.º de obra, 100 sin OC, 91 sin expediente, 100 sin acta de inicio. **Estos faltantes administrativos NO son errores ni deben impedir la alta de una intervención en cartera**.
+- Los estados son: Enlace (72), En ejecución (10), Finalizada (9), Con Solped (7), Desestimada (6), Con Dictamen (4), Reemplazada (4), Planificada (3), Con Expediente (2). Se deben preservar como hechos del Excel y no reinterpretar como estados contractuales de una OC.
+- 11 números administrativos repetidos en 22 filas (10, 31, 55, 46, 1, 2, 6, 3, 4, 7, 9); cada intervención se identifica por UUID de cartera, distinto de Nº obra, OC, expediente, fila y descripción. Los números repetidos tampoco prueban que las intervenciones sean duplicados.
+- Carga inicial: crear UUID único por intervención. Cuando una reimportación cambie una firma descriptiva, exigir elección explícita de correspondencia existente o una nueva intervención; no insertar silenciosamente ni fusionar por coincidencia parcial.
+- Mantener `null` cuando el dato aún no existe: ninguna OC nueva, fecha o monto se inventa. Los 17 números OC informados son referencias sujetas a validación contractual; el alta real de OC sigue un procedimiento independiente.
+- El bloqueo legítimo de la persistencia no es «falta documentación», sino conflicto de identidad ambiguo no resuelto, error de formato, permiso insuficiente, esquema no disponible, o validación de versión obsoleta.
+
+### Evidencia STAGING y gates de liberación
+- Servicios: 16 registros guardados en STAGING, un lote y 16 auditorías. Reimportación RPC de los datos reales bajo `BEGIN/ROLLBACK`: 16 sin cambios, cero nuevos; recuentos persistentes intactos. PR HEAD anterior `b07fde9f`, Quality Gate #1097 6/6 success.
+- El QA autenticado del HTML desplegado y actualizado al HEAD (Obras, recuperación de Servicios tras recarga, cierre de OC, certificaciones y navegación) sigue siendo un gate separado de las pruebas Playwright con mocks. No confundir datos guardados por el usuario con una prueba de la última versión desplegada.
+- El respaldo productivo restaurable y las migraciones de producción requieren validación independiente: **no hay respaldo de producción verificado**. Un merge no equivale a despliegue SQL.
+- Si no pueden completarse los gates de navegador/respaldo, mantener este PR en DRAFT sin merge; no inventar resultados ni cargar información productiva para suplir evidencia.
+
+
 ## Alcance del primer incremento (rama de trabajo)
 
 - Catálogo vigente en el tooltip de Red Roca (abreviaturas validadas y pendiente cuando no hay match).
