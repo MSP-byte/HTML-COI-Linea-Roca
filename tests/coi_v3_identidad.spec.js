@@ -100,3 +100,24 @@ test('V3 identidad: correspondencia ambigua exige seleccion explicita antes de g
  expect(saved.p_registros[0].clave_fuente).not.toBe(existing[0].clave_fuente);
  expect(saved.p_registros[0].clave_fuente).not.toBe(existing[1].clave_fuente);
 });
+
+test('V3 identidad: 117 intervenciones en etapas administrativas se conservan sin fabricar OC ni expedientes',async({page})=>{
+ const items=Array.from({length:117},(_,i)=>({
+   id:i>=88?'':String(i%77+1),
+   desc:'Intervencion administrativa independiente '+String(i+1),
+   station:i%2?'Temperley':'Bernal',
+   provider:'',
+   oc:i>=100?'4530'+String(i).padStart(6,'0'):'',
+   outcome:i>=100?'Nueva OC':'Sin número OC'
+ }));
+ await setup(page,{items});
+ await expect(page.locator('#coiV3PortfolioSave')).toBeEnabled();
+ const [saved]=await confirmSave(page);
+ const rows=saved.p_registros;
+ expect(rows).toHaveLength(117);
+ expect(new Set(rows.map(r=>r.clave_fuente)).size).toBe(117);
+ expect(rows.filter(r=>r.nro_oc===null)).toHaveLength(100);
+ expect(rows.filter(r=>r.datos.identificacion.estado_identidad==='PENDIENTE_IDENTIFICADOR_ADMIN')).toHaveLength(29);
+ expect(rows.every(r=>r.datos.expediente===null&&r.datos.acta_inicio===null)).toBe(true);
+ expect(rows.every(r=>r.clave_fuente.startsWith('obra:uuid:'))).toBe(true);
+});
