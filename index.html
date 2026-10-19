@@ -37601,21 +37601,21 @@ function render(){
   ];
   kpis.innerHTML=figures.map(pair=>'<article class="coi-v8-kpi"><strong>'+pair[0]+'</strong><span>'+esc(pair[1])+'</span></article>').join('');
   const q=normalize(el('coiV8Search')?.value), filter=text(el('coiV8Status')?.value);
-  state.filtered=rows.filter(r=>(!filter||r.match===filter)&&(!q||normalize([r.obra,r.denominacion,r.lugar,r.oc,r.proveedor,r.estado,r.solped].join(' ')).includes(q)));
+  state.filtered=rows.filter(r=>(!filter||r.match===filter)&&(!q||normalize([r.id_interno,r.obra,r.denominacion,r.lugar,r.oc,r.proveedor,r.estado,r.solped].join(' ')).includes(q)));
   const body=el('coiV8Rows');
   body.innerHTML=state.filtered.slice(0,1000).map(r=>{
     const cls=r.match==='OC existente'?'ok':r.match==='OC no encontrada'||r.match==='Conflicto de estado'||r.match==='OC ambigua'?'bad':'warn';
-    return '<tr><td>'+r.row+'</td><td>'+esc(r.obra||'—')+'</td><td>'+esc(r.lugar||'—')+'</td><td>'+esc(r.denominacion||'—')+'</td><td>'+esc(r.estado||'—')+'</td><td>'+esc(r.oc||'—')+'</td><td>'+esc(r.proveedor||'—')+'</td><td>'+tag(cls,r.match)+'</td><td>'+esc(r.issues.join(' · ')||'Sin observaciones')+'</td></tr>';
-  }).join('')||'<tr><td colspan="9">No hay registros para este filtro.</td></tr>';
+    return '<tr><td>'+r.row+'</td><td><code title="'+esc(r.id_interno||'Sin asignar')+'">'+esc(r.id_interno||'Pendiente')+'</code></td><td>'+esc(r.obra||'—')+'</td><td>'+esc(r.lugar||'—')+'</td><td>'+esc(r.denominacion||'—')+'</td><td>'+esc(r.estado||'—')+'</td><td>'+esc(r.oc||'—')+'</td><td>'+esc(r.proveedor||'—')+'</td><td>'+tag(cls,r.match)+'</td><td>'+esc(r.issues.join(' · ')||'Sin observaciones')+'</td></tr>';
+  }).join('')||'<tr><td colspan="10">No hay registros para este filtro.</td></tr>';
   el('coiV8Found').textContent=state.filtered.length+' resultados de '+rows.length+' registros';
   el('coiV8Export').disabled=rows.length===0;
 }
 function csvEscape(v){if(typeof coiCSVCell!=='function')throw new Error('Exportador CSV seguro no disponible.');return coiCSVCell(v);}
 function exportAudit(){
   if(!state.rows.length)return;
-  const header=['FILA_EXCEL','NRO_OBRA','LUGAR','DENOMINACION','ESTADO_EXCEL','NRO_OC','CONTRATISTA','COTIZACION','SOLPED','EXPEDIENTE','ACTA_INICIO','CONCILIACION_COI','ESTADO_COI','OBSERVACIONES_CALIDAD'];
+  const header=['FILA_EXCEL','UUID_INTERVENCION','NRO_OBRA','LUGAR','DENOMINACION','ESTADO_EXCEL','NRO_OC','CONTRATISTA','COTIZACION','SOLPED','EXPEDIENTE','ACTA_INICIO','CONCILIACION_COI','ESTADO_COI','OBSERVACIONES_CALIDAD'];
   const lines=[header.map(csvEscape).join(';')];
-  state.rows.forEach(r=>lines.push([r.row,r.obra,r.lugar,r.denominacion,r.estado,r.oc,r.proveedor,r.presupuesto,r.solped,r.expediente,r.acta,r.match,r.remote?.estado_coi||'',r.issues.join(' | ')].map(csvEscape).join(';')));
+  state.rows.forEach(r=>lines.push([r.row,r.id_interno||'',r.obra,r.lugar,r.denominacion,r.estado,r.oc,r.proveedor,r.presupuesto,r.solped,r.expediente,r.acta,r.match,r.remote?.estado_coi||'',r.issues.join(' | ')].map(csvEscape).join(';')));
   const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download='auditoria_base_obras_v8.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
@@ -37667,7 +37667,7 @@ function mount(){
     '<div id="coiV8Kpis" class="coi-v8-kpis" aria-live="polite"></div>'+
     '<div class="coi-v8-card"><h3>Conciliación previa a la adjudicación</h3><p class="coi-v8-muted">Una necesidad puede no tener OC. Los hitos H1–H8 permanecen en el circuito contractual existente y no se confirman por tener valores en el Excel. Las OC encontradas se revisan antes de vincular proyectos.</p>'+
     '<div class="coi-v8-filters"><input id="coiV8Search" type="search" class="coi-v8-filter" placeholder="Buscar obra, ubicación, OC, contratista o SOLPED"><select id="coiV8Status" class="coi-v8-filter"><option value="">Todas las conciliaciones</option><option>Sin OC</option><option>OC existente</option><option>OC no encontrada</option><option>Conflicto de estado</option><option>OC ambigua</option><option>No conciliada</option></select><span id="coiV8Found" class="coi-v8-muted"></span></div>'+
-    '<div class="coi-v8-tablewrap"><table class="coi-v8-table"><thead><tr><th>Fila</th><th>N.º obra</th><th>Lugar</th><th>Denominación / Pliego</th><th>Estado Excel</th><th>N.º OC</th><th>Contratista</th><th>Conciliación</th><th>Calidad del dato</th></tr></thead><tbody id="coiV8Rows"></tbody></table></div></div>'+
+    '<div class="coi-v8-tablewrap"><table class="coi-v8-table"><thead><tr><th>Fila</th><th>UUID interno</th><th>N.º obra</th><th>Lugar</th><th>Denominación / Pliego</th><th>Estado Excel</th><th>N.º OC</th><th>Contratista</th><th>Conciliación</th><th>Calidad del dato</th></tr></thead><tbody id="coiV8Rows"></tbody></table></div></div>'+
     '<p class="coi-v8-foot">La conciliación indica coincidencias de número de OC, no una vinculación contractual validada. No reemplaza verificación contra SAP, actas ni documentación contractual.</p></div></section>';
   document.body.appendChild(wrapper);
   button.addEventListener('click',open);
@@ -37745,7 +37745,7 @@ async function v3HydrateConfirmedPortfolio(records){
   const data=FIELDS.map(label=>keys.get(normalize(label))||'');
   const row=Number(record.fila_excel);
   if(!Number.isInteger(row)||row<4)continue;
-  const r={row,obra:text(data[0]),prioridad:text(data[1]),lugar:text(data[2]),denominacion:text(data[3]),estado:text(data[4]),
+  const r={row,id_interno:record.id||null,obra:text(data[0]),prioridad:text(data[1]),lugar:text(data[2]),denominacion:text(data[3]),estado:text(data[4]),
      presupuesto:text(data[11]),solped:text(data[12]),expediente:text(data[14]),oc:text(data[17]).replace(/\s+/g,''),
      proveedor:text(data[20]),cuit:text(data[21]),acta:excelDate(data[23]).value,plazo:text(data[25]),
      avance:text(data[28]),observaciones:text(data[32]),raw:data,issues:[],match:'Pendiente',remote:null};
@@ -38573,7 +38573,7 @@ async function restore(){
   if(!client)return;
   const auth=await client.auth.getSession();if(auth.error||!auth.data?.session)return;
   const result=await client.from('coi_v3_cartera')
-    .select('fuente,fila_excel,datos').eq('fuente','obras').order('actualizado_en',{ascending:false}).limit(1000);
+    .select('id,fuente,fila_excel,datos').eq('fuente','obras').order('actualizado_en',{ascending:false}).limit(1000);
   if(result.error)return; // La tabla no existe antes de la migracion; Cartera V8 sigue funcionando.
   successful=!!(await window.__COI_CARTERA_V8_F1__?.hydratePortfolio?.(result.data||[]));
  }catch(e){console.warn('[COI V3] No se pudo restaurar la cartera confirmada.',e);}
