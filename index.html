@@ -38250,12 +38250,12 @@ body:not(.coi-v2-light) .coi-v3-table-scroll th{background:#344560;color:#ecf4ff
       const r={...row,outcome:'',differences:[],db:null};
       if(!r.oc){r.outcome='Sin número OC';r.differences.push('No permite vinculación automática a una OC');return r;}
       if(!/^\d{10}$/.test(r.oc)){r.outcome='Conflicto';r.differences.push('El número OC debe contener diez dígitos');return r;}
-      if(repeated.get(r.oc)>1){r.outcome='Multifila';r.differences.push('OC repetida en Excel: verificar posiciones, períodos o alcances antes de consolidar');return r;}
       const matches=remote.get(r.oc)||[];
       if(matches.length>1){r.outcome='Conflicto';r.differences.push('Existe más de un registro remoto para esta OC');return r;}
+      if(matches.length===1&&fold(matches[0].tipo)!==fold(r.tipo)){r.outcome='Conflicto';r.differences.push('Tipo contractual distinto a Supabase: '+norm(matches[0].tipo));return r;}
+      if(repeated.get(r.oc)>1){r.db=matches[0]||null;r.outcome='Multifila';r.differences.push('OC repetida en Excel: verificar posiciones, períodos o alcances antes de consolidar');if(!matches.length)r.differences.push('No existe en el universo visible de Supabase; requiere alta validada');return r;}
       if(!matches.length){r.outcome='Nueva OC';r.differences.push('No existe en el universo visible de Supabase; requiere alta validada');return r;}
       r.db=matches[0];
-      if(fold(r.db.tipo)!==fold(r.tipo)){r.outcome='Conflicto';r.differences.push('Tipo contractual distinto a Supabase: '+norm(r.db.tipo));return r;}
       const fieldsToCompare=['proveedor','descripcion','estacion','expediente','monto_total','moneda','fecha_acta_inicio','plazo_dias'];
       for(const f of fieldsToCompare){
         if(state.select[f]===-1||!r[f])continue;
@@ -38447,6 +38447,11 @@ function resolve(){
   signatureMap.get(signature).push(r);
  });
  const used=new Set(),pending=[],result=[];
+ const incomingSignatures=new Map();
+ proposals.forEach(row=>{
+  const signature=row.datos.identificacion.perfil_conciliacion;
+  incomingSignatures.set(signature,(incomingSignatures.get(signature)||0)+1);
+ });
  for(const row of proposals){
   let key=row.clave_fuente;
   if(source==='obras'){
@@ -38455,6 +38460,7 @@ function resolve(){
    const chosen=choices.get(row.fila_excel);
    if(chosen==='nuevo')key='obra:uuid:'+safeUuid();
    else if(chosen&&existing.has(chosen))key=chosen;
+   else if(incomingSignatures.get(signature)>1)pending.push({row,matches});
    else if(matches.length===1&&!used.has(matches[0].clave_fuente))key=matches[0].clave_fuente;
    else if(remoteRows.length===0)key='obra:uuid:'+safeUuid();
    else pending.push({row,matches});

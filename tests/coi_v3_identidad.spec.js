@@ -32,6 +32,17 @@ async function confirmSave(page){
  await expect(page.locator('#coiV3PortfolioStatus')).toContainText('Importación confirmada');
  return page.evaluate(()=>window.__v3Saved);
 }
+test('V3 identidad: filas indistinguibles requieren homologacion incluso con cartera vacia',async({page})=>{
+ await setup(page,{items:[{desc:'Anden norte'},{desc:'Anden norte'}]});
+ await expect(page.locator('#coiV3PortfolioSave')).toBeDisabled();
+ await expect(page.locator('#coiV3IdentityPanel select')).toHaveCount(2);
+ await page.locator('select[data-v3-identity="4"]').selectOption('nuevo');
+ await expect(page.locator('#coiV3PortfolioSave')).toBeDisabled();
+ await page.locator('select[data-v3-identity="5"]').selectOption('nuevo');
+ await expect(page.locator('#coiV3PortfolioSave')).toBeEnabled();
+ const [saved]=await confirmSave(page);
+ expect(saved.p_registros[0].clave_fuente).not.toBe(saved.p_registros[1].clave_fuente);
+});
 test('V3 identidad: obras sin numero administrativo reciben UUID interno independiente, sin OC ficticia',async({page})=>{
  await setup(page,{items:[
   {desc:'Vereda accesible',station:'Bernal'},
