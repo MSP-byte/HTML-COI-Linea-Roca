@@ -38393,34 +38393,40 @@ body:not(.coi-v2-light) .coi-v3-table-scroll th{background:#344560;color:#ecf4ff
 'use strict';
 if(window.COI_V3_PORTFOLIO_SAVE)return;
 const $=id=>document.getElementById(id);
-const norm=x=>String(x??'').trim(),fold=x=>norm(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-const hash=v=>{let h=2166136261;for(const c of norm(v)){h=Math.imul(h^c.charCodeAt(0),16777619);}return(h>>>0).toString(36)};
-let available=false,ready=false,working=false,candidate=[],filename='',source='',gen=0;
+const norm=x=>String(x??'').trim();
+const fold=x=>norm(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+const html=x=>norm(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+const profile=(id,x)=>JSON.stringify([fold(id),fold(x.descripcion),fold(x.estacion),fold(x.proveedor),fold(x.expediente),norm(x.oc)]);
+let available=false,ready=false,working=false,candidate=[],filename='',source='',gen=0,proposals=[],remoteRows=[],choices=new Map();
 function status(msg){const el=$('coiV3PortfolioStatus');if(el)el.textContent=msg;}
 function control(){const b=$('coiV3PortfolioSave');if(b)b.disabled=!available||!ready||working||!candidate.length;}
+function safeUuid(){
+ if(!globalThis.crypto?.randomUUID)throw Error('El navegador no permite generar identificadores UUID seguros.');
+ return crypto.randomUUID();
+}
 function build(){
  const src=window.COI_V3?.portfolioSnapshot?.();
  if(!src?.items?.length||!src.file||!src.sheet)return {rows:[],kind:''};
  const kind=src.kind==='Obra'?'obras':'servicios',head=src.headers,byRow=new Map(src.rawRows.map(r=>[r.sourceRow,r]));
  const idIdx=head.findIndex(v=>['NOBRA','NROOBRA','NUMERODEOBRA'].includes(fold(v)));
- const keys=new Set(),records=[];
+ const records=[];
  for(const x of src.items){
   const raw=byRow.get(x.row);if(!raw)throw Error('Fila de origen no hallada: '+x.row);
-  if(['Conflicto','Multifila'].includes(x.outcome))throw Error('Existen conflictos de conciliación; no se permite guardar este lote.');
+  if(x.outcome==='Conflicto')throw Error('Existe un conflicto contractual; corregilo antes de importar (fila '+x.row+').');
+  if(kind==='servicios'&&x.outcome==='Multifila')throw Error('Servicio con OC repetida: requiere separar posiciones y períodos (fila '+x.row+').');
+  // Varias intervenciones de Obras pueden compartir OC sin crear nuevos contratos.
   if(kind==='servicios'&&!/^\d{10}$/.test(x.oc||''))throw Error('Servicio sin número OC válido (fila '+x.row+').');
-  let id=idIdx>=0?norm(raw.cells[idIdx]):'';
-  const key=kind==='servicios'?'oc:'+x.oc:'obra:'+(fold(id)||'SINNUMERO')+':'+hash(fold(x.descripcion)+'|'+fold(x.estacion));
-  if(keys.has(key))throw Error('Obras sin identidad única; clave repetida: '+key);
-  keys.add(key);
+  const adminId=idIdx>=0?norm(raw.cells[idIdx]):'';
+  const externalId=/^(?:SIN\s*(?:N[°º.]?\s*)?(?:OBRA|N[ÚU]MERO|ID)|S\/N|PENDIENTE|0|-|N\/A)$/i.test(adminId)?'':adminId;
   const datos={documento_origen:src.sheet,
-   identificacion:{id_obra_excel:id||null,nro_oc:x.oc||null},
-   descripcion:x.descripcion||null,proveedor:x.proveedor||null,estacion:x.estacion||null,
-   expediente:x.expediente||null,acta_inicio:x.fecha_acta_inicio||null,plazo_dias:x.plazo_dias||null,
-   estado_conciliacion:x.outcome,
-   excel:Object.fromEntries(head.map((h,i)=>[norm(h)||'COL_'+(i+1),norm(raw.cells[i])]).filter(z=>z[1]!==''))
-  };
+    identificacion:{id_obra_excel:externalId||null,nro_oc:x.oc||null,perfil_conciliacion:profile(externalId,x),estado_identidad:externalId?'CON_IDENTIFICADOR_ADMIN':'PENDIENTE_IDENTIFICADOR_ADMIN'},
+    descripcion:x.descripcion||null,proveedor:x.proveedor||null,estacion:x.estacion||null,
+    expediente:x.expediente||null,acta_inicio:x.fecha_acta_inicio||null,plazo_dias:x.plazo_dias||null,
+    estado_conciliacion:x.outcome,
+    excel:Object.fromEntries(head.map((h,i)=>[norm(h)||'COL_'+(i+1),norm(raw.cells[i])]).filter(z=>z[1]!==''))};
   if(JSON.stringify(datos).length>30000)throw Error('Registro demasiado extenso en fila '+x.row);
-  records.push({clave_fuente:key,nro_oc:x.oc||null,fila_excel:x.row,datos,huella_esperada:null});
+  records.push({clave_fuente:kind==='servicios'?'oc:'+x.oc:null,nro_oc:x.oc||null,
+   fila_excel:x.row,datos,huella_esperada:null});
  }
  return {rows:records,kind};
 }
@@ -38431,26 +38437,99 @@ async function client(){
  if(error||!data?.session)throw Error('Iniciá sesión para guardar cambios');
  return c;
 }
-async function review(){
- const token=++gen;available=false;ready=false;candidate=[];control();
- let v;try{v=build()}catch(e){status('Validación requerida: '+String(e.message||e));return;}
- if(!v.rows.length){status('Importá y conciliá el Excel antes de confirmar.');return;}
- status('Verificando control de versiones de la cartera en Supabase...');
+function resolve(){
+ const existing=new Map(remoteRows.map(r=>[r.clave_fuente,r]));
+ const signatureMap=new Map();
+ remoteRows.forEach(r=>{
+  const signature=r.datos?.identificacion?.perfil_conciliacion;
+  if(!signature)return;
+  if(!signatureMap.has(signature))signatureMap.set(signature,[]);
+  signatureMap.get(signature).push(r);
+ });
+ const used=new Set(),pending=[],result=[];
+ for(const row of proposals){
+  let key=row.clave_fuente;
+  if(source==='obras'){
+   const signature=row.datos.identificacion.perfil_conciliacion;
+   const matches=signatureMap.get(signature)||[];
+   const chosen=choices.get(row.fila_excel);
+   if(chosen==='nuevo')key='obra:uuid:'+safeUuid();
+   else if(chosen&&existing.has(chosen))key=chosen;
+   else if(matches.length===1&&!used.has(matches[0].clave_fuente))key=matches[0].clave_fuente;
+   else if(remoteRows.length===0)key='obra:uuid:'+safeUuid();
+   else pending.push({row,matches});
+  }
+  if(key){
+   if(used.has(key))throw Error('Dos filas intentan ocupar la misma identidad interna: '+key);
+   used.add(key);
+   const previous=existing.get(key);
+   row.datos.identificacion.codigo_interno=source==='obras'?key:null;
+   result.push({...row,clave_fuente:key,huella_esperada:previous?.huella||null});
+  }
+ }
+ return {result,pending};
+}
+function selectionPanel(pending){
+ let area=$('coiV3IdentityPanel');
+ if(!area){area=document.createElement('div');area.id='coiV3IdentityPanel';
+  $('coiV3PortfolioStatus')?.insertAdjacentElement('afterend',area);}
+ if(!pending.length){area.replaceChildren();return;}
+ const fragment=document.createElement('div');
+ const h=document.createElement('p');
+ h.textContent=pending.length+' intervenciones requieren homologación manual. La identidad interna es permanente y distinta del N.º de obra y de la OC. Elegí una correspondencia existente o confirmá que es nueva.';
+ fragment.append(h);
+ for(const {row} of pending){
+  const line=document.createElement('label');line.style.cssText='display:flex;gap:8px;align-items:center;margin:7px 0;flex-wrap:wrap';
+  const title=document.createElement('span');
+  title.textContent='Fila '+row.fila_excel+' · '+norm(row.datos.descripcion||'Sin descripción').slice(0,70);
+  title.style.cssText='min-width:260px;max-width:480px';
+  const select=document.createElement('select');select.dataset.v3Identity=String(row.fila_excel);
+  select.style.cssText='max-width:510px;min-width:260px;border:1px solid #73809a;padding:6px';
+  const initial=document.createElement('option');initial.value='';initial.textContent='— Seleccionar identidad —';select.append(initial);
+  const create=document.createElement('option');create.value='nuevo';create.textContent='Nueva intervención — generar UUID interno';select.append(create);
+  for(const old of remoteRows){
+   const o=document.createElement('option');o.value=old.clave_fuente;
+   const ident=old.datos?.identificacion?.id_obra_excel||'sin N.º administrativo';
+   o.textContent=norm(ident)+' · '+norm(old.datos?.descripcion||'Obra').slice(0,48)+' · '+norm(old.datos?.estacion||'')+' · '+old.id;
+   select.append(o);
+  }
+  select.value=choices.get(row.fila_excel)||'';
+  line.append(title,select);fragment.append(line);
+ }
+ area.replaceChildren(fragment);
+}
+function updateResolution(){
  try{
-  const c=await client();
-  const r=await c.from('coi_v3_cartera').select('clave_fuente,huella').eq('fuente',v.kind).limit(1000);
+  const {result,pending}=resolve();
+  candidate=pending.length?[]:result;
+  ready=!pending.length&&candidate.length===proposals.length&&candidate.length>0;
+  available=true;selectionPanel(pending);
+  status(pending.length?'Homologación requerida: '+pending.length+' filas sin coincidencia única. No se habilitarán escrituras hasta resolverlas.':
+   'Validación lista: '+candidate.length+' filas de '+source+'. Identidades internas y huellas comprobadas. No se modificarán contratos ni certificaciones.');
+ }catch(e){candidate=[];ready=false;status('Homologación bloqueada: '+String(e.message||e));}
+ control();
+}
+async function review(){
+ const token=++gen;available=false;ready=false;candidate=[];proposals=[];remoteRows=[];choices.clear();control();
+ let v;try{v=build();}catch(e){status('Validación requerida: '+String(e.message||e));return;}
+ if(!v.rows.length){status('Importá y conciliá el Excel antes de confirmar.');return;}
+ status('Consultando identidades internas y versiones en Supabase...');
+ try{
+  const c=await client(), out=[];
+  for(let offset=0;offset<1000;offset+=500){
+   const r=await c.from('coi_v3_cartera').select('id,clave_fuente,huella,datos').eq('fuente',v.kind).order('id',{ascending:true}).range(offset,offset+499);
+   if(r.error)throw r.error;
+   out.push(...(r.data||[]));if(!r.data||r.data.length<500)break;
+  }
   if(token!==gen)return;
-  if(r.error){status('Pendiente: primero hay que validar e instalar la migración V3 en STAGING. No se habilitaron escrituras.');return;}
-  const existing=new Map((r.data||[]).map(x=>[x.clave_fuente,x.huella]));
-  candidate=v.rows.map(x=>({...x,huella_esperada:existing.get(x.clave_fuente)||null}));
-  source=v.kind;filename=window.COI_V3.portfolioSnapshot().file;available=true;ready=true;
-  status('Validación lista: '+candidate.length+' filas de '+source+'. El guardado será atómico, auditado y no modificará contratos ni certificaciones.');
-  control();
+  if(out.length>=1000)throw Error('El universo de cartera excede el límite seguro de conciliación. Requiere paginación autorizada.');
+  source=v.kind;filename=window.COI_V3.portfolioSnapshot().file;
+  remoteRows=out;proposals=v.rows;updateResolution();
  }catch(e){if(token===gen)status('No se habilitó el guardado: '+String(e.message||e));}
 }
 async function save(){
  if(!available||!ready||working||!candidate.length)return;
- if(!window.confirm('¿Confirmás guardar '+candidate.length+' filas de '+source+' en las tablas de carteras V3? No se modificará ninguna OC, cierre, acta, HES, certificación ni posición SAP.'))return;
+ if(!window.confirm('¿Confirmás guardar '+candidate.length+' intervenciones de '+source+' en Supabase? Las que aún no tienen N.º de obra recibirán una identidad interna UUID. No se actualizarán OC, cierres, HES ni certificaciones.'))return;
  working=true;control();
  try{
   const c=await client();
@@ -38467,12 +38546,16 @@ function mount(){
  const btn=document.createElement('button');btn.id='coiV3PortfolioSave';btn.type='button';
  btn.textContent='Confirmar cartera en Supabase';btn.disabled=true;btn.addEventListener('click',save);
  const text=document.createElement('span');text.id='coiV3PortfolioStatus';text.setAttribute('role','status');
- text.textContent='La etapa de lectura y conciliación es obligatoria. La base contractual nunca se sobreescribe desde Excel.';
+ text.textContent='La conciliación de OC y la identidad permanente son obligatorias. El circuito contractual nunca se sobreescribe desde Excel.';
  toolbar.append(btn,text);
- window.addEventListener('coi:v3-preview-updated',review);
- control();
+ document.querySelector('#coiV3Import')?.addEventListener('change',e=>{
+  const s=e.target.closest('select[data-v3-identity]');if(!s)return;
+  if(s.value)choices.set(Number(s.dataset.v3Identity),s.value);else choices.delete(Number(s.dataset.v3Identity));
+  updateResolution();
+ });
+ window.addEventListener('coi:v3-preview-updated',review);control();
 }
-window.COI_V3_PORTFOLIO_SAVE=Object.freeze({version:'stage1-safe',readOnlyContracts:true,review});
+window.COI_V3_PORTFOLIO_SAVE=Object.freeze({version:'stage2-identity-uuid',readOnlyContracts:true,review});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
 })();
 </script>
