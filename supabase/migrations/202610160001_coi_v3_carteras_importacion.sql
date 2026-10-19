@@ -62,6 +62,7 @@ DECLARE
  v_orden_id uuid;
  v_oc_count integer;
  v_old record;
+ v_previous_hash text;
  v_datos jsonb;
  v_hash text;
  v_expected text;
@@ -93,17 +94,20 @@ BEGIN
      OR jsonb_typeof(v_datos)<>'object' OR length(v_datos::text)>30000
   THEN RAISE EXCEPTION 'COI_V3_INVALID_ROW_DATA'; END IF;
   IF v_oc IS NOT NULL AND v_oc !~ '^[0-9]{10}$' THEN RAISE EXCEPTION 'COI_V3_INVALID_OC'; END IF;
-  IF p_fuente='servicios' AND v_clave<>'oc:'||v_oc THEN RAISE EXCEPTION 'COI_V3_SERVICIO_KEY_MISMATCH'; END IF;
+  IF p_fuente='servicios' AND (v_oc IS NULL OR v_clave <> 'oc:'||v_oc) THEN RAISE EXCEPTION 'COI_V3_SERVICIO_KEY_MISMATCH'; END IF;
   IF p_fuente='obras' AND v_clave NOT LIKE 'obra:%' THEN RAISE EXCEPTION 'COI_V3_OBRA_KEY_MISMATCH'; END IF;
   v_orden_id:=NULL;
   IF v_oc IS NOT NULL THEN
-   SELECT count(*),min(id) INTO v_oc_count,v_orden_id FROM public.coi_ordenes WHERE nro_oc=v_oc;
+   -- PostgreSQL no implementa min(uuid); preservar deteccion de OC ambigua.
+   SELECT count(*),min(id::text)::uuid INTO v_oc_count,v_orden_id FROM public.coi_ordenes WHERE nro_oc=v_oc;
    IF v_oc_count>1 THEN RAISE EXCEPTION 'COI_V3_OC_AMBIGUOUS: %',v_oc; END IF;
   END IF;
   v_hash:=md5(v_datos::text||'|'||coalesce(v_oc,''));
+  v_previous_hash:=NULL;
   SELECT id,huella INTO v_old FROM public.coi_v3_cartera
     WHERE fuente=p_fuente AND clave_fuente=v_clave FOR UPDATE;
   IF FOUND THEN
+   v_previous_hash:=v_old.huella;
    IF v_expected IS NULL OR v_old.huella IS DISTINCT FROM v_expected
    THEN RAISE EXCEPTION 'COI_V3_CONCURRENT_CHANGE: %',v_clave; END IF;
    v_saved_id:=v_old.id;
@@ -124,8 +128,7 @@ BEGIN
    v_new:=v_new+1;v_action:='nuevo';
   END IF;
   INSERT INTO public.coi_v3_importacion_items(lote_id,cartera_id,accion,huella_anterior,huella_nueva)
-    VALUES(v_lote,v_saved_id,v_action,v_old.huella,v_hash);
-  v_old:=NULL;
+    VALUES(v_lote,v_saved_id,v_action,v_previous_hash,v_hash);
  END LOOP;
  UPDATE public.coi_v3_importaciones SET nuevos=v_new,actualizados=v_updated,sin_cambios=v_unchanged WHERE id=v_lote;
  RETURN jsonb_build_object('lote_id',v_lote,'total',v_n,'nuevos',v_new,'actualizados',v_updated,'sin_cambios',v_unchanged);
