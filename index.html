@@ -37866,7 +37866,8 @@ function render(){
  $('cv2ChartHitos').innerHTML=bars([['Con cotización',list.filter(r=>r.raw[11]).length],['Con SOLPED',list.filter(r=>r.solped).length],['Con expediente',list.filter(r=>r.expediente).length],['Con OC',list.filter(r=>r.oc).length],['Con acta inicio',list.filter(r=>r.raw[23]).length]],5,'hitos',list.length);
  $('cv2Body').innerHTML=buildRows(list.slice(0,1000))||'<tr><td colspan="10">Sin registros: cargá un Excel o modificá los filtros.</td></tr>';
  $('cv2Result').textContent=list.length+' de '+all.length+' registros';
- $('cv2Info').textContent=all.length?all.length+' registros de Excel cargados en esta sesión. Para conservarlos entre aperturas falta habilitar persistencia en Supabase.':'Seleccioná el Excel actualizado. Esta fase solo muestra y audita; todavía no guarda la cartera en Supabase.';
+ const restored=all.length>0&&all.every(r=>r.id_interno);
+ $('cv2Info').textContent=restored?'Cartera recuperada desde Supabase: '+all.length+' registros confirmados.':all.length?all.length+' registros de Excel en previsualización. Para guardarlos, usá Carga operativa y confirmá la cartera en Supabase.':'Abrí la cartera para recuperar los registros confirmados o seleccioná un Excel para previsualizarlo.';
  const selected=all.find(r=>r.row===detailRow);if(selected)fillDetail(selected);
 }
 function fillDetail(r){
