@@ -41,7 +41,7 @@ async function main(){
    SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid
   $fn$;
   CREATE TABLE public.profiles(id uuid PRIMARY KEY,rol text,activo boolean);
-  CREATE TABLE public.coi_ordenes(id uuid PRIMARY KEY,nro_oc text NOT NULL);
+  CREATE TABLE public.coi_ordenes(id uuid PRIMARY KEY,nro_oc text NOT NULL,tipo text NOT NULL DEFAULT 'Servicio');
   CREATE FUNCTION public.coi_current_role() RETURNS text
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public,pg_temp AS $fn$
    SELECT rol FROM public.profiles WHERE id=auth.uid() AND activo=true
@@ -58,10 +58,12 @@ async function main(){
  await query("INSERT INTO auth.users(id,email) VALUES ($1,'admin@coi.test'),($2,'reader@coi.test')",[UID,OTHER]);
  await query("INSERT INTO public.profiles(id,rol,activo) VALUES ($1,'administrador',true),($2,'consulta',true)",[UID,OTHER]);
  await query("INSERT INTO public.coi_ordenes(id,nro_oc) VALUES ($1,'4530009805')",[OC_ID]);
+ await query("INSERT INTO public.coi_ordenes(id,nro_oc,tipo) VALUES ($1,'4530999500','Obra')",['55555555-5555-4555-8555-555555555555']);
  const sql=fs.readFileSync(MIGRATION,'utf8');
  // Impide recuperar el bug 42883 aun cuando alguien modifique el selector.
  check(!/\bmin\s*\(\s*id\s*\)/i.test(sql),'No usar MIN(uuid)');
  await db.exec(sql);
+ await db.exec(fs.readFileSync('supabase/migrations/202610190001_coi_v3_tipo_oc_guard.sql','utf8'));
  const rls=await query("SELECT relname,relrowsecurity FROM pg_class WHERE relname LIKE 'coi_v3_%' AND relkind='r'");
  check(rls.length===3&&rls.every(x=>x.relrowsecurity),'RLS debe estar activo en las 3 tablas V3');
  await query("SELECT set_config('request.jwt.claim.sub',$1,false)",[UID]);
@@ -96,11 +98,30 @@ async function main(){
  await query("SELECT set_config('request.jwt.claim.sub','',false)");
  const noSession=await query("SELECT count(*)::int AS n FROM public.coi_v3_cartera");
  check(noSession[0].n===0,'RLS niega lectura sin identidad');
+ await query("SELECT set_config('request.jwt.claim.sub',$1,false)",[UID]);
+ const obra1='obra:uuid:77777777-7777-4777-8777-777777777777';
+ const obra2='obra:uuid:88888888-8888-4888-8888-888888888888';
+ const intervenciones=[
+  {clave_fuente:obra1,nro_oc:'4530999500',fila_excel:4,datos:{descripcion:'Anden norte',identificacion:{id_obra_excel:null,estado_identidad:'PENDIENTE_IDENTIFICADOR_ADMIN'}},huella_esperada:null},
+  {clave_fuente:obra2,nro_oc:'4530999500',fila_excel:5,datos:{descripcion:'Anden sur',identificacion:{id_obra_excel:null,estado_identidad:'PENDIENTE_IDENTIFICADOR_ADMIN'}},huella_esperada:null}
+ ];
+ const importObras=await rpc('obras',intervenciones);
+ check(importObras.nuevos===2,'Dos intervenciones de Obra pueden compartir una OC');
+ const storedObras=await query("SELECT id,clave_fuente,huella,orden_id FROM public.coi_v3_cartera WHERE fuente='obras' ORDER BY fila_excel");
+ check(storedObras.length===2&&storedObras[0].id!==storedObras[1].id,'IDs internos UUID independientes');
+ check(storedObras.every(r=>r.orden_id==='55555555-5555-4555-8555-555555555555'),'Ambas intervenciones referencian una OC válida');
+ const corregido={...intervenciones[0],datos:{descripcion:'Anden norte',identificacion:{id_obra_excel:'2026/37',estado_identidad:'CON_IDENTIFICADOR_ADMIN'}},huella_esperada:storedObras[0].huella};
+ const rectifica=await rpc('obras',[corregido]);
+ check(rectifica.actualizados===1,'Asignación posterior del número administrativo actualiza la misma intervención');
+ const remap=await query("SELECT id,huella FROM public.coi_v3_cartera WHERE clave_fuente=$1",[obra1]);
+ check(remap[0].id===storedObras[0].id,'La intervención conserva el UUID al recibir número administrativo');
+ await fails(()=>rpc('obras',[{...intervenciones[0],nro_oc:'4530009805',huella_esperada:remap[0].huella}]),/COI_V3_OC_TYPE_MISMATCH/);
+ await fails(()=>rpc('servicios',[service('4530999500',20,'Contratación errónea')]),/COI_V3_OC_TYPE_MISMATCH/);
  await db.exec('RESET ROLE');
  const unchanged=await query("SELECT count(*)::int AS n FROM public.coi_ordenes WHERE id=$1 AND nro_oc='4530009805'",[OC_ID]);
  check(unchanged[0].n===1,'La OC contractual permanece intacta');
  const batch=await query("SELECT count(*)::int AS n FROM public.coi_v3_importaciones");
- check(batch[0].n===3,'Solo se auditan los lotes confirmados');
+ check(batch[0].n===5,'Solo se auditan los lotes confirmados');
  console.log('PASS COI V3 SQL PGlite: '+checks+' verificaciones (UUID, RLS, CAS, reintento, auditoria, rollback, roles)');
 }
 main().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>db.close());
