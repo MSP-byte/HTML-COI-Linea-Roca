@@ -33,7 +33,7 @@ test('COI V3: cartera de Servicios persistida se muestra separada de las OC cont
   expect(result.contractRows).toBe(1);
   expect(result.content).toContain('16');
   expect(result.content).toContain('Referencia pendiente de alta contractual');
-  expect(result.content).toContain('Registros de cartera, no nuevas ordenes de compra');
+  expect(result.content).toContain('no nuevas órdenes de compra ni certificaciones generadas');
 });
 
 test('COI V3: un esquema sin cartera V3 no rompe la vista contractual',async({page})=>{
