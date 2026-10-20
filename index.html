@@ -38648,7 +38648,7 @@ async function restore(){
   retry();
  }finally{fetching=false;}
 }
-function requestRestore(){attempts=0;if(retryTimer){clearTimeout(retryTimer);retryTimer=null;}restore();}
+function requestRestore(){successful=false;attempts=0;if(retryTimer){clearTimeout(retryTimer);retryTimer=null;}restore();}
 document.addEventListener('click',e=>{
  if(e.target?.closest?.('#coiV8V2Nav,#btnCarteraObrasV8,#cv2RemoteRefresh'))setTimeout(requestRestore,0);
 },true);
