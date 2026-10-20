@@ -37903,13 +37903,13 @@ function open(){
  if(!$('vistaCarteraObrasV8'))return;
  if(typeof window.mostrarVista==='function')window.mostrarVista('vistaCarteraObrasV8');
  else{document.querySelectorAll('.view.active').forEach(x=>x.classList.remove('active'));$('vistaCarteraObrasV8').classList.add('active');}
- window.COI_V2?.syncNav?.();render();
+ window.COI_V2?.syncNav?.();render();window.COI_V3_HYDRATOR?.restore?.();
 }
 function mount(){
  if($('vistaCarteraObrasV8'))return;
  const section=document.createElement('section');section.id='vistaCarteraObrasV8';section.className='view';
  section.innerHTML='<div class="view-card"><header class="cv2-head"><div><h2>Cartera de Obras</h2><p>Seguimiento integral de necesidades, contratación y avances físicos · Línea Roca</p></div><button class="cv2-btn" id="cv2Audit">Auditoría del Excel</button></header><div class="cv2-main">'+
- '<div class="cv2-actions"><label for="cv2File"><b>Actualizar desde Excel:</b></label><input id="cv2File" class="cv2-file" type="file" accept=".xlsx"><button id="cv2CSV" class="cv2-btn">Exportar auditoría CSV</button></div>'+
+ '<div class="cv2-actions"><label for="cv2File"><b>Actualizar desde Excel:</b></label><input id="cv2File" class="cv2-file" type="file" accept=".xlsx"><button id="cv2RemoteRefresh" class="cv2-btn" type="button">Recuperar desde Supabase</button><button id="cv2CSV" class="cv2-btn">Exportar auditoría CSV</button></div>'+
  '<p id="cv2Info" class="cv2-note">Cargá tu Excel V8. No se modifican datos de producción.</p><div id="cv2Kpis" class="cv2-kpis"></div>'+
  '<div class="cv2-charts"><div class="cv2-chart"><h3>Estados de cartera</h3><div id="cv2ChartEstado"></div></div><div class="cv2-chart"><h3>Ranking por contratista</h3><div id="cv2ChartProveedor"></div></div><div class="cv2-chart"><h3>Madurez de tramitación</h3><div id="cv2ChartHitos"></div></div></div>'+
  '<div class="cv2-filters"><input id="cv2Search" type="search" placeholder="Buscar obra, OC, estación, SOLPED, expediente o contratista"><select id="cv2Estado"><option value="">Estado</option></select><select id="cv2Lugar"><option value="">Lugar</option></select><select id="cv2Proveedor"><option value="">Contratista</option></select><label style="display:flex;align-items:center;gap:4px;font-size:12px"><input id="cv2SoloAvance" type="checkbox">Con avance</label></div>'+
@@ -38616,25 +38616,43 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 (function(){
 'use strict';
 if(window.COI_V3_HYDRATOR)return;
-let fetching=false,successful=false;
+let fetching=false,successful=false,attempts=0,retryTimer=null;
+function hasRows(){return !!window.__COI_CARTERA_V8_F1__?.getRows?.()?.length;}
+function inform(message){const e=document.getElementById('cv2Info');if(e&&!hasRows())e.textContent=message;}
+function retry(){
+ if(attempts>=6){inform('No se pudo recuperar la cartera. Verificá la sesión y utilizá Recuperar desde Supabase.');return;}
+ attempts++;
+ if(retryTimer)clearTimeout(retryTimer);
+ retryTimer=setTimeout(()=>{retryTimer=null;restore();},650);
+}
 async function restore(){
- if(fetching||successful||window.__COI_CARTERA_V8_F1__?.getRows?.()?.length)return;
+ if(fetching||successful||hasRows())return;
  fetching=true;
+ inform('Consultando intervenciones confirmadas en Supabase...');
  try{
   const client=window.__COI_SUPABASE_CLIENT__||await Promise.resolve(window.__COI_SUPABASE_EARLY_CLIENT_PROMISE__).catch(()=>null);
-  if(!client)return;
-  const auth=await client.auth.getSession();if(auth.error||!auth.data?.session)return;
+  if(!client){inform('Esperando conexión con Supabase...');retry();return;}
+  const auth=await client.auth.getSession();
+  if(auth.error){inform('No se pudo validar la sesión. Iniciá sesión y reintentá.');return;}
+  if(!auth.data?.session){inform('Esperando sesión autenticada para recuperar Obras...');retry();return;}
   const result=await client.from('coi_v3_cartera')
     .select('id,fuente,fila_excel,datos').eq('fuente','obras').order('actualizado_en',{ascending:false}).limit(1000);
-  if(result.error)return; // La tabla no existe antes de la migracion; Cartera V8 sigue funcionando.
-  successful=!!(await window.__COI_CARTERA_V8_F1__?.hydratePortfolio?.(result.data||[]));
- }catch(e){console.warn('[COI V3] No se pudo restaurar la cartera confirmada.',e);}
- finally{fetching=false;}
+  if(result.error){inform('La cartera V3 no está disponible en este entorno. La carga Excel y las OC siguen operativas.');return;}
+  const records=result.data||[];
+  if(!records.length){successful=true;inform('No hay intervenciones de Obras confirmadas en esta base.');return;}
+  successful=!!(await window.__COI_CARTERA_V8_F1__?.hydratePortfolio?.(records));
+  if(!successful&&!hasRows())inform('Los registros existen, pero no se pudieron interpretar como BASE_OBRAS. Revisá el formato confirmado.');
+ }catch(e){
+  console.warn('[COI V3] No se pudo restaurar la cartera confirmada.',e);
+  inform('Error de conexión al recuperar Obras. Se reintentará sin modificar datos.');
+  retry();
+ }finally{fetching=false;}
 }
+function requestRestore(){successful=false;attempts=0;if(retryTimer){clearTimeout(retryTimer);retryTimer=null;}restore();}
 document.addEventListener('click',e=>{
- if(e.target?.closest?.('#coiV8V2Nav,#btnCarteraObrasV8'))setTimeout(restore,0);
+ if(e.target?.closest?.('#coiV8V2Nav,#btnCarteraObrasV8,#cv2RemoteRefresh'))setTimeout(requestRestore,0);
 },true);
-window.COI_V3_HYDRATOR=Object.freeze({restore});
+window.COI_V3_HYDRATOR=Object.freeze({restore:requestRestore});
 })();
 </script>
 <style id="coi-v3-exec-css">
