@@ -10,7 +10,9 @@ test('V3 Obras: KPIs distinguen identificadores administrativos faltantes de aus
   await window.__COI_CARTERA_V8_F1__.hydratePortfolio(records);
   window.COI_V2?.syncNav?.();
  });
- await page.locator('#coiV8V2Nav').click();
+ // El menú lateral está fuera del viewport en mobile. Disparamos el mismo click
+ // del botón, igual que la prueba de navegación V2, sin desplazar el menú.
+ await page.locator('#coiV8V2Nav').evaluate(button=>button.click());
  const text=await page.locator('#cv2Kpis').innerText();
  expect(text).toContain('Intervenciones');
  expect(text).toContain('Sin N.º obra');
