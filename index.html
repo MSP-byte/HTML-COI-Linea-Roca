@@ -37860,7 +37860,7 @@ function buildRows(list){
 function render(){
  if(!$('cv2Body'))return;
  const all=rows(),list=filter(all);
- const kpis=[['Proyectos',list.length],['Con OC',list.filter(r=>r.oc).length],['En ejecución',list.filter(r=>/ejecuci[oó]n/i.test(r.estado)).length],['Finalizados',list.filter(r=>/finalizad/i.test(r.estado)).length],['Con avance',list.filter(r=>pval(r.avance)!==null).length],['Observados',list.filter(r=>r.issues.length).length]];
+ const kpis=[['Intervenciones',list.length],['Sin N.º obra',list.filter(r=>!r.obra).length],['Sin OC',list.filter(r=>!r.oc).length],['Con OC',list.filter(r=>r.oc).length],['En ejecución',list.filter(r=>/ejecuci[oó]n/i.test(r.estado)).length],['Finalizadas',list.filter(r=>/finalizad/i.test(r.estado)).length],['Con avance',list.filter(r=>pval(r.avance)!==null).length],['Observadas',list.filter(r=>r.issues.length).length]];
  $('cv2Kpis').innerHTML=kpis.map(([k,v])=>'<div class="cv2-kpi"><strong>'+v+'</strong><small>'+esc(k)+'</small></div>').join('');
  $('cv2ChartEstado').innerHTML=bars(counts(list,r=>r.estado||'Sin estado'));
  $('cv2ChartProveedor').innerHTML=bars(counts(list,r=>r.proveedor),7,'proveedor',list.length);
@@ -38326,6 +38326,8 @@ body:not(.coi-v2-light) .coi-v3-table-scroll th{background:#344560;color:#ecf4ff
     host.innerHTML='<div class="coi-v3-stats">'+metrics.map(([l,n])=>'<div class="coi-v3-stat"><strong>'+n+'</strong><span>'+esc(l)+'</span></div>').join('')+[...byCur].map(([c,n])=>'<div class="coi-v3-stat"><strong>'+esc(money(n,c))+'</strong><span>Monto OC ('+esc(c)+')</span></div>').join('')+'</div><div class="coi-v3-table-scroll"><table><thead><tr><th>OC</th><th>Proveedor</th><th>Descripción</th><th>Estación</th><th>Importe</th><th>Estado</th><th>Expediente</th></tr></thead><tbody>'+data.map(r=>'<tr data-v3-oc="'+esc(r.nro_oc)+'"><td><button type="button" data-v3-open="'+esc(r.nro_oc)+'">'+esc(r.nro_oc)+'</button></td><td>'+esc(r.proveedor||'—')+'</td><td>'+esc(r.descripcion||'—')+'</td><td>'+esc(r.estacion||'—')+'</td><td>'+esc(money(r.monto_total,r.moneda))+'</td><td>'+esc(r.estado_registro||'—')+'</td><td>'+esc(r.expediente||'—')+'</td></tr>').join('')+'</tbody></table></div><p>Fuente: OC de Supabase. No suma distintas monedas ni genera certificaciones ficticias.</p>';
     const saved=state.savedServices||[];
     const countLinked=saved.filter(x=>!!x.orden_id).length;
+    const withoutActa=saved.filter(x=>!norm(x.datos?.acta_inicio)).length;
+    const withoutPlazo=saved.filter(x=>!norm(x.datos?.plazo_dias)).length;
     const savedRows=saved.map(x=>{
       const d=x.datos||{},ident=d.identificacion||{};
       const oc=norm(x.nro_oc||ident.nro_oc)||'—';
@@ -38336,8 +38338,10 @@ body:not(.coi-v2-light) .coi-v3-table-scroll th{background:#344560;color:#ecf4ff
       '<section id="coiV3SavedServices" class="coi-v3-finance"><h3>Cartera de Servicios importada (Supabase)</h3>'+
       '<div class="coi-v3-stats"><div class="coi-v3-stat"><strong>'+saved.length+'</strong><span>Intervenciones importadas</span></div>'+
       '<div class="coi-v3-stat"><strong>'+countLinked+'</strong><span>Con OC contractual vinculada</span></div>'+
-      '<div class="coi-v3-stat"><strong>'+(saved.length-countLinked)+'</strong><span>Referencias sin OC vinculada</span></div></div>'+
-      '<p>Registros de cartera, no nuevas ordenes de compra. Persisten al reabrir; no generan certificados ni modifican contratos.</p>'+
+      '<div class="coi-v3-stat"><strong>'+(saved.length-countLinked)+'</strong><span>Referencias sin OC vinculada</span></div>'+ 
+      '<div class="coi-v3-stat"><strong>'+withoutActa+'</strong><span>Sin fecha de acta</span></div>'+ 
+      '<div class="coi-v3-stat"><strong>'+withoutPlazo+'</strong><span>Sin plazo informado</span></div></div>'+ 
+      '<p>Control documental de datos importados: los valores faltantes se muestran como pendientes, sin inferir fechas ni plazos. Son referencias de cartera, no nuevas órdenes de compra ni certificaciones generadas.</p>'+ 
       (saved.length?'<div class="coi-v3-table-scroll"><table><thead><tr><th>UUID interno</th><th>OC de referencia</th><th>Proveedor</th><th>Descripcion</th><th>Estacion</th><th>Vinculo contractual</th></tr></thead><tbody>'+savedRows+'</tbody></table></div>':
        '<p>'+(state.savedServicesError?esc(state.savedServicesError):'No hay intervenciones de Servicios confirmadas en esta cartera.')+'</p>')+'</section>');
   }
