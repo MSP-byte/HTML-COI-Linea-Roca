@@ -26326,7 +26326,7 @@ body.coi-v2-light input,body.coi-v2-light select,body.coi-v2-light textarea{back
   function syncOnline(){const el=$('coiV2Online');if(!el)return;const online=navigator.onLine;el.classList.toggle('offline',!online);el.querySelector('span').textContent=online?'En línea':'Sin conexión'}
   function syncNav(){
     const active=document.querySelector('.view.active');const id=active?.id||'vistaDashboard';if(id!==lastView){lastView=id;const item=NAV.find(n=>n.view===id);$('coiV2ViewTitle').textContent=item?.label||(active?.querySelector('.view-head h1,.view-head h2')?.textContent||'COI Línea Roca');$('coiV2ViewSubtitle').textContent=id==='vistaFichaOC'?'Expediente Digital OC':'Sistema integrado de gestión';if(id==='vistaDashboard')renderHome()}
-    document.querySelectorAll('[data-v2-nav]').forEach(btn=>btn.classList.toggle('active',btn.dataset.v2View===id));
+    document.querySelectorAll('#coiV2Sidebar .coi-v2-nav-btn').forEach(btn=>{const current=btn.dataset.v2View===id;btn.classList.toggle('active',current);if(current)btn.setAttribute('aria-current','page');else btn.removeAttribute('aria-current');});
     NAV.filter(n=>n.dynamic).forEach(n=>{const btn=document.querySelector(`[data-v2-nav="${n.id}"]`);if(btn)btn.hidden=!($(n.id)||$(n.view)||typeof window.abrirTimelineCOI==='function')});
     const all=rows();document.querySelector('[data-v2-count="orders"]')?.replaceChildren(document.createTextNode(String(all.length)));document.querySelector('[data-v2-count="alerts"]')?.replaceChildren(document.createTextNode(String(all.filter(r=>risk(r).score>=54&&!isClosed(r)).length)));
   }
@@ -37642,6 +37642,7 @@ function mountVisibleSidebarEntry(){
   const entry=document.createElement('button');
   entry.type='button';
   entry.id='coiV8V2Nav';
+  entry.dataset.v2View='vistaCarteraObrasV8';
   entry.className='coi-v2-nav-btn';
   entry.setAttribute('aria-label','Cartera de Obras');
   entry.setAttribute('title','Cartera de Obras');
@@ -37902,7 +37903,6 @@ function open(){
  if(typeof window.mostrarVista==='function')window.mostrarVista('vistaCarteraObrasV8');
  else{document.querySelectorAll('.view.active').forEach(x=>x.classList.remove('active'));$('vistaCarteraObrasV8').classList.add('active');}
  window.COI_V2?.syncNav?.();render();
- const nav=$('coiV8V2Nav');if(nav)nav.classList.add('active');
 }
 function mount(){
  if($('vistaCarteraObrasV8'))return;
@@ -38382,7 +38382,7 @@ body:not(.coi-v2-light) .coi-v3-table-scroll th{background:#344560;color:#ecf4ff
     if($('coiV3ServicesNav'))return true;
     const nav=document.querySelector('#coiV2Sidebar .coi-v2-nav');
     const anchor=nav?.querySelector('#coiV8V2Nav')||nav?.querySelector('[data-v2-nav="btnOrdenes"]');if(!anchor)return false;
-    const item=document.createElement('button');item.type='button';item.id='coiV3ServicesNav';item.className='coi-v2-nav-btn';item.title='Cartera de Servicios';item.setAttribute('aria-label','Cartera de Servicios');
+    const item=document.createElement('button');item.type='button';item.id='coiV3ServicesNav';item.dataset.v2View='vistaServiciosV3';item.className='coi-v2-nav-btn';item.title='Cartera de Servicios';item.setAttribute('aria-label','Cartera de Servicios');
     const icon=anchor.querySelector('svg');if(icon)item.appendChild(icon.cloneNode(true));
     const span=document.createElement('span');span.className='v2-label';span.textContent='Cartera de Servicios';item.appendChild(span);
     item.addEventListener('click',openServices);anchor.insertAdjacentElement('afterend',item);
