@@ -37868,6 +37868,7 @@ function render(){
  $('cv2Body').innerHTML=buildRows(list.slice(0,1000))||'<tr><td colspan="10">Sin registros: cargá un Excel o modificá los filtros.</td></tr>';
  $('cv2Result').textContent=list.length+' de '+all.length+' registros';
  const restored=all.length>0&&all.every(r=>r.id_interno);
+ window.COI_V3_EXECUTIVE?.renderObras?.(all);
  $('cv2Info').textContent=restored?'Cartera recuperada desde Supabase: '+all.length+' registros confirmados.':all.length?all.length+' registros de Excel en previsualización. Para guardarlos, usá Carga operativa y confirmá la cartera en Supabase.':'Abrí la cartera para recuperar los registros confirmados o seleccioná un Excel para previsualizarlo.';
  const selected=all.find(r=>r.row===detailRow);if(selected)fillDetail(selected);
 }
@@ -38362,7 +38363,7 @@ body:not(.coi-v2-light) .coi-v3-table-scroll th{background:#344560;color:#ecf4ff
       state.savedServices=[];state.savedServicesError='';
       try{state.savedServices=await fetchSavedServices();}
       catch(e){state.savedServicesError='La cartera importada no esta disponible en este entorno. El listado contractual sigue operativo.';}
-      renderServices();renderObraFinance();
+      renderServices();renderObraFinance();window.COI_V3_EXECUTIVE?.renderServices?.(state.orders.filter(r=>fold(r.tipo)==='SERVICIO'),state.savedServices,state.savedServicesError);
     }catch(e){if(el)el.textContent='No se pudieron cargar Servicios: '+(e.message||e);}
   }
   function renderObraFinance(){
@@ -38634,6 +38635,90 @@ document.addEventListener('click',e=>{
  if(e.target?.closest?.('#coiV8V2Nav,#btnCarteraObrasV8'))setTimeout(restore,0);
 },true);
 window.COI_V3_HYDRATOR=Object.freeze({restore});
+})();
+</script>
+<style id="coi-v3-exec-css">
+.coi-v3-exec{--e-bg:#1d2945;--e-card:#263553;--e-fg:#edf4ff;--e-muted:#b8c9df;--e-border:#465574;margin:14px 0 20px;padding:20px;border:1px solid var(--e-border);border-radius:16px;background:var(--e-bg);color:var(--e-fg);box-shadow:0 6px 20px #0a15201a}
+body.coi-v2-light .coi-v3-exec{--e-bg:#eef4fc;--e-card:#fff;--e-fg:#193251;--e-muted:#536883;--e-border:#d0ddef}
+.coi-v3-exec .ex-head{display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.coi-v3-exec .ex-overline{font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:800;color:#93b4ff}
+body.coi-v2-light .coi-v3-exec .ex-overline{color:#3156a0}
+.coi-v3-exec h3{color:var(--e-fg);font-size:18px;margin:5px 0!important}
+.coi-v3-exec p,.coi-v3-exec .ex-tag{font-size:12px;color:var(--e-muted);line-height:1.5;margin:5px 0}
+.coi-v3-exec .ex-tag{border:1px solid var(--e-border);padding:6px 9px;border-radius:22px;white-space:nowrap}
+.coi-v3-exec .ex-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.coi-v3-exec .ex-cell{border:1px solid var(--e-border);border-radius:12px;padding:14px;background:var(--e-card)}
+.coi-v3-exec .ex-cell.warn{border-left:3px solid #eab85a}
+.coi-v3-exec .ex-cell strong{display:block;font-size:27px;color:var(--e-fg);font-variant-numeric:tabular-nums}
+.coi-v3-exec .ex-cell span{font-size:12px;color:var(--e-muted);font-weight:650}
+.coi-v3-exec .ex-note{margin-top:12px}
+.coi-v3-exec .ex-pills{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.coi-v3-exec .ex-pills span{border:1px solid var(--e-border);background:var(--e-card);padding:6px 10px;border-radius:25px;font-size:12px}
+.coi-v3-exec .ex-filter{font-size:12px;font-weight:700;display:block;color:var(--e-muted)}
+.coi-v3-exec .ex-filter select{display:block;margin:5px 0;border:1px solid var(--e-border);background:var(--e-card);color:var(--e-fg);border-radius:8px;padding:8px}
+@media(max-width:850px){.coi-v3-exec .ex-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:450px){.coi-v3-exec{padding:12px}.coi-v3-exec .ex-cell{padding:9px}.coi-v3-exec .ex-cell strong{font-size:23px}}
+</style>
+<script id="coi-v3-exec">
+(function(){
+ 'use strict';if(window.COI_V3_EXECUTIVE)return;
+ const $=id=>document.getElementById(id);
+ const text=x=>String(x??'').trim(),fold=x=>text(x).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+ const cell=(label,n,w=false)=>'<div class="ex-cell'+(w?' warn':'')+'"><strong>'+n+'</strong><span>'+label+'</span></div>';
+ function panel(id,anchor){let el=$(id);if(!el&&anchor){el=document.createElement('section');el.id=id;el.className='coi-v3-exec';el.setAttribute('aria-label','Resumen ejecutivo COI');anchor.insertAdjacentElement('beforebegin',el);}return el;}
+ function renderObras(raw){
+  const el=panel('coiV3ExecObras',$('cv2Kpis'));if(!el)return;
+  const all=Array.isArray(raw)?raw:[],count=all.length;
+  const numbered=all.filter(r=>text(r.obra)).length,ocs=all.filter(r=>text(r.oc)).length;
+  const progress=all.filter(r=>r.avance!=null&&text(r.avance)!=='').length;
+  const running=all.filter(r=>fold(r.estado).includes('en ejecucion')).length;
+  el.innerHTML='<div class="ex-head"><div><span class="ex-overline">Cartera de Obras · gestión administrativa</span><h3>Intervenciones y madurez de tramitación</h3><p>Indicadores del universo completo de cartera, independientes de los filtros de la tabla.</p></div><span class="ex-tag">Origen: cartera visible</span></div>'+
+   '<div class="ex-grid">'+cell('Intervenciones',count)+cell('Sin N.º de obra',count-numbered,count>numbered)+cell('Sin OC informada',count-ocs,count>ocs)+cell('Avance informado',progress)+'</div>'+
+   '<div class="ex-pills"><span>En ejecución: '+running+'</span><span>Con OC de referencia: '+ocs+'</span></div>'+
+   '<p class="ex-note">Los faltantes pueden ser normales antes de contratar. El avance declarado no equivale a certificaciones SAP ni a saldo financiero.</p>';
+ }
+ let imported=[],filter='all';
+ function modality(r){
+  const d=r?.datos||{},e=d.excel||{},i=d.identificacion||{};
+  const val=fold(d.modalidad_certificacion||i.modalidad_certificacion||e['MODALIDAD']||e['MODALIDAD CERTIFICACION']||e['MODALIDAD DE CERTIFICACION']);
+  return val.includes('demanda')?'demanda':val.includes('mensual')?'mensual':'pendiente';
+ }
+ function apply(){
+  const body=$('coiV3SavedServices')?.querySelector('tbody');if(!body)return;
+  Array.from(body.querySelectorAll('tr')).forEach((row,i)=>{
+    const linked=!!imported[i]?.orden_id;row.hidden=filter!=='all'&&(filter==='linked'?!linked:linked);row.style.display=row.hidden?'none':'';
+  });
+ }
+ function renderServices(contracts,saved,unavailable){
+  const el=panel('coiV3ExecServicios',$('coiV3Services'));if(!el)return;
+  imported=Array.isArray(saved)?saved:[];
+  const total=imported.length,linked=imported.filter(r=>!!r.orden_id).length;
+  const monthly=imported.filter(r=>modality(r)==='mensual').length,demand=imported.filter(r=>modality(r)==='demanda').length;
+  el.innerHTML='<div class="ex-head"><div><span class="ex-overline">Cartera de Servicios · gestión mensual y a demanda</span><h3>Prestaciones y vínculos contractuales</h3><p>Separa registros de cartera importados y órdenes contractuales.</p></div><span class="ex-tag">Origen: Supabase</span></div>'+
+   '<div class="ex-grid">'+cell('Prestaciones importadas',total)+cell('OC contractuales',Array.isArray(contracts)?contracts.length:0)+cell('Sin vínculo a OC',total-linked,total>linked)+cell('Modalidad sin homologar',total-monthly-demand,total>monthly+demand)+'</div>'+
+   '<div class="ex-pills"><span>Mensuales declaradas: '+monthly+'</span><span>A demanda declaradas: '+demand+'</span><span>Vinculadas: '+linked+'</span></div>'+
+   '<p class="ex-note">'+(unavailable?'Cartera V3 no disponible en este entorno. ':'')+'No se asigna modalidad ni se generan certificaciones automáticamente sin datos contractuales confirmados.</p>'+
+   '<label class="ex-filter" for="coiV3ExecFilter">Filtrar registros importados<select id="coiV3ExecFilter"><option value="all">Todas</option><option value="linked">Con OC vinculada</option><option value="pending">Sin vínculo contractual</option></select></label>';
+  const select=$('coiV3ExecFilter');select.value=filter;select.addEventListener('change',()=>{filter=select.value;apply();});apply();
+ }
+ function renderFicha(){
+  const body=$('fichaOCBody');if(!body||body.querySelector('#coiV3ExecFicha'))return;
+  const type=fold(body.querySelector('.oc-kpis .oc-kpi:first-child b')?.textContent);
+  if(type!=='obra'&&type!=='servicio')return;
+  const el=panel('coiV3ExecFicha',body.querySelector('.oc-kpis'));if(!el)return;
+  const obra=type==='obra';
+  el.innerHTML='<div class="ex-head"><div><span class="ex-overline">Expediente digital · lectura ejecutiva</span><h3>'+(obra?'Obra: hitos, avance y actas':'Servicio: prestaciones y certificación')+'</h3><p>'+(obra?'Seguir avance físico y mediciones con documentos de respaldo.':'Distinguir mantenimiento periódico y prestaciones a demanda según condiciones de la OC.')+'</p></div><span class="ex-tag">Ficha original preservada</span></div>'+
+   '<div class="ex-pills"><span>Contrato</span><span>'+(obra?'Avance de obra':'Prestaciones')+'</span><span>Certificaciones</span><span>Documentación</span></div>'+
+   '<p class="ex-note">Fechas, estados, montos, HES y certificados se consultan en las secciones oficiales. Este panel no altera información.</p>';
+ }
+ function mount(){
+  const ficha=$('fichaOCBody');
+  if(ficha){new MutationObserver(renderFicha).observe(ficha,{childList:true});renderFicha();}
+  window.addEventListener('coi:cartera-v8-updated',()=>renderObras(window.__COI_CARTERA_V8_F1__?.getRows?.()||[]));
+  const rows=window.__COI_CARTERA_V8_F1__?.getRows?.();if(Array.isArray(rows)&&rows.length)renderObras(rows);
+ }
+ window.COI_V3_EXECUTIVE=Object.freeze({renderObras,renderServices,renderFicha,modality});
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
 })();
 </script>
 </body></html>
