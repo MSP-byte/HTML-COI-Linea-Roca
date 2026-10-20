@@ -23,6 +23,7 @@ test('V3 ejecutivo Obras: muestra faltantes administrativos sin inventar OC ni c
 
 test('V3 ejecutivo Servicios: separa cartera de contratos y filtra vínculos sin escrituras',async({page})=>{
  await page.goto('/index.html',{waitUntil:'domcontentloaded'});
+ await page.evaluate(()=>window.mostrarVista('vistaServiciosV3'));
  await page.evaluate(()=>{
   const host=document.getElementById('coiV3Services');
   if(!host)throw Error('Falta contenedor de Servicios');
