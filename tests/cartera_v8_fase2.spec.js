@@ -13,7 +13,7 @@ test('Cartera V8 fase 2: vista independiente, KPIs, progreso y ficha', async ({p
     buffer:sample
   });
   await expect(page.locator('#cv2Result')).toContainText('2 de 2 registros',{timeout:20000});
-  await expect(page.locator('#cv2Kpis')).toContainText('Proyectos');
+  await expect(page.locator('#cv2Kpis')).toContainText('Intervenciones');
   await expect(page.locator('#cv2Body tr')).toHaveCount(2);
 
   await page.locator('#cv2File').setInputFiles({
