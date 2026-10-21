@@ -64,6 +64,10 @@ async function main(){
  check(!/\bmin\s*\(\s*id\s*\)/i.test(sql),'No usar MIN(uuid)');
  await db.exec(sql);
  await db.exec(fs.readFileSync('supabase/migrations/202610190001_coi_v3_tipo_oc_guard.sql','utf8'));
+ const homologacion=fs.readFileSync('supabase/migrations/202610210001_coi_v3_homologacion_no_autovinculo.sql','utf8');
+ check(/SET nro_oc=v_oc,orden_id=NULL/.test(homologacion),'No autovincular en UPDATE');
+ check(/VALUES\(p_fuente,v_clave,v_fila,v_oc,NULL,v_datos/.test(homologacion),'No autovincular en INSERT');
+ await db.exec(homologacion);
  const rls=await query("SELECT relname,relrowsecurity FROM pg_class WHERE relname LIKE 'coi_v3_%' AND relkind='r'");
  check(rls.length===3&&rls.every(x=>x.relrowsecurity),'RLS debe estar activo en las 3 tablas V3');
  await query("SELECT set_config('request.jwt.claim.sub',$1,false)",[UID]);
@@ -73,7 +77,7 @@ async function main(){
  check(first.total===2&&first.nuevos===2&&first.actualizados===0,'Primera carga');
  const stored=await query("SELECT clave_fuente,orden_id,huella FROM public.coi_v3_cartera ORDER BY clave_fuente");
  check(stored.length===2,'Dos filas creadas');
- check(stored.find(x=>x.clave_fuente==='oc:4530009805').orden_id===OC_ID,'Vincula UUID de OC existente');
+ check(stored.find(x=>x.clave_fuente==='oc:4530009805').orden_id===null,'OC existente es referencia, no vínculo homologado');
  check(stored.find(x=>x.clave_fuente==='oc:4530009806').orden_id===null,'OC inexistente no genera OC ficticia');
  const expected=Object.fromEntries(stored.map(r=>[r.clave_fuente,r.huella]));
  const same=initial.map(row=>({...row,huella_esperada:expected[row.clave_fuente]}));
@@ -109,19 +113,37 @@ async function main(){
  check(importObras.nuevos===2,'Dos intervenciones de Obra pueden compartir una OC');
  const storedObras=await query("SELECT id,clave_fuente,huella,orden_id FROM public.coi_v3_cartera WHERE fuente='obras' ORDER BY fila_excel");
  check(storedObras.length===2&&storedObras[0].id!==storedObras[1].id,'IDs internos UUID independientes');
- check(storedObras.every(r=>r.orden_id==='55555555-5555-4555-8555-555555555555'),'Ambas intervenciones referencian una OC válida');
+ check(storedObras.every(r=>r.orden_id===null),'Obras separadas no se vinculan por coincidir número de OC');
  const corregido={...intervenciones[0],datos:{descripcion:'Anden norte',identificacion:{id_obra_excel:'2026/37',estado_identidad:'CON_IDENTIFICADOR_ADMIN'}},huella_esperada:storedObras[0].huella};
  const rectifica=await rpc('obras',[corregido]);
  check(rectifica.actualizados===1,'Asignación posterior del número administrativo actualiza la misma intervención');
  const remap=await query("SELECT id,huella FROM public.coi_v3_cartera WHERE clave_fuente=$1",[obra1]);
  check(remap[0].id===storedObras[0].id,'La intervención conserva el UUID al recibir número administrativo');
+ // Simula una homologación externa previamente aprobada por un administrador.
+ // La reimportación idéntica la preserva; cualquier modificación la invalida.
+ await db.exec('RESET ROLE');
+ await query('UPDATE public.coi_v3_cartera SET orden_id=$1 WHERE clave_fuente=$2',
+  ['55555555-5555-4555-8555-555555555555',obra2]);
+ await db.exec('SET ROLE authenticated');
+ const sameApproved={...intervenciones[1],huella_esperada:storedObras[1].huella};
+ const sameApprovedResult=await rpc('obras',[sameApproved]);
+ check(sameApprovedResult.sin_cambios===1,'Reimportación igual de vínculo homologado');
+ const stillApproved=await query('SELECT orden_id FROM public.coi_v3_cartera WHERE clave_fuente=$1',[obra2]);
+ check(stillApproved[0].orden_id==='55555555-5555-4555-8555-555555555555',
+  'Reimportación idéntica conserva vínculo previamente homologado');
+ const changedApproved={...sameApproved,
+  datos:{...sameApproved.datos,descripcion:'Andén sur: modificación que requiere nueva homologación'}};
+ const changedApprovalResult=await rpc('obras',[changedApproved]);
+ check(changedApprovalResult.actualizados===1,'Cambio real reimportado tras homologación');
+ const invalidated=await query('SELECT orden_id FROM public.coi_v3_cartera WHERE clave_fuente=$1',[obra2]);
+ check(invalidated[0].orden_id===null,'Cambio documental invalida vínculo sin recrearlo');
  await fails(()=>rpc('obras',[{...intervenciones[0],nro_oc:'4530009805',huella_esperada:remap[0].huella}]),/COI_V3_OC_TYPE_MISMATCH/);
  await fails(()=>rpc('servicios',[service('4530999500',20,'Contratación errónea')]),/COI_V3_OC_TYPE_MISMATCH/);
  await db.exec('RESET ROLE');
  const unchanged=await query("SELECT count(*)::int AS n FROM public.coi_ordenes WHERE id=$1 AND nro_oc='4530009805'",[OC_ID]);
  check(unchanged[0].n===1,'La OC contractual permanece intacta');
  const batch=await query("SELECT count(*)::int AS n FROM public.coi_v3_importaciones");
- check(batch[0].n===5,'Solo se auditan los lotes confirmados');
+ check(batch[0].n===7,'Solo se auditan los lotes confirmados');
  console.log('PASS COI V3 SQL PGlite: '+checks+' verificaciones (UUID, RLS, CAS, reintento, auditoria, rollback, roles)');
 }
 main().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>db.close());
