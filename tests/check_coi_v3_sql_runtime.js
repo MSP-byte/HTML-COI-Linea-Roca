@@ -72,7 +72,7 @@ async function main(){
  const auditTables=await query("SELECT relname,relrowsecurity FROM pg_class WHERE relname IN ('coi_v3_promociones','coi_v3_procedencia','coi_v3_homologaciones') AND relkind='r'");
  check(auditTables.length===3&&auditTables.every(x=>x.relrowsecurity),'RLS protegida para las tres tablas de procedencia');
  const rls=await query("SELECT relname,relrowsecurity FROM pg_class WHERE relname LIKE 'coi_v3_%' AND relkind='r'");
- check(rls.length===3&&rls.every(x=>x.relrowsecurity),'RLS debe estar activo en las 3 tablas V3');
+ check(rls.length===6&&rls.every(x=>x.relrowsecurity),'RLS debe estar activo en las 6 tablas V3');
  await query("SELECT set_config('request.jwt.claim.sub',$1,false)",[UID]);
  await db.exec('SET ROLE authenticated');
  const initial=[service('4530009805',7,'Mantenimiento preventivo'),service('4530009806',8,'Reparacion sin OC contractual')];
