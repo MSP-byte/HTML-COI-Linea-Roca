@@ -68,6 +68,9 @@ async function main(){
  check(/SET nro_oc=v_oc,orden_id=NULL/.test(homologacion),'No autovincular en UPDATE');
  check(/VALUES\(p_fuente,v_clave,v_fila,v_oc,NULL,v_datos/.test(homologacion),'No autovincular en INSERT');
  await db.exec(homologacion);
+ await db.exec(fs.readFileSync('supabase/migrations/202610210002_coi_v3_promocion_homologacion.sql','utf8'));
+ const auditTables=await query("SELECT relname,relrowsecurity FROM pg_class WHERE relname IN ('coi_v3_promociones','coi_v3_procedencia','coi_v3_homologaciones') AND relkind='r'");
+ check(auditTables.length===3&&auditTables.every(x=>x.relrowsecurity),'RLS protegida para las tres tablas de procedencia');
  const rls=await query("SELECT relname,relrowsecurity FROM pg_class WHERE relname LIKE 'coi_v3_%' AND relkind='r'");
  check(rls.length===3&&rls.every(x=>x.relrowsecurity),'RLS debe estar activo en las 3 tablas V3');
  await query("SELECT set_config('request.jwt.claim.sub',$1,false)",[UID]);
@@ -139,6 +142,31 @@ async function main(){
  check(invalidated[0].orden_id===null,'Cambio documental invalida vínculo sin recrearlo');
  await fails(()=>rpc('obras',[{...intervenciones[0],nro_oc:'4530009805',huella_esperada:remap[0].huella}]),/COI_V3_OC_TYPE_MISMATCH/);
  await fails(()=>rpc('servicios',[service('4530999500',20,'Contratación errónea')]),/COI_V3_OC_TYPE_MISMATCH/);
+ // Sin referencia documental y sin coincidencia contractual no se homologa.
+ const target=await query("SELECT id,huella FROM public.coi_v3_cartera WHERE clave_fuente='oc:4530009805'");
+ await fails(()=>query('SELECT public.coi_v3_homologar_contrato($1,$2,$3,$4,$5)',[
+  target[0].id,OC_ID,target[0].huella,'SIN REF','SIN OBS'
+ ]),/COI_V3_FALTA_EVIDENCIA_O_HUELLA/);
+ await fails(()=>query('SELECT public.coi_v3_homologar_contrato($1,$2,$3,$4,$5)',[
+  target[0].id,'55555555-5555-4555-8555-555555555555',target[0].huella,
+  'SERCAE:documento-legible','Validacion documental en laboratorio'
+ ]),/COI_V3_OC_DIFERENTE/);
+ const approve=await query('SELECT public.coi_v3_homologar_contrato($1,$2,$3,$4,$5) as id',[
+  target[0].id,OC_ID,target[0].huella,'SERCAE:documento-legible','Validacion documental en laboratorio'
+ ]);
+ check(Boolean(approve[0].id),'Homologacion explícita aprobada con referencia documental');
+ const approved=await query('SELECT orden_id FROM public.coi_v3_cartera WHERE id=$1',[target[0].id]);
+ check(approved[0].orden_id===OC_ID,'Vincula UUID solo con aprobación explícita');
+ const evidence=await query('SELECT aprobado_por,referencia_documental FROM public.coi_v3_homologaciones WHERE cartera_id=$1',[target[0].id]);
+ check(evidence.length===1 && evidence[0].aprobado_por===UID,'Auditoria documental del administrador es persistente');
+ await fails(()=>query('SELECT public.coi_v3_homologar_contrato($1,$2,$3,$4,$5)',[
+  target[0].id,OC_ID,target[0].huella,'SERCAE:documento-legible','Validacion documental duplicada bloqueada'
+ ]),/COI_V3_YA_HOMOLOGADA/);
+ await query("SELECT set_config('request.jwt.claim.sub',$1,false)",[OTHER]);
+ await fails(()=>query('SELECT public.coi_v3_homologar_contrato($1,$2,$3,$4,$5)',[
+  target[0].id,OC_ID,target[0].huella,'SERCAE:documento-legible','Intento de usuario consulta'
+ ]),/COI_FORBIDDEN/);
+ await query("SELECT set_config('request.jwt.claim.sub',$1,false)",[UID]);
  await db.exec('RESET ROLE');
  const unchanged=await query("SELECT count(*)::int AS n FROM public.coi_ordenes WHERE id=$1 AND nro_oc='4530009805'",[OC_ID]);
  check(unchanged[0].n===1,'La OC contractual permanece intacta');
