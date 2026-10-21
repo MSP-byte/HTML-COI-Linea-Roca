@@ -188,6 +188,7 @@ async function casoA() {
   for (const f of files) {
     try { await db.exec(leer(f)); aplicadas++; }
     catch (error) {
+      console.error('SCHEMA_DIAGNOSTIC', JSON.stringify({archivo:f,code:error.code,position:error.position,detail:error.detail,where:error.where,message:error.message}));
       fallo = { archivo: f, motivo: String(error.message || error).split('\n')[0] };
       try { await db.exec('rollback'); } catch (e) { /* transaccion ya cerrada */ }
       break;
