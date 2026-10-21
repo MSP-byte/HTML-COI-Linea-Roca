@@ -82,8 +82,8 @@ BEGIN
   WHERE id=p_orden FOR SHARE;
  IF NOT FOUND OR v_orden.nro_oc IS DISTINCT FROM v_cartera.nro_oc
  THEN RAISE EXCEPTION 'COI_V3_OC_DIFERENTE'; END IF;
- IF lower(btrim(v_orden.tipo)) <>
-    CASE WHEN v_cartera.fuente='obras' THEN 'obra' ELSE 'servicio' END
+ IF (v_cartera.fuente='obras' AND lower(btrim(v_orden.tipo))<>'obra')
+    OR (v_cartera.fuente='servicios' AND lower(btrim(v_orden.tipo))<>'servicio')
  THEN RAISE EXCEPTION 'COI_V3_TIPO_INCOMPATIBLE'; END IF;
  IF v_cartera.orden_id IS NOT NULL
  THEN RAISE EXCEPTION 'COI_V3_YA_HOMOLOGADA'; END IF;
