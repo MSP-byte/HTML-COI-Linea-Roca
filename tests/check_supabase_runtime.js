@@ -212,45 +212,47 @@ async function main() {
     await db.query("select id from public.coi_timeline_replace_events('[]'::jsonb)");
     assert.equal((await db.query('select count(*)::int n from public.coi_timeline_events')).rows[0].n, 0);
 
-    // Security V2: ningun rol de aplicación puede actualizar OC por PostgREST,
-    // ni invocar el helper legacy para falsificar eventos de auditoría.
-    assert.equal(
-      (await db.query("select has_table_privilege('authenticated','public.coi_ordenes','UPDATE') allowed")).rows[0].allowed,
-      false,
-      'Las OCs sólo deben actualizarse por RPC auditadas'
-    );
-    const legacyHelper = (await db.query(
+    // Security V2: el helper de auditoría no acepta payloads REST/RPC
+    // arbitrarios fuera del trigger real, aunque mantenga EXECUTE heredado.
+    const legacyAuditHelperExists = (await db.query(
       "select to_regprocedure('public.coi_record_direct_order_update(jsonb,jsonb)') is not null present"
     )).rows[0].present;
-    if (legacyHelper) {
+    if (legacyAuditHelperExists) {
+      const auditBefore = (await db.query(
+        "select count(*)::int n from public.coi_operaciones_auditoria where accion='ACTUALIZAR_ORDEN_DIRECTO_COMPAT'"
+      )).rows[0].n;
+      await assert.rejects(
+        db.query(
+          "select public.coi_record_direct_order_update($1::jsonb,$2::jsonb)",
+          [JSON.stringify({id:ORDER_ID,nro_oc:'4530008964'}),JSON.stringify({id:ORDER_ID,nro_oc:'4530008964',monto_total:100000})]
+        ),
+        /COI_AUDIT_TRIGGER_ONLY/
+      );
       assert.equal(
         (await db.query(
-          "select has_function_privilege('authenticated','public.coi_record_direct_order_update(jsonb,jsonb)','EXECUTE') allowed"
-        )).rows[0].allowed,
-        false,
-        'No debe permitirse la fabricación directa de registros de auditoría'
+          "select count(*)::int n from public.coi_operaciones_auditoria where accion='ACTUALIZAR_ORDEN_DIRECTO_COMPAT'"
+        )).rows[0].n,
+        auditBefore,
+        'La invocación directa del helper no debe fabricar eventos'
       );
     }
 
-    await assert.rejects(
-      db.query("update public.coi_ordenes set proveedor='LEGACY BLOQUEADO' where id=$1 returning proveedor", [ORDER_ID]),
-      /permission denied|insufficient privilege|not authorized/i
-    );
-    assert.equal(
-      (await db.query("select count(*)::int n from public.coi_operaciones_auditoria where accion='ACTUALIZAR_ORDEN_DIRECTO_COMPAT'")).rows[0].n,
-      0,
-      'Un UPDATE denegado no genera auditoría falsa'
-    );
+    // Writer legacy permitido, pero trazado server-side.
+    const legacy = await db.query("update public.coi_ordenes set proveedor='LEGACY OK' where id=$1 returning proveedor", [ORDER_ID]);
+    assert.equal(legacy.rows[0].proveedor, 'LEGACY OK');
+    assert.equal((await db.query("select count(*)::int n from public.coi_operaciones_auditoria where accion='ACTUALIZAR_ORDEN_DIRECTO_COMPAT'")).rows[0].n, 1);
 
-    // Toda edición directa está bloqueada, incluso la renumeración y los links.
+    // Renumerar directamente sigue bloqueado: solo RPC auditable.
     await assert.rejects(
       db.query("update public.coi_ordenes set nro_oc='4530009999' where id=$1", [ORDER_ID]),
-      /permission denied|insufficient privilege|not authorized/i
+      /COI_RENUMBER_REQUIRES_RPC/
     );
+
+    // Campos de links no pueden ser alterados por roles fuera del circuito documental.
     await setUser(db, 'planificacion');
     await assert.rejects(
       db.query("update public.coi_ordenes set link_documental_principal='https://example.com' where id=$1", [ORDER_ID]),
-      /permission denied|insufficient privilege|not authorized/i
+      /COI_LINK_ROLE_REQUIRED/
     );
     await setUser(db, 'administrador');
 
