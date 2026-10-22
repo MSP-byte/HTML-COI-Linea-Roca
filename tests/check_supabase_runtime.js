@@ -212,6 +212,31 @@ async function main() {
     await db.query("select id from public.coi_timeline_replace_events('[]'::jsonb)");
     assert.equal((await db.query('select count(*)::int n from public.coi_timeline_events')).rows[0].n, 0);
 
+    // Security V2: el helper de auditoría no acepta payloads REST/RPC
+    // arbitrarios fuera del trigger real, aunque mantenga EXECUTE heredado.
+    const legacyAuditHelperExists = (await db.query(
+      "select to_regprocedure('public.coi_record_direct_order_update(jsonb,jsonb)') is not null present"
+    )).rows[0].present;
+    if (legacyAuditHelperExists) {
+      const auditBefore = (await db.query(
+        "select count(*)::int n from public.coi_operaciones_auditoria where accion='ACTUALIZAR_ORDEN_DIRECTO_COMPAT'"
+      )).rows[0].n;
+      await assert.rejects(
+        db.query(
+          "select public.coi_record_direct_order_update($1::jsonb,$2::jsonb)",
+          [JSON.stringify({id:ORDER_ID,nro_oc:'4530008964'}),JSON.stringify({id:ORDER_ID,nro_oc:'4530008964',monto_total:100000})]
+        ),
+        /COI_AUDIT_TRIGGER_ONLY/
+      );
+      assert.equal(
+        (await db.query(
+          "select count(*)::int n from public.coi_operaciones_auditoria where accion='ACTUALIZAR_ORDEN_DIRECTO_COMPAT'"
+        )).rows[0].n,
+        auditBefore,
+        'La invocación directa del helper no debe fabricar eventos'
+      );
+    }
+
     // Writer legacy permitido, pero trazado server-side.
     const legacy = await db.query("update public.coi_ordenes set proveedor='LEGACY OK' where id=$1 returning proveedor", [ORDER_ID]);
     assert.equal(legacy.rows[0].proveedor, 'LEGACY OK');
