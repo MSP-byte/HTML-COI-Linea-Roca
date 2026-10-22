@@ -119,7 +119,7 @@ async function main(){
   // Detector heurístico para encontrar nuevas RPC sin evidencia siquiera de
   // control de identidad/rol en SQL. No reemplaza una auditoría de flujo.
   assert.deepEqual(
-    clientRpcs.filter(fn => !/coi_assert_role|coi_current_role|auth\\.uid\\s*\\(|public\\.profiles/i.test(fn.body)).map(ident),
+    clientRpcs.filter(fn => !/coi_assert_role|coi_current_role|auth\.uid\s*\(|public\.profiles/i.test(fn.body)).map(ident),
     [],
     'toda RPC privilegiada ejecutable por authenticated debe referenciar una guarda de identidad o rol'
   );
