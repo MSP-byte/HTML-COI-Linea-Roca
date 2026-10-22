@@ -10,7 +10,7 @@ let failed = false;
 // snapshots legacy con autenticación, CSP o validaciones desactualizadas.
 // El código histórico permanece recuperable en Git, pero NO como URL ejecutable.
 const publishedRootHtml = fs.readdirSync('.', { withFileTypes: true })
-  .filter(entry => entry.isFile() && /\\.html?$/i.test(entry.name))
+  .filter(entry => entry.isFile() && /\.html?$/i.test(entry.name))
   .map(entry => entry.name)
   .sort();
 const unsupportedHtmlEntrypoints = publishedRootHtml.filter(name => name !== 'index.html');
