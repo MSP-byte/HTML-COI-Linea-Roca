@@ -17467,7 +17467,47 @@ const APP_DATA_MODE = "supabase_first";
   function isClosed(o){return/(CERRAD|FINALIZ|CANCELAD)/.test(norm(o.estado_coi||o.estado||o.estadoRegistro))}
   function evaluarCalidadOrden(orden){const o={...orden,...normalizeExtraPayload(orden)};const missing=[],critical=[];if(!nro(o)){missing.push('nro_oc');critical.push('Falta N° OC')}if(!clean(o.tipo))missing.push('tipo');if(!clean(o.proveedor)){missing.push('proveedor');critical.push('Falta proveedor')}if(!clean(o.estacion)||norm(o.estacion)==='SIN DEFINIR'){missing.push('estacion');critical.push('Falta estación principal')}if(!clean(o.descripcion||o.tipo_trabajo||o.tipoTrabajo)){missing.push('descripcion');critical.push('Falta descripción/tipo de trabajo')}if(!clean(o.estado_coi||o.estado)){missing.push('estado_coi');critical.push('Falta estado COI')}if(!clean(o.fecha_acta_inicio||o.actaInicio))missing.push('acta');if(!Number(o.plazo_dias||o.plazoDias||0))missing.push('plazo');const venc=o.fecha_vencimiento||o.vencimiento;if(!clean(venc)&&!clean(o.justificacion_administrativa||o.justificacionAdministrativa)){missing.push('vencimiento');critical.push('Falta vencimiento o justificación')}if(!clean(o.estado_documental||o.estadoDocumental))missing.push('estado_documental');if(Number(o.monto_total??o.monto??0)<=0)missing.push('monto_cero');const dias=daysTo(venc);if(dias!==null&&dias<0&&!clean(o.justificacion_administrativa||o.justificacionAdministrativa)&&!isClosed(o)){missing.push('vencida_sin_justificacion');critical.push('OC vencida sin justificación')}let score=100;const weights={nro_oc:20,tipo:7,proveedor:14,estacion:14,descripcion:12,estado_coi:12,acta:4,plazo:4,vencimiento:10,estado_documental:5,monto_cero:4,vencida_sin_justificacion:15};missing.forEach(k=>score-=weights[k]||4);score=Math.max(0,Math.min(100,score));let estado=isClosed(o)?'Gris':critical.length?'Rojo':score>=85?'Verde':score>=60?'Amarillo':'Rojo';const requiere=estado==='Rojo'||estado==='Amarillo';return{estado,score,requiere_accion:requiere,motivo_requiere_accion:critical.concat(missing.filter(x=>!critical.some(c=>norm(c).includes(norm(x))))).join(' | ')||'',faltantes:missing,criticos:critical}}
   function calcularScoreCalidadOrden(o){return evaluarCalidadOrden(o).score}
-  async function actualizarCalidadOrdenSupabase(orden,resultado){const n=nro(orden);const {data,error}=await client().from(T_ORDENES).update({calidad_datos_estado:resultado.estado,calidad_datos_score:resultado.score,fecha_ultimo_control:isoNow(),requiere_accion:resultado.requiere_accion,motivo_requiere_accion:resultado.motivo_requiere_accion||null}).eq('nro_oc',n).select();if(error)throw error;if(data?.[0])mergeRows([data[0]]);return data}
+  async function actualizarCalidadOrdenSupabase(orden,resultado){
+    // Security V3: resolver UUID y usar la RPC con auditoría, nunca UPDATE PostgREST directo.
+    await requireWrite();
+    const n=nro(orden);
+    if(!n)throw new Error('No se pudo identificar la OC para su control de calidad.');
+    const sb=client();
+    const lookup=await sb.from(T_ORDENES).select('id,nro_oc').eq('nro_oc',n).limit(2);
+    if(lookup.error)throw lookup.error;
+    const matches=Array.isArray(lookup.data)?lookup.data:[];
+    if(matches.length!==1||!matches[0]?.id||clean(matches[0].nro_oc).replace(/\s+/g,'')!==n){
+      throw new Error('No se pudo resolver una única OC remota para actualizar su calidad.');
+    }
+    const id=matches[0].id;
+    const cambios={
+      calidad_datos_estado:resultado.estado,
+      calidad_datos_score:resultado.score,
+      fecha_ultimo_control:isoNow(),
+      requiere_accion:resultado.requiere_accion,
+      motivo_requiere_accion:resultado.motivo_requiere_accion||null
+    };
+    const result=await sb.rpc('coi_actualizar_orden_integral',{p_orden_id:id,p_cambios:cambios});
+    if(result.error)throw result.error;
+    const confirmed=result.data?.orden;
+    if(!confirmed?.id||String(confirmed.id)!==String(id)||clean(confirmed.nro_oc).replace(/\s+/g,'')!==n){
+      throw new Error('La RPC no confirmó la OC actualizada durante el control de calidad.');
+    }
+    const verified=await sb.from(T_ORDENES).select('*').eq('id',id).limit(1);
+    if(verified.error)throw verified.error;
+    const persisted=Array.isArray(verified.data)?verified.data[0]:null;
+    if(!persisted?.id||String(persisted.id)!==String(id)||
+      clean(persisted.nro_oc).replace(/\s+/g,'')!==n||
+      persisted.calidad_datos_estado!==cambios.calidad_datos_estado||
+      Number(persisted.calidad_datos_score)!==Number(cambios.calidad_datos_score)||
+      bool(persisted.requiere_accion)!==bool(cambios.requiere_accion)||
+      (clean(persisted.motivo_requiere_accion)||null)!==(clean(cambios.motivo_requiere_accion)||null)||
+      !persisted.fecha_ultimo_control){
+      throw new Error('Supabase no confirmó la persistencia del control de calidad de la OC.');
+    }
+    mergeRows([persisted]);
+    return [persisted];
+  }
   async function guardarResultadoAuditoriaSupabase(resumen){const u=await requireWrite();const payload={fecha_auditoria:isoNow(),total_ocs:resumen.total,ocs_verdes:resumen.verdes,ocs_amarillas:resumen.amarillas,ocs_rojas:resumen.rojas,ocs_grises:resumen.grises,ocs_sin_acta:resumen.sinActa,ocs_sin_plazo:resumen.sinPlazo,ocs_sin_vencimiento:resumen.sinVencimiento,ocs_sin_proveedor:resumen.sinProveedor,ocs_sin_estacion:resumen.sinEstacion,ocs_sin_link_documental:resumen.sinLink,ocs_monto_cero:resumen.montoCero,ocs_vencidas_sin_justificacion:resumen.vencidasSinJustificacion,resumen:JSON.stringify(resumen.detalles||[]),usuario_email:u.email||'',creado_por:u.id};const {data,error}=await client().from(T_AUD).insert(payload).select();if(error)throw error;return data}
   function auditSummary(rows){const s={total:rows.length,verdes:0,amarillas:0,rojas:0,grises:0,sinActa:0,sinPlazo:0,sinVencimiento:0,sinProveedor:0,sinEstacion:0,sinLink:0,montoCero:0,vencidasSinJustificacion:0,detalles:[]};rows.forEach(o=>{const r=evaluarCalidadOrden(o);s[r.estado.toLowerCase()+'s']=(s[r.estado.toLowerCase()+'s']||0)+1;s.sinActa+=r.faltantes.includes('acta')?1:0;s.sinPlazo+=r.faltantes.includes('plazo')?1:0;s.sinVencimiento+=r.faltantes.includes('vencimiento')?1:0;s.sinProveedor+=r.faltantes.includes('proveedor')?1:0;s.sinEstacion+=r.faltantes.includes('estacion')?1:0;s.montoCero+=r.faltantes.includes('monto_cero')?1:0;s.vencidasSinJustificacion+=r.faltantes.includes('vencida_sin_justificacion')?1:0;s.detalles.push({nro_oc:nro(o),estado:r.estado,score:r.score,motivo:r.motivo_requiere_accion})});return s}
   async function ejecutarAuditoriaCalidadDatos(){await requireWrite();const {data,error}=await client().from(T_ORDENES).select('*').limit(10000);if(error)throw error;const rows=data||[],resumen=auditSummary(rows);for(const o of rows){const r=evaluarCalidadOrden(o);await actualizarCalidadOrdenSupabase(o,r)}await guardarResultadoAuditoriaSupabase(resumen);lastAudit={...resumen,fecha:isoNow()};try{sessionStorage.setItem(CACHE_AUD,JSON.stringify(lastAudit))}catch(e){}renderResumenAuditoriaCalidad(lastAudit);await syncExecutiveMetadata();toast(`Auditoría completada: ${resumen.total} OC(s).`,'ok');return resumen}
