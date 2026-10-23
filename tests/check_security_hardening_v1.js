@@ -87,6 +87,63 @@ async function main(){
     'ninguna función trigger COI debe conservar EXECUTE directo para anon/authenticated'
   );
 
+  // V3: catálogo de privilegios efectivos. SECURITY DEFINER se ejecuta con
+  // privilegios del owner, por eso todas sus firmas son una frontera sensible.
+  const privileged = (await db.query(`
+    select n.nspname, p.proname, pg_get_function_identity_arguments(p.oid) as args,
+           array_to_string(p.proconfig, ';') as config,
+           pg_get_functiondef(p.oid) as body,
+           has_function_privilege('anon',p.oid,'EXECUTE') as anon_exec,
+           has_function_privilege('authenticated',p.oid,'EXECUTE') as auth_exec
+      from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+     where n.nspname in ('public','coi_private')
+       and p.prokind='f' and p.prosecdef
+     order by n.nspname, p.proname, p.oid
+  `)).rows;
+
+  assert.ok(privileged.length >= 20, 'el inventario SECURITY DEFINER no puede desaparecer del gate');
+  const ident = fn => `${fn.nspname}.${fn.proname}(${fn.args})`;
+  assert.deepEqual(
+    privileged.filter(fn => fn.anon_exec).map(ident),
+    [],
+    'ninguna función SECURITY DEFINER expuesta debe admitir EXECUTE anon'
+  );
+  assert.deepEqual(
+    privileged.filter(fn => !String(fn.config || '').split(';').some(v => /^search_path=/i.test(v))).map(ident),
+    [],
+    'toda función SECURITY DEFINER debe fijar su search_path'
+  );
+
+  const clientRpcs = privileged.filter(fn => fn.auth_exec);
+  assert.ok(clientRpcs.length >= 15, 'inventario de RPC privilegiadas authenticated incompleto');
+  // Detector heurístico para encontrar nuevas RPC sin evidencia siquiera de
+  // control de identidad/rol en SQL. No reemplaza una auditoría de flujo.
+  assert.deepEqual(
+    clientRpcs.filter(fn => !/coi_assert_role|coi_current_role|auth\.uid\s*\(|public\.profiles/i.test(fn.body)).map(ident),
+    [],
+    'toda RPC privilegiada ejecutable por authenticated debe referenciar una guarda de identidad o rol'
+  );
+
+  // Prueba negativa del monitor: un GRANT accidental a anon debe aparecer
+  // en el catálogo (se revierte con ROLLBACK; no cambia el esquema final).
+  await db.exec('begin');
+  try {
+    await db.exec('grant execute on function public.coi_current_role() to anon');
+    const control = (await db.query(
+      "select has_function_privilege('anon','public.coi_current_role()','EXECUTE') as granted"
+    )).rows[0].granted;
+    assert.equal(control, true, 'control negativo: el detector debe observar GRANT indebido');
+  } finally {
+    await db.exec('rollback');
+  }
+  assert.equal(
+    (await db.query("select has_function_privilege('anon','public.coi_current_role()','EXECUTE') as granted")).rows[0].granted,
+    false,
+    'el control negativo nunca debe persistir'
+  );
+
+  console.log(`✅ Security V3: ${privileged.length} SECURITY DEFINER auditadas (ACL, search_path, identidad); ${clientRpcs.length} RPC cliente y control negativo OK`);
+
   console.log(`✅ Security hardening V1: browser + ${rows.length} funciones trigger verificadas en catálogo PGlite`);
   await db.close();
 }
