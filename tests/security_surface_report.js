@@ -6,9 +6,23 @@ const html = fs.readFileSync('index.html', 'utf8');
 const findings = [];
 let failed = false;
 
+// GitHub Pages publica los archivos HTML ubicados en la raíz. No exponer
+// snapshots legacy con autenticación, CSP o validaciones desactualizadas.
+// El código histórico permanece recuperable en Git, pero NO como URL ejecutable.
+const publishedRootHtml = fs.readdirSync('.', { withFileTypes: true })
+  .filter(entry => entry.isFile() && /\.html?$/i.test(entry.name))
+  .map(entry => entry.name)
+  .sort();
+const unsupportedHtmlEntrypoints = publishedRootHtml.filter(name => name !== 'index.html');
+
 function finding(level, code, detail) {
   findings.push({ level, code, detail });
   if (level === 'CRITICAL' || level === 'HIGH') failed = true;
+}
+
+if (unsupportedHtmlEntrypoints.length) {
+  finding('HIGH', 'UNSUPPORTED_PUBLISHED_HTML_ENTRYPOINT',
+    'HTML legacy publicado en raíz: ' + unsupportedHtmlEntrypoints.join(', '));
 }
 
 const criticalPatterns = [
@@ -83,6 +97,7 @@ const report = {
   generated_at: new Date().toISOString(),
   critical_or_high_failure: failed,
   metrics: {
+    published_root_html: publishedRootHtml,
     publishable_key_literals: publishable.length,
     legacy_jwt_literals: legacyJwt.length,
     csp_meta_detected: csp,
