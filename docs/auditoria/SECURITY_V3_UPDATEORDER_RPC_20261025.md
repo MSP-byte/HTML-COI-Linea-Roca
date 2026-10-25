@@ -9,7 +9,7 @@ La escritura directa residual del módulo ejecutivo `updateOrder` se migra a la 
 3. Lectura remota única (`select('*').eq('nro_oc',n).limit(2)`) y resolución de UUID sin depender de caché.
 4. Llamada RPC autorizada por UUID; SQL controla allowlist, roles y auditoría.
 5. Identidad confirmada en resultado y relectura por UUID; se comparan todos los valores solicitados antes de refrescar caché y tableros.
-6. Se conserva el historial de cambios de campo y el historial explícito de cierre. `fecha_cierre_operativo` se manda como YYYY-MM-DD porque la columna es DATE.
+6. Se conserva el historial de cambios de campo. `closeOrder` delega al cierre canónico H10 (`COI_CIERRE_OC_H10.cerrar`), que ya exige estado operativo Cerrada, fecha local YYYY-MM-DD y motivo en una RPC atómica, verifica el servidor y conserva el historial; `estado_registro` permanece reservado al archivo.
 7. Las fallas abortan sin fallback a UPDATE directo ni almacenamiento local como fuente de verdad.
 
 ## Verificación de contrato (consulta SQL de catálogo, read-only)
@@ -18,7 +18,7 @@ La escritura directa residual del módulo ejecutivo `updateOrder` se migra a la 
 - Trigger H10 protege cambios de ciclo de vida y auditoría. Los tests de la RPC no reemplazan una prueba end-to-end con identidades reales por rol.
 
 ## QA y riesgos
-- `tests/check_exec_updateorder_rpc.js`: edición, cierre, edición vacía, renumeración denegada y escenarios negativos (sin sesión, sin OC/duplicado, errores de lookup/RPC/relectura, identidad incorrecta, columnas y valores divergentes).
+- `tests/check_exec_updateorder_rpc.js`: edición, contrato de cierre vía RPC, delegación al cierre H10, edición vacía, renumeración denegada y escenarios negativos (sin sesión, sin OC/duplicado, errores de lookup/RPC/relectura, identidad incorrecta, columnas y valores divergentes).
 - Inventario del PR #155 debe llegar a **cero escritores directos detectados** sobre `coi_ordenes`. Es un detector sintáctico, no una prueba de ausencia absoluta de mutaciones.
 - Quality Gate obligatorio: estático, SQL/PGlite, cuatro shards Chromium e interacción.
 - Antes de revocar UPDATE en producción, probar STAGING con JWT reales para todos los perfiles y una muestra de OC de prueba, con cierres/reaperturas, renumeración, documentación, certificaciones, auditoría y permisos negativos.

@@ -12,7 +12,10 @@ assert.match(fnCode,/\.rpc\('coi_actualizar_orden_integral'/,'Usar RPC canonica'
 assert.match(fnCode,/\.eq\('id',id\)\.limit\(2\)/,'Verificar por UUID');
 assert.match(fnCode,/mergeRows\(\[persisted\]\)/,'Sincronizar solo despues de releer');
 assert.match(fnCode,/Cambiar Nro\. OC/,'Renumeracion debe permanecer en flujo dedicado');
-assert.match(html,/fecha_cierre_operativo:dateOnly\(isoNow\(\)\)/,'El cierre debe enviar fecha SQL, no timestamp');
+const closeCode=html.match(/  async function closeOrder\(o\)\{[\s\S]*?\n  \}(?=\n  function readEditForm\()/)?.[0];
+assert.ok(closeCode,'Falta el puente de cierre ejecutivo H10');
+assert.match(closeCode,/COI_CIERRE_OC_H10/,'El cierre ejecutivo debe delegar al canonico H10');
+assert.doesNotMatch(closeCode,/estado_registro\s*:/,'No mezclar cierre operativo con archivo');
 
 const ID='33333333-3333-4333-8333-333333333333';
 const NRO='4530009805';
