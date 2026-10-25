@@ -17097,7 +17097,7 @@ const APP_DATA_MODE = "supabase_first";
     if(!persisted?.id||String(persisted.id)!==String(id)||clean(persisted.nro_oc).replace(/\s+/g,'')!==n){
       throw new Error('Supabase no confirmó la OC persistida tras actualizar.');
     }
-    const dateFields=new Set(['fecha_acta_inicio','fecha_vencimiento','proxima_certificacion','fecha_cierre_operativo','fecha_recepcion_documentacion','fecha_envio_planificacion','control_terceros_hasta']);
+    const dateFields=new Set(['fecha_acta_inicio','fecha_vencimiento','proxima_certificacion','fecha_cierre_operativo','fecha_recepcion_documentacion','control_terceros_hasta']);
     const numberFields=new Set(['monto_total','plazo_dias','calidad_datos_score']);
     for(const [field,requested] of Object.entries(patch)){
       if(!Object.prototype.hasOwnProperty.call(persisted,field)){
