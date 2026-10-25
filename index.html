@@ -17062,7 +17062,66 @@ const APP_DATA_MODE = "supabase_first";
   }
   async function syncExecutiveMetadata(){const c=client(),u=await user();if(!c||!u||!navigator.onLine)return[];const {data,error}=await leerMetadatosOrdenes(c);if(error)throw error;mergeRows(data||[]);renderDashboardEjecutivo();enhanceOrders();renderAlertsExecutive();return data||[]}
   function normalizeExtraPayload(o){return{link_documental_principal:clean(o?.link_documental_principal??o?.linkDocumentalPrincipal)||null,estado_link_documental:clean(o?.estado_link_documental??o?.estadoLinkDocumental)||'Sin link',calidad_datos_estado:clean(o?.calidad_datos_estado??o?.calidadDatosEstado)||'Sin auditar',calidad_datos_score:Number(o?.calidad_datos_score??o?.calidadDatosScore??0)||0,prioridad_operativa:clean(o?.prioridad_operativa??o?.prioridadOperativa)||'Normal',responsable_coi:clean(o?.responsable_coi??o?.responsableCOI)||null,fecha_ultimo_control:o?.fecha_ultimo_control??o?.fechaUltimoControl??null,requiere_accion:bool(o?.requiere_accion??o?.requiereAccion),motivo_requiere_accion:clean(o?.motivo_requiere_accion??o?.motivoRequiereAccion)||null,fecha_cierre_operativo:o?.fecha_cierre_operativo??o?.fechaCierreOperativo??null,observacion_cierre:clean(o?.observacion_cierre??o?.observacionCierre)||null}}
-  async function updateOrder(orden,changes,{history=true,motivo='Actualización desde Ficha OC'}={}){const u=await requireWrite(),o=resolveOrder(orden),n=nro(o||orden);if(!n)throw new Error('No se pudo identificar el nro_oc.');const before={...(metaByOC.get(n)||{})};const {data,error}=await client().from(T_ORDENES).update(changes).eq('nro_oc',n).select();if(error)throw error;const row=Array.isArray(data)?data[0]:data;if(row)mergeRows([row]);if(history){const after=row||{...before,...changes};for(const ch of compararCambiosOC(before,after))await registrarCambioCampo(o||{nro_oc:n},ch.campo,ch.anterior,ch.nuevo,motivo)}refreshAll();return row}
+  async function updateOrder(orden,changes,{history=true,motivo='Actualización desde Ficha OC'}={}){
+    // Security V3: toda edición/cierre del módulo ejecutivo pasa por RPC con auditoría.
+    await requireWrite();
+    const o=resolveOrder(orden),n=nro(o||orden);
+    if(!n)throw new Error('No se pudo identificar el nro_oc.');
+    if(!changes||typeof changes!=='object'||Array.isArray(changes))throw new Error('Los cambios de la OC deben ser un objeto válido.');
+    const patch={...changes};
+    if(Object.prototype.hasOwnProperty.call(patch,'nro_oc')){
+      if(clean(patch.nro_oc).replace(/\s+/g,'')!==n){
+        throw new Error('Para modificar el N° OC utilice «Cambiar Nro. OC»; no puede renumerarse desde la edición general.');
+      }
+      delete patch.nro_oc;
+    }
+    const sb=client();
+    const lookup=await sb.from(T_ORDENES).select('*').eq('nro_oc',n).limit(2);
+    if(lookup.error)throw lookup.error;
+    const matches=Array.isArray(lookup.data)?lookup.data:[];
+    if(matches.length!==1||!matches[0]?.id||clean(matches[0].nro_oc).replace(/\s+/g,'')!==n){
+      throw new Error('No se pudo resolver una única OC remota para actualizar.');
+    }
+    const before=matches[0],id=before.id;
+    if(!Object.keys(patch).length)return before;
+    const result=await sb.rpc('coi_actualizar_orden_integral',{p_orden_id:id,p_cambios:patch});
+    if(result.error)throw result.error;
+    const confirmed=result.data?.orden;
+    if(!confirmed?.id||String(confirmed.id)!==String(id)||clean(confirmed.nro_oc).replace(/\s+/g,'')!==n){
+      throw new Error('La RPC no confirmó la identidad de la OC actualizada.');
+    }
+    const verify=await sb.from(T_ORDENES).select('*').eq('id',id).limit(2);
+    if(verify.error)throw verify.error;
+    const verified=Array.isArray(verify.data)?verify.data:[];
+    const persisted=verified.length===1?verified[0]:null;
+    if(!persisted?.id||String(persisted.id)!==String(id)||clean(persisted.nro_oc).replace(/\s+/g,'')!==n){
+      throw new Error('Supabase no confirmó la OC persistida tras actualizar.');
+    }
+    const dateFields=new Set(['fecha_acta_inicio','fecha_vencimiento','proxima_certificacion','fecha_cierre_operativo','fecha_recepcion_documentacion','fecha_envio_planificacion','control_terceros_hasta']);
+    const numberFields=new Set(['monto_total','plazo_dias','calidad_datos_score']);
+    for(const [field,requested] of Object.entries(patch)){
+      if(!Object.prototype.hasOwnProperty.call(persisted,field)){
+        throw new Error('La verificación remota no incluyó el campo actualizado: '+field);
+      }
+      const actual=persisted[field];
+      const same=numberFields.has(field)?
+        Number(actual)===Number(requested):
+        dateFields.has(field)?
+          String(actual??'').slice(0,10)===String(requested??'').slice(0,10):
+          typeof requested==='boolean'?
+            bool(actual)===requested:
+            clean(actual)===clean(requested);
+      if(!same)throw new Error('Supabase no confirmó el valor persistido del campo: '+field);
+    }
+    mergeRows([persisted]);
+    if(history){
+      for(const ch of compararCambiosOC(before,persisted)){
+        await registrarCambioCampo(o||{nro_oc:n},ch.campo,ch.anterior,ch.nuevo,motivo);
+      }
+    }
+    refreshAll();
+    return persisted;
+  }
   function refreshAll(){try{if(typeof window.renderOrdenes==='function')window.renderOrdenes()}catch(e){}try{if(typeof window.updateKpis==='function')window.updateKpis()}catch(e){}try{if(typeof window.renderCalendarioCOIUnificado==='function')window.renderCalendarioCOIUnificado()}catch(e){}try{if(typeof window.renderCentroAlertas==='function')window.renderCentroAlertas()}catch(e){}renderDashboardEjecutivo();enhanceOrders();renderAlertsExecutive();if(currentOrder){renderExecutiveFicha(currentOrder);renderHistorialOC(currentOrder)}}
   function normalizarNroOCStorage(orden){const o=resolveOrder(orden)||orden;return (nro(o)||clean(typeof orden==='string'?orden:'')).replace(/\s+/g,'')}
   function campoDocumentoStorage(documento,nombres,fallback=''){
@@ -17639,7 +17698,7 @@ const APP_DATA_MODE = "supabase_first";
 
   function renderExecutiveFicha(orden){const o=resolveOrder(orden);if(!o)return;currentOrder=o;const host=$('fichaOCBody');if(!host)return;let card=$('execHeaderCard');if(card)card.remove();card=document.createElement('section');card.id='execHeaderCard';card.className='exec-header-card';card.innerHTML=`<div class="exec-card-head"><div><h3>Cabecera ejecutiva</h3><div class="muted">OC ${esc(nro(o))} · ${esc(o.proveedor||'Sin proveedor')}</div></div><div>${qualityBadge(o)} ${docBadge(o)}</div></div><div class="exec-header-grid">${[['N° OC',nro(o)],['Proveedor',o.proveedor],['Tipo',o.tipo],['Estación principal',o.estacion],['Estado COI',o.estado||o.estadoCOI],['Vigencia operativa',daysTo(o.vencimiento)<0?'Vencida':'Vigente'],['Próxima certificación',fmtDate(proximaCertificacionEjecutiva(o))],['Estado documental',o.estadoDocumental||'—'],['Calidad',`${o.calidadDatosEstado||'Sin auditar'} (${Number(o.calidadDatosScore||0)})`]].map(([l,v])=>`<div class="exec-header-item"><b>${esc(l)}</b><span>${esc(v||'—')}</span></div>`).join('')}</div><div class="exec-top-actions"><button type="button" id="execBtnEditar">Editar OC</button><button type="button" id="execBtnGuardar" class="primary">Guardar cambios</button><button type="button" data-oc-station-add>Agregar estación asociada</button><button type="button" id="execBtnQuality">Ejecutar control de calidad</button><button type="button" id="execBtnClose" class="btn-danger-soft">Cerrar OC</button></div>`;host.insertBefore(card,host.firstChild)}
   async function controlQualitySingle(o){const r=evaluarCalidadOrden(metaByOC.get(nro(o))||o);await actualizarCalidadOrdenSupabase(o,r);await registrarHistorialOC(o,{tipo_evento:'Control de calidad',campo_modificado:'calidad_datos_estado',valor_anterior:o.calidadDatosEstado||'',valor_nuevo:r.estado,motivo:r.motivo_requiere_accion});await syncExecutiveMetadata();renderExecutiveFicha(o);toast(`Calidad ${r.estado} · Score ${r.score}`,'ok');return r}
-  async function closeOrder(o){const obs=prompt('Observación de cierre operativo:','');if(obs===null)return;await updateOrder(o,{fecha_cierre_operativo:isoNow(),observacion_cierre:clean(obs)||null,estado_registro:'Cerrado'},{history:false});await registrarHistorialOC(o,{tipo_evento:'Cierre operativo',campo_modificado:'estado_registro',valor_anterior:o.estadoRegistro||'',valor_nuevo:'Cerrado',motivo:obs});toast('OC cerrada operativamente.','ok')}
+  async function closeOrder(o){const obs=prompt('Observación de cierre operativo:','');if(obs===null)return;await updateOrder(o,{fecha_cierre_operativo:dateOnly(isoNow()),observacion_cierre:clean(obs)||null,estado_registro:'Cerrado'},{history:false});await registrarHistorialOC(o,{tipo_evento:'Cierre operativo',campo_modificado:'estado_registro',valor_anterior:o.estadoRegistro||'',valor_nuevo:'Cerrado',motivo:obs});toast('OC cerrada operativamente.','ok')}
   function readEditForm(){const v=id=>clean($(id)?.value);return{id_obra:v('edit_idObra'),nro_oc:v('edit_numeroOC'),tipo:v('edit_tipo'),tipo_trabajo:v('edit_tipoUM'),especialidad:v('edit_tipoUM'),descripcion:v('edit_descripcion'),estacion:v('edit_estacion'),proveedor:v('edit_proveedor'),expediente:v('edit_expediente'),monto_total:Number(v('edit_montoOC').replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,''))||0,plazo_dias:Number(v('edit_plazoDias'))||0,fecha_acta_inicio:dateOnly(v('edit_fechaInicio'))||null,fecha_vencimiento:dateOnly(v('edit_fechaFin'))||null,estado_coi:v('edit_estado'),estado_documental:v('edit_estadoDocumental'),proxima_certificacion:dateOnly(v('edit_proximaCertificacion'))||null,observaciones:v('edit_observaciones')}}
   async function saveExecutiveEdit(){const o=currentOrder;if(!$('edit_numeroOC')){toast('Primero presione “Editar OC” para abrir el formulario.','warning');return}const changes=readEditForm(),before={...(metaByOC.get(nro(o))||{})};if(clean(changes.estacion)&&norm(changes.estacion)!==norm(o.estacion)){changes.estacion=o.estacion;toast('La estación principal solo se cambia desde “Estaciones asociadas”.','warning')}const row=await updateOrder(o,changes,{history:false});const after=row||{...before,...changes};for(const ch of compararCambiosOC(before,after))await registrarCambioCampo(o,ch.campo,ch.anterior,ch.nuevo,'Edición desde Ficha OC');await syncExecutiveMetadata();if(typeof window.renderFichaOC==='function')window.renderFichaOC(o.idObra||nro(o));toast('Ficha OC actualizada y trazabilidad registrada.','ok')}
   async function verificarDuplicadosSupabase(){await requireWrite();const {data,error}=await client().from(T_ORDENES).select('id,nro_oc,id_obra,estacion,proveedor').limit(10000);if(error)throw error;const m=new Map();(data||[]).forEach(r=>{const k=clean(r.nro_oc).replace(/\s+/g,'');if(!k)return;m.set(k,[...(m.get(k)||[]),r])});const dup=[...m].filter(([,v])=>v.length>1);const msg=dup.length?dup.map(([k,v])=>`${k}: ${v.length} filas`).join('\n'):'No se detectaron duplicados por nro_oc.';alert(msg);return dup}
