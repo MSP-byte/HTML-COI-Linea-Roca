@@ -11,7 +11,8 @@ for(const table of ['coi_ordenes','coi_ordenes_estaciones']){
 }
 assert.match(migration,/COI_RLS_ROLE_GUARD_MISSING/);
 assert.match(migration,/DROP POLICY IF EXISTS/);
-assert.doesNotMatch(migration,/\b(?:revoke|grant|delete from|truncate|drop table|alter table)\b/i);
+const executableSql=migration.replace(/--[^\n]*/g,'');
+assert.doesNotMatch(executableSql,/\b(?:revoke|grant|delete from|truncate|drop table|alter table)\b/i);
 assert.match(migration,/BEGIN;[\s\S]*COMMIT;\s*$/i);
 
 (async()=>{
