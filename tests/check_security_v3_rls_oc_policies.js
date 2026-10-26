@@ -40,10 +40,10 @@ CREATE POLICY ${table}_select ON public.${table} FOR SELECT TO authenticated USI
 CREATE POLICY ${table}_insert ON public.${table} FOR INSERT TO authenticated WITH CHECK (public.coi_current_role()='administrador');
 CREATE POLICY ${table}_update ON public.${table} FOR UPDATE TO authenticated USING (public.coi_current_role()='administrador') WITH CHECK (public.coi_current_role()='administrador');
 CREATE POLICY ${table}_delete ON public.${table} FOR DELETE TO authenticated USING (public.coi_current_role()='administrador');
-CREATE POLICY ${table}_select_guard AS RESTRICTIVE ON public.${table} FOR SELECT TO authenticated USING (public.coi_current_role() IS NOT NULL);
-CREATE POLICY ${table}_insert_guard AS RESTRICTIVE ON public.${table} FOR INSERT TO authenticated WITH CHECK (public.coi_current_role()='administrador');
-CREATE POLICY ${table}_update_guard AS RESTRICTIVE ON public.${table} FOR UPDATE TO authenticated USING (public.coi_current_role()='administrador') WITH CHECK (public.coi_current_role()='administrador');
-CREATE POLICY ${table}_delete_guard AS RESTRICTIVE ON public.${table} FOR DELETE TO authenticated USING (public.coi_current_role()='administrador');
+CREATE POLICY ${table}_select_guard ON public.${table} AS RESTRICTIVE FOR SELECT TO authenticated USING (public.coi_current_role() IS NOT NULL);
+CREATE POLICY ${table}_insert_guard ON public.${table} AS RESTRICTIVE FOR INSERT TO authenticated WITH CHECK (public.coi_current_role()='administrador');
+CREATE POLICY ${table}_update_guard ON public.${table} AS RESTRICTIVE FOR UPDATE TO authenticated USING (public.coi_current_role()='administrador') WITH CHECK (public.coi_current_role()='administrador');
+CREATE POLICY ${table}_delete_guard ON public.${table} AS RESTRICTIVE FOR DELETE TO authenticated USING (public.coi_current_role()='administrador');
 `);
    }
    await db.exec('SET ROLE authenticated');
