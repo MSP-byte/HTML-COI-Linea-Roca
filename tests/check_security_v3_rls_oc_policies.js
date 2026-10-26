@@ -9,7 +9,8 @@ const migration=fs.readFileSync(path.join(__dirname,'..','supabase','migrations'
 for(const table of ['coi_ordenes','coi_ordenes_estaciones']){
   assert.ok(migration.includes("'"+table+"'"),'El script debe contemplar '+table);
 }
-assert.match(migration,/COI_RLS_ROLE_GUARD_MISSING/);
+assert.match(migration,/COI_RLS_PERMISSIVE_ROLE_POLICY_MISSING/);
+assert.match(migration,/COI_RLS_RESTRICTIVE_ROLE_GUARD_MISSING/);
 assert.match(migration,/DROP POLICY IF EXISTS/);
 const executableSql=migration.replace(/--[^\n]*/g,'');
 assert.doesNotMatch(executableSql,/\b(?:revoke|grant|delete from|truncate|drop table|alter table)\b/i);
@@ -34,15 +35,26 @@ CREATE POLICY ${table}_select_auth ON public.${table} FOR SELECT TO authenticate
 CREATE POLICY ${table}_insert_auth ON public.${table} FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY ${table}_update_auth ON public.${table} FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY ${table}_delete_admin ON public.${table} FOR DELETE TO authenticated USING (true);
-CREATE POLICY ${table}_select_guard ON public.${table} FOR SELECT TO authenticated USING (public.coi_current_role() IS NOT NULL);
-CREATE POLICY ${table}_insert_guard ON public.${table} FOR INSERT TO authenticated WITH CHECK (public.coi_current_role()='administrador');
-CREATE POLICY ${table}_update_guard ON public.${table} FOR UPDATE TO authenticated USING (public.coi_current_role()='administrador') WITH CHECK (public.coi_current_role()='administrador');
-CREATE POLICY ${table}_delete_guard ON public.${table} FOR DELETE TO authenticated USING (public.coi_current_role()='administrador');
+-- Policies reales: una PERMISSIVE habilita, una RESTRICTIVE limita por AND.
+CREATE POLICY ${table}_select ON public.${table} FOR SELECT TO authenticated USING (public.coi_current_role() IS NOT NULL);
+CREATE POLICY ${table}_insert ON public.${table} FOR INSERT TO authenticated WITH CHECK (public.coi_current_role()='administrador');
+CREATE POLICY ${table}_update ON public.${table} FOR UPDATE TO authenticated USING (public.coi_current_role()='administrador') WITH CHECK (public.coi_current_role()='administrador');
+CREATE POLICY ${table}_delete ON public.${table} FOR DELETE TO authenticated USING (public.coi_current_role()='administrador');
+CREATE POLICY ${table}_select_guard AS RESTRICTIVE ON public.${table} FOR SELECT TO authenticated USING (public.coi_current_role() IS NOT NULL);
+CREATE POLICY ${table}_insert_guard AS RESTRICTIVE ON public.${table} FOR INSERT TO authenticated WITH CHECK (public.coi_current_role()='administrador');
+CREATE POLICY ${table}_update_guard AS RESTRICTIVE ON public.${table} FOR UPDATE TO authenticated USING (public.coi_current_role()='administrador') WITH CHECK (public.coi_current_role()='administrador');
+CREATE POLICY ${table}_delete_guard AS RESTRICTIVE ON public.${table} FOR DELETE TO authenticated USING (public.coi_current_role()='administrador');
 `);
    }
    await db.exec('SET ROLE authenticated');
    let before=await db.query("SELECT count(*)::int n FROM public.coi_ordenes");
-   assert.equal(before.rows[0].n,1,'Control negativo: el bypass existe antes de migrar');
+   assert.equal(before.rows[0].n,0,'La guarda RESTRICTIVE ya bloquea lectores sin perfil antes de la limpieza');
+   await db.exec("SELECT set_config('coi.mock_role','consulta',false)");
+   before=await db.query("SELECT count(*)::int n FROM public.coi_ordenes");
+   assert.equal(before.rows[0].n,1,'Consulta puede leer antes de la migración');
+   let blocked=await db.query("UPDATE public.coi_ordenes SET valor='intento' WHERE id=1 RETURNING id");
+   assert.equal(blocked.rows.length,0,'Consulta ya estaba protegida por RESTRICTIVE antes de migrar');
+   await db.exec("SELECT set_config('coi.mock_role','',false)");
    await db.exec('RESET ROLE');
    await db.exec(migration);
    const {rows:policies}=await db.query("SELECT tablename,policyname FROM pg_policies WHERE schemaname='public'");
@@ -61,7 +73,7 @@ CREATE POLICY ${table}_delete_guard ON public.${table} FOR DELETE TO authenticat
      assert.equal(res.rows.length,1,'Administrador conserva actualizaciones en '+table);
      await db.exec("SELECT set_config('coi.mock_role','',false)");
    }
-   console.log('Security V3 OC RLS: 2 tablas · bypass detectado · rol ausente/consulta/admin PASS');
+   console.log('Security V3 OC RLS: 2 tablas · RESTRICTIVE antes/después · limpieza legacy sin regresión PASS');
  }finally{
    try{await db.exec('RESET ROLE')}catch{}
    await db.close();
