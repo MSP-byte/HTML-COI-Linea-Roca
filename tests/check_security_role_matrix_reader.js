@@ -15,7 +15,7 @@ async function exercise({rpcStatus=401, rpcCode='42501', emptyRole='', missingFi
   for(const role of roles)env['COI_STAGING_JWT_'+role.toUpperCase()]='testjwt-'+role;
   const errors=[], calls=[];
   const context = vm.createContext({
-    require,
+    require: id => {assert.equal(id,'node:assert/strict');return assert;},
     process:{
       env,
       exit(code){throw new Error('PROCESS_EXIT_'+code)},
