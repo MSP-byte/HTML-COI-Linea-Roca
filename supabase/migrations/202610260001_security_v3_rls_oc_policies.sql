@@ -1,8 +1,8 @@
 -- COI Línea Roca · Security V3 · 2026-10-26
 -- Corrige políticas permissive/OR legacy de OC y estaciones asociadas.
--- Cuando coexistían las políticas *_auth y las *_guard, la expresión RLS
--- era (rol_autorizado OR auth.uid() IS NOT NULL / true).
--- No revoca GRANT ni modifica datos: sólo elimina los bypasses.
+-- El esquema actual ya posee guardas RESTRICTIVE basadas en rol.
+-- Limpieza de políticas legacy redundantes, NO bypass confirmado.
+-- No revoca GRANT ni modifica datos: sólo elimina policies obsoletas.
 -- Antes de aplicar: verificar funciones coi_current_role() y pruebas del PR.
 BEGIN;
 
@@ -27,15 +27,30 @@ BEGIN
     -- nunca eliminar el fallback antes de confirmar las guardas.
     FOREACH v_command IN ARRAY ARRAY['SELECT','INSERT','UPDATE','DELETE']
     LOOP
+      -- RLS combina PERMISSIVE mediante OR y RESTRICTIVE mediante AND.
+      -- Debe sobrevivir al menos una política PERMISSIVE basada en perfil,
+      -- y debe estar activa una guarda RESTRICTIVE basada en perfil.
       IF NOT EXISTS (
         SELECT 1 FROM pg_policies
         WHERE schemaname='public' AND tablename=v_table AND cmd=v_command
+          AND permissive='PERMISSIVE'
           AND (
             coalesce(qual,'') LIKE '%coi_current_role()%'
             OR coalesce(with_check,'') LIKE '%coi_current_role()%'
           )
       ) THEN
-        RAISE EXCEPTION 'COI_RLS_ROLE_GUARD_MISSING: %.%',v_table,v_command;
+        RAISE EXCEPTION 'COI_RLS_PERMISSIVE_ROLE_POLICY_MISSING: %.%',v_table,v_command;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_policies
+        WHERE schemaname='public' AND tablename=v_table AND cmd=v_command
+          AND permissive='RESTRICTIVE'
+          AND (
+            coalesce(qual,'') LIKE '%coi_current_role()%'
+            OR coalesce(with_check,'') LIKE '%coi_current_role()%'
+          )
+      ) THEN
+        RAISE EXCEPTION 'COI_RLS_RESTRICTIVE_ROLE_GUARD_MISSING: %.%',v_table,v_command;
       END IF;
     END LOOP;
 
