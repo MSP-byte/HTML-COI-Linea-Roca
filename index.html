@@ -3323,6 +3323,18 @@ function coiCSVCell(value){
   if(typeof value==='string'&&/^[\u0000-\u0020]*[=+@-]/.test(text))text="'"+text;
   return `"${text.replace(/"/g,'""')}"`;
 }
+/* ICS text/UID protection: RFC 5545 escapes data and blocks property injection. */
+function coiICSText(value){
+  return String(value??'')
+    .replace(/\\/g,'\\\\')
+    .replace(/\r\n|\r|\n/g,'\\n')
+    .replace(/;/g,'\\;')
+    .replace(/,/g,'\\,')
+    .replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g,' ');
+}
+function coiICSUID(value){
+  return encodeURIComponent(String(value??''));
+}
 function parseFecha(v){
   if(!v) return null;
   if(v instanceof Date) return isNaN(v) ? null : v;
@@ -3546,8 +3558,8 @@ function exportCalendarioICS(){
     ics.push(`UID:coi-roca-${idx}-${Date.now()}@local`);
     ics.push(`DTSTAMP:${fechaICS(new Date())}`);
     ics.push(`DTSTART:${fechaICS(e.fecha)}`);
-    ics.push(`SUMMARY:${e.titulo.replace(/\n/g,' ')}`);
-    ics.push(`DESCRIPTION:${e.desc.replace(/\n/g,' ')}`);
+    ics.push(`SUMMARY:${coiICSText(e.titulo)}`);
+    ics.push(`DESCRIPTION:${coiICSText(e.desc)}`);
     ics.push('END:VEVENT');
   });
   ics.push('END:VCALENDAR');
@@ -3783,7 +3795,7 @@ function exportarFichaOCICS(){
   if(c.venc) eventos.push({fecha:c.venc,titulo:`Vencimiento OC ${item.oc||item.idOC}`,desc:`${item.tipo} - ${estacion.nombre} - ${item.proveedor||''}`});
   if(c.prox) eventos.push({fecha:c.prox,titulo:`Próxima certificación OC ${item.oc||item.idOC}`,desc:`Acta esperada N° ${c.proxNro}`});
   const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//COI Linea Roca//Ficha OC//ES','CALSCALE:GREGORIAN'];
-  eventos.forEach((e,idx)=>{ics.push('BEGIN:VEVENT',`UID:${item.idObra||item.idOC}-${idx}@coi-roca`,`DTSTAMP:${fechaICS(new Date())}`,`DTSTART:${fechaICS(e.fecha)}`,`SUMMARY:${e.titulo}`,`DESCRIPTION:${e.desc}`,'END:VEVENT');});
+  eventos.forEach((e,idx)=>{ics.push('BEGIN:VEVENT',`UID:${coiICSUID(item.idObra||item.idOC)}-${idx}@coi-roca`,`DTSTAMP:${fechaICS(new Date())}`,`DTSTART:${fechaICS(e.fecha)}`,`SUMMARY:${coiICSText(e.titulo)}`,`DESCRIPTION:${coiICSText(e.desc)}`,'END:VEVENT');});
   ics.push('END:VCALENDAR');
   descargarArchivo(`recordatorios_${item.idObra||item.idOC}.ics`, ics.join('\r\n'), 'text/calendar;charset=utf-8');
 }
@@ -5719,7 +5731,7 @@ function exportarEventosCalendarioOperativo(modo,formato){
     return;
   }
   const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//COI Linea Roca//Calendario Operativo COI//ES','CALSCALE:GREGORIAN'];
-  eventos.forEach((e,idx)=>{ics.push('BEGIN:VEVENT',`UID:op-${modo}-${idx}-${slugOC(e.oc)}@coi-roca`,`DTSTAMP:${fechaICS(new Date())}`,`DTSTART:${fechaICS(e.fecha)}`,`SUMMARY:${(e.tipoEvento+' '+e.oc+' '+e.proveedor).replace(/\n/g,' ')}`,`DESCRIPTION:${['Estación: '+e.estacion,e.periodo?'Período: '+e.periodo:'','Estado: '+e.estado,'Estado documental: '+e.estadoDocumental,e.observaciones?'Observaciones: '+e.observaciones:''].filter(Boolean).join(' | ').replace(/\n/g,' ')}`,'END:VEVENT');});
+  eventos.forEach((e,idx)=>{ics.push('BEGIN:VEVENT',`UID:op-${coiICSUID(modo)}-${idx}-${coiICSUID(slugOC(e.oc))}@coi-roca`,`DTSTAMP:${fechaICS(new Date())}`,`DTSTART:${fechaICS(e.fecha)}`,`SUMMARY:${coiICSText(e.tipoEvento+' '+e.oc+' '+e.proveedor)}`,`DESCRIPTION:${coiICSText(['Estación: '+e.estacion,e.periodo?'Período: '+e.periodo:'','Estado: '+e.estado,'Estado documental: '+e.estadoDocumental,e.observaciones?'Observaciones: '+e.observaciones:''].filter(Boolean).join(' | '))}`,'END:VEVENT');});
   ics.push('END:VCALENDAR');
   descargarArchivo(`calendario_operativo_${modo}.ics`,ics.join('\r\n'),'text/calendar;charset=utf-8');
 }
@@ -10332,7 +10344,7 @@ initCalendarioCOIUnificado=function(){if(initCalendarioCOIUnificadoV58Base)initC
   function exportCalendarioFix(fmt){
     const ev=eventosFiltradosCalendarioFix(); const f=filtrosCalendarioFix();
     if(fmt==='ics'){
-      const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//COI Linea Roca//Calendario//ES']; ev.forEach(e=>{const d=e.fecha.replace(/-/g,''); ics.push('BEGIN:VEVENT',`UID:${e.id}@coi-roca`,`DTSTART;VALUE=DATE:${d}`,`SUMMARY:${e.tipoEvento} ${e.oc}`,`DESCRIPTION:${e.proveedor} - ${e.estacion}`,'END:VEVENT');}); ics.push('END:VCALENDAR'); descargarArchivo(`calendario-coi-${f.y}-${String(f.m+1).padStart(2,'0')}.ics`,ics.join('\r\n'),'text/calendar;charset=utf-8'); return;
+      const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//COI Linea Roca//Calendario//ES']; ev.forEach(e=>{const d=String(e.fecha||'').replace(/-/g,'');if(!/^\d{8}$/.test(d))return; ics.push('BEGIN:VEVENT',`UID:${coiICSUID(e.id)}@coi-roca`,`DTSTART;VALUE=DATE:${d}`,`SUMMARY:${coiICSText(e.tipoEvento+' '+e.oc)}`,`DESCRIPTION:${coiICSText(e.proveedor+' - '+e.estacion)}`,'END:VEVENT');}); ics.push('END:VCALENDAR'); descargarArchivo(`calendario-coi-${f.y}-${String(f.m+1).padStart(2,'0')}.ics`,ics.join('\r\n'),'text/calendar;charset=utf-8'); return;
     }
     const rows=[['Fecha','Evento','OC','Tipo','Estacion','Proveedor','Estado'],...ev.map(e=>[e.fecha,e.tipoEvento,e.oc,e.tipo,e.estacion,e.proveedor,e.estado])]; descargarArchivo(`calendario-coi-${f.y}-${String(f.m+1).padStart(2,'0')}.csv`,rows.map(r=>r.map(coiCSVCell).join(';')).join('\n'),'text/csv;charset=utf-8');
   }
