@@ -8,16 +8,24 @@ const STAGING_URL='https://brmrroikctfbtzwfewan.supabase.co';
 const ROLES=['administrador','jefatura','editor','planificacion','control','supervisor','consulta'];
 
 const apiKey=process.env.COI_STAGING_API_KEY;
+const fixtureId=String(process.env.COI_STAGING_OC_FIXTURE_ID||'').trim();
 const suppliedUrl=String(process.env.COI_STAGING_URL||STAGING_URL).replace(/\/$/,'');
 if(suppliedUrl!==STAGING_URL){
   console.error('SECURITY STOP: este control solo acepta STAGING (ref brmrroikctfbtzwfewan).');
   process.exit(2);
 }
 const missing=[...(!apiKey?['COI_STAGING_API_KEY']:[]),
+  ...(!fixtureId?['COI_STAGING_OC_FIXTURE_ID']:[]),
   ...ROLES.filter(r=>!process.env['COI_STAGING_JWT_'+r.toUpperCase()]).map(r=>'COI_STAGING_JWT_'+r.toUpperCase())];
 if(missing.length){
   console.error('NO EJECUTADO: faltan variables de entorno para pruebas con siete sesiones reales: '+missing.join(', '));
   console.error('No se pueden sustituir JWT reales por mocks, SET ROLE o perfiles de la base.');
+  process.exit(2);
+}
+
+// Un fixture explícito evita certificar lecturas vacías como lecturas válidas.
+if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(fixtureId)){
+  console.error('NO EJECUTADO: COI_STAGING_OC_FIXTURE_ID debe ser el UUID de una OC real preexistente en STAGING.');
   process.exit(2);
 }
 
@@ -37,7 +45,10 @@ async function get(path,jwt){
   if(anonymous.ok&&Array.isArray(anonymous.json))assert.equal(anonymous.json.length,0,'ANON expone OC');
   else assert.ok([401,403,404].includes(anonymous.status),'Resultado anon inesperado: '+anonymous.status);
   const anonymousRpc=await get('/rest/v1/rpc/coi_current_role',null);
-  assert.ok(!anonymousRpc.ok,'ANON puede ejecutar coi_current_role');
+  // Fallos 5xx, rate limit o 404 no prueban denegación de autorización.
+  assert.ok([401,403].includes(anonymousRpc.status) && anonymousRpc.json?.code==='42501',
+    'ANON RPC: se exige denegación de permisos 401/403 con código PostgreSQL 42501; HTTP '+anonymousRpc.status+
+    ' y código '+String(anonymousRpc.json?.code||'ausente'));
   console.log('ANON: sin filas OC y sin RPC privilegiada accesible — PASS');
 
   const results=[];
@@ -54,8 +65,10 @@ async function get(path,jwt){
     const resolved=String(role.json||'').trim().toLowerCase();
     assert.equal(resolved,expected,'El rol no coincide con el perfil activo del servidor: '+expected);
 
-    const oc=await get('/rest/v1/coi_ordenes?select=id&limit=1',jwt);
-    assert.ok(oc.ok && Array.isArray(oc.json),'No puede leer listado OC: '+expected+' HTTP '+oc.status);
+    const oc=await get('/rest/v1/coi_ordenes?select=id&id=eq.'+encodeURIComponent(fixtureId)+'&limit=1',jwt);
+    assert.ok(oc.ok && Array.isArray(oc.json) && oc.json.length===1 &&
+      String(oc.json[0]?.id||'').toLowerCase()===fixtureId.toLowerCase(),
+      'No se confirmó visibilidad de la OC fixture en STAGING: '+expected+' HTTP '+oc.status);
     results.push({rol:expected,autenticacion:'OK',rol_verificado:'OK',lectura_oc:'OK'});
     console.log(expected+': Auth real + rol servidor + lectura de OC = PASS');
   }
