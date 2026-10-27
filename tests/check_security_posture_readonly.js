@@ -103,6 +103,28 @@ ALTER POLICY profiles_all_guard ON public.profiles
 `);
   assert.equal((await statuses()).C07_OC_PROFILE_ROLE_GUARDS,'PASS',
     'Role guards restored in both relevant policy expressions');
+  // A resolver reference with inverted IS NULL must never count as authorization.
+  await db.exec(`
+ALTER POLICY profiles_all_allow ON public.profiles
+  USING (public.coi_current_role() IS NULL) WITH CHECK (public.coi_current_role() IS NULL);
+ALTER POLICY profiles_all_guard ON public.profiles
+  USING (public.coi_current_role() IS NULL) WITH CHECK (public.coi_current_role() IS NULL);
+`);
+  assert.equal((await statuses()).C07_OC_PROFILE_ROLE_GUARDS,'FAIL',
+    'Inverted IS NULL resolver predicate must not pass');
+  await db.exec(`
+ALTER POLICY profiles_all_allow ON public.profiles
+  USING (public.coi_current_role() IS NOT NULL) WITH CHECK (public.coi_current_role() IS NOT NULL);
+ALTER POLICY profiles_all_guard ON public.profiles
+  USING (public.coi_current_role() IS NOT NULL) WITH CHECK (public.coi_current_role() IS NOT NULL);
+`);
+  // PUBLIC-target policies are also applicable to authenticated clients.
+  await db.exec(`
+ALTER POLICY profiles_all_allow ON public.profiles TO PUBLIC;
+ALTER POLICY profiles_all_guard ON public.profiles TO PUBLIC;
+`);
+  assert.equal((await statuses()).C07_OC_PROFILE_ROLE_GUARDS,'PASS',
+    'PUBLIC role policies must provide equivalent authenticated coverage');
   await db.exec('DROP POLICY profiles_all_guard ON public.profiles');
   assert.equal((await statuses()).C07_OC_PROFILE_ROLE_GUARDS,'FAIL',
     'Detect missing restrictive role guard even with FOR ALL policies');
@@ -110,6 +132,6 @@ ALTER POLICY profiles_all_guard ON public.profiles
   await db.exec("CREATE FUNCTION public.coi_secure_helper() RETURNS text LANGUAGE sql SECURITY DEFINER AS 'SELECT ''ok''::text'");
   await db.exec('REVOKE ALL ON FUNCTION public.coi_secure_helper() FROM PUBLIC,anon');
   assert.equal((await statuses()).C05_SECURITY_DEFINER_FIXED_PATH,'FAIL','Detect unpinned privileged search_path');
-  console.log('Security posture: seven checks + seven negative controls + FOR ALL equivalence PASS');
+  console.log('Security posture: seven checks + eight negative controls + FOR ALL and PUBLIC equivalence PASS');
  }finally{await db.close();}
 })().catch(e=>{console.error('FAIL security posture:',e);process.exitCode=1;});
