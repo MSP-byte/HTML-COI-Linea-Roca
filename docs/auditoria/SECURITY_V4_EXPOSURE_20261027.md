@@ -8,7 +8,7 @@ El SQL `supabase/qa/security_v4_exposure_readonly.sql` contiene únicamente SELE
 | Control | STAGING | PROD | Alcance |
 | --- | --- | --- | --- |
 | E01 Ninguna función del esquema public ejecutable por anon, sea cual sea el prefijo | PASS 0/56 | PASS 0/62 | Privilegio efectivo; incluye grants vía PUBLIC |
-| E02 Vistas/materialized views expuestas sin security_invoker | PASS 0 vistas | PASS 0 vistas | Chequeo de seguridad de vistas; el sistema actualmente no tiene vistas public |
+| E02 Vistas/materialized views expuestas sin security_invoker | PASS 0 vistas | PASS 0 vistas | Detecta grants SELECT de tabla y de columna, tanto para anon como authenticated; no existen vistas public hoy |
 | E03 Políticas RLS public/storage basadas en user_metadata editable | PASS 0/133 policies | PASS 0/143 policies | Búsqueda de expresiones en pg_policies; **no prueba funciones auxiliares** |
 | E04 Buckets públicos de Storage | PASS 0/0 | PASS 0/1 | El único bucket de PROD está marcado privado; no comprueba por sí solo los ACL para autenticados |
 | E05 RLS habilitada en storage.objects y storage.buckets | PASS 2/2 | PASS 2/2 | Cobertura de tablas Storage principales, no de todos los esquemas |
@@ -19,7 +19,7 @@ Ambos entornos: **5/5 PASS** sobre el SQL exacto, verificado el 27/10/2026. El r
 
 `tests/check_security_v4_exposure.js` levanta PGlite aislado, ejecuta el **mismo SQL** y comprueba que cada simulación de configuración insegura pasa a FAIL:
 - GRANT EXECUTE para anon sobre una RPC con nombre arbitrario.
-- Vista tradicional expuesta para authenticated sin `security_invoker`.
+- Vista tradicional expuesta para authenticated sin `security_invoker`, incluso mediante `GRANT SELECT(id)` limitado a una columna.
 - Policy que consulta `user_metadata` desde JWT.
 - Bucket de Storage cambiado a público.
 - Desactivación RLS sobre `storage.objects`.
