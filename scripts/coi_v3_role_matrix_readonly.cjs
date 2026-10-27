@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict';
-// Security V3 — QA con JWT genuinos y alcance SOLO LECTURA.
+// Security V3 — QA con JWT genuinos, solo consultas y RPC STABLE sin efectos de escritura.
+// POST se utiliza exclusivamente para la función PostgreSQL STABLE coi_assert_role.
 // No emite, crea, altera ni almacena credenciales o registros.
 const assert = require('node:assert/strict');
 
@@ -39,6 +40,22 @@ async function get(path,jwt){
   try{json=text?JSON.parse(text):null;}catch{json=null;}
   return {status:response.status,ok:response.ok,json};
 }
+
+// Lista de RPC permitidas: únicamente coi_assert_role (STABLE, sin mutaciones).
+// Cada prueba cruza una sesión JWT genuina con un rol solicitado distinto.
+async function checkRole(jwt,requestedRole){
+  assert.ok(ROLES.includes(requestedRole),'Rol de QA fuera del catálogo.');
+  const response=await fetch(STAGING_URL+'/rest/v1/rpc/coi_assert_role',{
+    method:'POST',
+    headers:{...headers(jwt),'content-type':'application/json'},
+    body:JSON.stringify({p_roles:[requestedRole]}),
+    signal:AbortSignal.timeout(15000)
+  });
+  const text=await response.text();
+  let json;
+  try{json=text?JSON.parse(text):null;}catch{json=null;}
+  return {status:response.status,ok:response.ok,json};
+}
 (async()=>{
   const seen=new Set();
   const anonymous=await get('/rest/v1/coi_ordenes?select=id&limit=1',null);
@@ -69,12 +86,27 @@ async function get(path,jwt){
     assert.ok(oc.ok && Array.isArray(oc.json) && oc.json.length===1 &&
       String(oc.json[0]?.id||'').toLowerCase()===fixtureId.toLowerCase(),
       'No se confirmó visibilidad de la OC fixture en STAGING: '+expected+' HTTP '+oc.status);
-    results.push({rol:expected,autenticacion:'OK',rol_verificado:'OK',lectura_oc:'OK'});
-    console.log(expected+': Auth real + rol servidor + lectura de OC = PASS');
+    // 7 x 7 comprobaciones auténticas y sin escrituras.
+    // Solo el rol real de cada cuenta debe autorizarse; los seis restantes
+    // deben devolver 403 con el error PostgreSQL 42501 (no 404, 5xx ni 429).
+    for(const requested of ROLES){
+      const check=await checkRole(jwt,requested);
+      if(requested===expected){
+        assert.ok(check.ok && String(check.json||'').trim().toLowerCase()===expected,
+          'coi_assert_role denegó el rol legítimo '+expected+' HTTP '+check.status);
+      }else{
+        assert.ok(check.status===403 && check.json?.code==='42501',
+          'Posible escalada o respuesta no verificable: sesión '+expected+
+          ' solicitó rol '+requested+' HTTP '+check.status+
+          ' code '+String(check.json?.code||'ausente'));
+      }
+    }
+    results.push({rol:expected,autenticacion:'OK',rol_verificado:'OK',lectura_oc:'OK',roles_probados:7});
+    console.log(expected+': Auth + lectura OC + 1 autorización y 6 rechazos por RPC STABLE = PASS');
   }
   assert.equal(results.length,7);
-  console.log('MATRIZ SOLO LECTURA 7/7 completada. No se ejecutaron INSERT/UPDATE/DELETE ni RPC de mutación.');
-  console.log('IMPORTANTE: NO certifica edición, cierre, certificación, permisos de escritura ni MFA.');
+  console.log('MATRIZ STAGING 7/7 autenticaciones y 49/49 aserciones de rol completada (7 positivas, 42 negativas). Ninguna escritura ni RPC de mutación.');
+  console.log('IMPORTANTE: NO certifica permisos de INSERT/UPDATE/DELETE, cierre, certificación, MFA ni lógica de autorización de otras RPC.');
 })().catch(e=>{
   console.error('MATRIZ INCOMPLETA: '+(e&&e.message||String(e)));
   process.exitCode=1;
