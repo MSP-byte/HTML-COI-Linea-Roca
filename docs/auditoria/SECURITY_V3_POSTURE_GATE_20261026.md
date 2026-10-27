@@ -14,7 +14,7 @@ Se ejecutó exactamente el SQL de `supabase/qa/security_v3_posture_readonly.sql`
 | C04 — SECURITY DEFINER sin EXECUTE anónimo | PASS (46) | PASS (49) | No determina autorización de usuarios autenticados |
 | C05 — SECURITY DEFINER con `search_path` fijado | PASS | PASS | No certifica seguridad de SQL dinámico ni del cuerpo |
 | C06 — Clientes no pueden CREATE en `public` | PASS | PASS | Grants efectivos roles anon/authenticated |
-| C07 — Guardas por perfil para `profiles` y `coi_ordenes` | PASS (8/8) | PASS (8/8) | SELECT/INSERT/UPDATE/DELETE con PERMISSIVE+RESTRICTIVE, incluyendo `FOR ALL` |
+| C07 — Guardas por perfil para `profiles` y `coi_ordenes` | PASS (8/8) | PASS (8/8) | SELECT/INSERT/UPDATE/DELETE con PERMISSIVE+RESTRICTIVE, incluyendo `FOR ALL` y expresiones efectivas por operación |
 
 **IMPORTANTE:** Un 7/7 de esta tabla **no implica** una certificación del 99%, pentest aprobado ni ausencia de vulnerabilidades. Las políticas RLS por rol se combinaron correctamente mediante condiciones PERMISSIVE (OR) y RESTRICTIVE (AND), comprobadas en `pg_policies`.
 
@@ -27,6 +27,8 @@ Se ejecutó exactamente el SQL de `supabase/qa/security_v3_posture_readonly.sql`
 3. Eliminación de policy RESTRICTIVE: C07 debe fallar.
 4. SECURITY DEFINER sin `search_path` configurado: C05 debe fallar.
 5. Permiso `GRANT SELECT(id)` anónimo sobre una columna, sin permiso de tabla: C02 debe fallar.
+6. Una policy `FOR ALL` con `USING true` y control por rol sólo en `WITH CHECK`: C07 debe fallar para SELECT/DELETE/UPDATE.
+7. Una policy `FOR ALL` con `USING` por rol pero `WITH CHECK true`: C07 debe fallar para UPDATE.
 
 Control positivo adicional: las políticas `FOR ALL` de tipo PERMISSIVE + RESTRICTIVE deben cubrir las cuatro operaciones en C07; quitar la guarda debe volver a hacer fallar C07.
 
