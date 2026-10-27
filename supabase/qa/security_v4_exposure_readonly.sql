@@ -29,7 +29,9 @@ WITH
     SELECT 'E02_NO_EXPOSED_RLS_BYPASS_VIEWS',
       (SELECT count(*) FROM exposed_views
        WHERE (has_table_privilege('anon',oid,'SELECT') OR
-              has_table_privilege('authenticated',oid,'SELECT'))
+              has_table_privilege('authenticated',oid,'SELECT') OR
+              has_any_column_privilege('anon',oid,'SELECT') OR
+              has_any_column_privilege('authenticated',oid,'SELECT'))
          AND (relkind='m' OR NOT ('security_invoker=true'=ANY(coalesce(reloptions,ARRAY[]::text[])))))::int,
       (SELECT count(*) FROM exposed_views)::int
     UNION ALL
