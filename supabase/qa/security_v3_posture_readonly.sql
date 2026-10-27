@@ -22,23 +22,34 @@ WITH
     ) AS ops(cmd)
     WHERE p.schemaname='public'
       AND p.tablename IN ('profiles','coi_ordenes')
-      AND 'authenticated'=ANY(p.roles)
+      AND ('authenticated'=ANY(p.roles) OR 'public'=ANY(p.roles))
   ),
   -- PostgreSQL uses USING for SELECT/DELETE; WITH CHECK for INSERT;
   -- UPDATE needs both. If WITH CHECK is omitted, it inherits USING.
+  -- Conservative syntax check: only recognize non-null/equality role guards.
+  -- Merely referencing coi_current_role() (e.g. IS NULL) is not protective.
+  -- This is a structural regression check, not semantic authorization proof.
+  recognized_guards AS (
+    SELECT tablename,cmd,permissive,
+      (coalesce(qual,'') ~* 'coi_current_role\\(\\)\\s*(is not null|=)'
+       AND coalesce(qual,'') !~* 'coi_current_role\\(\\)\\s*(is null|is distinct from|<>|!=)') AS using_role_guard,
+      (coalesce(with_check,qual,'') ~* 'coi_current_role\\(\\)\\s*(is not null|=)'
+       AND coalesce(with_check,qual,'') !~* 'coi_current_role\\(\\)\\s*(is null|is distinct from|<>|!=)') AS check_role_guard
+    FROM expanded_policies
+  ),
   operation_predicates AS (
     SELECT tablename,cmd,permissive,
       CASE
         WHEN cmd IN ('SELECT','DELETE') THEN
-          coalesce(qual,'') LIKE '%coi_current_role()%'
+          using_role_guard
         WHEN cmd='INSERT' THEN
-          coalesce(with_check,qual,'') LIKE '%coi_current_role()%'
+          check_role_guard
         WHEN cmd='UPDATE' THEN
           coalesce(qual,'') LIKE '%coi_current_role()%'
           AND coalesce(with_check,qual,'') LIKE '%coi_current_role()%'
         ELSE false
       END AS role_guard_on_operation
-    FROM expanded_policies
+    FROM recognized_guards
   ),
   policy_pairs AS (
     SELECT tablename,cmd,
