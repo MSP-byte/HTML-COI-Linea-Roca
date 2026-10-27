@@ -53,15 +53,36 @@ CREATE POLICY ${table}_delete_guard ON public.${table} AS RESTRICTIVE FOR DELETE
   await db.exec('GRANT SELECT ON public.profiles TO anon');
   assert.equal((await statuses()).C02_NO_ANON_TABLE_GRANTS,'FAIL','Detect accidental anonymous access');
   await db.exec('REVOKE SELECT ON public.profiles FROM anon');
+  await db.exec('GRANT SELECT(id) ON public.profiles TO anon');
+  assert.equal((await statuses()).C02_NO_ANON_TABLE_GRANTS,'FAIL',
+    'Detect SELECT granted only on a column, not the whole table');
+  await db.exec('REVOKE SELECT(id) ON public.profiles FROM anon');
   await db.exec('ALTER TABLE public.profiles DISABLE ROW LEVEL SECURITY');
   assert.equal((await statuses()).C01_RLS_ON_ALL_TABLES,'FAIL','Detect disabled RLS');
   await db.exec('ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY');
-  await db.exec('DROP POLICY profiles_select_guard ON public.profiles');
-  assert.equal((await statuses()).C07_OC_PROFILE_ROLE_GUARDS,'FAIL','Detect missing restrictive role guard');
+  // Equivalent policy configuration: FOR ALL grants must count as four operations.
+  for(const op of ['select','insert','update','delete']){
+    for(const kind of ['allow','guard']){
+      await db.exec('DROP POLICY profiles_'+op+'_'+kind+' ON public.profiles');
+    }
+  }
+  await db.exec(`
+CREATE POLICY profiles_all_allow ON public.profiles FOR ALL TO authenticated
+  USING (public.coi_current_role() IS NOT NULL)
+  WITH CHECK (public.coi_current_role() IS NOT NULL);
+CREATE POLICY profiles_all_guard ON public.profiles AS RESTRICTIVE FOR ALL TO authenticated
+  USING (public.coi_current_role() IS NOT NULL)
+  WITH CHECK (public.coi_current_role() IS NOT NULL);
+`);
+  assert.equal((await statuses()).C07_OC_PROFILE_ROLE_GUARDS,'PASS',
+    'FOR ALL policy pairs must cover SELECT/INSERT/UPDATE/DELETE');
+  await db.exec('DROP POLICY profiles_all_guard ON public.profiles');
+  assert.equal((await statuses()).C07_OC_PROFILE_ROLE_GUARDS,'FAIL',
+    'Detect missing restrictive role guard even with FOR ALL policies');
   await db.exec('DROP FUNCTION public.coi_secure_helper()');
   await db.exec("CREATE FUNCTION public.coi_secure_helper() RETURNS text LANGUAGE sql SECURITY DEFINER AS 'SELECT ''ok''::text'");
   await db.exec('REVOKE ALL ON FUNCTION public.coi_secure_helper() FROM PUBLIC,anon');
   assert.equal((await statuses()).C05_SECURITY_DEFINER_FIXED_PATH,'FAIL','Detect unpinned privileged search_path');
-  console.log('Security posture: seven checks + four negative controls PASS');
+  console.log('Security posture: seven checks + five negative controls + FOR ALL equivalence PASS');
  }finally{await db.close();}
 })().catch(e=>{console.error('FAIL security posture:',e);process.exitCode=1;});
