@@ -32,7 +32,11 @@ WITH
               has_table_privilege('authenticated',oid,'SELECT') OR
               has_any_column_privilege('anon',oid,'SELECT') OR
               has_any_column_privilege('authenticated',oid,'SELECT'))
-         AND (relkind='m' OR NOT ('security_invoker=true'=ANY(coalesce(reloptions,ARRAY[]::text[])))))::int,
+         AND (relkind='m' OR NOT EXISTS (
+           SELECT 1 FROM unnest(coalesce(reloptions,ARRAY[]::text[])) AS opt(option)
+           WHERE split_part(opt.option,'=',1)='security_invoker'
+             AND lower(split_part(opt.option,'=',2)) IN ('true','on','yes','1')
+         )))::int,
       (SELECT count(*) FROM exposed_views)::int
     UNION ALL
     SELECT 'E03_NO_USER_METADATA_RLS_AUTH',
