@@ -53,6 +53,10 @@ assert.match(clean,/ORDER BY check_id;\s*$/i);
     await db.exec('CREATE VIEW public.legacy_exposed_view AS SELECT id FROM public.secure_data; GRANT SELECT ON public.legacy_exposed_view TO authenticated;');
     assert.equal((await check()).E02_NO_EXPOSED_RLS_BYPASS_VIEWS,'FAIL','Detect exposed owner-rights view');
     await db.exec('DROP VIEW public.legacy_exposed_view;');
+    await db.exec('CREATE VIEW public.column_exposed AS SELECT id FROM public.secure_data; GRANT SELECT(id) ON public.column_exposed TO authenticated;');
+    assert.equal((await check()).E02_NO_EXPOSED_RLS_BYPASS_VIEWS,'FAIL',
+      'Detect exposed owner-rights view with only a column-level SELECT grant');
+    await db.exec('DROP VIEW public.column_exposed;');
 
     await db.exec("CREATE POLICY bad_metadata_role ON public.secure_data FOR SELECT TO authenticated USING (current_setting('request.jwt.claims',true)::jsonb -> 'user_metadata' ? 'role');");
     assert.equal((await check()).E03_NO_USER_METADATA_RLS_AUTH,'FAIL','Detect mutable user metadata in policies');
@@ -68,6 +72,6 @@ assert.match(clean,/ORDER BY check_id;\s*$/i);
 
     x=await check();
     assert.ok(expected.every(k=>x[k]==='PASS'),'Repaired fixture must return PASS: '+JSON.stringify(x));
-    console.log('Security V4 exposure: five checks + five negative controls PASS');
+    console.log('Security V4 exposure: five checks + six negative controls PASS');
   }finally{await db.close();}
 })().catch(e=>{console.error('FAIL exposure regression:',e);process.exitCode=1;});
