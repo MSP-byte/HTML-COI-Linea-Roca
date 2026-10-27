@@ -16,7 +16,7 @@ Se ejecutó exactamente el SQL de `supabase/qa/security_v3_posture_readonly.sql`
 | C06 — Clientes no pueden CREATE en `public` | PASS | PASS | Grants efectivos roles anon/authenticated |
 | C07 — Guardas por perfil para `profiles` y `coi_ordenes` | PASS (8/8) | PASS (8/8) | SELECT/INSERT/UPDATE/DELETE con PERMISSIVE+RESTRICTIVE, incluyendo `FOR ALL` y expresiones efectivas por operación |
 
-**IMPORTANTE:** Un 7/7 de esta tabla **no implica** una certificación del 99%, pentest aprobado ni ausencia de vulnerabilidades. Las políticas RLS por rol se combinaron correctamente mediante condiciones PERMISSIVE (OR) y RESTRICTIVE (AND), comprobadas en `pg_policies`.
+**IMPORTANTE:** La detección de rol de C07 es una **heurística sintáctica conservadora**, no una prueba semántica de expresiones booleanas arbitrarias (por ejemplo, `OR true` debe analizarse aparte mediante SQL/JWT real). Un 7/7 de esta tabla **no implica** una certificación del 99%, pentest aprobado ni ausencia de vulnerabilidades. Las políticas RLS por rol se combinaron correctamente mediante condiciones PERMISSIVE (OR) y RESTRICTIVE (AND), comprobadas en `pg_policies`.
 
 ## Control de regresión en Quality Gate
 
@@ -29,6 +29,9 @@ Se ejecutó exactamente el SQL de `supabase/qa/security_v3_posture_readonly.sql`
 5. Permiso `GRANT SELECT(id)` anónimo sobre una columna, sin permiso de tabla: C02 debe fallar.
 6. Una policy `FOR ALL` con `USING true` y control por rol sólo en `WITH CHECK`: C07 debe fallar para SELECT/DELETE/UPDATE.
 7. Una policy `FOR ALL` con `USING` por rol pero `WITH CHECK true`: C07 debe fallar para UPDATE.
+8. Un predicado `coi_current_role() IS NULL`, aunque menciona el resolver, **no** es una guarda de perfil; C07 debe fallar.
+
+Control positivo adicional: las políticas `TO PUBLIC` abarcan perfiles autenticados y deben contabilizarse.
 
 Control positivo adicional: las políticas `FOR ALL` de tipo PERMISSIVE + RESTRICTIVE deben cubrir las cuatro operaciones en C07; quitar la guarda debe volver a hacer fallar C07.
 
