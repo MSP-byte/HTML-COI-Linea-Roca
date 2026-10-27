@@ -45,8 +45,7 @@ WITH
         WHEN cmd='INSERT' THEN
           check_role_guard
         WHEN cmd='UPDATE' THEN
-          coalesce(qual,'') LIKE '%coi_current_role()%'
-          AND coalesce(with_check,qual,'') LIKE '%coi_current_role()%'
+          using_role_guard AND check_role_guard
         ELSE false
       END AS role_guard_on_operation
     FROM recognized_guards
