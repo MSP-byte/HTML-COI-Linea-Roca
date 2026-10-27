@@ -24,15 +24,27 @@ WITH
       AND p.tablename IN ('profiles','coi_ordenes')
       AND 'authenticated'=ANY(p.roles)
   ),
+  -- PostgreSQL uses USING for SELECT/DELETE; WITH CHECK for INSERT;
+  -- UPDATE needs both. If WITH CHECK is omitted, it inherits USING.
+  operation_predicates AS (
+    SELECT tablename,cmd,permissive,
+      CASE
+        WHEN cmd IN ('SELECT','DELETE') THEN
+          coalesce(qual,'') LIKE '%coi_current_role()%'
+        WHEN cmd='INSERT' THEN
+          coalesce(with_check,qual,'') LIKE '%coi_current_role()%'
+        WHEN cmd='UPDATE' THEN
+          coalesce(qual,'') LIKE '%coi_current_role()%'
+          AND coalesce(with_check,qual,'') LIKE '%coi_current_role()%'
+        ELSE false
+      END AS role_guard_on_operation
+    FROM expanded_policies
+  ),
   policy_pairs AS (
     SELECT tablename,cmd,
-       bool_or(permissive='PERMISSIVE' AND
-         (coalesce(qual,'') LIKE '%coi_current_role()%' OR
-          coalesce(with_check,'') LIKE '%coi_current_role()%')) AS role_allow,
-       bool_or(permissive='RESTRICTIVE' AND
-         (coalesce(qual,'') LIKE '%coi_current_role()%' OR
-          coalesce(with_check,'') LIKE '%coi_current_role()%')) AS role_restrict
-    FROM expanded_policies
+       bool_or(permissive='PERMISSIVE' AND role_guard_on_operation) AS role_allow,
+       bool_or(permissive='RESTRICTIVE' AND role_guard_on_operation) AS role_restrict
+    FROM operation_predicates
     GROUP BY tablename,cmd
   ),
   findings AS (
