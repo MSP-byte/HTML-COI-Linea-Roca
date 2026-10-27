@@ -31,10 +31,10 @@ WITH
   -- This is a structural regression check, not semantic authorization proof.
   recognized_guards AS (
     SELECT tablename,cmd,permissive,
-      (coalesce(qual,'') ~* 'coi_current_role\\(\\)\\s*(is not null|=)'
-       AND coalesce(qual,'') !~* 'coi_current_role\\(\\)\\s*(is null|is distinct from|<>|!=)') AS using_role_guard,
-      (coalesce(with_check,qual,'') ~* 'coi_current_role\\(\\)\\s*(is not null|=)'
-       AND coalesce(with_check,qual,'') !~* 'coi_current_role\\(\\)\\s*(is null|is distinct from|<>|!=)') AS check_role_guard
+      (coalesce(qual,'') ~* 'coi_current_role\(\)\s*(is not null|=)'
+       AND coalesce(qual,'') !~* 'coi_current_role\(\)\s*(is null|is distinct from|<>|!=)') AS using_role_guard,
+      (coalesce(with_check,qual,'') ~* 'coi_current_role\(\)\s*(is not null|=)'
+       AND coalesce(with_check,qual,'') !~* 'coi_current_role\(\)\s*(is null|is distinct from|<>|!=)') AS check_role_guard
     FROM expanded_policies
   ),
   operation_predicates AS (
