@@ -76,6 +76,33 @@ CREATE POLICY profiles_all_guard ON public.profiles AS RESTRICTIVE FOR ALL TO au
 `);
   assert.equal((await statuses()).C07_OC_PROFILE_ROLE_GUARDS,'PASS',
     'FOR ALL policy pairs must cover SELECT/INSERT/UPDATE/DELETE');
+  // An ALL policy WITH CHECK role guard is not a SELECT/DELETE protection
+  // when its USING predicate is unrestricted.
+  await db.exec(`
+ALTER POLICY profiles_all_allow ON public.profiles
+  USING (true) WITH CHECK (public.coi_current_role() IS NOT NULL);
+ALTER POLICY profiles_all_guard ON public.profiles
+  USING (true) WITH CHECK (public.coi_current_role() IS NOT NULL);
+`);
+  assert.equal((await statuses()).C07_OC_PROFILE_ROLE_GUARDS,'FAIL',
+    'WITH CHECK must never substitute a missing USING role guard');
+  // Conversely UPDATE cannot claim full protection if WITH CHECK is open.
+  await db.exec(`
+ALTER POLICY profiles_all_allow ON public.profiles
+  USING (public.coi_current_role() IS NOT NULL) WITH CHECK (true);
+ALTER POLICY profiles_all_guard ON public.profiles
+  USING (public.coi_current_role() IS NOT NULL) WITH CHECK (true);
+`);
+  assert.equal((await statuses()).C07_OC_PROFILE_ROLE_GUARDS,'FAIL',
+    'UPDATE WITH CHECK must also validate the current role');
+  await db.exec(`
+ALTER POLICY profiles_all_allow ON public.profiles
+  USING (public.coi_current_role() IS NOT NULL) WITH CHECK (public.coi_current_role() IS NOT NULL);
+ALTER POLICY profiles_all_guard ON public.profiles
+  USING (public.coi_current_role() IS NOT NULL) WITH CHECK (public.coi_current_role() IS NOT NULL);
+`);
+  assert.equal((await statuses()).C07_OC_PROFILE_ROLE_GUARDS,'PASS',
+    'Role guards restored in both relevant policy expressions');
   await db.exec('DROP POLICY profiles_all_guard ON public.profiles');
   assert.equal((await statuses()).C07_OC_PROFILE_ROLE_GUARDS,'FAIL',
     'Detect missing restrictive role guard even with FOR ALL policies');
@@ -83,6 +110,6 @@ CREATE POLICY profiles_all_guard ON public.profiles AS RESTRICTIVE FOR ALL TO au
   await db.exec("CREATE FUNCTION public.coi_secure_helper() RETURNS text LANGUAGE sql SECURITY DEFINER AS 'SELECT ''ok''::text'");
   await db.exec('REVOKE ALL ON FUNCTION public.coi_secure_helper() FROM PUBLIC,anon');
   assert.equal((await statuses()).C05_SECURITY_DEFINER_FIXED_PATH,'FAIL','Detect unpinned privileged search_path');
-  console.log('Security posture: seven checks + five negative controls + FOR ALL equivalence PASS');
+  console.log('Security posture: seven checks + seven negative controls + FOR ALL equivalence PASS');
  }finally{await db.close();}
 })().catch(e=>{console.error('FAIL security posture:',e);process.exitCode=1;});
