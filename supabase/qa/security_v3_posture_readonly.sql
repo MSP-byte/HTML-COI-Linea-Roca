@@ -12,6 +12,18 @@ WITH
     FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
     WHERE n.nspname='public'
   ),
+  -- A policy FOR ALL applies to all four operations; expand before grouping.
+  expanded_policies AS (
+    SELECT p.tablename, ops.cmd, p.permissive, p.qual, p.with_check
+    FROM pg_policies AS p
+    CROSS JOIN LATERAL unnest(
+      CASE WHEN p.cmd='ALL' THEN ARRAY['SELECT','INSERT','UPDATE','DELETE']::text[]
+           ELSE ARRAY[p.cmd]::text[] END
+    ) AS ops(cmd)
+    WHERE p.schemaname='public'
+      AND p.tablename IN ('profiles','coi_ordenes')
+      AND 'authenticated'=ANY(p.roles)
+  ),
   policy_pairs AS (
     SELECT tablename,cmd,
        bool_or(permissive='PERMISSIVE' AND
@@ -20,10 +32,7 @@ WITH
        bool_or(permissive='RESTRICTIVE' AND
          (coalesce(qual,'') LIKE '%coi_current_role()%' OR
           coalesce(with_check,'') LIKE '%coi_current_role()%')) AS role_restrict
-    FROM pg_policies
-    WHERE schemaname='public'
-      AND tablename IN ('profiles','coi_ordenes')
-      AND 'authenticated'=ANY(roles)
+    FROM expanded_policies
     GROUP BY tablename,cmd
   ),
   findings AS (
@@ -36,7 +45,10 @@ WITH
         has_table_privilege('anon',oid,'SELECT') OR
         has_table_privilege('anon',oid,'INSERT') OR
         has_table_privilege('anon',oid,'UPDATE') OR
-        has_table_privilege('anon',oid,'DELETE'))::int,
+        has_table_privilege('anon',oid,'DELETE') OR
+        has_any_column_privilege('anon',oid,'SELECT') OR
+        has_any_column_privilege('anon',oid,'INSERT') OR
+        has_any_column_privilege('anon',oid,'UPDATE'))::int,
       (SELECT count(*) FROM rels)::int
     UNION ALL
     SELECT 'C03_NO_ANON_COI_RPC_EXECUTE',
