@@ -7,7 +7,10 @@ const path=require('node:path');
 const {PGlite}=require('@electric-sql/pglite');
 const sql=fs.readFileSync(path.join(__dirname,'..','supabase','qa','security_v3_posture_readonly.sql'),'utf8');
 const executable=sql.replace(/--[^\n]*/g,'');
-assert.doesNotMatch(executable,/\b(?:insert\s+into|update\s+\w+|delete\s+from|truncate|alter|create|drop|revoke|grant|execute|call|copy|do)\b/i,
+// Privilege names such as 'INSERT' and 'CREATE' are data string literals,
+// not executable DML/DDL verbs; strip quoted strings before the safety scan.
+const withoutLiterals=executable.replace(/'(?:''|[^'])*'/g,"''");
+assert.doesNotMatch(withoutLiterals,/\b(?:insert\s+into|update\s+\w+|delete\s+from|truncate|alter|create|drop|revoke|grant|execute|call|copy|do)\b/i,
  'The live audit must remain strictly read-only SQL');
 assert.match(executable,/^\s*WITH\b/i);
 assert.match(executable,/ORDER BY check_id;\s*$/i);
