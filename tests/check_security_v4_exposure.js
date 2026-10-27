@@ -45,6 +45,11 @@ assert.match(clean,/ORDER BY check_id;\s*$/i);
     ];
     let x=await check();
     assert.ok(expected.every(k=>x[k]==='PASS'),'Secure fixture should pass: '+JSON.stringify(x));
+    // PostgreSQL permits alternative boolean values for security_invoker.
+    await db.exec('ALTER VIEW public.invoker_view SET (security_invoker=on);');
+    assert.equal((await check()).E02_NO_EXPOSED_RLS_BYPASS_VIEWS,'PASS',
+      'secure view with security_invoker=on must not be flagged');
+    await db.exec('ALTER VIEW public.invoker_view SET (security_invoker=true);');
 
     await db.exec('GRANT EXECUTE ON FUNCTION public.audit_fixture() TO anon;');
     assert.equal((await check()).E01_NO_ANON_PUBLIC_FUNCTION_EXECUTE,'FAIL','Detect anon executable RPC with arbitrary name');
